@@ -126,10 +126,6 @@ export async function execCmdAndParseJson(
   return JSON.parse(stdout);
 }
 
-export const ensure0x = (hexstr: string) =>
-  hexstr.startsWith('0x') ? hexstr : '0x' + hexstr;
-export const strip0x = (hexstr: string) =>
-  hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
 export function includeConditionally(condition: boolean, data: any) {
   return condition ? data : {};
 }

@@ -18,17 +18,7 @@ export function getConstructorArguments(
 ): any {
   const tx = contract.deployTransaction;
   if (tx === undefined) throw new Error('deploy transaction not found');
-  const abi = contract.interface.deploy.inputs;
-  const encodedArguments = `0x${tx.data.replace(bytecode, '')}`;
-  const coerce = (t: any, value: any) => {
-    if (t.startsWith('uint')) {
-      return value.toNumber();
-    }
-    return value;
-  };
-  const decoder = new ethers.utils.AbiCoder(coerce);
-  const decoded = decoder.decode(abi, encodedArguments);
-  return decoded;
+  return tx.data.replace(bytecode, '');
 }
 
 export function getContractVerificationInput(

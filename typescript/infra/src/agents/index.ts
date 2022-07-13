@@ -1,10 +1,11 @@
 import { ChainName } from '@abacus-network/sdk';
+import { utils } from '@abacus-network/utils';
 
 import { AgentConfig, DeployEnvironment } from '../config';
 import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
-import { ensure0x, execCmd, strip0x } from '../utils/utils';
+import { execCmd } from '../utils/utils';
 import { rm, writeFile } from 'fs/promises';
 
 import { keyIdentifier } from './agent';
@@ -113,7 +114,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
     if (role === KEY_ROLE_ENUM.Relayer || role === KEY_ROLE_ENUM.Kathy) {
       chainNames.forEach((name) => {
         envVars.push(
-          `ABC_BASE_SIGNERS_${name.toUpperCase()}_KEY=${strip0x(
+          `ABC_BASE_SIGNERS_${name.toUpperCase()}_KEY=${utils.strip0x(
             gcpKeys[keyId].privateKey,
           )}`,
         );
@@ -123,7 +124,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       const privateKey = gcpKeys[keyId].privateKey;
 
       envVars.push(
-        `ABC_VALIDATOR_VALIDATOR_KEY=${strip0x(privateKey)}`,
+        `ABC_VALIDATOR_VALIDATOR_KEY=${utils.strip0x(privateKey)}`,
         `ABC_VALIDATOR_VALIDATOR_TYPE=hexKey`,
       );
     }
@@ -342,7 +343,7 @@ export async function runKeymasterHelmCommand(
                 name,
               ),
               bank: {
-                signer: ensure0x(bankKey.privateKey),
+                signer: utils.ensure0x(bankKey.privateKey),
                 address: bankKey.address,
               },
               threshold: 200000000000000000,
