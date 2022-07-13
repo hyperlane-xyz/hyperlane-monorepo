@@ -40,6 +40,6 @@ export class AbacusRouterChecker<
   }
 
   ownables(chain: Chain): Ownable[] {
-    return [this.app.getContracts(chain).router as unknown as Ownable];
+    return [this.app.getContracts(chain).router];
   }
 }
