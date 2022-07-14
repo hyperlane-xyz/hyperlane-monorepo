@@ -2,7 +2,6 @@ import {
   GetObjectCommand,
   ListObjectVersionsCommand,
   S3Client,
-  S3ClientConfig,
 } from '@aws-sdk/client-s3';
 import yargs from 'yargs';
 
@@ -57,15 +56,23 @@ function getArgs() {
 
 class S3Wrapper {
   private readonly client: S3Client;
+  readonly region: string;
+  readonly bucket: string;
 
-  constructor(cfg: S3ClientConfig) {
-    this.client = new S3Client({});
+  constructor(bucketUrl: string) {
+    const match = bucketUrl.match(
+      /^https:\/\/(.*)\.s3\.(.*)\.amazonaws.com\/?$/,
+    );
+    if (!match) throw new Error('Could not parse bucket url');
+    this.bucket = match[1];
+    this.region = match[2];
+    this.client = new S3Client({ region: this.region });
   }
 
-  async getS3Obj<T = unknown>(bucket: string, key: string): Promise<T> {
+  async getS3Obj<T = unknown>(key: string): Promise<T> {
     const response = await this.client.send(
       new GetObjectCommand({
-        Bucket: bucket,
+        Bucket: this.bucket,
         Key: key,
       }),
     );
@@ -73,7 +80,7 @@ class S3Wrapper {
       throw new Error('No data received');
     }
     const bodyStream: NodeJS.ReadableStream =
-      response.Body instanceof Blob
+      'stream' in response.Body
         ? response.Body.stream()
         : (response.Body as NodeJS.ReadableStream);
 
@@ -81,10 +88,10 @@ class S3Wrapper {
     return JSON.parse(body);
   }
 
-  async getLastModTime(bucket: string, key: string): Promise<Date> {
+  async getLastModTime(key: string): Promise<Date> {
     const request = await this.client.send(
       new ListObjectVersionsCommand({
-        Bucket: bucket,
+        Bucket: this.bucket,
         MaxKeys: 1,
         KeyMarker: key,
       }),
@@ -100,32 +107,29 @@ class S3Wrapper {
 
 async function main() {
   const {
-    a: validatorAddress,
+    a: _validatorAddress,
     p: prospectiveBucket,
     c: controlBucket,
   } = await getArgs();
 
-  const client = new S3Wrapper({});
+  const cClient = new S3Wrapper(controlBucket);
+  const pClient = new S3Wrapper(prospectiveBucket);
 
   const [cLatestCheckpoint, pLastCheckpoint] = await Promise.all([
-    client
-      .getS3Obj<number>(controlBucket, 'checkpoint_latest_index.json')
-      .catch((err) => {
-        console.error(
-          "Failed to get control validator's latest checkpoint.",
-          err,
-        );
-        process.exit(1);
-      }),
-    client
-      .getS3Obj<number>(prospectiveBucket, 'checkpoint_latest_index.json')
-      .catch((err) => {
-        console.error(
-          "Failed to get prospective validator's latest checkpoint.",
-          err,
-        );
-        process.exit(1);
-      }),
+    cClient.getS3Obj<number>('checkpoint_latest_index.json').catch((err) => {
+      console.error(
+        "Failed to get control validator's latest checkpoint.",
+        err,
+      );
+      process.exit(1);
+    }),
+    pClient.getS3Obj<number>('checkpoint_latest_index.json').catch((err) => {
+      console.error(
+        "Failed to get prospective validator's latest checkpoint.",
+        err,
+      );
+      process.exit(1);
+    }),
   ]);
 
   console.assert(
@@ -159,7 +163,7 @@ async function main() {
 
     let c: Checkpoint | null;
     try {
-      const t = await client.getS3Obj(controlBucket, key);
+      const t = await cClient.getS3Obj(key);
       if (isCheckpoint(t)) {
         if (t.checkpoint.index != i) {
           console.error(`${i}: Control index is invalid`, t);
@@ -176,7 +180,7 @@ async function main() {
 
     let p: Checkpoint;
     try {
-      const t = await client.getS3Obj(prospectiveBucket, key);
+      const t = await pClient.getS3Obj(key);
       if (isCheckpoint(t)) {
         p = t;
       } else {
@@ -217,8 +221,8 @@ async function main() {
 
     try {
       const [cLastMod, pLastMod] = await Promise.all([
-        client.getLastModTime(controlBucket, key),
-        client.getLastModTime(prospectiveBucket, key),
+        cClient.getLastModTime(key),
+        pClient.getLastModTime(key),
       ]);
       const diffMs = cLastMod.valueOf() - pLastMod.valueOf();
       if (Math.abs(diffMs) > 10000) {
