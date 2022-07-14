@@ -92,6 +92,7 @@ export { AbacusRouterDeployer } from './deploy/router/AbacusRouterDeployer';
 export { AbacusRouterChecker } from './deploy/router/AbacusRouterChecker';
 export { RouterConfig } from './deploy/router/types';
 export {
+  getMultiProviderFromConfigAndProvider,
   getMultiProviderFromConfigAndSigner,
   getChainToOwnerMap,
 } from './deploy/utils';

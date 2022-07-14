@@ -1,4 +1,4 @@
-import { Wallet } from 'ethers';
+import { providers } from 'ethers';
 
 import {
   AbacusCore,
@@ -6,7 +6,7 @@ import {
   ChainName,
   buildContracts,
   getChainToOwnerMap,
-  getMultiProviderFromConfigAndSigner,
+  getMultiProviderFromConfigAndProvider,
 } from '@abacus-network/sdk';
 
 import { HelloWorldApp } from '../app/app';
@@ -17,14 +17,17 @@ import { prodConfigs } from '../deploy/config';
 // COPY FROM OUTPUT OF DEPLOYMENT SCRIPT OR IMPORT FROM ELSEWHERE
 const deploymentAddresses = {};
 
+// SET CONTRACT OWNER ADDRESS HERE
+const ownerAddress = '0x123...';
+
 async function check() {
-  console.info('Getting signer');
-  const signer = new Wallet('SET KEY HERE OR CREATE YOUR OWN SIGNER');
+  console.info('Getting provider');
+  const provider = new providers.JsonRpcProvider('URL_HERE');
 
   console.info('Preparing utilities');
-  const multiProvider = getMultiProviderFromConfigAndSigner(
+  const multiProvider = getMultiProviderFromConfigAndProvider(
     prodConfigs,
-    signer,
+    provider,
   );
   const contractsMap = buildContracts(
     deploymentAddresses,
@@ -34,7 +37,7 @@ async function check() {
 
   const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
   const config = core.extendWithConnectionClientConfig(
-    getChainToOwnerMap(prodConfigs, signer.address),
+    getChainToOwnerMap(prodConfigs, ownerAddress),
   );
 
   console.info('Starting check');

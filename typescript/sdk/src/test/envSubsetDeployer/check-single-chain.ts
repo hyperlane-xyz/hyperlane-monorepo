@@ -2,7 +2,7 @@ import { buildContracts } from '../../contracts';
 import { AbacusCore } from '../../core/AbacusCore';
 import {
   getChainToOwnerMap,
-  getMultiProviderFromConfigAndSigner,
+  getMultiProviderFromConfigAndProvider,
 } from '../../deploy/utils';
 import { RouterContracts } from '../../router';
 import { ChainMap, ChainName } from '../../types';
@@ -13,22 +13,24 @@ import {
   alfajoresChainConfig,
   envSubsetFactories,
 } from './app';
-import { getAlfajoresSigner } from './utils';
+import { getAlfajoresProvider } from './utils';
 
 // Copied from output of deploy-single-chain.ts script
 const deploymentAddresses = {
   alfajores: {
-    router: '0xC02B8798a67eFA421B24A7C87Af870A17579290d',
+    router: '0x41C5cF9f3745F90662f202CDc61Afd2f2941e890',
   },
 };
 
+const ownerAddress = '0x35b74Ed5038bf0488Ff33bD9819b9D12D10A7560';
+
 async function check() {
-  const signer = getAlfajoresSigner();
+  const provider = getAlfajoresProvider();
 
   console.info('Preparing utilities');
-  const multiProvider = getMultiProviderFromConfigAndSigner(
+  const multiProvider = getMultiProviderFromConfigAndProvider(
     alfajoresChainConfig,
-    signer,
+    provider,
   );
   const contractsMap = buildContracts(
     deploymentAddresses,
@@ -37,7 +39,7 @@ async function check() {
   const app = new EnvSubsetApp(contractsMap, multiProvider);
   const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
   const config = core.extendWithConnectionClientConfig(
-    getChainToOwnerMap(alfajoresChainConfig, signer.address),
+    getChainToOwnerMap(alfajoresChainConfig, ownerAddress),
   );
   const envSubsetChecker = new EnvSubsetChecker(multiProvider, app, config);
 
