@@ -40,7 +40,7 @@ mod interchain_gas;
 
 /// Generated contract bindings.
 #[cfg(not(doctest))]
-mod contracts;
+pub mod contracts;
 
 /// Retrying Provider
 mod retrying;
