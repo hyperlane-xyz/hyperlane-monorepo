@@ -60,6 +60,7 @@ where
     domain: u32,
     #[allow(unused)]
     chain_name: String,
+    address: abacus_core::Address,
     #[allow(unused)]
     provider: Arc<M>,
     inbox_address: Address,
@@ -79,6 +80,7 @@ where
             )),
             domain: locator.domain,
             chain_name: locator.chain_name.to_owned(),
+            address: locator.address.clone(),
             provider,
             inbox_address,
         }
@@ -120,6 +122,10 @@ where
         let gassed = tx.gas(gas);
         let receipt = report_tx(gassed).await?;
         Ok(receipt.into())
+    }
+
+    fn contract_address(&self) -> Option<abacus_core::Address> {
+        Some(self.address.clone())
     }
 }
 
