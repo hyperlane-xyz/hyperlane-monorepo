@@ -13,8 +13,8 @@ use abacus_core::{
     AbacusCommon, AbacusContract, Inbox, InboxValidatorManager, MultisigSignedCheckpoint, Signers,
 };
 
-use ethers_contract::BaseContract;
 use abacus_ethereum::contracts::inbox_validator_manager::INBOXVALIDATORMANAGER_ABI;
+use ethers_contract::BaseContract;
 
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
