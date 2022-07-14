@@ -5,6 +5,7 @@ use abacus_core::AbacusCommon;
 use abacus_core::{db::AbacusDB, Signers};
 use ethers::prelude::{Address, Bytes};
 use ethers::types::U256;
+use ethers_contract::BaseContract;
 use gelato::chains::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
@@ -33,6 +34,9 @@ pub(crate) struct GelatoSubmitter {
     /// Address of the inbox validator manager contract that will be specified
     /// to Gelato in ForwardRequest submissions to process new messages.
     inbox_validator_manager_address: ethers::types::Address,
+    /// The BaseContract representing the InboxValidatorManager ABI, used to encode process()
+    /// calldata into Gelato ForwardRequest arg.
+    inbox_validator_manager_base_contract: BaseContract,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
     /// Domain of the outbox.
@@ -53,6 +57,7 @@ impl GelatoSubmitter {
         new_messages_receive_channel: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         inbox_validator_manager_address: abacus_core::Address,
+        inbox_validator_manager_base_contract: ethers_contract::BaseContract,
         db: AbacusDB,
         outbox_domain: u32,
         signer: Signers,
@@ -63,6 +68,7 @@ impl GelatoSubmitter {
             new_messages_receive_channel,
             inbox_contracts,
             inbox_validator_manager_address: inbox_validator_manager_address.into(),
+            inbox_validator_manager_base_contract,
             db,
             outbox_domain,
             signer,
