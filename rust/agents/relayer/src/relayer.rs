@@ -14,7 +14,7 @@ use abacus_base::{
     InboxContracts, MultisigCheckpointSyncer,
 };
 use abacus_core::{
-    AbacusCommon, AbacusContract, InboxValidatorManager, MultisigSignedCheckpoint, Signers, Inbox,
+    AbacusCommon, AbacusContract, Inbox, InboxValidatorManager, MultisigSignedCheckpoint, Signers,
 };
 
 use abacus_ethereum::contracts::inbox_validator_manager::INBOXVALIDATORMANAGER_ABI;

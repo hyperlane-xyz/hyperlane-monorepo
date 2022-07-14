@@ -49,7 +49,9 @@ impl Inbox for MockInboxContract {
         self._message_status(leaf)
     }
 
-    fn contract_address(&self) -> Option<abacus_core::Address> { None }
+    fn contract_address(&self) -> Option<abacus_core::Address> {
+        None
+    }
 }
 
 impl AbacusContract for MockInboxContract {
