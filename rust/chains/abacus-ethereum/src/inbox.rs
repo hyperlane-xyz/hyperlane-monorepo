@@ -123,6 +123,8 @@ where
         let status = self.contract.messages(leaf.into()).call().await?;
         Ok(MessageStatus::try_from(status).expect("Bad status from solidity"))
     }
+
+    fn contract_address(&self) -> std::option::Option<abacus_core::Address> { todo!() }
 }
 
 pub struct EthereumInboxAbi;
