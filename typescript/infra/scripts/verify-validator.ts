@@ -35,7 +35,7 @@ function isCheckpoint(obj: unknown): obj is Checkpoint {
 }
 
 function isValidHashStr(s: string): boolean {
-  return !!s.match(/^0x[0-9a-f]{64}$/im);
+  return !!s.match(/^0x[0-9a-f]{1,64}$/im);
 }
 
 function getArgs() {
@@ -92,8 +92,7 @@ class S3Wrapper {
     const request = await this.client.send(
       new ListObjectVersionsCommand({
         Bucket: this.bucket,
-        MaxKeys: 1,
-        KeyMarker: key,
+        Prefix: key,
       }),
     );
 
@@ -142,8 +141,8 @@ async function main() {
   );
 
   console.log(`Latest Index`);
-  console.log(`C: ${cLatestCheckpoint}`);
-  console.log(`P: ${pLastCheckpoint}`);
+  console.log(`control: ${cLatestCheckpoint}`);
+  console.log(`prospective: ${pLastCheckpoint}\n`);
 
   let extraCheckpoints = [];
   const missingCheckpoints = [];
@@ -159,19 +158,19 @@ async function main() {
       break;
     }
 
-    const key = `checkpoint_{${i}}.json`;
+    const key = `checkpoint_${i}.json`;
 
     let c: Checkpoint | null;
     try {
       const t = await cClient.getS3Obj(key);
       if (isCheckpoint(t)) {
         if (t.checkpoint.index != i) {
-          console.error(`${i}: Control index is invalid`, t);
+          console.log(`${i}: Control index is invalid`, t);
           process.exit(1);
         }
         c = t;
       } else {
-        console.error(`${i}: Invalid control checkpoint`, t);
+        console.log(`${i}: Invalid control checkpoint`, t);
         process.exit(1);
       }
     } catch (err) {
@@ -184,7 +183,7 @@ async function main() {
       if (isCheckpoint(t)) {
         p = t;
       } else {
-        console.warn(`${i}: Invalid prospective checkpoint`, t);
+        console.log(`${i}: Invalid prospective checkpoint`, t);
         invalidCheckpoints.push(i);
         continue;
       }
@@ -199,7 +198,7 @@ async function main() {
     }
 
     console.assert(
-      p.checkpoint.index != i,
+      p.checkpoint.index == i,
       `${i}: checkpoint indexes do not match`,
     );
 
@@ -230,8 +229,8 @@ async function main() {
       }
       modTimeDeltasMs.push(diffMs);
     } catch (err) {
-      // this is probably a connection error since we already know they should exist
-      console.error(`${i}: Error validating last modified times`, err);
+      // this is probably a permission error since we already know they should exist
+      // console.error(`${i}: Error validating last modified times`, err);
     }
 
     fullyCorrectCheckpoints.push(i);
@@ -239,19 +238,19 @@ async function main() {
 
   if (fullyCorrectCheckpoints.length)
     console.log(
-      `Fully correct checkpoints ${fullyCorrectCheckpoints.length}: ${fullyCorrectCheckpoints}`,
+      `Fully correct checkpoints (${fullyCorrectCheckpoints.length}): ${fullyCorrectCheckpoints}\n`,
     );
   if (extraCheckpoints.length)
     console.log(
-      `Extra checkpoints ${extraCheckpoints.length}: ${extraCheckpoints}`,
+      `Extra checkpoints (${extraCheckpoints.length}): ${extraCheckpoints}\n`,
     );
   if (missingCheckpoints.length)
     console.log(
-      `Missing checkpoints ${missingCheckpoints.length}: ${missingCheckpoints}`,
+      `Missing checkpoints (${missingCheckpoints.length}): ${missingCheckpoints}\n`,
     );
   if (invalidCheckpoints.length)
     console.log(
-      `Invalid checkpoints ${invalidCheckpoints.length}: ${invalidCheckpoints}`,
+      `Invalid checkpoints (${invalidCheckpoints.length}): ${invalidCheckpoints}\n`,
     );
 
   console.log(`Time deltas`);
