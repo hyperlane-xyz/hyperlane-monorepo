@@ -3229,11 +3229,13 @@ version = "0.1.0"
 dependencies = [
  "abacus-base",
  "abacus-core",
+ "abacus-ethereum",
  "abacus-test",
  "async-trait",
  "color-eyre",
  "config",
  "ethers",
+ "ethers-contract",
  "eyre",
  "futures-util",
  "gelato",
