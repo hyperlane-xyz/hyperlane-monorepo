@@ -1,4 +1,4 @@
-import { ethers } from 'hardhat';
+import { Wallet } from 'ethers';
 
 import {
   AbacusCore,
@@ -11,29 +11,33 @@ import {
 
 import { HelloWorldApp } from '../app/app';
 import { HelloWorldContracts, helloWorldFactories } from '../app/contracts';
-import testEnvironmentAddresses from '../app/environments/test.json';
 import { HelloWorldChecker } from '../deploy/check';
-import { testConfigs } from '../deploy/config';
+import { prodConfigs } from '../deploy/config';
+
+// COPY FROM OUTPUT OF DEPLOYMENT SCRIPT OR IMPORT FROM ELSEWHERE
+const deploymentAddresses = {};
 
 async function check() {
-  const [signer] = await ethers.getSigners();
+  console.info('Getting signer');
+  const signer = new Wallet('SET KEY HERE OR CREATE YOUR OWN SIGNER');
+
+  console.info('Preparing utilities');
   const multiProvider = getMultiProviderFromConfigAndSigner(
-    testConfigs,
+    prodConfigs,
     signer,
   );
-
   const contractsMap = buildContracts(
-    testEnvironmentAddresses,
+    deploymentAddresses,
     helloWorldFactories,
   ) as ChainMap<ChainName, HelloWorldContracts>;
-
   const app = new HelloWorldApp(contractsMap, multiProvider);
 
-  const core = AbacusCore.fromEnvironment('test', multiProvider);
+  const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
   const config = core.extendWithConnectionClientConfig(
-    getChainToOwnerMap(testConfigs, signer.address),
+    getChainToOwnerMap(prodConfigs, signer.address),
   );
 
+  console.info('Starting check');
   const helloWorldChecker = new HelloWorldChecker(multiProvider, app, config);
   await helloWorldChecker.check();
   helloWorldChecker.expectEmpty();

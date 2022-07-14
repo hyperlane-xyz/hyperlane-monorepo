@@ -1,31 +1,28 @@
-import { Wallet } from 'ethers';
-
+import { serializeContracts } from '../../contracts';
+import { AbacusCore } from '../../core/AbacusCore';
 import {
-  AbacusCore,
   getChainToOwnerMap,
   getMultiProviderFromConfigAndSigner,
-  serializeContracts,
-} from '@abacus-network/sdk';
+} from '../../deploy/utils';
 
-import { prodConfigs } from '../deploy/config';
-import { HelloWorldDeployer } from '../deploy/deploy';
+import { EnvSubsetDeployer, alfajoresChainConfig } from './app';
+import { getAlfajoresSigner } from './utils';
 
 async function main() {
-  console.info('Getting signer');
-  const signer = new Wallet('SET KEY HERE OR CREATE YOUR OWN SIGNER');
+  const signer = getAlfajoresSigner();
 
   console.info('Preparing utilities');
   const multiProvider = getMultiProviderFromConfigAndSigner(
-    prodConfigs,
+    alfajoresChainConfig,
     signer,
   );
-
   const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
   const config = core.extendWithConnectionClientConfig(
-    getChainToOwnerMap(prodConfigs, signer.address),
+    getChainToOwnerMap(alfajoresChainConfig, signer.address),
   );
 
-  const deployer = new HelloWorldDeployer(multiProvider, config, core);
+  console.info('Starting deployment');
+  const deployer = new EnvSubsetDeployer(multiProvider, config, core);
   const chainToContracts = await deployer.deploy();
   const addresses = serializeContracts(chainToContracts);
   console.info('===Contract Addresses===');

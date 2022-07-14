@@ -4,6 +4,7 @@ import { ethers } from 'hardhat';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { RouterConfig } from '../../deploy/router/types';
+import { EnvironmentConfig } from '../../deploy/types';
 import {
   getChainToOwnerMap,
   getMultiProviderFromConfigAndSigner,
@@ -21,7 +22,8 @@ import {
   subsetTestConfigs,
 } from './app';
 
-describe('deploy app for full env', async () => {
+// Tests deploying the basic EnvSubsetApp to a local hardhat-based test env
+describe('deploy app for full test env', async () => {
   let multiProvider: MultiProvider<TestChainNames>;
   let config: ChainMap<TestChainNames, RouterConfig>;
   let deployer: EnvSubsetDeployer<TestChainNames>;
@@ -29,19 +31,10 @@ describe('deploy app for full env', async () => {
   let app: EnvSubsetApp<TestChainNames>;
 
   before(async () => {
-    const [signer] = await ethers.getSigners();
-    multiProvider = getMultiProviderFromConfigAndSigner(
-      fullEnvTestConfigs,
-      signer,
-    );
-
-    const coreDeployer = new TestCoreDeployer(multiProvider);
-    const coreContractsMaps = await coreDeployer.deploy();
-    const core = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = core.extendWithConnectionClientConfig(
-      getChainToOwnerMap(fullEnvTestConfigs, signer.address),
-    );
-    deployer = new EnvSubsetDeployer(multiProvider, config, core);
+    const testEnv = await initTestEnv(fullEnvTestConfigs);
+    multiProvider = testEnv.multiProvider;
+    config = testEnv.config;
+    deployer = testEnv.deployer;
   });
 
   it('deploys', async () => {
@@ -59,9 +52,8 @@ describe('deploy app for full env', async () => {
   });
 });
 
-// TODO DRY with above before()
-// TODO only
-describe.only('deploy app to env subset', async () => {
+// Tests same as above but only a subset of the full test env
+describe('deploy app to test env subset', async () => {
   let multiProvider: MultiProvider<SubsetChains>;
   let config: ChainMap<SubsetChains, RouterConfig>;
   let deployer: EnvSubsetDeployer<SubsetChains>;
@@ -69,19 +61,10 @@ describe.only('deploy app to env subset', async () => {
   let app: EnvSubsetApp<SubsetChains>;
 
   before(async () => {
-    const [signer] = await ethers.getSigners();
-    multiProvider = getMultiProviderFromConfigAndSigner(
-      subsetTestConfigs,
-      signer,
-    );
-
-    const coreDeployer = new TestCoreDeployer(multiProvider);
-    const coreContractsMaps = await coreDeployer.deploy();
-    const core = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = core.extendWithConnectionClientConfig(
-      getChainToOwnerMap(subsetTestConfigs, signer.address),
-    );
-    deployer = new EnvSubsetDeployer(multiProvider, config, core);
+    const testEnv = await initTestEnv(subsetTestConfigs);
+    multiProvider = testEnv.multiProvider;
+    config = testEnv.config;
+    deployer = testEnv.deployer;
   });
 
   it('deploys', async () => {
@@ -98,3 +81,22 @@ describe.only('deploy app to env subset', async () => {
     checker.expectEmpty();
   });
 });
+
+async function initTestEnv<Chain extends TestChainNames>(
+  environmentConfig: EnvironmentConfig<Chain>,
+) {
+  const [signer] = await ethers.getSigners();
+  const multiProvider = getMultiProviderFromConfigAndSigner(
+    environmentConfig,
+    signer,
+  );
+
+  const coreDeployer = new TestCoreDeployer(multiProvider);
+  const coreContractsMaps = await coreDeployer.deploy();
+  const core = new TestCoreApp(coreContractsMaps, multiProvider);
+  const config = core.extendWithConnectionClientConfig(
+    getChainToOwnerMap(fullEnvTestConfigs, signer.address),
+  );
+  const deployer = new EnvSubsetDeployer(multiProvider, config, core);
+  return { multiProvider, config, deployer };
+}

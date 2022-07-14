@@ -26,11 +26,9 @@ export const subsetTestConfigs = {
 
 export type SubsetChains = keyof typeof subsetTestConfigs;
 
-export const singleChainConfig = {
+export const alfajoresChainConfig = {
   alfajores: chainConnectionConfigs.alfajores,
 };
-
-export type SingleChain = keyof typeof subsetTestConfigs;
 
 export class EnvSubsetApp<
   Chain extends ChainName = ChainName,
@@ -108,7 +106,7 @@ export class EnvSubsetDeployer<Chain extends ChainName> extends AbacusDeployer<
   ): Promise<ChainMap<Chain, RouterContracts>> {
     const contractsMap = await super.deploy(partialDeployment);
     await this.initRouter(contractsMap);
-    await this.enrollRemoteRouters(contractsMap);
+    // await this.enrollRemoteRouters(contractsMap);
     return contractsMap;
   }
 

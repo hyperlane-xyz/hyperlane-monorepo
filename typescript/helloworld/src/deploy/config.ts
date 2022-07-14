@@ -7,3 +7,8 @@ export const testConfigs = {
   test2: chainConnectionConfigs.test2,
   test3: chainConnectionConfigs.test3,
 };
+
+// SET DESIRED NETWORKS HERE
+export const prodConfigs = {
+  alfajores: chainConnectionConfigs.alfajores,
+};

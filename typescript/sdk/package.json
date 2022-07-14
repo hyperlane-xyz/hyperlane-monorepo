@@ -47,8 +47,7 @@
     "prettier": "prettier --write ./src",
     "test": "yarn test:unit && yarn test:hardhat",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts'",
-    "test:hardhat": "hardhat test ./src/**/*.hardhat-test.ts",
-    "test:hardhat2": "hardhat test ./src/test/**/*.hardhat-test.ts"
+    "test:hardhat": "hardhat test ./src/**/*.hardhat-test.ts"
   },
   "types": "dist/index.d.ts"
 }
