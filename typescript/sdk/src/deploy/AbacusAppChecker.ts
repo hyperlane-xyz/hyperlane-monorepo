@@ -1,5 +1,4 @@
-import { Contract, ContractTransaction } from 'ethers';
-
+import { Ownable } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 import type { types } from '@abacus-network/utils';
 
@@ -9,21 +8,7 @@ import { BeaconProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
 
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
-import { CheckerViolation } from './types';
-
-export interface Ownable extends Contract {
-  owner(): Promise<types.Address>;
-  transferOwnership(...args: any[]): Promise<ContractTransaction>;
-}
-
-export interface OwnableViolation extends CheckerViolation {
-  type: 'Ownable';
-  data: {
-    contract: Contract;
-  };
-  actual: string;
-  expected: string;
-}
+import { CheckerViolation, OwnerViolation, ViolationType } from './types';
 
 export abstract class AbacusAppChecker<
   Chain extends ChainName,
@@ -84,9 +69,9 @@ export abstract class AbacusAppChecker<
       ownables.map(async (contract) => {
         const actual = await contract.owner();
         if (actual.toLowerCase() != owner.toLowerCase()) {
-          const violation: OwnableViolation = {
+          const violation: OwnerViolation = {
             chain,
-            type: 'Ownable',
+            type: ViolationType.Owner,
             actual,
             expected: owner,
             data: {
