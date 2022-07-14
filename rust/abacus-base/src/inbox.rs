@@ -1,8 +1,8 @@
 use abacus_core::{
     db::AbacusDB, AbacusCommon, AbacusContract, ChainCommunicationError, Inbox, MessageStatus,
-    TxOutcome,
+    TxOutcome, Address,
 };
-use abacus_test::mocks::inbox::MockInboxContract;
+use abacus_test::mocks::inbox::{MockInboxContract};
 use async_trait::async_trait;
 use ethers::core::types::H256;
 use eyre::Result;
@@ -49,6 +49,8 @@ impl Inbox for CachingInbox {
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
         self.inbox.message_status(leaf).await
     }
+
+    fn contract_address(&self) -> Option<abacus_core::Address> { self.inbox.contract_address() }
 }
 
 impl AbacusContract for CachingInbox {
@@ -156,6 +158,14 @@ impl Inbox for InboxVariants {
             InboxVariants::Ethereum(inbox) => inbox.message_status(leaf).await,
             InboxVariants::Mock(mock_inbox) => mock_inbox.message_status(leaf).await,
             InboxVariants::Other(inbox) => inbox.message_status(leaf).await,
+        }
+    }
+
+    fn contract_address(&self) -> Option<Address> {
+        match self {
+            InboxVariants::Ethereum(inbox) => inbox.contract_address(),
+            InboxVariants::Mock(mock_inbox) => mock_inbox.contract_address(),
+            InboxVariants::Other(_) => None,
         }
     }
 }
