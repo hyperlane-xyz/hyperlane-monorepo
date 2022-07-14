@@ -1,6 +1,6 @@
 import {
   GetObjectCommand,
-  ListObjectVersionsCommand,
+  ListObjectsCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import yargs from 'yargs';
@@ -90,16 +90,16 @@ class S3Wrapper {
 
   async getLastModTime(key: string): Promise<Date> {
     const request = await this.client.send(
-      new ListObjectVersionsCommand({
+      new ListObjectsCommand({
         Bucket: this.bucket,
         Prefix: key,
       }),
     );
 
-    const latestIdx = request.Versions!.findIndex(
-      (v) => v.IsLatest && v.Key == key,
+    const latestIdx = request.Contents!.findIndex(
+      (v) => v.LastModified && v.Key == key,
     );
-    const latest = request.Versions![latestIdx]!;
+    const latest = request.Contents![latestIdx]!;
     return latest.LastModified!;
   }
 }
@@ -147,7 +147,7 @@ async function main() {
   let extraCheckpoints = [];
   const missingCheckpoints = [];
   let invalidCheckpoints = [];
-  const modTimeDeltasMs = [];
+  const modTimeDeltasS = [];
   const fullyCorrectCheckpoints = [];
   let missingInARow = 0;
   for (let i = Math.max(cLatestCheckpoint, pLastCheckpoint); i >= 0; --i) {
@@ -223,14 +223,14 @@ async function main() {
         cClient.getLastModTime(key),
         pClient.getLastModTime(key),
       ]);
-      const diffMs = cLastMod.valueOf() - pLastMod.valueOf();
-      if (Math.abs(diffMs) > 10000) {
-        console.log(`${i}: Modification times differ by ${diffMs / 1000}s`);
+      const diffS = (pLastMod.valueOf() - cLastMod.valueOf()) / 1000;
+      if (Math.abs(diffS) > 10) {
+        console.log(`${i}: Modification times differ by ${diffS}s`);
       }
-      modTimeDeltasMs.push(diffMs);
+      modTimeDeltasS.push(diffS);
     } catch (err) {
       // this is probably a permission error since we already know they should exist
-      // console.error(`${i}: Error validating last modified times`, err);
+      console.error(`${i}: Error validating last modified times`, err);
     }
 
     fullyCorrectCheckpoints.push(i);
@@ -253,17 +253,20 @@ async function main() {
       `Invalid checkpoints (${invalidCheckpoints.length}): ${invalidCheckpoints}\n`,
     );
 
-  if (modTimeDeltasMs.length) {
-    console.log(`Time deltas`);
-    console.log(`Median: ${median(modTimeDeltasMs) / 1000}s`);
-    console.log(`Mean:   ${mean(modTimeDeltasMs) / 1000}s`);
-    console.log(`Stdev:  ${stdDev(modTimeDeltasMs) / 1000}s`);
+  if (modTimeDeltasS.length) {
+    console.log(modTimeDeltasS);
+    console.log(
+      `Time deltas (∆< 0 -> prospective came earlier than the control)`,
+    );
+    console.log(`Median: ${median(modTimeDeltasS)}s`);
+    console.log(`Mean:   ${mean(modTimeDeltasS)}s`);
+    console.log(`Stdev:  ${stdDev(modTimeDeltasS)}s`);
   }
 }
 
 function median(a: number[]): number {
   a = [...a]; // clone
-  a.sort();
+  a.sort((a, b) => a - b);
   if (a.length <= 0) {
     return 0;
   } else if (a.length % 2 == 0) {
@@ -294,4 +297,4 @@ function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
   });
 }
 
-main().then(console.log).catch(console.error);
+main().catch(console.error);
