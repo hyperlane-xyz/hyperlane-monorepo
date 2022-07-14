@@ -37,6 +37,8 @@ pub(crate) struct GelatoSubmitter {
     /// The BaseContract representing the InboxValidatorManager ABI, used to encode process()
     /// calldata into Gelato ForwardRequest arg.
     inbox_validator_manager_base_contract: BaseContract,
+    /// The address of the inbox on the destination chain.
+    inbox_address: Address,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
     /// Domain of the outbox.
@@ -58,6 +60,7 @@ impl GelatoSubmitter {
         inbox_contracts: InboxContracts,
         inbox_validator_manager_address: abacus_core::Address,
         inbox_validator_manager_base_contract: ethers_contract::BaseContract,
+        inbox_address: abacus_core::Address,
         db: AbacusDB,
         outbox_domain: u32,
         signer: Signers,
@@ -69,6 +72,7 @@ impl GelatoSubmitter {
             inbox_contracts,
             inbox_validator_manager_address: inbox_validator_manager_address.into(),
             inbox_validator_manager_base_contract,
+            inbox_address: inbox_address.into(),
             db,
             outbox_domain,
             signer,
