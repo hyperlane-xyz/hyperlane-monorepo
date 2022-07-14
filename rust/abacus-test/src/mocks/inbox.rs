@@ -48,6 +48,8 @@ impl Inbox for MockInboxContract {
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
         self._message_status(leaf)
     }
+
+    fn contract_address(&self) -> Option<abacus_core::Address> { None }
 }
 
 impl AbacusContract for MockInboxContract {
