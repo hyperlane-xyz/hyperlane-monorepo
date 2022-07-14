@@ -124,8 +124,8 @@ where
         Ok(MessageStatus::try_from(status).expect("Bad status from solidity"))
     }
 
-    fn contract_address(&self) -> std::option::Option<abacus_core::Address> {
-        todo!()
+    fn contract_address(&self) -> Option<abacus_core::Address> {
+        Some(self.contract.address().into())
     }
 }
 
