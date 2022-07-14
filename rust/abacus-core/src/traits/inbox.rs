@@ -5,6 +5,7 @@ use ethers::core::types::H256;
 use eyre::Result;
 
 use crate::{
+    Address,
     traits::{AbacusCommon, ChainCommunicationError},
     Address, MessageStatus,
 };

@@ -2,7 +2,7 @@ use abacus_core::{
     db::AbacusDB, AbacusCommon, AbacusContract, Address, ChainCommunicationError, Inbox,
     MessageStatus, TxOutcome,
 };
-use abacus_test::mocks::inbox::MockInboxContract;
+use abacus_test::mocks::inbox::{MockInboxContract};
 use async_trait::async_trait;
 use ethers::core::types::H256;
 use eyre::Result;
