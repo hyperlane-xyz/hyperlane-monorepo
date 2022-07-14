@@ -118,7 +118,7 @@ export class AbacusCoreChecker<
         expected: validatorToEnroll,
         data: {
           type: ValidatorViolationType.EnrollValidator,
-          validatorManagerAddress: validatorManager.address,
+          validatorManager,
         },
       };
       this.addViolation(violation);
@@ -133,7 +133,7 @@ export class AbacusCoreChecker<
         expected: undefined,
         data: {
           type: ValidatorViolationType.UnenrollValidator,
-          validatorManagerAddress: validatorManager.address,
+          validatorManager,
         },
       };
       this.addViolation(violation);
@@ -152,7 +152,7 @@ export class AbacusCoreChecker<
         expected: expectedThreshold,
         data: {
           type: ValidatorViolationType.Threshold,
-          validatorManagerAddress: validatorManager.address,
+          validatorManager,
         },
       };
       this.addViolation(violation);
