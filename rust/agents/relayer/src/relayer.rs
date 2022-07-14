@@ -14,7 +14,7 @@ use abacus_base::{
     InboxContracts, MultisigCheckpointSyncer,
 };
 use abacus_core::{
-    AbacusCommon, AbacusContract, InboxValidatorManager, MultisigSignedCheckpoint, Signers,
+    AbacusCommon, AbacusContract, InboxValidatorManager, MultisigSignedCheckpoint, Signers, Inbox,
 };
 
 use abacus_ethereum::contracts::inbox_validator_manager::INBOXVALIDATORMANAGER_ABI;
@@ -139,6 +139,7 @@ impl Relayer {
                         .contract_address()
                         .unwrap(),
                     BaseContract::from(INBOXVALIDATORMANAGER_ABI.clone()),
+                    inbox_contracts.inbox.contract_address().unwrap(),
                     self.outbox().db(),
                     self.outbox().local_domain(),
                     signer.unwrap(),
