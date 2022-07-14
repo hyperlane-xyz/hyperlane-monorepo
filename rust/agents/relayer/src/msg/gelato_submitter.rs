@@ -3,6 +3,7 @@ use std::sync::Arc;
 use abacus_base::{chains::GelatoConf, CoreMetrics, InboxContracts};
 use abacus_core::AbacusCommon;
 use abacus_core::{db::AbacusDB, Signers};
+use ethers::types::U256;
 use gelato::chains::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
@@ -11,10 +12,12 @@ use eyre::{bail, Result};
 use tokio::sync::mpsc;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use gelato::fwd_req_call::ForwardRequestArgs;
+use gelato::fwd_req_call::{ForwardRequestArgs, PaymentType};
 use gelato::fwd_req_op::{ForwardRequestOp, ForwardRequestOptions};
 
 use super::SubmitMessageArgs;
+
+const DEFAULT_MAX_FEE: u32 = 1_000_000;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -26,6 +29,9 @@ pub(crate) struct GelatoSubmitter {
     /// forward request to Gelato, if e.g. we have confirmation via inbox syncer
     /// that the message has already been submitted by some other relayer.
     inbox_contracts: InboxContracts,
+    /// Address of the inbox validator manager contract that will be specified
+    /// to Gelato in ForwardRequest submissions to process new messages.
+    inbox_validator_manager_address: ethers::types::Address,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
     /// Domain of the outbox.
@@ -44,6 +50,7 @@ impl GelatoSubmitter {
         cfg: GelatoConf,
         new_messages_receive_channel: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
+        inbox_validator_manager_address: abacus_core::Address,
         db: AbacusDB,
         outbox_domain: u32,
         signer: Signers,
@@ -53,6 +60,7 @@ impl GelatoSubmitter {
         Self {
             new_messages_receive_channel,
             inbox_contracts,
+            inbox_validator_manager_address: inbox_validator_manager_address.into(),
             db,
             outbox_domain,
             signer,
@@ -111,7 +119,7 @@ impl GelatoSubmitter {
                     break;
                 }
                 Err(_) => {
-                    bail!("Disconnected rcvq or fatal err");
+                    bail!("Disconnected receive channel or fatal err");
                 }
             }
         }
@@ -119,56 +127,22 @@ impl GelatoSubmitter {
     }
 
     fn make_forward_request_args(&self, _msg: SubmitMessageArgs) -> ForwardRequestArgs {
-        //ForwardRequestArgs {
-        //    target_chain: target_chain,
-        //    target_contract: target_contract,
-        //    data,
-        //    fee_token,
-        //    max_fee,
-        //    gas,
-        //    sponsor,
-        //    sponsor_chain_id,
-        //
-        //    // For now, Abacus always uses the same values for these fields.
-        //    payment_type: PaymentType::AsyncGasTank,
-        //    nonce: U256::zero(),
-        //    enforce_sponsor_nonce: false,
-        //    enforce_sponsor_nonce_ordering: false,
-        //}
-        ///////////////////////////////////////////////
-        ///////////////////////////////////////////////
-        ///////////////////////////////////////////////
-        //args: ForwardRequestArgs::new(
-        //    self.inbox_contracts.inbox.chain_name().parse()?,
-        //    // TODO(webbhorn): Somehow get the actual IVM address.
-        //    Address::zero(),
-        //    // TODO(webbhorn): Somehow marshal process call on IVM into 'data'.
-        //    "0x0".parse()?,
-        //    // TODO(webbhorn): Somehow plumb source chain token address.
-        //    Address::zero(),
-        //    // TODO(webbhorn): Pass a non-zero max fee.
-        //    U256::zero(),
-        //    // TODO(webbhorn): Pass a non-zero gas.
-        //    U256::zero(),
-        //    // TODO(webbhorn): Pass a non-zero sponsor.
-        //    Address::zero(),
-        //    // TODO(webbhorn): Pass the actual outbox chain ID.
-        //    Chain::Mainnet,
-        //),
-        ///////////////////////////////////////////////
-        ///////////////////////////////////////////////
-        ///////////////////////////////////////////////
+        ForwardRequestArgs {
+            target_chain: Chain::from_abacus_domain(self.inbox_contracts.inbox.local_domain()),
+            target_contract: self.inbox_validator_manager_address,
+            fee_token: gelato::fwd_req_call::NATIVE_FEE_TOKEN_ADDRESS,
+            max_fee: DEFAULT_MAX_FEE.into(),
+            gas: DEFAULT_MAX_FEE.into(),
+            sponsor_chain_id: Chain::from_abacus_domain(self.outbox_domain),
+            payment_type: PaymentType::AsyncGasTank,
+            nonce: U256::zero(),
+            enforce_sponsor_nonce: false,
+            enforce_sponsor_nonce_ordering: false,
 
-        let _fee_token = gelato::fwd_req_call::NATIVE_FEE_TOKEN_ADDRESS;
-
-        // TODO(webbhorn): It might be better to get the chain_id (via abacus domain) from Abacus
-        // code and keep our Gelato crate abacus-agnostic. I think there is a macro somewhere in
-        // abacus-base or abacus-core that does this or tracks the relation...
-        let _target_chain_id: Chain =
-            Chain::from_abacus_domain(self.inbox_contracts.inbox.local_domain());
-        let _sponsor_chain_id = Chain::from_abacus_domain(self.outbox_domain);
-
-        todo!()
+            // TODO(webbhorn): The last two...
+            sponsor: todo!(),
+            data: todo!(),
+        }
     }
 }
 
