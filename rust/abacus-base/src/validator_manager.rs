@@ -71,9 +71,11 @@ impl InboxValidatorManager for InboxValidatorManagerVariants {
 
     fn contract_address(&self) -> Option<abacus_core::Address> {
         match self {
-            InboxValidatorManagerVariants::Ethereum(validator_manager) => validator_manager.contract_address(),
+            InboxValidatorManagerVariants::Ethereum(validator_manager) => {
+                validator_manager.contract_address()
+            }
             InboxValidatorManagerVariants::Mock(_) => None,
-            InboxValidatorManagerVariants::Other(_) => None
+            InboxValidatorManagerVariants::Other(_) => None,
         }
     }
 }
