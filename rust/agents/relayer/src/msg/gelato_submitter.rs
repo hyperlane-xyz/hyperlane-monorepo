@@ -113,7 +113,7 @@ impl GelatoSubmitter {
             match self.new_messages_receive_channel.try_recv() {
                 Ok(_msg) => {
                     let op = ForwardRequestOp {
-                        args: self.make_forward_request_args(_msg),
+                        args: self.make_forward_request_args(_msg)?,
                         opts: ForwardRequestOptions::default(),
                         signer: self.signer.clone(),
                         http: self.http.clone(),
@@ -134,8 +134,8 @@ impl GelatoSubmitter {
         Ok(())
     }
 
-    fn make_forward_request_args(&self, _msg: SubmitMessageArgs) -> ForwardRequestArgs {
-        ForwardRequestArgs {
+    fn make_forward_request_args(&self, _msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
+        Ok(ForwardRequestArgs {
             target_chain: Chain::from_abacus_domain(self.inbox_contracts.inbox.local_domain()),
             target_contract: self.inbox_validator_manager_address,
             fee_token: gelato::fwd_req_call::NATIVE_FEE_TOKEN_ADDRESS,
@@ -147,10 +147,61 @@ impl GelatoSubmitter {
             enforce_sponsor_nonce: false,
             enforce_sponsor_nonce_ordering: false,
 
+            // TODO(webbhorn): To marshal calldata for IVM process()
+            // call, also plumb the inbox contract address.
+            //
+            //
+            // Then extract fields as is done in
+            // abacus-ethereum::src::validator_manager.rs::process(), i.e.:
+            //
+            //
+            //       async fn process(
+            //           &self,
+            //           multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+            //           message: &AbacusMessage,
+            //           proof: &Proof,
+            //       ) -> Result<TxOutcome, ChainCommunicationError> {
+            //           let mut sol_proof: [[u8; 32]; 32] = Default::default();
+            //           sol_proof
+            //               .iter_mut()
+            //               .enumerate()
+            //               .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
+            //
+            //           let tx = self.contract.process(
+            //               self.inbox_address,
+            //               multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
+            //               multisig_signed_checkpoint.checkpoint.index.into(),
+            //               multisig_signed_checkpoint
+            //                   .signatures
+            //                   .iter()
+            //                   .map(|s| s.to_vec().into())
+            //                   .collect(),
+            //               message.to_vec().into(),
+            //               sol_proof,
+            //               proof.index.into(),
+            //           );
+            //           let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
+            //           let gassed = tx.gas(gas);
+            //           let receipt = report_tx(gassed).await?;
+            //           Ok(receipt.into())
+            //       }
+            //
+            //
+            //
+            //data: self.inbox_validator_manager_base_contract.encode("process", &[
+            //    inbox: ethers::core::types::Address,
+            //    root: [u8; 32],
+            //    index: ethers::core::types::U256,
+            //    signatures: ::std::vec::Vec<ethers::core::types::Bytes>,
+            //    message: ethers::core::types::Bytes,
+            //    proof: [[u8; 32]; 32usize],
+            //    leaf_index: ethers::core::types::U256,
+            //])?,
+            data: Bytes::from(vec![0]),
+
             // TODO(webbhorn): The last two...
             sponsor: Address::zero(),
-            data: Bytes::from(vec![0]),
-        }
+        })
     }
 }
 
