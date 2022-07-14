@@ -6,7 +6,7 @@ use eyre::Result;
 use crate::{
     accumulator::merkle::Proof,
     traits::{ChainCommunicationError, TxOutcome},
-    AbacusMessage, MultisigSignedCheckpoint, Address,
+    AbacusMessage, Address, MultisigSignedCheckpoint,
 };
 
 /// Interface for an InboxValidatorManager

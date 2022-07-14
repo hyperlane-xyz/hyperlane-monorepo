@@ -3,6 +3,7 @@ use std::sync::Arc;
 use abacus_base::{chains::GelatoConf, CoreMetrics, InboxContracts};
 use abacus_core::AbacusCommon;
 use abacus_core::{db::AbacusDB, Signers};
+use ethers::prelude::{Address, Bytes};
 use ethers::types::U256;
 use gelato::chains::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
@@ -45,6 +46,7 @@ pub(crate) struct GelatoSubmitter {
     metrics: GelatoSubmitterMetrics,
 }
 
+#[allow(clippy::too_many_arguments)]
 impl GelatoSubmitter {
     pub fn new(
         cfg: GelatoConf,
@@ -140,8 +142,8 @@ impl GelatoSubmitter {
             enforce_sponsor_nonce_ordering: false,
 
             // TODO(webbhorn): The last two...
-            sponsor: todo!(),
-            data: todo!(),
+            sponsor: Address::zero(),
+            data: Bytes::from(vec![0]),
         }
     }
 }
