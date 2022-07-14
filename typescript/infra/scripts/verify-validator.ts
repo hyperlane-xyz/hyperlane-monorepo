@@ -253,10 +253,12 @@ async function main() {
       `Invalid checkpoints (${invalidCheckpoints.length}): ${invalidCheckpoints}\n`,
     );
 
-  console.log(`Time deltas`);
-  console.log(`Median: ${median(modTimeDeltasMs) / 1000}s`);
-  console.log(`Mean:   ${mean(modTimeDeltasMs) / 1000}s`);
-  console.log(`Stdev:  ${stdDev(modTimeDeltasMs) / 1000}s`);
+  if (modTimeDeltasMs.length) {
+    console.log(`Time deltas`);
+    console.log(`Median: ${median(modTimeDeltasMs) / 1000}s`);
+    console.log(`Mean:   ${mean(modTimeDeltasMs) / 1000}s`);
+    console.log(`Stdev:  ${stdDev(modTimeDeltasMs) / 1000}s`);
+  }
 }
 
 function median(a: number[]): number {
