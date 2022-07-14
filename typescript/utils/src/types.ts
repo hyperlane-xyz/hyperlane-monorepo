@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 /********* BASIC TYPES *********/
 export type Domain = number;
 export type Address = string;
@@ -8,12 +10,12 @@ export type HexString = string;
 export type Checkpoint = {
   root: string;
   index: number;
-  signature: string;
+  signature: ethers.utils.BytesLike;
 };
 
 export type CallData = {
   to: Address;
-  data: string;
+  data: ethers.utils.BytesLike;
 };
 
 export enum AbacusState {

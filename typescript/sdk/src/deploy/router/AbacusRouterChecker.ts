@@ -1,10 +1,11 @@
+import { Ownable } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
 import { AbacusApp } from '../../AbacusApp';
 import { chainMetadata } from '../../consts/chainMetadata';
 import { RouterContracts } from '../../router';
 import { ChainName } from '../../types';
-import { AbacusAppChecker, Ownable } from '../AbacusAppChecker';
+import { AbacusAppChecker } from '../AbacusAppChecker';
 
 import { RouterConfig } from './types';
 
