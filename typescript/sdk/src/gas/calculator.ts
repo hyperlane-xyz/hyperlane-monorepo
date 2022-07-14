@@ -25,33 +25,26 @@ import { DefaultTokenPriceGetter, TokenPriceGetter } from './token-prices';
 // If a chain doesn't specify how many decimals their native token has, 18 is used.
 const DEFAULT_TOKEN_DECIMALS = 18;
 
-// A generous estimation of the overhead gas amount when processing a message. This
-// includes intrinsic gas, the merkle proof, making the external call to the recipient
-// handle function, but does not account for any gas consumed by the handle function.
-// This number was arrived at by estimating the proving and processing of a message
-// whose body was small and whose recipient contract included only an empty fallback
-// function. The estimated gas cost was 86777, which included the intrinsic cost.
-// 130,000 is chosen as a generous buffer for safety. The large buffer is mostly to do
-// with flexibility in message sizes, where large messages can cost more due to tx calldata,
-// hashing, and calling to the recipient handle function.
-const INBOX_PROCESS_OVERHEAD_GAS = 130_000;
-
 // Intrinsic gas for a transaction. Does not consider calldata costs or differences in
 // intrinsic gas or different chains.
-const BASE_INTRINSIC_GAS = 21_000;
+const GAS_INTRINSIC = 21_000;
 
-// The gas used if the quorum threshold of a signed checkpoint is zero.
+// TODO: Reevaluate this number
+// The gas used to process a message when the quorum size is zero.
 // Includes intrinsic gas and all other gas that does not scale with the
-// number of signatures. Note this does not consider differences in intrinsic gas for
-// different chains.
+// quorum size. Excludes the cost of calling `recipient.handle()`.
 // Derived by observing the amount of gas consumed for a quorum of 1 (~86800 gas),
 // subtracting the gas used per signature, and rounding up for safety.
-const BASE_CHECKPOINT_RELAY_GAS = 80_000;
+const GAS_OVERHEAD_BASE = 80_000;
 
+// TODO: Reevaluate this number
 // The amount of gas used for each signature when a signed checkpoint
 // is submitted for verification.
 // Really observed to be about 8350, but rounding up for safety.
-const CHECKPOINT_RELAY_GAS_PER_SIGNATURE = 9_000;
+const GAS_OVERHEAD_PER_SIGNATURE = 9_000;
+
+// TODO: Reevaluate this number
+const GAS_OVERHEAD_PER_WORD = 1_000;
 
 export interface InterchainGasCalculatorConfig {
   /**
@@ -85,6 +78,11 @@ export type ParsedMessage<
   body: string;
 };
 
+/*
+Okay, what do we want?
+- estimatePayment(origin, destination, gas amount) - requires a token price getter
+- estimatePaymentForMessage(origin, destination, id)
+
 /**
  * Calculates interchain gas payments.
  */
@@ -115,6 +113,26 @@ export class InterchainGasCalculator<Chain extends ChainName> {
       config?.messageGasEstimateBuffer ?? 50_000,
     );
   }
+  // Applies the multiplier `paymentEstimateMultiplier`.
+  async estimatePaymentForGas<Destination extends Chain>(
+    origin: Exclude<Chain, Destination>,
+    destination: Destination,
+    gas: BigNumber,
+  ): Promise<BigNumber> {
+    const destinationGasPrice = await this.getGasPrice(destination);
+    const destinationGasCost = gas.mul(destinationGasPrice);
+    const originGasCost = await this.convertBetweenNativeTokens(
+      destination,
+      origin,
+      destinationGasCost,
+    );
+    // Applies a multiplier
+    return mulBigAndFixed(
+      originGasCost,
+      this.paymentEstimateMultiplier,
+      true, // ceil
+    );
+  }
 
   /**
    * Given an amount of gas the message's recipient `handle` function is expected
@@ -123,7 +141,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * tokens of the origin and destination chains, the suggested gas price on
    * the destination chain, gas costs incurred by a relayer when submitting a signed
    * checkpoint to the destination chain, and the overhead gas cost in Inbox of processing
-   * a message. Applies the multiplier `paymentEstimateMultiplier`.
+   * a message.
    * @param origin The name of the origin chain.
    * @param destination The name of the destination chain.
    * @param destinationHandleGas The amount of gas the recipient `handle` function
@@ -131,35 +149,15 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns An estimated amount of origin chain tokens to cover gas costs of the
    * message on the destination chain.
    */
-  async estimatePaymentForHandleGasAmount<Destination extends Chain>(
+  async estimatePaymentForHandleGas<Destination extends Chain>(
     origin: Exclude<Chain, Destination>,
     destination: Destination,
-    destinationHandleGas: BigNumber,
+    handleGas: BigNumber,
   ): Promise<BigNumber> {
-    const [destinationGasPrice, checkpointRelayGas, inboxProcessOverheadGas] =
-      await Promise.all([
-        this.suggestedGasPrice(destination),
-        this.checkpointRelayGas(origin, destination),
-        this.inboxProcessOverheadGas(),
-      ]);
-    const totalDestinationGas = checkpointRelayGas
-      .add(inboxProcessOverheadGas)
-      .add(destinationHandleGas);
-    const destinationCostWei = totalDestinationGas.mul(destinationGasPrice);
-
-    // Convert from destination chain native tokens to origin chain native tokens.
-    const originCostWei = await this.convertBetweenNativeTokens(
-      destination,
-      origin,
-      destinationCostWei,
+    const destinationGas = handleGas.add(
+      await this.estimateGasForProcess(origin, destination),
     );
-
-    // Applies a multiplier
-    return mulBigAndFixed(
-      originCostWei,
-      this.paymentEstimateMultiplier,
-      true, // ceil
-    );
+    return this.estimatePaymentForGas(origin, destination, destinationGas);
   }
 
   /**
@@ -193,7 +191,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns The amount of `toChain` native tokens whose value is equivalent to
    * `fromAmount` of `fromChain` native tokens.
    */
-  async convertBetweenNativeTokens(
+  protected async convertBetweenNativeTokens(
     fromChain: Chain,
     toChain: Chain,
     fromAmount: BigNumber,
@@ -201,7 +199,10 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     // A FixedNumber that doesn't care what the decimals of the from/to
     // tokens are -- it is just the amount of whole from tokens that a single
     // whole to token is equivalent in value to.
-    const exchangeRate = await this.getExchangeRate(toChain, fromChain);
+    const exchangeRate = await this.tokenPriceGetter.getTokenExchangeRate(
+      toChain,
+      fromChain,
+    );
 
     // Apply the exchange rate to the amount. This does not yet account for differences in
     // decimals between the two tokens.
@@ -220,39 +221,11 @@ export class InterchainGasCalculator<Chain extends ChainName> {
   }
 
   /**
-   * @param baseChain The chain whose native token is the base asset.
-   * @param quoteChain The chain whose native token is the quote asset.
-   * @returns The exchange rate of the native tokens of the baseChain and the quoteChain.
-   * I.e. the number of whole quote tokens a single whole base token is equivalent
-   * in value to.
-   */
-  async getExchangeRate(
-    baseChain: Chain,
-    quoteChain: Chain,
-  ): Promise<FixedNumber> {
-    const baseUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
-      baseChain,
-    );
-    const quoteUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
-      quoteChain,
-    );
-
-    // This operation is called "unsafe" because of the unintuitive rounding that
-    // can occur due to fixed point arithmetic. We're not overly concerned about perfect
-    // precision because we're operating with fixed128x18, which has 18 decimals of
-    // precision, and gas payments are regardless expected to have a generous buffer to account
-    // for movements in native token prices or gas prices.
-    // For more details on FixedPoint arithmetic being "unsafe", see
-    // https://github.com/ethers-io/ethers.js/issues/1322#issuecomment-787430115.
-    return quoteUsd.divUnsafe(baseUsd);
-  }
-
-  /**
    * Gets a suggested gas price for a chain.
    * @param chainName The name of the chain to get the gas price for
    * @returns The suggested gas price in wei on the destination chain.
    */
-  async suggestedGasPrice(chainName: Chain): Promise<BigNumber> {
+  protected async getGasPrice(chainName: Chain): Promise<BigNumber> {
     const provider = this.multiProvider.getChainConnection(chainName).provider!;
     return provider.getGasPrice();
   }
@@ -262,7 +235,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @param chain The chain.
    * @returns The number of decimals of `chain`'s native token.
    */
-  nativeTokenDecimals(chain: Chain): number {
+  protected nativeTokenDecimals(chain: Chain): number {
     return chainMetadata[chain].nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS;
   }
 
@@ -280,7 +253,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns The estimated gas required by the message's recipient handle function
    * on the destination chain.
    */
-  async estimateHandleGasForMessage<LocalChain extends Chain>(
+  protected async estimateGasForHandle<LocalChain extends Chain>(
     message: ParsedMessage<Chain, LocalChain>,
   ): Promise<BigNumber> {
     const provider = this.multiProvider.getChainConnection(message.destination)
@@ -317,37 +290,19 @@ export class InterchainGasCalculator<Chain extends ChainName> {
   }
 
   /**
-   * @param origin The name of the origin chain.
-   * @param destination The name of the destination chain.
-   * @returns An estimated gas amount a relayer will spend when submitting a signed
-   * checkpoint to the destination chain.
-   */
-  async checkpointRelayGas<Destination extends Chain>(
-    origin: Remotes<Chain, Destination>,
-    destination: Destination,
-  ): Promise<BigNumber> {
-    const inboxes = this.core.getContracts(destination).inboxes;
-    const threshold = await inboxes[origin].inboxValidatorManager.threshold();
-
-    return threshold
-      .mul(CHECKPOINT_RELAY_GAS_PER_SIGNATURE)
-      .add(BASE_CHECKPOINT_RELAY_GAS);
-  }
-
-  /**
-   * @returns A generous estimation of the gas consumption of all prove and process
+   * @returns A generous estimation of the gas consumption of all process
    * operations within Inbox.sol, including intrinsic gas. Does not include any gas
    * consumed within a message's recipient `handle` function.
    * Returns a Promise because we expect this to eventually include async logic to
    * estimate sovereign consensus costs, and we'd like to keep the interface consistent.
    */
-  inboxProcessOverheadGas(): Promise<BigNumber> {
-    // This does not consider that different chains can possibly have different gas costs.
-    // Consider this being configurable for each chain, or investigate ways to estimate
-    // this over RPC.
-    // Also does not consider gas usage that may scale with message size, e.g. calldata
-    // costs.
-    return Promise.resolve(BigNumber.from(INBOX_PROCESS_OVERHEAD_GAS));
+  protected async estimateGasForProcess<Destination extends Chain>(
+    origin: Remotes<Chain, Destination>,
+    destination: Destination,
+  ): Promise<BigNumber> {
+    const inboxes = this.core.getContracts(destination).inboxes;
+    const threshold = await inboxes[origin].inboxValidatorManager.threshold();
+    return threshold.mul(GAS_OVERHEAD_PER_SIGNATURE).add(GAS_OVERHEAD_BASE);
   }
 
   /**
