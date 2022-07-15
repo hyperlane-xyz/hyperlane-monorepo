@@ -102,7 +102,7 @@ async function main() {
   const cClient = new S3Wrapper(controlBucket);
   const pClient = new S3Wrapper(prospectiveBucket);
 
-  const [{ obj: cLatestCheckpoint }, { obj: pLastCheckpoint }] =
+  const [{ obj: controlLatestCheckpoint }, { obj: prospectiveLastCheckpoint }] =
     await Promise.all([
       cClient.getS3Obj<number>('checkpoint_latest_index.json').catch((err) => {
         console.error(
@@ -121,17 +121,17 @@ async function main() {
     ]);
 
   console.assert(
-    Number.isSafeInteger(cLatestCheckpoint),
+    Number.isSafeInteger(controlLatestCheckpoint),
     'Expected latest control checkpoint to be an integer',
   );
   console.assert(
-    Number.isSafeInteger(pLastCheckpoint),
+    Number.isSafeInteger(prospectiveLastCheckpoint),
     'Expected latest prospective checkpoint to be an integer',
   );
 
   console.log(`Latest Index`);
-  console.log(`control: ${cLatestCheckpoint}`);
-  console.log(`prospective: ${pLastCheckpoint}\n`);
+  console.log(`control: ${controlLatestCheckpoint}`);
+  console.log(`prospective: ${prospectiveLastCheckpoint}\n`);
 
   let extraCheckpoints = [];
   const missingCheckpoints = [];
@@ -140,7 +140,11 @@ async function main() {
   const fullyCorrectCheckpoints = [];
   let missingInARow = 0;
   let lastNonMissingCheckpointIndex = Infinity;
-  for (let i = Math.max(cLatestCheckpoint, pLastCheckpoint); i >= 0; --i) {
+  for (
+    let i = Math.max(controlLatestCheckpoint, prospectiveLastCheckpoint);
+    i >= 0;
+    --i
+  ) {
     if (missingInARow == MAX_MISSING_CHECKPOINTS) {
       missingCheckpoints.length -= MAX_MISSING_CHECKPOINTS;
       invalidCheckpoints = invalidCheckpoints.filter(
@@ -154,8 +158,8 @@ async function main() {
 
     const key = `checkpoint_${i}.json`;
 
-    let c: Checkpoint | null;
-    let cLastMod: Date | null;
+    let control: Checkpoint | null;
+    let controlLastMod: Date | null;
     try {
       const t = await cClient.getS3Obj(key);
       if (isCheckpoint(t.obj)) {
@@ -163,33 +167,33 @@ async function main() {
           console.log(`${i}: Control index is invalid`, t);
           process.exit(1);
         }
-        [c, cLastMod] = [t.obj, t.modified];
+        [control, controlLastMod] = [t.obj, t.modified];
       } else {
         console.log(`${i}: Invalid control checkpoint`, t);
         process.exit(1);
       }
     } catch (err) {
-      c = cLastMod = null;
+      control = controlLastMod = null;
     }
 
-    let p: Checkpoint;
-    let pLastMod: Date;
+    let prospective: Checkpoint;
+    let prospectiveLastMod: Date;
     try {
       const t = await pClient.getS3Obj(key);
       if (isCheckpoint(t.obj)) {
-        [p, pLastMod] = [t.obj, t.modified];
+        [prospective, prospectiveLastMod] = [t.obj, t.modified];
         lastNonMissingCheckpointIndex = i;
       } else {
         console.log(`${i}: Invalid prospective checkpoint`, t.obj);
         invalidCheckpoints.push(i);
         continue;
       }
-      if (!c) {
+      if (!control) {
         extraCheckpoints.push(i);
       }
       missingInARow = 0;
     } catch (err) {
-      if (c) {
+      if (control) {
         missingCheckpoints.push(i);
         missingInARow++;
       }
@@ -197,27 +201,28 @@ async function main() {
     }
 
     console.assert(
-      p.checkpoint.index == i,
+      prospective.checkpoint.index == i,
       `${i}: checkpoint indexes do not match`,
     );
 
     // TODO: verify signature
 
-    if (!c) {
+    if (!control) {
       continue;
     }
 
     // compare against the control
     console.assert(
-      c.checkpoint.outbox_domain == p.checkpoint.outbox_domain,
+      control.checkpoint.outbox_domain == prospective.checkpoint.outbox_domain,
       `${i}: outbox_domains do not match`,
     );
     console.assert(
-      c.checkpoint.root == p.checkpoint.root,
+      control.checkpoint.root == prospective.checkpoint.root,
       `${i}: checkpoint roots do not match`,
     );
 
-    const diffS = (pLastMod.valueOf() - cLastMod!.valueOf()) / 1000;
+    const diffS =
+      (prospectiveLastMod.valueOf() - controlLastMod!.valueOf()) / 1000;
     if (Math.abs(diffS) > 10) {
       console.log(`${i}: Modification times differ by ${diffS}s`);
     }
@@ -225,10 +230,9 @@ async function main() {
     fullyCorrectCheckpoints.push(i);
   }
 
-  if (fullyCorrectCheckpoints.length)
-    console.log(
-      `Fully correct checkpoints (${fullyCorrectCheckpoints.length}): ${fullyCorrectCheckpoints}\n`,
-    );
+  console.log(
+    `Fully correct checkpoints (${fullyCorrectCheckpoints.length}): ${fullyCorrectCheckpoints}\n`,
+  );
   if (extraCheckpoints.length)
     console.log(
       `Extra checkpoints (${extraCheckpoints.length}): ${extraCheckpoints}\n`,
