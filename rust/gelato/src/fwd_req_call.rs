@@ -12,8 +12,8 @@ pub const NATIVE_FEE_TOKEN_ADDRESS: ethers::types::Address = Address::repeat_byt
 
 #[derive(Debug, Clone)]
 pub struct ForwardRequestArgs {
-    pub target_chain: Chain,
-    pub target_contract: Address,
+    pub chain_id: Chain,
+    pub target: Address,
     pub data: Bytes,
     pub fee_token: Address,
     pub payment_type: PaymentType,
@@ -44,7 +44,7 @@ impl ForwardRequestCall {
         let url = format!(
             "{}/metabox-relays/{}",
             GATEWAY_URL,
-            u32::from(self.args.target_chain)
+            u32::from(self.args.chain_id)
         );
         let http_args = HTTPArgs {
             args: self.args.clone(),
@@ -90,8 +90,8 @@ impl Serialize for HTTPArgs {
     {
         let mut state = serializer.serialize_struct("ForwardRequestHTTPArgs", 14)?;
         state.serialize_field("typeId", "ForwardRequest")?;
-        state.serialize_field("chainId", &(u32::from(self.args.target_chain)))?;
-        state.serialize_field("target", &self.args.target_contract)?;
+        state.serialize_field("chainId", &(u32::from(self.args.chain_id)))?;
+        state.serialize_field("target", &self.args.target)?;
         state.serialize_field("data", &self.args.data)?;
         state.serialize_field("feeToken", &self.args.fee_token)?;
         // TODO(webbhorn): Get rid of the clone and cast.
