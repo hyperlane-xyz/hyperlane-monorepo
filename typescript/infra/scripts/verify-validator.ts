@@ -146,9 +146,6 @@ class Validator {
     ) {
       if (this.missingInARow == MAX_MISSING_CHECKPOINTS) {
         this.missingCheckpoints.length -= MAX_MISSING_CHECKPOINTS;
-        this.invalidCheckpoints = this.invalidCheckpoints.filter(
-          (j) => j < this.lastNonMissingCheckpointIndex,
-        );
         this.extraCheckpoints = this.extraCheckpoints.filter(
           (j) => j < this.lastNonMissingCheckpointIndex,
         );
