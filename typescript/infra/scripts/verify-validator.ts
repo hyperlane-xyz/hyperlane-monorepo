@@ -1,8 +1,4 @@
-import {
-  GetObjectCommand,
-  ListObjectsCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import yargs from 'yargs';
 
 interface Checkpoint {
@@ -243,10 +239,10 @@ async function main() {
     );
 
   if (modTimeDeltasS.length) {
-    console.log(modTimeDeltasS);
     console.log(
-      `Time deltas (∆< 0 -> prospective came earlier than the control)`,
+      `Time deltas (∆ < 0 -> prospective came earlier than the control)`,
     );
+    console.log(modTimeDeltasS);
     console.log(`Median: ${median(modTimeDeltasS)}s`);
     console.log(`Mean:   ${mean(modTimeDeltasS)}s`);
     console.log(`Stdev:  ${stdDev(modTimeDeltasS)}s`);
