@@ -12,6 +12,12 @@ export function deepEquals(v1: any, v2: any) {
   return JSON.stringify(v1) === JSON.stringify(v2);
 }
 
+export const ensure0x = (hexstr: string) =>
+  hexstr.startsWith('0x') ? hexstr : `0x${hexstr}`;
+
+export const strip0x = (hexstr: string) =>
+  hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
+
 /*
  * Gets the byte length of a hex string
  *
@@ -19,12 +25,7 @@ export function deepEquals(v1: any, v2: any) {
  * @return byteLength - length in bytes
  */
 export function getHexStringByteLength(hexStr: string) {
-  let len = hexStr.length;
-
-  // check for prefix, remove if necessary
-  if (hexStr.slice(0, 2) == '0x') {
-    len -= 2;
-  }
+  const len = strip0x(hexStr).length;
 
   // divide by 2 to get the byte length
   return len / 2;
@@ -35,7 +36,7 @@ export const stringToBytes32 = (s: string): string => {
   const result = Buffer.alloc(32);
   str.copy(result);
 
-  return '0x' + result.toString('hex');
+  return ensure0x(result.toString('hex'));
 };
 
 export function addressToBytes32(address: Address): string {

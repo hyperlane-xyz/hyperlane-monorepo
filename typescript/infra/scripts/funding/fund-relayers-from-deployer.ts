@@ -97,41 +97,34 @@ async function fundRelayer(
     .mul(MIN_DELTA_NUMERATOR)
     .div(MIN_DELTA_DENOMINATOR);
 
-  const relayerInfo = {
-    address: relayer.address,
-    chain: relayer.chainName,
-  };
+  const relayerInfo = relayerKeyInfo(relayer);
 
   if (delta.gt(minDelta)) {
-    console.log({
+    log('Sending relayer funds...', {
       relayer: relayerInfo,
       amount: ethers.utils.formatEther(delta),
-      message: 'Sending relayer funds...',
     });
     const tx = await chainConnection.signer!.sendTransaction({
       to: relayer.address,
       value: delta,
       ...chainConnection.overrides,
     });
-    console.log({
+    log('Sent transaction', {
       relayer: relayerInfo,
       txUrl: chainConnection.getTxUrl(tx),
-      message: 'Sent transaction',
     });
     const receipt = await tx.wait(chainConnection.confirmations);
-    console.log({
+    log('Got transaction receipt', {
       relayer: relayerInfo,
       receipt,
-      message: 'Got transaction receipt',
     });
   }
 
-  console.log({
+  log('Relayer balance', {
     relayer: relayerInfo,
     balance: ethers.utils.formatEther(
       await chainConnection.provider.getBalance(relayer.address),
     ),
-    message: 'Relayer balance',
   });
 }
 
@@ -157,13 +150,15 @@ async function main() {
   const chains = relayerKeys.map((key) => key.chainName!);
   const balances: FunderBalance[] = [];
 
+  let failureOccurred = false;
+
   for (const chain of chains) {
     const chainConnection = multiProvider.getChainConnection(chain);
 
     const desiredBalance = desiredBalancePerChain[chain];
     const funderAddress = await chainConnection.getAddress();
 
-    console.group({
+    log('Funding relayers on chain...', {
       chain,
       funder: {
         address: funderAddress,
@@ -172,14 +167,21 @@ async function main() {
         ),
         desiredRelayerBalance: desiredBalance,
       },
-      message: 'Funding relayers on chain...',
     });
 
     for (const relayerKey of relayerKeys.filter(
       (key) => key.chainName !== chain,
     )) {
       await relayerKey.fetch();
-      await fundRelayer(chainConnection, relayerKey, desiredBalance);
+      try {
+        await fundRelayer(chainConnection, relayerKey, desiredBalance);
+      } catch (err) {
+        error('Error funding relayer', {
+          relayer: relayerKeyInfo(relayerKey),
+          error: err,
+        });
+        failureOccurred = true;
+      }
     }
     balances.push({
       chain,
@@ -188,16 +190,20 @@ async function main() {
         ethers.utils.formatEther(await chainConnection.signer!.getBalance()),
       ),
     });
-
-    console.groupEnd();
-    console.log('\n');
   }
 
   await submitFunderBalanceMetrics(balances);
+
+  if (failureOccurred) {
+    error('At least one failure occurred when funding relayers');
+    process.exit(1);
+  }
 }
 
 function getRelayerKeysFromSerializedAddressFile(path: string): AgentKey[] {
-  console.log(`Reading keys from file ${path}...`);
+  log('Reading keys from file', {
+    path,
+  });
   // Should be an array of { identifier: '', address: '' }
   const idAndAddresses = readJSONAtPath(path);
 
@@ -216,14 +222,14 @@ function getPushGateway(): Pushgateway | null {
   if (gatewayAddr) {
     return new Pushgateway(gatewayAddr, [], metricsRegister);
   } else {
-    console.warn(
+    warn(
       'Prometheus push gateway address was not defined; not publishing metrics.',
     );
     return null;
   }
 }
 
-function submitFunderBalanceMetrics(balances: FunderBalance[]) {
+async function submitFunderBalanceMetrics(balances: FunderBalance[]) {
   const gateway = getPushGateway();
   if (!gateway) return;
 
@@ -240,20 +246,52 @@ function submitFunderBalanceMetrics(balances: FunderBalance[]) {
       .set(balance);
   }
 
-  gateway
-    .push({ jobName: 'relayer_funder' })
-    .then(({ resp, body }) => {
-      const statusCode =
-        typeof resp == 'object' && resp != null && 'statusCode' in resp
-          ? (resp as any).statusCode
-          : 'unknown';
-      console.debug(
-        `Prometheus push resulted with status ${statusCode} and body ${body}`,
-      );
-    })
-    .catch((err) => {
-      console.error(`Error pushing metrics: ${err}`);
-    });
+  const { resp, body } = await gateway.push({ jobName: 'relayer_funder' });
+  const statusCode =
+    typeof resp == 'object' && resp != null && 'statusCode' in resp
+      ? (resp as any).statusCode
+      : 'unknown';
+  log(`Prometheus metrics pushed to PushGateway`, {
+    statusCode,
+    body,
+  });
 }
 
-main().catch(console.error);
+function log(message: string, data?: any) {
+  logWithFunction(console.log, message, data);
+}
+
+function warn(message: string, data?: any) {
+  logWithFunction(console.warn, message, data);
+}
+
+function error(message: string, data?: any) {
+  logWithFunction(console.error, message, data);
+}
+
+function logWithFunction(
+  logFn: (...contents: any[]) => void,
+  message: string,
+  data?: any,
+) {
+  const fullLog = {
+    ...data,
+    message,
+  };
+  logFn(JSON.stringify(fullLog));
+}
+
+function relayerKeyInfo(relayerKey: AgentKey) {
+  return {
+    address: relayerKey.address,
+    identifier: relayerKey.identifier,
+    chain: relayerKey.chainName,
+  };
+}
+
+main().catch((err) => {
+  error('Error occurred in main', {
+    error: err,
+  });
+  process.exit(1);
+});

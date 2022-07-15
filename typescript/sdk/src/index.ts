@@ -74,8 +74,13 @@ export { TestCoreDeployer } from './core/TestCoreDeployer';
 export { InterchainGasCalculator } from './gas/calculator';
 export { DefaultTokenPriceGetter, TokenPriceGetter } from './gas/token-prices';
 
-export { AbacusAppChecker, Ownable } from './deploy/AbacusAppChecker';
-export { CheckerViolation, EnvironmentConfig } from './deploy/types';
+export { AbacusAppChecker } from './deploy/AbacusAppChecker';
+export {
+  CheckerViolation,
+  EnvironmentConfig,
+  OwnerViolation,
+  ViolationType,
+} from './deploy/types';
 export { AbacusCoreDeployer } from './deploy/core/AbacusCoreDeployer';
 export { AbacusCoreChecker } from './deploy/core/AbacusCoreChecker';
 export {
@@ -96,6 +101,7 @@ export { ContractVerifier } from './deploy/verify/ContractVerifier';
 export {
   ContractVerificationInput,
   VerificationInput,
+  CompilerOptions,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
 

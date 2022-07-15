@@ -1,10 +1,11 @@
+import { Ownable } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
 import { AbacusApp } from '../../AbacusApp';
 import { chainMetadata } from '../../consts/chainMetadata';
 import { RouterContracts } from '../../router';
 import { ChainName } from '../../types';
-import { AbacusAppChecker, Ownable } from '../AbacusAppChecker';
+import { AbacusAppChecker } from '../AbacusAppChecker';
 
 import { RouterConfig } from './types';
 
@@ -17,7 +18,7 @@ export class AbacusRouterChecker<
   checkOwnership(chain: Chain): Promise<void> {
     const owner = this.configMap[chain].owner;
     const ownables = this.ownables(chain);
-    return AbacusAppChecker.checkOwnership(owner, ownables);
+    return super.checkOwnership(chain, owner, ownables);
   }
 
   async checkChain(chain: Chain): Promise<void> {

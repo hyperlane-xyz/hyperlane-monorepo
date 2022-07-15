@@ -1,3 +1,4 @@
+import { MultisigValidatorManager } from '@abacus-network/core';
 import type { types } from '@abacus-network/utils';
 
 import type { CheckerViolation } from '../types';
@@ -9,6 +10,7 @@ export type ValidatorManagerConfig = {
 
 export type CoreConfig = {
   validatorManager: ValidatorManagerConfig;
+  owner?: types.Address;
 };
 
 export enum CoreViolationType {
@@ -30,6 +32,6 @@ export interface ValidatorViolation extends CheckerViolation {
   type: CoreViolationType.Validator;
   data: {
     type: ValidatorViolationType;
-    validatorManagerAddress: string;
+    validatorManager: MultisigValidatorManager;
   };
 }
