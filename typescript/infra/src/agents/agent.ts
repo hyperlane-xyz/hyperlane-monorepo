@@ -1,8 +1,7 @@
 import { ChainName } from '@abacus-network/sdk';
 
 import { Contexts } from '../../config/contexts';
-import { assertContext } from '../../scripts/utils';
-import { assertChain, assertRole } from '../utils/utils';
+import { assertChain, assertContext, assertRole } from '../utils/utils';
 
 import { KEY_ROLE_ENUM } from './roles';
 

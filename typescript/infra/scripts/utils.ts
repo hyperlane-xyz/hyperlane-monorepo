@@ -18,6 +18,7 @@ import { DeployEnvironment } from '../src/config';
 import { CoreEnvironmentConfig } from '../src/config';
 import { fetchProvider, fetchSigner } from '../src/config/chain';
 import { EnvironmentNames } from '../src/config/environment';
+import { assertContext } from '../src/utils/utils';
 
 export function getArgs() {
   return yargs(process.argv.slice(2))
@@ -56,20 +57,6 @@ export async function getEnvironment() {
 
 export async function getEnvironmentConfig() {
   return getCoreEnvironmentConfig(await getEnvironment());
-}
-
-export function assertContext(contextStr: string): Contexts {
-  const context = contextStr as Contexts;
-  if (Object.values(Contexts).includes(context)) {
-    return context;
-  }
-  throw new Error(
-    `Invalid context ${contextStr}, must be one of ${Object.values(
-      Contexts,
-    )}. ${
-      contextStr === undefined ? ' Did you specify --context <context>?' : ''
-    }`,
-  );
 }
 
 export async function getContext(): Promise<Contexts> {
