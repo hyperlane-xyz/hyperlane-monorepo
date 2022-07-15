@@ -204,7 +204,7 @@ fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
         // 421611 => Chain::ArbitrumTestnet,
         // TODO(webbhorn): Abacus hasn't assigned a domain id for Alfajores yet.
         // 5 => Chain::Goerli,
-        _ => bail!("Unknown domain {}", domain)
+        _ => bail!("Unknown domain {}", domain),
     }
 }
 
