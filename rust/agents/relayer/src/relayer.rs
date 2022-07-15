@@ -2,11 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::Result;
-use tokio::{
-    sync::mpsc,
-    sync::watch,
-    task::JoinHandle,
-};
+use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::{
@@ -134,7 +130,9 @@ impl Relayer {
                         .contract_address()
                         .expect("ivm contract address needed"),
                     BaseContract::from(ivm_abi.clone()),
-                    inbox_contracts.inbox.contract_address()
+                    inbox_contracts
+                        .inbox
+                        .contract_address()
                         .expect("inbox contract address needed"),
                     self.outbox().db(),
                     self.outbox().local_domain(),
