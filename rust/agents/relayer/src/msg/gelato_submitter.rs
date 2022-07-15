@@ -161,8 +161,8 @@ impl GelatoSubmitter {
             data: call_data,
             fee_token: NATIVE_FEE_TOKEN_ADDRESS,
             payment_type: PaymentType::AsyncGasTank,
-            max_fee: DEFAULT_MAX_FEE.into(),  // Maximum fee that sponsor is willing to pay.
-            gas: DEFAULT_MAX_FEE.into(),  // // Gas limit.
+            max_fee: DEFAULT_MAX_FEE.into(), // Maximum fee that sponsor is willing to pay.
+            gas: DEFAULT_MAX_FEE.into(),     // Gas limit.
             sponsor_chain_id: abacus_domain_to_gelato_chain(self.outbox_domain)?,
             nonce: U256::zero(),
             enforce_sponsor_nonce: false,
