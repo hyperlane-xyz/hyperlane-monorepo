@@ -69,7 +69,9 @@ class S3Wrapper {
     this.client = new S3Client({ region: this.region });
   }
 
-  async getS3Obj<T = unknown>(key: string): Promise<T> {
+  async getS3Obj<T = unknown>(
+    key: string,
+  ): Promise<{ obj: T; modified: Date }> {
     const response = await this.client.send(
       new GetObjectCommand({
         Bucket: this.bucket,
@@ -85,22 +87,10 @@ class S3Wrapper {
         : (response.Body as NodeJS.ReadableStream);
 
     const body: string = await streamToString(bodyStream);
-    return JSON.parse(body);
-  }
-
-  async getLastModTime(key: string): Promise<Date> {
-    const request = await this.client.send(
-      new ListObjectsCommand({
-        Bucket: this.bucket,
-        Prefix: key,
-      }),
-    );
-
-    const latestIdx = request.Contents!.findIndex(
-      (v) => v.LastModified && v.Key == key,
-    );
-    const latest = request.Contents![latestIdx]!;
-    return latest.LastModified!;
+    return {
+      obj: JSON.parse(body),
+      modified: response.LastModified!,
+    };
   }
 }
 
@@ -114,22 +104,23 @@ async function main() {
   const cClient = new S3Wrapper(controlBucket);
   const pClient = new S3Wrapper(prospectiveBucket);
 
-  const [cLatestCheckpoint, pLastCheckpoint] = await Promise.all([
-    cClient.getS3Obj<number>('checkpoint_latest_index.json').catch((err) => {
-      console.error(
-        "Failed to get control validator's latest checkpoint.",
-        err,
-      );
-      process.exit(1);
-    }),
-    pClient.getS3Obj<number>('checkpoint_latest_index.json').catch((err) => {
-      console.error(
-        "Failed to get prospective validator's latest checkpoint.",
-        err,
-      );
-      process.exit(1);
-    }),
-  ]);
+  const [{ obj: cLatestCheckpoint }, { obj: pLastCheckpoint }] =
+    await Promise.all([
+      cClient.getS3Obj<number>('checkpoint_latest_index.json').catch((err) => {
+        console.error(
+          "Failed to get control validator's latest checkpoint.",
+          err,
+        );
+        process.exit(1);
+      }),
+      pClient.getS3Obj<number>('checkpoint_latest_index.json').catch((err) => {
+        console.error(
+          "Failed to get prospective validator's latest checkpoint.",
+          err,
+        );
+        process.exit(1);
+      }),
+    ]);
 
   console.assert(
     Number.isSafeInteger(cLatestCheckpoint),
@@ -161,29 +152,31 @@ async function main() {
     const key = `checkpoint_${i}.json`;
 
     let c: Checkpoint | null;
+    let cLastMod: Date | null;
     try {
       const t = await cClient.getS3Obj(key);
-      if (isCheckpoint(t)) {
-        if (t.checkpoint.index != i) {
+      if (isCheckpoint(t.obj)) {
+        if (t.obj.checkpoint.index != i) {
           console.log(`${i}: Control index is invalid`, t);
           process.exit(1);
         }
-        c = t;
+        [c, cLastMod] = [t.obj, t.modified];
       } else {
         console.log(`${i}: Invalid control checkpoint`, t);
         process.exit(1);
       }
     } catch (err) {
-      c = null;
+      c = cLastMod = null;
     }
 
     let p: Checkpoint;
+    let pLastMod: Date;
     try {
       const t = await pClient.getS3Obj(key);
-      if (isCheckpoint(t)) {
-        p = t;
+      if (isCheckpoint(t.obj)) {
+        [p, pLastMod] = [t.obj, t.modified];
       } else {
-        console.log(`${i}: Invalid prospective checkpoint`, t);
+        console.log(`${i}: Invalid prospective checkpoint`, t.obj);
         invalidCheckpoints.push(i);
         continue;
       }
@@ -219,11 +212,7 @@ async function main() {
     );
 
     try {
-      const [cLastMod, pLastMod] = await Promise.all([
-        cClient.getLastModTime(key),
-        pClient.getLastModTime(key),
-      ]);
-      const diffS = (pLastMod.valueOf() - cLastMod.valueOf()) / 1000;
+      const diffS = (pLastMod.valueOf() - cLastMod!.valueOf()) / 1000;
       if (Math.abs(diffS) > 10) {
         console.log(`${i}: Modification times differ by ${diffS}s`);
       }
