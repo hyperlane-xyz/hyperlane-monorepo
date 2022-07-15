@@ -188,7 +188,7 @@ async function main() {
       );
   }
 
-  await submitMetrics(metricsRegister);
+  await submitMetrics(metricsRegister, 'relayer-funder');
 
   if (failureOccurred) {
     error('At least one failure occurred when funding relayers');
