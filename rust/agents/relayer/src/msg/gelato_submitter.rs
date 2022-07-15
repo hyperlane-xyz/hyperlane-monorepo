@@ -172,27 +172,24 @@ impl GelatoSubmitter {
     }
 }
 
-// TODO(webbhorn): Is there already somewhere actually
-// canonical/authoritative to use instead of duplicating this here?
-// Perhaps we can expand `macro_rules! domain_and_chain`?
-//
-// Otherwise, try to Keep this translation logic out of the gelato
-// crate at least so that we don't start introducing any Abacus
-// concepts (like domain) into it.
+// TODO(webbhorn): Is there already somewhere actually canonical/authoritative to use instead
+// of duplicating this here?  Perhaps we can expand `macro_rules! domain_and_chain`?
+// Otherwise, try to keep this translation logic out of the gelato crate at least so that we
+// don't start introducing any Abacus concepts (like domain) into it.
 fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
-    match domain {
-        6648936 => Ok(Chain::Mainnet),
-        1634872690 => Ok(Chain::Rinkeby),
-        3000 => Ok(Chain::Kovan),
-        1886350457 => Ok(Chain::Polygon),
-        80001 => Ok(Chain::PolygonMumbai), // Mumbai's domain and chain IDs happen to match.
-        1635148152 => Ok(Chain::Avalanche),
-        43113 => Ok(Chain::AvalancheFuji), // Fuji's domain and chain IDs happen to match.
-        6386274 => Ok(Chain::Arbitrum),
-        28528 => Ok(Chain::Optimism),
-        1869622635 => Ok(Chain::OptimismKovan),
-        6452067 => Ok(Chain::BinanceSmartChain),
-        1651715444 => Ok(Chain::BinanceSmartChainTestnet),
+    Ok(match domain {
+        6648936 => Chain::Mainnet,
+        1634872690 => Chain::Rinkeby,
+        3000 => Chain::Kovan,
+        1886350457 => Chain::Polygon,
+        80001 => Chain::PolygonMumbai,
+        1635148152 => Chain::Avalanche,
+        43113 => Chain::AvalancheFuji,
+        6386274 => Chain::Arbitrum,
+        28528 => Chain::Optimism,
+        1869622635 => Chain::OptimismKovan,
+        6452067 => Chain::BinanceSmartChain,
+        1651715444 => Chain::BinanceSmartChainTestnet,
         // TODO(webbhorn): Uncomment once Gelato supports Celo.
         // 1667591279 => Chain::Celo,
         // TODO(webbhorn): Need Alfajores support too.
@@ -201,7 +198,7 @@ fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
         // TODO(webbhorn): Abacus hasn't assigned a domain id for Alfajores yet.
         // 5 => Chain::Goerli,
         _ => bail!("Unknown domain {}", domain),
-    }
+    })
 }
 
 // TODO(webbhorn): Remove 'allow unused' once we impl run() and ref internal fields.
