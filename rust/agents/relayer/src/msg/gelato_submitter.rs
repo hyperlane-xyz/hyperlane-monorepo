@@ -1,84 +1,75 @@
-use std::sync::Arc;
-
-use abacus_base::{chains::GelatoConf, CoreMetrics, InboxContracts};
+use abacus_base::CoreMetrics;
+use abacus_core::Encode;
 use abacus_core::{db::AbacusDB, Signers};
-use abacus_core::{AbacusCommon, Encode};
 use ethers::abi::Token;
-use ethers::types::Address;
-use ethers::types::U256;
+use ethers::types::{Address, U256};
 use ethers_contract::BaseContract;
-use gelato::chains::Chain;
-use prometheus::{Histogram, IntCounter, IntGauge};
-use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
-
 use eyre::{bail, Result};
+use gelato::chains::Chain;
+use gelato::fwd_req_call::{ForwardRequestArgs, PaymentType, NATIVE_FEE_TOKEN_ADDRESS};
+use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc;
+use tokio::time::{Duration, sleep};
+use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
 use tracing::{info_span, instrument::Instrumented, Instrument};
-
-use gelato::fwd_req_call::{ForwardRequestArgs, PaymentType};
-use gelato::fwd_req_op::{ForwardRequestOp, ForwardRequestOptions};
 
 use super::SubmitMessageArgs;
 
 const DEFAULT_MAX_FEE: u32 = 1_000_000;
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
     /// Source of messages to submit.
     new_messages_receive_channel: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-    /// Interface to Inbox / InboxValidatorManager on the destination chain.
-    /// Will be useful in retry logic to determine whether or not to re-submit
-    /// forward request to Gelato, if e.g. we have confirmation via inbox syncer
-    /// that the message has already been submitted by some other relayer.
-    inbox_contracts: InboxContracts,
+    /// The domain of the destination chain for messages submitted with this GelatoSubmitter.
+    inbox_domain: u32,
     /// Address of the inbox validator manager contract that will be specified
     /// to Gelato in ForwardRequest submissions to process new messages.
-    inbox_validator_manager_address: ethers::types::Address,
+    ivm_address: Address,
     /// The BaseContract representing the InboxValidatorManager ABI, used to encode process()
     /// calldata into Gelato ForwardRequest arg.
-    inbox_validator_manager_base_contract: BaseContract,
+    ivm_base_contract: BaseContract,
     /// The address of the inbox on the destination chain.
     inbox_address: Address,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
-    db: AbacusDB,
+    /// TODO(webbhorn): Promote to non-_-prefixed name once we're checking gas payments.
+    _db: AbacusDB,
     /// Domain of the outbox.
     outbox_domain: u32,
     /// Signer to use for EIP-712 meta-transaction signatures.
     signer: Signers,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     /// Intended to be shared by reqwest library.
-    http: Arc<reqwest::Client>,
+    http: reqwest::Client,
     /// Prometheus metrics.
-    metrics: GelatoSubmitterMetrics,
+    /// TODO(webbhorn): Promote to non-_-prefixed name once we're populating metrics.
+    _metrics: GelatoSubmitterMetrics,
 }
 
 #[allow(clippy::too_many_arguments)]
 impl GelatoSubmitter {
     pub fn new(
-        cfg: GelatoConf,
         new_messages_receive_channel: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-        inbox_contracts: InboxContracts,
-        inbox_validator_manager_address: abacus_core::Address,
-        inbox_validator_manager_base_contract: ethers_contract::BaseContract,
+        inbox_domain: u32,
+        ivm_address: abacus_core::Address,
+        ivm_base_contract: BaseContract,
         inbox_address: abacus_core::Address,
         db: AbacusDB,
         outbox_domain: u32,
         signer: Signers,
         metrics: GelatoSubmitterMetrics,
     ) -> Self {
-        assert!(cfg.enabled_for_message_submission);
         Self {
             new_messages_receive_channel,
-            inbox_contracts,
-            inbox_validator_manager_address: inbox_validator_manager_address.into(),
-            inbox_validator_manager_base_contract,
+            inbox_domain,
+            ivm_address: ivm_address.into(),
+            ivm_base_contract,
             inbox_address: inbox_address.into(),
-            db,
+            _db: db,
             outbox_domain,
             signer,
-            http: Arc::new(reqwest::Client::new()),
-            metrics,
+            http: reqwest::Client::new(),
+            _metrics: metrics,
         }
     }
 
@@ -89,29 +80,15 @@ impl GelatoSubmitter {
 
     /// The Gelato relay framework allows us to submit ops in
     /// parallel, subject to certain retry rules. Therefore all we do
-    /// here is spin forever asking for work from the rx channel, then
-    /// spawn the work to submit to gelato in a root tokio task.
-    ///
-    /// It is possible that there has not been sufficient interchain
-    /// gas deposited in the InterchainGasPaymaster account on the source
-    /// chain, so we also keep a wait queue of ops that we
-    /// periodically scan for any gas updates.
-    ///
-    /// In the future one could maybe imagine also applying a global
-    /// rate-limiter against the relevant Gelato HTTP endpoint or
-    /// something, or a max-inflight-cap on Gelato messages from
-    /// relayers, enforced here. But probably not until that proves to
-    /// be necessary.
+    /// here is spin forever asking for work, then spawn the work to
+    /// submit to gelato op.
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.tick().await?;
-            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+            sleep(Duration::from_millis(1000)).await;
         }
     }
 
-    /// Extracted from main loop to enable testing submitter state
-    /// after each tick, e.g. in response to a change in environment
-    /// conditions like values in InterchainGasPaymaster.
     async fn tick(&mut self) -> Result<()> {
         // Pull any messages sent by processor over channel.
         loop {
@@ -124,8 +101,9 @@ impl GelatoSubmitter {
                         http: self.http.clone(),
                     };
                     tokio::spawn(async move {
-                        // TODO(webbhorn): Actually handle errors?
-                        op.run().await.unwrap();
+                        op.run()
+                            .await
+                            .expect("failed unimplemented forward request submit op");
                     });
                 }
                 Err(TryRecvError::Empty) => {
@@ -146,7 +124,7 @@ impl GelatoSubmitter {
             .enumerate()
             .for_each(|(i, elem)| *elem = _msg.proof.path[i].to_fixed_bytes());
 
-        let data = self.inbox_validator_manager_base_contract.encode(
+        let data = self.ivm_base_contract.encode(
             "process",
             [
                 Token::Address(self.inbox_address),
@@ -171,9 +149,9 @@ impl GelatoSubmitter {
         )?;
 
         Ok(ForwardRequestArgs {
-            target_chain: Chain::from_abacus_domain(self.inbox_contracts.inbox.local_domain()),
-            target_contract: self.inbox_validator_manager_address,
-            fee_token: gelato::fwd_req_call::NATIVE_FEE_TOKEN_ADDRESS,
+            target_chain: Chain::from_abacus_domain(self.inbox_domain),
+            target_contract: self.ivm_address,
+            fee_token: NATIVE_FEE_TOKEN_ADDRESS,
             max_fee: DEFAULT_MAX_FEE.into(),
             gas: DEFAULT_MAX_FEE.into(),
             sponsor_chain_id: Chain::from_abacus_domain(self.outbox_domain),
@@ -189,6 +167,37 @@ impl GelatoSubmitter {
             // guess.
             sponsor: Address::zero(),
         })
+    }
+}
+
+// TODO(webbhorn): Remove 'allow unused' once we impl run() and ref internal fields.
+#[allow(unused)]
+#[derive(Debug, Clone)]
+pub struct ForwardRequestOp<S> {
+    args: ForwardRequestArgs,
+    opts: ForwardRequestOptions,
+    signer: S,
+    http: reqwest::Client,
+}
+
+impl<S> ForwardRequestOp<S> {
+    async fn run(&self) -> Result<()> {
+        todo!()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ForwardRequestOptions {
+    pub poll_interval: Duration,
+    pub retry_submit_interval: Duration,
+}
+
+impl Default for ForwardRequestOptions {
+    fn default() -> Self {
+        Self {
+            poll_interval: Duration::from_secs(60),
+            retry_submit_interval: Duration::from_secs(20 * 60),
+        }
     }
 }
 

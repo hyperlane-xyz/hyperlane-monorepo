@@ -32,7 +32,7 @@ mod inbox;
 
 /// InboxValidatorManager abi
 #[cfg(not(doctest))]
-mod validator_manager;
+pub mod validator_manager;
 
 /// InterchainGasPaymaster abi
 #[cfg(not(doctest))]

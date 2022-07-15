@@ -17,7 +17,7 @@ use abacus_core::{
     AbacusCommon, AbacusContract, Inbox, InboxValidatorManager, MultisigSignedCheckpoint, Signers,
 };
 
-use abacus_ethereum::contracts::inbox_validator_manager::INBOXVALIDATORMANAGER_ABI;
+use abacus_ethereum::validator_manager::INBOXVALIDATORMANAGER_ABI;
 use ethers_contract::BaseContract;
 
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
@@ -131,9 +131,8 @@ impl Relayer {
                     bail!("Need valid signer for inbox to create GelatoSubmitter, none available");
                 }
                 let gelato_submitter = GelatoSubmitter::new(
-                    cfg,
                     new_messages_receive_channel,
-                    inbox_contracts.clone(),
+                    inbox_contracts.inbox.local_domain(),
                     inbox_contracts
                         .validator_manager
                         .contract_address()

@@ -14,11 +14,11 @@ use abacus_core::{
     Encode, InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
 };
 
-use crate::contracts::inbox_validator_manager::{
-    InboxValidatorManager as EthereumInboxValidatorManagerInternal, INBOXVALIDATORMANAGER_ABI,
-};
+use crate::contracts::inbox_validator_manager::InboxValidatorManager as EthereumInboxValidatorManagerInternal;
 use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
+
+pub use crate::contracts::inbox_validator_manager::INBOXVALIDATORMANAGER_ABI;
 
 impl<M> Display for EthereumInboxValidatorManagerInternal<M>
 where
