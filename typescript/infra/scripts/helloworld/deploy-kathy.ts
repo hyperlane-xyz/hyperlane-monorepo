@@ -1,13 +1,26 @@
 import { runHelloworldKathyHelmCommand } from '../../src/helloworld/kathy';
 import { HelmCommand } from '../../src/utils/helm';
-import { assertCorrectKubeContext, getEnvironmentConfig } from '../utils';
+import {
+  assertCorrectKubeContext,
+  getContextAgentConfig,
+  getEnvironmentConfig,
+} from '../utils';
+
+import { getHelloWorldConfig } from './utils';
 
 async function main() {
   const coreConfig = await getEnvironmentConfig();
 
   await assertCorrectKubeContext(coreConfig);
 
-  await runHelloworldKathyHelmCommand(HelmCommand.InstallOrUpgrade, coreConfig);
+  const agentConfig = await getContextAgentConfig(coreConfig);
+  const kathyConfig = getHelloWorldConfig(coreConfig).kathy;
+
+  await runHelloworldKathyHelmCommand(
+    HelmCommand.InstallOrUpgrade,
+    agentConfig,
+    kathyConfig,
+  );
 }
 
 main()

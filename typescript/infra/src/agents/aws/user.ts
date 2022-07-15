@@ -3,10 +3,13 @@ import {
   CreateUserCommand,
   IAMClient,
   ListUsersCommand,
+  ListUsersCommandOutput,
+  User,
 } from '@aws-sdk/client-iam';
 
 import { ChainName } from '@abacus-network/sdk';
 
+import { Contexts } from '../../../config/contexts';
 import { AgentConfig } from '../../config';
 import {
   fetchGCPSecret,
@@ -25,6 +28,7 @@ export class AgentAwsUser<Chain extends ChainName> {
 
   constructor(
     public readonly environment: string,
+    public readonly context: Contexts,
     public readonly chainName: Chain,
     public readonly role: KEY_ROLE_ENUM,
     public readonly region: string,
@@ -36,9 +40,8 @@ export class AgentAwsUser<Chain extends ChainName> {
   // Gets API access keys and saves them in GCP secret manager if they do not already exist.
   // Populates `this._arn` with the ARN of the user.
   async createIfNotExists() {
-    const cmd = new ListUsersCommand({});
-    const result = await this.adminIamClient.send(cmd);
-    const match = result.Users?.find((user) => user.UserName === this.userName);
+    const users = await this.getUsers();
+    const match = users.find((user) => user.UserName === this.userName);
     if (match) {
       this._arn = match?.Arn;
     } else {
@@ -114,6 +117,33 @@ export class AgentAwsUser<Chain extends ChainName> {
     return key;
   }
 
+  private async getUsers(): Promise<User[]> {
+    let users: User[] = [];
+    let marker: string | undefined = undefined;
+    // List will output a max of 100 at a time, so we need to use marker
+    // to fetch all of them.
+    while (true) {
+      const listAliasResponse: ListUsersCommandOutput =
+        await this.adminIamClient.send(
+          new ListUsersCommand({
+            Marker: marker,
+          }),
+        );
+      if (!listAliasResponse.Users || listAliasResponse.Users.length === 0) {
+        break;
+      }
+
+      users = users.concat(listAliasResponse.Users);
+
+      if (listAliasResponse.IsTruncated) {
+        marker = listAliasResponse.Marker;
+      } else {
+        break;
+      }
+    }
+    return users;
+  }
+
   get awsTags() {
     const tags = this.tags;
     return Object.keys(tags).map((key) => ({
@@ -131,7 +161,12 @@ export class AgentAwsUser<Chain extends ChainName> {
   }
 
   get userName() {
-    return userIdentifier(this.environment, this.role, this.chainName);
+    return userIdentifier(
+      this.environment,
+      this.context,
+      this.role,
+      this.chainName,
+    );
   }
 
   get accessKeyIdSecretName() {
