@@ -1,4 +1,5 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import * as Process from 'process';
 import yargs from 'yargs';
 
 const MAX_MISSING_CHECKPOINTS = 10;
@@ -48,22 +49,6 @@ function isValidHashStr(s: string): boolean {
   return !!s.match(/^0x[0-9a-f]{1,64}$/im);
 }
 
-function getArgs() {
-  return yargs(process.argv.slice(2))
-    .alias('a', 'address')
-    .describe('a', 'address of the validator to inspect')
-    .demandOption('a')
-    .string('a')
-    .alias('p', 'prospective')
-    .describe('p', 'S3 bucket of the prospective validator')
-    .demandOption('p')
-    .string('p')
-    .alias('c', 'control')
-    .describe('c', 'S3 bucket of the the known (control) validator')
-    .demandOption('c')
-    .string('c').argv;
-}
-
 class S3Wrapper {
   private readonly client: S3Client;
   readonly region: string;
@@ -104,170 +89,259 @@ class S3Wrapper {
   }
 }
 
-async function main() {
-  const {
-    a: _validatorAddress,
-    p: prospectiveBucket,
-    c: controlBucket,
-  } = await getArgs();
+class Validator {
+  private readonly controlS3BucketClient: S3Wrapper;
+  private readonly prospectiveS3BucketClient: S3Wrapper;
 
-  const cClient = new S3Wrapper(controlBucket);
-  const pClient = new S3Wrapper(prospectiveBucket);
+  // accumulators for stats
+  private extraCheckpoints!: number[];
+  private missingCheckpoints!: number[];
+  private invalidCheckpoints!: number[];
+  private modTimeDeltasS!: number[];
+  private fullyCorrectCheckpoints!: number[];
+  private missingInARow!: number;
+  private lastNonMissingCheckpointIndex!: number;
 
-  const [{ obj: controlLatestCheckpoint }, { obj: prospectiveLastCheckpoint }] =
-    await Promise.all([
-      cClient.getS3Obj<number>('checkpoint_latest_index.json').catch((err) => {
-        console.error(
-          "Failed to get control validator's latest checkpoint.",
-          err,
-        );
-        process.exit(1);
-      }),
-      pClient.getS3Obj<number>('checkpoint_latest_index.json').catch((err) => {
-        console.error(
-          "Failed to get prospective validator's latest checkpoint.",
-          err,
-        );
-        process.exit(1);
-      }),
-    ]);
-
-  if (
-    !isLatestCheckpoint(controlLatestCheckpoint) ||
-    !isLatestCheckpoint(prospectiveLastCheckpoint)
-  )
-    process.exit(1);
-
-  console.log(`Latest Index`);
-  console.log(`control: ${controlLatestCheckpoint}`);
-  console.log(`prospective: ${prospectiveLastCheckpoint}\n`);
-
-  let extraCheckpoints = [];
-  const missingCheckpoints = [];
-  let invalidCheckpoints = [];
-  const modTimeDeltasS = [];
-  const fullyCorrectCheckpoints = [];
-  let missingInARow = 0;
-  let lastNonMissingCheckpointIndex = Infinity;
-  for (
-    let i = Math.max(controlLatestCheckpoint, prospectiveLastCheckpoint);
-    i >= 0;
-    --i
+  constructor(
+    public readonly validatorAddress: string,
+    public readonly controlS3BucketAddress: string,
+    public readonly prospectiveS3BucketAddress: string,
   ) {
-    if (missingInARow == MAX_MISSING_CHECKPOINTS) {
-      missingCheckpoints.length -= MAX_MISSING_CHECKPOINTS;
-      invalidCheckpoints = invalidCheckpoints.filter(
-        (j) => j < lastNonMissingCheckpointIndex,
+    this.controlS3BucketClient = new S3Wrapper(this.controlS3BucketAddress);
+    this.prospectiveS3BucketClient = new S3Wrapper(
+      this.prospectiveS3BucketAddress,
+    );
+  }
+
+  initStatsState() {
+    this.extraCheckpoints = [];
+    this.missingCheckpoints = [];
+    this.invalidCheckpoints = [];
+    this.modTimeDeltasS = [];
+    this.fullyCorrectCheckpoints = [];
+    this.missingInARow = 0;
+    this.lastNonMissingCheckpointIndex = Infinity;
+  }
+
+  /**
+   * Validate that the control and prospective validators are in agreement. Will throw an error on
+   * any critical failures and will log stats to the console as it goes.
+   *
+   * If we want to make this callable from outside the script later I would suggest making this
+   * return a stats object or something.
+   */
+  async validate(): Promise<void> {
+    this.initStatsState();
+
+    const { controlLatestCheckpoint, prospectiveLastCheckpoint } =
+      await this.getLatestCheckpoints();
+
+    for (
+      let checkpointIndex = Math.max(
+        controlLatestCheckpoint,
+        prospectiveLastCheckpoint,
       );
-      extraCheckpoints = extraCheckpoints.filter(
-        (j) => j < lastNonMissingCheckpointIndex,
+      checkpointIndex >= 0;
+      --checkpointIndex
+    ) {
+      if (this.missingInARow == MAX_MISSING_CHECKPOINTS) {
+        this.missingCheckpoints.length -= MAX_MISSING_CHECKPOINTS;
+        this.invalidCheckpoints = this.invalidCheckpoints.filter(
+          (j) => j < this.lastNonMissingCheckpointIndex,
+        );
+        this.extraCheckpoints = this.extraCheckpoints.filter(
+          (j) => j < this.lastNonMissingCheckpointIndex,
+        );
+        break;
+      }
+
+      await this.validateCheckpointIndex(checkpointIndex);
+    }
+
+    console.log(
+      `Fully correct checkpoints (${this.fullyCorrectCheckpoints.length}): ${this.fullyCorrectCheckpoints}\n`,
+    );
+    if (this.extraCheckpoints.length)
+      console.log(
+        `Extra checkpoints (${this.extraCheckpoints.length}): ${this.extraCheckpoints}\n`,
       );
-      break;
-    }
+    if (this.missingCheckpoints.length)
+      console.log(
+        `Missing checkpoints (${this.missingCheckpoints.length}): ${this.missingCheckpoints}\n`,
+      );
+    if (this.invalidCheckpoints.length)
+      console.log(
+        `Invalid checkpoints (${this.invalidCheckpoints.length}): ${this.invalidCheckpoints}\n`,
+      );
 
-    const key = `checkpoint_${i}.json`;
-
-    let control: Checkpoint | null;
-    let controlLastMod: Date | null;
-    try {
-      const t = await cClient.getS3Obj(key);
-      if (isCheckpoint(t.obj)) {
-        if (t.obj.checkpoint.index != i) {
-          console.log(`${i}: Control index is invalid`, t);
-          process.exit(1);
-        }
-        [control, controlLastMod] = [t.obj, t.modified];
-      } else {
-        console.log(`${i}: Invalid control checkpoint`, t);
-        process.exit(1);
-      }
-    } catch (err) {
-      control = controlLastMod = null;
+    if (this.modTimeDeltasS.length > 1) {
+      // Drop the time of the first one since it is probably way off
+      this.modTimeDeltasS.length--;
+      console.log(
+        `Time deltas (∆ < 0 -> prospective came earlier than the control)`,
+      );
+      console.log(this.modTimeDeltasS);
+      console.log(`Median: ${median(this.modTimeDeltasS)}s`);
+      console.log(`Mean:   ${mean(this.modTimeDeltasS)}s`);
+      console.log(`Stdev:  ${stdDev(this.modTimeDeltasS)}s`);
     }
+  }
 
-    let prospective: Checkpoint;
-    let prospectiveLastMod: Date;
-    try {
-      const t = await pClient.getS3Obj(key);
-      if (isCheckpoint(t.obj)) {
-        [prospective, prospectiveLastMod] = [t.obj, t.modified];
-        lastNonMissingCheckpointIndex = i;
-      } else {
-        console.log(`${i}: Invalid prospective checkpoint`, t.obj);
-        invalidCheckpoints.push(i);
-        continue;
-      }
-      if (!control) {
-        extraCheckpoints.push(i);
-      }
-      missingInARow = 0;
-    } catch (err) {
-      if (control) {
-        missingCheckpoints.push(i);
-        missingInARow++;
-      }
-      continue;
-    }
+  private async validateCheckpointIndex(
+    checkpointIndex: number,
+  ): Promise<void> {
+    const { control, controlLastMod } = (await this.getControlCheckpoint(
+      checkpointIndex,
+    )) ?? { control: null, controlLastMod: null };
+
+    const getProspectiveCheckpointResult = await this.getProspectiveCheckpoint(
+      checkpointIndex,
+      !!control,
+    );
+    if (!getProspectiveCheckpointResult) return;
+    const { prospective, prospectiveLastMod } = getProspectiveCheckpointResult;
 
     console.assert(
-      prospective.checkpoint.index == i,
-      `${i}: checkpoint indexes do not match`,
+      prospective.checkpoint.index == checkpointIndex,
+      `${checkpointIndex}: checkpoint indexes do not match`,
     );
 
     // TODO: verify signature
 
     if (!control) {
-      continue;
+      return;
     }
 
     // compare against the control
     console.assert(
       control.checkpoint.outbox_domain == prospective.checkpoint.outbox_domain,
-      `${i}: outbox_domains do not match`,
+      `${checkpointIndex}: outbox_domains do not match`,
     );
     console.assert(
       control.checkpoint.root == prospective.checkpoint.root,
-      `${i}: checkpoint roots do not match`,
+      `${checkpointIndex}: checkpoint roots do not match`,
     );
 
     const diffS =
       (prospectiveLastMod.valueOf() - controlLastMod!.valueOf()) / 1000;
     if (Math.abs(diffS) > 10) {
-      console.log(`${i}: Modification times differ by ${diffS}s`);
+      console.log(`${checkpointIndex}: Modification times differ by ${diffS}s`);
     }
-    modTimeDeltasS.push(diffS);
-    fullyCorrectCheckpoints.push(i);
+    this.modTimeDeltasS.push(diffS);
+    this.fullyCorrectCheckpoints.push(checkpointIndex);
   }
 
-  console.log(
-    `Fully correct checkpoints (${fullyCorrectCheckpoints.length}): ${fullyCorrectCheckpoints}\n`,
-  );
-  if (extraCheckpoints.length)
-    console.log(
-      `Extra checkpoints (${extraCheckpoints.length}): ${extraCheckpoints}\n`,
-    );
-  if (missingCheckpoints.length)
-    console.log(
-      `Missing checkpoints (${missingCheckpoints.length}): ${missingCheckpoints}\n`,
-    );
-  if (invalidCheckpoints.length)
-    console.log(
-      `Invalid checkpoints (${invalidCheckpoints.length}): ${invalidCheckpoints}\n`,
-    );
+  private async getLatestCheckpoints(): Promise<{
+    controlLatestCheckpoint: number;
+    prospectiveLastCheckpoint: number;
+  }> {
+    const [
+      { obj: controlLatestCheckpoint },
+      { obj: prospectiveLastCheckpoint },
+    ] = await Promise.all([
+      this.controlS3BucketClient
+        .getS3Obj<number>('checkpoint_latest_index.json')
+        .catch((err) => {
+          console.error(
+            "Failed to get control validator's latest checkpoint.",
+            err,
+          );
+          process.exit(1);
+        }),
+      this.prospectiveS3BucketClient
+        .getS3Obj<number>('checkpoint_latest_index.json')
+        .catch((err) => {
+          console.error(
+            "Failed to get prospective validator's latest checkpoint.",
+            err,
+          );
+          process.exit(1);
+        }),
+    ]);
 
-  if (modTimeDeltasS.length > 1) {
-    // Drop the time of the first one since it is probably way off
-    modTimeDeltasS.length--;
-    console.log(
-      `Time deltas (∆ < 0 -> prospective came earlier than the control)`,
-    );
-    console.log(modTimeDeltasS);
-    console.log(`Median: ${median(modTimeDeltasS)}s`);
-    console.log(`Mean:   ${mean(modTimeDeltasS)}s`);
-    console.log(`Stdev:  ${stdDev(modTimeDeltasS)}s`);
+    if (
+      !isLatestCheckpoint(controlLatestCheckpoint) ||
+      !isLatestCheckpoint(prospectiveLastCheckpoint)
+    )
+      throw new Error('Invalid latest checkpoint data');
+
+    console.log(`Latest Index`);
+    console.log(`control: ${controlLatestCheckpoint}`);
+    console.log(`prospective: ${prospectiveLastCheckpoint}\n`);
+    return { controlLatestCheckpoint, prospectiveLastCheckpoint };
+  }
+
+  private async getControlCheckpoint(
+    checkpointIndex: number,
+  ): Promise<{ control: Checkpoint; controlLastMod: Date } | null> {
+    let control: Checkpoint, controlLastMod: Date, unrecoverableError;
+    try {
+      const t = await this.controlS3BucketClient.getS3Obj(
+        this.checkpointKey(checkpointIndex),
+      );
+      if (isCheckpoint(t.obj)) {
+        if (t.obj.checkpoint.index != checkpointIndex) {
+          console.log(`${checkpointIndex}: Control index is invalid`, t);
+          process.exit(1);
+        }
+        [control, controlLastMod] = [t.obj, t.modified];
+      } else {
+        console.log(`${checkpointIndex}: Invalid control checkpoint`, t);
+        unrecoverableError = new Error('Invalid control checkpoint.');
+      }
+    } catch (err) {
+      return null;
+    }
+    if (unrecoverableError) throw unrecoverableError;
+    return { control: control!, controlLastMod: controlLastMod! };
+  }
+
+  private async getProspectiveCheckpoint(
+    checkpointIndex: number,
+    controlFoundForIndex: boolean,
+  ): Promise<{ prospective: Checkpoint; prospectiveLastMod: Date } | null> {
+    let prospective: Checkpoint, prospectiveLastMod: Date;
+    try {
+      const t = await this.prospectiveS3BucketClient.getS3Obj(
+        this.checkpointKey(checkpointIndex),
+      );
+      if (isCheckpoint(t.obj)) {
+        [prospective, prospectiveLastMod] = [t.obj, t.modified];
+        this.lastNonMissingCheckpointIndex = checkpointIndex;
+      } else {
+        console.log(
+          `${checkpointIndex}: Invalid prospective checkpoint`,
+          t.obj,
+        );
+        this.invalidCheckpoints.push(checkpointIndex);
+        return null;
+      }
+      if (!controlFoundForIndex) {
+        this.extraCheckpoints.push(checkpointIndex);
+      }
+      this.missingInARow = 0;
+    } catch (err) {
+      if (controlFoundForIndex) {
+        this.missingCheckpoints.push(checkpointIndex);
+        this.missingInARow++;
+      }
+      return null;
+    }
+
+    return {
+      prospective: prospective!,
+      prospectiveLastMod: prospectiveLastMod!,
+    };
+  }
+
+  private checkpointKey(checkpointIndex: number): string {
+    return `checkpoint_${checkpointIndex}.json`;
   }
 }
 
+////
+// A few static utilities
+////
 function median(a: number[]): number {
   a = [...a]; // clone
   a.sort((a, b) => a - b);
@@ -299,6 +373,46 @@ function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
       .on('error', (err) => reject(err))
       .on('end', () => resolve(String.prototype.concat(...chunks)));
   });
+}
+
+////
+// Bootstrapper
+////
+function getArgs() {
+  return yargs(process.argv.slice(2))
+    .alias('a', 'address')
+    .describe('a', 'address of the validator to inspect')
+    .demandOption('a')
+    .string('a')
+    .alias('p', 'prospective')
+    .describe('p', 'S3 bucket of the prospective validator')
+    .demandOption('p')
+    .string('p')
+    .alias('c', 'control')
+    .describe('c', 'S3 bucket of the the known (control) validator')
+    .demandOption('c')
+    .string('c').argv;
+}
+
+async function main() {
+  const {
+    a: validatorAddress,
+    p: prospectiveBucket,
+    c: controlBucket,
+  } = await getArgs();
+
+  const validator = new Validator(
+    validatorAddress,
+    prospectiveBucket,
+    controlBucket,
+  );
+
+  try {
+    await validator.validate();
+  } catch (err) {
+    console.error(err);
+    Process.exit(1);
+  }
 }
 
 main().catch(console.error);
