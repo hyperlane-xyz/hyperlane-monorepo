@@ -89,8 +89,8 @@ class S3Wrapper {
 }
 
 class Validator {
-  private readonly controlS3BucketClient: S3Wrapper;
-  private readonly prospectiveS3BucketClient: S3Wrapper;
+  private readonly controlS3BucketClientWrapper: S3Wrapper;
+  private readonly prospectiveS3BucketClientWrapper: S3Wrapper;
 
   // accumulators for stats
   /** Checkpoints the prospective validator has that the control validator does not */
@@ -116,8 +116,10 @@ class Validator {
     public readonly controlS3BucketAddress: string,
     public readonly prospectiveS3BucketAddress: string,
   ) {
-    this.controlS3BucketClient = new S3Wrapper(this.controlS3BucketAddress);
-    this.prospectiveS3BucketClient = new S3Wrapper(
+    this.controlS3BucketClientWrapper = new S3Wrapper(
+      this.controlS3BucketAddress,
+    );
+    this.prospectiveS3BucketClientWrapper = new S3Wrapper(
       this.prospectiveS3BucketAddress,
     );
   }
@@ -246,7 +248,7 @@ class Validator {
       { obj: controlLatestCheckpoint },
       { obj: prospectiveLastCheckpoint },
     ] = await Promise.all([
-      this.controlS3BucketClient
+      this.controlS3BucketClientWrapper
         .getS3Obj<number>('checkpoint_latest_index.json')
         .catch((err) => {
           console.error(
@@ -255,7 +257,7 @@ class Validator {
           );
           process.exit(1);
         }),
-      this.prospectiveS3BucketClient
+      this.prospectiveS3BucketClientWrapper
         .getS3Obj<number>('checkpoint_latest_index.json')
         .catch((err) => {
           console.error(
@@ -283,7 +285,7 @@ class Validator {
   ): Promise<{ control: Checkpoint; controlLastMod: Date } | null> {
     let control: Checkpoint, controlLastMod: Date, unrecoverableError;
     try {
-      const s3Object = await this.controlS3BucketClient.getS3Obj(
+      const s3Object = await this.controlS3BucketClientWrapper.getS3Obj(
         this.checkpointKey(checkpointIndex),
       );
       if (isCheckpoint(s3Object.obj)) {
@@ -309,7 +311,7 @@ class Validator {
   ): Promise<{ prospective: Checkpoint; prospectiveLastMod: Date } | null> {
     let prospective: Checkpoint, prospectiveLastMod: Date;
     try {
-      const s3Object = await this.prospectiveS3BucketClient.getS3Obj(
+      const s3Object = await this.prospectiveS3BucketClientWrapper.getS3Obj(
         this.checkpointKey(checkpointIndex),
       );
       if (isCheckpoint(s3Object.obj)) {
