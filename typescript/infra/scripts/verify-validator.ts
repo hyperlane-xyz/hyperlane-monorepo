@@ -104,7 +104,7 @@ class Validator {
    */
   private modTimeDeltasS!: number[];
   /** The checkpoints which were, as far as this validation logic is concerned, present and valid */
-  private fullyCorrectCheckpoints!: number[];
+  private validCheckpoints!: number[];
   /** The number of checkpoints that the control had that the validator did not have in a row.
    * (Not necessarily consecutive indexes) */
   private missingInARow!: number;
@@ -129,7 +129,7 @@ class Validator {
     this.missingCheckpoints = [];
     this.invalidCheckpoints = [];
     this.modTimeDeltasS = [];
-    this.fullyCorrectCheckpoints = [];
+    this.validCheckpoints = [];
     this.missingInARow = 0;
     this.lastNonMissingCheckpointIndex = Infinity;
   }
@@ -168,7 +168,7 @@ class Validator {
     }
 
     console.log(
-      `Fully correct checkpoints (${this.fullyCorrectCheckpoints.length}): ${this.fullyCorrectCheckpoints}\n`,
+      `Fully correct checkpoints (${this.validCheckpoints.length}): ${this.validCheckpoints}\n`,
     );
     if (this.extraCheckpoints.length)
       console.log(
@@ -237,7 +237,7 @@ class Validator {
       console.log(`${checkpointIndex}: Modification times differ by ${diffS}s`);
     }
     this.modTimeDeltasS.push(diffS);
-    this.fullyCorrectCheckpoints.push(checkpointIndex);
+    this.validCheckpoints.push(checkpointIndex);
   }
 
   private async getLatestCheckpoints(): Promise<{
