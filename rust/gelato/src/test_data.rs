@@ -34,8 +34,8 @@ pub(crate) mod sdk_demo_data {
     // An actual ForwardRequestArgs struct built from the above data.
     pub fn new_fwd_req_args() -> ForwardRequestArgs {
         ForwardRequestArgs {
-            target_chain: CHAIN_ID,
-            target_contract: TARGET_CONTRACT.parse().unwrap(),
+            chain_id: CHAIN_ID,
+            target: TARGET_CONTRACT.parse().unwrap(),
             data: DATA.parse().unwrap(),
             fee_token: TOKEN.parse().unwrap(),
             payment_type: PAYMENT_TYPE,
