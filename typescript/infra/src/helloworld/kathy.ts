@@ -40,6 +40,9 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
       repository: kathyConfig.docker.repo,
       tag: kathyConfig.docker.tag,
     },
+    infra: {
+      prometheusPushGateway: kathyConfig.prometheusPushGateway,
+    },
   };
 
   return helmifyValues(values);
