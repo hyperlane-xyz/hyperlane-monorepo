@@ -123,7 +123,6 @@ impl Chain {
             _ => Err(GelatoError::UnknownRelayForwardAddress(*self)),
         }
     }
-
 }
 
 #[cfg(test)]
