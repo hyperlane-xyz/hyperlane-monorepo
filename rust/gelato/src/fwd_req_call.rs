@@ -3,7 +3,6 @@ use crate::err::GelatoError;
 use ethers::types::{Address, Bytes, Signature, U256};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
-use std::sync::Arc;
 use tracing::info;
 use tracing::instrument;
 
@@ -29,7 +28,7 @@ pub struct ForwardRequestArgs {
 
 #[derive(Debug, Clone)]
 pub struct ForwardRequestCall {
-    pub http: Arc<reqwest::Client>,
+    pub http: reqwest::Client,
     pub args: ForwardRequestArgs,
     pub sig: Signature,
 }
