@@ -123,8 +123,7 @@ impl GelatoSubmitter {
             .iter_mut()
             .enumerate()
             .for_each(|(i, elem)| *elem = _msg.proof.path[i].to_fixed_bytes());
-
-        let data = self.ivm_base_contract.encode(
+        let call_data = self.ivm_base_contract.encode(
             "process",
             [
                 Token::Address(self.inbox_address),
@@ -147,7 +146,6 @@ impl GelatoSubmitter {
                 Token::Uint(_msg.leaf_index.into()),
             ],
         )?;
-
         Ok(ForwardRequestArgs {
             target_chain: Chain::from_abacus_domain(self.inbox_domain),
             target_contract: self.ivm_address,
@@ -159,7 +157,7 @@ impl GelatoSubmitter {
             nonce: U256::zero(),
             enforce_sponsor_nonce: false,
             enforce_sponsor_nonce_ordering: false,
-            data,
+            data: call_data,
             // TODO(webbhorn): Use same 'sponsor' address currently
             // being used to sign the directly-submitted ethers
             // transactions right now. We apparently use the same
