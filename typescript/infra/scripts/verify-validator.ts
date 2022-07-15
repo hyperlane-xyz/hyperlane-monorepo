@@ -217,17 +217,11 @@ async function main() {
       `${i}: checkpoint roots do not match`,
     );
 
-    try {
-      const diffS = (pLastMod.valueOf() - cLastMod!.valueOf()) / 1000;
-      if (Math.abs(diffS) > 10) {
-        console.log(`${i}: Modification times differ by ${diffS}s`);
-      }
-      modTimeDeltasS.push(diffS);
-    } catch (err) {
-      // this is probably a permission error since we already know they should exist
-      console.error(`${i}: Error validating last modified times`, err);
+    const diffS = (pLastMod.valueOf() - cLastMod!.valueOf()) / 1000;
+    if (Math.abs(diffS) > 10) {
+      console.log(`${i}: Modification times differ by ${diffS}s`);
     }
-
+    modTimeDeltasS.push(diffS);
     fullyCorrectCheckpoints.push(i);
   }
 
