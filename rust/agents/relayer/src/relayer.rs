@@ -133,6 +133,7 @@ impl Relayer {
                     inbox_contracts.inbox.contract_address(),
                     BaseContract::from(ivm_abi.clone()),
                     inbox_contracts.validator_manager.contract_address(),
+                    cfg.sponsor_address,
                     self.outbox().db(),
                     maybe_signer.expect("need valid signer for Gelato meta txns"),
                     GelatoSubmitterMetrics::new(
