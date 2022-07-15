@@ -72,7 +72,7 @@ async function main() {
     }
   }
 
-  await submitMetrics(metricsRegister);
+  await submitMetrics(metricsRegister, 'kathy');
 
   if (failureOccurred) {
     console.error('Failure occurred at least once');
