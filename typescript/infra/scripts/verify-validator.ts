@@ -1,5 +1,4 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import * as Process from 'process';
 import yargs from 'yargs';
 
 const MAX_MISSING_CHECKPOINTS = 10;
@@ -411,7 +410,7 @@ async function main() {
     await validator.validate();
   } catch (err) {
     console.error(err);
-    Process.exit(1);
+    process.exit(1);
   }
 }
 
