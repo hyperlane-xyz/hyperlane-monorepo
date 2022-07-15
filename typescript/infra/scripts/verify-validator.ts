@@ -1,7 +1,7 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import yargs from 'yargs';
 
-const MAX_CHECKPOINTS_MISSING_IN_A_ROW = 10;
+const MAX_MISSING_CHECKPOINTS = 10;
 
 interface Checkpoint {
   checkpoint: {
@@ -93,12 +93,22 @@ class Validator {
   private readonly prospectiveS3BucketClient: S3Wrapper;
 
   // accumulators for stats
+  /** Checkpoints the prospective validator has that the control validator does not */
   private extraCheckpoints!: number[];
+  /** Checkpoints the prospective validator does not have that the control validator does have */
   private missingCheckpoints!: number[];
+  /** Checkpoints the prospective validator has but for which we detected an issue */
   private invalidCheckpoints!: number[];
+  /** The difference in modification times on the s3 objects between the control and validator
+   * buckets. (validator time - control time).
+   */
   private modTimeDeltasS!: number[];
+  /** The checkpoints which were, as far as this validation logic is concerned, present and valid */
   private fullyCorrectCheckpoints!: number[];
+  /** The number of checkpoints that the control had that the validator did not have in a row.
+   * (Not necessarily consecutive indexes) */
   private missingInARow!: number;
+  /** Index of the last index we found an entry for from the prospective validator */
   private lastNonMissingCheckpointIndex!: number;
 
   constructor(
@@ -144,8 +154,8 @@ class Validator {
       checkpointIndex >= 0;
       --checkpointIndex
     ) {
-      if (this.missingInARow == MAX_CHECKPOINTS_MISSING_IN_A_ROW) {
-        this.missingCheckpoints.length -= MAX_CHECKPOINTS_MISSING_IN_A_ROW;
+      if (this.missingInARow == MAX_MISSING_CHECKPOINTS) {
+        this.missingCheckpoints.length -= MAX_MISSING_CHECKPOINTS;
         this.extraCheckpoints = this.extraCheckpoints.filter(
           (j) => j < this.lastNonMissingCheckpointIndex,
         );
