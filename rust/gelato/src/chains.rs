@@ -124,36 +124,6 @@ impl Chain {
         }
     }
 
-    pub fn from_abacus_domain(domain: u32) -> Self {
-        match domain {
-            6648936 => Chain::Mainnet,
-            1634872690 => Chain::Rinkeby,
-            3000 => Chain::Kovan,
-            1886350457 => Chain::Polygon,
-            80001 => Chain::PolygonMumbai, // Mumbai's domain and chain IDs match.
-            1635148152 => Chain::Avalanche,
-            43113 => Chain::AvalancheFuji, // Fuji's domain and chain IDs match.
-            6386274 => Chain::Arbitrum,
-            28528 => Chain::Optimism,
-            1869622635 => Chain::OptimismKovan,
-            6452067 => Chain::BinanceSmartChain,
-            1651715444 => Chain::BinanceSmartChainTestnet,
-
-            // TODO(webbhorn): Panic gross, but wouldn't returning a Result<Self> contradict
-            // the from() signature that is required to implement the From trait?
-            _ => panic!("Unknown domain {}", domain),
-            // TODO(webbhorn): Uncomment once Gelato supports Celo.
-            // 1667591279 => Chain::Celo,
-
-            // TODO(webbhorn): Need Alfajores support too.
-
-            // TODO(webbhorn): What is the difference between ArbitrumRinkeby and ArbitrumTestnet?
-            // 421611 => Chain::ArbitrumTestnet,
-
-            // TODO(webbhorn): Abacus hasn't assigned a domain id for Alfajores yet.
-            // 5 => Chain::Goerli,
-        }
-    }
 }
 
 #[cfg(test)]
