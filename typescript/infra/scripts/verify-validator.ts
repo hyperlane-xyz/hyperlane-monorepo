@@ -238,7 +238,9 @@ async function main() {
       `Invalid checkpoints (${invalidCheckpoints.length}): ${invalidCheckpoints}\n`,
     );
 
-  if (modTimeDeltasS.length) {
+  if (modTimeDeltasS.length > 1) {
+    // Drop the time of the first one since it is probably way off
+    modTimeDeltasS.length--;
     console.log(
       `Time deltas (∆ < 0 -> prospective came earlier than the control)`,
     );
