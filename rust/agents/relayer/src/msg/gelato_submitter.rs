@@ -21,37 +21,28 @@ const DEFAULT_MAX_FEE: u32 = 1_000_000_000;
 pub(crate) struct GelatoSubmitter {
     /// Source of messages to submit.
     messages: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-
     /// The Abacus domain of the source chain for messages to be submitted via this GelatoSubmitter.
     outbox_domain: u32,
-
     /// The Abacus domain of the destination chain for messages submitted with this GelatoSubmitter.
     inbox_domain: u32,
     /// The on-chain address of the inbox contract on the destination chain.
     inbox_address: Address,
-
-    /// The ethers BaseContract representing the
-    /// InboxValidatorManager ABI, used to encode process() calldata
-    /// into Gelato ForwardRequest arg.
+    /// The ethers BaseContract representing the InboxValidatorManager ABI, used to encode
+    /// process() calldata into Gelato ForwardRequest arg.
     ivm_base_contract: BaseContract,
     /// Address of the inbox validator manager contract that will be specified
     /// to Gelato in ForwardRequest submissions to process new messages.
     ivm_address: Address,
-
     /// The address of the 'sponsor' contract providing payment to Gelato.
     sponsor_address: Address,
-
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     /// TODO(webbhorn): Promote to non-_-prefixed name once we're checking gas payments.
     _db: AbacusDB,
-
     /// Signer to use for EIP-712 meta-transaction signatures.
     signer: Signers,
-
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     /// Intended to be shared by reqwest library.
     http: reqwest::Client,
-
     /// Prometheus metrics.
     /// TODO(webbhorn): Promote to non-_-prefixed name once we're populating metrics.
     _metrics: GelatoSubmitterMetrics,
