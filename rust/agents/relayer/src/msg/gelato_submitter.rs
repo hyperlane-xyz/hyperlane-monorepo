@@ -38,6 +38,9 @@ pub(crate) struct GelatoSubmitter {
     /// to Gelato in ForwardRequest submissions to process new messages.
     ivm_address: Address,
 
+    /// The address of the 'sponsor' contract providing payment to Gelato.
+    sponsor_address: Address,
+
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     /// TODO(webbhorn): Promote to non-_-prefixed name once we're checking gas payments.
     _db: AbacusDB,
@@ -63,6 +66,7 @@ impl GelatoSubmitter {
         inbox_address: abacus_core::Address,
         ivm_base_contract: BaseContract,
         ivm_address: abacus_core::Address,
+        sponsor_address: Address,
         db: AbacusDB,
         signer: Signers,
         metrics: GelatoSubmitterMetrics,
@@ -74,6 +78,7 @@ impl GelatoSubmitter {
             inbox_address: inbox_address.into(),
             ivm_base_contract,
             ivm_address: ivm_address.into(),
+            sponsor_address,
             _db: db,
             signer,
             http: reqwest::Client::new(),
@@ -121,53 +126,48 @@ impl GelatoSubmitter {
         Ok(())
     }
 
-    fn make_forward_request_args(&self, _msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
+    fn make_forward_request_args(&self, msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
         let mut proof: [[u8; 32]; 32] = Default::default();
         proof
             .iter_mut()
             .enumerate()
-            .for_each(|(i, elem)| *elem = _msg.proof.path[i].to_fixed_bytes());
+            .for_each(|(i, elem)| *elem = msg.proof.path[i].to_fixed_bytes());
         let call_data = self.ivm_base_contract.encode(
             "process",
             [
                 Token::Address(self.inbox_address),
-                Token::FixedBytes(_msg.checkpoint.checkpoint.root.to_fixed_bytes().into()),
-                Token::Uint(_msg.checkpoint.checkpoint.index.into()),
+                Token::FixedBytes(msg.checkpoint.checkpoint.root.to_fixed_bytes().into()),
+                Token::Uint(msg.checkpoint.checkpoint.index.into()),
                 Token::Array(
-                    _msg.checkpoint
+                    msg.checkpoint
                         .signatures
                         .iter()
                         .map(|s| Token::Bytes(s.to_vec()))
                         .collect(),
                 ),
-                Token::Bytes(_msg.committed_message.message.to_vec()),
+                Token::Bytes(msg.committed_message.message.to_vec()),
                 Token::FixedArray(
                     proof
                         .iter()
                         .map(|s| Token::FixedBytes(s.to_vec()))
                         .collect(),
                 ),
-                Token::Uint(_msg.leaf_index.into()),
+                Token::Uint(msg.leaf_index.into()),
             ],
         )?;
         Ok(ForwardRequestArgs {
             chain_id: abacus_domain_to_gelato_chain(self.inbox_domain)?,
             target: self.ivm_address,
+            data: call_data,
             fee_token: NATIVE_FEE_TOKEN_ADDRESS,
-            max_fee: DEFAULT_MAX_FEE.into(),
-            gas: DEFAULT_MAX_FEE.into(),
-            sponsor_chain_id: abacus_domain_to_gelato_chain(self.outbox_domain)?,
             payment_type: PaymentType::AsyncGasTank,
+            max_fee: DEFAULT_MAX_FEE.into(),  // Maximum fee that sponsor is willing to pay.
+            gas: DEFAULT_MAX_FEE.into(),  // // Gas limit.
+            sponsor_chain_id: abacus_domain_to_gelato_chain(self.outbox_domain)?,
             nonce: U256::zero(),
             enforce_sponsor_nonce: false,
             enforce_sponsor_nonce_ordering: false,
-            data: call_data,
-            // TODO(webbhorn): Use same 'sponsor' address currently
-            // being used to sign the directly-submitted ethers
-            // transactions right now. We apparently use the same
-            // addr for all inbox chains but they could change i
-            // guess.
-            sponsor: Address::zero(),
+            sponsor: self.sponsor_address,
         })
     }
 }
