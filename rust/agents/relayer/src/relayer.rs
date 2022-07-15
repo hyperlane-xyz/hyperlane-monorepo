@@ -125,15 +125,9 @@ impl Relayer {
                 let gelato_submitter = GelatoSubmitter::new(
                     msg_receive,
                     inbox_contracts.inbox.local_domain(),
-                    inbox_contracts
-                        .validator_manager
-                        .contract_address()
-                        .expect("ivm contract address needed"),
+                    inbox_contracts.validator_manager.contract_address(),
                     BaseContract::from(ivm_abi.clone()),
-                    inbox_contracts
-                        .inbox
-                        .contract_address()
-                        .expect("inbox contract address needed"),
+                    inbox_contracts.inbox.contract_address(),
                     self.outbox().db(),
                     self.outbox().local_domain(),
                     maybe_signer.expect("need valid signer for Gelato meta txns"),
