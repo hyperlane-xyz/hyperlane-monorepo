@@ -1,6 +1,8 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import yargs from 'yargs';
 
+const MAX_MISSING_CHECKPOINTS = 10;
+
 interface Checkpoint {
   checkpoint: {
     outbox_domain: number;
@@ -137,11 +139,16 @@ async function main() {
   const modTimeDeltasS = [];
   const fullyCorrectCheckpoints = [];
   let missingInARow = 0;
+  let lastNonMissingCheckpointIndex = Infinity;
   for (let i = Math.max(cLatestCheckpoint, pLastCheckpoint); i >= 0; --i) {
-    if (missingInARow == 10) {
-      missingCheckpoints.length -= 10;
-      invalidCheckpoints = invalidCheckpoints.filter((j) => j < i - 10);
-      extraCheckpoints = extraCheckpoints.filter((j) => j < i - 10);
+    if (missingInARow == MAX_MISSING_CHECKPOINTS) {
+      missingCheckpoints.length -= MAX_MISSING_CHECKPOINTS;
+      invalidCheckpoints = invalidCheckpoints.filter(
+        (j) => j < lastNonMissingCheckpointIndex,
+      );
+      extraCheckpoints = extraCheckpoints.filter(
+        (j) => j < lastNonMissingCheckpointIndex,
+      );
       break;
     }
 
@@ -171,6 +178,7 @@ async function main() {
       const t = await pClient.getS3Obj(key);
       if (isCheckpoint(t.obj)) {
         [p, pLastMod] = [t.obj, t.modified];
+        lastNonMissingCheckpointIndex = i;
       } else {
         console.log(`${i}: Invalid prospective checkpoint`, t.obj);
         invalidCheckpoints.push(i);
@@ -181,8 +189,10 @@ async function main() {
       }
       missingInARow = 0;
     } catch (err) {
-      missingCheckpoints.push(i);
-      missingInARow++;
+      if (c) {
+        missingCheckpoints.push(i);
+        missingInARow++;
+      }
       continue;
     }
 
