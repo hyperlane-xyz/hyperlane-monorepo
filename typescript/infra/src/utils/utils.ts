@@ -223,8 +223,10 @@ export function mean(a: number[]): number {
 }
 
 export function stdDev(a: number[]): number {
+  const xbar = mean(a);
   return Math.sqrt(
-    a.map((i) => i * i).reduce((acc, i) => acc + i, 0) / a.length,
+    a.map((x) => Math.pow(x - xbar, 2)).reduce((acc, i) => acc + i, 0) /
+      a.length,
   );
 }
 
