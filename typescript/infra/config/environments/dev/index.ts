@@ -1,7 +1,8 @@
 import { getMultiProviderFromGCP } from '../../../scripts/utils';
 import { CoreEnvironmentConfig } from '../../../src/config';
+import { Contexts } from '../../contexts';
 
-import { agent } from './agent';
+import { agents } from './agent';
 import { DevChains, devConfigs } from './chains';
 import { core } from './core';
 import { infrastructure } from './infrastructure';
@@ -9,8 +10,9 @@ import { infrastructure } from './infrastructure';
 export const environment: CoreEnvironmentConfig<DevChains> = {
   environment: 'dev',
   transactionConfigs: devConfigs,
-  getMultiProvider: () => getMultiProviderFromGCP(devConfigs, 'dev'),
-  agent,
+  getMultiProvider: (context?: Contexts) =>
+    getMultiProviderFromGCP(devConfigs, 'dev', context),
+  agents,
   core,
   infra: infrastructure,
 };

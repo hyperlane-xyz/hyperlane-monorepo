@@ -12,7 +12,12 @@ import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
 import { getRelayerKeys } from '../../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { readJSONAtPath } from '../../src/utils/utils';
-import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from '../utils';
+import {
+  assertEnvironment,
+  getArgs,
+  getContextAgentConfig,
+  getCoreEnvironmentConfig,
+} from '../utils';
 
 const constMetricLabels = {
   // this needs to get set in main because of async reasons
@@ -136,10 +141,11 @@ async function main() {
   constMetricLabels.abacus_deployment = environment;
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
+  const agentConfig = await getContextAgentConfig(config);
 
   const relayerKeys = argv.f
     ? getRelayerKeysFromSerializedAddressFile(argv.f)
-    : getRelayerKeys(config.agent);
+    : getRelayerKeys(agentConfig);
 
   const chains = relayerKeys.map((key) => key.chainName!);
   const balances: FunderBalance[] = [];
