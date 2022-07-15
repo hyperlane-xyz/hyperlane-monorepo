@@ -1,6 +1,8 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import yargs from 'yargs';
 
+import { mean, median, stdDev, streamToString } from '../src/utils/utils';
+
 const MAX_MISSING_CHECKPOINTS = 10;
 
 interface Checkpoint {
@@ -346,42 +348,6 @@ class Validator {
   private checkpointKey(checkpointIndex: number): string {
     return `checkpoint_${checkpointIndex}.json`;
   }
-}
-
-////
-// A few static utilities
-////
-function median(a: number[]): number {
-  a = [...a]; // clone
-  a.sort((a, b) => a - b);
-  if (a.length <= 0) {
-    return 0;
-  } else if (a.length % 2 == 0) {
-    return (a[a.length / 2] + a[a.length / 2 - 1]) / 2;
-  } else {
-    return a[(a.length - 1) / 2];
-  }
-}
-
-function mean(a: number[]): number {
-  return a.reduce((acc, i) => acc + i, 0) / a.length;
-}
-
-function stdDev(a: number[]): number {
-  return Math.sqrt(
-    a.map((i) => i * i).reduce((acc, i) => acc + i, 0) / a.length,
-  );
-}
-
-function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: string[] = [];
-    stream
-      .setEncoding('utf8')
-      .on('data', (chunk) => chunks.push(chunk))
-      .on('error', (err) => reject(err))
-      .on('end', () => resolve(String.prototype.concat(...chunks)));
-  });
 }
 
 ////
