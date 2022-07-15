@@ -147,8 +147,8 @@ impl GelatoSubmitter {
             ],
         )?;
         Ok(ForwardRequestArgs {
-            target_chain: Chain::from_abacus_domain(self.inbox_domain),
-            target_contract: self.ivm_address,
+            chain_id: Chain::from_abacus_domain(self.inbox_domain),
+            target: self.ivm_address,
             fee_token: NATIVE_FEE_TOKEN_ADDRESS,
             max_fee: DEFAULT_MAX_FEE.into(),
             gas: DEFAULT_MAX_FEE.into(),
