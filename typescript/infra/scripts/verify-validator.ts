@@ -275,17 +275,17 @@ class Validator {
   ): Promise<{ control: Checkpoint; controlLastMod: Date } | null> {
     let control: Checkpoint, controlLastMod: Date, unrecoverableError;
     try {
-      const t = await this.controlS3BucketClient.getS3Obj(
+      const s3Object = await this.controlS3BucketClient.getS3Obj(
         this.checkpointKey(checkpointIndex),
       );
-      if (isCheckpoint(t.obj)) {
-        if (t.obj.checkpoint.index != checkpointIndex) {
-          console.log(`${checkpointIndex}: Control index is invalid`, t);
+      if (isCheckpoint(s3Object.obj)) {
+        if (s3Object.obj.checkpoint.index != checkpointIndex) {
+          console.log(`${checkpointIndex}: Control index is invalid`, s3Object);
           process.exit(1);
         }
-        [control, controlLastMod] = [t.obj, t.modified];
+        [control, controlLastMod] = [s3Object.obj, s3Object.modified];
       } else {
-        console.log(`${checkpointIndex}: Invalid control checkpoint`, t);
+        console.log(`${checkpointIndex}: Invalid control checkpoint`, s3Object);
         unrecoverableError = new Error('Invalid control checkpoint.');
       }
     } catch (err) {
@@ -301,16 +301,16 @@ class Validator {
   ): Promise<{ prospective: Checkpoint; prospectiveLastMod: Date } | null> {
     let prospective: Checkpoint, prospectiveLastMod: Date;
     try {
-      const t = await this.prospectiveS3BucketClient.getS3Obj(
+      const s3Object = await this.prospectiveS3BucketClient.getS3Obj(
         this.checkpointKey(checkpointIndex),
       );
-      if (isCheckpoint(t.obj)) {
-        [prospective, prospectiveLastMod] = [t.obj, t.modified];
+      if (isCheckpoint(s3Object.obj)) {
+        [prospective, prospectiveLastMod] = [s3Object.obj, s3Object.modified];
         this.lastNonMissingCheckpointIndex = checkpointIndex;
       } else {
         console.log(
           `${checkpointIndex}: Invalid prospective checkpoint`,
-          t.obj,
+          s3Object.obj,
         );
         this.invalidCheckpoints.push(checkpointIndex);
         return null;
