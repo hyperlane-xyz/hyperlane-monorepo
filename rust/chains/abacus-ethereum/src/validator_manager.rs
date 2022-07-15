@@ -124,8 +124,8 @@ where
         Ok(receipt.into())
     }
 
-    fn contract_address(&self) -> Option<abacus_core::Address> {
-        Some(self.address.clone())
+    fn contract_address(&self) -> abacus_core::Address {
+        self.address.clone()
     }
 }
 

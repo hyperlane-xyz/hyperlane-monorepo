@@ -20,6 +20,6 @@ pub trait InboxValidatorManager: Send + Sync + Debug {
         proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError>;
 
-    /// Provide the on-chain address of the IVM.
-    fn contract_address(&self) -> Option<Address>;
+    /// The on-chain address of the inbox validator manager contract.
+    fn contract_address(&self) -> Address;
 }

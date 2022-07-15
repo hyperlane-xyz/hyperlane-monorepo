@@ -10,8 +10,8 @@ use ethers::prelude::*;
 use eyre::Result;
 
 use abacus_core::{
-    AbacusAbi, AbacusCommon, AbacusContract, ChainCommunicationError, ContractLocator, Inbox,
-    MessageStatus, TxOutcome,
+    AbacusAbi, AbacusCommon, AbacusContract, Address, ChainCommunicationError, ContractLocator,
+    Inbox, MessageStatus, TxOutcome,
 };
 
 use crate::contracts::inbox::{Inbox as EthereumInboxInternal, INBOX_ABI};
@@ -124,8 +124,8 @@ where
         Ok(MessageStatus::try_from(status).expect("Bad status from solidity"))
     }
 
-    fn contract_address(&self) -> Option<abacus_core::Address> {
-        Some(self.contract.address().into())
+    fn contract_address(&self) -> Address {
+        self.contract.address().into()
     }
 }
 
