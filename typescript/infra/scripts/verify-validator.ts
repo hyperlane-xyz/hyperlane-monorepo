@@ -135,11 +135,12 @@ class Validator {
     const { controlLatestCheckpoint, prospectiveLastCheckpoint } =
       await this.getLatestCheckpoints();
 
+    const maxCheckpointIndex = Math.max(
+      controlLatestCheckpoint,
+      prospectiveLastCheckpoint,
+    );
     for (
-      let checkpointIndex = Math.max(
-        controlLatestCheckpoint,
-        prospectiveLastCheckpoint,
-      );
+      let checkpointIndex = maxCheckpointIndex;
       checkpointIndex >= 0;
       --checkpointIndex
     ) {
