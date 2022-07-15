@@ -83,13 +83,9 @@ impl GelatoSubmitter {
 
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         tokio::spawn(async move { self.work_loop().await })
-            .instrument(info_span!("submitter work loop"))
+            .instrument(info_span!("gelato submitter work loop"))
     }
 
-    /// The Gelato relay framework allows us to submit ops in
-    /// parallel, subject to certain retry rules. Therefore all we do
-    /// here is spin forever asking for work, then spawn the work to
-    /// submit to gelato op.
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.tick().await?;
