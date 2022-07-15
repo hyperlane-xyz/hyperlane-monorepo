@@ -132,7 +132,7 @@ impl Relayer {
         let submit_fut = match gelato_conf {
             Some(cfg) if cfg.enabled_for_message_submission => {
                 if signer.is_none() {
-                    bail!("Need valid signer for inbox to create GelatoSubmitter, but none was available");
+                    bail!("Need valid signer for inbox to create GelatoSubmitter, none available");
                 }
                 let gelato_submitter = GelatoSubmitter::new(
                     cfg,
