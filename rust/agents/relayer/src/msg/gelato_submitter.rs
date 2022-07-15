@@ -15,7 +15,7 @@ use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use super::SubmitMessageArgs;
 
-const DEFAULT_MAX_FEE: u32 = 1_000_000;
+const DEFAULT_MAX_FEE: u32 = 1_000_000_000;
 
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
@@ -93,9 +93,9 @@ impl GelatoSubmitter {
         // Pull any messages sent by processor over channel.
         loop {
             match self.new_messages_receive_channel.try_recv() {
-                Ok(_msg) => {
+                Ok(msg) => {
                     let op = ForwardRequestOp {
-                        args: self.make_forward_request_args(_msg)?,
+                        args: self.make_forward_request_args(msg)?,
                         opts: ForwardRequestOptions::default(),
                         signer: self.signer.clone(),
                         http: self.http.clone(),
@@ -147,12 +147,12 @@ impl GelatoSubmitter {
             ],
         )?;
         Ok(ForwardRequestArgs {
-            chain_id: Chain::from_abacus_domain(self.inbox_domain),
+            chain_id: abacus_domain_to_gelato_chain(self.inbox_domain)?,
             target: self.ivm_address,
             fee_token: NATIVE_FEE_TOKEN_ADDRESS,
             max_fee: DEFAULT_MAX_FEE.into(),
             gas: DEFAULT_MAX_FEE.into(),
-            sponsor_chain_id: Chain::from_abacus_domain(self.outbox_domain),
+            sponsor_chain_id: abacus_domain_to_gelato_chain(self.outbox_domain)?,
             payment_type: PaymentType::AsyncGasTank,
             nonce: U256::zero(),
             enforce_sponsor_nonce: false,
@@ -165,6 +165,38 @@ impl GelatoSubmitter {
             // guess.
             sponsor: Address::zero(),
         })
+    }
+}
+
+// TODO(webbhorn): Is there already somewhere actually
+// canonical/authoritative to use instead of duplicating this here?
+// Perhaps we can expand `macro_rules! domain_and_chain`?
+//
+// Otherwise, try to Keep this translation logic out of the gelato
+// crate at least so that we don't start introducing any Abacus
+// concepts (like domain) into it.
+fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
+    match domain {
+        6648936 => Ok(Chain::Mainnet),
+        1634872690 => Ok(Chain::Rinkeby),
+        3000 => Ok(Chain::Kovan),
+        1886350457 => Ok(Chain::Polygon),
+        80001 => Ok(Chain::PolygonMumbai), // Mumbai's domain and chain IDs happen to match.
+        1635148152 => Ok(Chain::Avalanche),
+        43113 => Ok(Chain::AvalancheFuji), // Fuji's domain and chain IDs happen to match.
+        6386274 => Ok(Chain::Arbitrum),
+        28528 => Ok(Chain::Optimism),
+        1869622635 => Ok(Chain::OptimismKovan),
+        6452067 => Ok(Chain::BinanceSmartChain),
+        1651715444 => Ok(Chain::BinanceSmartChainTestnet),
+        // TODO(webbhorn): Uncomment once Gelato supports Celo.
+        // 1667591279 => Chain::Celo,
+        // TODO(webbhorn): Need Alfajores support too.
+        // TODO(webbhorn): What is the difference between ArbitrumRinkeby and ArbitrumTestnet?
+        // 421611 => Chain::ArbitrumTestnet,
+        // TODO(webbhorn): Abacus hasn't assigned a domain id for Alfajores yet.
+        // 5 => Chain::Goerli,
+        _ => bail!("Unknown domain {}", domain)
     }
 }
 
