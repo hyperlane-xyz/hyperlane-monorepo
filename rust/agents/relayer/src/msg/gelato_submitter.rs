@@ -20,27 +20,35 @@ const DEFAULT_MAX_FEE: u32 = 1_000_000_000;
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
     /// Source of messages to submit.
-    new_messages_receive_channel: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-    /// The domain of the destination chain for messages submitted with this GelatoSubmitter.
+    messages: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+
+    /// The Abacus domain of the source chain for messages to be submitted via this GelatoSubmitter.
+    outbox_domain: u32,
+
+    /// The Abacus domain of the destination chain for messages submitted with this GelatoSubmitter.
     inbox_domain: u32,
+    /// The on-chain address of the inbox contract on the destination chain.
+    inbox_address: Address,
+
+    /// The ethers BaseContract representing the
+    /// InboxValidatorManager ABI, used to encode process() calldata
+    /// into Gelato ForwardRequest arg.
+    ivm_base_contract: BaseContract,
     /// Address of the inbox validator manager contract that will be specified
     /// to Gelato in ForwardRequest submissions to process new messages.
     ivm_address: Address,
-    /// The BaseContract representing the InboxValidatorManager ABI, used to encode process()
-    /// calldata into Gelato ForwardRequest arg.
-    ivm_base_contract: BaseContract,
-    /// The address of the inbox on the destination chain.
-    inbox_address: Address,
+
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     /// TODO(webbhorn): Promote to non-_-prefixed name once we're checking gas payments.
     _db: AbacusDB,
-    /// Domain of the outbox.
-    outbox_domain: u32,
+
     /// Signer to use for EIP-712 meta-transaction signatures.
     signer: Signers,
+
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     /// Intended to be shared by reqwest library.
     http: reqwest::Client,
+
     /// Prometheus metrics.
     /// TODO(webbhorn): Promote to non-_-prefixed name once we're populating metrics.
     _metrics: GelatoSubmitterMetrics,
@@ -49,24 +57,24 @@ pub(crate) struct GelatoSubmitter {
 #[allow(clippy::too_many_arguments)]
 impl GelatoSubmitter {
     pub fn new(
-        new_messages_receive_channel: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-        inbox_domain: u32,
-        ivm_address: abacus_core::Address,
-        ivm_base_contract: BaseContract,
-        inbox_address: abacus_core::Address,
-        db: AbacusDB,
+        messages: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         outbox_domain: u32,
+        inbox_domain: u32,
+        inbox_address: abacus_core::Address,
+        ivm_base_contract: BaseContract,
+        ivm_address: abacus_core::Address,
+        db: AbacusDB,
         signer: Signers,
         metrics: GelatoSubmitterMetrics,
     ) -> Self {
         Self {
-            new_messages_receive_channel,
-            inbox_domain,
-            ivm_address: ivm_address.into(),
-            ivm_base_contract,
-            inbox_address: inbox_address.into(),
-            _db: db,
+            messages,
             outbox_domain,
+            inbox_domain,
+            inbox_address: inbox_address.into(),
+            ivm_base_contract,
+            ivm_address: ivm_address.into(),
+            _db: db,
             signer,
             http: reqwest::Client::new(),
             _metrics: metrics,
@@ -92,7 +100,7 @@ impl GelatoSubmitter {
     async fn tick(&mut self) -> Result<()> {
         // Pull any messages sent by processor over channel.
         loop {
-            match self.new_messages_receive_channel.try_recv() {
+            match self.messages.try_recv() {
                 Ok(msg) => {
                     let op = ForwardRequestOp {
                         args: self.make_forward_request_args(msg)?,
