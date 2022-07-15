@@ -59,7 +59,7 @@ class S3Wrapper {
 
   constructor(bucketUrl: string) {
     const match = bucketUrl.match(
-      /^https:\/\/(.*)\.s3\.(.*)\.amazonaws.com\/?$/,
+      /^(?:https?:\/\/)?(.*)\.s3\.(.*)\.amazonaws.com\/?$/,
     );
     if (!match) throw new Error('Could not parse bucket url');
     this.bucket = match[1];
