@@ -38,7 +38,7 @@ function isValidHashStr(s: string): boolean {
 
 function getArgs() {
   return yargs(process.argv.slice(2))
-    .alias('a', 'address ')
+    .alias('a', 'address')
     .describe('a', 'address of the validator to inspect')
     .demandOption('a')
     .string('a')
