@@ -32,6 +32,18 @@ function isCheckpoint(obj: unknown): obj is Checkpoint {
   );
 }
 
+function isLatestCheckpoint(latest: unknown): latest is number {
+  if (typeof latest == 'number' && Number.isSafeInteger(latest) && latest > 0) {
+    return true;
+  } else {
+    console.log(
+      'Expected latest checkpoint to be a valid integer greater than 0',
+      latest,
+    );
+    return false;
+  }
+}
+
 function isValidHashStr(s: string): boolean {
   return !!s.match(/^0x[0-9a-f]{1,64}$/im);
 }
@@ -120,14 +132,11 @@ async function main() {
       }),
     ]);
 
-  console.assert(
-    Number.isSafeInteger(controlLatestCheckpoint),
-    'Expected latest control checkpoint to be an integer',
-  );
-  console.assert(
-    Number.isSafeInteger(prospectiveLastCheckpoint),
-    'Expected latest prospective checkpoint to be an integer',
-  );
+  if (
+    !isLatestCheckpoint(controlLatestCheckpoint) ||
+    !isLatestCheckpoint(prospectiveLastCheckpoint)
+  )
+    process.exit(1);
 
   console.log(`Latest Index`);
   console.log(`control: ${controlLatestCheckpoint}`);
