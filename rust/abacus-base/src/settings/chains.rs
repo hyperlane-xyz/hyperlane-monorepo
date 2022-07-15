@@ -1,4 +1,5 @@
 use ethers::signers::Signer;
+use ethers::types::Address;
 use eyre::Report;
 use serde::Deserialize;
 
@@ -31,17 +32,22 @@ impl Default for ChainConf {
     }
 }
 
-/// Configuration for using Gelato to interact with some chain.
+/// Configuration for using Gelato to interact with some chain.  If this setting is provided as
+/// part of an Inbox ChainConf, then the Abacus relayer job will configure itself to
+/// process messages for delivery onto that chain via the Gelato Relay API, rather than via an
+/// ethers-rs provider. The sponsor address will be interpreted by the relayer to refer to an
+/// address on the same chain as the corresponding **outbox** (source chain, from perspective of
+/// message being delivered), despite the fact that this GelatoConf setting is specified in
+/// configs for an Inbox chain's ChainConf.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GelatoConf {
-    /// Whether to use Gelato's Relay service for processing messages on inboxes.
+    /// Whether to use Gelato's Relay service for processing messages for this ChainConf's inbox.
     pub enabled_for_message_submission: bool,
-    // Other gelato configuration options can go here, like
-    // max-in-flight submissions we're willing to try, perhaps
-    // the Ethereum-based chain_id (which may differ from
-    // abacus domain), number of retry attempts before giving up,
-    // etc.
+    /// The address of the 'sponsor' contract that used to provide payment to Gelato.
+    /// Relayer interprets this to mean an address on the relayer's /outbox/ chain, not the
+    /// inbox chain.
+    pub sponsor_address: Address,
 }
 
 /// Addresses for outbox chain contracts
