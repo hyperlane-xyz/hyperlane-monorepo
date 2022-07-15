@@ -1,8 +1,9 @@
-import { Counter, Pushgateway, Registry } from 'prom-client';
+import { Counter, Registry } from 'prom-client';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
 import { ChainName, Chains } from '@abacus-network/sdk';
 
+import { submitMetrics } from '../../src/utils/metrics';
 import { sleep } from '../../src/utils/utils';
 import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
@@ -71,7 +72,7 @@ async function main() {
     }
   }
 
-  await submitMetrics();
+  await submitMetrics(metricsRegister);
 
   if (failureOccurred) {
     console.error('Failure occurred at least once');
@@ -87,32 +88,6 @@ async function sendMessage(
   console.log(`Sending message from ${source} to ${destination}`);
   const receipt = await app.sendHelloWorld(source, destination, `Hello!`);
   console.log(JSON.stringify(receipt.events || receipt.logs));
-}
-
-function getPushGateway(): Pushgateway | null {
-  const gatewayAddr = process.env['PROMETHEUS_PUSH_GATEWAY'];
-  if (gatewayAddr) {
-    return new Pushgateway(gatewayAddr, [], metricsRegister);
-  } else {
-    console.warn(
-      'Prometheus push gateway address was not defined; not publishing metrics.',
-    );
-    return null;
-  }
-}
-
-async function submitMetrics() {
-  const gateway = getPushGateway();
-  if (!gateway) return;
-
-  const { resp, body } = await gateway.push({ jobName: 'kathy' });
-  const statusCode =
-    typeof resp == 'object' && resp != null && 'statusCode' in resp
-      ? (resp as any).statusCode
-      : 'unknown';
-  console.log(
-    `Prometheus metrics pushed to PushGateway with status ${statusCode} and body ${body}`,
-  );
 }
 
 main()
