@@ -1,7 +1,7 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import yargs from 'yargs';
 
-const MAX_MISSING_CHECKPOINTS = 10;
+const MAX_CHECKPOINTS_MISSING_IN_A_ROW = 10;
 
 interface Checkpoint {
   checkpoint: {
@@ -144,8 +144,8 @@ class Validator {
       checkpointIndex >= 0;
       --checkpointIndex
     ) {
-      if (this.missingInARow == MAX_MISSING_CHECKPOINTS) {
-        this.missingCheckpoints.length -= MAX_MISSING_CHECKPOINTS;
+      if (this.missingInARow == MAX_CHECKPOINTS_MISSING_IN_A_ROW) {
+        this.missingCheckpoints.length -= MAX_CHECKPOINTS_MISSING_IN_A_ROW;
         this.extraCheckpoints = this.extraCheckpoints.filter(
           (j) => j < this.lastNonMissingCheckpointIndex,
         );
