@@ -60,7 +60,7 @@ where
     domain: u32,
     #[allow(unused)]
     chain_name: String,
-    address: abacus_core::Address,
+    address: Address,
     #[allow(unused)]
     provider: Arc<M>,
     inbox_address: Address,
@@ -80,7 +80,7 @@ where
             )),
             domain: locator.domain,
             chain_name: locator.chain_name.to_owned(),
-            address: locator.address.clone(),
+            address: locator.address.clone().into(),
             provider,
             inbox_address,
         }
@@ -125,7 +125,7 @@ where
     }
 
     fn contract_address(&self) -> abacus_core::Address {
-        self.address.clone()
+        self.address.into()
     }
 }
 
