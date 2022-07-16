@@ -46,7 +46,6 @@ pub(crate) struct GelatoSubmitter {
     pub(crate) _metrics: GelatoSubmitterMetrics,
 }
 
-#[allow(clippy::too_many_arguments)]
 impl GelatoSubmitter {
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         tokio::spawn(async move { self.work_loop().await })
