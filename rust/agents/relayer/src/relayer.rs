@@ -106,13 +106,40 @@ impl Relayer {
         checkpoint_fetcher.spawn()
     }
 
+    /// Helper to construct a new GelatoSubmitter instance for submission to a particular inbox.
+    fn make_gelato_submitter_for_inbox(
+        &self,
+        cfg: &GelatoConf,
+        message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+        inbox_contracts: InboxContracts,
+        signer: Signers,
+    ) -> Result<GelatoSubmitter> {
+        Ok(GelatoSubmitter {
+            messages: message_receiver,
+            outbox_domain: self.outbox().local_domain(),
+            inbox_domain: inbox_contracts.inbox.local_domain(),
+            inbox_address: inbox_contracts.inbox.contract_address().into(),
+            ivm_base_contract: BaseContract::from(ivm_abi.clone()),
+            ivm_address: inbox_contracts.validator_manager.contract_address().into(),
+            sponsor_address: cfg.sponsor_address,
+            _db: self.outbox().db(),
+            signer,
+            http: reqwest::Client::new(),
+            _metrics: GelatoSubmitterMetrics::new(
+                &self.core.metrics,
+                self.outbox().outbox().chain_name(),
+                inbox_contracts.inbox.chain_name(),
+            ),
+        })
+    }
+
     #[tracing::instrument(fields(inbox=%inbox_contracts.inbox.chain_name()))]
     fn run_inbox(
         &self,
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
-        gelato_conf: Option<GelatoConf>,
-        maybe_signer: Option<Signers>,
+        gelato_conf: &Option<GelatoConf>,
+        signer: Signers,
     ) -> Result<Instrumented<JoinHandle<Result<()>>>> {
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
@@ -121,25 +148,9 @@ impl Relayer {
         );
         let (msg_send, msg_receive) = mpsc::unbounded_channel();
         let submit_fut = match gelato_conf {
-            Some(cfg) if cfg.enabled_for_message_submission => {
-                let gelato_submitter = GelatoSubmitter::new(
-                    msg_receive,
-                    self.outbox().local_domain(),
-                    inbox_contracts.inbox.local_domain(),
-                    inbox_contracts.inbox.contract_address(),
-                    BaseContract::from(ivm_abi.clone()),
-                    inbox_contracts.validator_manager.contract_address(),
-                    cfg.sponsor_address,
-                    self.outbox().db(),
-                    maybe_signer.expect("need valid signer for Gelato meta txns"),
-                    GelatoSubmitterMetrics::new(
-                        &self.core.metrics,
-                        self.outbox().outbox().chain_name(),
-                        inbox_contracts.inbox.chain_name(),
-                    ),
-                );
-                gelato_submitter.spawn()
-            }
+            Some(cfg) if cfg.enabled => self
+                .make_gelato_submitter_for_inbox(cfg, msg_receive, inbox_contracts.clone(), signer)?
+                .spawn(),
             _ => {
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
@@ -184,8 +195,13 @@ impl Relayer {
         let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = Vec::new();
 
         for (inbox_name, inbox_contracts) in self.inboxes() {
-            let signer = self.core.settings.get_signer(inbox_name).await;
-            let gelato_conf = self.core.settings.inboxes[inbox_name].gelato_conf.clone();
+            let signer = self
+                .core
+                .settings
+                .get_signer(inbox_name)
+                .await
+                .expect("get signer for inbox");
+            let gelato_conf = &self.core.settings.inboxes[inbox_name].gelato_conf;
             tasks.push(self.run_inbox(
                 inbox_contracts.clone(),
                 signed_checkpoint_receiver.clone(),
