@@ -1,9 +1,10 @@
 use std::collections::BinaryHeap;
+use std::sync::Arc;
 
+use abacus_base::CachingInbox;
 use abacus_base::CoreMetrics;
-use abacus_base::InboxContracts;
+use abacus_base::InboxValidatorManagers;
 use abacus_core::db::AbacusDB;
-use abacus_core::AbacusContract;
 use abacus_core::Inbox;
 use abacus_core::InboxValidatorManager;
 use abacus_core::MessageStatus;
@@ -102,53 +103,38 @@ use super::SubmitMessageArgs;
 /// prioritized accordingly. Note that for messages that have never been attempted before, they
 /// will sort very highly due to num_retries==0 and probably be tried soon.
 
-// TODO(webbhorn): Metrics data.
-// TODO(webbhorn): Do we also want to await finality_blocks on source chain before attempting
-// submission? Does this already happen?
-
-#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct SerialSubmitter {
-    /// Receiver for new messages to submit.
-    rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+    /// Name of the destination chain we are submitting to.
+    pub(crate) inbox_chain_name: String,
+    /// Interface to the destination chain's Inbox contract, to e.g. obtain a message's current
+    /// status with a 'message_status' call.
+    pub(crate) inbox: Arc<CachingInbox>,
+    /// Interface to the destination chain's InboxValidatorManager contract for purposes of
+    /// message processing.
+    pub(crate) ivm: Arc<InboxValidatorManagers>,
+    /// Receiver end of channel for new messages to submit.
+    pub(crate) message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// Messages we are aware of that we want to eventually submit, but haven't yet, for
     /// whatever reason. They are not in any priority order, so are held in a vector.
-    wait_queue: Vec<SubmitMessageArgs>,
+    pub(crate) wait_queue: Vec<SubmitMessageArgs>,
     /// Messages that are in theory deliverable, but which are waiting in a queue for their turn
     /// to be dispatched. The SerialSubmitter can only dispatch one message at a time, so this
     /// queue could grow.
-    run_queue: BinaryHeap<SubmitMessageArgs>,
-    /// Inbox / InboxValidatorManager on the destination chain.
-    inbox_contracts: InboxContracts,
+    pub(crate) run_queue: BinaryHeap<SubmitMessageArgs>,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
-    db: AbacusDB,
+    pub(crate) db: AbacusDB,
     /// Metrics for serial submitter.
-    metrics: SerialSubmitterMetrics,
+    pub(crate) metrics: SerialSubmitterMetrics,
 }
 
 impl SerialSubmitter {
-    pub(crate) fn new(
-        rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-        inbox_contracts: InboxContracts,
-        db: AbacusDB,
-        metrics: SerialSubmitterMetrics,
-    ) -> Self {
-        Self {
-            rx,
-            wait_queue: Vec::new(),
-            run_queue: BinaryHeap::new(),
-            inbox_contracts,
-            db,
-            metrics,
-        }
-    }
-
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         tokio::spawn(async move { self.work_loop().await })
             .instrument(info_span!("serial submitter work loop"))
     }
 
-    #[instrument(skip_all, fields(ibx=self.inbox_contracts.inbox.inbox().chain_name()))]
+    #[instrument(skip_all, fields(ibx=self.inbox_chain_name.as_str()))]
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.tick().await?;
@@ -156,22 +142,18 @@ impl SerialSubmitter {
         }
     }
 
-    /// Tick represents a single round of scheduling wherein we will process each queue and
-    /// await at most one message submission.  It is extracted from the main loop to allow for
-    /// testing the state of the scheduler at particular points without having to worry about
-    /// concurrent access.
     async fn tick(&mut self) -> Result<()> {
         // Pull any messages sent by processor over channel.
         loop {
-            match self.rx.try_recv() {
+            match self.message_receiver.try_recv() {
                 Ok(msg) => {
                     self.wait_queue.push(msg);
                 }
                 Err(TryRecvError::Empty) => {
                     break;
                 }
-                Err(_) => {
-                    bail!("Disconnected rcvq or fatal err");
+                Err(e) => {
+                    bail!("Receive new messages from processor: {:?}", e);
                 }
             }
         }
@@ -208,7 +190,6 @@ impl SerialSubmitter {
         // already-processed, and move on to the next tick.
         // TODO(webbhorn): Make this robust to re-orgs on inbox.
         if let MessageStatus::Processed = self
-            .inbox_contracts
             .inbox
             .message_status(msg.committed_message.to_leaf())
             .await?
@@ -244,8 +225,7 @@ impl SerialSubmitter {
     // as processed (or eventually retry if no confirmation is ever seen).
     async fn process_message(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         let result = self
-            .inbox_contracts
-            .validator_manager
+            .ivm
             .process(&msg.checkpoint, &msg.committed_message.message, &msg.proof)
             .await?;
         self.record_message_process_success(msg)?;

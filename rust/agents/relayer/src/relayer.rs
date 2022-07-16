@@ -1,8 +1,10 @@
+use std::collections::BinaryHeap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{eyre, Result};
 use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
+use tracing::error;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::{
@@ -108,32 +110,6 @@ impl Relayer {
         checkpoint_fetcher.spawn()
     }
 
-    /// Helper to construct a new GelatoSubmitter instance for submission to a particular inbox.
-    fn make_gelato_submitter_for_inbox(
-        &self,
-        cfg: &GelatoConf,
-        message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-        inbox_contracts: InboxContracts,
-        signer: Signers,
-    ) -> Result<GelatoSubmitter> {
-        Ok(GelatoSubmitter {
-            messages: message_receiver,
-            outbox_domain: self.outbox().local_domain(),
-            inbox_domain: inbox_contracts.inbox.local_domain(),
-            inbox_address: inbox_contracts.inbox.contract_address().into(),
-            ivm_address: inbox_contracts.validator_manager.contract_address().into(),
-            sponsor_address: cfg.sponsor_address,
-            _db: self.outbox().db(),
-            signer,
-            http: reqwest::Client::new(),
-            _metrics: GelatoSubmitterMetrics::new(
-                &self.core.metrics,
-                self.outbox().outbox().chain_name(),
-                inbox_contracts.inbox.chain_name(),
-            ),
-        })
-    }
-
     #[tracing::instrument(fields(inbox=%inbox_contracts.inbox.chain_name()))]
     fn run_inbox(
         &self,
@@ -142,48 +118,38 @@ impl Relayer {
         gelato_conf: Option<&GelatoConf>,
         signer: Signers,
     ) -> Result<Instrumented<JoinHandle<Result<()>>>> {
-        let metrics = MessageProcessorMetrics::new(
-            &self.core.metrics,
-            self.outbox().outbox().chain_name(),
-            inbox_contracts.inbox.chain_name(),
-        );
         let (msg_send, msg_receive) = mpsc::unbounded_channel();
         let submit_fut = match gelato_conf {
             Some(cfg) if cfg.enabled => self
                 .make_gelato_submitter_for_inbox(cfg, msg_receive, inbox_contracts.clone(), signer)?
                 .spawn(),
-            _ => {
-                let serial_submitter = SerialSubmitter::new(
-                    msg_receive,
-                    inbox_contracts.clone(),
-                    self.outbox().db(),
-                    SerialSubmitterMetrics::new(
-                        &self.core.metrics,
-                        self.outbox().outbox().chain_name(),
-                        inbox_contracts.inbox.chain_name(),
-                    ),
-                );
-                serial_submitter.spawn()
-            }
+            _ => self
+                .make_serial_submitter_for_inbox(msg_receive, inbox_contracts.clone())?
+                .spawn(),
         };
-        let message_processor = MessageProcessor::new(
-            self.outbox().outbox(),
-            self.outbox().db(),
-            inbox_contracts,
-            self.whitelist.clone(),
-            metrics,
-            msg_send,
-            signed_checkpoint_receiver,
-        );
-        info!(
-            message_processor=?message_processor,
-            "Using message processor"
-        );
-        let process_fut = message_processor.spawn();
+        let process_fut = self
+            .make_message_processor_for_inbox(
+                msg_send,
+                signed_checkpoint_receiver,
+                inbox_contracts.clone(),
+            )?
+            .spawn();
+        // Run submit_fut and process_fut indefinitely, but if either fails or both complete,
+        // log details and pass control flow to caller (we are probably shutting down or about
+        // to panic).
         Ok(tokio::spawn(async move {
-            let res = tokio::try_join!(submit_fut, process_fut)?;
-            info!(?res, "try_join finished for inbox");
-            Ok(())
+            let result = tokio::try_join!(submit_fut, process_fut)?;
+            match result {
+                (Ok(()), Ok(())) => Ok(()),
+                (_, _) => {
+                    error!(
+                        "error with inbox tasks on '{}': '{:?}'",
+                        inbox_contracts.inbox.chain_name(),
+                        result
+                    );
+                    Err(eyre!("Missing attribute"))
+                }
+            }
         })
         .instrument(info_span!("run inbox")))
     }
@@ -221,6 +187,76 @@ impl Relayer {
         }
 
         Ok(self.run_all(tasks))
+    }
+
+    fn make_gelato_submitter_for_inbox(
+        &self,
+        cfg: &GelatoConf,
+        message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+        inbox_contracts: InboxContracts,
+        signer: Signers,
+    ) -> Result<GelatoSubmitter> {
+        let metrics = GelatoSubmitterMetrics::new(
+            &self.core.metrics,
+            self.outbox().outbox().chain_name(),
+            inbox_contracts.inbox.chain_name(),
+        );
+        Ok(GelatoSubmitter {
+            messages: message_receiver,
+            outbox_domain: self.outbox().local_domain(),
+            inbox_domain: inbox_contracts.inbox.local_domain(),
+            inbox_address: inbox_contracts.inbox.contract_address().into(),
+            ivm_address: inbox_contracts.validator_manager.contract_address().into(),
+            sponsor_address: cfg.sponsor_address,
+            _db: self.outbox().db(),
+            signer,
+            http: reqwest::Client::new(),
+            _metrics: metrics,
+        })
+    }
+
+    fn make_serial_submitter_for_inbox(
+        &self,
+        message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+        inbox_contracts: InboxContracts,
+    ) -> Result<SerialSubmitter> {
+        let metrics = SerialSubmitterMetrics::new(
+            &self.core.metrics,
+            self.outbox().outbox().chain_name(),
+            inbox_contracts.inbox.chain_name(),
+        );
+        Ok(SerialSubmitter {
+            inbox_chain_name: inbox_contracts.inbox.chain_name().into(),
+            inbox: inbox_contracts.inbox.clone(),
+            ivm: inbox_contracts.validator_manager.clone(),
+            message_receiver,
+            wait_queue: Vec::default(),
+            run_queue: BinaryHeap::new(),
+            db: self.outbox().db(),
+            metrics,
+        })
+    }
+
+    fn make_message_processor_for_inbox(
+        &self,
+        message_sender: mpsc::UnboundedSender<SubmitMessageArgs>,
+        signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
+        inbox_contracts: InboxContracts,
+    ) -> Result<MessageProcessor> {
+        let metrics = MessageProcessorMetrics::new(
+            &self.core.metrics,
+            self.outbox().outbox().chain_name(),
+            inbox_contracts.inbox.chain_name(),
+        );
+        Ok(MessageProcessor::new(
+            self.outbox().outbox(),
+            self.outbox().db(),
+            inbox_contracts,
+            self.whitelist.clone(),
+            metrics,
+            message_sender,
+            signed_checkpoint_receiver,
+        ))
     }
 }
 
