@@ -20,63 +20,35 @@ const DEFAULT_MAX_FEE: u32 = 1_000_000_000;
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
     /// Source of messages to submit.
-    messages: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+    pub(crate) messages: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// The Abacus domain of the source chain for messages to be submitted via this GelatoSubmitter.
-    outbox_domain: u32,
+    pub(crate) outbox_domain: u32,
     /// The Abacus domain of the destination chain for messages submitted with this GelatoSubmitter.
-    inbox_domain: u32,
+    pub(crate) inbox_domain: u32,
     /// The on-chain address of the inbox contract on the destination chain.
-    inbox_address: Address,
+    pub(crate) inbox_address: Address,
     /// The ethers BaseContract representing the InboxValidatorManager ABI, used to encode
     /// process() calldata into Gelato ForwardRequest arg.
-    ivm_base_contract: BaseContract,
+    pub(crate) ivm_base_contract: BaseContract,
     /// Address of the inbox validator manager contract that will be specified
     /// to Gelato in ForwardRequest submissions to process new messages.
-    ivm_address: Address,
+    pub(crate) ivm_address: Address,
     /// The address of the 'sponsor' contract providing payment to Gelato.
-    sponsor_address: Address,
+    pub(crate) sponsor_address: Address,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     /// TODO(webbhorn): Promote to non-_-prefixed name once we're checking gas payments.
-    _db: AbacusDB,
+    pub(crate) _db: AbacusDB,
     /// Signer to use for EIP-712 meta-transaction signatures.
-    signer: Signers,
+    pub(crate) signer: Signers,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     /// Intended to be shared by reqwest library.
-    http: reqwest::Client,
+    pub(crate) http: reqwest::Client,
     /// Prometheus metrics.
     /// TODO(webbhorn): Promote to non-_-prefixed name once we're populating metrics.
-    _metrics: GelatoSubmitterMetrics,
+    pub(crate) _metrics: GelatoSubmitterMetrics,
 }
 
-#[allow(clippy::too_many_arguments)]
 impl GelatoSubmitter {
-    pub fn new(
-        messages: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-        outbox_domain: u32,
-        inbox_domain: u32,
-        inbox_address: abacus_core::Address,
-        ivm_base_contract: BaseContract,
-        ivm_address: abacus_core::Address,
-        sponsor_address: Address,
-        db: AbacusDB,
-        signer: Signers,
-        metrics: GelatoSubmitterMetrics,
-    ) -> Self {
-        Self {
-            messages,
-            outbox_domain,
-            inbox_domain,
-            inbox_address: inbox_address.into(),
-            ivm_base_contract,
-            ivm_address: ivm_address.into(),
-            sponsor_address,
-            _db: db,
-            signer,
-            http: reqwest::Client::new(),
-            _metrics: metrics,
-        }
-    }
-
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         tokio::spawn(async move { self.work_loop().await })
             .instrument(info_span!("gelato submitter work loop"))
@@ -118,11 +90,6 @@ impl GelatoSubmitter {
     }
 
     fn make_forward_request_args(&self, msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
-        let mut proof: [[u8; 32]; 32] = Default::default();
-        proof
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, elem)| *elem = msg.proof.path[i].to_fixed_bytes());
         let call_data = self.ivm_base_contract.encode(
             "process",
             [
@@ -138,9 +105,8 @@ impl GelatoSubmitter {
                 ),
                 Token::Bytes(msg.committed_message.message.to_vec()),
                 Token::FixedArray(
-                    proof
-                        .iter()
-                        .map(|s| Token::FixedBytes(s.to_vec()))
+                    (0..32)
+                        .map(|i| Token::FixedBytes(msg.proof.path[i].to_vec()))
                         .collect(),
                 ),
                 Token::Uint(msg.leaf_index.into()),
