@@ -1,18 +1,22 @@
 use std::collections::BinaryHeap;
 use std::sync::Arc;
 
+use abacus_base::CachingOutbox;
 use async_trait::async_trait;
 use eyre::{eyre, Result};
+use prometheus::IntGauge;
+use tokio::time::{self, Duration, MissedTickBehavior};
 use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
-use tracing::error;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
+use tracing::{instrument, warn};
 
 use abacus_base::{
     chains::GelatoConf, AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics,
     InboxContracts, MultisigCheckpointSyncer,
 };
 use abacus_core::{
-    AbacusCommon, AbacusContract, Inbox, InboxValidatorManager, MultisigSignedCheckpoint, Signers,
+    AbacusCommon, AbacusContract, Inbox, InboxValidatorManager, MultisigSignedCheckpoint, Outbox,
+    Signers,
 };
 
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
@@ -83,9 +87,8 @@ impl Relayer {
         &self,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let outbox = self.outbox();
-        let sync = outbox.sync(self.as_ref().indexer.clone(), sync_metrics);
-        sync
+        self.outbox()
+            .sync(self.as_ref().indexer.clone(), sync_metrics)
     }
 
     fn run_interchain_gas_paymaster_sync(
@@ -110,7 +113,19 @@ impl Relayer {
         checkpoint_fetcher.spawn()
     }
 
-    #[tracing::instrument(fields(inbox=%inbox_contracts.inbox.chain_name()))]
+    fn run_outbox_monitoring_loop(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let outbox_state_gauge: IntGauge = self
+            .core
+            .metrics
+            .outbox_state()
+            .with_label_values(&[self.outbox().chain_name()]);
+        tokio::spawn(outbox_metrics_loop(self.outbox(), outbox_state_gauge)).instrument(info_span!(
+            "outbox monitoring loop",
+            outbox_chain_name = self.outbox().chain_name()
+        ))
+    }
+
+    #[instrument(fields(inbox=%inbox_contracts.inbox.chain_name()))]
     fn run_inbox(
         &self,
         inbox_contracts: InboxContracts,
@@ -134,24 +149,18 @@ impl Relayer {
                 inbox_contracts.clone(),
             )?
             .spawn();
-        // Run submit_fut and process_fut indefinitely, but if either fails or both complete,
-        // log details and pass control flow to caller (we are probably shutting down or about
-        // to panic).
         Ok(tokio::spawn(async move {
-            let result = tokio::try_join!(submit_fut, process_fut)?;
+            let result = tokio::try_join!(submit_fut, process_fut);
             match result {
-                (Ok(()), Ok(())) => Ok(()),
-                (_, _) => {
-                    error!(
-                        "error with inbox tasks on '{}': '{:?}'",
-                        inbox_contracts.inbox.chain_name(),
-                        result
-                    );
-                    Err(eyre!("Missing attribute"))
-                }
+                Ok(_) => Ok(()),
+                Err(e) => Err(eyre!(
+                    "a background task failed for inbox on chain {}: {}",
+                    inbox_contracts.inbox.chain_name(),
+                    e
+                )),
             }
         })
-        .instrument(info_span!("run inbox")))
+        .instrument(info_span!("submitter and processor joiner")))
     }
 
     pub async fn run(&self) -> Result<Instrumented<JoinHandle<Result<()>>>> {
@@ -185,6 +194,8 @@ impl Relayer {
         } else {
             info!("Interchain Gas Paymaster not provided, not running sync");
         }
+
+        tasks.push(self.run_outbox_monitoring_loop());
 
         Ok(self.run_all(tasks))
     }
@@ -249,14 +260,28 @@ impl Relayer {
             inbox_contracts.inbox.chain_name(),
         );
         Ok(MessageProcessor::new(
-            self.outbox().outbox(),
             self.outbox().db(),
             inbox_contracts,
             self.whitelist.clone(),
-            metrics,
             message_sender,
             signed_checkpoint_receiver,
+            metrics,
         ))
+    }
+}
+
+async fn outbox_metrics_loop(
+    outbox: Arc<CachingOutbox>,
+    outbox_state_gauge: IntGauge,
+) -> Result<()> {
+    let mut interval = time::interval(Duration::from_secs(60));
+    interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    loop {
+        match outbox.state().await {
+            Ok(state) => outbox_state_gauge.set(state as u8 as i64),
+            Err(e) => warn!(error = %e, "Failed to get outbox state"),
+        };
+        interval.tick().await;
     }
 }
 
