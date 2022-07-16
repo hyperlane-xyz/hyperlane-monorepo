@@ -103,10 +103,6 @@ impl MerkleTreeBuilder {
         }
     }
 
-    pub fn count(&self) -> u32 {
-        self.prover.count() as u32
-    }
-
     #[instrument(err, skip(self), level = "debug")]
     pub async fn update_to_checkpoint(
         &mut self,

@@ -19,6 +19,7 @@ use abacus_core::{
     Signers,
 };
 
+use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
@@ -259,14 +260,15 @@ impl Relayer {
             self.outbox().outbox().chain_name(),
             inbox_contracts.inbox.chain_name(),
         );
-        Ok(MessageProcessor::new(
-            self.outbox().db(),
+        Ok(MessageProcessor {
+            outbox_db: self.outbox().db(),
             inbox_contracts,
-            self.whitelist.clone(),
-            message_sender,
-            signed_checkpoint_receiver,
+            whitelist: self.whitelist.clone(),
+            msg_send_chan: message_sender,
+            checkpoints: signed_checkpoint_receiver,
+            prover_sync: MerkleTreeBuilder::new(self.outbox().db()),
             metrics,
-        ))
+        })
     }
 }
 
