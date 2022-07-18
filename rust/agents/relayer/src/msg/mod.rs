@@ -155,7 +155,7 @@ pub(crate) mod gas {
             let balance = self.payments.get(&leaf_index);
             Ok(match balance {
                 Some(balance) => balance.clone(),
-                None => U256::zero(),
+                None => Payment::zero(),
             })
         }
         pub(crate) fn set_payment(&mut self, leaf_index: LeafIndex, payment: Payment) {
@@ -164,11 +164,6 @@ pub(crate) mod gas {
     }
 }
 
-/////////////////////////////////////////////////////////////
-/////////  ProcessingStatus  ////////////////////////////////
-/////////////////////////////////////////////////////////////
-
-#[allow(dead_code)]
 pub(crate) mod status {
     use std::sync::Arc;
 
@@ -179,6 +174,8 @@ pub(crate) mod status {
     #[derive(Clone, Debug)]
     pub(crate) enum ProcessedStatusOracle {
         InboxContract(InboxContractStatus),
+
+        #[allow(dead_code)]
         #[cfg(test)]
         TestAlwaysNone,
     }
