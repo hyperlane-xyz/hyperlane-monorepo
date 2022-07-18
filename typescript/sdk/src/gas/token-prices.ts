@@ -1,8 +1,8 @@
+import CoinGecko from 'coingecko-api';
+
 import { chainMetadata } from '../consts/chainMetadata';
 import { Mainnets } from '../consts/chains';
 import { ChainName } from '../types';
-
-const CoinGecko = require('coingecko-api');
 
 export interface TokenPriceGetter {
   getTokenPrice(chain: ChainName): Promise<number>;
@@ -47,11 +47,10 @@ export class DefaultTokenPriceGetter implements TokenPriceGetter {
       const prices = ids.map((id) => response.data[id][currency]);
       return prices;
     } catch (e) {
-      console.log(e);
       throw new Error(
         `Unable to fetch prices for ${chains}, received ${JSON.stringify(
           response,
-        )}`,
+        )}, got error ${e}`,
       );
     }
   }
