@@ -201,12 +201,18 @@ export interface DockerConfig {
   tag: string;
 }
 
+export interface TracingConfig {
+  level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
+  format: 'json';
+}
+
 export interface AgentConfig<Chain extends ChainName> {
   environment: string;
   namespace: string;
   runEnv: string;
   context: Contexts;
   docker: DockerConfig;
+  tracing: TracingConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;
   // Names of all chains in the environment
@@ -254,10 +260,7 @@ export type RustConfig<Chain extends ChainName> = {
   signers: Partial<ChainMap<Chain, RustSigner>>;
   inboxes: RemoteChainMap<Chain, any, RustContractBlock<InboxAddresses>>;
   outbox: RustContractBlock<OutboxAddresses>;
-  tracing: {
-    level: string;
-    fmt: 'json';
-  };
+  tracing: TracingConfig;
   db: string;
 };
 

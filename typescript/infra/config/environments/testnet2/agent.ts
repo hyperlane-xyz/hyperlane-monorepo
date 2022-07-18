@@ -14,6 +14,10 @@ export const abacus: AgentConfig<TestnetChains> = {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: 'sha-8740021',
   },
+  tracing: {
+    level: 'debug',
+    format: 'json',
+  },
   aws: {
     region: 'us-east-1',
   },
@@ -69,6 +73,10 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   },
   aws: {
     region: 'us-east-1',
+  },
+  tracing: {
+    level: 'debug',
+    format: 'json',
   },
   environmentChainNames: chainNames,
   contextChainNames: ['alfajores', 'kovan'],

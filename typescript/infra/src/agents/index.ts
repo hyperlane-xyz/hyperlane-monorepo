@@ -30,6 +30,7 @@ async function helmValuesForChain<Chain extends ChainName>(
       runEnv: agentConfig.runEnv,
       context: agentConfig.context,
       baseConfig: `${chainName}_config.json`,
+      tracing: agentConfig.tracing,
       outboxChain: {
         name: chainName,
       },
@@ -91,7 +92,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   envVars.push(`BASE_CONFIG=${valueDict.abacus.baseConfig}`);
   envVars.push(`RUN_ENV=${agentConfig.runEnv}`);
   envVars.push(`ABC_BASE_METRICS=9090`);
-  envVars.push(`ABC_BASE_TRACING_LEVEL=info`);
+  envVars.push(`ABC_BASE_TRACING_LEVEL=${agentConfig.tracing.level}`);
   envVars.push(
     `ABC_BASE_DB=/tmp/${agentConfig.environment}-${role}-${outboxChainName}${
       role === KEY_ROLE_ENUM.Validator ? `-${index}` : ''

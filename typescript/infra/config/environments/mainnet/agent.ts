@@ -14,6 +14,10 @@ export const abacus: AgentConfig<MainnetChains> = {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: 'sha-8740021',
   },
+  tracing: {
+    level: 'debug',
+    format: 'json',
+  },
   aws: {
     region: 'us-east-1',
   },

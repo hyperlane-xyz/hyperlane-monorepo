@@ -14,6 +14,10 @@ export const abacus: AgentConfig<TestChains> = {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: '8852db3d88e87549269487da6da4ea5d67fdbfed',
   },
+  tracing: {
+    level: 'debug',
+    format: 'json',
+  },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   validatorSets: validators,

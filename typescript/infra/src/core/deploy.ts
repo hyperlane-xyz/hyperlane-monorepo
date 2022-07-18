@@ -42,7 +42,7 @@ export class AbacusCoreInfraDeployer<
         outbox,
         tracing: {
           level: 'debug',
-          fmt: 'json',
+          format: 'json',
         },
         db: 'db_path',
       };
