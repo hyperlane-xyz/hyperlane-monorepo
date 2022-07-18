@@ -222,7 +222,6 @@ impl Relayer {
             inbox_address: inbox_contracts.inbox.contract_address().into(),
             ivm_address: inbox_contracts.validator_manager.contract_address().into(),
             sponsor_address: cfg.sponsor_address,
-            _db: self.outbox().db(),
             gas_oracle: GasPaymentOracle::IndexedDB(AbacusDBGasOracle::new(self.outbox().db())),
             status_oracle: ProcessedStatusOracle::InboxContract(InboxContractStatus::new(
                 inbox_contracts.inbox.clone(),

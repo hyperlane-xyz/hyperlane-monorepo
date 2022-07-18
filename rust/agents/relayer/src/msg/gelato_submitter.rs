@@ -1,5 +1,5 @@
 use abacus_base::CoreMetrics;
-use abacus_core::{db::AbacusDB, Encode, Signers};
+use abacus_core::{Encode, Signers};
 use abacus_core::{CommittedMessage, MessageStatus};
 use abacus_ethereum::validator_manager::INBOXVALIDATORMANAGER_ABI as ivm_abi;
 use ethers::abi::Token;
@@ -43,9 +43,6 @@ pub(crate) struct GelatoSubmitter {
     pub(crate) ivm_address: Address,
     /// The address of the 'sponsor' contract providing payment to Gelato.
     pub(crate) sponsor_address: Address,
-    /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
-    /// TODO(webbhorn): Promote to non-_-prefixed name once we're checking gas payments.
-    pub(crate) _db: AbacusDB,
     /// Interface providing access to information about gas payments. Used to decide when it is
     /// appropriate to forward a message.
     pub(crate) gas_oracle: GasPaymentOracle,
