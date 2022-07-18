@@ -43,9 +43,6 @@ const GAS_OVERHEAD_BASE = 80_000;
 // Really observed to be about 8350, but rounding up for safety.
 const GAS_OVERHEAD_PER_SIGNATURE = 9_000;
 
-// TODO: Reevaluate this number
-const GAS_OVERHEAD_PER_WORD = 1_000;
-
 export interface InterchainGasCalculatorConfig {
   /**
    * A multiplier applied to the estimated origin token payment amount.
@@ -87,13 +84,13 @@ Okay, what do we want?
  * Calculates interchain gas payments.
  */
 export class InterchainGasCalculator<Chain extends ChainName> {
-  core: AbacusCore<Chain>;
-  multiProvider: MultiProvider<Chain>;
+  private core: AbacusCore<Chain>;
+  private multiProvider: MultiProvider<Chain>;
 
-  tokenPriceGetter: TokenPriceGetter;
+  private tokenPriceGetter: TokenPriceGetter;
 
-  paymentEstimateMultiplier: ethers.FixedNumber;
-  messageGasEstimateBuffer: ethers.BigNumber;
+  private paymentEstimateMultiplier: ethers.FixedNumber;
+  private messageGasEstimateBuffer: ethers.BigNumber;
 
   constructor(
     multiProvider: MultiProvider<Chain>,
@@ -113,6 +110,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
       config?.messageGasEstimateBuffer ?? 50_000,
     );
   }
+
   // Applies the multiplier `paymentEstimateMultiplier`.
   async estimatePaymentForGas<Destination extends Chain>(
     origin: Exclude<Chain, Destination>,
@@ -173,11 +171,11 @@ export class InterchainGasCalculator<Chain extends ChainName> {
   async estimatePaymentForMessage<Destination extends Chain>(
     message: ParsedMessage<Chain, Destination>,
   ): Promise<BigNumber> {
-    const destinationGas = await this.estimateHandleGasForMessage(message);
-    return this.estimatePaymentForHandleGasAmount(
+    const handleGas = await this.estimateGasForHandle(message);
+    return this.estimatePaymentForHandleGas(
       message.origin,
       message.destination,
-      destinationGas,
+      handleGas,
     );
   }
 
@@ -286,7 +284,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     // this.intrinsicGas will result in a more generous final estimate.
     return directHandleCallGas
       .add(this.messageGasEstimateBuffer)
-      .sub(this.intrinsicGas);
+      .sub(this.intrinsicGas());
   }
 
   /**
@@ -309,7 +307,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns The intrinsic gas of a basic transaction. Note this does not consider calldata
    * costs or potentially different intrinsic gas costs for different chains.
    */
-  get intrinsicGas(): BigNumber {
-    return BigNumber.from(BASE_INTRINSIC_GAS);
+  protected intrinsicGas(): BigNumber {
+    return BigNumber.from(GAS_INTRINSIC);
   }
 }
