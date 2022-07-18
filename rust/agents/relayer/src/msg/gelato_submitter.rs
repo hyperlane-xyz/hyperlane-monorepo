@@ -12,10 +12,12 @@ use gelato::fwd_req_call::{
 };
 use gelato::task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs};
 use prometheus::{Histogram, IntCounter, IntGauge};
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tokio::time::{sleep, Duration};
+use tokio::time::sleep;
 use tokio_stream::StreamExt;
+use tracing::warn;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use super::SubmitMessageArgs;
@@ -164,7 +166,8 @@ impl<S: ethers::signers::Signer + 'static> ForwardRequestOp<S> {
                 sig,
             };
             let fwd_req_result = fwd_req_call.run().await?;
-            for _attempt in 0.. {
+            let start = Instant::now();
+            loop {
                 let poll_call_args = TaskStatusCallArgs {
                     task_id: fwd_req_result.task_id.clone(),
                 };
@@ -177,7 +180,16 @@ impl<S: ethers::signers::Signer + 'static> ForwardRequestOp<S> {
                     bail!("Unexpected TaskStatus result: {:?}", result);
                 }
                 if result.data[0].task_state == TaskStatus::ExecSuccess {
+                    // TODO(webbhorn): Update various metrics upon success.
                     return Ok(ForwardRequestOpResult {});
+                }
+                // TODO(webbhorn): Check gas payments before retrying.
+                if start.elapsed() >= Duration::from_secs(20 * 60) {
+                    warn!(
+                        "Forward request expired after 20m, re-submitting (task: '{:?}')",
+                        self.args
+                    );
+                    break;
                 }
                 sleep(self.opts.poll_interval).await;
             }
