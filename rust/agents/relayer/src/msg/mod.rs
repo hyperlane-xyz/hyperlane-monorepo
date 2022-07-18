@@ -173,7 +173,7 @@ pub(crate) mod status {
     use std::sync::Arc;
 
     use abacus_base::CachingInbox;
-    use abacus_core::{CommittedMessage, Inbox, MessageStatus, db::AbacusDB};
+    use abacus_core::{db::AbacusDB, CommittedMessage, Inbox, MessageStatus};
     use eyre::Result;
 
     #[derive(Clone, Debug)]
