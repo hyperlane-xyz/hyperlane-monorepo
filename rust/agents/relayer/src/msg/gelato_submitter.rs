@@ -22,6 +22,7 @@ use tokio_stream::StreamExt;
 use tracing::{info, warn};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
+use super::gas::GasPaymentOracle;
 use super::SubmitMessageArgs;
 
 const DEFAULT_MAX_FEE: u32 = 1_000_000_000;
@@ -44,6 +45,9 @@ pub(crate) struct GelatoSubmitter {
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     /// TODO(webbhorn): Promote to non-_-prefixed name once we're checking gas payments.
     pub(crate) _db: AbacusDB,
+    /// Interface providing access to information about gas payments. Used to decide when it is
+    /// appropriate to forward a message.
+    pub(crate) gas: GasPaymentOracle,
     /// Signer to use for EIP-712 meta-transaction signatures.
     pub(crate) signer: Signers,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
@@ -71,6 +75,7 @@ impl GelatoSubmitter {
                 args: self.make_forward_request_args(&msg)?,
                 opts: ForwardRequestOptions::default(),
                 signer: self.signer.clone(),
+                gas: self.gas.clone(),
                 msg: msg.committed_message,
                 http: self.http.clone(),
                 metrics: ForwardRequestMetrics {
@@ -158,6 +163,7 @@ struct ForwardRequestOp {
     args: ForwardRequestArgs,
     opts: ForwardRequestOptions,
     signer: Signers,
+    gas: GasPaymentOracle,
     msg: CommittedMessage,
     http: reqwest::Client,
     metrics: ForwardRequestMetrics,
@@ -168,6 +174,11 @@ impl ForwardRequestOp {
         info!(?self.msg);
         let sig = self.signer.sign_typed_data(&self.args).await?;
         loop {
+            if self.gas.get_total_payment(self.msg.leaf_index)?
+                <= self.opts.min_required_gas_payment
+            {
+                bail!("Not enough gas paid")
+            }
             let fwd_req_call = ForwardRequestCall {
                 http: self.http.clone(),
                 args: &self.args,
@@ -191,7 +202,6 @@ impl ForwardRequestOp {
                     self.metrics.messages_processed_count.inc();
                     return Ok(ForwardRequestOpResult {});
                 }
-                // TODO(webbhorn): Check gas payments before retrying.
                 if start.elapsed() >= self.opts.retry_submit_interval {
                     warn!(
                         "Forward request expired after '{:?}', re-submitting (task: '{:?}')",
@@ -212,6 +222,7 @@ struct ForwardRequestOpResult {}
 struct ForwardRequestOptions {
     poll_interval: Duration,
     retry_submit_interval: Duration,
+    min_required_gas_payment: U256,
 }
 
 impl Default for ForwardRequestOptions {
@@ -219,6 +230,7 @@ impl Default for ForwardRequestOptions {
         Self {
             poll_interval: Duration::from_secs(60),
             retry_submit_interval: Duration::from_secs(20 * 60),
+            min_required_gas_payment: U256::zero(),
         }
     }
 }

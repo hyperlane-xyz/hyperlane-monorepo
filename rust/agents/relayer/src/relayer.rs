@@ -20,6 +20,7 @@ use abacus_core::{
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
+use crate::msg::gas::{AbacusDBGasOracle, GasPaymentOracle};
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
@@ -221,6 +222,7 @@ impl Relayer {
             ivm_address: inbox_contracts.validator_manager.contract_address().into(),
             sponsor_address: cfg.sponsor_address,
             _db: self.outbox().db(),
+            gas: GasPaymentOracle::IndexedDB(AbacusDBGasOracle::new(self.outbox().db())),
             signer,
             http: reqwest::Client::new(),
             metrics,

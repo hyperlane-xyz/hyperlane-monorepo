@@ -289,7 +289,7 @@ impl AbacusDB {
     }
 
     /// Retrieve the total gas payment for a leaf index
-    fn retrieve_gas_payment_for_leaf(&self, leaf_index: u32) -> Result<U256, DbError> {
+    pub fn retrieve_gas_payment_for_leaf(&self, leaf_index: u32) -> Result<U256, DbError> {
         Ok(self
             .retrieve_keyed_decodable(GAS_PAYMENT_FOR_LEAF, &leaf_index)?
             .unwrap_or(U256::zero()))
