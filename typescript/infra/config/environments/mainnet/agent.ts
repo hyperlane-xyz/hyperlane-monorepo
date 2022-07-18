@@ -36,10 +36,10 @@ export const abacus: AgentConfig<MainnetChains> = {
         reorgPeriod: 15,
       },
       optimism: {
-        reorgPeriod: 20,
+        reorgPeriod: 0,
       },
       arbitrum: {
-        reorgPeriod: 1,
+        reorgPeriod: 0,
       },
       avalanche: {
         reorgPeriod: 1,

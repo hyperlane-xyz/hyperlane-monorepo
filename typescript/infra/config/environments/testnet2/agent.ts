@@ -42,10 +42,10 @@ export const abacus: AgentConfig<TestnetChains> = {
         reorgPeriod: 9,
       },
       arbitrumrinkeby: {
-        reorgPeriod: 1,
+        reorgPeriod: 0,
       },
       optimismkovan: {
-        reorgPeriod: 1,
+        reorgPeriod: 0,
       },
     },
   },
