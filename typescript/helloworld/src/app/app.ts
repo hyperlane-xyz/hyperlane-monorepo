@@ -24,6 +24,8 @@ export class HelloWorldApp<
     const sender = this.getContracts(from).router;
     const toDomain = ChainNameToDomainId[to];
     const chainConnection = this.multiProvider.getChainConnection(from);
+
+    // apply gas buffer due to https://github.com/abacus-network/abacus-monorepo/issues/634
     const estimated = await sender.estimateGas.sendHelloWorld(
       toDomain,
       message,
