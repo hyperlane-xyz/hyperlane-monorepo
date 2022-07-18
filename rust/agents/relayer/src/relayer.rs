@@ -13,9 +13,6 @@ use abacus_core::{
     AbacusCommon, AbacusContract, Inbox, InboxValidatorManager, MultisigSignedCheckpoint, Signers,
 };
 
-use abacus_ethereum::validator_manager::INBOXVALIDATORMANAGER_ABI as ivm_abi;
-use ethers_contract::BaseContract;
-
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
@@ -119,7 +116,6 @@ impl Relayer {
             outbox_domain: self.outbox().local_domain(),
             inbox_domain: inbox_contracts.inbox.local_domain(),
             inbox_address: inbox_contracts.inbox.contract_address().into(),
-            ivm_base_contract: BaseContract::from(ivm_abi.clone()),
             ivm_address: inbox_contracts.validator_manager.contract_address().into(),
             sponsor_address: cfg.sponsor_address,
             _db: self.outbox().db(),

@@ -1,6 +1,6 @@
 use abacus_base::CoreMetrics;
-use abacus_core::Encode;
-use abacus_core::{db::AbacusDB, Signers};
+use abacus_core::{db::AbacusDB, Encode, Signers};
+use abacus_ethereum::validator_manager::INBOXVALIDATORMANAGER_ABI as ivm_abi;
 use ethers::abi::Token;
 use ethers::types::{Address, U256};
 use ethers_contract::BaseContract;
@@ -27,9 +27,6 @@ pub(crate) struct GelatoSubmitter {
     pub(crate) inbox_domain: u32,
     /// The on-chain address of the inbox contract on the destination chain.
     pub(crate) inbox_address: Address,
-    /// The ethers BaseContract representing the InboxValidatorManager ABI, used to encode
-    /// process() calldata into Gelato ForwardRequest arg.
-    pub(crate) ivm_base_contract: BaseContract,
     /// Address of the inbox validator manager contract that will be specified
     /// to Gelato in ForwardRequest submissions to process new messages.
     pub(crate) ivm_address: Address,
@@ -90,7 +87,8 @@ impl GelatoSubmitter {
     }
 
     fn make_forward_request_args(&self, msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
-        let call_data = self.ivm_base_contract.encode(
+        let ivm_base_contract = BaseContract::from(ivm_abi.clone());
+        let call_data = ivm_base_contract.encode(
             "process",
             [
                 Token::Address(self.inbox_address),
