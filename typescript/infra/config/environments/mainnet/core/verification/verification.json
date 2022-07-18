@@ -6,23 +6,6 @@
       "isProxy": false
     },
     {
-      "name": "InterchainGasPaymaster",
-      "address": "0x0000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeacon",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000048083c69f5a42c6b69abbad48ae195bd36770ee2",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeaconProxy",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true
-    },
-    {
       "name": "AbacusConnectionManager",
       "address": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
       "isProxy": false
@@ -136,7 +119,7 @@
       "isProxy": true
     },
     {
-      "name": "interchainGasPaymaster",
+      "name": "InterchainGasPaymaster",
       "address": "0x70EbA87Cd15616f32C736B3f3BdCfaeD0713a82B",
       "constructorArguments": "",
       "isProxy": false
@@ -159,23 +142,6 @@
       "name": "UpgradeBeaconController",
       "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
       "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x0000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeacon",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000002f2afae1139ce54fefc03593fee8ab2adf4a85a7",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeaconProxy",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true
     },
     {
       "name": "AbacusConnectionManager",
@@ -291,7 +257,7 @@
       "isProxy": true
     },
     {
-      "name": "interchainGasPaymaster",
+      "name": "InterchainGasPaymaster",
       "address": "0x1Ab68dC4f7b6cfcd00218D4b761b7F3b5a724555",
       "constructorArguments": "",
       "isProxy": false
@@ -314,23 +280,6 @@
       "name": "UpgradeBeaconController",
       "address": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
       "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x0000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeacon",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000002c1fabecd7bfbdebf27ccdb67baadb38b6df90fc",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeaconProxy",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true
     },
     {
       "name": "AbacusConnectionManager",
@@ -446,7 +395,7 @@
       "isProxy": true
     },
     {
-      "name": "interchainGasPaymaster",
+      "name": "InterchainGasPaymaster",
       "address": "0xcAf034CE568fad5B85Cfbf088FF43974C39287cC",
       "constructorArguments": "",
       "isProxy": false
@@ -469,23 +418,6 @@
       "name": "UpgradeBeaconController",
       "address": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
       "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x0000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeacon",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000012582c7b0f43c6a667cbaa7fa8b112f7fb1e69f0",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeaconProxy",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true
     },
     {
       "name": "AbacusConnectionManager",
@@ -601,7 +533,7 @@
       "isProxy": true
     },
     {
-      "name": "interchainGasPaymaster",
+      "name": "InterchainGasPaymaster",
       "address": "0x13E83ac41e696856B6996263501fB3225AD5E6F5",
       "constructorArguments": "",
       "isProxy": false
@@ -624,23 +556,6 @@
       "name": "UpgradeBeaconController",
       "address": "0x149db7afD694722747035d5AEC7007ccb6F8f112",
       "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x0000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeacon",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000149db7afd694722747035d5aec7007ccb6f8f112",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeaconProxy",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true
     },
     {
       "name": "AbacusConnectionManager",
@@ -756,7 +671,7 @@
       "isProxy": true
     },
     {
-      "name": "interchainGasPaymaster",
+      "name": "InterchainGasPaymaster",
       "address": "0x4419922ca3C11F92bd11D31489932C39BAB57DA3",
       "constructorArguments": "",
       "isProxy": false
@@ -779,23 +694,6 @@
       "name": "UpgradeBeaconController",
       "address": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
       "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x0000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeacon",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000002c1fabecd7bfbdebf27ccdb67baadb38b6df90fc",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeaconProxy",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true
     },
     {
       "name": "AbacusConnectionManager",
@@ -911,7 +809,7 @@
       "isProxy": true
     },
     {
-      "name": "interchainGasPaymaster",
+      "name": "InterchainGasPaymaster",
       "address": "0x5c12ADC734699C07b095fe30B8312F1A7bbaA788",
       "constructorArguments": "",
       "isProxy": false
@@ -934,23 +832,6 @@
       "name": "UpgradeBeaconController",
       "address": "0x15ab173bDB6832f9b64276bA128659b0eD77730B",
       "isProxy": false
-    },
-    {
-      "name": "InterchainGasPaymaster",
-      "address": "0x0000000000000000000000000000000000000000",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeacon",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000015ab173bdb6832f9b64276ba128659b0ed77730b",
-      "isProxy": false
-    },
-    {
-      "name": "UpgradeBeaconProxy",
-      "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
-      "isProxy": true
     },
     {
       "name": "AbacusConnectionManager",
@@ -1066,7 +947,7 @@
       "isProxy": true
     },
     {
-      "name": "interchainGasPaymaster",
+      "name": "InterchainGasPaymaster",
       "address": "0xFB9e40D811Cea562cc8a322b029eF2BDcC3ef6ed",
       "constructorArguments": "",
       "isProxy": false
