@@ -1,10 +1,9 @@
 // Ideally we would avoid duplicating ethers::types::Chain, but we have enough need to justify
 // a separate, more complete type conversion setup, including some helpers for e.g. locating
-// Gelato's verifying contracts. Converting from the chain's name in string format is useful
-// for CLI usage so that we don't have to remember chain IDs and can instead refer to names.
+// Gelato's verifying contracts.
 
 use ethers::types::{Address, U256};
-use std::{fmt, str::FromStr};
+use std::str::FromStr;
 
 use crate::err::GelatoError;
 
@@ -29,32 +28,71 @@ pub enum Chain {
     BinanceSmartChainTestnet = 97,
 }
 
-impl fmt::Display for Chain {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "{:?}", self)
+#[derive(Clone, Debug)]
+// Newtype to represent the chain's ID.
+pub struct ChainID(u32);
+impl From<u32> for ChainID {
+    fn from(id: u32) -> Self {
+        ChainID(id)
+    }
+}
+impl From<ChainID> for u32 {
+    fn from(id: ChainID) -> Self {
+        id.0
+    }
+}
+impl std::fmt::Display for ChainID {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.0.fmt(f)
     }
 }
 
-impl FromStr for Chain {
-    type Err = GelatoError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "mainnet" => Ok(Chain::Mainnet),
-            "rinkeby" => Ok(Chain::Rinkeby),
-            "goerli" => Ok(Chain::Goerli),
-            "kovan" => Ok(Chain::Kovan),
-            "polygon" => Ok(Chain::Polygon),
-            "polygonmumbai" => Ok(Chain::PolygonMumbai),
-            "avalanche" => Ok(Chain::Avalanche),
-            "avalanchefuji" => Ok(Chain::AvalancheFuji),
-            "arbitrum" => Ok(Chain::Arbitrum),
-            "arbitrumtestnet" => Ok(Chain::ArbitrumTestnet),
-            "optimism" => Ok(Chain::Optimism),
-            "optimismkovan" => Ok(Chain::OptimismKovan),
-            "bsc" => Ok(Chain::BinanceSmartChain),
-            "bsc-testnet" => Ok(Chain::BinanceSmartChainTestnet),
-            _ => Err(GelatoError::UnknownChainNameError(String::from(s))),
+impl Chain {
+    pub fn chain_id(&self) -> ChainID {
+        match self {
+            Chain::Mainnet => 1,
+            Chain::Rinkeby => 4,
+            Chain::Goerli => 5,
+            Chain::Kovan => 42,
+            Chain::Polygon => 137,
+            Chain::PolygonMumbai => 80001,
+            Chain::Avalanche => 43114,
+            Chain::AvalancheFuji => 43113,
+            Chain::Arbitrum => 42161,
+            Chain::ArbitrumTestnet => 421611,
+            Chain::Optimism => 10,
+            Chain::OptimismKovan => 69,
+            Chain::BinanceSmartChain => 56,
+            Chain::BinanceSmartChainTestnet => 97,
         }
+        .into()
+    }
+}
+
+impl std::fmt::Display for Chain {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let chain_display_name = match self {
+            Chain::Mainnet => "Mainnet",
+            Chain::Rinkeby => "Rinkeby",
+            Chain::Goerli => "Goerli",
+            Chain::Kovan => "Kovan",
+            Chain::Polygon => "Polygon",
+            Chain::PolygonMumbai => "Polygon Mumbai",
+            Chain::Avalanche => "Avalanche",
+            Chain::AvalancheFuji => "Avalanche Fuji",
+            Chain::Arbitrum => "Arbitrum",
+            Chain::ArbitrumTestnet => "Arbitrum Testnet",
+            Chain::Optimism => "Optimism",
+            Chain::OptimismKovan => "Optimism Kovan",
+            Chain::BinanceSmartChain => "Binance Smart Chain",
+            Chain::BinanceSmartChainTestnet => "Binance Smart Chain Testnet",
+        };
+        write!(
+            formatter,
+            "{:?} (id: {})",
+            chain_display_name,
+            self.chain_id()
+        )
     }
 }
 
@@ -92,11 +130,9 @@ impl From<Chain> for u64 {
 }
 
 impl Chain {
-    // We also have to provide hardcoded verification contract addresses
-    // for Gelato-suppored chains, until a better / dynamic approach
-    // becomes available.
-    //
-    // See `getRelayForwarderAddrss()` in the SDK file
+    // We also have to provide hardcoded verification contract addresses for Gelato-suppored
+    // chains, until a better / dynamic approach becomes available. See
+    // `getRelayForwarderAddrss()` in the SDK file
     // https://github.com/gelatodigital/relay-sdk/blob/master/src/constants/index.ts.
     pub fn relay_fwd_addr(&self) -> Result<Address, GelatoError> {
         match self {
@@ -126,19 +162,7 @@ impl Chain {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn names() {
-        // FromStr provides both 'from_str' and a str.parse() implementation.
-        assert_eq!(Chain::from_str("MAINNET").unwrap(), Chain::Mainnet);
-        assert_eq!("MAINNET".parse::<Chain>().unwrap(), Chain::Mainnet);
-        // Conversions are case insensitive.
-        assert_eq!(
-            "polyGoNMuMBai".parse::<Chain>().unwrap(),
-            Chain::PolygonMumbai
-        );
-        // Error for unknown names.
-        assert!("notChain".parse::<Chain>().is_err());
-    }
+
     #[test]
     fn contracts() {
         assert!(!Chain::Mainnet.relay_fwd_addr().is_ok());
@@ -147,5 +171,13 @@ mod tests {
         assert!(Chain::Kovan.relay_fwd_addr().is_ok());
         assert!(Chain::Polygon.relay_fwd_addr().is_ok());
         assert!(Chain::PolygonMumbai.relay_fwd_addr().is_ok());
+    }
+
+    #[test]
+    fn display() {
+        assert_eq!(
+            format!("{}", Chain::PolygonMumbai),
+            r#""Polygon Mumbai" (id: 80001)"#
+        );
     }
 }
