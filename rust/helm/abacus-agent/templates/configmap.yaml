@@ -18,6 +18,9 @@ data:
   {{- if .address }}
   ABC_BASE_INBOXES_{{ .name | upper }}_ADDRESS: {{ .address }}
   {{- end }}
+  {{- if .disabled }}
+  ABC_BASE_INBOXES_{{ .name | upper }}_DISABLED: "true"
+  {{- end }}
   {{- end }}
   {{- if .Values.abacus.tracing.uri }}
   ABC_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.abacus.tracing.uri }}

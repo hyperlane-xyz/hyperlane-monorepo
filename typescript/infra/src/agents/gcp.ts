@@ -2,6 +2,7 @@ import { Wallet } from 'ethers';
 
 import { ChainName } from '@abacus-network/sdk';
 
+import { Contexts } from '../../config/contexts';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd, include } from '../utils/utils';
 
@@ -34,12 +35,13 @@ type RemoteKey = UnfetchedKey | FetchedKey;
 export class AgentGCPKey extends AgentKey {
   constructor(
     environment: string,
+    context: Contexts,
     role: KEY_ROLE_ENUM,
     chainName?: ChainName,
     index?: number,
     private remoteKey: RemoteKey = { fetched: false },
   ) {
-    super(environment, role, chainName, index);
+    super(environment, context, role, chainName, index);
   }
 
   async createIfNotExists() {
@@ -66,6 +68,7 @@ export class AgentGCPKey extends AgentKey {
   get identifier() {
     return keyIdentifier(
       this.environment,
+      this.context,
       this.role,
       this.chainName,
       this.index,
@@ -125,12 +128,14 @@ export class AgentGCPKey extends AgentKey {
       JSON.stringify({
         role: this.role,
         environment: this.environment,
+        context: this.context,
         privateKey: wallet.privateKey,
         address,
         ...include(this.isValidatorKey, { chainName: this.chainName }),
       }),
       {
         environment: this.environment,
+        context: this.context,
         role: this.role,
         ...include(this.isValidatorKey, {
           chain: this.chainName,
