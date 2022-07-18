@@ -29,18 +29,16 @@ const DEFAULT_TOKEN_DECIMALS = 18;
 // intrinsic gas or different chains.
 const GAS_INTRINSIC = 21_000;
 
-// TODO: Reevaluate this number
 // The gas used to process a message when the quorum size is zero.
 // Includes intrinsic gas and all other gas that does not scale with the
 // quorum size. Excludes the cost of calling `recipient.handle()`.
-// Derived by observing the amount of gas consumed for a quorum of 1 (~86800 gas),
-// subtracting the gas used per signature, and rounding up for safety.
-const GAS_OVERHEAD_BASE = 80_000;
+// Derived by observing the amount of gas consumed for a quorum of 1 (~103000 gas),
+// and subtracting the gas overhead per signature.
+const GAS_OVERHEAD_BASE = 94_000;
 
-// TODO: Reevaluate this number
 // The amount of gas used for each signature when a signed checkpoint
 // is submitted for verification.
-// Really observed to be about 8350, but rounding up for safety.
+// Really observed to be about 8568, but rounding up for safety.
 const GAS_OVERHEAD_PER_SIGNATURE = 9_000;
 
 export interface InterchainGasCalculatorConfig {
@@ -200,8 +198,11 @@ export class InterchainGasCalculator<Chain extends ChainName> {
       fromChain,
     );
 
+    // 1/100th of a cent
+    const PRECISION = 1000;
+
     return convertDecimalValue(
-      value.mul(exchangeRate),
+      value.mul(exchangeRate * PRECISION).div(PRECISION),
       this.tokenDecimals(fromChain),
       this.tokenDecimals(toChain),
     );

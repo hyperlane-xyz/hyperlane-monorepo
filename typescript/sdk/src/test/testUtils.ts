@@ -59,7 +59,7 @@ export class MockTokenPriceGetter<Chain extends ChainName> {
 
   async getTokenExchangeRate(chainA: Chain, chainB: Chain): Promise<number> {
     const priceA = await this.getTokenPrice(chainA);
-    const priceB = await this.getTokenPrice(chainA);
+    const priceB = await this.getTokenPrice(chainB);
     return priceB / priceA;
   }
 

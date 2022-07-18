@@ -101,9 +101,8 @@ describe('InterchainGasCalculator', () => {
         BigNumber.from(HANDLE_GAS),
       );
 
-      // (100_000 dest handler gas + 100_000 checkpoint relay gas + 100_000 process overhead gas)
-      // * 10 gas price * ($5 per origin token / $10 per origin token)
-      expect(estimatedPayment.toNumber()).to.equal(1_500_000);
+      // 100k gas * 10 gas price * ($5 per origin token / $10 per origin token)
+      expect(estimatedPayment.toNumber()).to.equal(500_000);
     });
   });
 
@@ -126,9 +125,9 @@ describe('InterchainGasCalculator', () => {
         BigNumber.from(HANDLE_GAS),
       );
 
-      // (100_000 dest handler gas + 100_000 checkpoint relay gas + 100_000 process overhead gas)
+      // (100_000 dest handler gas + 100_000 process overhead gas)
       // * 10 gas price * ($5 per origin token / $10 per origin token)
-      expect(estimatedPayment.toNumber()).to.equal(1_500_000);
+      expect(estimatedPayment.toNumber()).to.equal(1_000_000);
     });
   });
 
@@ -163,9 +162,9 @@ describe('InterchainGasCalculator', () => {
         message,
       );
 
-      // (100_000 dest handler gas + 100_000 checkpoint relay gas + 100_000 process overhead gas)
+      // (100_000 dest handler gas + 100_000 process overhead gas)
       // * 10 gas price * ($5 per origin token / $10 per origin token)
-      expect(estimatedPayment.toNumber()).to.equal(1_500_000);
+      expect(estimatedPayment.toNumber()).to.equal(1_000_000);
     });
   });
 
