@@ -134,7 +134,7 @@ impl Relayer {
         &self,
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
-        gelato_conf: &Option<GelatoConf>,
+        gelato_conf: Option<&GelatoConf>,
         signer: Signers,
     ) -> Result<Instrumented<JoinHandle<Result<()>>>> {
         let metrics = MessageProcessorMetrics::new(
@@ -197,11 +197,10 @@ impl Relayer {
                 .get_signer(inbox_name)
                 .await
                 .expect("get signer for inbox");
-            let gelato_conf = &self.core.settings.inboxes[inbox_name].gelato_conf;
             tasks.push(self.run_inbox(
                 inbox_contracts.clone(),
                 signed_checkpoint_receiver.clone(),
-                gelato_conf,
+                self.core.settings.inboxes[inbox_name].gelato_conf.as_ref(),
                 signer,
             )?);
         }
