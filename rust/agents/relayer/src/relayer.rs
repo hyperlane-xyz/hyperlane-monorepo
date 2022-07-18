@@ -223,7 +223,7 @@ impl Relayer {
             _db: self.outbox().db(),
             signer,
             http: reqwest::Client::new(),
-            _metrics: metrics,
+            metrics,
         })
     }
 

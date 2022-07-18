@@ -11,7 +11,7 @@ use gelato::fwd_req_call::{
     ForwardRequestArgs, ForwardRequestCall, PaymentType, NATIVE_FEE_TOKEN_ADDRESS,
 };
 use gelato::task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs};
-use prometheus::{Histogram, IntCounter, IntGauge};
+use prometheus::IntCounter;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -48,8 +48,7 @@ pub(crate) struct GelatoSubmitter {
     /// Intended to be shared by reqwest library.
     pub(crate) http: reqwest::Client,
     /// Prometheus metrics.
-    /// TODO(webbhorn): Promote to non-_-prefixed name once we're populating metrics.
-    pub(crate) _metrics: GelatoSubmitterMetrics,
+    pub(crate) metrics: GelatoSubmitterMetrics,
 }
 
 impl GelatoSubmitter {
@@ -71,6 +70,9 @@ impl GelatoSubmitter {
                 opts: ForwardRequestOptions::default(),
                 signer: self.signer.clone(),
                 http: self.http.clone(),
+                metrics: ForwardRequestMetrics {
+                    messages_processed_count: self.metrics.messages_processed_count.clone(),
+                },
             };
             in_flight_ops.push(async move {
                 op.run().await.unwrap();
@@ -149,11 +151,12 @@ fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
 }
 
 #[derive(Debug, Clone)]
-pub struct ForwardRequestOp<S> {
+struct ForwardRequestOp<S> {
     args: ForwardRequestArgs,
     opts: ForwardRequestOptions,
     signer: S,
     http: reqwest::Client,
+    metrics: ForwardRequestMetrics,
 }
 
 impl<S: ethers::signers::Signer + 'static> ForwardRequestOp<S> {
@@ -180,14 +183,14 @@ impl<S: ethers::signers::Signer + 'static> ForwardRequestOp<S> {
                     bail!("Unexpected TaskStatus result: {:?}", result);
                 }
                 if result.data[0].task_state == TaskStatus::ExecSuccess {
-                    // TODO(webbhorn): Update various metrics upon success.
+                    self.metrics.messages_processed_count.inc();
                     return Ok(ForwardRequestOpResult {});
                 }
                 // TODO(webbhorn): Check gas payments before retrying.
-                if start.elapsed() >= Duration::from_secs(20 * 60) {
+                if start.elapsed() >= self.opts.retry_submit_interval {
                     warn!(
-                        "Forward request expired after 20m, re-submitting (task: '{:?}')",
-                        self.args
+                        "Forward request expired after '{:?}', re-submitting (task: '{:?}')",
+                        self.opts.retry_submit_interval, self.args,
                     );
                     break;
                 }
@@ -198,12 +201,12 @@ impl<S: ethers::signers::Signer + 'static> ForwardRequestOp<S> {
 }
 
 #[derive(Debug, Clone)]
-pub struct ForwardRequestOpResult {}
+struct ForwardRequestOpResult {}
 
 #[derive(Debug, Clone)]
-pub struct ForwardRequestOptions {
-    pub poll_interval: Duration,
-    pub retry_submit_interval: Duration,
+struct ForwardRequestOptions {
+    poll_interval: Duration,
+    retry_submit_interval: Duration,
 }
 
 impl Default for ForwardRequestOptions {
@@ -215,45 +218,22 @@ impl Default for ForwardRequestOptions {
     }
 }
 
-// TODO(webbhorn): Drop allow dead code directive once we handle
-// updating each of these metrics.
-#[allow(dead_code)]
+#[derive(Clone, Debug)]
+struct ForwardRequestMetrics {
+    messages_processed_count: IntCounter,
+}
+
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitterMetrics {
-    run_queue_length_gauge: IntGauge,
-    wait_queue_length_gauge: IntGauge,
-    queue_duration_hist: Histogram,
-    processed_gauge: IntGauge,
     messages_processed_count: IntCounter,
-    /// Private state used to update actual metrics each tick.
-    max_submitted_leaf_index: u32,
 }
 
 impl GelatoSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
         Self {
-            run_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                outbox_chain,
-                inbox_chain,
-                "run_queue",
-            ]),
-            wait_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                outbox_chain,
-                inbox_chain,
-                "wait_queue",
-            ]),
-            queue_duration_hist: metrics
-                .submitter_queue_duration_histogram()
-                .with_label_values(&[outbox_chain, inbox_chain]),
             messages_processed_count: metrics
                 .messages_processed_count()
                 .with_label_values(&[outbox_chain, inbox_chain]),
-            processed_gauge: metrics.last_known_message_leaf_index().with_label_values(&[
-                "message_processed",
-                outbox_chain,
-                inbox_chain,
-            ]),
-            max_submitted_leaf_index: 0,
         }
     }
 }
