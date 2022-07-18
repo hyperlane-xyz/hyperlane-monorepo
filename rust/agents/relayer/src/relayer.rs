@@ -245,12 +245,14 @@ impl Relayer {
         );
         Ok(SerialSubmitter {
             inbox_chain_name: inbox_contracts.inbox.chain_name().into(),
-            inbox: inbox_contracts.inbox.clone(),
+            status_oracle: ProcessedStatusOracle::InboxContract(InboxContractStatus::new(
+                inbox_contracts.inbox.clone(),
+                self.outbox().db(),
+            )),
             ivm: inbox_contracts.validator_manager.clone(),
             message_receiver,
             wait_queue: Vec::default(),
             run_queue: BinaryHeap::new(),
-            db: self.outbox().db(),
             metrics,
         })
     }

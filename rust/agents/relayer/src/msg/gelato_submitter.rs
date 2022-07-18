@@ -1,6 +1,6 @@
 use abacus_base::CoreMetrics;
-use abacus_core::{Encode, Signers};
 use abacus_core::{CommittedMessage, MessageStatus};
+use abacus_core::{Encode, Signers};
 use abacus_ethereum::validator_manager::INBOXVALIDATORMANAGER_ABI as ivm_abi;
 use ethers::abi::Token;
 use ethers::types::{Address, U256};

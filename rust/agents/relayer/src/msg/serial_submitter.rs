@@ -1,11 +1,8 @@
 use std::collections::BinaryHeap;
 use std::sync::Arc;
 
-use abacus_base::CachingInbox;
 use abacus_base::CoreMetrics;
 use abacus_base::InboxValidatorManagers;
-use abacus_core::db::AbacusDB;
-use abacus_core::Inbox;
 use abacus_core::InboxValidatorManager;
 use abacus_core::MessageStatus;
 use eyre::{bail, Result};
@@ -18,6 +15,7 @@ use tracing::debug;
 use tracing::instrument;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
+use super::status::ProcessedStatusOracle;
 use super::SubmitMessageArgs;
 
 /// SerialSubmitter accepts undelivered messages over a channel from a MessageProcessor.  It is
@@ -107,9 +105,8 @@ use super::SubmitMessageArgs;
 pub(crate) struct SerialSubmitter {
     /// Name of the destination chain we are submitting to.
     pub(crate) inbox_chain_name: String,
-    /// Interface to the destination chain's Inbox contract, to e.g. obtain a message's current
-    /// status with a 'message_status' call.
-    pub(crate) inbox: Arc<CachingInbox>,
+    /// Interface to acquire message status or update the status of a message.
+    pub(crate) status_oracle: ProcessedStatusOracle,
     /// Interface to the destination chain's InboxValidatorManager contract for purposes of
     /// message processing.
     pub(crate) ivm: Arc<InboxValidatorManagers>,
@@ -122,8 +119,6 @@ pub(crate) struct SerialSubmitter {
     /// to be dispatched. The SerialSubmitter can only dispatch one message at a time, so this
     /// queue could grow.
     pub(crate) run_queue: BinaryHeap<SubmitMessageArgs>,
-    /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
-    pub(crate) db: AbacusDB,
     /// Metrics for serial submitter.
     pub(crate) metrics: SerialSubmitterMetrics,
 }
@@ -189,10 +184,11 @@ impl SerialSubmitter {
         // inbox, e.g. due to another relayer having already processed, then mark it as
         // already-processed, and move on to the next tick.
         // TODO(webbhorn): Make this robust to re-orgs on inbox.
-        if let MessageStatus::Processed = self
-            .inbox
-            .message_status(msg.committed_message.to_leaf())
+        if self
+            .status_oracle
+            .message_status(&msg.committed_message)
             .await?
+            == MessageStatus::Processed
         {
             info!(
                 "Unexpected status for message with leaf index '{}' (already processed): '{:?}'",
@@ -241,7 +237,7 @@ impl SerialSubmitter {
     /// return 'Ok(())', then without a wiped AbacusDB, we will never re-attempt processing for
     /// this message again, even after the relayer restarts.
     fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
-        self.db.mark_leaf_as_processed(msg.leaf_index)?;
+        self.status_oracle.mark_processed(&msg.committed_message)?;
         self.metrics
             .queue_duration_hist
             .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
