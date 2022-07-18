@@ -30,6 +30,7 @@ storage:
 abacus:
   # Sets the config folder to use
   runEnv: "default"
+  context: "abacus"
   # Sets the base config to be used (switch between Homes)
   baseConfig: "base.json"
   # Set the DB location to be the volume
@@ -58,6 +59,7 @@ abacus:
   # -- Replica chain overrides, a sequence
   inboxChains:
     - name: "alfajores"
+      disabled: false
       # -- The contract address for the replica contract
       address:
       domain:

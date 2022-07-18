@@ -7,7 +7,8 @@ import path from 'path';
 
 import { AllChains, ChainName } from '@abacus-network/sdk';
 
-import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
+import { Contexts } from '../../config/contexts';
+import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -177,7 +178,7 @@ export function readJSONAtPath(filepath: string) {
 
 export function assertRole(roleStr: string) {
   const role = roleStr as KEY_ROLE_ENUM;
-  if (!KEY_ROLES.includes(role)) {
+  if (!ALL_KEY_ROLES.includes(role)) {
     throw Error(`Invalid role ${role}`);
   }
   return role;
@@ -189,4 +190,53 @@ export function assertChain(chainStr: string) {
     throw Error(`Invalid chain ${chain}`);
   }
   return chain;
+}
+
+export function assertContext(contextStr: string): Contexts {
+  const context = contextStr as Contexts;
+  if (Object.values(Contexts).includes(context)) {
+    return context;
+  }
+  throw new Error(
+    `Invalid context ${contextStr}, must be one of ${Object.values(
+      Contexts,
+    )}. ${
+      contextStr === undefined ? ' Did you specify --context <context>?' : ''
+    }`,
+  );
+}
+
+export function median(a: number[]): number {
+  a = [...a]; // clone
+  a.sort((a, b) => a - b);
+  if (a.length <= 0) {
+    return 0;
+  } else if (a.length % 2 == 0) {
+    return (a[a.length / 2] + a[a.length / 2 - 1]) / 2;
+  } else {
+    return a[(a.length - 1) / 2];
+  }
+}
+
+export function mean(a: number[]): number {
+  return a.reduce((acc, i) => acc + i, 0) / a.length;
+}
+
+export function stdDev(a: number[]): number {
+  const xbar = mean(a);
+  return Math.sqrt(
+    a.map((x) => Math.pow(x - xbar, 2)).reduce((acc, i) => acc + i, 0) /
+      a.length,
+  );
+}
+
+export function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: string[] = [];
+    stream
+      .setEncoding('utf8')
+      .on('data', (chunk) => chunks.push(chunk))
+      .on('error', (err) => reject(err))
+      .on('end', () => resolve(String.prototype.concat(...chunks)));
+  });
 }

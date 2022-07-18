@@ -1,12 +1,15 @@
+import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
+import { Contexts } from '../../contexts';
 
 import { TestnetChains, chainNames } from './chains';
 import { validators } from './validators';
 
-export const agent: AgentConfig<TestnetChains> = {
+export const abacus: AgentConfig<TestnetChains> = {
   environment: 'testnet',
   namespace: 'testnet',
   runEnv: 'testnet',
+  context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: 'sha-5e639a2',
@@ -14,7 +17,8 @@ export const agent: AgentConfig<TestnetChains> = {
   aws: {
     region: 'us-east-1',
   },
-  chainNames: chainNames,
+  environmentChainNames: chainNames,
+  contextChainNames: chainNames,
   validatorSets: validators,
   validator: {
     default: {
@@ -24,7 +28,11 @@ export const agent: AgentConfig<TestnetChains> = {
     chainOverrides: {
       optimismkovan: {
         interval: 5,
-        reorgPeriod: 2,
+        reorgPeriod: 0,
+      },
+      arbitrumrinkeby: {
+        interval: 5,
+        reorgPeriod: 0,
       },
     },
   },
@@ -34,15 +42,9 @@ export const agent: AgentConfig<TestnetChains> = {
       maxProcessingRetries: 10,
     },
   },
-  // kathy: {
-  //   default: {
-  //     enabled: false,
-  //     interval: 60 * 2,
-  //     chat: {
-  //       type: 'static',
-  //       message: '',
-  //       recipient: '',
-  //     }
-  //   }
-  // }
+  rolesWithKeys: ALL_KEY_ROLES,
+};
+
+export const agents = {
+  abacus,
 };
