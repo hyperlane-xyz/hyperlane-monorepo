@@ -1,9 +1,11 @@
 use abacus_base::CoreMetrics;
+use abacus_core::CommittedMessage;
 use abacus_core::{db::AbacusDB, Encode, Signers};
 use abacus_ethereum::validator_manager::INBOXVALIDATORMANAGER_ABI as ivm_abi;
 use ethers::abi::Token;
 use ethers::types::{Address, U256};
 use ethers_contract::BaseContract;
+use ethers_signers::Signer;
 use eyre::{bail, Result};
 use futures::stream::FuturesUnordered;
 use gelato::chains::Chain;
@@ -17,7 +19,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_stream::StreamExt;
-use tracing::warn;
+use tracing::{info, warn};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use super::SubmitMessageArgs;
@@ -66,9 +68,10 @@ impl GelatoSubmitter {
                 else => bail!("Unexpected select condition"),
             };
             let op = ForwardRequestOp {
-                args: self.make_forward_request_args(msg)?,
+                args: self.make_forward_request_args(&msg)?,
                 opts: ForwardRequestOptions::default(),
                 signer: self.signer.clone(),
+                msg: msg.committed_message,
                 http: self.http.clone(),
                 metrics: ForwardRequestMetrics {
                     messages_processed_count: self.metrics.messages_processed_count.clone(),
@@ -80,7 +83,7 @@ impl GelatoSubmitter {
         }
     }
 
-    fn make_forward_request_args(&self, msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
+    fn make_forward_request_args(&self, msg: &SubmitMessageArgs) -> Result<ForwardRequestArgs> {
         let ivm_base_contract = BaseContract::from(ivm_abi.clone());
         let call_data = ivm_base_contract.encode(
             "process",
@@ -151,16 +154,18 @@ fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
 }
 
 #[derive(Debug, Clone)]
-struct ForwardRequestOp<S> {
+struct ForwardRequestOp {
     args: ForwardRequestArgs,
     opts: ForwardRequestOptions,
-    signer: S,
+    signer: Signers,
+    msg: CommittedMessage,
     http: reqwest::Client,
     metrics: ForwardRequestMetrics,
 }
 
-impl<S: ethers::signers::Signer + 'static> ForwardRequestOp<S> {
+impl ForwardRequestOp {
     async fn run(&self) -> Result<ForwardRequestOpResult> {
+        info!(?self.msg);
         let sig = self.signer.sign_typed_data(&self.args).await?;
         loop {
             let fwd_req_call = ForwardRequestCall {
