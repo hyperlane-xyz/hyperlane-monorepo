@@ -141,6 +141,7 @@ pub(crate) mod gas {
         payments: HashMap<LeafIndex, Payment>,
     }
 
+    #[allow(dead_code)]
     #[cfg(test)]
     impl TestOracle {
         pub(crate) fn new() -> Self {
