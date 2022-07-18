@@ -18,8 +18,8 @@ export class HelloWorldDeployer<
   Chain extends ChainName,
 > extends AbacusRouterDeployer<
   Chain,
-  HelloWorldContracts,
   HelloWorldConfig,
+  HelloWorldContracts,
   HelloWorldFactories
 > {
   constructor(

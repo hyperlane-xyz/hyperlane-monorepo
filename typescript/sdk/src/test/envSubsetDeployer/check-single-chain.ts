@@ -18,7 +18,7 @@ import { getAlfajoresProvider } from './utils';
 // Copied from output of deploy-single-chain.ts script
 const deploymentAddresses = {
   alfajores: {
-    router: '0x41C5cF9f3745F90662f202CDc61Afd2f2941e890',
+    router: '0x0666AD4F636210B6a418f97790b7BAABAC54b9A4',
   },
 };
 

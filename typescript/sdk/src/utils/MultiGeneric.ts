@@ -46,7 +46,7 @@ export class MultiGeneric<Chain extends ChainName, Value> {
     return Object.keys(this.chainMap) as Chain[];
   }
 
-  apply(fn: (n: Chain, dc: Value) => void): void {
+  forEach(fn: (n: Chain, dc: Value) => void): void {
     for (const chain of this.chains()) {
       fn(chain, this.chainMap[chain]);
     }

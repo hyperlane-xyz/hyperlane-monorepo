@@ -46,7 +46,9 @@ export const envSubsetFactories: RouterFactories = {
   router: new TestRouter__factory(),
 };
 
-export class EnvSubsetDeployer<Chain extends ChainName> extends AbacusDeployer<
+export class EnvSubsetDeployer<
+  Chain extends ChainName,
+> extends AbacusRouterDeployer<
   Chain,
   RouterConfig,
   RouterContracts,
@@ -77,15 +79,12 @@ export class EnvSubsetDeployer<Chain extends ChainName> extends AbacusDeployer<
     );
   }
 
-  async deploy(
-    partialDeployment?: Partial<Record<Chain, RouterContracts>>,
-  ): Promise<ChainMap<Chain, RouterContracts>> {
-    const contractsMap = await super.deploy(partialDeployment);
+  async deploy(): Promise<ChainMap<Chain, RouterContracts>> {
+    const contractsMap = (await AbacusDeployer.prototype.deploy.apply(
+      this,
+    )) as Record<Chain, RouterContracts>;
     await this.initRouter(contractsMap);
-    await AbacusRouterDeployer.enrollRemoteRouters(
-      contractsMap,
-      this.multiProvider,
-    );
+    await this.enrollRemoteRouters(contractsMap);
     return contractsMap;
   }
 
