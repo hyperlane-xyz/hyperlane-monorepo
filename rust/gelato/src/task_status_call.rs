@@ -1,6 +1,5 @@
 use crate::err::GelatoError;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tracing::{info, instrument};
 
 const RELAY_URL: &str = "https://relay.gelato.digital";
@@ -19,7 +18,7 @@ pub struct TaskStatusCallResult {
 
 #[derive(Debug)]
 pub struct TaskStatusCall {
-    pub http: Arc<reqwest::Client>,
+    pub http: reqwest::Client,
     pub args: TaskStatusCallArgs,
 }
 impl TaskStatusCall {

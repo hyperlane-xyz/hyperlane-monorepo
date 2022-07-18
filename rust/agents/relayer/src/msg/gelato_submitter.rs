@@ -6,7 +6,8 @@ use ethers::types::{Address, U256};
 use ethers_contract::BaseContract;
 use eyre::{bail, Result};
 use gelato::chains::Chain;
-use gelato::fwd_req_call::{ForwardRequestArgs, PaymentType, NATIVE_FEE_TOKEN_ADDRESS};
+use gelato::fwd_req_call::{ForwardRequestArgs, PaymentType, NATIVE_FEE_TOKEN_ADDRESS, ForwardRequestCall};
+use gelato::task_status_call::{TaskStatusCallArgs, TaskStatusCall, TaskStatus};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -156,8 +157,6 @@ fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
     })
 }
 
-// TODO(webbhorn): Remove 'allow unused' once we impl run() and ref internal fields.
-#[allow(unused)]
 #[derive(Debug, Clone)]
 pub struct ForwardRequestOp<S> {
     args: ForwardRequestArgs,
@@ -166,11 +165,39 @@ pub struct ForwardRequestOp<S> {
     http: reqwest::Client,
 }
 
-impl<S> ForwardRequestOp<S> {
-    async fn run(&self) -> Result<()> {
-        todo!()
+impl<S: ethers::signers::Signer + 'static> ForwardRequestOp<S> {
+    async fn run(&self) -> Result<ForwardRequestOpResult> {
+        let sig = self.signer.sign_typed_data(&self.args).await?;
+        loop {
+            let fwd_req_call = ForwardRequestCall {
+                http: self.http.clone(),
+                args: &self.args,
+                sig,
+            };
+            let fwd_req_result = fwd_req_call.run().await?;
+            for _attempt in 0.. {
+                let poll_call_args = TaskStatusCallArgs {
+                    task_id: fwd_req_result.task_id.clone(),
+                };
+                let poll_call = TaskStatusCall {
+                    http: self.http.clone(),
+                    args: poll_call_args,
+                };
+                let result = poll_call.run().await?;
+                if result.data.len() != 1 {
+                    bail!("Unexpected TaskStatus result: {:?}", result);
+                }
+                if result.data[0].task_state == TaskStatus::ExecSuccess {
+                    return Ok(ForwardRequestOpResult {});
+                }
+                sleep(self.opts.poll_interval).await;
+            }
+        }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct ForwardRequestOpResult {}
 
 #[derive(Debug, Clone)]
 pub struct ForwardRequestOptions {

@@ -27,9 +27,9 @@ pub struct ForwardRequestArgs {
 }
 
 #[derive(Debug, Clone)]
-pub struct ForwardRequestCall {
+pub struct ForwardRequestCall<'a> {
     pub http: reqwest::Client,
-    pub args: ForwardRequestArgs,
+    pub args: &'a ForwardRequestArgs,
     pub sig: Signature,
 }
 
@@ -38,7 +38,7 @@ pub struct ForwardRequestCallResult {
     pub task_id: String,
 }
 
-impl ForwardRequestCall {
+impl ForwardRequestCall<'_> {
     #[instrument]
     pub async fn run(self) -> Result<ForwardRequestCallResult, GelatoError> {
         let url = format!(
