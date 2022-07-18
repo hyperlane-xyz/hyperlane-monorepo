@@ -1,4 +1,4 @@
-import { FixedNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import { ChainMap, ChainName } from '../types';
 
@@ -42,22 +42,28 @@ export class MockProvider extends ethers.providers.BaseProvider {
 
 // A mock TokenPriceGetter intended to be used by tests when mocking token prices
 export class MockTokenPriceGetter<Chain extends ChainName> {
-  private tokenPrices: Partial<ChainMap<Chain, FixedNumber>>;
+  private tokenPrices: Partial<ChainMap<Chain, number>>;
 
   constructor() {
     this.tokenPrices = {};
   }
 
-  getNativeTokenUsdPrice(chain: Chain): Promise<FixedNumber> {
+  getTokenPrice(chain: Chain): Promise<number> {
     const price = this.tokenPrices[chain];
     if (price) {
       // TS compiler somehow can't deduce the check above
-      return Promise.resolve(price as FixedNumber);
+      return Promise.resolve(price as number);
     }
     throw Error(`No price for chain ${chain}`);
   }
 
-  setTokenPrice(chain: Chain, price: string | number) {
-    this.tokenPrices[chain] = FixedNumber.from(price);
+  async getTokenExchangeRate(chainA: Chain, chainB: Chain): Promise<number> {
+    const priceA = await this.getTokenPrice(chainA);
+    const priceB = await this.getTokenPrice(chainA);
+    return priceB / priceA;
+  }
+
+  setTokenPrice(chain: Chain, price: number) {
+    this.tokenPrices[chain] = price;
   }
 }

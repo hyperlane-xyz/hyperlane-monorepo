@@ -119,7 +119,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
   ): Promise<BigNumber> {
     const destinationGasPrice = await this.getGasPrice(destination);
     const destinationGasCost = gas.mul(destinationGasPrice);
-    const originGasCost = await this.convertBetweenNativeTokens(
+    const originGasCost = await this.convertBetweenTokens(
       destination,
       origin,
       destinationGasCost,
@@ -189,32 +189,21 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns The amount of `toChain` native tokens whose value is equivalent to
    * `fromAmount` of `fromChain` native tokens.
    */
-  protected async convertBetweenNativeTokens(
+  protected async convertBetweenTokens(
     fromChain: Chain,
     toChain: Chain,
-    fromAmount: BigNumber,
+    value: BigNumber,
   ): Promise<BigNumber> {
-    // A FixedNumber that doesn't care what the decimals of the from/to
-    // tokens are -- it is just the amount of whole from tokens that a single
-    // whole to token is equivalent in value to.
+    // Does not factor in differing token decimals.
     const exchangeRate = await this.tokenPriceGetter.getTokenExchangeRate(
       toChain,
       fromChain,
     );
 
-    // Apply the exchange rate to the amount. This does not yet account for differences in
-    // decimals between the two tokens.
-    const exchangeRateProduct = mulBigAndFixed(
-      fromAmount,
-      exchangeRate,
-      true, // ceil
-    );
-
-    // Converts exchangeRateProduct to having the correct number of decimals.
     return convertDecimalValue(
-      exchangeRateProduct,
-      this.nativeTokenDecimals(fromChain),
-      this.nativeTokenDecimals(toChain),
+      value.mul(exchangeRate),
+      this.tokenDecimals(fromChain),
+      this.tokenDecimals(toChain),
     );
   }
 
@@ -223,8 +212,8 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @param chainName The name of the chain to get the gas price for
    * @returns The suggested gas price in wei on the destination chain.
    */
-  protected async getGasPrice(chainName: Chain): Promise<BigNumber> {
-    const provider = this.multiProvider.getChainConnection(chainName).provider!;
+  protected async getGasPrice(chain: Chain): Promise<BigNumber> {
+    const provider = this.multiProvider.getChainConnection(chain).provider!;
     return provider.getGasPrice();
   }
 
@@ -233,7 +222,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @param chain The chain.
    * @returns The number of decimals of `chain`'s native token.
    */
-  protected nativeTokenDecimals(chain: Chain): number {
+  protected tokenDecimals(chain: Chain): number {
     return chainMetadata[chain].nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS;
   }
 
