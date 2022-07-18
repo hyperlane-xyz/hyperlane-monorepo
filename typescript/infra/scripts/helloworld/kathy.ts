@@ -18,12 +18,11 @@ const constMetricLabels = {
 const metricsRegister = new Registry();
 const messagesSendStatus = new Gauge({
   name: 'abacus_kathy_messages',
-  help: 'Whether messages which have been sent from one chain to another successfully; will report 0 for false and 1 for true.',
+  help: 'Whether messages which have been sent from one chain to another successfully; will report 0 for unsuccessful and 1 for successful.',
   registers: [metricsRegister],
   labelNames: [
     'origin',
     'remote',
-    'status',
     ...(Object.keys(constMetricLabels) as (keyof typeof constMetricLabels)[]),
   ],
 });
@@ -66,16 +65,14 @@ async function main() {
       };
       try {
         await sendMessage(app, source, destination);
-        messagesSendStatus.labels({ ...labels, status: 'success' }).set(1);
-        messagesSendStatus.labels({ ...labels, status: 'failure' }).set(0);
+        messagesSendStatus.labels({ ...labels }).set(1);
       } catch (err) {
         console.error(
           `Error sending message from ${source} to ${destination}, continuing...`,
           `${err}`.replaceAll('\n', ' ## '),
         );
         failureOccurred = true;
-        messagesSendStatus.labels({ ...labels, status: 'success' }).set(0);
-        messagesSendStatus.labels({ ...labels, status: 'failure' }).set(1);
+        messagesSendStatus.labels({ ...labels }).set(0);
       }
 
       // Sleep 500ms to avoid race conditions where nonces are reused
