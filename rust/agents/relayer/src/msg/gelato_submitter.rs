@@ -1,6 +1,6 @@
 use abacus_base::CoreMetrics;
-use abacus_core::CommittedMessage;
 use abacus_core::{db::AbacusDB, Encode, Signers};
+use abacus_core::{CommittedMessage, MessageStatus};
 use abacus_ethereum::validator_manager::INBOXVALIDATORMANAGER_ABI as ivm_abi;
 use ethers::abi::Token;
 use ethers::types::{Address, U256};
@@ -19,10 +19,11 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_stream::StreamExt;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use super::gas::GasPaymentOracle;
+use super::status::ProcessedStatusOracle;
 use super::SubmitMessageArgs;
 
 const DEFAULT_MAX_FEE: u32 = 1_000_000_000;
@@ -47,7 +48,10 @@ pub(crate) struct GelatoSubmitter {
     pub(crate) _db: AbacusDB,
     /// Interface providing access to information about gas payments. Used to decide when it is
     /// appropriate to forward a message.
-    pub(crate) gas: GasPaymentOracle,
+    pub(crate) gas_oracle: GasPaymentOracle,
+    /// Interface to learning the status of a message according to some authority, like a view
+    /// call against the inbox contract.
+    pub(crate) status_oracle: ProcessedStatusOracle,
     /// Signer to use for EIP-712 meta-transaction signatures.
     pub(crate) signer: Signers,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
@@ -75,7 +79,8 @@ impl GelatoSubmitter {
                 args: self.make_forward_request_args(&msg)?,
                 opts: ForwardRequestOptions::default(),
                 signer: self.signer.clone(),
-                gas: self.gas.clone(),
+                gas_oracle: self.gas_oracle.clone(),
+                status_oracle: self.status_oracle.clone(),
                 msg: msg.committed_message,
                 http: self.http.clone(),
                 metrics: ForwardRequestMetrics {
@@ -163,7 +168,8 @@ struct ForwardRequestOp {
     args: ForwardRequestArgs,
     opts: ForwardRequestOptions,
     signer: Signers,
-    gas: GasPaymentOracle,
+    gas_oracle: GasPaymentOracle,
+    status_oracle: ProcessedStatusOracle,
     msg: CommittedMessage,
     http: reqwest::Client,
     metrics: ForwardRequestMetrics,
@@ -174,11 +180,14 @@ impl ForwardRequestOp {
         info!(?self.msg);
         let sig = self.signer.sign_typed_data(&self.args).await?;
         loop {
-            if self.gas.get_total_payment(self.msg.leaf_index)?
-                <= self.opts.min_required_gas_payment
-            {
-                bail!("Not enough gas paid")
+            if self.already_processed().await? {
+                debug!(%self.msg.leaf_index, "Message already processed");
+                return Ok(ForwardRequestOpResult {});
             }
+            // TODO(webbhorn): If message gets submitted by another relayer at a price below
+            // opts.min, while we are waiting here, we will never terminate. Add a timeout.
+            self.wait_for_gas().await?;
+
             let fwd_req_call = ForwardRequestCall {
                 http: self.http.clone(),
                 args: &self.args,
@@ -211,6 +220,25 @@ impl ForwardRequestOp {
                 }
                 sleep(self.opts.poll_interval).await;
             }
+        }
+    }
+    async fn already_processed(&self) -> Result<bool> {
+        if self.status_oracle.message_status(&self.msg).await? == MessageStatus::Processed {
+            return Ok(true);
+        }
+        Ok(false)
+    }
+    async fn wait_for_gas(&self) -> Result<()> {
+        loop {
+            let gas_paid = self.gas_oracle.get_total_payment(self.msg.leaf_index)?;
+            if gas_paid >= self.opts.min_required_gas_payment {
+                debug!(%gas_paid, %self.opts.min_required_gas_payment, %self.msg.leaf_index,
+                    "Gas funded for message");
+                return Ok(());
+            }
+            debug!(%gas_paid, %self.opts.min_required_gas_payment, %self.msg.leaf_index,
+                "Insufficient gas to deliver, sleeping {:?}", self.opts.poll_interval);
+            sleep(self.opts.poll_interval).await;
         }
     }
 }

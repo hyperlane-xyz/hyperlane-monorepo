@@ -163,3 +163,47 @@ pub(crate) mod gas {
         }
     }
 }
+
+/////////////////////////////////////////////////////////////
+/////////  ProcessingStatus  ////////////////////////////////
+/////////////////////////////////////////////////////////////
+
+#[allow(dead_code)]
+pub(crate) mod status {
+    use std::sync::Arc;
+
+    use abacus_base::CachingInbox;
+    use abacus_core::{CommittedMessage, Inbox, MessageStatus};
+    use eyre::Result;
+
+    #[derive(Clone, Debug)]
+    pub(crate) enum ProcessedStatusOracle {
+        InboxContract(InboxContractStatus),
+        #[cfg(test)]
+        TestAlwaysNone,
+    }
+
+    impl ProcessedStatusOracle {
+        pub(crate) async fn message_status(&self, msg: &CommittedMessage) -> Result<MessageStatus> {
+            match self {
+                ProcessedStatusOracle::InboxContract(o) => o.message_status(msg).await,
+                #[cfg(test)]
+                ProcessedStatusOracle::TestAlwaysNone => Ok(MessageStatus::None),
+            }
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    pub(crate) struct InboxContractStatus {
+        inbox: Arc<CachingInbox>,
+    }
+
+    impl InboxContractStatus {
+        pub(crate) fn new(inbox: Arc<CachingInbox>) -> Self {
+            Self { inbox }
+        }
+        pub(crate) async fn message_status(&self, msg: &CommittedMessage) -> Result<MessageStatus> {
+            Ok(self.inbox.message_status(msg.to_leaf()).await?)
+        }
+    }
+}

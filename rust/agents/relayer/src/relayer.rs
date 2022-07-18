@@ -24,6 +24,7 @@ use crate::msg::gas::{AbacusDBGasOracle, GasPaymentOracle};
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
+use crate::msg::status::{InboxContractStatus, ProcessedStatusOracle};
 use crate::msg::SubmitMessageArgs;
 use crate::settings::whitelist::Whitelist;
 use crate::settings::RelayerSettings;
@@ -222,7 +223,10 @@ impl Relayer {
             ivm_address: inbox_contracts.validator_manager.contract_address().into(),
             sponsor_address: cfg.sponsor_address,
             _db: self.outbox().db(),
-            gas: GasPaymentOracle::IndexedDB(AbacusDBGasOracle::new(self.outbox().db())),
+            gas_oracle: GasPaymentOracle::IndexedDB(AbacusDBGasOracle::new(self.outbox().db())),
+            status_oracle: ProcessedStatusOracle::InboxContract(InboxContractStatus::new(
+                inbox_contracts.inbox.clone(),
+            )),
             signer,
             http: reqwest::Client::new(),
             metrics,
