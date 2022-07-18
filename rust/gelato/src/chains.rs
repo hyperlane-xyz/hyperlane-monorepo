@@ -35,8 +35,6 @@ impl fmt::Display for Chain {
     }
 }
 
-// TODO(webbhorn): What is the point of trying to support the from
-// string implementation here? Just delete it?
 impl FromStr for Chain {
     type Err = GelatoError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
