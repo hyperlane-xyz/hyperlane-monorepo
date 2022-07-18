@@ -5,13 +5,17 @@ use ethers::abi::Token;
 use ethers::types::{Address, U256};
 use ethers_contract::BaseContract;
 use eyre::{bail, Result};
+use futures::stream::FuturesUnordered;
 use gelato::chains::Chain;
-use gelato::fwd_req_call::{ForwardRequestArgs, PaymentType, NATIVE_FEE_TOKEN_ADDRESS, ForwardRequestCall};
-use gelato::task_status_call::{TaskStatusCallArgs, TaskStatusCall, TaskStatus};
+use gelato::fwd_req_call::{
+    ForwardRequestArgs, ForwardRequestCall, PaymentType, NATIVE_FEE_TOKEN_ADDRESS,
+};
+use gelato::task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
-use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
+use tokio_stream::StreamExt;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use super::SubmitMessageArgs;
@@ -49,42 +53,27 @@ pub(crate) struct GelatoSubmitter {
 impl GelatoSubmitter {
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         tokio::spawn(async move { self.work_loop().await })
-            .instrument(info_span!("gelato submitter work loop"))
+            .instrument(info_span!("Gelato submitter work loop"))
     }
 
     async fn work_loop(&mut self) -> Result<()> {
+        let mut in_flight_ops = FuturesUnordered::new();
         loop {
-            self.tick().await?;
-            sleep(Duration::from_millis(1000)).await;
+            let msg = tokio::select! {
+                Some(msg) = self.messages.recv() => msg,
+                _ = in_flight_ops.next() => continue,
+                else => bail!("Unexpected select condition"),
+            };
+            let op = ForwardRequestOp {
+                args: self.make_forward_request_args(msg)?,
+                opts: ForwardRequestOptions::default(),
+                signer: self.signer.clone(),
+                http: self.http.clone(),
+            };
+            in_flight_ops.push(async move {
+                op.run().await.unwrap();
+            });
         }
-    }
-
-    async fn tick(&mut self) -> Result<()> {
-        // Pull any messages sent by processor over channel.
-        loop {
-            match self.messages.try_recv() {
-                Ok(msg) => {
-                    let op = ForwardRequestOp {
-                        args: self.make_forward_request_args(msg)?,
-                        opts: ForwardRequestOptions::default(),
-                        signer: self.signer.clone(),
-                        http: self.http.clone(),
-                    };
-                    tokio::spawn(async move {
-                        op.run()
-                            .await
-                            .expect("failed unimplemented forward request submit op");
-                    });
-                }
-                Err(TryRecvError::Empty) => {
-                    break;
-                }
-                Err(_) => {
-                    bail!("Disconnected receive channel or fatal err");
-                }
-            }
-        }
-        Ok(())
     }
 
     fn make_forward_request_args(&self, msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
