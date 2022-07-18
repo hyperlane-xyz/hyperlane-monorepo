@@ -24,11 +24,16 @@ export class HelloWorldApp<
     const sender = this.getContracts(from).router;
     const toDomain = ChainNameToDomainId[to];
     const chainConnection = this.multiProvider.getChainConnection(from);
-    const tx = await sender.sendHelloWorld(
+    const estimated = await sender.estimateGas.sendHelloWorld(
       toDomain,
       message,
-      chainConnection.overrides,
     );
+    const gasLimit = estimated.mul(1.1).toNumber();
+
+    const tx = await sender.sendHelloWorld(toDomain, message, {
+      ...chainConnection.overrides,
+      gasLimit,
+    });
     const receipt = await tx.wait(chainConnection.confirmations);
 
     if (receiveHandler) {
