@@ -91,11 +91,6 @@ impl PartialEq for SubmitMessageArgs {
 
 impl Eq for SubmitMessageArgs {}
 
-/// A GasPaymentOracle provides the interface that are needed to determine whether sufficient
-/// gas has been paid for a relayer to process a message. There are currently two
-/// implementations, one which consults the indexed InterchainGasPaymaster events via AbacusDB,
-/// and one which is a test fake intended to be injected as a dependency where useful.
-#[allow(dead_code)]
 pub(crate) mod gas {
     use abacus_core::db::AbacusDB;
     use ethers::types::U256;
@@ -110,6 +105,8 @@ pub(crate) mod gas {
     #[derive(Clone, Debug)]
     pub(crate) enum GasPaymentOracle {
         IndexedDB(crate::msg::gas::AbacusDBGasOracle),
+
+        #[allow(dead_code)]
         #[cfg(test)]
         Test(TestOracle),
     }
