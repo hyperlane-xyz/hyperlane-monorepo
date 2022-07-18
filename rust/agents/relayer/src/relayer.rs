@@ -226,6 +226,7 @@ impl Relayer {
             gas_oracle: GasPaymentOracle::IndexedDB(AbacusDBGasOracle::new(self.outbox().db())),
             status_oracle: ProcessedStatusOracle::InboxContract(InboxContractStatus::new(
                 inbox_contracts.inbox.clone(),
+                self.outbox().db().clone(),
             )),
             signer,
             http: reqwest::Client::new(),

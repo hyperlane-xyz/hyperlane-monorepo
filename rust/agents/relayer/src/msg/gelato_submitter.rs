@@ -209,6 +209,7 @@ impl ForwardRequestOp {
                 }
                 if result.data[0].task_state == TaskStatus::ExecSuccess {
                     self.metrics.messages_processed_count.inc();
+                    self.status_oracle.mark_processed(&self.msg)?;
                     return Ok(ForwardRequestOpResult {});
                 }
                 if start.elapsed() >= self.opts.retry_submit_interval {
