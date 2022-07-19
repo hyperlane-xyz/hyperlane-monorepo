@@ -9,7 +9,7 @@ export type HexString = string;
 /********* ABACUS CORE *********/
 export type Checkpoint = {
   root: string;
-  index: number;
+  index: number; // safe because 2 ** 32 leaves < Number.MAX_VALUE
   signature: ethers.utils.BytesLike;
 };
 
