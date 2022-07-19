@@ -50,7 +50,7 @@ impl Inbox for CachingInbox {
         self.inbox.message_status(leaf).await
     }
 
-    fn contract_address(&self) -> Address {
+    fn contract_address(&self) -> Option<Address> {
         self.inbox.contract_address()
     }
 }
@@ -163,11 +163,11 @@ impl Inbox for InboxVariants {
         }
     }
 
-    fn contract_address(&self) -> Address {
+    fn contract_address(&self) -> Option<Address> {
         match self {
             InboxVariants::Ethereum(inbox) => inbox.contract_address(),
             InboxVariants::Mock(mock_inbox) => mock_inbox.contract_address(),
-            InboxVariants::Other(_) => unimplemented!(),
+            InboxVariants::Other(_) => None,
         }
     }
 }
