@@ -96,7 +96,8 @@ impl GelatoSubmitter {
                                         concat!(
                                             "Failed to mark successfully-processed message ",
                                             "as complete in AbacusDB: {:?}. Continuing without ",
-                                            "retry." ),
+                                            "retry."
+                                        ),
                                         err
                                     )
                                 });
@@ -223,8 +224,8 @@ impl ForwardRequestOp {
             debug!(%gas_paid, %self.opts.min_required_gas_payment, %self.msg.leaf_index,
                 "Gas funded for message");
 
-            // Submit the forward request to Gelato. Start a timer so that we know to re-submit
-            // after `self.retry_submit_interval` has elapsed.
+            // Submit the forward request to Gelato and start a timer so that we know to
+            // re-submit after `self.retry_submit_interval` has elapsed.
             let fwd_req_call = ForwardRequestCall {
                 http: self.http.clone(),
                 args: &self.args,
@@ -234,15 +235,21 @@ impl ForwardRequestOp {
             let fwd_req_result = fwd_req_call.run().await?;
 
             loop {
-                // After `self.retry_submit_interval` has elapsed, fall back to the start of the
-                // outer loop to re-submit the request, since the API requires that we re-submit
-                // after an interval of time without submission.
+                // Sleeping at the beginning of this loop ensures sleeping for poll_interval
+                // directly after submitting the forward request, as well as between successive
+                // task sta tus polls. No need to immediately poll for status after submitting
+                // initial request, it will take some time to run.
+                sleep(self.opts.poll_interval).await;
+
+                // After `self.retry_submit_interval` has elapsed, bail out to the caller for
+                // an eventual/possible retry, since this time interval represents the Gelato
+                // API-enforced timeout expiration after which re-submission is required.
                 if start.elapsed() >= self.opts.retry_submit_interval {
-                    warn!(
+                    bail!(
                         "Forward request expired after '{:?}', re-submitting (task: '{:?}')",
-                        self.opts.retry_submit_interval, self.args,
+                        self.opts.retry_submit_interval,
+                        self.args,
                     );
-                    break;
                 }
 
                 // Query for task status.
@@ -310,7 +317,6 @@ impl ForwardRequestOp {
                     TaskStatus::CheckPending
                     | TaskStatus::ExecPending
                     | TaskStatus::WaitingForConfirmation => {
-                        sleep(self.opts.poll_interval).await;
                         continue;
                     }
                 }
