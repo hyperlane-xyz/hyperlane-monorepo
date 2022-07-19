@@ -10,29 +10,28 @@ pub(crate) type Payment = U256;
 
 #[derive(Clone, Debug)]
 pub(crate) enum GasPaymentOracle {
-    IndexedDB(AbacusDBGasOracle),
-
+    Production(Impl),
     #[allow(dead_code)]
     #[cfg(test)]
-    Test(TestOracle),
+    TestDouble(TestImpl),
 }
 
 impl GasPaymentOracle {
     pub(crate) fn get_total_payment(&self, index: LeafIndex) -> Result<Payment> {
         match self {
-            GasPaymentOracle::IndexedDB(o) => o.get_total_payment(index),
+            GasPaymentOracle::Production(o) => o.get_total_payment(index),
             #[cfg(test)]
-            GasPaymentOracle::Test(o) => o.get_total_payment(index),
+            GasPaymentOracle::TestDouble(o) => o.get_total_payment(index),
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct AbacusDBGasOracle {
+pub(crate) struct Impl {
     db: AbacusDB,
 }
 
-impl AbacusDBGasOracle {
+impl Impl {
     pub(crate) fn new(db: AbacusDB) -> Self {
         Self { db }
     }
@@ -43,13 +42,13 @@ impl AbacusDBGasOracle {
 
 #[cfg(test)]
 #[derive(Clone, Debug)]
-pub(crate) struct TestOracle {
+pub(crate) struct TestImpl {
     payments: HashMap<LeafIndex, Payment>,
 }
 
 #[allow(dead_code)]
 #[cfg(test)]
-impl TestOracle {
+impl TestImpl {
     pub(crate) fn new() -> Self {
         Self {
             payments: HashMap::new(),

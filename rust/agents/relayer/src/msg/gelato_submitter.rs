@@ -23,7 +23,7 @@ use tracing::{debug, info, warn};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use super::gas_oracle::GasPaymentOracle;
-use super::status::ProcessedStatusOracle;
+use super::message_status::ProcessedStatusOracle;
 use super::SubmitMessageArgs;
 
 const DEFAULT_MAX_FEE: u32 = 1_000_000_000;

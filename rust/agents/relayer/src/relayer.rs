@@ -20,11 +20,11 @@ use abacus_core::{
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::msg::gas_oracle::{AbacusDBGasOracle, GasPaymentOracle};
+use crate::msg::gas_oracle::{self, GasPaymentOracle};
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
+use crate::msg::message_status::{self, ProcessedStatusOracle};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
-use crate::msg::status::{InboxContractStatus, ProcessedStatusOracle};
 use crate::msg::SubmitMessageArgs;
 use crate::settings::whitelist::Whitelist;
 use crate::settings::RelayerSettings;
@@ -222,8 +222,8 @@ impl Relayer {
             inbox_address: inbox_contracts.inbox.contract_address().into(),
             ivm_address: inbox_contracts.validator_manager.contract_address().into(),
             sponsor_address: cfg.sponsor_address,
-            gas_oracle: GasPaymentOracle::IndexedDB(AbacusDBGasOracle::new(self.outbox().db())),
-            status_oracle: ProcessedStatusOracle::InboxContract(InboxContractStatus::new(
+            gas_oracle: GasPaymentOracle::Production(gas_oracle::Impl::new(self.outbox().db())),
+            status_oracle: ProcessedStatusOracle::Production(message_status::Impl::new(
                 inbox_contracts.inbox.clone(),
                 self.outbox().db(),
             )),
@@ -245,7 +245,7 @@ impl Relayer {
         );
         Ok(SerialSubmitter {
             inbox_chain_name: inbox_contracts.inbox.chain_name().into(),
-            status_oracle: ProcessedStatusOracle::InboxContract(InboxContractStatus::new(
+            status_oracle: ProcessedStatusOracle::Production(message_status::Impl::new(
                 inbox_contracts.inbox.clone(),
                 self.outbox().db(),
             )),

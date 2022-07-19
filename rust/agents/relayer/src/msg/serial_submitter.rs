@@ -15,7 +15,7 @@ use tracing::debug;
 use tracing::instrument;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use super::status::ProcessedStatusOracle;
+use super::message_status::ProcessedStatusOracle;
 use super::SubmitMessageArgs;
 
 /// SerialSubmitter accepts undelivered messages over a channel from a MessageProcessor.  It is
