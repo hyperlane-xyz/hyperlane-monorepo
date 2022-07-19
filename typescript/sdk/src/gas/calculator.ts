@@ -1,3 +1,4 @@
+import CoinGecko from 'coingecko-api';
 import { BigNumber, FixedNumber, ethers } from 'ethers';
 
 import { utils } from '@abacus-network/utils';
@@ -26,7 +27,7 @@ import { DefaultTokenPriceGetter, TokenPriceGetter } from './token-prices';
 const DEFAULT_TOKEN_DECIMALS = 18;
 
 // Intrinsic gas for a transaction. Does not consider calldata costs or differences in
-// intrinsic gas or different chains.
+// intrinsic gas for different chains.
 const GAS_INTRINSIC = 21_000;
 
 // The gas used to process a message when the quorum size is zero.
@@ -34,7 +35,7 @@ const GAS_INTRINSIC = 21_000;
 // quorum size. Excludes the cost of calling `recipient.handle()`.
 // Derived by observing the amount of gas consumed for a quorum of 1 (~103000 gas),
 // and subtracting the gas overhead per signature.
-const GAS_OVERHEAD_BASE = 94_000;
+const GAS_OVERHEAD_BASE = 95_000;
 
 // The amount of gas used for each signature when a signed checkpoint
 // is submitted for verification.
@@ -73,11 +74,6 @@ export type ParsedMessage<
   body: string;
 };
 
-/*
-Okay, what do we want?
-- estimatePayment(origin, destination, gas amount) - requires a token price getter
-- estimatePaymentForMessage(origin, destination, id)
-
 /**
  * Calculates interchain gas payments.
  */
@@ -98,8 +94,12 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     this.multiProvider = multiProvider;
     this.core = core;
 
-    this.tokenPriceGetter =
-      config?.tokenPriceGetter ?? new DefaultTokenPriceGetter();
+    if (config?.tokenPriceGetter) {
+      this.tokenPriceGetter = config.tokenPriceGetter;
+    } else {
+      const coinGecko = new CoinGecko();
+      this.tokenPriceGetter = new DefaultTokenPriceGetter(coinGecko);
+    }
 
     this.paymentEstimateMultiplier = FixedNumber.from(
       config?.paymentEstimateMultiplier ?? '1.25',
@@ -109,7 +109,17 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     );
   }
 
-  // Applies the multiplier `paymentEstimateMultiplier`.
+  /**
+   * Given an amount of gas to consume on the destination chain, calculates the
+   * estimated payment denominated in the native token of the origin chain.
+   * Considers the exchange rate between the native tokens of the origin and
+   * destination chains and the suggested gas price of the destination chain.
+   * @param origin The name of the origin chain.
+   * @param destination The name of the destination chain.
+   * @param gas The amount of gas to pay for on the destination chain.
+   * @returns An estimated amount of origin chain tokens to cover gas costs on the
+   * destination chain.
+   */
   async estimatePaymentForGas<Destination extends Chain>(
     origin: Exclude<Chain, Destination>,
     destination: Destination,
@@ -215,6 +225,9 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    */
   protected async getGasPrice(chain: Chain): Promise<BigNumber> {
     const provider = this.multiProvider.getChainConnection(chain).provider!;
+    if (provider == undefined) {
+      throw new Error(`Missing provider for ${chain}`);
+    }
     return provider.getGasPrice();
   }
 
@@ -281,8 +294,6 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns A generous estimation of the gas consumption of all process
    * operations within Inbox.sol, including intrinsic gas. Does not include any gas
    * consumed within a message's recipient `handle` function.
-   * Returns a Promise because we expect this to eventually include async logic to
-   * estimate sovereign consensus costs, and we'd like to keep the interface consistent.
    */
   protected async estimateGasForProcess<Destination extends Chain>(
     origin: Remotes<Chain, Destination>,

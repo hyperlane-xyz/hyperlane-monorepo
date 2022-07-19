@@ -1,5 +1,11 @@
 import { ethers } from 'ethers';
 
+import { chainMetadata } from '../consts/chainMetadata';
+import { AllChains } from '../consts/chains';
+import {
+  CoinGeckoResponse,
+  CoinGeckoSimplePriceParams,
+} from '../gas/token-prices';
 import { ChainMap, ChainName } from '../types';
 
 const MOCK_NETWORK = {
@@ -40,30 +46,40 @@ export class MockProvider extends ethers.providers.BaseProvider {
   }
 }
 
-// A mock TokenPriceGetter intended to be used by tests when mocking token prices
-export class MockTokenPriceGetter<Chain extends ChainName> {
-  private tokenPrices: Partial<ChainMap<Chain, number>>;
+// A mock CoinGecko intended to be used by tests
+export class MockCoinGecko {
+  private tokenPrices: Partial<ChainMap<ChainName, number>>;
+  private idToChain: Record<string, ChainName>;
 
   constructor() {
     this.tokenPrices = {};
-  }
-
-  getTokenPrice(chain: Chain): Promise<number> {
-    const price = this.tokenPrices[chain];
-    if (price) {
-      // TS compiler somehow can't deduce the check above
-      return Promise.resolve(price as number);
+    this.idToChain = {};
+    for (const chain of AllChains) {
+      const id = chainMetadata[chain].coinGeckoId || chain;
+      this.idToChain[id] = chain;
     }
-    throw Error(`No price for chain ${chain}`);
   }
 
-  async getTokenExchangeRate(chainA: Chain, chainB: Chain): Promise<number> {
-    const priceA = await this.getTokenPrice(chainA);
-    const priceB = await this.getTokenPrice(chainB);
-    return priceB / priceA;
+  price(params: CoinGeckoSimplePriceParams): Promise<CoinGeckoResponse> {
+    const data: any = {};
+    for (const id of params.ids) {
+      data[id] = {
+        usd: this.tokenPrices[this.idToChain[id]],
+      };
+    }
+    return Promise.resolve({
+      success: true,
+      message: '',
+      code: 200,
+      data,
+    });
   }
 
-  setTokenPrice(chain: Chain, price: number) {
+  get simple() {
+    return this.price;
+  }
+
+  setTokenPrice(chain: ChainName, price: number) {
     this.tokenPrices[chain] = price;
   }
 }

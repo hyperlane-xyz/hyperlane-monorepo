@@ -8,10 +8,11 @@ import { Chains } from '../consts/chains';
 import { AbacusCore } from '../core/AbacusCore';
 import { CoreContracts } from '../core/contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import { MockProvider, MockTokenPriceGetter } from '../test/testUtils';
+import { MockCoinGecko, MockProvider } from '../test/testUtils';
 import { ChainName, TestChainNames } from '../types';
 
 import { InterchainGasCalculator, ParsedMessage } from './calculator';
+import { CoinGeckoTokenPriceGetter, TokenPriceGetter } from './token-prices';
 
 const HANDLE_GAS = 100_000;
 const SUGGESTED_GAS_PRICE = 10;
@@ -66,15 +67,16 @@ describe('InterchainGasCalculator', () => {
   const origin = Chains.test1;
   const destination = Chains.test2;
 
-  let tokenPriceGetter: MockTokenPriceGetter<TestChainNames>;
+  let tokenPriceGetter: TokenPriceGetter;
   let calculator: TestInterchainGasCalculator<TestChainNames>;
 
   beforeEach(() => {
-    tokenPriceGetter = new MockTokenPriceGetter();
+    const mockCoinGecko = new MockCoinGecko();
     // Origin token
-    tokenPriceGetter.setTokenPrice(origin, 10);
+    mockCoinGecko.setTokenPrice(origin, 10);
     // Destination token
-    tokenPriceGetter.setTokenPrice(destination, 5);
+    mockCoinGecko.setTokenPrice(destination, 5);
+    tokenPriceGetter = new CoinGeckoTokenPriceGetter(mockCoinGecko);
     calculator = new TestInterchainGasCalculator(multiProvider, core, {
       tokenPriceGetter,
       // A multiplier of 1 makes testing easier to reason about
@@ -101,7 +103,7 @@ describe('InterchainGasCalculator', () => {
         BigNumber.from(HANDLE_GAS),
       );
 
-      // 100k gas * 10 gas price * ($5 per origin token / $10 per origin token)
+      // 100k gas * 10 gas price * ($5 per destination token / $10 per origin token)
       expect(estimatedPayment.toNumber()).to.equal(500_000);
     });
   });
@@ -126,7 +128,7 @@ describe('InterchainGasCalculator', () => {
       );
 
       // (100_000 dest handler gas + 100_000 process overhead gas)
-      // * 10 gas price * ($5 per origin token / $10 per origin token)
+      // * 10 gas price * ($5 per destination token / $10 per origin token)
       expect(estimatedPayment.toNumber()).to.equal(1_000_000);
     });
   });
@@ -163,7 +165,7 @@ describe('InterchainGasCalculator', () => {
       );
 
       // (100_000 dest handler gas + 100_000 process overhead gas)
-      // * 10 gas price * ($5 per origin token / $10 per origin token)
+      // * 10 gas price * ($5 per destination token / $10 per origin token)
       expect(estimatedPayment.toNumber()).to.equal(1_000_000);
     });
   });

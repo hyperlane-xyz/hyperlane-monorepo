@@ -9,10 +9,41 @@ export interface TokenPriceGetter {
   getTokenExchangeRate(chainA: ChainName, chainB: ChainName): Promise<number>;
 }
 
-// TODO: Consider caching to avoid exceeding CoinGecko's 50 requests / min limit
+// Copied from coingecko-api
+export interface CoinGeckoSimplePriceParams {
+  ids: string | string[];
+  vs_currencies: string | string[];
+  // tslint:disable-next-line no-redundant-undefined
+  include_24hr_vol?: boolean | undefined;
+  // tslint:disable-next-line no-redundant-undefined
+  include_24hr_change?: boolean | undefined;
+  // tslint:disable-next-line no-redundant-undefined
+  include_last_updated_at?: boolean | undefined;
+  // tslint:disable-next-line no-redundant-undefined
+  include_market_cap?: boolean | undefined;
+}
 
-// TODO implement in following PR
-export class DefaultTokenPriceGetter implements TokenPriceGetter {
+// Copied from coingecko-api
+export interface CoinGeckoResponse<T = any> {
+  success: boolean;
+  message: string;
+  code: number;
+  data: T;
+}
+export interface CoinGeckoSimpleInterface {
+  price: (params: CoinGeckoSimplePriceParams) => Promise<CoinGeckoResponse>;
+}
+export interface CoinGeckoInterface {
+  simple: CoinGeckoSimpleInterface;
+}
+
+// TODO: Consider caching to avoid exceeding CoinGecko's 50 requests / min limit
+export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
+  protected coinGecko: CoinGeckoInterface;
+  constructor(coinGecko: CoinGeckoInterface) {
+    this.coinGecko = coinGecko;
+  }
+
   async getTokenPrice(chain: ChainName): Promise<number> {
     if (Mainnets.includes(chain)) {
       const [price] = await this.getTokenPrices([chain]);
@@ -33,13 +64,12 @@ export class DefaultTokenPriceGetter implements TokenPriceGetter {
 
   private async getTokenPrices(chains: ChainName[]): Promise<number[]> {
     const currency = 'usd';
-    const coinGecko = new CoinGecko();
     // The CoinGecko API expects, in some cases, IDs that do not match
     // ChainNames.
     const ids = chains.map(
       (chain) => chainMetadata[chain].coinGeckoId || chain,
     );
-    const response = await coinGecko.simple.price({
+    const response = await this.coinGecko.simple.price({
       ids,
       vs_currencies: [currency],
     });
