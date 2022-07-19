@@ -4,6 +4,7 @@ use abacus_core::{accumulator::merkle::Proof, CommittedMessage, MultisigSignedCh
 
 use tokio::time::Instant;
 
+pub mod forward_request_op;
 pub mod gas_oracle;
 pub mod gelato_submitter;
 pub mod message_status;

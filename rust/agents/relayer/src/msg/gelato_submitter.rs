@@ -1,27 +1,23 @@
 use abacus_base::CoreMetrics;
-use abacus_core::{CommittedMessage, MessageStatus};
-use abacus_core::{Encode, Signers};
+use abacus_core::{Encode, MessageStatus, Signers};
 use abacus_ethereum::validator_manager::INBOXVALIDATORMANAGER_ABI as ivm_abi;
 use ethers::abi::Token;
 use ethers::types::{Address, U256};
 use ethers_contract::BaseContract;
-use ethers_signers::Signer;
 use eyre::{bail, Result};
 use futures::stream::FuturesUnordered;
 use gelato::chains::Chain;
-use gelato::fwd_req_call::{
-    ForwardRequestArgs, ForwardRequestCall, PaymentType, NATIVE_FEE_TOKEN_ADDRESS,
-};
-use gelato::task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs, TransactionStatus};
+use gelato::fwd_req_call::{ForwardRequestArgs, PaymentType, NATIVE_FEE_TOKEN_ADDRESS};
 use prometheus::IntCounter;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_stream::StreamExt;
-use tracing::{debug, info, warn};
+use tracing::{warn, info};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
+use super::forward_request_op::{ForwardRequestOp, ForwardRequestOptions};
 use super::gas_oracle::GasPaymentOracle;
 use super::message_status::ProcessedStatusOracle;
 use super::SubmitMessageArgs;
@@ -80,36 +76,31 @@ impl GelatoSubmitter {
                 status_oracle: self.status_oracle.clone(),
                 msg: msg.committed_message,
                 http: self.http.clone(),
-                metrics: ForwardRequestMetrics {
-                    messages_processed_count: self.metrics.messages_processed_count.clone(),
-                },
             };
+
+            let submitter_metrics: &GelatoSubmitterMetrics = &self.metrics;
+            let status_oracle: &ProcessedStatusOracle = &self.status_oracle;
             in_flight_ops.push(async move {
                 loop {
                     match op.run().await {
-                        Ok(_) => {
-                            op.metrics.messages_processed_count.inc();
-                            op.status_oracle
-                                .mark_processed(&op.msg)
+                        Ok(result) => {
+                            info!(?result.txn_status, "Gelato successfully processed message");
+                            if result.responsible_for_processing {
+                                submitter_metrics.messages_processed_count.inc();
+                            }
+                            assert!(result.message_status == MessageStatus::Processed);
+                            status_oracle
+                                .mark_processed(op.get_message())
                                 .unwrap_or_else(|err| {
-                                    warn!(
-                                        concat!(
-                                            "Failed to mark successfully-processed message ",
-                                            "as complete in AbacusDB: {:?}. Continuing without ",
-                                            "retry."
-                                        ),
-                                        err
-                                    )
+                                    warn!(?err, ?result, ?op, "Failed to mark msg processed in DB");
                                 });
                             return;
                         }
                         Err(e) => {
                             warn!(err=?e, failed_op=?op,
                                 "Error running forward request op, sleeping 60s");
-                            // Somewhat arbitrarily, wait one minute before retrying the op, in
-                            // case the error condition is persistent, or due to overload where
-                            // a tight submit loop would be especially pernicious.
                             sleep(Duration::from_secs(60)).await;
+                            continue;
                         }
                     }
                 }
@@ -147,8 +138,8 @@ impl GelatoSubmitter {
             data: call_data,
             fee_token: NATIVE_FEE_TOKEN_ADDRESS,
             payment_type: PaymentType::AsyncGasTank,
-            max_fee: DEFAULT_MAX_FEE.into(), // Maximum fee that sponsor is willing to pay.
-            gas: DEFAULT_MAX_FEE.into(),     // Gas limit.
+            max_fee: DEFAULT_MAX_FEE.into(),
+            gas: DEFAULT_MAX_FEE.into(),
             sponsor_chain_id: abacus_domain_to_gelato_chain(self.outbox_domain)?,
             nonce: U256::zero(),
             enforce_sponsor_nonce: false,
@@ -185,179 +176,6 @@ fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
         // 5 => Chain::Goerli,
         _ => bail!("Unknown domain {}", domain),
     })
-}
-
-#[derive(Debug, Clone)]
-struct ForwardRequestOp {
-    args: ForwardRequestArgs,
-    opts: ForwardRequestOptions,
-    signer: Signers,
-    gas_oracle: GasPaymentOracle,
-    status_oracle: ProcessedStatusOracle,
-    msg: CommittedMessage,
-    http: reqwest::Client,
-    metrics: ForwardRequestMetrics,
-}
-
-impl ForwardRequestOp {
-    async fn run(&self) -> Result<ForwardRequestOpResult> {
-        info!(?self.msg);
-        let sig = self.signer.sign_typed_data(&self.args).await?;
-        loop {
-            // It is possible that another relayer has already processed this message.
-            // If for whatever reason it is the case that the inbox reports the message
-            // as already processed, we are done and should exit.
-            if self.already_processed().await? {
-                debug!(%self.msg.leaf_index, "Message already processed");
-                return Ok(ForwardRequestOpResult { _txn_status: None });
-            }
-
-            // If not enough gas paid, sleep for an interval to wait for payment and restart
-            // the loop later.
-            let gas_paid = self.gas_oracle.get_total_payment(self.msg.leaf_index)?;
-            if gas_paid <= self.opts.min_required_gas_payment {
-                debug!(%gas_paid, %self.opts.min_required_gas_payment, %self.msg.leaf_index,
-                    "Gas underfunded for message");
-                sleep(self.opts.gas_poll_interval).await;
-                continue;
-            }
-            debug!(%gas_paid, %self.opts.min_required_gas_payment, %self.msg.leaf_index,
-                "Gas funded for message");
-
-            // Submit the forward request to Gelato and start a timer so that we know to
-            // re-submit after `self.retry_submit_interval` has elapsed.
-            let fwd_req_call = ForwardRequestCall {
-                http: self.http.clone(),
-                args: &self.args,
-                sig,
-            };
-            let start = Instant::now();
-            let fwd_req_result = fwd_req_call.run().await?;
-
-            loop {
-                // Sleeping at the beginning of this loop ensures sleeping for poll_interval
-                // directly after submitting the forward request, as well as between successive
-                // task sta tus polls. No need to immediately poll for status after submitting
-                // initial request, it will take some time to run.
-                sleep(self.opts.poll_interval).await;
-
-                // After `self.retry_submit_interval` has elapsed, bail out to the caller for
-                // an eventual/possible retry, since this time interval represents the Gelato
-                // API-enforced timeout expiration after which re-submission is required.
-                if start.elapsed() >= self.opts.retry_submit_interval {
-                    bail!(
-                        "Forward request expired after '{:?}', re-submitting (task: '{:?}')",
-                        self.opts.retry_submit_interval,
-                        self.args,
-                    );
-                }
-
-                // Query for task status.
-                let status_call_args = TaskStatusCallArgs {
-                    task_id: fwd_req_result.task_id.clone(),
-                };
-                let status_call = TaskStatusCall {
-                    http: self.http.clone(),
-                    args: status_call_args,
-                };
-                let result = status_call.run().await?;
-
-                // We only expect to get one result back, but there is no guarantee, and we
-                // don't want to crash if that happens for some reason. Not clear what to do
-                // in this case besides re-submit. If it went through the first time, we will
-                // find out soon after retrying, when checking message status against the inbox.
-                if result.data.len() != 1 {
-                    bail!("Unexpected Gelato task data: {:?}", result);
-                }
-                let task_state = result.data[0].task_state.clone();
-                debug!(
-                    ?task_state, ?self.msg, ?result, elapsed_time=?start.elapsed(),
-                    "Gelato task status");
-
-                // We take one of three behaviors depending on the task status code:
-                //
-                //     (1)  SUCCESS: we're done!
-                //
-                //     (2)  PERMANENT FAILURE: task is done and did not succeed, so bail from this
-                //          run() call with an error and let the submitter decide whether to
-                //          try again (currently it will, but after a delay).
-                //
-                //     (3)  IN PROGRESS: wait and poll again after a delay.
-                //
-                // Any HTTP- or connection-level errors will have already behaved like (2) and
-                // returned control flow to the callsite in the submitter (which will retry
-                // after a delay, too).
-                match task_state {
-                    TaskStatus::ExecSuccess => {
-                        return Ok(ForwardRequestOpResult {
-                            _txn_status: Some(result.data[0].clone()),
-                        });
-                    }
-                    TaskStatus::ExecReverted
-                    | TaskStatus::Cancelled
-                    | TaskStatus::Blacklisted
-                    | TaskStatus::NotFound => {
-                        // The task failed and is not going to change state, so no point in
-                        // polling anymore. Return the error to the caller. What else can you
-                        // do besides start from the top?
-                        // In case the transaction was reverted or canceled because it already
-                        // had been committed to the inbox contract via some other relayer, we
-                        // will find out eventually when we check for message status prior to
-                        // forward request submission.
-                        bail!(
-                            concat!(
-                                "Gelato task permanently failed with {:?}: ",
-                                "fwd_req_op: {:?}: gelato_result: {:?}"
-                            ),
-                            task_state,
-                            self,
-                            result
-                        );
-                    }
-                    TaskStatus::CheckPending
-                    | TaskStatus::ExecPending
-                    | TaskStatus::WaitingForConfirmation => {
-                        continue;
-                    }
-                }
-            }
-        }
-    }
-    async fn already_processed(&self) -> Result<bool> {
-        if self.status_oracle.message_status(&self.msg).await? == MessageStatus::Processed {
-            return Ok(true);
-        }
-        Ok(false)
-    }
-}
-
-#[derive(Debug, Clone)]
-struct ForwardRequestOpResult {
-    _txn_status: Option<TransactionStatus>,
-}
-
-#[derive(Debug, Clone)]
-struct ForwardRequestOptions {
-    poll_interval: Duration,
-    gas_poll_interval: Duration,
-    retry_submit_interval: Duration,
-    min_required_gas_payment: U256,
-}
-
-impl Default for ForwardRequestOptions {
-    fn default() -> Self {
-        Self {
-            poll_interval: Duration::from_secs(60),
-            gas_poll_interval: Duration::from_secs(20),
-            retry_submit_interval: Duration::from_secs(20 * 60),
-            min_required_gas_payment: U256::zero(),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-struct ForwardRequestMetrics {
-    messages_processed_count: IntCounter,
 }
 
 #[derive(Debug)]
