@@ -11,7 +11,7 @@ use eyre::Result;
 use crate::submit::ValidatorSubmitterMetrics;
 use crate::{settings::ValidatorSettings as Settings, submit::ValidatorSubmitter};
 
-/// An validator agent
+/// A validator agent
 #[derive(Debug)]
 pub struct Validator {
     signer: Arc<Signers>,
