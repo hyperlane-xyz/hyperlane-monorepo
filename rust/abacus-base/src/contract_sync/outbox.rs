@@ -57,7 +57,7 @@ where
         //    The `eth_getLogs` RPC implementations seem to happily accept `to` blocks that
         //    exceed the latest known block, so it's possible that in our indexer we think
         //    that we've indexed up to block T but we've only *actually* indexed up to block T'.
-        //
+
         // It's easy to determine if a provider has skipped any message events by
         // looking at the indices of each message and ensuring that we've indexed a valid
         // continuation of messages.
