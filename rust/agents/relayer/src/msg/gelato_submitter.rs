@@ -103,9 +103,7 @@ impl GelatoSubmitter {
                 ),
                 Token::Bytes(msg.committed_message.message.to_vec()),
                 Token::FixedArray(
-                    (0..32)
-                        .map(|i| Token::FixedBytes(msg.proof.path[i].to_vec()))
-                        .collect(),
+                    msg.proof.path[0..32].iter().map(|e| Token::FixedBytes(e.to_vec())).collect()
                 ),
                 Token::Uint(msg.leaf_index.into()),
             ],
