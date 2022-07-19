@@ -104,7 +104,10 @@ impl GelatoSubmitter {
                 ),
                 Token::Bytes(msg.committed_message.message.to_vec()),
                 Token::FixedArray(
-                    msg.proof.path[0..32].iter().map(|e| Token::FixedBytes(e.to_vec())).collect()
+                    msg.proof.path[0..32]
+                        .iter()
+                        .map(|e| Token::FixedBytes(e.to_vec()))
+                        .collect(),
                 ),
                 Token::Uint(msg.leaf_index.into()),
             ],
@@ -154,6 +157,14 @@ fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
         _ => bail!("Unknown domain {}", domain),
     })
 }
+// TODO(webbhorn): Remove 'allow unused' once we impl run() and ref internal fields.
+#[allow(unused)]
+#[derive(Debug, Clone)]
+pub struct ForwardRequestOp<S> {
+    args: ForwardRequestArgs,
+    opts: ForwardRequestOptions,
+    signer: S,
+    http: reqwest::Client,
 }
 
 impl<S> ForwardRequestOp<S> {
