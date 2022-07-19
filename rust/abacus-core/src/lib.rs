@@ -57,8 +57,10 @@ pub enum ListValidity {
     Empty,
     /// Valid list
     Valid,
-    /// Invalid list
-    Invalid,
+    /// Invalid list. Does not build upon latest element.
+    InvalidContinuation,
+    /// Invalid list. Contains gaps 
+    ContainsGaps,
 }
 
 /// Error types for Abacus

@@ -45,38 +45,48 @@ where
         let config_from = self.index_settings.from();
         let chunk_size = self.index_settings.chunk_size();
 
+        // Indexes messages by fetching messages in ranges of blocks.
+        // We've observed occasional flakiness with providers where some events in
+        // a range will be missing. The leading theories are:
+        // 1. The provider is just flaky and sometimes misses events :(
+        // 2. For outbox chains with low finality times, it's possible that when
+        //    we query the RPC provider for the latest finalized block number,
+        //    we're returned a block number T. However when we attempt to index a range
+        //    where the `to` block is T, the `eth_getLogs` RPC is load balanced by the
+        //    provider to a different node whose latest known block is some block T' < T.
+        //    The `eth_getLogs` RPC implementations seem to happily accept `to` blocks that
+        //    exceed the latest known block, so it's possible that in our indexer we think
+        //    that we've indexed up to block T but we've only *actually* indexed up to block T'.
+        //
+        // It's easy to determine if a provider has skipped any message events by
+        // looking at the indices of each message and ensuring that we've indexed a valid
+        // continuatioin of messages from index 0.
+        // There are two classes of invalid continuations:
+        // 1. The latest previously indexed message index is M that was found in a previously
+        //    indexed block range. A new block range [A,B] is indexed, returning a list of messages.
+        //    The lowest message index in that list is `M + 1`, but there are some missing messages
+        //    indices in the list. This is likely a flaky provider, and we can simply re-index the
+        //    range [A,B] hoping that the provider will soon return a correct list.
+        // 2. The latest previously indexed message index is M that was found in a previously
+        //    indexed block range, [A,B]. A new block range [C,D] is indexed, returning a list of
+        //    messages. However, the lowest message index in that list is M' where M' > M + 1,
+        //    indicating either a simple gap from a flaky provider as explained in (1), or that
+        //    there was an issue when the prior block range [A,B] was indexed, where the provider
+        //    didn't provide some messages with indices > M that did occur in the [A,B] range.
+        //    We can handle this by re-indexing starting from block A.
+        //    Note this means we only handle this case upon observing messages in some range [C,D]
+        //    that indicate a previously indexed range may have missed some messages.
         tokio::spawn(async move {
             let mut from = db
-                .retrieve_message_latest_block_end()
+                .retrieve_latest_valid_message_range_start_block()
                 .map_or_else(|| config_from, |h| h + 1);
 
-            let mut finding_missing = false;
-            let mut realized_missing_start_block = 0;
-            let mut realized_missing_end_block = 0;
-            let mut exponential = 0;
+            let mut last_valid_range_start_block = from;
 
-            info!(from = from, "[Messages]: resuming indexer from {from}");
+            info!(from = from, "[Messages]: resuming indexer from latest valid message range start block");
 
             loop {
                 indexed_height.set(from as i64);
-
-                // If we were searching for missing message and have reached
-                // original missing start block, turn off finding_missing and
-                // TRY to resume normal indexing
-                if finding_missing && from >= realized_missing_start_block {
-                    info!("Turning off finding_missing mode");
-                    finding_missing = false;
-                }
-
-                // If we have passed the end block of the missing message, we
-                // have found the message and can reset variables
-                if from > realized_missing_end_block && realized_missing_end_block != 0 {
-                    missed_messages.inc();
-
-                    exponential = 0;
-                    realized_missing_start_block = 0;
-                    realized_missing_end_block = 0;
-                }
 
                 // Only index blocks considered final
                 let tip = indexer.get_finalized_block_number().await?;
@@ -87,28 +97,45 @@ where
                     continue;
                 }
 
-                let candidate = from + chunk_size;
-                let to = min(tip, candidate);
+                // Index the chunk_size, or until the tip if the chunk end block would exceed the tip.
+                let to = min(tip, from + chunk_size);
 
-                let sorted_messages = indexer.fetch_sorted_messages(from, to).await?;
+                let mut sorted_messages = indexer.fetch_sorted_messages(from, to).await?;
 
-                debug!(
+                info!(
                     from = from,
                     to = to,
                     message_count = sorted_messages.len(),
                     "[Messages]: indexed block heights {from}...{to}"
                 );
 
-                // If no messages found, update last seen block and next height
-                // and continue
+                // Get the latest known leaf index. All messages whose indices are <= this index
+                // have been stored in the DB.
+                let last_leaf_index: OptLatestLeafIndex = db.retrieve_latest_leaf_index()?.into();
+
+                // Filter out any messages that have already been successfully indexed and stored.
+                // This is necessary if we're re-indexing blocks in hope of finding missing messages.
+                if let Some(min_index) = last_leaf_index.as_ref() {
+                    sorted_messages = sorted_messages.into_iter().filter(|m| m.leaf_index > *min_index).collect();
+                }
+
+                debug!(
+                    from = from,
+                    to = to,
+                    message_count = sorted_messages.len(),
+                    "[Messages]: filtered any messages already indexed"
+                );
+
+                // Continue if no messages found.
+                // We don't update last_valid_range_start_block because we cannot extrapolate
+                // if the range was correctly indexed if there are no messages to observe their
+                // indices.
                 if sorted_messages.is_empty() {
-                    db.store_message_latest_block_end(to)?;
                     from = to + 1;
                     continue;
                 }
 
-                // If messages found, check that list is valid
-                let last_leaf_index: OptLatestLeafIndex = db.retrieve_latest_leaf_index()?.into();
+                // Ensure the sorted messages are a valid continution of last_leaf_index
                 match &last_leaf_index.valid_continuation(&sorted_messages) {
                     ListValidity::Valid => {
                         // Store messages
@@ -128,30 +155,36 @@ where
                                 .set(max_leaf_index_of_batch as i64);
                         }
 
-                        // Move forward next height
-                        db.store_message_latest_block_end(to)?;
+                        // Update the start block of the range.
+                        db.store_latest_valid_message_range_start_block(from)?;
+                        last_valid_range_start_block = from;
+
+                        // Move forward to the next height
                         from = to + 1;
-                    }
-                    ListValidity::Invalid => {
-                        if finding_missing {
-                            from = to + 1;
-                        } else {
-                            warn!(
-                                last_leaf_index = ?last_leaf_index,
-                                start_block = from,
-                                end_block = to,
-                                "[Messages]: RPC failed to find message(s) between blocks {from}...{to}. Last seen leaf index: {:?}. Activating finding_missing mode.",
-                                last_leaf_index
-                            );
+                    },
+                    // The index of the first message in sorted_messages is not the last_leaf_index + 1.
+                    ListValidity::InvalidContinuation => {
+                        missed_messages.inc();
 
-                            // Turn on finding_missing mode
-                            finding_missing = true;
-                            realized_missing_start_block = from;
-                            realized_missing_end_block = to;
+                        warn!(
+                            last_leaf_index = ?last_leaf_index,
+                            start_block = from,
+                            end_block = to,
+                            last_valid_range_start_block,
+                            "[Messages]: Found invalid continuation in range. Re-indexing from the start block of the last successful range.",
+                        );
 
-                            from = realized_missing_start_block - (chunk_size * 2u32.pow(exponential as u32));
-                            exponential += 1;
-                        }
+                        from = last_valid_range_start_block;
+                    },
+                    ListValidity::ContainsGaps => {
+                        missed_messages.inc();
+
+                        warn!(
+                            last_leaf_index = ?last_leaf_index,
+                            start_block = from,
+                            end_block = to,
+                            "[Messages]: Found gaps in the messages in range, re-indexing the same range.",
+                        );
                     }
                     ListValidity::Empty => unreachable!("Tried to validate empty list of messages"),
                 };
