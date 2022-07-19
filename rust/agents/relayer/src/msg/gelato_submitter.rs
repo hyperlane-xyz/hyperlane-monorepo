@@ -154,15 +154,6 @@ fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
         _ => bail!("Unknown domain {}", domain),
     })
 }
-
-// TODO(webbhorn): Remove 'allow unused' once we impl run() and ref internal fields.
-#[allow(unused)]
-#[derive(Debug, Clone)]
-pub struct ForwardRequestOp<S> {
-    args: ForwardRequestArgs,
-    opts: ForwardRequestOptions,
-    signer: S,
-    http: reqwest::Client,
 }
 
 impl<S> ForwardRequestOp<S> {
