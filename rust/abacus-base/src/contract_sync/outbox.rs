@@ -60,7 +60,7 @@ where
         //
         // It's easy to determine if a provider has skipped any message events by
         // looking at the indices of each message and ensuring that we've indexed a valid
-        // continuatioin of messages from index 0.
+        // continuation of messages.
         // There are two classes of invalid continuations:
         // 1. The latest previously indexed message index is M that was found in a previously
         //    indexed block range. A new block range [A,B] is indexed, returning a list of messages.
@@ -69,10 +69,14 @@ where
         //    range [A,B] hoping that the provider will soon return a correct list.
         // 2. The latest previously indexed message index is M that was found in a previously
         //    indexed block range, [A,B]. A new block range [C,D] is indexed, returning a list of
-        //    messages. However, the lowest message index in that list is M' where M' > M + 1,
-        //    indicating either a simple gap from a flaky provider as explained in (1), or that
-        //    there was an issue when the prior block range [A,B] was indexed, where the provider
-        //    didn't provide some messages with indices > M that did occur in the [A,B] range.
+        //    messages. However, the lowest message index in that list is M' where M' > M + 1.
+        //    This missing messages could be anywhere in the range [A,D]:
+        //    * It's possible there was an issue when the prior block range [A,B] was indexed, where
+        //      the provider didn't provide some messages with indices > M that it should have.
+        //    * It's possible that the range [B,C] that was presumed to be empty when it was indexed
+        //      actually wasn't.
+        //    * And it's possible that this was just a flaky gap, where there are messages in the [C,D]
+        //      range that weren't returned for some reason.
         //    We can handle this by re-indexing starting from block A.
         //    Note this means we only handle this case upon observing messages in some range [C,D]
         //    that indicate a previously indexed range may have missed some messages.
@@ -97,7 +101,7 @@ where
                     continue;
                 }
 
-                // Index the chunk_size, or until the tip if the chunk end block would exceed the tip.
+                // Index the chunk_size, capping at the tip.
                 let to = min(tip, from + chunk_size);
 
                 let mut sorted_messages = indexer.fetch_sorted_messages(from, to).await?;
@@ -155,7 +159,7 @@ where
                                 .set(max_leaf_index_of_batch as i64);
                         }
 
-                        // Update the start block of the range.
+                        // Update the latest valid start block.
                         db.store_latest_valid_message_range_start_block(from)?;
                         last_valid_range_start_block = from;
 
