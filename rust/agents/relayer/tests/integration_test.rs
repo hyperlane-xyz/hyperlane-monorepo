@@ -13,7 +13,7 @@ fn integration_test() {
             sender: H160::from_low_u64_be(1).into(),
             destination: 2,
             recipient: H256::from_low_u64_be(2),
-            body: hex::decode("0xdeadbeef").unwrap(),
+            body: hex::decode("deadbeef").unwrap(),
         },
     };
 }
