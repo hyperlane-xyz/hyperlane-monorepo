@@ -11,14 +11,7 @@ use eyre::Result;
 
 use abacus_base::Agent;
 
-use crate::relayer::Relayer;
-
-mod checkpoint_fetcher;
-mod merkle_tree_builder;
-mod msg;
-mod prover;
-mod relayer;
-mod settings;
+use relayer::{relayer::Relayer, settings};
 
 async fn _main() -> Result<()> {
     #[cfg(feature = "oneline-errors")]
