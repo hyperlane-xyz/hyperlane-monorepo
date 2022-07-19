@@ -14,7 +14,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_stream::StreamExt;
-use tracing::{warn, info};
+use tracing::{info, warn};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use super::forward_request_op::{ForwardRequestOp, ForwardRequestOptions};

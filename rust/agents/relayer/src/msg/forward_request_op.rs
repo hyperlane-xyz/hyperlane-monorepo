@@ -36,7 +36,9 @@ impl ForwardRequestOp {
             }
             let fwd_req_result = self.submit_forward_request().await?;
             let start = Instant::now();
-            return self.poll_task_status(start, fwd_req_result.task_id.as_str()).await;
+            return self
+                .poll_task_status(start, fwd_req_result.task_id.as_str())
+                .await;
         }
     }
     async fn already_processed(&self) -> Result<bool> {
