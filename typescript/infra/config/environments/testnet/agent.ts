@@ -28,7 +28,11 @@ export const abacus: AgentConfig<TestnetChains> = {
     chainOverrides: {
       optimismkovan: {
         interval: 5,
-        reorgPeriod: 2,
+        reorgPeriod: 0,
+      },
+      arbitrumrinkeby: {
+        interval: 5,
+        reorgPeriod: 0,
       },
     },
   },
