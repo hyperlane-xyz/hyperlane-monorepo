@@ -1,4 +1,4 @@
-import { Counter, Registry } from 'prom-client';
+import { Gauge, Registry } from 'prom-client';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
 import { ChainName, Chains } from '@abacus-network/sdk';
@@ -16,18 +16,17 @@ const constMetricLabels = {
 };
 
 const metricsRegister = new Registry();
-const messagesCount = new Counter({
+const messagesSendStatus = new Gauge({
   name: 'abacus_kathy_messages',
-  help: 'Test messages which have been sent with',
+  help: 'Whether messages which have been sent from one chain to another successfully; will report 0 for unsuccessful and 1 for successful.',
   registers: [metricsRegister],
   labelNames: [
     'origin',
     'remote',
-    'status',
     ...(Object.keys(constMetricLabels) as (keyof typeof constMetricLabels)[]),
   ],
 });
-metricsRegister.registerMetric(messagesCount);
+metricsRegister.registerMetric(messagesSendStatus);
 
 async function main() {
   const environment = await getEnvironment();
@@ -49,6 +48,14 @@ async function main() {
   let failureOccurred = false;
 
   const sources = chains.filter((chain) => !skip || !skip.includes(chain));
+
+  // submit frequently so we don't have to wait a super long time for info to get into the metrics
+  const metricsInterval = setInterval(() => {
+    submitMetrics(metricsRegister, 'kathy', { appendMode: true }).catch(
+      console.error,
+    );
+  }, 1000 * 30);
+
   for (const source of sources) {
     for (const destination of sources.filter((d) => d !== source)) {
       const labels = {
@@ -58,21 +65,24 @@ async function main() {
       };
       try {
         await sendMessage(app, source, destination);
-        messagesCount.labels({ ...labels, status: 'success' }).inc();
+        messagesSendStatus.labels({ ...labels }).set(1);
       } catch (err) {
         console.error(
           `Error sending message from ${source} to ${destination}, continuing...`,
           `${err}`.replaceAll('\n', ' ## '),
         );
         failureOccurred = true;
-        messagesCount.labels({ ...labels, status: 'failure' }).inc();
+        messagesSendStatus.labels({ ...labels }).set(0);
       }
+
       // Sleep 500ms to avoid race conditions where nonces are reused
       await sleep(500);
     }
   }
 
-  await submitMetrics(metricsRegister, 'kathy');
+  clearInterval(metricsInterval);
+  // do not use append mode here so we can clear any old pairings we no longer care about.
+  await submitMetrics(metricsRegister, 'kathy', { appendMode: false });
 
   if (failureOccurred) {
     console.error('Failure occurred at least once');
