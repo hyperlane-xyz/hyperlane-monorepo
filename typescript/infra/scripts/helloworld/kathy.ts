@@ -3,6 +3,7 @@ import { Gauge, Registry } from 'prom-client';
 import { HelloWorldApp } from '@abacus-network/helloworld';
 import { ChainName, Chains } from '@abacus-network/sdk';
 
+import { debug, error, log, warn } from '../../src/utils/logging';
 import { submitMetrics } from '../../src/utils/metrics';
 import { sleep } from '../../src/utils/utils';
 import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
@@ -51,8 +52,8 @@ async function main() {
 
   // submit frequently so we don't have to wait a super long time for info to get into the metrics
   const metricsInterval = setInterval(() => {
-    submitMetrics(metricsRegister, 'kathy', { appendMode: true }).catch(
-      console.error,
+    submitMetrics(metricsRegister, 'kathy', { appendMode: true }).catch((e) =>
+      error('Failed to submit metrics', { error: e }),
     );
   }, 1000 * 30);
 
@@ -66,11 +67,12 @@ async function main() {
       try {
         await sendMessage(app, source, destination);
         messagesSendStatus.labels({ ...labels }).set(1);
-      } catch (err) {
-        console.error(
-          `Error sending message from ${source} to ${destination}, continuing...`,
-          `${err}`.replaceAll('\n', ' ## '),
-        );
+      } catch (e) {
+        error(`Error sending message, continuing...`, {
+          error: e,
+          source,
+          destination,
+        });
         failureOccurred = true;
         messagesSendStatus.labels({ ...labels }).set(0);
       }
@@ -85,7 +87,7 @@ async function main() {
   await submitMetrics(metricsRegister, 'kathy', { appendMode: false });
 
   if (failureOccurred) {
-    console.error('Failure occurred at least once');
+    error('Failure occurred at least once');
     process.exit(1);
   }
 }
@@ -95,11 +97,11 @@ async function sendMessage(
   source: ChainName,
   destination: ChainName,
 ) {
-  console.log(`Sending message from ${source} to ${destination}`);
+  log(`Sending message`, { source, destination });
   const receipt = await app.sendHelloWorld(source, destination, `Hello!`);
-  console.log(JSON.stringify(receipt.events || receipt.logs));
+  debug('Message sent', { events: receipt.events, logs: receipt.logs });
 }
 
 main()
-  .then(() => console.info('HelloWorld sent'))
-  .catch(console.error);
+  .then(() => log('HelloWorld sent'))
+  .catch(error);
