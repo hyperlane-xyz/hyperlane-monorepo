@@ -20,7 +20,7 @@ use abacus_core::{
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::msg::gas::{AbacusDBGasOracle, GasPaymentOracle};
+use crate::msg::gas_oracle::{AbacusDBGasOracle, GasPaymentOracle};
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;

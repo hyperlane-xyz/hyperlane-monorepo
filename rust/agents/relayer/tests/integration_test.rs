@@ -1,7 +1,6 @@
-use abacus_core::{CommittedMessage};
+use abacus_core::CommittedMessage;
 use ethers::types::{H160, H256};
 use ethers::utils::hex;
-
 
 /// This doesn't do anything yet, but the future is bright.
 #[test]

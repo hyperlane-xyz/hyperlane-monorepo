@@ -22,7 +22,7 @@ use tokio_stream::StreamExt;
 use tracing::{debug, info, warn};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use super::gas::GasPaymentOracle;
+use super::gas_oracle::GasPaymentOracle;
 use super::status::ProcessedStatusOracle;
 use super::SubmitMessageArgs;
 
