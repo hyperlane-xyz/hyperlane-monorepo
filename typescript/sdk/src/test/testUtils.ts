@@ -3,7 +3,9 @@ import { ethers } from 'ethers';
 import { chainMetadata } from '../consts/chainMetadata';
 import { AllChains } from '../consts/chains';
 import {
+  CoinGeckoInterface,
   CoinGeckoResponse,
+  CoinGeckoSimpleInterface,
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices';
 import { ChainMap, ChainName } from '../types';
@@ -47,7 +49,7 @@ export class MockProvider extends ethers.providers.BaseProvider {
 }
 
 // A mock CoinGecko intended to be used by tests
-export class MockCoinGecko {
+export class MockCoinGecko implements CoinGeckoInterface {
   private tokenPrices: Partial<ChainMap<ChainName, number>>;
   private idToChain: Record<string, ChainName>;
 
@@ -60,7 +62,7 @@ export class MockCoinGecko {
     }
   }
 
-  price(params: CoinGeckoSimplePriceParams): Promise<CoinGeckoResponse> {
+  price(params: CoinGeckoSimplePriceParams): CoinGeckoResponse {
     const data: any = {};
     for (const id of params.ids) {
       data[id] = {
@@ -75,8 +77,8 @@ export class MockCoinGecko {
     });
   }
 
-  get simple() {
-    return this.price;
+  get simple(): CoinGeckoSimpleInterface {
+    return this;
   }
 
   setTokenPrice(chain: ChainName, price: number) {

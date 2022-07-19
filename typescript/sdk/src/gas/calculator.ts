@@ -9,7 +9,7 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName, Remotes } from '../types';
 import { convertDecimalValue, mulBigAndFixed } from '../utils/number';
 
-import { DefaultTokenPriceGetter, TokenPriceGetter } from './token-prices';
+import { CoinGeckoTokenPriceGetter, TokenPriceGetter } from './token-prices';
 
 /**
  * A note on arithmetic:
@@ -98,7 +98,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
       this.tokenPriceGetter = config.tokenPriceGetter;
     } else {
       const coinGecko = new CoinGecko();
-      this.tokenPriceGetter = new DefaultTokenPriceGetter(coinGecko);
+      this.tokenPriceGetter = new CoinGeckoTokenPriceGetter(coinGecko);
     }
 
     this.paymentEstimateMultiplier = FixedNumber.from(
@@ -197,6 +197,12 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns The amount of `toChain` native tokens whose value is equivalent to
    * `fromAmount` of `fromChain` native tokens.
    */
+  // Let's say I'm going from Celo to Ethereum
+  // Celo = $1
+  // Ether = $5
+  // I want to convert 7 Celo to Ether
+  // 7 * 1 / 5
+  // value * fromChain / toChain
   protected async convertBetweenTokens(
     fromChain: Chain,
     toChain: Chain,
@@ -204,8 +210,8 @@ export class InterchainGasCalculator<Chain extends ChainName> {
   ): Promise<BigNumber> {
     // Does not factor in differing token decimals.
     const exchangeRate = await this.tokenPriceGetter.getTokenExchangeRate(
-      toChain,
       fromChain,
+      toChain,
     );
 
     // 1/100th of a cent

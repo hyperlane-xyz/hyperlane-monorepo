@@ -6,40 +6,20 @@ import { ChainName } from '../types';
 
 export interface TokenPriceGetter {
   getTokenPrice(chain: ChainName): Promise<number>;
-  getTokenExchangeRate(chainA: ChainName, chainB: ChainName): Promise<number>;
+  getTokenExchangeRate(base: ChainName, quote: ChainName): Promise<number>;
 }
 
-// Copied from coingecko-api
-export interface CoinGeckoSimplePriceParams {
-  ids: string | string[];
-  vs_currencies: string | string[];
-  // tslint:disable-next-line no-redundant-undefined
-  include_24hr_vol?: boolean | undefined;
-  // tslint:disable-next-line no-redundant-undefined
-  include_24hr_change?: boolean | undefined;
-  // tslint:disable-next-line no-redundant-undefined
-  include_last_updated_at?: boolean | undefined;
-  // tslint:disable-next-line no-redundant-undefined
-  include_market_cap?: boolean | undefined;
-}
-
-// Copied from coingecko-api
-export interface CoinGeckoResponse<T = any> {
-  success: boolean;
-  message: string;
-  code: number;
-  data: T;
-}
-export interface CoinGeckoSimpleInterface {
-  price: (params: CoinGeckoSimplePriceParams) => Promise<CoinGeckoResponse>;
-}
-export interface CoinGeckoInterface {
-  simple: CoinGeckoSimpleInterface;
-}
+export type CoinGeckoInterface = Pick<CoinGecko, 'simple'>;
+export type CoinGeckoSimpleInterface = CoinGecko['simple'];
+export type CoinGeckoSimplePriceParams = Parameters<
+  CoinGeckoSimpleInterface['price']
+>[0];
+export type CoinGeckoResponse = ReturnType<CoinGeckoSimpleInterface['price']>;
 
 // TODO: Consider caching to avoid exceeding CoinGecko's 50 requests / min limit
 export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   protected coinGecko: CoinGeckoInterface;
+
   constructor(coinGecko: CoinGeckoInterface) {
     this.coinGecko = coinGecko;
   }
@@ -55,11 +35,11 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   }
 
   async getTokenExchangeRate(
-    chainA: ChainName,
-    chainB: ChainName,
+    base: ChainName,
+    quote: ChainName,
   ): Promise<number> {
-    const [priceA, priceB] = await this.getTokenPrices([chainA, chainB]);
-    return priceB / priceA;
+    const [basePrice, quotePrice] = await this.getTokenPrices([base, quote]);
+    return basePrice / quotePrice;
   }
 
   private async getTokenPrices(chains: ChainName[]): Promise<number[]> {
