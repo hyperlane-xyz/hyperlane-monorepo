@@ -19,12 +19,14 @@ enum ExplorerApiActions {
   MARK_PROXY = 'verifyproxycontract',
   CHECK_STATUS = 'checkverifystatus',
   CHECK_PROXY_STATUS = 'checkproxyverification',
+  GET_SOURCE_CODE = 'getsourcecode',
 }
 
 enum ExplorerApiErrors {
   ALREADY_VERIFIED = 'Contract source code already verified',
   ALREADY_VERIFIED_ALTERNATE = 'Already Verified',
   VERIFICATION_PENDING = 'Pending in queue',
+  VERIFICATION_FAILED = 'Fail - Unable to verify',
   PROXY_FAILED = 'A corresponding implementation contract was unfortunately not detected for the proxy address.',
 }
 
@@ -46,8 +48,9 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
   }
 
   verify(): Promise<PromiseSettledResult<void>[]> {
+    const chains = this.chains();
     return Promise.allSettled(
-      this.chains().map((chain) => this.verifyChain(chain, this.get(chain))),
+      chains.map((chain) => this.verifyChain(chain, this.get(chain))),
     );
   }
 
@@ -103,8 +106,9 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
         case ExplorerApiErrors.ALREADY_VERIFIED_ALTERNATE:
           return;
         case ExplorerApiErrors.PROXY_FAILED:
+        case ExplorerApiErrors.VERIFICATION_FAILED:
         default:
-          throw new Error(`Verification failed: ${result.result}`);
+          throw new Error(result.result);
       }
     }
 
@@ -122,6 +126,10 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
     logger(`Checking ${input.address} (${input.name})...`);
 
+    const addressUrl = await this.multiProvider
+      .getChainConnection(chain)
+      .getAddressUrl(input.address);
+
     const data = {
       sourceCode: this.flattenedSource,
       contractname: input.name,
@@ -131,38 +139,42 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       ...this.compilerOptions,
     };
 
-    const guid = await this.submitForm(
+    const verifiedSource = await this.submitForm(
       chain,
-      ExplorerApiActions.VERIFY_IMPLEMENTATION,
-      data,
+      ExplorerApiActions.GET_SOURCE_CODE,
+      {
+        address: input.address,
+      },
     );
-
-    const addressUrl = await this.multiProvider
-      .getChainConnection(chain)
-      .getAddressUrl(input.address);
-
-    // poll for verified status
-    if (guid) {
-      await this.submitForm(chain, ExplorerApiActions.CHECK_STATUS, { guid });
-    }
-    logger(`Already verified at ${addressUrl}#code`);
-
-    // mark as proxy (if applicable)
-    if (input.isProxy) {
-      const proxyGuid = await this.submitForm(
+    if (!verifiedSource) {
+      const guid = await this.submitForm(
         chain,
-        ExplorerApiActions.MARK_PROXY,
-        {
-          address: input.address,
-        },
+        ExplorerApiActions.VERIFY_IMPLEMENTATION,
+        data,
       );
-      // poll for verified proxy status
-      if (proxyGuid) {
-        await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {
-          guid: proxyGuid,
-        });
+
+      // poll for verified status
+      if (guid) {
+        await this.submitForm(chain, ExplorerApiActions.CHECK_STATUS, { guid });
       }
-      logger(`Already verified at ${addressUrl}#readProxyContract`);
+
+      // mark as proxy (if applicable)
+      if (input.isProxy) {
+        const proxyGuid = await this.submitForm(
+          chain,
+          ExplorerApiActions.MARK_PROXY,
+          {
+            address: input.address,
+          },
+        );
+        // poll for verified proxy status
+        if (proxyGuid) {
+          await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {
+            guid: proxyGuid,
+          });
+        }
+      }
     }
+    logger(`Verified at ${addressUrl}#code`);
   }
 }
