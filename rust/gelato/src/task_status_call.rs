@@ -45,7 +45,7 @@ pub enum TaskStatus {
     NotFound,
 }
 
-#[derive(Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionStatus {
     pub service: String,

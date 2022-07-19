@@ -19,9 +19,9 @@ pub(crate) enum GasPaymentOracle {
 impl GasPaymentOracle {
     pub(crate) fn get_total_payment(&self, index: LeafIndex) -> Result<Payment> {
         match self {
-            GasPaymentOracle::Production(o) => o.get_total_payment(index),
+            GasPaymentOracle::Production(gpo_impl) => gpo_impl.get_total_payment(index),
             #[cfg(test)]
-            GasPaymentOracle::TestDouble(o) => o.get_total_payment(index),
+            GasPaymentOracle::TestDouble(gpo_impl) => gpo_impl.get_total_payment(index),
         }
     }
 }
