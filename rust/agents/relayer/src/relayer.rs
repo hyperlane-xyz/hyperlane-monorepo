@@ -219,7 +219,7 @@ impl Relayer {
             messages: message_receiver,
             outbox_domain: self.outbox().local_domain(),
             inbox_domain: inbox_contracts.inbox.local_domain(),
-            inbox_address: inbox_contracts.inbox.contract_address().into(),
+            inbox_address: inbox_contracts.inbox.contract_address().unwrap().into(),
             ivm_address: inbox_contracts.validator_manager.contract_address().into(),
             sponsor_address: cfg.sponsor_address,
             gas_oracle: GasPaymentOracle::Production(gas_oracle::Impl::new(self.outbox().db())),

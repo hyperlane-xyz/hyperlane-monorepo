@@ -27,16 +27,16 @@ const DEFAULT_MAX_FEE: u32 = 1_000_000_000;
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
     /// Source of messages to submit.
-    pub(crate) messages: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+    pub messages: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// The Abacus domain of the source chain for messages to be submitted via this GelatoSubmitter.
-    pub(crate) outbox_domain: u32,
+    pub outbox_domain: u32,
     /// The Abacus domain of the destination chain for messages submitted with this GelatoSubmitter.
-    pub(crate) inbox_domain: u32,
+    pub inbox_domain: u32,
     /// The on-chain address of the inbox contract on the destination chain.
-    pub(crate) inbox_address: Address,
+    pub inbox_address: Address,
     /// Address of the inbox validator manager contract that will be specified
     /// to Gelato in ForwardRequest submissions to process new messages.
-    pub(crate) ivm_address: Address,
+    pub ivm_address: Address,
     /// The address of the 'sponsor' contract providing payment to Gelato.
     pub(crate) sponsor_address: Address,
     /// Interface providing access to information about gas payments. Used to decide when it is
@@ -46,10 +46,10 @@ pub(crate) struct GelatoSubmitter {
     /// call against the inbox contract.
     pub(crate) status_oracle: ProcessedStatusOracle,
     /// Signer to use for EIP-712 meta-transaction signatures.
-    pub(crate) signer: Signers,
+    pub signer: Signers,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     /// Intended to be shared by reqwest library.
-    pub(crate) http: reqwest::Client,
+    pub http: reqwest::Client,
     /// Prometheus metrics.
     pub(crate) metrics: GelatoSubmitterMetrics,
 }
@@ -125,8 +125,9 @@ impl GelatoSubmitter {
                 ),
                 Token::Bytes(msg.committed_message.message.to_vec()),
                 Token::FixedArray(
-                    (0..32)
-                        .map(|i| Token::FixedBytes(msg.proof.path[i].to_vec()))
+                    msg.proof.path[0..32]
+                        .iter()
+                        .map(|e| Token::FixedBytes(e.to_vec()))
                         .collect(),
                 ),
                 Token::Uint(msg.leaf_index.into()),
