@@ -1,9 +1,10 @@
+import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
 import { ChainName, Chains } from '@abacus-network/sdk';
 
-import { debug, error, log } from '../../src/utils/logging';
+import { error, log } from '../../src/utils/logging';
 import { submitMetrics } from '../../src/utils/metrics';
 import { sleep } from '../../src/utils/utils';
 import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
@@ -65,13 +66,8 @@ async function main() {
         ...constMetricLabels,
       };
       try {
-        await new Promise((resolve, reject) => {
-          setTimeout(
-            () => reject(new Error('Timeout waiting for message receipt')),
-            10 * 60 * 1000,
-          );
-          sendMessage(app, source, destination).then(resolve).catch(reject);
-        });
+        await sendMessage(app, source, destination);
+        log('Message sent successfully', { from: source, to: destination });
         messagesSendStatus.labels({ ...labels }).set(1);
       } catch (e) {
         error(`Error sending message, continuing...`, {
@@ -92,7 +88,7 @@ async function main() {
 
   for (const [from, destinationStats] of Object.entries(await app.stats())) {
     for (const [to, counts] of Object.entries(destinationStats)) {
-      log('Kathy message stats', { from, to, ...counts });
+      log('Message stats', { from, to, ...counts });
     }
   }
 
@@ -111,11 +107,23 @@ async function sendMessage(
   destination: ChainName,
 ) {
   log('Sending message', { from: source, to: destination });
-  const receipts = await app.sendHelloWorld(source, destination, 'Hello!');
 
-  debug('Message sent', {
-    events: receipts.map((r) => r.events),
-    logs: receipts.map((r) => r.logs),
+  await new Promise<ethers.ContractReceipt[]>((resolve, reject) => {
+    setTimeout(
+      () => reject(new Error('Timeout waiting for message receipt')),
+      10 * 60 * 1000,
+    );
+    app
+      .sendHelloWorld(source, destination, 'Hello!', (receipt) => {
+        log('Message sent', {
+          from: source,
+          to: destination,
+          events: receipt.events,
+          logs: receipt.logs,
+        });
+      })
+      .then(resolve)
+      .catch(reject);
   });
 }
 

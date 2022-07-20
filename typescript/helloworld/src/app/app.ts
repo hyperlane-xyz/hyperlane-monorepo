@@ -32,6 +32,7 @@ export class HelloWorldApp<
     from: From,
     to: Remotes<Chain, From>,
     message: string,
+    afterSend?: (receipt: ethers.ContractReceipt) => void,
   ): Promise<ethers.ContractReceipt[]> {
     const sender = this.getContracts(from).router;
     const toDomain = ChainNameToDomainId[to];
@@ -50,6 +51,11 @@ export class HelloWorldApp<
       gasLimit,
     });
     const receipt = await tx.wait(chainConnection.confirmations);
+
+    // just sent, but have not yet waited for it to complete
+    if (afterSend) afterSend(receipt);
+
+    // wait for it to complete
     return this.core.waitForMessageProcessing(receipt);
   }
 
