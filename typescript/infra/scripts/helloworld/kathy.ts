@@ -65,7 +65,13 @@ async function main() {
         ...constMetricLabels,
       };
       try {
-        await sendMessage(app, source, destination);
+        await new Promise((resolve, reject) => {
+          setTimeout(
+            () => reject(new Error('Timeout waiting for message receipt')),
+            10 * 60 * 1000,
+          );
+          sendMessage(app, source, destination).then(resolve).catch(reject);
+        });
         messagesSendStatus.labels({ ...labels }).set(1);
       } catch (e) {
         error(`Error sending message, continuing...`, {
@@ -83,6 +89,13 @@ async function main() {
   }
 
   clearInterval(metricsInterval);
+
+  for (const [from, destinationStats] of Object.entries(await app.stats())) {
+    for (const [to, counts] of Object.entries(destinationStats)) {
+      log('Kathy message stats', { from, to, ...counts });
+    }
+  }
+
   // do not use append mode here so we can clear any old pairings we no longer care about.
   await submitMetrics(metricsRegister, 'kathy', { appendMode: false });
 

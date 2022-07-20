@@ -12,6 +12,11 @@ import {
 
 import { HelloWorldContracts } from './contracts';
 
+type Counts = {
+  sent: number;
+  received: number;
+};
+
 export class HelloWorldApp<
   Chain extends ChainName = ChainName,
 > extends AbacusApp<HelloWorldContracts, Chain> {
@@ -48,7 +53,10 @@ export class HelloWorldApp<
     return this.core.waitForMessageProcessing(receipt);
   }
 
-  async channelStats<From extends Chain>(from: From, to: Remotes<Chain, From>) {
+  async channelStats<From extends Chain>(
+    from: From,
+    to: Remotes<Chain, From>,
+  ): Promise<Counts> {
     const sent = await this.getContracts(from).router.sentTo(
       ChainNameToDomainId[to],
     );
@@ -59,8 +67,8 @@ export class HelloWorldApp<
     return { sent: sent.toNumber(), received: received.toNumber() };
   }
 
-  async stats() {
-    const entries = await Promise.all(
+  async stats(): Promise<Record<string, Record<string, Counts>>> {
+    const entries: Array<[string, Record<string, Counts>]> = await Promise.all(
       this.chains().map(async (source) => {
         const destinationEntries = await Promise.all(
           this.remoteChains(source).map(async (destination) => [
@@ -68,7 +76,10 @@ export class HelloWorldApp<
             await this.channelStats(source, destination),
           ]),
         );
-        return [source, Object.fromEntries(destinationEntries)];
+        return [
+          source,
+          Object.fromEntries(destinationEntries) as Record<Chain, Counts>,
+        ];
       }),
     );
     return Object.fromEntries(entries);
