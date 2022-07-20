@@ -83,7 +83,7 @@ where
         tokio::spawn(async move {
             let mut from = db
                 .retrieve_latest_valid_message_range_start_block()
-                .map_or_else(|| config_from, |h| h + 1);
+                .unwrap_or(config_from);
 
             let mut last_valid_range_start_block = from;
 
@@ -92,10 +92,14 @@ where
             loop {
                 indexed_height.set(from as i64);
 
-                // Only index blocks considered final
-                let tip = indexer.get_finalized_block_number().await?;
+                // Only index blocks considered final.
+                // If there's an error getting the block number, just start the loop over
+                let tip = if let Ok(num) = indexer.get_finalized_block_number().await {
+                    num
+                } else {
+                    continue;
+                };
                 if tip <= from {
-                    // TODO: Make this configurable
                     // Sleep if caught up to tip
                     sleep(Duration::from_secs(1)).await;
                     continue;

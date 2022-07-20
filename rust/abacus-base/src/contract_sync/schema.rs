@@ -2,6 +2,11 @@ use abacus_core::db::AbacusDB;
 use abacus_core::db::DbError;
 use eyre::Result;
 
+/// The start block number of the latest "valid" message block range.
+/// This is an interval of block indexes where > 0 messages were indexed,
+/// all of which had a contiguous sequence of messages based off their indices,
+/// and the lowest index is the successor to the highest index of the prior
+/// valid range.
 static LATEST_VALID_MESSAGE_RANGE_START_BLOCK: &str = "latest_valid_message_range_start_block";
 static LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 
