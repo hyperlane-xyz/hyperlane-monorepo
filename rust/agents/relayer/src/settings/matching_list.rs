@@ -9,8 +9,11 @@ use serde::{Deserialize, Deserializer};
 
 use abacus_core::AbacusMessage;
 
-/// Whitelist defining which messages should be relayed. If no wishlist is provided ALL
-/// messages will be relayed.
+/// Defines a set of patterns for determining if a message should or should not be relayed. This
+/// is useful for determing if a message matches a given set or rules.
+///
+/// If no whitelist is provided ALL messages will be considered on the whitelist.
+/// If no blacklist is provided ALL will be considered to not be on the blacklist.
 ///
 /// Valid options for each of the tuple elements are
 /// - wildcard "*"
@@ -19,7 +22,7 @@ use abacus_core::AbacusMessage;
 /// - defaults to wildcards
 #[derive(Debug, Deserialize, Default, Clone)]
 #[serde(transparent)]
-pub struct Whitelist(Option<Vec<WhitelistElement>>);
+pub struct MatchingList(Option<Vec<ListElement>>);
 
 #[derive(Debug, Clone, PartialEq)]
 enum Filter<T> {
@@ -178,7 +181,7 @@ impl<'de> Deserialize<'de> for Filter<H256> {
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
-struct WhitelistElement {
+struct ListElement {
     #[serde(default)]
     source_domain: Filter<u32>,
     #[serde(default)]
@@ -189,39 +192,69 @@ struct WhitelistElement {
     destination_address: Filter<H256>,
 }
 
-impl Display for WhitelistElement {
+impl Display for ListElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{{sourceDomain: {}, sourceAddress: {}, destinationDomain: {}, destinationAddress: {}}}", self.source_domain, self.source_address, self.destination_domain, self.destination_address)
     }
 }
 
-impl Whitelist {
-    pub fn msg_matches(&self, msg: &AbacusMessage) -> bool {
-        self.matches(msg.origin, &msg.sender, msg.destination, &msg.recipient)
+#[derive(Copy, Clone, Debug)]
+struct MatchInfo<'a> {
+    src_domain: u32,
+    src_addr: &'a H256,
+    dst_domain: u32,
+    dst_addr: &'a H256,
+}
+
+impl<'a> From<&'a AbacusMessage> for MatchInfo<'a> {
+    fn from(msg: &'a AbacusMessage) -> Self {
+        Self {
+            src_domain: msg.origin,
+            src_addr: &msg.sender,
+            dst_domain: msg.destination,
+            dst_addr: &msg.recipient,
+        }
+    }
+}
+
+impl MatchingList {
+    pub fn msg_not_matches(&self, msg: &AbacusMessage) -> bool {
+        self.not_matches(msg.into())
     }
 
-    pub fn matches(
-        &self,
-        src_domain: u32,
-        src_addr: &H256,
-        dst_domain: u32,
-        dst_addr: &H256,
-    ) -> bool {
+    pub fn msg_matches(&self, msg: &AbacusMessage) -> bool {
+        self.matches(msg.into())
+    }
+
+    fn matches(&self, info: MatchInfo) -> bool {
         if let Some(rules) = &self.0 {
-            rules.iter().any(|rule| {
-                rule.source_domain.matches(&src_domain)
-                    && rule.source_address.matches(src_addr)
-                    && rule.destination_domain.matches(&dst_domain)
-                    && rule.destination_address.matches(dst_addr)
-            })
+            matches_any_rule(rules.iter(), info)
         } else {
             // by default if there is no whitelist, allow everything
             true
         }
     }
+
+    fn not_matches(&self, info: MatchInfo) -> bool {
+        if let Some(rules) = &self.0 {
+            matches_any_rule(rules.iter(), info)
+        } else {
+            // by default if there is no blacklist, disallow nothing
+            false
+        }
+    }
 }
 
-impl Display for Whitelist {
+fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: MatchInfo) -> bool {
+    rules.any(|rule| {
+        rule.source_domain.matches(&info.src_domain)
+            && rule.source_address.matches(info.src_addr)
+            && rule.destination_domain.matches(&info.dst_domain)
+            && rule.destination_address.matches(info.dst_addr)
+    })
+}
+
+impl Display for MatchingList {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if let Some(wl) = &self.0 {
             write!(f, "[")?;
@@ -252,11 +285,11 @@ fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
 mod test {
     use ethers::prelude::*;
 
-    use super::{Filter::*, Whitelist};
+    use super::{Filter::*, MatchingList};
 
     #[test]
     fn basic_config() {
-        let whitelist: Whitelist = serde_json::from_str(r#"[{"sourceDomain": "*", "sourceAddress": "*", "destinationDomain": "*", "destinationAddress": "*"}, {}]"#).unwrap();
+        let whitelist: MatchingList = serde_json::from_str(r#"[{"sourceDomain": "*", "sourceAddress": "*", "destinationDomain": "*", "destinationAddress": "*"}, {}]"#).unwrap();
         assert!(whitelist.0.is_some());
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 2);
         let elem = &whitelist.0.as_ref().unwrap()[0];
@@ -274,7 +307,7 @@ mod test {
 
     #[test]
     fn config_with_address() {
-        let whitelist: Whitelist = serde_json::from_str(r#"[{"sourceAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "destinationAddress": "9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
+        let whitelist: MatchingList = serde_json::from_str(r#"[{"sourceAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "destinationAddress": "9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
         assert!(whitelist.0.is_some());
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
         let elem = &whitelist.0.as_ref().unwrap()[0];
@@ -298,7 +331,7 @@ mod test {
 
     #[test]
     fn config_with_multiple_domains() {
-        let whitelist: Whitelist =
+        let whitelist: MatchingList =
             serde_json::from_str(r#"[{"destinationDomain": ["13372", "13373"]}]"#).unwrap();
         assert!(whitelist.0.is_some());
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);

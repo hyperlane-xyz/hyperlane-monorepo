@@ -2,7 +2,7 @@
 
 use abacus_base::decl_settings;
 
-pub mod whitelist;
+pub mod matching_list;
 
 decl_settings!(Relayer {
     /// The polling interval to check for new signed checkpoints in seconds
@@ -11,6 +11,8 @@ decl_settings!(Relayer {
     maxprocessingretries: String,
     /// The multisig checkpoint syncer configuration
     multisigcheckpointsyncer: abacus_base::MultisigCheckpointSyncerConf,
-    /// This is optional. See `Whitelist` for more.
+    /// This is optional. See `MatchingList` for more.
     whitelist: Option<String>,
+    /// This is optional. See `MatchingList` for more.
+    blacklist: Option<String>,
 });
