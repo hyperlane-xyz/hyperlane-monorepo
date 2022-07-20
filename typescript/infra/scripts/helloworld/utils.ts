@@ -50,9 +50,13 @@ export async function getApp<Chain extends ChainName>(
     helloworldConfig.addresses,
     helloWorldFactories,
   ) as ChainMap<Chain, HelloWorldContracts>;
-  const multiProvider = await coreConfig.getMultiProvider();
-  const app = new HelloWorldApp(contracts, multiProvider as any);
-  return app;
+  const multiProvider =
+    (await coreConfig.getMultiProvider()) as MultiProvider<any>;
+  const core = AbacusCore.fromEnvironment(
+    coreConfig.environment,
+    multiProvider as any,
+  ) as AbacusCore<any>;
+  return new HelloWorldApp(core, contracts, multiProvider);
 }
 
 export function getHelloWorldConfig<Chain extends ChainName>(

@@ -26,9 +26,8 @@ async function check() {
     helloWorldFactories,
   ) as ChainMap<ChainName, HelloWorldContracts>;
 
-  const app = new HelloWorldApp(contractsMap, multiProvider);
-
   const core = AbacusCore.fromEnvironment('test', multiProvider);
+  const app = new HelloWorldApp(core, contractsMap, multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getConfigMap(signer.address),
   );

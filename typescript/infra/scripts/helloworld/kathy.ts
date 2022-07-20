@@ -3,7 +3,7 @@ import { Gauge, Registry } from 'prom-client';
 import { HelloWorldApp } from '@abacus-network/helloworld';
 import { ChainName, Chains } from '@abacus-network/sdk';
 
-import { debug, error, log, warn } from '../../src/utils/logging';
+import { debug, error, log } from '../../src/utils/logging';
 import { submitMetrics } from '../../src/utils/metrics';
 import { sleep } from '../../src/utils/utils';
 import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
@@ -98,9 +98,12 @@ async function sendMessage(
   destination: ChainName,
 ) {
   log('Sending message', { from: source, to: destination });
-  const receipt = await app.sendHelloWorld(source, destination, 'Hello!');
+  const receipts = await app.sendHelloWorld(source, destination, 'Hello!');
 
-  debug('Message sent', { events: receipt.events, logs: receipt.logs });
+  debug('Message sent', {
+    events: receipts.map((r) => r.events),
+    logs: receipts.map((r) => r.logs),
+  });
 }
 
 main()

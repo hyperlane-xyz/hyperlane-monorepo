@@ -3,19 +3,27 @@ import { ethers } from 'ethers';
 import {
   AbacusApp,
   AbacusCore,
+  ChainMap,
   ChainName,
   ChainNameToDomainId,
+  MultiProvider,
   Remotes,
 } from '@abacus-network/sdk';
-import { CoreEnvironment } from '@abacus-network/sdk/dist/core/AbacusCore';
 
 import { HelloWorldContracts } from './contracts';
 
 export class HelloWorldApp<
   Chain extends ChainName = ChainName,
 > extends AbacusApp<HelloWorldContracts, Chain> {
+  constructor(
+    public readonly core: AbacusCore<Chain>,
+    contractsMap: ChainMap<Chain, HelloWorldContracts>,
+    multiProvider: MultiProvider<Chain>,
+  ) {
+    super(contractsMap, multiProvider);
+  }
+
   async sendHelloWorld<From extends Chain>(
-    environment: CoreEnvironment,
     from: From,
     to: Remotes<Chain, From>,
     message: string,
@@ -23,10 +31,6 @@ export class HelloWorldApp<
     const sender = this.getContracts(from).router;
     const toDomain = ChainNameToDomainId[to];
     const chainConnection = this.multiProvider.getChainConnection(from);
-    const core = AbacusCore.fromEnvironment(
-      environment,
-      this.multiProvider as any,
-    );
 
     // apply gas buffer due to https://github.com/abacus-network/abacus-monorepo/issues/634
     const estimated = await sender.estimateGas.sendHelloWorld(
@@ -41,7 +45,7 @@ export class HelloWorldApp<
       gasLimit,
     });
     const receipt = await tx.wait(chainConnection.confirmations);
-    return core.waitForMessageProcessing(receipt);
+    return this.core.waitForMessageProcessing(receipt);
   }
 
   async channelStats<From extends Chain>(from: From, to: Remotes<Chain, From>) {
