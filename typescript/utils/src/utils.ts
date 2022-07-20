@@ -19,27 +19,6 @@ export const ensure0x = (hexstr: string) =>
 export const strip0x = (hexstr: string) =>
   hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
 
-/*
- * Gets the byte length of a hex string
- *
- * @param hexStr - the hex string
- * @return byteLength - length in bytes
- */
-export function getHexStringByteLength(hexStr: string) {
-  const len = strip0x(hexStr).length;
-
-  // divide by 2 to get the byte length
-  return len / 2;
-}
-
-export const stringToBytes32 = (s: string): string => {
-  const str = Buffer.from(s.slice(0, 32), 'utf-8');
-  const result = Buffer.alloc(32);
-  str.copy(result);
-
-  return ensure0x(result.toString('hex'));
-};
-
 export function addressToBytes32(address: Address): string {
   return ethers.utils
     .hexZeroPad(ethers.utils.hexStripZeros(address), 32)
