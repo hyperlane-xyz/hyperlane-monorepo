@@ -61,7 +61,7 @@ export class S3Validator extends BaseValidator {
         actual = await this.getCheckpointReceipt(actualLatestIndex);
       } catch (e: any) {
         checkpointMetrics[actualLatestIndex] = {
-          status: CheckpointStatus.MISSING,
+          status: CheckpointStatus.INVALID,
           violation: e.message,
         };
         continue;
