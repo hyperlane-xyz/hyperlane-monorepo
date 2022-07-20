@@ -40,19 +40,17 @@ export class S3Validator extends BaseValidator {
     const checkpointMetrics: CheckpointMetric[] = new Array(maxIndex + 1);
 
     // scan extra checkpoints
-    while (actualLatestIndex > expectedLatestIndex) {
+    for (; actualLatestIndex > expectedLatestIndex; actualLatestIndex--) {
       checkpointMetrics[actualLatestIndex] = {
         status: CheckpointStatus.EXTRA,
       };
-      actualLatestIndex--;
     }
 
     // scan missing checkpoints
-    while (expectedLatestIndex > actualLatestIndex) {
+    for (; expectedLatestIndex > actualLatestIndex; expectedLatestIndex--) {
       checkpointMetrics[expectedLatestIndex] = {
         status: CheckpointStatus.MISSING,
       };
-      expectedLatestIndex--;
     }
 
     for (; actualLatestIndex > 0; actualLatestIndex--) {
