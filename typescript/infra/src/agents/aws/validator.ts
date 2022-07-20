@@ -68,34 +68,25 @@ export class S3Validator extends BaseValidator {
     }
 
     for (; actualLatestIndex > 0; actualLatestIndex--) {
-      let actual: CheckpointReceipt;
-      try {
-        actual = await this.getCheckpointReceipt(actualLatestIndex);
-      } catch (e: any) {
-        if (e.message === 'The specified key does not exist.') {
-          checkpointMetrics[actualLatestIndex] = {
-            status: CheckpointStatus.MISSING,
-          };
-          continue;
+      const expected = await other.getCheckpointReceipt(actualLatestIndex);
+      const actual = await this.getCheckpointReceipt(actualLatestIndex);
+
+      const metric: CheckpointMetric = { status: CheckpointStatus.INVALID };
+      if (expected && actual) {
+        metric.delta =
+          actual.modified.getSeconds() - expected.modified.getSeconds();
+        if (expected.data.root !== actual.data.root) {
+          metric.violation = `root mismatch: ${expected.data.root} != ${actual.data.root}`;
+        } else if (expected.data.index !== actual.data.index) {
+          metric.violation = `index mismatch: ${expected.data.index} != ${actual.data.index}`;
         }
-        throw e;
       }
 
-      const expected = await other.getCheckpointReceipt(actualLatestIndex);
-
-      const metric: CheckpointMetric = {
-        status: CheckpointStatus.INVALID,
-        delta: actual.modified.getSeconds() - expected.modified.getSeconds(),
-      };
-      if (expected.data.root !== actual.data.root) {
-        metric.violation = `root mismatch: ${expected.data.root} != ${actual.data.root}`;
-      } else if (expected.data.index !== actual.data.index) {
-        metric.violation = `index mismatch: ${expected.data.index} != ${actual.data.index}`;
-      } else if (!this.matchesSigner(actual.data)) {
+      if (actual && !this.matchesSigner(actual.data)) {
         const signerAddress = this.recoverAddressFromCheckpoint(actual.data);
         metric.violation = `actual signer ${signerAddress} doesn't match validator ${this.address}`;
       } else {
-        metric.status = CheckpointStatus.VALID;
+        metric.status = CheckpointStatus.VALID; // must assume valid if no expected checkpoint to compare with
       }
 
       checkpointMetrics[actualLatestIndex] = metric;
@@ -106,9 +97,12 @@ export class S3Validator extends BaseValidator {
 
   private async getCheckpointReceipt(
     index: number,
-  ): Promise<CheckpointReceipt> {
+  ): Promise<CheckpointReceipt | undefined> {
     const key = checkpointKey(index);
     const s3Object = await this.s3Bucket.getS3Obj<S3Checkpoint>(key);
+    if (!s3Object) {
+      return;
+    }
     const checkpoint: types.Checkpoint = {
       signature: s3Object.data.signature,
       ...s3Object.data.checkpoint,

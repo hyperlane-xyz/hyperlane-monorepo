@@ -23,20 +23,25 @@ export class S3Wrapper {
     this.client = new S3Client({ region });
   }
 
-  async getS3Obj<T>(key: string): Promise<S3Receipt<T>> {
+  async getS3Obj<T>(key: string): Promise<S3Receipt<T> | undefined> {
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
     });
-    const response = await this.client.send(command);
-    if (!response.Body) {
-      throw new Error('No data received');
+    try {
+      const response = await this.client.send(command);
+      const body: string = await utils.streamToString(
+        response.Body as Readable,
+      );
+      return {
+        data: JSON.parse(body),
+        modified: response.LastModified!,
+      };
+    } catch (e: any) {
+      if (e.message.includes('The specified key does not exist.')) {
+        return;
+      }
+      throw e;
     }
-
-    const body: string = await utils.streamToString(response.Body as Readable);
-    return {
-      data: JSON.parse(body),
-      modified: response.LastModified!,
-    };
   }
 }
