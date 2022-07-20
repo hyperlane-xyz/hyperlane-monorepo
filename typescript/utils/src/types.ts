@@ -7,7 +7,7 @@ export type AddressBytes32 = string;
 export type HexString = string;
 
 // copied from node_modules/@ethersproject/bytes/src.ts/index.ts
-type SignatureLike =
+export type SignatureLike =
   | {
       r: string;
       s?: string;
