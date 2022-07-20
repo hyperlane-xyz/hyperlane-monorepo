@@ -1,14 +1,13 @@
 import { ethers } from 'ethers';
 
-import { TypedListener } from '@abacus-network/core/dist/common';
 import {
   AbacusApp,
+  AbacusCore,
   ChainName,
   ChainNameToDomainId,
   Remotes,
 } from '@abacus-network/sdk';
-
-import { ReceivedHelloWorldEvent } from '../types/contracts/HelloWorld';
+import { CoreEnvironment } from '@abacus-network/sdk/dist/core/AbacusCore';
 
 import { HelloWorldContracts } from './contracts';
 
@@ -16,14 +15,18 @@ export class HelloWorldApp<
   Chain extends ChainName = ChainName,
 > extends AbacusApp<HelloWorldContracts, Chain> {
   async sendHelloWorld<From extends Chain>(
+    environment: CoreEnvironment,
     from: From,
     to: Remotes<Chain, From>,
     message: string,
-    receiveHandler?: TypedListener<ReceivedHelloWorldEvent>,
-  ): Promise<ethers.ContractReceipt> {
+  ): Promise<ethers.ContractReceipt[]> {
     const sender = this.getContracts(from).router;
     const toDomain = ChainNameToDomainId[to];
     const chainConnection = this.multiProvider.getChainConnection(from);
+    const core = AbacusCore.fromEnvironment(
+      environment,
+      this.multiProvider as any,
+    );
 
     // apply gas buffer due to https://github.com/abacus-network/abacus-monorepo/issues/634
     const estimated = await sender.estimateGas.sendHelloWorld(
@@ -38,17 +41,7 @@ export class HelloWorldApp<
       gasLimit,
     });
     const receipt = await tx.wait(chainConnection.confirmations);
-
-    if (receiveHandler) {
-      const recipient = this.getContracts(to).router;
-      const filter = recipient.filters.ReceivedHelloWorld(
-        ChainNameToDomainId[from],
-        ChainNameToDomainId[to],
-      );
-      recipient.once(filter, receiveHandler);
-    }
-
-    return receipt;
+    return core.waitForMessageProcessing(receipt);
   }
 
   async channelStats<From extends Chain>(from: From, to: Remotes<Chain, From>) {

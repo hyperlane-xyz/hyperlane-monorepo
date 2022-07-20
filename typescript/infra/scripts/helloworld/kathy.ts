@@ -70,8 +70,8 @@ async function main() {
       } catch (e) {
         error(`Error sending message, continuing...`, {
           error: e,
-          source,
-          destination,
+          from: source,
+          to: destination,
         });
         failureOccurred = true;
         messagesSendStatus.labels({ ...labels }).set(0);
@@ -97,8 +97,9 @@ async function sendMessage(
   source: ChainName,
   destination: ChainName,
 ) {
-  log(`Sending message`, { source, destination });
-  const receipt = await app.sendHelloWorld(source, destination, `Hello!`);
+  log('Sending message', { from: source, to: destination });
+  const receipt = await app.sendHelloWorld(source, destination, 'Hello!');
+
   debug('Message sent', { events: receipt.events, logs: receipt.logs });
 }
 
