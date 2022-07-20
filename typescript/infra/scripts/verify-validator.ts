@@ -3,7 +3,7 @@ import yargs from 'yargs';
 import { AllChains, ChainNameToDomainId } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 
-import { S3Validator } from '../src/agents/aws/validator';
+import { CheckpointStatus, S3Validator } from '../src/agents/aws/validator';
 
 function getArgs() {
   return yargs(process.argv.slice(2))
@@ -34,11 +34,18 @@ async function main() {
     prospective,
   );
 
-  const stats = await prospectiveValidator.compare(controlValidator);
+  const metrics = await prospectiveValidator.compare(controlValidator);
 
-  console.log(JSON.stringify(stats, null, 2));
+  const statuses = metrics.map((m) => m.status);
+  console.log(statuses);
 
-  const deltas = Object.values(stats.modifiedDeltas);
+  const violations = metrics
+    .map((metric, index) => ({ index, metric }))
+    .filter(({ metric }) => metric.status === CheckpointStatus.INVALID)
+    .map(({ index, metric }) => `Checkpoint ${index}: ${metric.violation}`);
+  console.log(violations);
+
+  const deltas = metrics.filter((m) => m.delta).map((m) => m.delta) as number[];
   console.log(`Median: ${utils.median(deltas)}`);
   console.log(`Mean:   ${utils.mean(deltas)}`);
   console.log(`Stdev:  ${utils.stdDev(deltas)}`);

@@ -174,13 +174,11 @@ export function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
   });
 }
 
-export function isCheckpoint(obj: unknown): obj is Checkpoint {
-  const c = obj as Partial<Checkpoint>;
+export function isCheckpoint(obj: any): obj is Checkpoint {
   return (
-    typeof obj == 'object' &&
-    obj != null &&
-    Number.isSafeInteger(c.index) &&
-    ethers.utils.isHexString(c.root) &&
-    ethers.utils.isHexString(c.signature)
+    Number.isSafeInteger(obj.index) &&
+    ethers.utils.isHexString(obj.root, 32) &&
+    (ethers.utils.isHexString(obj.signature) ||
+      ethers.utils.isHexString(ethers.utils.joinSignature(obj.signature)))
   );
 }

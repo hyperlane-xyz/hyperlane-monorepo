@@ -1,30 +1,25 @@
-import { ethers } from 'ethers';
-
 import { BaseValidator, types, utils } from '@abacus-network/utils';
 
 import { S3Receipt, S3Wrapper } from './s3';
 
-interface CheckpointStats {
-  // accumulators for stats
-  /** Checkpoints the prospective validator has that the control validator does not */
-  extra: number[];
-  /** Checkpoints the prospective validator does not have that the control validator does have */
-  missing: number[];
-  /** Checkpoints the prospective validator has but for which we detected an issue */
-  invalid: number[];
-  /** The checkpoints which were, as far as this validation logic is concerned, present and valid */
-  valid: number[];
-  /** The difference in modification times on the s3 objects between the control and validator
-   * buckets. (validator time - control time).
-   */
-  modifiedDeltas: Record<number, number>;
+export enum CheckpointStatus {
+  EXTRA = '➕',
+  MISSING = '❓',
+  INVALID = '❌',
+  VALID = '✅',
+}
+
+interface CheckpointMetric {
+  status: CheckpointStatus;
+  delta?: number;
+  violation?: string;
 }
 
 type CheckpointReceipt = S3Receipt<types.Checkpoint>;
 
-type S3CheckpointIndex = number | 'latest';
-const checkpointKey = (checkpointIndex: S3CheckpointIndex) =>
+const checkpointKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}.json`;
+const LATEST_KEY = 'checkpoint_latest_index.json';
 
 export class S3Validator extends BaseValidator {
   private s3Bucket: S3Wrapper;
@@ -34,59 +29,69 @@ export class S3Validator extends BaseValidator {
     this.s3Bucket = new S3Wrapper(s3Bucket);
   }
 
-  async compare(other: S3Validator): Promise<CheckpointStats> {
-    const stats: CheckpointStats = {
-      extra: [],
-      missing: [],
-      invalid: [],
-      valid: [],
-      modifiedDeltas: {},
-    };
+  async compare(other: S3Validator): Promise<CheckpointMetric[]> {
+    const expectedLatest = await other.s3Bucket.getS3Obj<number>(LATEST_KEY);
+    const actualLatest = await this.s3Bucket.getS3Obj<number>(LATEST_KEY);
 
-    const expectedLatest = await other.getCheckpointReceipt('latest');
-    const actualLatest = await this.getCheckpointReceipt('latest');
+    let actualLatestIndex = actualLatest.data;
+    let expectedLatestIndex = expectedLatest.data;
 
-    let actualLatestIndex = actualLatest.data.index;
-    let expectedLatestIndex = expectedLatest.data.index;
+    const maxIndex = Math.max(actualLatestIndex, expectedLatestIndex);
+    const checkpointMetrics: CheckpointMetric[] = new Array(maxIndex + 1);
 
+    // scan extra checkpoints
     while (actualLatestIndex > expectedLatestIndex) {
-      stats.extra.push(actualLatestIndex);
+      checkpointMetrics[actualLatestIndex] = {
+        status: CheckpointStatus.EXTRA,
+      };
       actualLatestIndex--;
     }
 
+    // scan missing checkpoints
     while (expectedLatestIndex > actualLatestIndex) {
-      stats.missing.push(expectedLatestIndex);
+      checkpointMetrics[expectedLatestIndex] = {
+        status: CheckpointStatus.MISSING,
+      };
       expectedLatestIndex--;
     }
 
     for (; actualLatestIndex > 0; actualLatestIndex--) {
-      const expected = await other.getCheckpointReceipt(actualLatestIndex);
       let actual: CheckpointReceipt;
       try {
         actual = await this.getCheckpointReceipt(actualLatestIndex);
-      } catch (e) {
-        stats.missing.push(actualLatestIndex);
+      } catch (e: any) {
+        checkpointMetrics[actualLatestIndex] = {
+          status: CheckpointStatus.MISSING,
+          violation: e.message,
+        };
         continue;
       }
 
-      if (
-        expected.data.root !== actual.data.root ||
-        expected.data.index !== actual.data.index
-      ) {
-        stats.invalid.push(actualLatestIndex);
+      const expected = await other.getCheckpointReceipt(actualLatestIndex);
+
+      let metric: CheckpointMetric = {
+        status: CheckpointStatus.INVALID,
+        delta: actual.modified.getSeconds() - expected.modified.getSeconds(),
+      };
+      if (expected.data.root !== actual.data.root) {
+        metric.violation = `root mismatch: ${expected.data.root} != ${actual.data.root}`;
+      } else if (expected.data.index !== actual.data.index) {
+        metric.violation = `index mismatch: ${expected.data.index} != ${actual.data.index}`;
+      } else if (!this.matchesSigner(actual.data)) {
+        const signerAddress = this.recoverAddressFromCheckpoint(actual.data);
+        metric.violation = `actual signer ${signerAddress} doesn't match validator ${this.address}`;
       } else {
-        stats.valid.push(actualLatestIndex);
+        metric.status = CheckpointStatus.VALID;
       }
 
-      stats.modifiedDeltas[actualLatestIndex] =
-        actual.modified.getSeconds() - expected.modified.getSeconds();
+      checkpointMetrics[actualLatestIndex] = metric;
     }
 
-    return stats;
+    return checkpointMetrics;
   }
 
   private async getCheckpointReceipt(
-    index: S3CheckpointIndex,
+    index: number,
   ): Promise<CheckpointReceipt> {
     const key = checkpointKey(index);
     const s3Object = await this.s3Bucket.getS3Obj<types.Checkpoint>(key);
