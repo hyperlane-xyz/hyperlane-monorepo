@@ -1,5 +1,3 @@
-//! Abacus. OPTimistic Interchain Communication
-//!
 //! This crate contains core primitives, traits, and types for Abacus
 //! implementations.
 
