@@ -47,6 +47,10 @@ export class S3Validator extends BaseValidator {
     const expectedLatest = await other.s3Bucket.getS3Obj<number>(LATEST_KEY);
     const actualLatest = await this.s3Bucket.getS3Obj<number>(LATEST_KEY);
 
+    if (!expectedLatest || !actualLatest) {
+      throw new Error('Failed to get latest checkpoints');
+    }
+
     let actualLatestIndex = actualLatest.data;
     let expectedLatestIndex = expectedLatest.data;
 
