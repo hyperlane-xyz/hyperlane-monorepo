@@ -69,7 +69,7 @@ export class S3Validator extends BaseValidator {
 
       const expected = await other.getCheckpointReceipt(actualLatestIndex);
 
-      let metric: CheckpointMetric = {
+      const metric: CheckpointMetric = {
         status: CheckpointStatus.INVALID,
         delta: actual.modified.getSeconds() - expected.modified.getSeconds(),
       };
