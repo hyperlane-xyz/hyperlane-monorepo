@@ -154,10 +154,14 @@ export function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
 }
 
 export function isCheckpoint(obj: any): obj is Checkpoint {
-  return (
-    Number.isSafeInteger(obj.index) &&
-    ethers.utils.isHexString(obj.root, 32) &&
-    (ethers.utils.isHexString(obj.signature) ||
-      ethers.utils.isHexString(ethers.utils.joinSignature(obj.signature)))
-  );
+  const isValidSignature =
+    typeof obj.signature === 'string'
+      ? ethers.utils.isHexString(obj.signature)
+      : ethers.utils.isHexString(obj.signature.r) &&
+        ethers.utils.isHexString(obj.signature.s) &&
+        Number.isSafeInteger(obj.signature.v);
+
+  const isValidRoot = ethers.utils.isHexString(obj.root);
+  const isValidIndex = Number.isSafeInteger(obj.index);
+  return isValidIndex && isValidRoot && isValidSignature;
 }

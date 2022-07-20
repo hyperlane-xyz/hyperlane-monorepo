@@ -15,6 +15,20 @@ interface CheckpointMetric {
   violation?: string;
 }
 
+// TODO: merge with types.Checkpoint
+interface S3Checkpoint {
+  checkpoint: {
+    outbox_domain: number;
+    root: string;
+    index: number;
+  };
+  signature: {
+    r: string;
+    s: string;
+    v: number;
+  };
+}
+
 type CheckpointReceipt = S3Receipt<types.Checkpoint>;
 
 const checkpointKey = (checkpointIndex: number) =>
@@ -58,11 +72,13 @@ export class S3Validator extends BaseValidator {
       try {
         actual = await this.getCheckpointReceipt(actualLatestIndex);
       } catch (e: any) {
-        checkpointMetrics[actualLatestIndex] = {
-          status: CheckpointStatus.INVALID,
-          violation: e.message,
-        };
-        continue;
+        if (e.message === 'The specified key does not exist.') {
+          checkpointMetrics[actualLatestIndex] = {
+            status: CheckpointStatus.MISSING,
+          };
+          continue;
+        }
+        throw e;
       }
 
       const expected = await other.getCheckpointReceipt(actualLatestIndex);
@@ -92,10 +108,17 @@ export class S3Validator extends BaseValidator {
     index: number,
   ): Promise<CheckpointReceipt> {
     const key = checkpointKey(index);
-    const s3Object = await this.s3Bucket.getS3Obj<types.Checkpoint>(key);
-    if (!utils.isCheckpoint(s3Object.data)) {
-      throw new Error(`Invalid checkpoint: ${JSON.stringify(s3Object.data)}`);
+    const s3Object = await this.s3Bucket.getS3Obj<S3Checkpoint>(key);
+    const checkpoint: types.Checkpoint = {
+      signature: s3Object.data.signature,
+      ...s3Object.data.checkpoint,
+    };
+    if (!utils.isCheckpoint(checkpoint)) {
+      throw new Error('Failed to parse checkpoint');
     }
-    return s3Object;
+    return {
+      data: checkpoint,
+      modified: s3Object.modified,
+    };
   }
 }
