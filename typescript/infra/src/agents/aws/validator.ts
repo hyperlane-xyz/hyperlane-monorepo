@@ -2,7 +2,7 @@ import { BaseValidator, types, utils } from '@abacus-network/utils';
 
 import { S3Receipt, S3Wrapper } from './s3';
 
-export enum CheckpointStatus {
+enum CheckpointStatus {
   EXTRA = '➕',
   MISSING = '❓',
   INVALID = '❌',
@@ -80,17 +80,19 @@ export class S3Validator extends BaseValidator {
         metric.delta =
           actual.modified.getSeconds() - expected.modified.getSeconds();
         if (expected.data.root !== actual.data.root) {
-          metric.violation = `root mismatch: ${expected.data.root} != ${actual.data.root}`;
+          metric.violation = `root mismatch: expected ${expected.data.root}, received ${actual.data.root}`;
         } else if (expected.data.index !== actual.data.index) {
-          metric.violation = `index mismatch: ${expected.data.index} != ${actual.data.index}`;
+          metric.violation = `index mismatch: expected ${expected.data.index}, received ${actual.data.index}`;
         }
       }
 
       if (actual && !this.matchesSigner(actual.data)) {
         const signerAddress = this.recoverAddressFromCheckpoint(actual.data);
-        metric.violation = `actual signer ${signerAddress} doesn't match validator ${this.address}`;
-      } else {
-        metric.status = CheckpointStatus.VALID; // must assume valid if no expected checkpoint to compare with
+        metric.violation = `signer mismatch: expected ${this.address}, received ${signerAddress}`;
+      }
+
+      if (!metric.violation) {
+        metric.status = CheckpointStatus.VALID;
       }
 
       checkpointMetrics[actualLatestIndex] = metric;

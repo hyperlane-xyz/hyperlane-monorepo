@@ -1,9 +1,9 @@
 import yargs from 'yargs';
 
 import { AllChains, ChainNameToDomainId } from '@abacus-network/sdk';
-import { utils } from '@abacus-network/utils';
 
-import { CheckpointStatus, S3Validator } from '../src/agents/aws/validator';
+// import { utils } from '@abacus-network/utils';
+import { S3Validator } from '../src/agents/aws/validator';
 
 function getArgs() {
   return yargs(process.argv.slice(2))
@@ -36,19 +36,21 @@ async function main() {
 
   const metrics = await prospectiveValidator.compare(controlValidator);
 
-  const statuses = metrics.map((m) => m.status);
-  console.log(statuses);
+  console.log(JSON.stringify(metrics, null, 2));
 
-  const violations = metrics
-    .map((metric, index) => ({ index, metric }))
-    .filter(({ metric }) => metric.status === CheckpointStatus.INVALID)
-    .map(({ index, metric }) => `Checkpoint ${index}: ${metric.violation}`);
-  console.log(violations);
+  // const statuses = metrics.map((m) => m.status);
+  // console.log(statuses);
 
-  const deltas = metrics.filter((m) => m.delta).map((m) => m.delta) as number[];
-  console.log(`Median: ${utils.median(deltas)}`);
-  console.log(`Mean:   ${utils.mean(deltas)}`);
-  console.log(`Stdev:  ${utils.stdDev(deltas)}`);
+  // const violations = metrics
+  //   .map((metric, index) => ({ index, metric }))
+  //   .filter(({ metric }) => metric.status === CheckpointStatus.INVALID)
+  //   .map(({ index, metric }) => `Checkpoint ${index}: ${metric.violation}`);
+  // console.log(violations);
+
+  // const deltas = metrics.filter((m) => m.delta).map((m) => m.delta) as number[];
+  // console.log(`Median: ${utils.median(deltas)}`);
+  // console.log(`Mean:   ${utils.mean(deltas)}`);
+  // console.log(`Stdev:  ${utils.stdDev(deltas)}`);
 }
 
 main().catch(console.error);
