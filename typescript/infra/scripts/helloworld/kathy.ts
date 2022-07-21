@@ -6,7 +6,7 @@ import { ChainName, Chains } from '@abacus-network/sdk';
 
 import { error, log } from '../../src/utils/logging';
 import { submitMetrics } from '../../src/utils/metrics';
-import { sleep } from '../../src/utils/utils';
+import { diagonalize, sleep } from '../../src/utils/utils';
 import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
 import { getApp } from './utils';
@@ -47,44 +47,43 @@ async function main() {
     throw new Error(`Invalid chains to skip ${invalidChains}`);
   }
 
-  let failureOccurred = false;
-
   const sources = chains.filter((chain) => !skip || !skip.includes(chain));
+  const pairings = diagonalize(
+    sources.map((source) =>
+      sources.map((destination) =>
+        source == destination ? null : { source, destination },
+      ),
+    ),
+  ).filter((v) => !!v);
 
-  // submit frequently so we don't have to wait a super long time for info to get into the metrics
-  const metricsInterval = setInterval(() => {
-    submitMetrics(metricsRegister, 'kathy', { appendMode: true }).catch((e) =>
-      error('Failed to submit metrics', { error: e }),
-    );
-  }, 1000 * 30);
-
-  for (const source of sources) {
-    for (const destination of sources.filter((d) => d !== source)) {
-      const labels = {
-        origin: source,
-        remote: destination,
-        ...constMetricLabels,
-      };
-      try {
-        await sendMessage(app, source, destination);
-        log('Message sent successfully', { from: source, to: destination });
-        messagesSendStatus.labels({ ...labels }).set(1);
-      } catch (e) {
-        error(`Error sending message, continuing...`, {
-          error: e,
-          from: source,
-          to: destination,
-        });
-        failureOccurred = true;
-        messagesSendStatus.labels({ ...labels }).set(0);
-      }
-
-      // Sleep 500ms to avoid race conditions where nonces are reused
-      await sleep(500);
+  for (
+    // in case we are restarting kathy, keep it from always running the exact same messages first
+    let currentPairingIndex = Date.now() % pairings.length;
+    ;
+    currentPairingIndex = (currentPairingIndex + 1) % pairings.length
+  ) {
+    const { source, destination } = pairings[currentPairingIndex];
+    const labels = {
+      origin: source,
+      remote: destination,
+      ...constMetricLabels,
+    };
+    try {
+      await sendMessage(app, source, destination);
+      log('Message sent successfully', { from: source, to: destination });
+      messagesSendStatus.labels({ ...labels }).set(1);
+    } catch (e) {
+      error(`Error sending message, continuing...`, {
+        error: e,
+        from: source,
+        to: destination,
+      });
+      messagesSendStatus.labels({ ...labels }).set(0);
     }
-  }
 
-  clearInterval(metricsInterval);
+    // Sleep 500ms to avoid race conditions where nonces are reused
+    await sleep(500);
+  }
 
   for (const [from, destinationStats] of Object.entries(await app.stats())) {
     for (const [to, counts] of Object.entries(destinationStats)) {
