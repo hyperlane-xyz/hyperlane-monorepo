@@ -169,7 +169,7 @@ where
 
                         // Move forward to the next height
                         from = to + 1;
-                    },
+                    }
                     // The index of the first message in sorted_messages is not the
                     // `last_leaf_index+1`.
                     ListValidity::InvalidContinuation => {
@@ -184,7 +184,7 @@ where
                         );
 
                         from = last_valid_range_start_block;
-                    },
+                    }
                     ListValidity::ContainsGaps => {
                         missed_messages.inc();
 
