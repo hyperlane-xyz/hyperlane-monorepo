@@ -143,7 +143,7 @@ where
                     continue;
                 }
 
-                // Ensure the sorted messages are a valid continution of last_leaf_index
+                // Ensure the sorted messages are a valid continuation of last_leaf_index
                 match &last_leaf_index.valid_continuation(&sorted_messages) {
                     ListValidity::Valid => {
                         // Store messages
@@ -170,7 +170,8 @@ where
                         // Move forward to the next height
                         from = to + 1;
                     },
-                    // The index of the first message in sorted_messages is not the last_leaf_index + 1.
+                    // The index of the first message in sorted_messages is not the
+                    // `last_leaf_index+1`.
                     ListValidity::InvalidContinuation => {
                         missed_messages.inc();
 
@@ -274,7 +275,7 @@ mod test {
                     .expect__fetch_sorted_messages()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![m1]).into());
+                    .return_once(move |_, _| Ok(vec![m1]));
 
                 // Return second message, misses third message.
                 mock_indexer
