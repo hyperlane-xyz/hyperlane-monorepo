@@ -15,7 +15,7 @@ eyre = "0.6"
 mockall = "0.10.2"
 rand = "0.8.3"
 rocksdb = "0.18"
-tempfile = "*"
+tempfile = "3.3"
 
 abacus-core = { path = "../abacus-core" }
 tracing = "0.1"
