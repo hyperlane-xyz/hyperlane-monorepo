@@ -16,6 +16,9 @@ interface CheckpointMetric {
 }
 
 // TODO: merge with types.Checkpoint
+/**
+ * Shape of a checkpoint in S3 as published by the agent.
+ */
 interface S3Checkpoint {
   checkpoint: {
     outbox_domain: number;
@@ -35,6 +38,9 @@ const checkpointKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}.json`;
 const LATEST_KEY = 'checkpoint_latest_index.json';
 
+/**
+ * Extension of BaseValidator that includes AWS S3 utilities.
+ */
 export class S3Validator extends BaseValidator {
   private s3Bucket: S3Wrapper;
 

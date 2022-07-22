@@ -4,6 +4,9 @@ import { types, utils } from '@abacus-network/utils';
 
 import { Checkpoint } from './types';
 
+/**
+ * Utilities for validators to construct and verify checkpoints.
+ */
 export class BaseValidator {
   localDomain: types.Domain;
   address: types.Address;
@@ -39,6 +42,9 @@ export class BaseValidator {
   }
 }
 
+/**
+ * Extension of BaseValidator that includes ethers signing utilities.
+ */
 export class Validator extends BaseValidator {
   constructor(
     protected signer: ethers.Signer,
