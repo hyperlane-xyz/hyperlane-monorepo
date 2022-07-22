@@ -34,11 +34,14 @@ export class BaseValidator {
 
   recoverAddressFromCheckpoint(checkpoint: Checkpoint): types.Address {
     const msgHash = this.messageHash(checkpoint.root, checkpoint.index);
-    return ethers.utils.recoverAddress(msgHash, checkpoint.signature);
+    return ethers.utils.verifyMessage(msgHash, checkpoint.signature);
   }
 
   matchesSigner(checkpoint: Checkpoint) {
-    return this.recoverAddressFromCheckpoint(checkpoint) === this.address;
+    return (
+      this.recoverAddressFromCheckpoint(checkpoint).toLowerCase() ===
+      this.address.toLowerCase()
+    );
   }
 }
 

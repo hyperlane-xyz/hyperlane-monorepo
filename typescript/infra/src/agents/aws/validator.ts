@@ -2,7 +2,7 @@ import { BaseValidator, types, utils } from '@abacus-network/utils';
 
 import { S3Receipt, S3Wrapper } from './s3';
 
-enum CheckpointStatus {
+export enum CheckpointStatus {
   EXTRA = '➕',
   MISSING = '❓',
   INVALID = '❌',

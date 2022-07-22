@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import yargs from 'yargs';
 
 import { AllChains, ChainNameToDomainId } from '@abacus-network/sdk';
@@ -26,7 +27,11 @@ async function main() {
 
   const localDomain = ChainNameToDomainId[chain];
 
-  const controlValidator = new S3Validator(address, localDomain, control);
+  const controlValidator = new S3Validator(
+    ethers.constants.AddressZero,
+    localDomain,
+    control,
+  );
 
   const prospectiveValidator = new S3Validator(
     address,
@@ -36,10 +41,10 @@ async function main() {
 
   const metrics = await prospectiveValidator.compare(controlValidator);
 
-  console.log(JSON.stringify(metrics, null, 2));
+  // console.log(JSON.stringify(metrics, null, 2));
 
-  // const statuses = metrics.map((m) => m.status);
-  // console.log(statuses);
+  const statuses = metrics.map((m) => m.status).join();
+  console.log(statuses);
 
   // const violations = metrics
   //   .map((metric, index) => ({ index, metric }))
