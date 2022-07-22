@@ -1,11 +1,11 @@
 import { ethers } from 'ethers';
-import { Gauge, Registry } from 'prom-client';
+import { Counter, Gauge, Registry } from 'prom-client';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
 import { ChainName, Chains } from '@abacus-network/sdk';
 
-import { error, log } from '../../src/utils/logging';
-import { submitMetrics } from '../../src/utils/metrics';
+import { debug, error, log } from '../../src/utils/logging';
+import { startMetricsServer } from '../../src/utils/metrics';
 import { diagonalize, sleep } from '../../src/utils/utils';
 import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
@@ -18,19 +18,30 @@ const constMetricLabels = {
 };
 
 const metricsRegister = new Registry();
-const messagesSendStatus = new Gauge({
+const messagesSendCount = new Counter({
   name: 'abacus_kathy_messages',
   help: 'Whether messages which have been sent from one chain to another successfully; will report 0 for unsuccessful and 1 for successful.',
   registers: [metricsRegister],
   labelNames: [
     'origin',
     'remote',
+    'status',
     ...(Object.keys(constMetricLabels) as (keyof typeof constMetricLabels)[]),
   ],
 });
-metricsRegister.registerMetric(messagesSendStatus);
+const currentPairingIndexGauge = new Gauge({
+  name: 'abacus_kathy_pairing_index',
+  help: 'The current message pairing index kathy is on, this is useful for seeing if kathy is always crashing around the same pairing as pairings are deterministically ordered.',
+  registers: [metricsRegister],
+  labelNames: [
+    ...(Object.keys(constMetricLabels) as (keyof typeof constMetricLabels)[]),
+  ],
+});
+metricsRegister.registerMetric(messagesSendCount);
+metricsRegister.registerMetric(currentPairingIndexGauge);
 
 async function main() {
+  startMetricsServer(metricsRegister);
   const environment = await getEnvironment();
   constMetricLabels.abacus_deployment = environment;
   const coreConfig = getCoreEnvironmentConfig(environment);
@@ -54,7 +65,24 @@ async function main() {
         source == destination ? null : { source, destination },
       ),
     ),
-  ).filter((v) => !!v);
+  )
+    .filter((v) => v !== null)
+    .map((v) => v!);
+
+  // default to once every 6 hours getting through all pairs
+  const fullCycleTime = process.env['KATHY_FULL_CYCLE_TIME']
+    ? parseInt(process.env['KATHY_FULL_CYCLE_TIME'])
+    : 1000 * 60 * 60 * 6;
+  if (!Number.isSafeInteger(fullCycleTime) || fullCycleTime <= 0) {
+    error('Invalid cycle time provided');
+    process.exit(1);
+  }
+
+  // track how many we area still allowed to send in case some messages send slower than expected.
+  let allowedToSend = 0;
+  setInterval(() => {
+    allowedToSend++;
+  }, fullCycleTime / pairings.length);
 
   for (
     // in case we are restarting kathy, keep it from always running the exact same messages first
@@ -62,6 +90,11 @@ async function main() {
     ;
     currentPairingIndex = (currentPairingIndex + 1) % pairings.length
   ) {
+    currentPairingIndexGauge.set(currentPairingIndex);
+    // wait until we are allowed to send the message
+    while (allowedToSend <= 0) await sleep(1000);
+    allowedToSend--;
+
     const { source, destination } = pairings[currentPairingIndex];
     const labels = {
       origin: source,
@@ -71,32 +104,26 @@ async function main() {
     try {
       await sendMessage(app, source, destination);
       log('Message sent successfully', { from: source, to: destination });
-      messagesSendStatus.labels({ ...labels }).set(1);
+      messagesSendCount.labels({ ...labels, status: 'success' }).inc();
     } catch (e) {
       error(`Error sending message, continuing...`, {
         error: e,
         from: source,
         to: destination,
       });
-      messagesSendStatus.labels({ ...labels }).set(0);
+      messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
     }
 
-    // Sleep 500ms to avoid race conditions where nonces are reused
-    await sleep(500);
-  }
-
-  for (const [from, destinationStats] of Object.entries(await app.stats())) {
-    for (const [to, counts] of Object.entries(destinationStats)) {
-      log('Message stats', { from, to, ...counts });
+    // print stats once every cycle through the pairings
+    if (currentPairingIndex == 0) {
+      for (const [from, destinationStats] of Object.entries(
+        await app.stats(),
+      )) {
+        for (const [to, counts] of Object.entries(destinationStats)) {
+          debug('Message stats', { from, to, ...counts });
+        }
+      }
     }
-  }
-
-  // do not use append mode here so we can clear any old pairings we no longer care about.
-  await submitMetrics(metricsRegister, 'kathy', { appendMode: false });
-
-  if (failureOccurred) {
-    error('Failure occurred at least once');
-    process.exit(1);
   }
 }
 
