@@ -217,8 +217,8 @@ mod test {
     use abacus_test::test_utils;
     use mockall::predicate::eq;
 
-    use crate::ContractSync;
     use crate::contract_sync::schema::OutboxContractSyncDB;
+    use crate::ContractSync;
     use crate::{settings::IndexSettings, ContractSyncMetrics, CoreMetrics};
 
     #[tokio::test]
@@ -355,10 +355,7 @@ mod test {
                     .times(1)
                     .with(eq(111), eq(130))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![
-                        m1_clone,
-                        m2_clone,
-                    ]));
+                    .return_once(move |_, _| Ok(vec![m1_clone, m2_clone]));
 
                 // Indexer continues, this time getting m3 and m5 message, but skipping m4,
                 // which means this range contains gaps
@@ -374,10 +371,7 @@ mod test {
                     .times(1)
                     .with(eq(131), eq(150))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![
-                        m3_clone,
-                        m5_clone,
-                    ]));
+                    .return_once(move |_, _| Ok(vec![m3_clone, m5_clone]));
 
                 // Indexer retries, the same range in hope of filling the gap,
                 // which it now does successfully
@@ -391,11 +385,7 @@ mod test {
                     .times(1)
                     .with(eq(131), eq(150))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![
-                        m3,
-                        m4,
-                        m5,
-                    ]));
+                    .return_once(move |_, _| Ok(vec![m3, m4, m5]));
 
                 // Indexer continues with the next block range, which happens to be empty
                 mock_indexer
@@ -432,7 +422,11 @@ mod test {
             let abacus_db = AbacusDB::new("outbox_1", db);
 
             // Set the latest valid message range start block
-            abacus_db.store_latest_valid_message_range_start_block(latest_valid_message_range_start_block).unwrap();
+            abacus_db
+                .store_latest_valid_message_range_start_block(
+                    latest_valid_message_range_start_block,
+                )
+                .unwrap();
 
             let indexer = Arc::new(mock_indexer);
             let metrics = Arc::new(
