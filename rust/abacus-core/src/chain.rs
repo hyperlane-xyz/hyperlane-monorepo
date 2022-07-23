@@ -173,15 +173,15 @@ mod tests {
             .zip(files.iter())
             .map(|(p, f)| {
                 Config::builder()
-                    .add_source(
-                        File::from_str(f.as_str(), FileFormat::Json))
+                    .add_source(File::from_str(f.as_str(), FileFormat::Json))
                     .build()
                     .unwrap()
                     .try_deserialize()
-                    .unwrap_or_else(|e| { 
-                        panic!("!cfg({}): {:?}: {}", p, e, f); 
-                    }) 
-            }).collect()
+                    .unwrap_or_else(|e| {
+                        panic!("!cfg({}): {:?}: {}", p, e, f);
+                    })
+            })
+            .collect()
     }
 
     fn outbox_chain_names() -> BTreeSet<String> {
@@ -194,12 +194,11 @@ mod tests {
     fn inbox_chain_names() -> BTreeSet<String> {
         abacus_settings()
             .iter()
-            .flat_map(|x: &Settings| x.inboxes.iter()
-                .map(|(k, _)| String::from(k)))
+            .flat_map(|x: &Settings| x.inboxes.iter().map(|(k, _)| String::from(k)))
             .collect()
     }
 
-   fn outbox_name_domain_coords() -> BTreeSet<ChainCoordinate> {
+    fn outbox_name_domain_coords() -> BTreeSet<ChainCoordinate> {
         abacus_settings()
             .iter()
             .map(|x| ChainCoordinate {
