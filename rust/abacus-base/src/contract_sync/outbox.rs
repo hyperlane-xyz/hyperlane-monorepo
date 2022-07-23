@@ -143,7 +143,7 @@ where
                     continue;
                 }
 
-                // Ensure the sorted messages are a valid continution of last_leaf_index
+                // Ensure the sorted messages are a valid continuation of last_leaf_index
                 match &last_leaf_index.valid_continuation(&sorted_messages) {
                     ListValidity::Valid => {
                         // Store messages
@@ -169,8 +169,9 @@ where
 
                         // Move forward to the next height
                         from = to + 1;
-                    },
-                    // The index of the first message in sorted_messages is not the last_leaf_index + 1.
+                    }
+                    // The index of the first message in sorted_messages is not the
+                    // `last_leaf_index+1`.
                     ListValidity::InvalidContinuation => {
                         missed_messages.inc();
 
@@ -183,7 +184,7 @@ where
                         );
 
                         from = last_valid_range_start_block;
-                    },
+                    }
                     ListValidity::ContainsGaps => {
                         missed_messages.inc();
 
@@ -198,16 +199,18 @@ where
                 };
             }
         })
-        .instrument(span)
+            .instrument(span)
     }
 }
 
 #[cfg(test)]
 mod test {
     use std::sync::Arc;
+    use std::time::Duration;
 
     use ethers::core::types::H256;
     use mockall::*;
+    use tokio::time::sleep;
 
     use abacus_core::{db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage};
     use abacus_test::mocks::indexer::MockAbacusIndexer;
@@ -215,9 +218,8 @@ mod test {
     use mockall::predicate::eq;
 
     use crate::ContractSync;
+    use crate::contract_sync::schema::OutboxContractSyncDB;
     use crate::{settings::IndexSettings, ContractSyncMetrics, CoreMetrics};
-
-    use super::*;
 
     #[tokio::test]
     async fn handles_missing_rpc_messages() {
@@ -233,43 +235,35 @@ mod test {
             .write_to(&mut message_vec)
             .expect("!write_to");
 
-            let first_message = RawCommittedMessage {
+            let m0 = RawCommittedMessage {
                 leaf_index: 0,
                 message: message_vec.clone(),
             };
 
-            let second_message = RawCommittedMessage {
+            let m1 = RawCommittedMessage {
                 leaf_index: 1,
                 message: message_vec.clone(),
             };
-            let second_message_clone = second_message.clone();
 
-            let third_message = RawCommittedMessage {
+            let m2 = RawCommittedMessage {
                 leaf_index: 2,
                 message: message_vec.clone(),
             };
 
-            let fourth_message = RawCommittedMessage {
+            let m3 = RawCommittedMessage {
                 leaf_index: 3,
                 message: message_vec.clone(),
             };
-            let fourth_message_clone_1 = fourth_message.clone();
-            // let fourth_message_clone_2 = fourth_message.clone();
 
-            let fifth_message = RawCommittedMessage {
+            let m4 = RawCommittedMessage {
                 leaf_index: 4,
                 message: message_vec.clone(),
             };
-            // let fifth_message_clone_1 = fifth_message.clone();
-            // let fifth_message_clone_2 = fifth_message.clone();
-            // let fifth_message_clone_3 = fifth_message.clone();
 
-            let sixth_message = RawCommittedMessage {
+            let m5 = RawCommittedMessage {
                 leaf_index: 5,
                 message: message_vec.clone(),
             };
-            let sixth_message_clone_1 = sixth_message.clone();
-            let sixth_message_clone_2 = sixth_message.clone();
 
             let latest_valid_message_range_start_block = 100;
 
@@ -277,7 +271,8 @@ mod test {
             {
                 let mut seq = Sequence::new();
 
-                // Return first message
+                // Return m0.
+                let m0_clone = m0.clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -288,9 +283,10 @@ mod test {
                     .times(1)
                     .with(eq(100), eq(110))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![first_message]));
+                    .return_once(move |_, _| Ok(vec![m0_clone]));
 
-                // Return second message, misses third message
+                // Return m1, miss m2.
+                let m1_clone = m1.clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -301,9 +297,9 @@ mod test {
                     .times(1)
                     .with(eq(111), eq(120))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![second_message]));
+                    .return_once(move |_, _| Ok(vec![m1_clone]));
 
-                // misses the fourth
+                // Miss m3.
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -316,7 +312,7 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
-                // empty range
+                // Empty range.
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -329,7 +325,8 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
-                // second --> sixth message seen as an invalid continuation
+                // m1 --> m5 seen as an invalid continuation
+                let m5_clone = m5.clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -340,11 +337,13 @@ mod test {
                     .times(1)
                     .with(eq(141), eq(150))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![sixth_message]));
+                    .return_once(move |_, _| Ok(vec![m5_clone]));
 
                 // Indexer goes back to the last valid message range start block.
                 // Max chunk size is 19.
-                // This time it gets messages 2 and 3
+                // This time it gets m1 and m2 (which was previously skipped)
+                let m1_clone = m1.clone();
+                let m2_clone = m2.clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -356,12 +355,14 @@ mod test {
                     .with(eq(111), eq(130))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![
-                        second_message_clone,
-                        third_message,
+                        m1_clone,
+                        m2_clone,
                     ]));
-                
-                // Indexer continues, this time getting the fourth and sixth message, but skipping the fifth message,
-                // which means this contains gaps
+
+                // Indexer continues, this time getting m3 and m5 message, but skipping m4,
+                // which means this range contains gaps
+                let m3_clone = m3.clone();
+                let m5_clone = m5.clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -373,8 +374,8 @@ mod test {
                     .with(eq(131), eq(150))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![
-                        fourth_message,
-                        sixth_message_clone_1,
+                        m3_clone,
+                        m5_clone,
                     ]));
 
                 // Indexer retries, the same range in hope of filling the gap,
@@ -390,9 +391,9 @@ mod test {
                     .with(eq(131), eq(150))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![
-                        fourth_message_clone_1,
-                        fifth_message,
-                        sixth_message_clone_2,
+                        m3,
+                        m4,
+                        m5,
                     ]));
 
                 // Indexer continues with the next block range, which happens to be empty!
