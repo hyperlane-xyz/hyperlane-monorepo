@@ -7,6 +7,7 @@ import {
   CoinGeckoResponse,
   CoinGeckoSimpleInterface,
   CoinGeckoSimplePriceParams,
+  TokenPriceGetter,
 } from '../gas/token-prices';
 import { ChainMap, ChainName } from '../types';
 
@@ -79,6 +80,36 @@ export class MockCoinGecko implements CoinGeckoInterface {
 
   get simple(): CoinGeckoSimpleInterface {
     return this;
+  }
+
+  setTokenPrice(chain: ChainName, price: number) {
+    this.tokenPrices[chain] = price;
+  }
+}
+
+// A mock TokenPriceGetter intended to be used by tests when mocking token prices
+export class MockTokenPriceGetter implements TokenPriceGetter {
+  private tokenPrices: Partial<ChainMap<ChainName, number>>;
+
+  constructor() {
+    this.tokenPrices = {};
+  }
+
+  async getTokenExchangeRate(
+    base: ChainName,
+    quote: ChainName,
+  ): Promise<number> {
+    const basePrice = await this.getTokenPrice(base);
+    const quotePrice = await this.getTokenPrice(quote);
+    return basePrice / quotePrice;
+  }
+
+  getTokenPrice(chain: ChainName): Promise<number> {
+    const price = this.tokenPrices[chain];
+    if (price) {
+      return Promise.resolve(price);
+    }
+    throw Error(`No price for chain ${chain}`);
   }
 
   setTokenPrice(chain: ChainName, price: number) {

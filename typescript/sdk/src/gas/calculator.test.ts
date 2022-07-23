@@ -8,11 +8,10 @@ import { Chains } from '../consts/chains';
 import { AbacusCore } from '../core/AbacusCore';
 import { CoreContracts } from '../core/contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import { MockCoinGecko, MockProvider } from '../test/testUtils';
+import { MockProvider, MockTokenPriceGetter } from '../test/testUtils';
 import { ChainName, TestChainNames } from '../types';
 
 import { InterchainGasCalculator, ParsedMessage } from './calculator';
-import { CoinGeckoTokenPriceGetter, TokenPriceGetter } from './token-prices';
 
 const HANDLE_GAS = 100_000;
 const SUGGESTED_GAS_PRICE = 10;
@@ -67,16 +66,13 @@ describe('InterchainGasCalculator', () => {
   const origin = Chains.test1;
   const destination = Chains.test2;
 
-  let tokenPriceGetter: TokenPriceGetter;
+  let tokenPriceGetter: MockTokenPriceGetter;
   let calculator: TestInterchainGasCalculator<TestChainNames>;
 
   beforeEach(() => {
-    const mockCoinGecko = new MockCoinGecko();
-    // Origin token
-    mockCoinGecko.setTokenPrice(origin, 10);
-    // Destination token
-    mockCoinGecko.setTokenPrice(destination, 5);
-    tokenPriceGetter = new CoinGeckoTokenPriceGetter(mockCoinGecko);
+    tokenPriceGetter = new MockTokenPriceGetter();
+    tokenPriceGetter.setTokenPrice(origin, 10);
+    tokenPriceGetter.setTokenPrice(destination, 5);
     calculator = new TestInterchainGasCalculator(multiProvider, core, {
       tokenPriceGetter,
       // A multiplier of 1 makes testing easier to reason about

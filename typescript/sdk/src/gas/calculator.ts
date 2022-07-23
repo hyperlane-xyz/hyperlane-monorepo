@@ -197,12 +197,6 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns The amount of `toChain` native tokens whose value is equivalent to
    * `fromAmount` of `fromChain` native tokens.
    */
-  // Let's say I'm going from Celo to Ethereum
-  // Celo = $1
-  // Ether = $5
-  // I want to convert 7 Celo to Ether
-  // 7 * 1 / 5
-  // value * fromChain / toChain
   protected async convertBetweenTokens(
     fromChain: Chain,
     toChain: Chain,

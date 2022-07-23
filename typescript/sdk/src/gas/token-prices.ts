@@ -25,13 +25,8 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   }
 
   async getTokenPrice(chain: ChainName): Promise<number> {
-    if (Mainnets.includes(chain)) {
-      const [price] = await this.getTokenPrices([chain]);
-      return price;
-    } else {
-      // Testnet tokens are all artificially priced at 1.0 USD.
-      return 1;
-    }
+    const [price] = await this.getTokenPrices([chain]);
+    return price;
   }
 
   async getTokenExchangeRate(
@@ -43,6 +38,20 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   }
 
   private async getTokenPrices(chains: ChainName[]): Promise<number[]> {
+    const isMainnet = chains.map((c) => Mainnets.includes(c));
+    const allMainnets = isMainnet.every((v) => v === true);
+    const allTestnets = isMainnet.every((v) => v === false);
+    if (allTestnets) {
+      // Testnet tokens are all artificially priced at 1.0 USD.
+      return chains.map((_) => 1);
+    }
+
+    if (!allMainnets) {
+      throw new Error(
+        'Cannot mix testnets and mainnets when fetching token prices',
+      );
+    }
+
     const currency = 'usd';
     // The CoinGecko API expects, in some cases, IDs that do not match
     // ChainNames.
