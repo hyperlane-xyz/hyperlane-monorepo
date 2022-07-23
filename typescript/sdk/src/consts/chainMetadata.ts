@@ -8,6 +8,9 @@ export type ChainMetadata = {
   finalityBlocks: number;
   nativeTokenDecimals?: number;
   paginate?: RpcPagination;
+  // The CoinGecko API expects, in some cases, IDs that do not match
+  // ChainNames.
+  coinGeckoId?: string;
 };
 
 /**
@@ -48,6 +51,7 @@ export const optimism: ChainMetadata = {
 export const bsc: ChainMetadata = {
   id: 0x627363, // b'bsc' interpreted as an int
   finalityBlocks: 15,
+  coinGeckoId: 'binancecoin',
 };
 
 export const avalanche: ChainMetadata = {
@@ -58,6 +62,7 @@ export const avalanche: ChainMetadata = {
     blocks: 100000,
     from: 6765067,
   },
+  coinGeckoId: 'avalanche-2',
 };
 
 export const polygon: ChainMetadata = {
@@ -68,6 +73,7 @@ export const polygon: ChainMetadata = {
     blocks: 10000,
     from: 19657100,
   },
+  coinGeckoId: 'matic-network',
 };
 
 /**
