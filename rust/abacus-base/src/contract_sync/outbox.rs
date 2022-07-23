@@ -209,8 +209,10 @@ mod test {
     use std::time::Duration;
 
     use ethers::core::types::H256;
+    use eyre::eyre;
     use mockall::*;
-    use tokio::time::sleep;
+    use tokio::select;
+    use tokio::time::{interval, timeout};
 
     use abacus_core::{db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage};
     use abacus_test::mocks::indexer::MockAbacusIndexer;
@@ -339,8 +341,8 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![m5_clone]));
 
-                // Indexer goes back to the last valid message range start block.
-                // Max chunk size is 19.
+                // Indexer goes back to the last valid message range start block
+                // and indexes the range based off the chunk size of 19.
                 // This time it gets m1 and m2 (which was previously skipped)
                 let m1_clone = m1.clone();
                 let m2_clone = m2.clone();
@@ -349,7 +351,6 @@ mod test {
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(160));
-                println!("f");
                 mock_indexer
                     .expect__fetch_sorted_messages()
                     .times(1)
@@ -448,15 +449,28 @@ mod test {
             );
 
             let sync_task = contract_sync.sync_outbox_messages();
-            sleep(Duration::from_secs(3)).await;
-            cancel_task!(sync_task);
-
-            assert!(abacus_db.message_by_leaf_index(0).expect("!db").is_some());
-            assert!(abacus_db.message_by_leaf_index(1).expect("!db").is_some());
-            assert!(abacus_db.message_by_leaf_index(2).expect("!db").is_some());
-            assert!(abacus_db.message_by_leaf_index(3).expect("!db").is_some());
-            assert!(abacus_db.message_by_leaf_index(4).expect("!db").is_some());
-            assert!(abacus_db.message_by_leaf_index(5).expect("!db").is_some());
+            let test_pass_fut = timeout(Duration::from_secs(30), async move {
+                let mut interval = interval(Duration::from_millis(20));
+                loop {
+                    if abacus_db.message_by_leaf_index(0).expect("!db").is_some()
+                        && abacus_db.message_by_leaf_index(1).expect("!db").is_some()
+                        && abacus_db.message_by_leaf_index(2).expect("!db").is_some()
+                        && abacus_db.message_by_leaf_index(3).expect("!db").is_some()
+                        && abacus_db.message_by_leaf_index(4).expect("!db").is_some()
+                        && abacus_db.message_by_leaf_index(5).expect("!db").is_some()
+                    {
+                        break;
+                    }
+                    interval.tick().await;
+                }
+            });
+            let test_result = select! {
+                 err = sync_task => Err(eyre!(
+                    "sync task unexpectedly done before test: {:?}", err.unwrap_err())),
+                 tests_result = test_pass_fut =>
+                   if tests_result.is_ok() { Ok(()) } else { Err(eyre!("timed out")) }
+            };
+            assert!(test_result.is_ok());
         })
         .await
     }
