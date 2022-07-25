@@ -239,10 +239,13 @@ export class AbacusCoreChecker<
       );
     } else {
       this.violations.push({
-        type: CoreViolationType.InterchainGasPaymasterNotDeployed,
+        type: CoreViolationType.NotDeployed,
         chain: chain,
         expected: undefined,
         actual: undefined,
+        data: {
+          contract: 'InterchainGasPaymaster',
+        },
       });
     }
 
