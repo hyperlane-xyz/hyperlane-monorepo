@@ -1,3 +1,5 @@
+import { ChainName } from '../types';
+
 /**
  * Enumeration of Abacus supported chains
  */
@@ -23,4 +25,14 @@ export enum Chains { // must be string type to be used with Object.keys
   test3 = 'test3',
 }
 
-export const AllChains = Object.keys(Chains) as Array<keyof typeof Chains>;
+export const Mainnets = [
+  Chains.arbitrum,
+  Chains.avalanche,
+  Chains.bsc,
+  Chains.celo,
+  Chains.ethereum,
+  Chains.optimism,
+  Chains.polygon,
+] as Array<ChainName>;
+
+export const AllChains = Object.keys(Chains) as Array<ChainName>;

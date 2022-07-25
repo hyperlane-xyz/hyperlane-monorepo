@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import { TypedListener } from '@abacus-network/core/dist/common';
 import {
@@ -19,16 +19,26 @@ export class HelloWorldApp<
     from: From,
     to: Remotes<Chain, From>,
     message: string,
+    value: BigNumber,
     receiveHandler?: TypedListener<ReceivedHelloWorldEvent>,
   ): Promise<ethers.ContractReceipt> {
     const sender = this.getContracts(from).router;
     const toDomain = ChainNameToDomainId[to];
     const chainConnection = this.multiProvider.getChainConnection(from);
-    const tx = await sender.sendHelloWorld(
+
+    // apply gas buffer due to https://github.com/abacus-network/abacus-monorepo/issues/634
+    const estimated = await sender.estimateGas.sendHelloWorld(
       toDomain,
       message,
       chainConnection.overrides,
     );
+    const gasLimit = estimated.mul(11).div(10);
+
+    const tx = await sender.sendHelloWorld(toDomain, message, {
+      ...chainConnection.overrides,
+      gasLimit,
+      value,
+    });
     const receipt = await tx.wait(chainConnection.confirmations);
 
     if (receiveHandler) {
