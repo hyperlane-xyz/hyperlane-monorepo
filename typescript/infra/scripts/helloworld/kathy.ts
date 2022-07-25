@@ -2,7 +2,11 @@ import { ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
-import { ChainName, Chains } from '@abacus-network/sdk';
+import {
+  ChainName,
+  Chains,
+  InterchainGasCalculator,
+} from '@abacus-network/sdk';
 
 import { debug, error, log } from '../../src/utils/logging';
 import { startMetricsServer } from '../../src/utils/metrics';
@@ -32,6 +36,10 @@ async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
+  const gasCalc = InterchainGasCalculator.fromEnvironment(
+    environment,
+    app.multiProvider as any,
+  );
   const chains = app.chains() as Chains[];
   const skip = process.env.CHAINS_TO_SKIP?.split(',').filter(
     (skipChain) => skipChain.length > 0,
@@ -44,10 +52,10 @@ async function main() {
     throw new Error(`Invalid chains to skip ${invalidChains}`);
   }
 
-  const sources = chains.filter((chain) => !skip || !skip.includes(chain));
+  const origins = chains.filter((chain) => !skip || !skip.includes(chain));
   const pairings = diagonalize(
-    sources.map((source) =>
-      sources.map((destination) =>
+    origins.map((source) =>
+      origins.map((destination) =>
         source == destination ? null : { source, destination },
       ),
     ),
@@ -87,7 +95,7 @@ async function main() {
       remote: destination,
     };
     try {
-      await sendMessage(app, source, destination);
+      await sendMessage(app, source, destination, gasCalc);
       log('Message sent successfully', { from: source, to: destination });
       messagesSendCount.labels({ ...labels, status: 'success' }).inc();
     } catch (e) {
@@ -114,10 +122,21 @@ async function main() {
 
 async function sendMessage(
   app: HelloWorldApp<any>,
-  source: ChainName,
+  origin: ChainName,
   destination: ChainName,
+  gasCalc: InterchainGasCalculator<any>,
 ) {
-  log('Sending message', { from: source, to: destination });
+  const msg = 'Hello!';
+  const expected = {
+    origin,
+    destination,
+    sender: app.getContracts(origin).router.address,
+    recipient: app.getContracts(destination).router.address,
+    body: msg,
+  };
+  const value = await gasCalc.estimatePaymentForMessage(expected);
+
+  log('Sending message', { from: origin, to: destination });
 
   await new Promise<ethers.ContractReceipt[]>((resolve, reject) => {
     setTimeout(
@@ -125,9 +144,9 @@ async function sendMessage(
       10 * 60 * 1000,
     );
     app
-      .sendHelloWorld(source, destination, 'Hello!', (receipt) => {
+      .sendHelloWorld(origin, destination, msg, value, (receipt) => {
         log('Message sent', {
-          from: source,
+          from: origin,
           to: destination,
           events: receipt.events,
           logs: receipt.logs,
