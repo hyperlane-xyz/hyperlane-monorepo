@@ -183,7 +183,7 @@ impl<'de> Deserialize<'de> for Filter<H256> {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
 struct ListElement {
-    #[serde(default)]
+    #[serde(default, rename = )]
     source_domain: Filter<u32>,
     #[serde(default)]
     source_address: Filter<H256>,
