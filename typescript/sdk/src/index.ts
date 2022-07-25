@@ -72,7 +72,10 @@ export {
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 
 export { InterchainGasCalculator } from './gas/calculator';
-export { DefaultTokenPriceGetter, TokenPriceGetter } from './gas/token-prices';
+export {
+  CoinGeckoTokenPriceGetter,
+  TokenPriceGetter,
+} from './gas/token-prices';
 
 export { AbacusAppChecker } from './deploy/AbacusAppChecker';
 export {
