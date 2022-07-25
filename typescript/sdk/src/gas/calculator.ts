@@ -4,7 +4,11 @@ import { BigNumber, FixedNumber, ethers } from 'ethers';
 import { utils } from '@abacus-network/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { AbacusCore } from '../core/AbacusCore';
+import {
+  AbacusCore,
+  CoreEnvironment,
+  CoreEnvironmentChain,
+} from '../core/AbacusCore';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName, Remotes } from '../types';
 import { convertDecimalValue, mulBigAndFixed } from '../utils/number';
@@ -85,6 +89,17 @@ export class InterchainGasCalculator<Chain extends ChainName> {
 
   private paymentEstimateMultiplier: ethers.FixedNumber;
   private messageGasEstimateBuffer: ethers.BigNumber;
+
+  static fromEnvironment<Env extends CoreEnvironment>(
+    env: Env,
+    multiProvider: MultiProvider<CoreEnvironmentChain<Env>>,
+    config?: InterchainGasCalculatorConfig,
+  ): InterchainGasCalculator<CoreEnvironmentChain<Env>> {
+    const core = AbacusCore.fromEnvironment(env, multiProvider);
+    return new InterchainGasCalculator(multiProvider, core, config);
+  }
+
+  // override type to be derived from chain key
 
   constructor(
     multiProvider: MultiProvider<Chain>,

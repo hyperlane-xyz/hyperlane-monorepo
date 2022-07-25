@@ -1,7 +1,12 @@
 import { Gauge, Registry } from 'prom-client';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
-import { ChainName, Chains } from '@abacus-network/sdk';
+import {
+  ChainName,
+  Chains,
+  InterchainGasCalculator,
+  ParsedMessage,
+} from '@abacus-network/sdk';
 
 import { submitMetrics } from '../../src/utils/metrics';
 import { sleep } from '../../src/utils/utils';
@@ -33,6 +38,11 @@ async function main() {
   constMetricLabels.abacus_deployment = environment;
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
+  const multiProvider = await coreConfig.getMultiProvider();
+  const gasCalc = InterchainGasCalculator.fromEnvironment(
+    environment,
+    multiProvider as any,
+  );
   const chains = app.chains() as Chains[];
   const skip = process.env.CHAINS_TO_SKIP?.split(',').filter(
     (skipChain) => skipChain.length > 0,
@@ -47,7 +57,7 @@ async function main() {
 
   let failureOccurred = false;
 
-  const sources = chains.filter((chain) => !skip || !skip.includes(chain));
+  const origins = chains.filter((chain) => !skip || !skip.includes(chain));
 
   // submit frequently so we don't have to wait a super long time for info to get into the metrics
   const metricsInterval = setInterval(() => {
@@ -56,19 +66,19 @@ async function main() {
     );
   }, 1000 * 30);
 
-  for (const source of sources) {
-    for (const destination of sources.filter((d) => d !== source)) {
+  for (const origin of origins) {
+    for (const destination of origins.filter((d) => d !== origin)) {
       const labels = {
-        origin: source,
+        origin: origin,
         remote: destination,
         ...constMetricLabels,
       };
       try {
-        await sendMessage(app, source, destination);
+        await sendMessage(app, origin, destination);
         messagesSendStatus.labels({ ...labels }).set(1);
       } catch (err) {
         console.error(
-          `Error sending message from ${source} to ${destination}, continuing...`,
+          `Error sending message from ${origin} to ${destination}, continuing...`,
           `${err}`.replaceAll('\n', ' ## '),
         );
         failureOccurred = true;
@@ -92,11 +102,21 @@ async function main() {
 
 async function sendMessage(
   app: HelloWorldApp<any>,
-  source: ChainName,
+  origin: ChainName,
   destination: ChainName,
+  gasCalc: InterchainGasCalculator<any>,
 ) {
-  console.log(`Sending message from ${source} to ${destination}`);
-  const receipt = await app.sendHelloWorld(source, destination, `Hello!`);
+  const msg = 'Hello!';
+  const expected: ParsedMessage = {
+    origin,
+    destination,
+    sender: app.getContracts(origin).router.address,
+    recipient: app.getContracts(destination).router.address,
+    body: msg,
+  };
+  const value = await gasCalc.estimatePaymentForMessage(expected);
+  console.log(`Sending message from ${origin} to ${destination}`);
+  const receipt = await app.sendHelloWorld(origin, destination, msg, value);
   console.log(JSON.stringify(receipt.events || receipt.logs));
 }
 
