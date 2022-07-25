@@ -11,8 +11,10 @@ decl_settings!(Relayer {
     maxprocessingretries: String,
     /// The multisig checkpoint syncer configuration
     multisigcheckpointsyncer: abacus_base::MultisigCheckpointSyncerConf,
-    /// This is optional. See `MatchingList` for more.
+    /// This is optional. If no whitelist is provided ALL messages will be considered on the
+    /// whitelist.
     whitelist: Option<String>,
-    /// This is optional. See `MatchingList` for more.
+    /// This is optional. If no blacklist is provided ALL will be considered to not be on
+    /// the blacklist.
     blacklist: Option<String>,
 });

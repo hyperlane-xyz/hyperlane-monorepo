@@ -10,12 +10,8 @@ use serde::{Deserialize, Deserializer};
 use abacus_core::AbacusMessage;
 
 /// Defines a set of patterns for determining if a message should or should not
-/// be relayed. This is useful for determing if a message matches a given set or
+/// be relayed. This is useful for determine if a message matches a given set or
 /// rules.
-///
-/// If no whitelist is provided ALL messages will be considered on the
-/// whitelist. If no blacklist is provided ALL will be considered to not be on
-/// the blacklist.
 ///
 /// Valid options for each of the tuple elements are
 /// - wildcard "*"
