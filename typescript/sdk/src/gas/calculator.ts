@@ -99,8 +99,6 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     return new InterchainGasCalculator(multiProvider, core, config);
   }
 
-  // override type to be derived from chain key
-
   constructor(
     multiProvider: MultiProvider<Chain>,
     core: AbacusCore<Chain>,

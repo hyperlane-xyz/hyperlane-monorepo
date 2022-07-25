@@ -5,7 +5,6 @@ import {
   ChainName,
   Chains,
   InterchainGasCalculator,
-  ParsedMessage,
 } from '@abacus-network/sdk';
 
 import { submitMetrics } from '../../src/utils/metrics';
@@ -69,12 +68,12 @@ async function main() {
   for (const origin of origins) {
     for (const destination of origins.filter((d) => d !== origin)) {
       const labels = {
-        origin: origin,
+        origin,
         remote: destination,
         ...constMetricLabels,
       };
       try {
-        await sendMessage(app, origin, destination);
+        await sendMessage(app, origin, destination, gasCalc);
         messagesSendStatus.labels({ ...labels }).set(1);
       } catch (err) {
         console.error(
@@ -107,7 +106,7 @@ async function sendMessage(
   gasCalc: InterchainGasCalculator<any>,
 ) {
   const msg = 'Hello!';
-  const expected: ParsedMessage = {
+  const expected = {
     origin,
     destination,
     sender: app.getContracts(origin).router.address,
