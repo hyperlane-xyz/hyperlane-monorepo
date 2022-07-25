@@ -414,7 +414,7 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
-                // Stay at the same tip, so now other fetch_sorted_messages calls are made
+                // Stay at the same tip, so no other fetch_sorted_messages calls are made
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .returning(|| Ok(190));
