@@ -71,7 +71,7 @@ export {
 } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 
-export { InterchainGasCalculator } from './gas/calculator';
+export { InterchainGasCalculator, ParsedMessage } from './gas/calculator';
 export {
   CoinGeckoTokenPriceGetter,
   TokenPriceGetter,
