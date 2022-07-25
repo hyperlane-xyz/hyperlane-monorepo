@@ -270,34 +270,58 @@ fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
 
 #[cfg(test)]
 mod test {
+    use crate::settings::matching_list::MatchInfo;
     use ethers::prelude::*;
 
     use super::{Filter::*, MatchingList};
 
     #[test]
     fn basic_config() {
-        let whitelist: MatchingList = serde_json::from_str(r#"[{"sourceDomain": "*", "sourceAddress": "*", "destinationDomain": "*", "destinationAddress": "*"}, {}]"#).unwrap();
-        assert!(whitelist.0.is_some());
-        assert_eq!(whitelist.0.as_ref().unwrap().len(), 2);
-        let elem = &whitelist.0.as_ref().unwrap()[0];
+        let list: MatchingList = serde_json::from_str(r#"[{"sourceDomain": "*", "sourceAddress": "*", "destinationDomain": "*", "destinationAddress": "*"}, {}]"#).unwrap();
+        assert!(list.0.is_some());
+        assert_eq!(list.0.as_ref().unwrap().len(), 2);
+        let elem = &list.0.as_ref().unwrap()[0];
         assert_eq!(elem.dst_domain, Wildcard);
         assert_eq!(elem.dst_address, Wildcard);
         assert_eq!(elem.src_domain, Wildcard);
         assert_eq!(elem.src_address, Wildcard);
 
-        let elem = &whitelist.0.as_ref().unwrap()[1];
+        let elem = &list.0.as_ref().unwrap()[1];
         assert_eq!(elem.dst_domain, Wildcard);
         assert_eq!(elem.dst_address, Wildcard);
         assert_eq!(elem.src_domain, Wildcard);
         assert_eq!(elem.src_address, Wildcard);
+
+        assert!(list.matches(
+            MatchInfo {
+                src_domain: 0,
+                src_addr: &H256::default(),
+                dst_domain: 0,
+                dst_addr: &H256::default()
+            },
+            false
+        ));
+
+        assert!(list.matches(
+            MatchInfo {
+                src_domain: 34,
+                src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
+                    .parse::<H160>()
+                    .unwrap()
+                    .into(),
+                dst_domain: 5456,
+                dst_addr: &H256::default()
+            },
+            false
+        ))
     }
 
     #[test]
     fn config_with_address() {
-        let whitelist: MatchingList = serde_json::from_str(r#"[{"sourceAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "destinationAddress": "9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
-        assert!(whitelist.0.is_some());
-        assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
-        let elem = &whitelist.0.as_ref().unwrap()[0];
+        let list: MatchingList = serde_json::from_str(r#"[{"sourceAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "destinationAddress": "9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
+        assert!(list.0.is_some());
+        assert_eq!(list.0.as_ref().unwrap().len(), 1);
+        let elem = &list.0.as_ref().unwrap()[0];
         assert_eq!(elem.dst_domain, Wildcard);
         assert_eq!(
             elem.dst_address,
@@ -314,6 +338,35 @@ mod test {
                 .unwrap()
                 .into()])
         );
+
+        assert!(list.matches(
+            MatchInfo {
+                src_domain: 34,
+                src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
+                    .parse::<H160>()
+                    .unwrap()
+                    .into(),
+                dst_domain: 5456,
+                dst_addr: &"9d4454B023096f34B160D6B654540c56A1F81688"
+                    .parse::<H160>()
+                    .unwrap()
+                    .into()
+            },
+            false
+        ));
+
+        assert!(!list.matches(
+            MatchInfo {
+                src_domain: 34,
+                src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
+                    .parse::<H160>()
+                    .unwrap()
+                    .into(),
+                dst_domain: 5456,
+                dst_addr: &H256::default()
+            },
+            false
+        ));
     }
 
     #[test]
@@ -327,5 +380,19 @@ mod test {
         assert_eq!(elem.dst_address, Wildcard);
         assert_eq!(elem.src_domain, Wildcard);
         assert_eq!(elem.src_address, Wildcard);
+    }
+
+    #[test]
+    fn matches_empty_list() {
+        let info = MatchInfo {
+            src_domain: 0,
+            src_addr: &H256::default(),
+            dst_domain: 0,
+            dst_addr: &H256::default(),
+        };
+        // whitelist use
+        assert!(MatchingList(None).matches(info, true));
+        // blacklist use
+        assert!(!MatchingList(None).matches(info, false));
     }
 }
