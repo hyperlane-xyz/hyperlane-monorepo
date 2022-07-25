@@ -1,0 +1,55 @@
+name: e2e
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
+defaults:
+  run:
+    working-directory: ./rust
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: setup rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: rust cache
+        uses: Swatinem/rust-cache@v1
+        with:
+          working-directory: ./rust
+      - name: node module cache
+        uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
+      - name: node build cache
+        uses: actions/cache@v2
+        with:
+          path: ./*
+          key: ${{ github.sha }}
+
+      - name: build test
+        run: cargo build --release --bin run-locally
+      - name: run test
+        run: ./target/release/run-locally
+        env:
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
+          E2E_KATHY_ROUNDS: '4'

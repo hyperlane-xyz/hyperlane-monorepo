@@ -1,15 +1,13 @@
 export enum KEY_ROLE_ENUM {
   Validator = 'validator',
-  Checkpointer = 'checkpointer',
   Relayer = 'relayer',
   Deployer = 'deployer',
   Bank = 'bank',
   Kathy = 'kathy',
 }
 
-export const KEY_ROLES = [
+export const ALL_KEY_ROLES = [
   KEY_ROLE_ENUM.Validator,
-  KEY_ROLE_ENUM.Checkpointer,
   KEY_ROLE_ENUM.Relayer,
   KEY_ROLE_ENUM.Deployer,
   KEY_ROLE_ENUM.Bank,

@@ -1,8 +1,22 @@
-import { arrayify, hexlify } from '@ethersproject/bytes';
-import { assert } from 'chai';
-import { ethers } from 'ethers';
+import { ethers, utils } from 'ethers';
 
 import { Address, Domain, HexString, ParsedMessage } from './types';
+
+export function assert(predicate: any, errorMessage?: string) {
+  if (!predicate) {
+    throw new Error(errorMessage ?? 'Error');
+  }
+}
+
+export function deepEquals(v1: any, v2: any) {
+  return JSON.stringify(v1) === JSON.stringify(v2);
+}
+
+export const ensure0x = (hexstr: string) =>
+  hexstr.startsWith('0x') ? hexstr : `0x${hexstr}`;
+
+export const strip0x = (hexstr: string) =>
+  hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
 
 /*
  * Gets the byte length of a hex string
@@ -11,12 +25,7 @@ import { Address, Domain, HexString, ParsedMessage } from './types';
  * @return byteLength - length in bytes
  */
 export function getHexStringByteLength(hexStr: string) {
-  let len = hexStr.length;
-
-  // check for prefix, remove if necessary
-  if (hexStr.slice(0, 2) == '0x') {
-    len -= 2;
-  }
+  const len = strip0x(hexStr).length;
 
   // divide by 2 to get the byte length
   return len / 2;
@@ -27,7 +36,7 @@ export const stringToBytes32 = (s: string): string => {
   const result = Buffer.alloc(32);
   str.copy(result);
 
-  return '0x' + result.toString('hex');
+  return ensure0x(result.toString('hex'));
 };
 
 export function addressToBytes32(address: Address): string {
@@ -73,12 +82,12 @@ export const formatMessage = (
  * @returns
  */
 export function parseMessage(message: string): ParsedMessage {
-  const buf = Buffer.from(arrayify(message));
+  const buf = Buffer.from(utils.arrayify(message));
   const origin = buf.readUInt32BE(0);
-  const sender = hexlify(buf.slice(4, 36));
+  const sender = utils.hexlify(buf.slice(4, 36));
   const destination = buf.readUInt32BE(36);
-  const recipient = hexlify(buf.slice(40, 72));
-  const body = hexlify(buf.slice(72));
+  const recipient = utils.hexlify(buf.slice(40, 72));
+  const body = utils.hexlify(buf.slice(72));
   return { origin, sender, destination, recipient, body };
 }
 
@@ -112,8 +121,8 @@ export function sleep(ms: number): Promise<void> {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-// Retries an async function when it raises an exeption
-// if all the tries fail it raises the last thrown exeption
+// Retries an async function when it raises an exception
+// if all the tries fail it raises the last thrown exception
 export async function retryAsync<T>(
   runner: () => T,
   attempts = 3,

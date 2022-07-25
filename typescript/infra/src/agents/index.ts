@@ -1,18 +1,19 @@
 import { ChainName } from '@abacus-network/sdk';
+import { utils } from '@abacus-network/utils';
 
+import { Contexts } from '../../config/contexts';
 import { AgentConfig, DeployEnvironment } from '../config';
 import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
-import { ensure0x, execCmd, strip0x } from '../utils/utils';
-import { rm, writeFile } from 'fs/promises';
+import { execCmd } from '../utils/utils';
 
 import { keyIdentifier } from './agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
-import { KEY_ROLES, KEY_ROLE_ENUM } from './roles';
+import { KEY_ROLE_ENUM } from './roles';
 
 async function helmValuesForChain<Chain extends ChainName>(
   chainName: Chain,
@@ -27,33 +28,29 @@ async function helmValuesForChain<Chain extends ChainName>(
     },
     abacus: {
       runEnv: agentConfig.runEnv,
+      context: agentConfig.context,
       baseConfig: `${chainName}_config.json`,
       outboxChain: {
         name: chainName,
       },
       aws: !!agentConfig.aws,
-      inboxChains: agentConfig.chainNames
+      inboxChains: agentConfig.environmentChainNames
         .filter((name) => name !== chainName)
         .map((remoteChainName) => {
           return {
             name: remoteChainName,
+            disabled: !agentConfig.contextChainNames.includes(remoteChainName),
           };
         }),
       validator: {
-        enabled: true,
+        enabled: chainAgentConfig.validatorEnabled,
         configs: await chainAgentConfig.validatorConfigs(),
       },
       relayer: {
-        enabled: true,
+        enabled: chainAgentConfig.relayerEnabled,
         aws: await chainAgentConfig.relayerRequiresAwsCredentials(),
         signers: await chainAgentConfig.relayerSigners(),
         config: chainAgentConfig.relayerConfig,
-      },
-      checkpointer: {
-        enabled: chainAgentConfig.checkpointerEnabled,
-        aws: chainAgentConfig.checkpointerRequiresAwsCredentials,
-        signers: await chainAgentConfig.checkpointerSigners(),
-        config: chainAgentConfig.checkpointerConfig,
       },
       kathy: {
         enabled: chainAgentConfig.kathyEnabled,
@@ -71,7 +68,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   agentConfig: AgentConfig<Chain>,
   index?: number,
 ) {
-  const chainNames = agentConfig.chainNames;
+  const chainNames = agentConfig.contextChainNames;
   if (role === KEY_ROLE_ENUM.Validator && index === undefined) {
     throw Error('Expected index for validator role');
   }
@@ -110,16 +107,17 @@ export async function getAgentEnvVars<Chain extends ChainName>(
 
     const keyId = keyIdentifier(
       agentConfig.environment,
+      agentConfig.context,
       role,
       outboxChainName,
       index,
     );
 
-    // Only checkpointer and relayer need to sign txs
-    if (role === KEY_ROLE_ENUM.Checkpointer || role === KEY_ROLE_ENUM.Relayer) {
+    // Only the relayer or kathy need to sign txs
+    if (role === KEY_ROLE_ENUM.Relayer || role === KEY_ROLE_ENUM.Kathy) {
       chainNames.forEach((name) => {
         envVars.push(
-          `ABC_BASE_SIGNERS_${name.toUpperCase()}_KEY=${strip0x(
+          `ABC_BASE_SIGNERS_${name.toUpperCase()}_KEY=${utils.strip0x(
             gcpKeys[keyId].privateKey,
           )}`,
         );
@@ -129,7 +127,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       const privateKey = gcpKeys[keyId].privateKey;
 
       envVars.push(
-        `ABC_VALIDATOR_VALIDATOR_KEY=${strip0x(privateKey)}`,
+        `ABC_VALIDATOR_VALIDATOR_KEY=${utils.strip0x(privateKey)}`,
         `ABC_VALIDATOR_VALIDATOR_TYPE=hexKey`,
       );
     }
@@ -149,6 +147,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       }
       user = new ValidatorAgentAwsUser(
         agentConfig.environment,
+        agentConfig.context,
         outboxChainName,
         index!,
         checkpointSyncer.region,
@@ -157,6 +156,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
     } else {
       user = new AgentAwsUser(
         agentConfig.environment,
+        agentConfig.context,
         outboxChainName,
         role,
         agentConfig.aws!.region,
@@ -168,12 +168,8 @@ export async function getAgentEnvVars<Chain extends ChainName>(
     envVars.push(`AWS_ACCESS_KEY_ID=${accessKeys.accessKeyId}`);
     envVars.push(`AWS_SECRET_ACCESS_KEY=${accessKeys.secretAccessKey}`);
 
-    // Only checkpointer and relayer need to sign txs
-    if (
-      role === KEY_ROLE_ENUM.Checkpointer ||
-      role === KEY_ROLE_ENUM.Relayer ||
-      role === KEY_ROLE_ENUM.Kathy
-    ) {
+    // Only the relayer or kathy need to sign txs
+    if (role === KEY_ROLE_ENUM.Relayer || role === KEY_ROLE_ENUM.Kathy) {
       chainNames.forEach((chainName) => {
         const key = new AgentAwsKey(agentConfig, role, outboxChainName);
         envVars = envVars.concat(
@@ -189,25 +185,19 @@ export async function getAgentEnvVars<Chain extends ChainName>(
 
   switch (role) {
     case KEY_ROLE_ENUM.Validator:
-      envVars = envVars.concat(
-        configEnvVars(
-          valueDict.abacus.validator.configs[index!],
-          KEY_ROLE_ENUM.Validator,
-        ),
-      );
-      break;
-    case KEY_ROLE_ENUM.Relayer:
-      envVars = envVars.concat(
-        configEnvVars(valueDict.abacus.relayer.config, KEY_ROLE_ENUM.Relayer),
-      );
-      break;
-    case KEY_ROLE_ENUM.Checkpointer:
-      if (valueDict.abacus.checkpointer.config) {
+      if (valueDict.abacus.validator.configs) {
         envVars = envVars.concat(
           configEnvVars(
-            valueDict.abacus.checkpointer.config,
-            KEY_ROLE_ENUM.Checkpointer,
+            valueDict.abacus.validator.configs[index!],
+            KEY_ROLE_ENUM.Validator,
           ),
+        );
+      }
+      break;
+    case KEY_ROLE_ENUM.Relayer:
+      if (valueDict.abacus.relayer.config) {
+        envVars = envVars.concat(
+          configEnvVars(valueDict.abacus.relayer.config, KEY_ROLE_ENUM.Relayer),
         );
       }
       break;
@@ -278,9 +268,15 @@ export async function getSecretRpcEndpoint(
 
 export async function getSecretDeployerKey(
   environment: DeployEnvironment,
+  context: Contexts,
   chainName: ChainName,
 ) {
-  const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chainName);
+  const key = new AgentGCPKey(
+    environment,
+    context,
+    KEY_ROLE_ENUM.Deployer,
+    chainName,
+  );
   await key.fetch();
   return key.privateKey;
 }
@@ -290,7 +286,7 @@ async function getSecretRpcEndpoints<Chain extends ChainName>(
 ) {
   const environment = agentConfig.runEnv;
   return getSecretForEachChain(
-    agentConfig.chainNames,
+    agentConfig.contextChainNames,
     (name: ChainName) => `${environment}-rpc-endpoint-${name}`,
     false,
   );
@@ -329,7 +325,10 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
       : '';
 
   return execCmd(
-    `helm ${action} ${outboxChainName} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
+    `helm ${action} ${getHelmReleaseName(
+      outboxChainName,
+      agentConfig,
+    )} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
     {},
@@ -338,68 +337,16 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
   );
 }
 
-export async function runKeymasterHelmCommand(
-  action: HelmCommand,
-  agentConfig: AgentConfig<any>,
-) {
-  const chainNames = agentConfig.chainNames;
-  // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
-  const chainName = chainNames[0];
-  const gcpKeys = (await fetchKeysForChain(agentConfig, chainName)) as Record<
-    string,
-    AgentGCPKey
-  >;
-  const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
-  const config = {
-    networks: Object.fromEntries(
-      await Promise.all(
-        chainNames.map(async (name) => {
-          return [
-            name,
-            {
-              endpoint: await getSecretRpcEndpoint(
-                agentConfig.environment,
-                name,
-              ),
-              bank: {
-                signer: ensure0x(bankKey.privateKey),
-                address: bankKey.address,
-              },
-              threshold: 200000000000000000,
-            },
-          ];
-        }),
-      ),
-    ),
-    homes: Object.fromEntries(
-      chainNames.map((name) => {
-        return [
-          name,
-          {
-            replicas: chainNames,
-            addresses: Object.fromEntries(
-              KEY_ROLES.filter((_) => _.endsWith('signer')).map((role) => [
-                role,
-                gcpKeys[role].address,
-              ]),
-            ),
-          },
-        ];
-      }),
-    ),
-  };
-
-  await writeFile(`config.json`, JSON.stringify(config));
-
-  await execCmd(
-    `helm ${action} keymaster-${agentConfig.environment} ../../tools/keymaster/helm/keymaster/ --namespace ${agentConfig.namespace} --set-file keymaster.config=config.json`,
-    {},
-    false,
-    true,
-  );
-
-  await rm('config.json');
-  return;
+function getHelmReleaseName<Chain extends ChainName>(
+  outboxChainName: Chain,
+  agentConfig: AgentConfig<Chain>,
+): string {
+  // For backward compatibility reasons, don't include the context
+  // in the name of the helm release if the context is the default "abacus"
+  if (agentConfig.context === 'abacus') {
+    return outboxChainName;
+  }
+  return `${outboxChainName}-${agentConfig.context}`;
 }
 
 export async function getCurrentKubernetesContext(): Promise<string> {

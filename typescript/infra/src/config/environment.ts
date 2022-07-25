@@ -1,6 +1,12 @@
-import { CoreConfig, EnvironmentConfig } from '@abacus-network/deploy';
-import { ChainMap, ChainName, MultiProvider } from '@abacus-network/sdk';
+import {
+  ChainMap,
+  ChainName,
+  CoreConfig,
+  EnvironmentConfig,
+  MultiProvider,
+} from '@abacus-network/sdk';
 
+import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
 
 import { AgentConfig } from './agent';
@@ -18,10 +24,11 @@ export type EnvironmentChain<E extends DeployEnvironment> = Extract<
 export type CoreEnvironmentConfig<Chain extends ChainName> = {
   environment: DeployEnvironment;
   transactionConfigs: EnvironmentConfig<Chain>;
-  agent: AgentConfig<Chain>;
+  // Each AgentConfig, keyed by the context
+  agents: Partial<Record<Contexts, AgentConfig<Chain>>>;
   core: ChainMap<Chain, CoreConfig>;
   infra: InfrastructureConfig;
-  getMultiProvider: () => Promise<MultiProvider<Chain>>;
+  getMultiProvider: (context?: Contexts) => Promise<MultiProvider<Chain>>;
   helloWorld?: HelloWorldConfig<Chain>;
   relayerFunderConfig?: RelayerFunderConfig;
 };

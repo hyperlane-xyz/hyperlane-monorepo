@@ -4,16 +4,15 @@ import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 import { TestSendReceiver__factory } from '@abacus-network/core';
-import { utils as deployUtils } from '@abacus-network/deploy';
 import {
   AbacusCore,
   ChainName,
   ChainNameToDomainId,
+  getMultiProviderFromConfigAndSigner,
 } from '@abacus-network/sdk';
 
 import { getCoreEnvironmentConfig } from './scripts/utils';
 import { sleep } from './src/utils/utils';
-import { AbacusContractVerifier } from './src/verify';
 
 const chainSummary = async <Chain extends ChainName>(
   core: AbacusCore<Chain>,
@@ -47,82 +46,74 @@ const chainSummary = async <Chain extends ChainName>(
   return summary;
 };
 
-task('kathy', 'Dispatches random abacus messages').setAction(
-  async (_, hre: HardhatRuntimeEnvironment) => {
-    const environment = 'test';
-    const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
-    const config = getCoreEnvironmentConfig(environment);
-    const [signer] = await hre.ethers.getSigners();
-    const multiProvider = deployUtils.getMultiProviderFromConfigAndSigner(
-      config.transactionConfigs,
-      signer,
-    );
-    const core = AbacusCore.fromEnvironment(environment, multiProvider);
-
-    const randomElement = <T>(list: T[]) =>
-      list[Math.floor(Math.random() * list.length)];
-
-    // Deploy a recipient
-    const recipientF = new TestSendReceiver__factory(signer);
-    const recipient = await recipientF.deploy();
-    await recipient.deployTransaction.wait();
-
-    // Generate artificial traffic
-    while (true) {
-      const local = core.chains()[0];
-      const remote: ChainName = randomElement(core.remoteChains(local));
-      const remoteId = ChainNameToDomainId[remote];
-      const coreContracts = core.getContracts(local);
-      const outbox = coreContracts.outbox.contract;
-      const paymaster = coreContracts.interchainGasPaymaster;
-      // Send a batch of messages to the destination chain to test
-      // the relayer submitting only greedily
-      for (let i = 0; i < 10; i++) {
-        await recipient.dispatchToSelf(
-          outbox.address,
-          paymaster.address,
-          remoteId,
-          '0x1234',
-          {
-            value: interchainGasPayment,
-            // Some behavior is dependent upon the previous block hash
-            // so gas estimation may sometimes be incorrect. Just avoid
-            // estimation to avoid this.
-            gasLimit: 150_000,
-          },
-        );
-        console.log(
-          `send to ${recipient.address} on ${remote} at index ${
-            (await outbox.count()).toNumber() - 1
-          }`,
-        );
-        console.log(await chainSummary(core, local));
-        await sleep(5000);
-      }
-    }
-  },
-);
-
-const etherscanKey = process.env.ETHERSCAN_API_KEY;
-task('verify-deploy', 'Verifies abacus deploy sourcecode')
+task('kathy', 'Dispatches random abacus messages')
   .addParam(
-    'environment',
-    'The name of the environment from which to read configs',
+    'rounds',
+    'Number of message sending rounds to perform; defaults to having no limit',
+    '0',
   )
-  .addParam('type', 'The type of deploy to verify')
-  .setAction(async (args: any, hre: any) => {
-    const environment = args.environment;
-    const deployType = args.type;
-    if (!etherscanKey) {
-      throw new Error('set ETHERSCAN_API_KEY');
-    }
-    const verifier = new AbacusContractVerifier(
-      environment,
-      deployType,
-      etherscanKey,
-    );
-    await verifier.verify(hre);
-  });
+  .addParam('timeout', 'Time to wait between rounds in ms.', '5000')
+  .setAction(
+    async (
+      taskArgs: { rounds: string; timeout: string },
+      hre: HardhatRuntimeEnvironment,
+    ) => {
+      const timeout = Number.parseInt(taskArgs.timeout);
+      const environment = 'test';
+      const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
+      const config = getCoreEnvironmentConfig(environment);
+      const [signer] = await hre.ethers.getSigners();
+      const multiProvider = getMultiProviderFromConfigAndSigner(
+        config.transactionConfigs,
+        signer,
+      );
+      const core = AbacusCore.fromEnvironment(environment, multiProvider);
+
+      const randomElement = <T>(list: T[]) =>
+        list[Math.floor(Math.random() * list.length)];
+
+      // Deploy a recipient
+      const recipientF = new TestSendReceiver__factory(signer);
+      const recipient = await recipientF.deploy();
+      await recipient.deployTransaction.wait();
+
+      //  Generate artificial traffic
+      let rounds = Number.parseInt(taskArgs.rounds) || 0;
+      const run_forever = rounds === 0;
+      while (run_forever || rounds-- > 0) {
+        const local = core.chains()[0];
+        const remote: ChainName = randomElement(core.remoteChains(local));
+        const remoteId = ChainNameToDomainId[remote];
+        const coreContracts = core.getContracts(local);
+        const outbox = coreContracts.outbox.contract;
+        const paymaster = coreContracts.interchainGasPaymaster;
+        // Send a batch of messages to the destination chain to test
+        // the relayer submitting only greedily
+        for (let i = 0; i < 10; i++) {
+          await recipient.dispatchToSelf(
+            outbox.address,
+            paymaster.address,
+            remoteId,
+            '0x1234',
+            {
+              value: interchainGasPayment,
+              // Some behavior is dependent upon the previous block hash
+              // so gas estimation may sometimes be incorrect. Just avoid
+              // estimation to avoid this.
+              gasLimit: 150_000,
+            },
+          );
+          console.log(
+            `send to ${recipient.address} on ${remote} via outbox ${
+              outbox.address
+            } at index ${(await outbox.count()).toNumber() - 1}`,
+          );
+          console.log(await chainSummary(core, local));
+          await sleep(timeout);
+        }
+      }
+    },
+  );
 
 /**
  * @type import('hardhat/config').HardhatUserConfig

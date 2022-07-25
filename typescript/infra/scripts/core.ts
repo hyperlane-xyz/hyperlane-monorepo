@@ -30,7 +30,7 @@ async function main() {
     );
     partial_contracts = buildContracts(addresses, coreFactories);
   } catch (e) {
-    console.warn('Could not load partial core addresses', e);
+    console.info('Could not load partial core addresses, file may not exist');
   }
   try {
     const contracts = await deployer.deploy(partial_contracts);

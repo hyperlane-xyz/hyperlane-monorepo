@@ -14,5 +14,5 @@ members = [
     "gelato",
     "utils/abigen",
     "utils/backtrace-oneline",
-    "utils/loop-control",
+    "utils/run-locally",
 ]

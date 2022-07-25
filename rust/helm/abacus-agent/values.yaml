@@ -30,6 +30,7 @@ storage:
 abacus:
   # Sets the config folder to use
   runEnv: "default"
+  context: "abacus"
   # Sets the base config to be used (switch between Homes)
   baseConfig: "base.json"
   # Set the DB location to be the volume
@@ -58,6 +59,7 @@ abacus:
   # -- Replica chain overrides, a sequence
   inboxChains:
     - name: "alfajores"
+      disabled: false
       # -- The contract address for the replica contract
       address:
       domain:
@@ -116,30 +118,6 @@ abacus:
       multisigCheckpointSyncer:
         threshold:
         checkpointSyncers:
-
-  checkpointer:
-    enabled: false
-    podAnnotations:
-      prometheus.io/port: "9090"
-      prometheus.io/scrape: "true"
-    podLabels: {}
-    storage:
-      size: 10Gi
-      snapshot:
-        enabled: false
-        name: ""
-    resources:
-      requests:
-        cpu: 250m
-        memory: 1Gi
-    signers:
-      - name: "kovan"
-        # aws:
-      - name: "alfajores"
-        # aws:
-    config:
-      pollingInterval:
-      creationLatency:
 
   kathy:
     enabled: false

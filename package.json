@@ -16,14 +16,23 @@
   "private": true,
   "scripts": {
     "build": "yarn workspaces foreach --verbose --parallel --topological run build",
-    "publish": "yarn workspaces foreach --no-private --verbose --topological npm publish --access public",
+    "clean": "yarn workspaces foreach --verbose --parallel run clean",
     "postinstall": "husky install",
     "prettier": "yarn workspaces foreach --verbose --parallel run prettier",
     "lint-ts": "eslint . --ext .ts",
-    "test": "yarn workspaces foreach --verbose --parallel run test"
+    "test": "yarn workspaces foreach --verbose --parallel run test",
+    "version:check": "yarn version check --interactive",
+    "version:prepare": "yarn workspaces foreach --no-private --verbose --topological version --immediate",
+    "publish:all": "yarn workspaces foreach --no-private --verbose --topological npm publish --access public"
   },
   "workspaces": [
     "solidity/*",
     "typescript/*"
-  ]
+  ],
+  "resolutions": {
+    "underscore": "^1.13",
+    "fetch-ponyfill": "^7.1",
+    "lodash": "^4.17.21",
+    "async": "^2.6.4"
+  }
 }

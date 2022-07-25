@@ -44,7 +44,11 @@ pub struct CoreMetrics {
     span_durations: HistogramVec,
     span_events: IntCounterVec,
     last_known_message_leaf_index: IntGaugeVec,
-    retry_queue_length: IntGaugeVec,
+    submitter_queue_length: IntGaugeVec,
+    submitter_queue_duration_histogram: HistogramVec,
+
+    messages_processed_count: IntCounterVec,
+
     outbox_state: IntGaugeVec,
     latest_checkpoint: IntGaugeVec,
 
@@ -122,11 +126,26 @@ impl CoreMetrics {
             registry
         )?;
 
-        let retry_queue_length = register_int_gauge_vec_with_registry!(
+        let submitter_queue_length = register_int_gauge_vec_with_registry!(
             opts!(
-                namespaced!("processor_retry_queue"),
-                "Retry queue length of MessageProcessor",
+                namespaced!("submitter_queue_length"),
+                "Submitter queue length",
                 const_labels_ref
+            ),
+            &["origin", "remote", "queue_name"],
+            registry
+        )?;
+
+        let submitter_queue_duration_histogram = register_histogram_vec_with_registry!(
+            histogram_opts!(
+                namespaced!("submitter_queue_duration_seconds"),
+                concat!(
+                    "Time a message spends queued in the serial submitter measured from ",
+                    "insertion into channel from processor, ending after successful delivery ",
+                    "to provider."
+                ),
+                prometheus::exponential_buckets(0.5, 2., 19).unwrap(),
+                const_labels.clone()
             ),
             &["origin", "remote"],
             registry
@@ -156,6 +175,20 @@ impl CoreMetrics {
             registry
         )?;
 
+        // The value of `abacus_last_known_message_leaf_index{phase=message_processed}` should refer
+        // to the maximum leaf index value we ever successfully delivered. Since deliveries can
+        // happen out-of-index-order, we separately track this counter referring to the number of
+        // successfully delivered messages.
+        let messages_processed_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("messages_processed_count"),
+                "Number of messages processed",
+                const_labels_ref
+            ),
+            &["origin", "remote"],
+            registry
+        )?;
+
         Ok(Self {
             agent_name: for_agent.into(),
             registry,
@@ -166,7 +199,12 @@ impl CoreMetrics {
             span_durations,
             span_events,
             last_known_message_leaf_index,
-            retry_queue_length,
+
+            submitter_queue_length,
+            submitter_queue_duration_histogram,
+
+            messages_processed_count,
+
             outbox_state,
             latest_checkpoint,
 
@@ -276,9 +314,22 @@ impl CoreMetrics {
         self.latest_checkpoint.clone()
     }
 
-    /// Gauge for measuring the retry queue length in MessageProcessor
-    pub fn retry_queue_length(&self) -> IntGaugeVec {
-        self.retry_queue_length.clone()
+    /// Gauge for measuring the queue lengths in Submitter instances
+    pub fn submitter_queue_length(&self) -> IntGaugeVec {
+        self.submitter_queue_length.clone()
+    }
+
+    /// Histogram for measuring time spent until message submission, starting from the moment
+    /// that the message was discovered as "sendable" from AbacusDB and being enqueued with the
+    /// relevant `submitter`.
+    pub fn submitter_queue_duration_histogram(&self) -> HistogramVec {
+        self.submitter_queue_duration_histogram.clone()
+    }
+
+    /// Counter for the number of messages successfully submitted by
+    /// this process during its lifetime.
+    pub fn messages_processed_count(&self) -> IntCounterVec {
+        self.messages_processed_count.clone()
     }
 
     /// Histogram for measuring span durations.
