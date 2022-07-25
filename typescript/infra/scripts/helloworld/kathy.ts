@@ -11,31 +11,18 @@ import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
 import { getApp } from './utils';
 
-const constMetricLabels = {
-  // this needs to get set in main because of async reasons
-  abacus_deployment: '',
-  abacus_context: 'abacus',
-};
-
 const metricsRegister = new Registry();
 const messagesSendCount = new Counter({
   name: 'abacus_kathy_messages',
   help: 'Whether messages which have been sent from one chain to another successfully; will report 0 for unsuccessful and 1 for successful.',
   registers: [metricsRegister],
-  labelNames: [
-    'origin',
-    'remote',
-    'status',
-    ...(Object.keys(constMetricLabels) as (keyof typeof constMetricLabels)[]),
-  ],
+  labelNames: ['origin', 'remote', 'status'],
 });
 const currentPairingIndexGauge = new Gauge({
   name: 'abacus_kathy_pairing_index',
   help: 'The current message pairing index kathy is on, this is useful for seeing if kathy is always crashing around the same pairing as pairings are deterministically ordered.',
   registers: [metricsRegister],
-  labelNames: [
-    ...(Object.keys(constMetricLabels) as (keyof typeof constMetricLabels)[]),
-  ],
+  labelNames: [],
 });
 metricsRegister.registerMetric(messagesSendCount);
 metricsRegister.registerMetric(currentPairingIndexGauge);
@@ -43,7 +30,6 @@ metricsRegister.registerMetric(currentPairingIndexGauge);
 async function main() {
   startMetricsServer(metricsRegister);
   const environment = await getEnvironment();
-  constMetricLabels.abacus_deployment = environment;
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
   const chains = app.chains() as Chains[];
@@ -99,7 +85,6 @@ async function main() {
     const labels = {
       origin: source,
       remote: destination,
-      ...constMetricLabels,
     };
     try {
       await sendMessage(app, source, destination);

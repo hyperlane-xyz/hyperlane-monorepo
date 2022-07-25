@@ -1,32 +1,30 @@
-apiVersion: batch/v1
-kind: CronJob
+apiVersion: apps/v1
+kind: StatefulSet
 metadata:
   name: helloworld-kathy
+  labels: &metadata_labels
+    abacus/deployment: {{ .Values.abacus.runEnv | quote }}
+    abacus/context: {{ .Values.abacus.context | quote }}
+    app.kubernetes.io/component: kathy
 spec:
-  schedule: "{{ .Values.cronjob.schedule }}"
-  successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
-  failedJobsHistoryLimit: {{ .Values.cronjob.failedJobsHistoryLimit }}
-  concurrencyPolicy: Forbid
-  jobTemplate:
+  template:
+    metadata:
+      labels: *metadata_labels
     spec:
-      backoffLimit: 0
-      template:
-        spec:
-          restartPolicy: Never
-          containers:
-          - name: helloworld-kathy
-            image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-            imagePullPolicy: IfNotPresent
-            command:
-            - ./node_modules/.bin/ts-node
-            - ./typescript/infra/scripts/helloworld/kathy.ts
-            - -e
-            - {{ .Values.abacus.runEnv }}
-            envFrom:
-            - secretRef:
-                name: helloworld-kathy-secret
-            env:
-            - name: CHAINS_TO_SKIP
-              value: {{ join "," .Values.chainsToSkip }}
-            - name: PROMETHEUS_PUSH_GATEWAY
-              value: {{ .Values.infra.prometheusPushGateway }}
+      containers:
+      - name: helloworld-kathy
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: IfNotPresent
+        command:
+        - ./node_modules/.bin/ts-node
+        - ./typescript/infra/scripts/helloworld/kathy.ts
+        - -e
+        - {{ .Values.abacus.runEnv }}
+        envFrom:
+        - secretRef:
+            name: helloworld-kathy-secret
+        env:
+        - name: CHAINS_TO_SKIP
+          value: {{ join "," .Values.chainsToSkip }}
+        - name: PROMETHEUS_PUSH_GATEWAY
+          value: {{ .Values.infra.prometheusPushGateway }}
