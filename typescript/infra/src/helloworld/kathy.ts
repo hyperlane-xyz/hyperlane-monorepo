@@ -25,9 +25,7 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
 ) {
   const values = {
     chainsToSkip: kathyConfig.chainsToSkip,
-    cronjob: {
-      schedule: kathyConfig.cronSchedule,
-    },
+    fullCycleTime: kathyConfig.fullCycleTime,
     abacus: {
       runEnv: kathyConfig.runEnv,
       // This is just used for fetching secrets, and is not actually
@@ -39,9 +37,6 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
     image: {
       repository: kathyConfig.docker.repo,
       tag: kathyConfig.docker.tag,
-    },
-    infra: {
-      prometheusPushGateway: kathyConfig.prometheusPushGateway,
     },
   };
 
