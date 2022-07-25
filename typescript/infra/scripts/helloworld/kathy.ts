@@ -72,7 +72,7 @@ async function main() {
     process.exit(1);
   }
 
-  // track how many we area still allowed to send in case some messages send slower than expected.
+  // track how many we are still allowed to send in case some messages send slower than expected.
   let allowedToSend = 0;
   setInterval(() => {
     allowedToSend++;

@@ -4,11 +4,11 @@ import { DockerConfig } from './agent';
 
 export interface HelloWorldKathyConfig<Chain extends ChainName> {
   docker: DockerConfig;
-  cronSchedule: string;
   runEnv: string;
   namespace: string;
   chainsToSkip: Chain[];
-  prometheusPushGateway: string;
+  /** How long kathy should take to send a message to all chain pairs before looping (milliseconds) */
+  fullCycleTime: number;
 }
 
 export interface HelloWorldConfig<Chain extends ChainName> {
