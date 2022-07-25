@@ -288,7 +288,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
       to: utils.bytes32ToAddress(message.recipient),
       from: destinationInbox.address,
       data: handlerInterface.encodeFunctionData('handle', [
-        message.origin,
+        chainMetadata[message.origin].id,
         message.sender,
         message.body,
       ]),
