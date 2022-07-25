@@ -146,7 +146,7 @@ impl MessageProcessor {
         }
 
         // Skip if not whitelisted.
-        if !self.whitelist.msg_matches(&message.message) {
+        if !self.whitelist.msg_matches(&message.message, true) {
             debug!(
                 inbox_name=?self.inbox_contracts.inbox.chain_name(),
                 local_domain=?self.inbox_contracts.inbox.local_domain(),
@@ -159,7 +159,7 @@ impl MessageProcessor {
         }
 
         // skip if the message is blacklisted
-        if self.blacklist.msg_not_matches(&message.message) {
+        if self.blacklist.msg_matches(&message.message, false) {
             debug!(
                 inbox_name=?self.inbox_contracts.inbox.chain_name(),
                 local_domain=?self.inbox_contracts.inbox.local_domain(),

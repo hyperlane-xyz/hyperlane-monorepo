@@ -9,17 +9,18 @@ use serde::{Deserialize, Deserializer};
 
 use abacus_core::AbacusMessage;
 
-/// Defines a set of patterns for determining if a message should or should not be relayed. This
-/// is useful for determing if a message matches a given set or rules.
+/// Defines a set of patterns for determining if a message should or should not
+/// be relayed. This is useful for determing if a message matches a given set or
+/// rules.
 ///
-/// If no whitelist is provided ALL messages will be considered on the whitelist.
-/// If no blacklist is provided ALL will be considered to not be on the blacklist.
+/// If no whitelist is provided ALL messages will be considered on the
+/// whitelist. If no blacklist is provided ALL will be considered to not be on
+/// the blacklist.
 ///
 /// Valid options for each of the tuple elements are
 /// - wildcard "*"
 /// - single value in decimal or hex (must start with `0x`) format
 /// - list of values in decimal or hex format
-/// - defaults to wildcards
 #[derive(Debug, Deserialize, Default, Clone)]
 #[serde(transparent)]
 pub struct MatchingList(Option<Vec<ListElement>>);
@@ -218,29 +219,19 @@ impl<'a> From<&'a AbacusMessage> for MatchInfo<'a> {
 }
 
 impl MatchingList {
-    pub fn msg_not_matches(&self, msg: &AbacusMessage) -> bool {
-        self.not_matches(msg.into())
+    /// Check if a message matches any of the rules.
+    /// - `default`: What to return if the the matching list is empty.
+    pub fn msg_matches(&self, msg: &AbacusMessage, default: bool) -> bool {
+        self.matches(msg.into(), default)
     }
 
-    pub fn msg_matches(&self, msg: &AbacusMessage) -> bool {
-        self.matches(msg.into())
-    }
-
-    fn matches(&self, info: MatchInfo) -> bool {
+    /// Check if a message matches any of the rules.
+    /// - `default`: What to return if the the matching list is empty.
+    fn matches(&self, info: MatchInfo, default: bool) -> bool {
         if let Some(rules) = &self.0 {
             matches_any_rule(rules.iter(), info)
         } else {
-            // by default if there is no whitelist, allow everything
-            true
-        }
-    }
-
-    fn not_matches(&self, info: MatchInfo) -> bool {
-        if let Some(rules) = &self.0 {
-            matches_any_rule(rules.iter(), info)
-        } else {
-            // by default if there is no blacklist, disallow nothing
-            false
+            default
         }
     }
 }
