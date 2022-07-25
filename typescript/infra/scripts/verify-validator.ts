@@ -41,10 +41,10 @@ async function main() {
 
   const metrics = await prospectiveValidator.compare(controlValidator);
 
-  // console.log(JSON.stringify(metrics, null, 2));
+  console.log(JSON.stringify(metrics, null, 2));
 
-  const statuses = metrics.map((m) => m.status).join();
-  console.log(statuses);
+  //const statuses = metrics.map((m) => m.status).join();
+  //console.log(statuses);
 
   // const violations = metrics
   //   .map((metric, index) => ({ index, metric }))

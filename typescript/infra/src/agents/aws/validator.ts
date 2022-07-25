@@ -13,6 +13,7 @@ interface CheckpointMetric {
   status: CheckpointStatus;
   delta?: number;
   violation?: string;
+  index: number;
 }
 
 // TODO: merge with types.Checkpoint
@@ -67,6 +68,7 @@ export class S3Validator extends BaseValidator {
     for (; actualLatestIndex > expectedLatestIndex; actualLatestIndex--) {
       checkpointMetrics[actualLatestIndex] = {
         status: CheckpointStatus.EXTRA,
+        index: actualLatestIndex,
       };
     }
 
@@ -74,6 +76,7 @@ export class S3Validator extends BaseValidator {
     for (; expectedLatestIndex > actualLatestIndex; expectedLatestIndex--) {
       checkpointMetrics[expectedLatestIndex] = {
         status: CheckpointStatus.MISSING,
+        index: expectedLatestIndex,
       };
     }
 
@@ -81,24 +84,31 @@ export class S3Validator extends BaseValidator {
       const expected = await other.getCheckpointReceipt(actualLatestIndex);
       const actual = await this.getCheckpointReceipt(actualLatestIndex);
 
-      const metric: CheckpointMetric = { status: CheckpointStatus.INVALID };
-      if (expected && actual) {
-        metric.delta =
-          actual.modified.getSeconds() - expected.modified.getSeconds();
-        if (expected.data.root !== actual.data.root) {
-          metric.violation = `root mismatch: expected ${expected.data.root}, received ${actual.data.root}`;
-        } else if (expected.data.index !== actual.data.index) {
-          metric.violation = `index mismatch: expected ${expected.data.index}, received ${actual.data.index}`;
-        }
-      }
+      const metric: CheckpointMetric = {
+        status: CheckpointStatus.MISSING,
+        index: actualLatestIndex,
+      };
 
-      if (actual && !this.matchesSigner(actual.data)) {
-        const signerAddress = this.recoverAddressFromCheckpoint(actual.data);
-        metric.violation = `signer mismatch: expected ${this.address}, received ${signerAddress}`;
-      }
-
-      if (!metric.violation) {
+      if (actual) {
         metric.status = CheckpointStatus.VALID;
+        if (!this.matchesSigner(actual.data)) {
+          const signerAddress = this.recoverAddressFromCheckpoint(actual.data);
+          metric.violation = `signer mismatch: expected ${this.address}, received ${signerAddress}`;
+        }
+
+        if (expected) {
+          metric.delta =
+            actual.modified.getSeconds() - expected.modified.getSeconds();
+          if (expected.data.root !== actual.data.root) {
+            metric.violation = `root mismatch: expected ${expected.data.root}, received ${actual.data.root}`;
+          } else if (expected.data.index !== actual.data.index) {
+            metric.violation = `index mismatch: expected ${expected.data.index}, received ${actual.data.index}`;
+          }
+        }
+
+        if (metric.violation) {
+          metric.status = CheckpointStatus.INVALID;
+        }
       }
 
       checkpointMetrics[actualLatestIndex] = metric;
