@@ -15,7 +15,13 @@ async function check() {
     config.core,
   );
   await coreChecker.check();
-  coreChecker.expectEmpty();
+
+  if (coreChecker.violations.length > 0) {
+    console.error(coreChecker.violations);
+    throw new Error(
+      `Checking core deploy yielded ${coreChecker.violations.length} violations`,
+    );
+  }
 }
 
 check().then(console.log).catch(console.error);
