@@ -181,21 +181,21 @@ impl<'de> Deserialize<'de> for Filter<H256> {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(tag = "type")]
 struct ListElement {
-    #[serde(default, rename = )]
-    source_domain: Filter<u32>,
-    #[serde(default)]
-    source_address: Filter<H256>,
-    #[serde(default)]
-    destination_domain: Filter<u32>,
-    #[serde(default)]
-    destination_address: Filter<H256>,
+    #[serde(default, rename = "sourceDomain")]
+    src_domain: Filter<u32>,
+    #[serde(default, rename = "sourceAddress")]
+    src_address: Filter<H256>,
+    #[serde(default, rename = "destinationDomain")]
+    dst_domain: Filter<u32>,
+    #[serde(default, rename = "destinationAddress")]
+    dst_address: Filter<H256>,
 }
 
 impl Display for ListElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{{sourceDomain: {}, sourceAddress: {}, destinationDomain: {}, destinationAddress: {}}}", self.source_domain, self.source_address, self.destination_domain, self.destination_address)
+        write!(f, "{{sourceDomain: {}, sourceAddress: {}, destinationDomain: {}, destinationAddress: {}}}", self.src_domain, self.src_address, self.dst_domain, self.dst_address)
     }
 }
 
@@ -238,10 +238,10 @@ impl MatchingList {
 
 fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: MatchInfo) -> bool {
     rules.any(|rule| {
-        rule.source_domain.matches(&info.src_domain)
-            && rule.source_address.matches(info.src_addr)
-            && rule.destination_domain.matches(&info.dst_domain)
-            && rule.destination_address.matches(info.dst_addr)
+        rule.src_domain.matches(&info.src_domain)
+            && rule.src_address.matches(info.src_addr)
+            && rule.dst_domain.matches(&info.dst_domain)
+            && rule.dst_address.matches(info.dst_addr)
     })
 }
 
@@ -284,16 +284,16 @@ mod test {
         assert!(whitelist.0.is_some());
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 2);
         let elem = &whitelist.0.as_ref().unwrap()[0];
-        assert_eq!(elem.destination_domain, Wildcard);
-        assert_eq!(elem.destination_address, Wildcard);
-        assert_eq!(elem.source_domain, Wildcard);
-        assert_eq!(elem.source_address, Wildcard);
+        assert_eq!(elem.dst_domain, Wildcard);
+        assert_eq!(elem.dst_address, Wildcard);
+        assert_eq!(elem.src_domain, Wildcard);
+        assert_eq!(elem.src_address, Wildcard);
 
         let elem = &whitelist.0.as_ref().unwrap()[1];
-        assert_eq!(elem.destination_domain, Wildcard);
-        assert_eq!(elem.destination_address, Wildcard);
-        assert_eq!(elem.source_domain, Wildcard);
-        assert_eq!(elem.source_address, Wildcard);
+        assert_eq!(elem.dst_domain, Wildcard);
+        assert_eq!(elem.dst_address, Wildcard);
+        assert_eq!(elem.src_domain, Wildcard);
+        assert_eq!(elem.src_address, Wildcard);
     }
 
     #[test]
@@ -302,17 +302,17 @@ mod test {
         assert!(whitelist.0.is_some());
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
         let elem = &whitelist.0.as_ref().unwrap()[0];
-        assert_eq!(elem.destination_domain, Wildcard);
+        assert_eq!(elem.dst_domain, Wildcard);
         assert_eq!(
-            elem.destination_address,
+            elem.dst_address,
             Enumerated(vec!["0x9d4454B023096f34B160D6B654540c56A1F81688"
                 .parse::<H160>()
                 .unwrap()
                 .into()])
         );
-        assert_eq!(elem.source_domain, Wildcard);
+        assert_eq!(elem.src_domain, Wildcard);
         assert_eq!(
-            elem.source_address,
+            elem.src_address,
             Enumerated(vec!["0x9d4454B023096f34B160D6B654540c56A1F81688"
                 .parse::<H160>()
                 .unwrap()
@@ -327,9 +327,9 @@ mod test {
         assert!(whitelist.0.is_some());
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
         let elem = &whitelist.0.as_ref().unwrap()[0];
-        assert_eq!(elem.destination_domain, Enumerated(vec![13372, 13373]));
-        assert_eq!(elem.destination_address, Wildcard);
-        assert_eq!(elem.source_domain, Wildcard);
-        assert_eq!(elem.source_address, Wildcard);
+        assert_eq!(elem.dst_domain, Enumerated(vec![13372, 13373]));
+        assert_eq!(elem.dst_address, Wildcard);
+        assert_eq!(elem.src_domain, Wildcard);
+        assert_eq!(elem.src_address, Wildcard);
     }
 }
