@@ -8,6 +8,9 @@ export type ChainMetadata = {
   finalityBlocks: number;
   nativeTokenDecimals?: number;
   paginate?: RpcPagination;
+  // The CoinGecko API expects, in some cases, IDs that do not match
+  // ChainNames.
+  coinGeckoId?: string;
 };
 
 /**
@@ -37,17 +40,18 @@ export const ethereum: ChainMetadata = {
 
 export const arbitrum: ChainMetadata = {
   id: 0x617262, // b'arb' interpreted as an int
-  finalityBlocks: 1,
+  finalityBlocks: 0,
 };
 
 export const optimism: ChainMetadata = {
   id: 0x6f70, // b'op' interpreted as an int
-  finalityBlocks: 1,
+  finalityBlocks: 0,
 };
 
 export const bsc: ChainMetadata = {
   id: 0x627363, // b'bsc' interpreted as an int
   finalityBlocks: 15,
+  coinGeckoId: 'binancecoin',
 };
 
 export const avalanche: ChainMetadata = {
@@ -58,6 +62,7 @@ export const avalanche: ChainMetadata = {
     blocks: 100000,
     from: 6765067,
   },
+  coinGeckoId: 'avalanche-2',
 };
 
 export const polygon: ChainMetadata = {
@@ -68,6 +73,7 @@ export const polygon: ChainMetadata = {
     blocks: 10000,
     from: 19657100,
   },
+  coinGeckoId: 'matic-network',
 };
 
 /**
@@ -125,12 +131,12 @@ export const bsctestnet: ChainMetadata = {
 
 export const arbitrumrinkeby: ChainMetadata = {
   id: 0x61722d72, // b'ar-r' interpreted as an int
-  finalityBlocks: 1,
+  finalityBlocks: 0,
 };
 
 export const optimismkovan: ChainMetadata = {
   id: 0x6f702d6b, // b'op-k' interpreted as an int
-  finalityBlocks: 1,
+  finalityBlocks: 0,
 };
 
 export const auroratestnet: ChainMetadata = {

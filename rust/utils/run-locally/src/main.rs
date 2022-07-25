@@ -230,7 +230,7 @@ fn main() -> ExitCode {
     // }
     state.node = Some(node);
 
-    sleep(Duration::from_secs(5));
+    sleep(Duration::from_secs(10));
 
     println!("Deploying abacus contracts...");
     let status = Command::new("yarn")

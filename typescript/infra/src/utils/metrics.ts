@@ -12,11 +12,21 @@ function getPushGateway(register: Registry): Pushgateway | null {
   }
 }
 
-export async function submitMetrics(register: Registry, jobName: string) {
+export async function submitMetrics(
+  register: Registry,
+  jobName: string,
+  options?: { appendMode?: boolean },
+) {
   const gateway = getPushGateway(register);
   if (!gateway) return;
 
-  const { resp } = await gateway.push({ jobName });
+  let resp;
+  if (options?.appendMode) {
+    resp = (await gateway.pushAdd({ jobName })).resp;
+  } else {
+    resp = (await gateway.push({ jobName })).resp;
+  }
+
   const statusCode =
     typeof resp == 'object' && resp != null && 'statusCode' in resp
       ? (resp as any).statusCode
