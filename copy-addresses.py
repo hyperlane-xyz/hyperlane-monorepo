@@ -1,12 +1,14 @@
 import json
 
-
-f = open('typescript/sdk/src/consts/environments/testnet2.json')
+f = open('typescript/sdk/src/consts/environments/mainnet.json')
 
 data = json.load(f)
 
+def capitalize(s):
+    return s[0].upper() + s[1:]
+
 def h(n, s):
-    return '#' * n + ' ' + s[0].upper() + s[1:]
+    return '#' * n + ' ' + capitalize(s)
 
 def codeline(s):
     return '`' + s + '`'
@@ -14,12 +16,27 @@ def codeline(s):
 def codeblock(s):
     return '```\n' + s + '\n```'
 
-for [network, struct] in data.items():
-    print(h(1, network))
-    print(h(2, 'Outbox'))
-    print(codeline(struct['outbox']['proxy']))
-    print(h(2, 'Inboxes'))
-    for [inboxNetwork, inboxStruct] in struct['inboxes'].items():
-        print(h(3, inboxNetwork))
-        print(codeline(inboxStruct['inbox']['proxy']))
-    # outbox = addresses.outbox
+def table(headers, rows):
+    return '| ' + ' | '.join(headers) + ' |\n' + '| ' + ' | '.join(['---'] * len(headers)) + ' |\n' + '\n'.join(['| ' + ' | '.join(row) + ' |' for row in rows])
+
+def outbox_table():
+    headers = ['Network', 'Address']
+    rows = []
+    for [network, struct] in data.items():
+        rows.append([capitalize(network), codeline(struct['outbox']['proxy'])])
+    return table(headers, rows)
+
+def inboxes_table():
+    headers = ['Network', 'Origin', 'Address']
+    rows = []
+    for [network, struct] in data.items():
+        for [inboxNetwork, inboxStruct] in struct['inboxes'].items():
+            rows.append([capitalize(network), capitalize(inboxNetwork), codeline(inboxStruct['inbox']['proxy'])])
+        # print(h(3, inboxNetwork))
+        # print(codeline(inboxStruct['inbox']['proxy']))
+    return table(headers, rows)
+
+print(outbox_table())
+
+print(inboxes_table())
+
