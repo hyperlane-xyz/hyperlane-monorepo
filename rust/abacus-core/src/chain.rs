@@ -120,10 +120,6 @@ mod tests {
     /// currently parse the older files in `config/dev/` or
     /// `config/testnet`.
     const BLACKLISTED_DIRS: [&str; 5] = [
-        // Old envs which do not set now-required field
-        // "finality_blocks", which causes parsing to fail.
-        "config/dev/",
-        "config/testnet/",
         // Ignore only-local names of fake chains used by
         // e.g. test suites.
         "test/test1_config.json",
