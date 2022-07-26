@@ -56,7 +56,7 @@ export const bsc: ChainMetadata = {
 
 export const avalanche: ChainMetadata = {
   id: 0x61766178, // b'avax' interpreted as an int
-  finalityBlocks: 1,
+  finalityBlocks: 3,
   paginate: {
     // Needs to be low to avoid RPC timeouts
     blocks: 100000,

@@ -20,7 +20,7 @@
       "domain": "1635148152",
       "name": "avalanche",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "1",
+      "finalityBlocks": "3",
       "connection": {
         "type": "http",
         "url": ""
