@@ -6,7 +6,7 @@
       "domain": "1000",
       "name": "alfajores",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "1",
+      "finalityBlocks": "0",
       "connection": {
         "type": "http",
         "url": ""
