@@ -300,7 +300,7 @@ impl CoreMetrics {
         self.outbox_state.clone()
     }
 
-    /// Latest message leaf index observed on a checkpoint observed on the
+    /// Latest message leaf index observed on a checkpoint on the
     /// outbox contract.
     ///
     /// Phase:
