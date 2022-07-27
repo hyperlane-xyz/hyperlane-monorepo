@@ -300,12 +300,11 @@ impl CoreMetrics {
         self.outbox_state.clone()
     }
 
-    /// Latest message leaf index observed on a checkpoint on the
-    /// outbox contract.
+    /// Latest message leaf index in the validator.
     ///
     /// Phase:
-    /// - `validator_observed`: When the validator has begun processing this
-    ///   checkpoint.
+    /// - `validator_observed`: When the validator has observed the checkpoint
+    ///   on the outbox contract.
     /// - `validator_processed`: When the validator has written this checkpoint.
     pub fn latest_checkpoint(&self) -> IntGaugeVec {
         self.latest_checkpoint.clone()
