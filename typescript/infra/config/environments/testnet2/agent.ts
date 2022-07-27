@@ -27,10 +27,10 @@ export const abacus: AgentConfig<TestnetChains> = {
     },
     chainOverrides: {
       alfajores: {
-        reorgPeriod: 1,
+        reorgPeriod: 0,
       },
       fuji: {
-        reorgPeriod: 1,
+        reorgPeriod: 3,
       },
       kovan: {
         reorgPeriod: 7,

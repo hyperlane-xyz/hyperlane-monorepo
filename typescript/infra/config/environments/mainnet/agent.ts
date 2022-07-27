@@ -27,7 +27,7 @@ export const abacus: AgentConfig<MainnetChains> = {
     },
     chainOverrides: {
       celo: {
-        reorgPeriod: 1,
+        reorgPeriod: 0,
       },
       ethereum: {
         reorgPeriod: 20,
@@ -42,7 +42,7 @@ export const abacus: AgentConfig<MainnetChains> = {
         reorgPeriod: 0,
       },
       avalanche: {
-        reorgPeriod: 1,
+        reorgPeriod: 3,
       },
       polygon: {
         reorgPeriod: 256,

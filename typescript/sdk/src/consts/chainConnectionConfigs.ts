@@ -33,7 +33,7 @@ export const avalanche: IChainConnection = {
     'https://api.avax.network/ext/bc/C/rpc',
     43114,
   ),
-  confirmations: 1,
+  confirmations: 3,
   blockExplorerUrl: 'https://snowtrace.io',
 };
 
@@ -70,7 +70,7 @@ export const alfajores: IChainConnection = {
     'https://alfajores-forno.celo-testnet.org',
     44787,
   ),
-  confirmations: 1,
+  confirmations: 0,
   blockExplorerUrl: 'https://alfajores-blockscout.celo-testnet.org/',
 };
 
@@ -87,7 +87,7 @@ export const fuji: IChainConnection = {
     'https://api.avax-test.network/ext/bc/C/rpc',
     43113,
   ),
-  confirmations: 1,
+  confirmations: 3,
   blockExplorerUrl: 'https://testnet.snowtrace.io/',
 };
 
