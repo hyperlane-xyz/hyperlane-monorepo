@@ -285,7 +285,6 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     // Estimates a direct call to the `handle` function of the recipient
     // with the `from` address set to the inbox.
     // This includes intrinsic gas.
-    console.log('estimating direct handle gas...');
     const directHandleCallGas = await provider.estimateGas({
       to: utils.bytes32ToAddress(message.recipient),
       from: destinationInbox.address,
@@ -295,7 +294,6 @@ export class InterchainGasCalculator<Chain extends ChainName> {
         message.body,
       ]),
     });
-    console.log('estimated direct handle gas...');
 
     // Subtract intrinsic gas, which is included in directHandleCallGas.
     // Note the "real" intrinsic gas will always be higher than this.intrinsicGas
