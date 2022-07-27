@@ -67,10 +67,16 @@ export async function getContext(): Promise<Contexts> {
 export async function getContextAgentConfig<Chain extends ChainName>(
   coreEnvironmentConfig?: CoreEnvironmentConfig<Chain>,
 ) {
+  return getAgentConfig(await getContext(), coreEnvironmentConfig);
+}
+
+export async function getAgentConfig<Chain extends ChainName>(
+  context: Contexts,
+  coreEnvironmentConfig?: CoreEnvironmentConfig<Chain>,
+) {
   const coreConfig = coreEnvironmentConfig
     ? coreEnvironmentConfig
     : await getEnvironmentConfig();
-  const context = await getContext();
   const agentConfig = coreConfig.agents[context];
   if (!agentConfig) {
     throw Error(

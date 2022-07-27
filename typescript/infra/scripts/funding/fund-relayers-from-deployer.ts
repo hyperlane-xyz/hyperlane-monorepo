@@ -1,18 +1,20 @@
 import { Console } from 'console';
 import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
+import { format } from 'util';
 
 import { ChainConnection, CompleteChainMap } from '@abacus-network/sdk';
 
+import { Contexts } from '../../config/contexts';
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
 import { getRelayerKeys } from '../../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { submitMetrics } from '../../src/utils/metrics';
-import { readJSONAtPath } from '../../src/utils/utils';
+import { assertContext, readJSONAtPath } from '../../src/utils/utils';
 import {
   assertEnvironment,
+  getAgentConfig,
   getArgs,
-  getContextAgentConfig,
   getCoreEnvironmentConfig,
 } from '../utils';
 
@@ -95,6 +97,10 @@ async function fundRelayer(
       relayer: relayerInfo,
       amount: ethers.utils.formatEther(delta),
     });
+
+    log('jk not doing it tho');
+    return;
+
     const tx = await chainConnection.signer!.sendTransaction({
       to: relayer.address,
       value: delta,
@@ -121,22 +127,29 @@ async function fundRelayer(
 
 async function main() {
   const argv = await getArgs()
-    .alias('f', 'addresses-file')
+    .string('f')
+    .array('f')
+    .alias('f', 'address-files')
     .describe(
       'f',
-      'File continaining a JSON array of identifier and address objects',
+      'Files each containing JSON arrays of identifier and address objects',
     )
-    .string('f').argv;
+    .string('contexts-to-fund')
+    .array('contexts-to-fund')
+    .describe('contexts-to-fund', 'Contexts to fund relayers for')
+    .coerce('contexts-to-fund', (contexts: string[]) => {
+      return contexts.map(assertContext);
+    })
+    .demandOption('contexts-to-fund').argv;
 
   const environment = assertEnvironment(argv.e as string);
   constMetricLabels.abacus_deployment = environment;
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
-  const agentConfig = await getContextAgentConfig(config);
 
   const relayerKeys = argv.f
-    ? getRelayerKeysFromSerializedAddressFile(argv.f)
-    : getRelayerKeys(agentConfig);
+    ? getRelayerKeysFromSerializedAddressFiles(argv.f)
+    : await getRelayerKeysForContexts(argv.contextsToFund);
 
   const chains = relayerKeys.map((key) => key.chainName!);
   let failureOccurred = false;
@@ -196,14 +209,14 @@ async function main() {
   }
 }
 
-function getRelayerKeysFromSerializedAddressFile(path: string): AgentKey[] {
-  log('Reading keys from file', {
-    path,
+function getRelayerKeysFromSerializedAddressFiles(paths: string[]): AgentKey[] {
+  log('Reading keys from files', {
+    paths,
   });
-  // Should be an array of { identifier: '', address: '' }
-  const idAndAddresses = readJSONAtPath(path);
 
-  return idAndAddresses
+  const allIdsAndAddresses = paths.flatMap(readJSONAtPath);
+
+  return allIdsAndAddresses
     .map((idAndAddress: any) =>
       ReadOnlyAgentKey.fromSerializedAddress(
         idAndAddress.identifier,
@@ -213,13 +226,19 @@ function getRelayerKeysFromSerializedAddressFile(path: string): AgentKey[] {
     .filter((key: AgentKey) => key.role === KEY_ROLE_ENUM.Relayer);
 }
 
+async function getRelayerKeysForContexts(contexts: Contexts[]) {
+  const nested = await Promise.all(
+    contexts.map(async (context: Contexts) => {
+      const agentConfig = await getAgentConfig(context);
+      return getRelayerKeys(agentConfig);
+    }),
+  );
+  return nested.flat();
+}
+
 function log(message: string, data?: any) {
   logWithFunction(console.log, message, data);
 }
-
-// function warn(message: string, data?: any) {
-//   logWithFunction(console.warn, message, data);
-// }
 
 function error(message: string, data?: any) {
   logWithFunction(console.error, message, data);
@@ -247,7 +266,9 @@ function relayerKeyInfo(relayerKey: AgentKey) {
 
 main().catch((err) => {
   error('Error occurred in main', {
-    error: err,
+    // JSON.stringifying an Error returns '{}'.
+    // This is a workaround from https://stackoverflow.com/a/60370781
+    error: format(err),
   });
   process.exit(1);
 });
