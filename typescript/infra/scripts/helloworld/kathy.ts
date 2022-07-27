@@ -40,7 +40,6 @@ async function main() {
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
   const multiProvider = await coreConfig.getMultiProvider();
-  const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
   const gasCalc = InterchainGasCalculator.fromEnvironment(
     environment,
     multiProvider as any,
