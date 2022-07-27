@@ -3,7 +3,6 @@ import { Gauge, Registry } from 'prom-client';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
 import {
-  AbacusCore,
   ChainName,
   Chains,
   InterchainGasCalculator,
