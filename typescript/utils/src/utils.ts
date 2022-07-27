@@ -1,5 +1,6 @@
 import { ethers, utils } from 'ethers';
 
+import { Checkpoint } from './types';
 import { Address, Domain, HexString, ParsedMessage } from './types';
 
 export function assert(predicate: any, errorMessage?: string) {
@@ -17,27 +18,6 @@ export const ensure0x = (hexstr: string) =>
 
 export const strip0x = (hexstr: string) =>
   hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
-
-/*
- * Gets the byte length of a hex string
- *
- * @param hexStr - the hex string
- * @return byteLength - length in bytes
- */
-export function getHexStringByteLength(hexStr: string) {
-  const len = strip0x(hexStr).length;
-
-  // divide by 2 to get the byte length
-  return len / 2;
-}
-
-export const stringToBytes32 = (s: string): string => {
-  const str = Buffer.from(s.slice(0, 32), 'utf-8');
-  const result = Buffer.alloc(32);
-  str.copy(result);
-
-  return ensure0x(result.toString('hex'));
-};
 
 export function addressToBytes32(address: Address): string {
   return ethers.utils
@@ -138,4 +118,50 @@ export async function retryAsync<T>(
     }
   }
   throw saveError;
+}
+
+export function median(a: number[]): number {
+  const sorted = a.slice().sort();
+  const mid = Math.floor(sorted.length / 2);
+  const median =
+    sorted.length % 2 == 0 ? (sorted[mid] + sorted[mid + 1]) / 2 : sorted[mid];
+  return median;
+}
+
+export function sum(a: number[]): number {
+  return a.reduce((acc, i) => acc + i);
+}
+
+export function mean(a: number[]): number {
+  return sum(a) / a.length;
+}
+
+export function stdDev(a: number[]): number {
+  const xbar = mean(a);
+  const squaredDifferences = a.map((x) => Math.pow(x - xbar, 2));
+  return Math.sqrt(mean(squaredDifferences));
+}
+
+export function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: string[] = [];
+    stream
+      .setEncoding('utf8')
+      .on('data', (chunk) => chunks.push(chunk))
+      .on('error', (err) => reject(err))
+      .on('end', () => resolve(String.prototype.concat(...chunks)));
+  });
+}
+
+export function isCheckpoint(obj: any): obj is Checkpoint {
+  const isValidSignature =
+    typeof obj.signature === 'string'
+      ? ethers.utils.isHexString(obj.signature)
+      : ethers.utils.isHexString(obj.signature.r) &&
+        ethers.utils.isHexString(obj.signature.s) &&
+        Number.isSafeInteger(obj.signature.v);
+
+  const isValidRoot = ethers.utils.isHexString(obj.root);
+  const isValidIndex = Number.isSafeInteger(obj.index);
+  return isValidIndex && isValidRoot && isValidSignature;
 }
