@@ -35,9 +35,6 @@ export class MultiGeneric<Chain extends ChainName, Value> {
    * @throws if chain is invalid or has not been set
    */
   protected set(chain: Chain, value: Value): Value {
-    if (this.tryGet(chain)) {
-      throw new Error(`Value already exists for chain ${chain}`);
-    }
     this.chainMap[chain] = value;
     return value;
   }

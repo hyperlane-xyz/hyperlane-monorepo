@@ -2,8 +2,9 @@ import { Wallet } from 'ethers';
 
 import {
   AbacusCore,
+  MultiProvider,
   getChainToOwnerMap,
-  getMultiProviderFromConfigAndSigner,
+  objMap,
   serializeContracts,
 } from '@abacus-network/sdk';
 
@@ -15,10 +16,12 @@ async function main() {
   const signer = new Wallet('SET KEY HERE OR CREATE YOUR OWN SIGNER');
 
   console.info('Preparing utilities');
-  const multiProvider = getMultiProviderFromConfigAndSigner(
-    prodConfigs,
-    signer,
-  );
+  const chainProviders = objMap(prodConfigs, (_, config) => ({
+    provider: config.provider,
+    confirmations: config.confirmations,
+    overrides: config.overrides,
+  }));
+  const multiProvider = new MultiProvider(chainProviders);
 
   const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
   const config = core.extendWithConnectionClientConfig(

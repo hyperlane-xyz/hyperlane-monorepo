@@ -1,9 +1,7 @@
 import { serializeContracts } from '../../contracts';
 import { AbacusCore } from '../../core/AbacusCore';
-import {
-  getChainToOwnerMap,
-  getMultiProviderFromConfigAndSigner,
-} from '../../deploy/utils';
+import { getChainToOwnerMap } from '../../deploy/utils';
+import { MultiProvider } from '../../providers/MultiProvider';
 
 import { EnvSubsetDeployer, alfajoresChainConfig } from './app';
 import { getAlfajoresSigner } from './utils';
@@ -12,10 +10,14 @@ async function main() {
   const signer = getAlfajoresSigner();
 
   console.info('Preparing utilities');
-  const multiProvider = getMultiProviderFromConfigAndSigner(
-    alfajoresChainConfig,
-    signer,
-  );
+  const multiProvider = new MultiProvider({
+    alfajores: {
+      provider: signer.provider,
+      confirmations: alfajoresChainConfig.alfajores.confirmations,
+      overrides: alfajoresChainConfig.alfajores.overrides,
+    },
+  });
+
   const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(alfajoresChainConfig, signer.address),

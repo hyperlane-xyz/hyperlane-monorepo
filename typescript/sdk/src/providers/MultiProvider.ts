@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 
 import { ChainMap, ChainName, IChainConnection, Remotes } from '../types';
-import { MultiGeneric, objMap } from '../utils';
+import { MultiGeneric, objMap, pick } from '../utils';
 
 import { ChainConnection } from './ChainConnection';
 
@@ -97,6 +97,33 @@ export class MultiProvider<
       ...this.chainMap,
       [chain]: connection,
     });
+  }
+
+  /**
+   * Create a new MultiProvider from the intersection
+   * of current's chains and the provided chain list
+   */
+  intersect<IntersectionChain extends Chain>(
+    chains: ChainName[],
+  ): {
+    intersection: IntersectionChain[];
+    multiProvider: MultiProvider<IntersectionChain>;
+  } {
+    const ownChains = this.chains();
+    const intersection = ownChains.filter((c) =>
+      chains.includes(c),
+    ) as IntersectionChain[];
+
+    if (!intersection.length) {
+      throw new Error(`No chains shared between MultiProvider and list`);
+    }
+
+    const intersectionChainMap = pick(this.chainMap, intersection);
+
+    const multiProvider = new MultiProvider<IntersectionChain>({
+      ...intersectionChainMap,
+    });
+    return { intersection, multiProvider };
   }
 
   // This doesn't work on hardhat providers so we skip for now

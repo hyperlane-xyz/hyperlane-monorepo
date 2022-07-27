@@ -1,12 +1,11 @@
-import { providers } from 'ethers';
-
 import {
   AbacusCore,
   ChainMap,
   ChainName,
+  MultiProvider,
   buildContracts,
   getChainToOwnerMap,
-  getMultiProviderFromConfigAndProvider,
+  objMap,
 } from '@abacus-network/sdk';
 
 import { HelloWorldApp } from '../app/app';
@@ -21,14 +20,14 @@ const deploymentAddresses = {};
 const ownerAddress = '0x123...';
 
 async function check() {
-  console.info('Getting provider');
-  const provider = new providers.JsonRpcProvider('URL_HERE');
-
   console.info('Preparing utilities');
-  const multiProvider = getMultiProviderFromConfigAndProvider(
-    prodConfigs,
-    provider,
-  );
+  const chainProviders = objMap(prodConfigs, (_, config) => ({
+    provider: config.provider,
+    confirmations: config.confirmations,
+    overrides: config.overrides,
+  }));
+  const multiProvider = new MultiProvider(chainProviders);
+
   const contractsMap = buildContracts(
     deploymentAddresses,
     helloWorldFactories,

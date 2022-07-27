@@ -56,21 +56,13 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
       throw new Error(`No default env config found for ${env}`);
     }
 
-    const multiProviderChains = multiProvider.chains();
-    const envChains = Object.keys(envConfig);
-    const intersection = multiProviderChains.filter((c) =>
-      envChains.includes(c),
-    );
-
-    if (!intersection.length) {
-      throw new Error(`No chains shared between MultiProvider and env ${env}`);
-    }
-
     type EnvChain = keyof typeof envConfig;
     type IntersectionChain = EnvChain & Chain;
-    // Force cast of multiProvider to ensure Core gets correct type later
-    const intersectionProvider =
-      multiProvider as unknown as MultiProvider<IntersectionChain>;
+    const envChains = Object.keys(envConfig) as IntersectionChain[];
+
+    const { intersection, multiProvider: intersectionProvider } =
+      multiProvider.intersect<IntersectionChain>(envChains);
+
     const intersectionConfig = pick(
       envConfig as ChainMap<Chain, any>,
       intersection,

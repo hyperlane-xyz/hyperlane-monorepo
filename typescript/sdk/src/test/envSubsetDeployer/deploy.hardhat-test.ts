@@ -5,10 +5,7 @@ import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
 import { RouterConfig } from '../../deploy/router/types';
 import { EnvironmentConfig } from '../../deploy/types';
-import {
-  getChainToOwnerMap,
-  getMultiProviderFromConfigAndSigner,
-} from '../../deploy/utils';
+import { getChainToOwnerMap, getTestMultiProvider } from '../../deploy/utils';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts } from '../../router';
 import { ChainMap, TestChainNames } from '../../types';
@@ -86,10 +83,7 @@ async function initTestEnv<Chain extends TestChainNames>(
   environmentConfig: EnvironmentConfig<Chain>,
 ) {
   const [signer] = await ethers.getSigners();
-  const multiProvider = getMultiProviderFromConfigAndSigner(
-    environmentConfig,
-    signer,
-  );
+  const multiProvider = getTestMultiProvider(signer, environmentConfig);
 
   const coreDeployer = new TestCoreDeployer(multiProvider);
   const coreContractsMaps = await coreDeployer.deploy();

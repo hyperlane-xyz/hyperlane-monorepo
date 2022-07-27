@@ -1,9 +1,7 @@
 import { buildContracts } from '../../contracts';
 import { AbacusCore } from '../../core/AbacusCore';
-import {
-  getChainToOwnerMap,
-  getMultiProviderFromConfigAndProvider,
-} from '../../deploy/utils';
+import { getChainToOwnerMap } from '../../deploy/utils';
+import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts } from '../../router';
 import { ChainMap, ChainName } from '../../types';
 
@@ -28,10 +26,14 @@ async function check() {
   const provider = getAlfajoresProvider();
 
   console.info('Preparing utilities');
-  const multiProvider = getMultiProviderFromConfigAndProvider(
-    alfajoresChainConfig,
-    provider,
-  );
+  const multiProvider = new MultiProvider({
+    alfajores: {
+      provider,
+      confirmations: alfajoresChainConfig.alfajores.confirmations,
+      overrides: alfajoresChainConfig.alfajores.overrides,
+    },
+  });
+
   const contractsMap = buildContracts(
     deploymentAddresses,
     envSubsetFactories,

@@ -1,6 +1,9 @@
 export { AllChains, Chains } from './consts/chains';
 export { chainMetadata } from './consts/chainMetadata';
-export { chainConnectionConfigs } from './consts/chainConnectionConfigs';
+export {
+  chainConnectionConfigs,
+  testChainConnectionConfigs,
+} from './consts/chainConnectionConfigs';
 export { environments as coreEnvironments } from './consts/environments';
 
 export {
@@ -99,11 +102,7 @@ export { UpgradeBeaconViolation } from './deploy/proxy';
 export { AbacusRouterDeployer } from './deploy/router/AbacusRouterDeployer';
 export { AbacusRouterChecker } from './deploy/router/AbacusRouterChecker';
 export { RouterConfig } from './deploy/router/types';
-export {
-  getMultiProviderFromConfigAndProvider,
-  getMultiProviderFromConfigAndSigner,
-  getChainToOwnerMap,
-} from './deploy/utils';
+export { getTestMultiProvider, getChainToOwnerMap } from './deploy/utils';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
 export {
   ContractVerificationInput,
