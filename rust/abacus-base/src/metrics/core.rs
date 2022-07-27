@@ -272,8 +272,8 @@ impl CoreMetrics {
     /// always reported.
     ///
     /// Labels:
-    /// - `phase`: The the leaf index is being tracked at, see below.
-    /// - `origin`: Origin chain the index comes from.
+    /// - `phase`: The phase the leaf index is being tracked at, see below.
+    /// - `origin`: Origin chain the message comes from.
     /// - `remote`: Remote chain for the message. This will skip values because
     ///   the indexes are contiguous by origin not remote.
     ///
