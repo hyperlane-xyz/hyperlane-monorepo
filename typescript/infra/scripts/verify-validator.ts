@@ -42,20 +42,6 @@ async function main() {
   const metrics = await prospectiveValidator.compare(controlValidator);
 
   console.log(JSON.stringify(metrics, null, 2));
-
-  //const statuses = metrics.map((m) => m.status).join();
-  //console.log(statuses);
-
-  // const violations = metrics
-  //   .map((metric, index) => ({ index, metric }))
-  //   .filter(({ metric }) => metric.status === CheckpointStatus.INVALID)
-  //   .map(({ index, metric }) => `Checkpoint ${index}: ${metric.violation}`);
-  // console.log(violations);
-
-  // const deltas = metrics.filter((m) => m.delta).map((m) => m.delta) as number[];
-  // console.log(`Median: ${utils.median(deltas)}`);
-  // console.log(`Mean:   ${utils.mean(deltas)}`);
-  // console.log(`Stdev:  ${utils.stdDev(deltas)}`);
 }
 
 main().catch(console.error);
