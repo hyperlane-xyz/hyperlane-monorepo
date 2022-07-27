@@ -51,42 +51,46 @@ export class S3Validator extends BaseValidator {
   }
 
   async compare(other: S3Validator): Promise<CheckpointMetric[]> {
-    const expectedLatest = await other.s3Bucket.getS3Obj<number>(LATEST_KEY);
-    const actualLatest = await this.s3Bucket.getS3Obj<number>(LATEST_KEY);
+    const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
+      LATEST_KEY,
+    );
+    const otherLatestCheckpointIndex = await other.s3Bucket.getS3Obj<number>(
+      LATEST_KEY,
+    );
 
-    if (!expectedLatest || !actualLatest) {
+    if (!otherLatestCheckpointIndex || !latestCheckpointIndex) {
       throw new Error('Failed to get latest checkpoints');
     }
 
-    let actualLatestIndex = actualLatest.data;
-    let expectedLatestIndex = expectedLatest.data;
+    let checkpointIndex = latestCheckpointIndex.data;
+    let otherCheckpointIndex = otherLatestCheckpointIndex.data;
 
-    const maxIndex = Math.max(actualLatestIndex, expectedLatestIndex);
+    const maxIndex = Math.max(checkpointIndex, otherCheckpointIndex);
     const checkpointMetrics: CheckpointMetric[] = new Array(maxIndex + 1);
 
     // scan extra checkpoints
-    for (; actualLatestIndex > expectedLatestIndex; actualLatestIndex--) {
-      checkpointMetrics[actualLatestIndex] = {
+    for (; checkpointIndex > otherCheckpointIndex; checkpointIndex--) {
+      checkpointMetrics[checkpointIndex] = {
         status: CheckpointStatus.EXTRA,
-        index: actualLatestIndex,
+        index: checkpointIndex,
       };
     }
 
     // scan missing checkpoints
-    for (; expectedLatestIndex > actualLatestIndex; expectedLatestIndex--) {
-      checkpointMetrics[expectedLatestIndex] = {
+    for (; otherCheckpointIndex > checkpointIndex; otherCheckpointIndex--) {
+      checkpointMetrics[otherCheckpointIndex] = {
         status: CheckpointStatus.MISSING,
-        index: expectedLatestIndex,
+        index: otherCheckpointIndex,
       };
     }
 
-    for (; actualLatestIndex > 0; actualLatestIndex--) {
-      const expected = await other.getCheckpointReceipt(actualLatestIndex);
-      const actual = await this.getCheckpointReceipt(actualLatestIndex);
+    for (; checkpointIndex > 0; checkpointIndex--) {
+      const expected = await other.getCheckpointReceipt(checkpointIndex);
+      const actual = await this.getCheckpointReceipt(checkpointIndex);
 
       const metric: CheckpointMetric = {
         status: CheckpointStatus.MISSING,
-        index: actualLatestIndex,
+        index: checkpointIndex,
       };
 
       if (actual) {
@@ -111,7 +115,7 @@ export class S3Validator extends BaseValidator {
         }
       }
 
-      checkpointMetrics[actualLatestIndex] = metric;
+      checkpointMetrics[checkpointIndex] = metric;
     }
 
     return checkpointMetrics;
