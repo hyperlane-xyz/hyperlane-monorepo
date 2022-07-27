@@ -39,6 +39,7 @@ export class HelloWorldApp<
       gasLimit,
       value,
     });
+    console.log(tx);
     const receipt = await tx.wait(chainConnection.confirmations);
 
     if (receiveHandler) {
