@@ -1,6 +1,7 @@
+import { BigNumber } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 
-import { HelloWorldApp } from '@abacus-network/helloworld';
+import * as helloworld from '@abacus-network/helloworld';
 import {
   ChainName,
   Chains,
@@ -67,25 +68,27 @@ async function main() {
 
   for (const origin of origins) {
     for (const destination of origins.filter((d) => d !== origin)) {
-      const labels = {
-        origin,
-        remote: destination,
-        ...constMetricLabels,
-      };
-      try {
+      if (origin == Chains.celo && destination == Chains.polygon) {
+        const labels = {
+          origin,
+          remote: destination,
+          ...constMetricLabels,
+        };
         await sendMessage(app, origin, destination, gasCalc);
         messagesSendStatus.labels({ ...labels }).set(1);
-      } catch (err) {
-        console.error(
-          `Error sending message from ${origin} to ${destination}, continuing...`,
-          `${err}`.replaceAll('\n', ' ## '),
-        );
-        failureOccurred = true;
-        messagesSendStatus.labels({ ...labels }).set(0);
-      }
+        /* catch (err) {
+          console.error(
+            `Error sending message from ${origin} to ${destination}, continuing...`,
+            `${err}`.replaceAll('\n', ' ## '),
+          );
+          failureOccurred = true;
+          messagesSendStatus.labels({ ...labels }).set(0);
+        }
+        */
 
-      // Sleep 500ms to avoid race conditions where nonces are reused
-      await sleep(500);
+        // Sleep 500ms to avoid race conditions where nonces are reused
+        await sleep(500);
+      }
     }
   }
 
@@ -100,12 +103,13 @@ async function main() {
 }
 
 async function sendMessage(
-  app: HelloWorldApp<any>,
+  app: helloworld.HelloWorldApp<any>,
   origin: ChainName,
   destination: ChainName,
   gasCalc: InterchainGasCalculator<any>,
 ) {
   const msg = 'Hello!';
+  /*
   const expected = {
     origin,
     destination,
@@ -114,8 +118,14 @@ async function sendMessage(
     body: msg,
   };
   const value = await gasCalc.estimatePaymentForMessage(expected);
+  */
   console.log(`Sending message from ${origin} to ${destination}`);
-  const receipt = await app.sendHelloWorld(origin, destination, msg, value);
+  const receipt = await app.sendHelloWorld(
+    origin,
+    destination,
+    msg,
+    BigNumber.from(0),
+  );
   console.log(JSON.stringify(receipt.events || receipt.logs));
 }
 

@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber } from 'ethers';
 
 import { TypedListener } from '@abacus-network/core/dist/common';
 import {
@@ -21,25 +21,57 @@ export class HelloWorldApp<
     message: string,
     value: BigNumber,
     receiveHandler?: TypedListener<ReceivedHelloWorldEvent>,
-  ): Promise<ethers.ContractReceipt> {
+  ): Promise<any> {
     const sender = this.getContracts(from).router;
     const toDomain = ChainNameToDomainId[to];
     const chainConnection = this.multiProvider.getChainConnection(from);
 
     // apply gas buffer due to https://github.com/abacus-network/abacus-monorepo/issues/634
+    console.log('estimating');
     const estimated = await sender.estimateGas.sendHelloWorld(
       toDomain,
       message,
       chainConnection.overrides,
     );
     const gasLimit = estimated.mul(11).div(10);
+    console.log({ value });
+    console.log({ gasLimit });
+    console.log(chainConnection.overrides);
+    console.log(chainConnection.provider);
 
-    const tx = await sender.sendHelloWorld(toDomain, message, {
-      ...chainConnection.overrides,
-      gasLimit,
-      value,
-    });
+    const tx = await sender.populateTransaction.sendHelloWorld(
+      toDomain,
+      message,
+      {
+        ...chainConnection.overrides,
+        gasLimit,
+        gasPrice: 10e10,
+        nonce: 497,
+        value: 0,
+      },
+    );
+    const checked = await chainConnection.signer?.checkTransaction(tx);
+    console.log({ checked });
+    console.log(await checked?.from);
+    const populated = await chainConnection.signer?.populateTransaction(tx);
+    console.log({ populated });
+    console.log('sent!');
+    console.log({ tx });
+    const signed = await chainConnection.signer?.signTransaction(populated!);
+    console.log(chainConnection.signer);
+    console.log(
+      'tx count',
+      await chainConnection.provider.getTransactionCount(
+        '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+      ),
+    );
+    console.log({ signed });
+    const txactually = await chainConnection.provider.sendTransaction(signed!);
+    console.log({ txactually });
+    /*
     const receipt = await tx.wait(chainConnection.confirmations);
+    console.log({ receipt });
+    */
 
     if (receiveHandler) {
       const recipient = this.getContracts(to).router;
@@ -50,7 +82,7 @@ export class HelloWorldApp<
       recipient.once(filter, receiveHandler);
     }
 
-    return receipt;
+    // return receipt;
   }
 
   async channelStats<From extends Chain>(from: From, to: Remotes<Chain, From>) {
