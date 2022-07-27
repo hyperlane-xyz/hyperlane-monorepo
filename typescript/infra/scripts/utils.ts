@@ -64,12 +64,14 @@ export async function getContext(): Promise<Contexts> {
   return assertContext(argv.context!);
 }
 
+// Gets the agent config for the context that has been specified via yargs.
 export async function getContextAgentConfig<Chain extends ChainName>(
   coreEnvironmentConfig?: CoreEnvironmentConfig<Chain>,
 ) {
   return getAgentConfig(await getContext(), coreEnvironmentConfig);
 }
 
+// Gets the agent config of a specific context.
 export async function getAgentConfig<Chain extends ChainName>(
   context: Contexts,
   coreEnvironmentConfig?: CoreEnvironmentConfig<Chain>,

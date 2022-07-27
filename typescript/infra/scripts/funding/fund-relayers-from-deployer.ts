@@ -31,17 +31,7 @@ const constMetricLabels = {
 
 const metricsRegister = new Registry();
 
-type WalletBalanceGauge = Gauge<
-  | 'chain'
-  | 'wallet_address'
-  | 'wallet_name'
-  | 'token_address'
-  | 'token_symbol'
-  | 'token_name'
-  | 'abacus_deployment'
-  | 'abacus_context'
->;
-const walletBalanceGauge: WalletBalanceGauge = new Gauge({
+const walletBalanceGauge = new Gauge({
   // Mirror the rust/ethers-prometheus `wallet_balance` gauge metric.
   name: 'abacus_wallet_balance',
   help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
@@ -91,6 +81,15 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   test3: '0',
 };
 
+// Funds relayer addresses for multiple contexts from the deployer key of the context
+// specified via the `--context` flag.
+// There are two ways to configure this script so that relayer addresses are known.
+// You can pass in files using `-f`, which are expected to each be JSON arrays of objects
+// of the form { identifier: '..', address: '..' }, where the keys described in one file
+// are all for the same context. This will avoid requiring any sort of GCP/AWS credentials for
+// fetching addresses from the keys themselves.
+// Alternatively, using `--contexts-to-fund` will fetch relayer addresses from GCP/AWS, which
+// requires credentials.
 async function main() {
   const argv = await getArgs()
     .string('f')
@@ -98,14 +97,18 @@ async function main() {
     .alias('f', 'address-files')
     .describe(
       'f',
-      'Files each containing JSON arrays of identifier and address objects',
+      'Files each containing JSON arrays of identifier and address objects for a context',
     )
     .string('contexts-to-fund')
     .array('contexts-to-fund')
-    .describe('contexts-to-fund', 'Contexts to fund relayers for')
+    .describe(
+      'contexts-to-fund',
+      'Contexts to fund relayers for. If specified, relayer addresses are fetched from GCP/AWS and require sufficient credentials.',
+    )
     .coerce('contexts-to-fund', (contexts: string[]) => {
       return contexts.map(assertContext);
     })
+    // Only one of the two methods for getting relayer addresses
     .conflicts('f', 'contexts-to-fund').argv;
 
   const environment = assertEnvironment(argv.e as string);
@@ -286,9 +289,6 @@ class ContextRelayerFunder {
         amount: ethers.utils.formatEther(delta),
         context: this.context,
       });
-
-      console.log('jk no');
-      return;
 
       const tx = await chainConnection.signer!.sendTransaction({
         to: key.address,
