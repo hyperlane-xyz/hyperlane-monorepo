@@ -109,11 +109,11 @@ async function main() {
 
     // print stats once every cycle through the pairings
     if (currentPairingIndex == 0) {
-      for (const [from, destinationStats] of Object.entries(
+      for (const [origin, destinationStats] of Object.entries(
         await app.stats(),
       )) {
-        for (const [to, counts] of Object.entries(destinationStats)) {
-          debug('Message stats', { from, to, ...counts });
+        for (const [destination, counts] of Object.entries(destinationStats)) {
+          debug('Message stats', { origin, destination, ...counts });
         }
       }
     }
