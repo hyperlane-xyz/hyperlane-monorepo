@@ -54,9 +54,9 @@ async function main() {
 
   const origins = chains.filter((chain) => !skip || !skip.includes(chain));
   const pairings = diagonalize(
-    origins.map((source) =>
+    origins.map((origin) =>
       origins.map((destination) =>
-        source == destination ? null : { source, destination },
+        origin == destination ? null : { origin, destination },
       ),
     ),
   )
@@ -89,19 +89,19 @@ async function main() {
     while (allowedToSend <= 0) await sleep(1000);
     allowedToSend--;
 
-    const { source, destination } = pairings[currentPairingIndex];
+    const { origin, destination } = pairings[currentPairingIndex];
     const labels = {
-      origin: source,
+      origin,
       remote: destination,
     };
     try {
-      await sendMessage(app, source, destination, gasCalc);
-      log('Message sent successfully', { from: source, to: destination });
+      await sendMessage(app, origin, destination, gasCalc);
+      log('Message sent successfully', { from: origin, to: destination });
       messagesSendCount.labels({ ...labels, status: 'success' }).inc();
     } catch (e) {
       error(`Error sending message, continuing...`, {
         error: e,
-        from: source,
+        from: origin,
         to: destination,
       });
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
