@@ -5,8 +5,7 @@ use std::sync::Arc;
 /// Struct encapsulating prometheus metrics used by the ContractSync.
 #[derive(Debug, Clone)]
 pub struct ContractSyncMetrics {
-    /// Most recently indexed block height (label values differentiate
-    /// checkpoints vs. messages)
+    /// Most recently indexed block height.
     ///
     /// Labels:
     /// - `data_type`: which indexer is recording the information.
