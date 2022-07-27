@@ -28,3 +28,5 @@ spec:
           value: {{ join "," .Values.chainsToSkip }}
         - name: KATHY_FULL_CYCLE_TIME
           value: {{ .Values.fullCycleTime }}
+        - name: KATHY_MESSAGE_RECEIPT_TIMEOUT
+          value: {{ .Values.messageReceiptTimeout }}

@@ -120,6 +120,11 @@ async function main() {
   }
 }
 
+// 10 min by default
+const MESSAGE_RECEIPT_TIMEOUT =
+  parseInt(process.env['KATHY_MESSAGE_RECEIPT_TIMEOUT'] as string) ||
+  10 * 60 * 1000;
+
 async function sendMessage(
   app: HelloWorldApp<any>,
   origin: ChainName,
@@ -141,7 +146,7 @@ async function sendMessage(
   await new Promise<ethers.ContractReceipt[]>((resolve, reject) => {
     setTimeout(
       () => reject(new Error('Timeout waiting for message receipt')),
-      10 * 60 * 1000,
+      MESSAGE_RECEIPT_TIMEOUT,
     );
     app
       .sendHelloWorld(origin, destination, msg, value, (receipt) => {

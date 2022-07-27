@@ -26,6 +26,7 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
   const values = {
     chainsToSkip: kathyConfig.chainsToSkip,
     fullCycleTime: kathyConfig.fullCycleTime,
+    messageReceiptTimeout: kathyConfig.messageReceiptTimeout,
     abacus: {
       runEnv: kathyConfig.runEnv,
       // This is just used for fetching secrets, and is not actually
