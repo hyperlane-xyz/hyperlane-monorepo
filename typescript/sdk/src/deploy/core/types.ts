@@ -16,6 +16,7 @@ export type CoreConfig = {
 export enum CoreViolationType {
   ValidatorManager = 'ValidatorManager',
   Validator = 'Validator',
+  NotDeployed = 'NotDeployed',
 }
 
 export enum ValidatorViolationType {
@@ -33,5 +34,12 @@ export interface ValidatorViolation extends CheckerViolation {
   data: {
     type: ValidatorViolationType;
     validatorManager: MultisigValidatorManager;
+  };
+}
+
+export interface NotDeployedViolation extends CheckerViolation {
+  type: CoreViolationType.NotDeployed;
+  data: {
+    contract: string;
   };
 }
