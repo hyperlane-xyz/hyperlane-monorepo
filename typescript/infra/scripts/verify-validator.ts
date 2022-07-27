@@ -8,11 +8,11 @@ import { S3Validator } from '../src/agents/aws/validator';
 
 function getArgs() {
   return yargs(process.argv.slice(2))
-    .describe('address', 'address of the validator to inspect')
-    .demandOption('address')
     .describe('chain', 'chain of the validator to inspect')
     .choices('chain', AllChains)
     .demandOption('chain')
+    .describe('address', 'address of the validator to inspect')
+    .demandOption('address')
     .string('address')
     .describe('prospective', 'S3 bucket of the prospective validator')
     .demandOption('prospective')
