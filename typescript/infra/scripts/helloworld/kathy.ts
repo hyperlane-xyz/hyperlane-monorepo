@@ -1,7 +1,9 @@
+import { BigNumber } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
 import {
+  AbacusCore,
   ChainName,
   Chains,
   InterchainGasCalculator,
@@ -38,6 +40,7 @@ async function main() {
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
   const multiProvider = await coreConfig.getMultiProvider();
+  const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
   const gasCalc = InterchainGasCalculator.fromEnvironment(
     environment,
     multiProvider as any,
@@ -66,6 +69,7 @@ async function main() {
   }, 1000 * 30);
 
   for (const origin of origins) {
+    console.log(origins);
     for (const destination of origins.filter((d) => d !== origin)) {
       const labels = {
         origin,
@@ -73,6 +77,19 @@ async function main() {
         ...constMetricLabels,
       };
       try {
+        const actual = await app
+          .getContracts(origin)
+          .router.interchainGasPaymaster();
+        const desired = core.getContracts(origin as never)
+          .interchainGasPaymaster.address;
+        if (actual.toLocaleLowerCase() !== desired.toLocaleLowerCase()) {
+          const tx = await app
+            .getContracts(origin)
+            .router.setInterchainGasPaymaster(desired);
+          const receipt = await tx.wait(1);
+          console.log(receipt.transactionHash);
+        }
+
         await sendMessage(app, origin, destination, gasCalc);
         messagesSendStatus.labels({ ...labels }).set(1);
       } catch (err) {
@@ -106,14 +123,12 @@ async function sendMessage(
   gasCalc: InterchainGasCalculator<any>,
 ) {
   const msg = 'Hello!';
-  const expected = {
+  const expectedHandleGas = BigNumber.from(100_000);
+  const value = await gasCalc.estimatePaymentForHandleGas(
     origin,
     destination,
-    sender: app.getContracts(origin).router.address,
-    recipient: app.getContracts(destination).router.address,
-    body: msg,
-  };
-  const value = await gasCalc.estimatePaymentForMessage(expected);
+    expectedHandleGas,
+  );
   console.log(`Sending message from ${origin} to ${destination}`);
   const receipt = await app.sendHelloWorld(origin, destination, msg, value);
   console.log(JSON.stringify(receipt.events || receipt.logs));

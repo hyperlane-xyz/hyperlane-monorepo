@@ -1,8 +1,6 @@
 import { expect } from 'chai';
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber } from 'ethers';
 import sinon from 'sinon';
-
-import { utils } from '@abacus-network/utils';
 
 import { Chains } from '../consts/chains';
 import { AbacusCore } from '../core/AbacusCore';
@@ -129,6 +127,7 @@ describe('InterchainGasCalculator', () => {
     });
   });
 
+  /*
   describe('estimatePaymentForMessage', () => {
     it('estimates origin token payment from a specified message', async () => {
       // Set destination gas price to 10 wei
@@ -165,6 +164,7 @@ describe('InterchainGasCalculator', () => {
       expect(estimatedPayment.toNumber()).to.equal(1_000_000);
     });
   });
+  */
 
   describe('convertBetweenTokens', () => {
     const destinationWei = BigNumber.from('1000');
