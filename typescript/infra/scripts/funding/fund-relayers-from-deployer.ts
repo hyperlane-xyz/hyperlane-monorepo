@@ -3,7 +3,12 @@ import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
-import { ChainConnection, CompleteChainMap } from '@abacus-network/sdk';
+import {
+  ChainConnection,
+  ChainName,
+  CompleteChainMap,
+  MultiProvider,
+} from '@abacus-network/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
@@ -25,7 +30,18 @@ const constMetricLabels = {
 };
 
 const metricsRegister = new Registry();
-const walletBalanceGauge = new Gauge({
+
+type WalletBalanceGauge = Gauge<
+  | 'chain'
+  | 'wallet_address'
+  | 'wallet_name'
+  | 'token_address'
+  | 'token_symbol'
+  | 'token_name'
+  | 'abacus_deployment'
+  | 'abacus_context'
+>;
+const walletBalanceGauge: WalletBalanceGauge = new Gauge({
   // Mirror the rust/ethers-prometheus `wallet_balance` gauge metric.
   name: 'abacus_wallet_balance',
   help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
@@ -75,56 +91,6 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   test3: '0',
 };
 
-async function fundRelayer(
-  chainConnection: ChainConnection,
-  relayer: AgentKey,
-  desiredBalance: string,
-) {
-  const currentBalance = await chainConnection.provider.getBalance(
-    relayer.address,
-  );
-  const desiredBalanceEther = ethers.utils.parseUnits(desiredBalance, 'ether');
-  const delta = desiredBalanceEther.sub(currentBalance);
-
-  const minDelta = desiredBalanceEther
-    .mul(MIN_DELTA_NUMERATOR)
-    .div(MIN_DELTA_DENOMINATOR);
-
-  const relayerInfo = relayerKeyInfo(relayer);
-
-  if (delta.gt(minDelta)) {
-    log('Sending relayer funds...', {
-      relayer: relayerInfo,
-      amount: ethers.utils.formatEther(delta),
-    });
-
-    log('jk not doing it tho');
-    return;
-
-    const tx = await chainConnection.signer!.sendTransaction({
-      to: relayer.address,
-      value: delta,
-      ...chainConnection.overrides,
-    });
-    log('Sent transaction', {
-      relayer: relayerInfo,
-      txUrl: chainConnection.getTxUrl(tx),
-    });
-    const receipt = await tx.wait(chainConnection.confirmations);
-    log('Got transaction receipt', {
-      relayer: relayerInfo,
-      receipt,
-    });
-  }
-
-  log('Relayer balance', {
-    relayer: relayerInfo,
-    balance: ethers.utils.formatEther(
-      await chainConnection.provider.getBalance(relayer.address),
-    ),
-  });
-}
-
 async function main() {
   const argv = await getArgs()
     .string('f')
@@ -140,65 +106,27 @@ async function main() {
     .coerce('contexts-to-fund', (contexts: string[]) => {
       return contexts.map(assertContext);
     })
-    .demandOption('contexts-to-fund').argv;
+    .conflicts('f', 'contexts-to-fund').argv;
 
   const environment = assertEnvironment(argv.e as string);
   constMetricLabels.abacus_deployment = environment;
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  const relayerKeys = argv.f
-    ? getRelayerKeysFromSerializedAddressFiles(argv.f)
-    : await getRelayerKeysForContexts(argv.contextsToFund);
-
-  const chains = relayerKeys.map((key) => key.chainName!);
-  let failureOccurred = false;
-
-  for (const chain of chains) {
-    const chainConnection = multiProvider.getChainConnection(chain);
-
-    const desiredBalance = desiredBalancePerChain[chain];
-    const funderAddress = await chainConnection.getAddress();
-
-    log('Funding relayers on chain...', {
-      chain,
-      funder: {
-        address: funderAddress,
-        balance: ethers.utils.formatEther(
-          await chainConnection.signer!.getBalance(),
-        ),
-        desiredRelayerBalance: desiredBalance,
-      },
-    });
-
-    for (const relayerKey of relayerKeys.filter(
-      (key) => key.chainName !== chain,
-    )) {
-      await relayerKey.fetch();
-      try {
-        await fundRelayer(chainConnection, relayerKey, desiredBalance);
-      } catch (err) {
-        error('Error funding relayer', {
-          relayer: relayerKeyInfo(relayerKey),
-          error: err,
-        });
-        failureOccurred = true;
-      }
-    }
-    walletBalanceGauge
-      .labels({
-        chain,
-        wallet_address: funderAddress ?? 'unknown',
-        wallet_name: 'relayer-funder',
-        token_symbol: 'Native',
-        token_name: 'Native',
-        ...constMetricLabels,
-      })
-      .set(
-        parseFloat(
-          ethers.utils.formatEther(await chainConnection.signer!.getBalance()),
-        ),
+  const contextRelayerFunders = argv.f
+    ? argv.f.map((path) =>
+        ContextRelayerFunder.fromSerializedAddressFile(multiProvider, path),
+      )
+    : argv.contextsToFund!.map((context) =>
+        ContextRelayerFunder.fromSerializedAddressFile(multiProvider, context),
       );
+
+  let failureOccurred = false;
+  for (const relayerFunder of contextRelayerFunders) {
+    const failure = await relayerFunder.fundRelayersOnAllChains();
+    if (failure) {
+      failureOccurred = true;
+    }
   }
 
   await submitMetrics(metricsRegister, 'relayer-funder');
@@ -209,31 +137,177 @@ async function main() {
   }
 }
 
-function getRelayerKeysFromSerializedAddressFiles(paths: string[]): AgentKey[] {
-  log('Reading keys from files', {
-    paths,
-  });
+// Funds relayers for a single context
+class ContextRelayerFunder {
+  public readonly chains: ChainName[];
 
-  const allIdsAndAddresses = paths.flatMap(readJSONAtPath);
+  constructor(
+    public readonly multiProvider: MultiProvider<any>,
+    public readonly keys: AgentKey[],
+    public readonly context: Contexts,
+  ) {
+    this.chains = keys.map((key) => key.chainName!);
+  }
 
-  return allIdsAndAddresses
-    .map((idAndAddress: any) =>
-      ReadOnlyAgentKey.fromSerializedAddress(
-        idAndAddress.identifier,
-        idAndAddress.address,
-      ),
-    )
-    .filter((key: AgentKey) => key.role === KEY_ROLE_ENUM.Relayer);
-}
+  static fromSerializedAddressFile(
+    multiProvider: MultiProvider<any>,
+    path: string,
+  ) {
+    log('Reading identifiers and addresses from file', {
+      path,
+    });
+    const idsAndAddresses = readJSONAtPath(path);
+    const keys: AgentKey[] = idsAndAddresses
+      .map((idAndAddress: any) =>
+        ReadOnlyAgentKey.fromSerializedAddress(
+          idAndAddress.identifier,
+          idAndAddress.address,
+        ),
+      )
+      .filter((key: AgentKey) => key.role === KEY_ROLE_ENUM.Relayer);
 
-async function getRelayerKeysForContexts(contexts: Contexts[]) {
-  const nested = await Promise.all(
-    contexts.map(async (context: Contexts) => {
-      const agentConfig = await getAgentConfig(context);
-      return getRelayerKeys(agentConfig);
-    }),
-  );
-  return nested.flat();
+    const context = keys[0].context;
+    // Ensure all keys have the same context, just to be safe
+    keys.forEach((key) => {
+      if (key.context !== context) {
+        throw Error(
+          `Expected all keys at path ${path} to have context ${context}, found ${key.context}`,
+        );
+      }
+    });
+
+    log('Read keys for context from file', {
+      path,
+      keyCount: keys.length,
+      context,
+    });
+
+    return new ContextRelayerFunder(multiProvider, keys, context);
+  }
+
+  // The keys here are not ReadOnlyAgentKeys, instead they are AgentGCPKey or AgentAWSKeys,
+  // which require credentials to fetch. If you want to avoid requiring credentials, use
+  // fromSerializedAddressFile instead.
+  static async fromContext(
+    multiProvider: MultiProvider<any>,
+    context: Contexts,
+  ) {
+    const agentConfig = await getAgentConfig(context);
+    return new ContextRelayerFunder(
+      multiProvider,
+      getRelayerKeys(agentConfig),
+      context,
+    );
+  }
+
+  // Funds the relayers on all the chains found in `this.chains`
+  async fundRelayersOnAllChains() {
+    let failureOccurred = false;
+
+    for (const chain of this.chains) {
+      const chainConnection = this.multiProvider.getChainConnection(chain);
+
+      const desiredBalance = desiredBalancePerChain[chain];
+      const funderAddress = await chainConnection.getAddress();
+
+      log('Funding relayers on chain...', {
+        chain,
+        funder: {
+          address: funderAddress,
+          balance: ethers.utils.formatEther(
+            await chainConnection.signer!.getBalance(),
+          ),
+          desiredRelayerBalance: desiredBalance,
+        },
+        context: this.context,
+      });
+
+      for (const key of this.keys.filter((k) => k.chainName !== chain)) {
+        await key.fetch();
+        try {
+          await this.fundRelayerIfRequired(
+            chainConnection,
+            key,
+            desiredBalance,
+          );
+        } catch (err) {
+          error('Error funding relayer', {
+            relayer: relayerKeyInfo(key),
+            context: this.context,
+            error: err,
+          });
+          failureOccurred = true;
+        }
+      }
+
+      walletBalanceGauge
+        .labels({
+          chain,
+          wallet_address: funderAddress ?? 'unknown',
+          wallet_name: 'relayer-funder',
+          token_symbol: 'Native',
+          token_name: 'Native',
+          ...constMetricLabels,
+        })
+        .set(
+          parseFloat(
+            ethers.utils.formatEther(
+              await chainConnection.signer!.getBalance(),
+            ),
+          ),
+        );
+    }
+    return failureOccurred;
+  }
+
+  private async fundRelayerIfRequired(
+    chainConnection: ChainConnection,
+    key: AgentKey,
+    desiredBalance: string,
+  ) {
+    const currentBalance = await chainConnection.provider.getBalance(
+      key.address,
+    );
+    const desiredBalanceEther = ethers.utils.parseUnits(
+      desiredBalance,
+      'ether',
+    );
+    const delta = desiredBalanceEther.sub(currentBalance);
+
+    const minDelta = desiredBalanceEther
+      .mul(MIN_DELTA_NUMERATOR)
+      .div(MIN_DELTA_DENOMINATOR);
+
+    const relayerInfo = relayerKeyInfo(key);
+
+    if (delta.gt(minDelta)) {
+      log('Sending relayer funds...', {
+        relayer: relayerInfo,
+        amount: ethers.utils.formatEther(delta),
+        context: this.context,
+      });
+
+      console.log('jk no');
+      return;
+
+      const tx = await chainConnection.signer!.sendTransaction({
+        to: key.address,
+        value: delta,
+        ...chainConnection.overrides,
+      });
+      log('Sent transaction', {
+        relayer: relayerInfo,
+        txUrl: chainConnection.getTxUrl(tx),
+        context: this.context,
+      });
+      const receipt = await tx.wait(chainConnection.confirmations);
+      log('Got transaction receipt', {
+        relayer: relayerInfo,
+        receipt,
+        context: this.context,
+      });
+    }
+  }
 }
 
 function log(message: string, data?: any) {
@@ -258,9 +332,10 @@ function logWithFunction(
 
 function relayerKeyInfo(relayerKey: AgentKey) {
   return {
+    context: relayerKey.context,
     address: relayerKey.address,
     identifier: relayerKey.identifier,
-    chain: relayerKey.chainName,
+    originChain: relayerKey.chainName,
   };
 }
 
