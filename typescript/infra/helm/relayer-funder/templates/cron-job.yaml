@@ -22,10 +22,12 @@ spec:
             - ./typescript/infra/scripts/funding/fund-relayers-from-deployer.ts
             - -e
             - {{ .Values.abacus.runEnv }}
-            - -f
-            - /addresses-secret/addresses.json
             - --context
-            - abacus
+            - {{ .Values.abacus.contextFundingFrom }}
+{{- range .Values.abacus.contextsToFund }}
+            - -f
+            - /addresses-secret/{{ . }}-addresses.json
+{{- end }}
             env:
             - name: PROMETHEUS_PUSH_GATEWAY
               value: {{ .Values.infra.prometheusPushGateway }}

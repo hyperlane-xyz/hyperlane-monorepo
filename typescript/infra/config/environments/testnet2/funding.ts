@@ -1,4 +1,5 @@
 import { RelayerFunderConfig } from '../../../src/config/funding';
+import { Contexts } from '../../contexts';
 
 import { environment } from './chains';
 
@@ -11,4 +12,6 @@ export const relayerFunderConfig: RelayerFunderConfig = {
   namespace: environment,
   prometheusPushGateway:
     'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
+  contextFundingFrom: Contexts.Abacus,
+  contextsToFund: [Contexts.Abacus],
 };
