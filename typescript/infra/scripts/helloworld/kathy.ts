@@ -69,7 +69,6 @@ async function main() {
   }, 1000 * 30);
 
   for (const origin of origins) {
-    console.log(origins);
     for (const destination of origins.filter((d) => d !== origin)) {
       const labels = {
         origin,
@@ -77,19 +76,6 @@ async function main() {
         ...constMetricLabels,
       };
       try {
-        const actual = await app
-          .getContracts(origin)
-          .router.interchainGasPaymaster();
-        const desired = core.getContracts(origin as never)
-          .interchainGasPaymaster.address;
-        if (actual.toLocaleLowerCase() !== desired.toLocaleLowerCase()) {
-          const tx = await app
-            .getContracts(origin)
-            .router.setInterchainGasPaymaster(desired);
-          const receipt = await tx.wait(1);
-          console.log(receipt.transactionHash);
-        }
-
         await sendMessage(app, origin, destination, gasCalc);
         messagesSendStatus.labels({ ...labels }).set(1);
       } catch (err) {
