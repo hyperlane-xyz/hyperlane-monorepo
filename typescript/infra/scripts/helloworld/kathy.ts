@@ -96,13 +96,13 @@ async function main() {
     };
     try {
       await sendMessage(app, origin, destination, gasCalc);
-      log('Message sent successfully', { from: origin, to: destination });
+      log('Message sent successfully', { origin, destination });
       messagesSendCount.labels({ ...labels, status: 'success' }).inc();
     } catch (e) {
       error(`Error sending message, continuing...`, {
         error: e,
-        from: origin,
-        to: destination,
+        origin,
+        destination,
       });
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
     }
@@ -141,7 +141,7 @@ async function sendMessage(
   };
   const value = await gasCalc.estimatePaymentForMessage(expected);
 
-  log('Sending message', { from: origin, to: destination });
+  log('Sending message', { origin, destination });
 
   await new Promise<ethers.ContractReceipt[]>((resolve, reject) => {
     setTimeout(
@@ -151,8 +151,8 @@ async function sendMessage(
     app
       .sendHelloWorld(origin, destination, msg, value, (receipt) => {
         log('Message sent', {
-          from: origin,
-          to: destination,
+          origin,
+          destination,
           events: receipt.events,
           logs: receipt.logs,
         });
