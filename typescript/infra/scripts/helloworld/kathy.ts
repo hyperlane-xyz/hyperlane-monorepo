@@ -31,6 +31,8 @@ const currentPairingIndexGauge = new Gauge({
 metricsRegister.registerMetric(messagesSendCount);
 metricsRegister.registerMetric(currentPairingIndexGauge);
 
+const DEFAULT_FULL_CYCLE_TIME = 1000 * 60 * 60 * 6;
+
 async function main() {
   startMetricsServer(metricsRegister);
   const environment = await getEnvironment();
@@ -66,7 +68,7 @@ async function main() {
   // default to once every 6 hours getting through all pairs
   const fullCycleTime = process.env['KATHY_FULL_CYCLE_TIME']
     ? parseInt(process.env['KATHY_FULL_CYCLE_TIME'])
-    : 1000 * 60 * 60 * 6;
+    : DEFAULT_FULL_CYCLE_TIME;
   if (!Number.isSafeInteger(fullCycleTime) || fullCycleTime <= 0) {
     error('Invalid cycle time provided');
     process.exit(1);
