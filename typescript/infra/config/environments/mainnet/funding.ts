@@ -7,7 +7,7 @@ export const relayerFunderConfig: RelayerFunderConfig = {
     repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
     tag: 'sha-63f7341',
   },
-  cronSchedule: '*/10 * * * *', // Every 10 minutes
+  cronSchedule: '45 * * * *', // Every hour at the 45 minute mark
   namespace: environment,
   prometheusPushGateway:
     'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',

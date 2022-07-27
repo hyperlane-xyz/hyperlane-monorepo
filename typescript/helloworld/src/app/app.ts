@@ -32,7 +32,7 @@ export class HelloWorldApp<
       message,
       chainConnection.overrides,
     );
-    const gasLimit = estimated.mul(11).div(10);
+    const gasLimit = estimated.mul(12).div(10);
 
     const tx = await sender.sendHelloWorld(toDomain, message, {
       ...chainConnection.overrides,
