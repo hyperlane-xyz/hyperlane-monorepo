@@ -119,7 +119,7 @@ mod tests {
     /// them anymore, we don't fail the test. (E.g. agents cannot
     /// currently parse the older files in `config/dev/` or
     /// `config/testnet`.
-    const BLACKLISTED_DIRS: [&str; 5] = [
+    const BLACKLISTED_DIRS: [&str; 3] = [
         // Ignore only-local names of fake chains used by
         // e.g. test suites.
         "test/test1_config.json",
