@@ -12,7 +12,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-856dde4',
+    tag: 'sha-90287d8',
   },
   aws: {
     region: 'us-east-1',
@@ -27,10 +27,10 @@ export const abacus: AgentConfig<TestnetChains> = {
     },
     chainOverrides: {
       alfajores: {
-        reorgPeriod: 1,
+        reorgPeriod: 0,
       },
       fuji: {
-        reorgPeriod: 1,
+        reorgPeriod: 3,
       },
       kovan: {
         reorgPeriod: 7,
@@ -65,7 +65,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   context: Contexts.Flowcarbon,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-856dde4',
+    tag: 'sha-90287d8',
   },
   aws: {
     region: 'us-east-1',

@@ -8,6 +8,9 @@ export type ChainMetadata = {
   finalityBlocks: number;
   nativeTokenDecimals?: number;
   paginate?: RpcPagination;
+  // The CoinGecko API expects, in some cases, IDs that do not match
+  // ChainNames.
+  coinGeckoId?: string;
 };
 
 /**
@@ -27,7 +30,7 @@ export interface RpcPagination {
  */
 export const celo: ChainMetadata = {
   id: 0x63656c6f, // b'celo' interpreted as an int
-  finalityBlocks: 1,
+  finalityBlocks: 0,
 };
 
 export const ethereum: ChainMetadata = {
@@ -48,16 +51,18 @@ export const optimism: ChainMetadata = {
 export const bsc: ChainMetadata = {
   id: 0x627363, // b'bsc' interpreted as an int
   finalityBlocks: 15,
+  coinGeckoId: 'binancecoin',
 };
 
 export const avalanche: ChainMetadata = {
   id: 0x61766178, // b'avax' interpreted as an int
-  finalityBlocks: 1,
+  finalityBlocks: 3,
   paginate: {
     // Needs to be low to avoid RPC timeouts
     blocks: 100000,
     from: 6765067,
   },
+  coinGeckoId: 'avalanche-2',
 };
 
 export const polygon: ChainMetadata = {
@@ -68,6 +73,7 @@ export const polygon: ChainMetadata = {
     blocks: 10000,
     from: 19657100,
   },
+  coinGeckoId: 'matic-network',
 };
 
 /**
@@ -75,12 +81,12 @@ export const polygon: ChainMetadata = {
  */
 export const alfajores: ChainMetadata = {
   id: 1000,
-  finalityBlocks: 1,
+  finalityBlocks: 0,
 };
 
 export const fuji: ChainMetadata = {
   id: 43113,
-  finalityBlocks: 1,
+  finalityBlocks: 3,
 };
 
 export const goerli: ChainMetadata = {
