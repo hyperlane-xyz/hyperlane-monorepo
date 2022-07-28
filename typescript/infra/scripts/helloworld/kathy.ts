@@ -176,5 +176,11 @@ async function sendMessage(
 }
 
 main()
-  .then(() => log('HelloWorld sent'))
-  .catch(error);
+  .then(() => {
+    error('Main exited');
+    process.exit(1);
+  })
+  .catch((e) => {
+    error('Error in main', { error: format(e) });
+    process.exit(1);
+  });
