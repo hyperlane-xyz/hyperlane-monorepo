@@ -163,10 +163,16 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
 
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
     const outbox = Outbox__factory.createInterface();
-    const describedLogs = sourceTx.logs.map((log) => outbox.parseLog(log));
+    const describedLogs = sourceTx.logs.map((log) => {
+      try {
+        return outbox.parseLog(log);
+      } catch (e) {
+        return undefined;
+      }
+    });
     const dispatchLogs = describedLogs.filter(
       (log) => log && log.name === 'Dispatch',
-    );
+    ) as ethers.utils.LogDescription[];
     if (dispatchLogs.length === 0) {
       throw new Error('Dispatch logs not found');
     }
