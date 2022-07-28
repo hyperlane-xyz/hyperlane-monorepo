@@ -67,6 +67,9 @@ async function main() {
   }, 1000 * 30);
 
   for (const origin of origins) {
+    if (origin != Chains.bsctestnet && origin != Chains.arbitrumrinkeby) {
+      continue;
+    }
     for (const destination of origins.filter((d) => d !== origin)) {
       const labels = {
         origin,
