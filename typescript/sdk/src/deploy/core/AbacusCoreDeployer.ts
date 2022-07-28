@@ -24,8 +24,8 @@ import { CoreConfig, ValidatorManagerConfig } from './types';
 export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
   Chain,
   CoreConfig,
-  typeof coreFactories,
-  CoreContracts<Chain, Chain>
+  CoreContracts<Chain, Chain>,
+  typeof coreFactories
 > {
   startingBlockNumbers: ChainMap<Chain, number | undefined>;
 

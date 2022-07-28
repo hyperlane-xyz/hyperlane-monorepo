@@ -1,6 +1,6 @@
 import { JsonRpcProvider } from '@ethersproject/providers';
 
-import { getMultiProviderFromConfigAndSigner } from '@abacus-network/sdk';
+import { getTestMultiProvider } from '@abacus-network/sdk';
 
 import { CoreEnvironmentConfig } from '../../../src/config';
 
@@ -19,6 +19,6 @@ export const environment: CoreEnvironmentConfig<TestChains> = {
   getMultiProvider: async () => {
     const provider = testConfigs.test1.provider! as JsonRpcProvider;
     const signer = provider.getSigner(0);
-    return getMultiProviderFromConfigAndSigner(testConfigs, signer);
+    return getTestMultiProvider(signer, testConfigs);
   },
 };

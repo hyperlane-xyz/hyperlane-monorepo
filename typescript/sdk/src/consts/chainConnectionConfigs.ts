@@ -189,3 +189,9 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   test2,
   test3,
 };
+
+export const testChainConnectionConfigs = {
+  test1,
+  test2,
+  test3,
+};
