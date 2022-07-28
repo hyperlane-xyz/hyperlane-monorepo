@@ -75,8 +75,8 @@ export class HelloWorldApp<
     return { sent: sent.toNumber(), received: received.toNumber() };
   }
 
-  async stats(): Promise<Record<string, Record<string, Counts>>> {
-    const entries: Array<[string, Record<string, Counts>]> = await Promise.all(
+  async stats(): Promise<Record<Chain, Record<Chain, Counts>>> {
+    const entries: Array<[Chain, Record<Chain, Counts>]> = await Promise.all(
       this.chains().map(async (source) => {
         const destinationEntries = await Promise.all(
           this.remoteChains(source).map(async (destination) => [
@@ -90,6 +90,6 @@ export class HelloWorldApp<
         ];
       }),
     );
-    return Object.fromEntries(entries);
+    return Object.fromEntries(entries) as Record<Chain, Record<Chain, Counts>>;
   }
 }
