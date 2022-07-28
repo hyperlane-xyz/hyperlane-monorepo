@@ -106,16 +106,8 @@ async function sendMessage(
   gasCalc: InterchainGasCalculator<any>,
 ) {
   const msg = 'Hello!';
-  const expected = {
-    origin,
-    destination,
-    sender: app.getContracts(origin).router.address,
-    recipient: app.getContracts(destination).router.address,
-    body: msg,
-  };
-  const value = await gasCalc.estimatePaymentForMessage(expected);
   console.log(`Sending message from ${origin} to ${destination}`);
-  const receipt = await app.sendHelloWorld(origin, destination, msg, value);
+  const receipt = await app.sendHelloWorld(origin, destination, msg);
   console.log(JSON.stringify(receipt.events || receipt.logs));
 }
 
