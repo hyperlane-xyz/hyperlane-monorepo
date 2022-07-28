@@ -31,6 +31,7 @@ const currentPairingIndexGauge = new Gauge({
 metricsRegister.registerMetric(messagesSendCount);
 metricsRegister.registerMetric(currentPairingIndexGauge);
 
+/** How long we should take to go through all the message pairings in milliseconds. */
 const DEFAULT_FULL_CYCLE_TIME = 1000 * 60 * 60 * 6;
 
 async function main() {
