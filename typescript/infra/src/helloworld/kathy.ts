@@ -26,6 +26,7 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
   const values = {
     chainsToSkip: kathyConfig.chainsToSkip,
     fullCycleTime: kathyConfig.fullCycleTime,
+    messageSendTimeout: kathyConfig.messageSendTimeout,
     messageReceiptTimeout: kathyConfig.messageReceiptTimeout,
     maxSendRetries: kathyConfig.maxSendRetries,
     abacus: {

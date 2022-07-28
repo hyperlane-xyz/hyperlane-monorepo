@@ -14,6 +14,7 @@ export const helloWorld: HelloWorldConfig<MainnetChains> = {
     runEnv: environment,
     namespace: environment,
     fullCycleTime: 1000 * 60 * 60 * 6, // every 6 hours
+    messageSendTimeout: 1000 * 60 * 10, // 10 min
     messageReceiptTimeout: 1000 * 60 * 15, // 15 min
     maxSendRetries: 2,
   },

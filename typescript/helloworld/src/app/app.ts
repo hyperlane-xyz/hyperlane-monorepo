@@ -33,8 +33,8 @@ export class HelloWorldApp<
     to: Remotes<Chain, From>,
     message: string,
     value: BigNumber,
-    afterSend?: (receipt: ethers.ContractReceipt) => void,
-  ): Promise<ethers.ContractReceipt[]> {
+    timeoutMs?: number,
+  ): Promise<ethers.ContractReceipt> {
     const sender = this.getContracts(from).router;
     const toDomain = ChainNameToDomainId[to];
     const chainConnection = this.multiProvider.getChainConnection(from);
@@ -53,13 +53,35 @@ export class HelloWorldApp<
       value,
     });
     console.log(tx);
-    const receipt = await tx.wait(chainConnection.confirmations);
 
-    // just sent, but have not yet waited for it to complete
-    if (afterSend) afterSend(receipt);
+    const promise = tx.wait(chainConnection.confirmations);
+    if (timeoutMs && timeoutMs > 0) {
+      return new Promise((resolve, reject) => {
+        setTimeout(
+          () => reject(new Error('Timeout waiting for message to be sent')),
+          timeoutMs,
+        );
+        promise.then(resolve).catch(reject);
+      });
+    }
+    return promise;
+  }
 
-    // wait for it to complete
-    return this.core.waitForMessageProcessing(receipt);
+  async waitForMessageReceipt(
+    receipt: ethers.ContractReceipt,
+    timeoutMs?: number,
+  ): Promise<ethers.ContractReceipt[]> {
+    const promise = this.core.waitForMessageProcessing(receipt);
+    if (timeoutMs && timeoutMs > 0) {
+      return new Promise((resolve, reject) => {
+        setTimeout(
+          () => reject(new Error('Timeout waiting for message receipt')),
+          timeoutMs,
+        );
+        promise.then(resolve).catch(reject);
+      });
+    }
+    return promise;
   }
 
   async channelStats<From extends Chain>(

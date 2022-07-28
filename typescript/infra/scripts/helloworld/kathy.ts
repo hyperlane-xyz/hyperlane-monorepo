@@ -1,5 +1,4 @@
 import { BigNumber } from 'ethers';
-import { ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
@@ -32,7 +31,13 @@ const currentPairingIndexGauge = new Gauge({
 });
 const messageSendSeconds = new Counter({
   name: 'abacus_kathy_message_send_seconds',
-  help: 'Total time spent waiting on messages to get sent including time spent waiting on it to be received.',
+  help: 'Total time spent waiting on messages to get sent not including time spent waiting on it to be received.',
+  registers: [metricsRegister],
+  labelNames: ['origin', 'remote'],
+});
+const messageReceiptSeconds = new Counter({
+  name: 'abacus_kathy_message_receipt_seconds',
+  help: 'Total time spent waiting on messages to be received including time to be sent.',
   registers: [metricsRegister],
   labelNames: ['origin', 'remote'],
 });
@@ -40,6 +45,7 @@ const messageSendSeconds = new Counter({
 metricsRegister.registerMetric(messagesSendCount);
 metricsRegister.registerMetric(currentPairingIndexGauge);
 metricsRegister.registerMetric(messageSendSeconds);
+metricsRegister.registerMetric(messageReceiptSeconds);
 
 /** How long we should take to go through all the message pairings in milliseconds. 6hrs by default. */
 const FULL_CYCLE_TIME =
@@ -49,6 +55,11 @@ if (!Number.isSafeInteger(FULL_CYCLE_TIME) || FULL_CYCLE_TIME <= 0) {
   error('Invalid cycle time provided');
   process.exit(1);
 }
+
+/** How long we should wait for a message to be sent in milliseconds. 10 min by default. */
+const MESSAGE_SEND_TIMEOUT =
+  parseInt(process.env['KATHY_MESSAGE_SEND_TIMEOUT'] as string) ||
+  10 * 60 * 1000;
 
 /** How long we should wait for a message to be received in milliseconds. 10 min by default. */
 const MESSAGE_RECEIPT_TIMEOUT =
@@ -161,6 +172,7 @@ async function sendMessage(
   destination: ChainName,
   gasCalc: InterchainGasCalculator<any>,
 ) {
+  const startTime = Date.now();
   const msg = 'Hello!';
   const expectedHandleGas = BigNumber.from(100_000);
   const value = await gasCalc.estimatePaymentForHandleGas(
@@ -168,30 +180,29 @@ async function sendMessage(
     destination,
     expectedHandleGas,
   );
+  const metricLabels = { origin, remote: destination };
 
   log('Sending message', { origin, destination });
-  let sent = false;
+  const receipt = await app.sendHelloWorld(
+    origin,
+    destination,
+    msg,
+    value,
+    MESSAGE_SEND_TIMEOUT,
+  );
+  messageSendSeconds.labels(metricLabels).inc(Date.now() - startTime);
+  log('Message sent', {
+    origin,
+    destination,
+    events: receipt.events,
+    logs: receipt.logs,
+  });
 
-  await new Promise<ethers.ContractReceipt[]>((resolve, reject) => {
-    setTimeout(() => {
-      if (sent) {
-        reject(new Error('Timeout waiting for message receipt'));
-      } else {
-        reject(new Error('Timeout attempting to send message'));
-      }
-    }, MESSAGE_RECEIPT_TIMEOUT);
-    app
-      .sendHelloWorld(origin, destination, msg, value, (receipt) => {
-        sent = true;
-        log('Message sent', {
-          origin,
-          destination,
-          events: receipt.events,
-          logs: receipt.logs,
-        });
-      })
-      .then(resolve)
-      .catch(reject);
+  await app.waitForMessageReceipt(receipt, MESSAGE_RECEIPT_TIMEOUT);
+  messageReceiptSeconds.labels(metricLabels).inc(Date.now() - startTime);
+  log('Message received', {
+    origin,
+    destination,
   });
 }
 
