@@ -230,6 +230,7 @@ class ContextRelayerFunder {
         try {
           await this.fundRelayerIfRequired(
             chainConnection,
+            chain,
             key,
             desiredBalance,
           );
@@ -265,6 +266,7 @@ class ContextRelayerFunder {
 
   private async fundRelayerIfRequired(
     chainConnection: ChainConnection,
+    chain: ChainName,
     key: AgentKey,
     desiredBalance: string,
   ) {
@@ -288,6 +290,7 @@ class ContextRelayerFunder {
         relayer: relayerInfo,
         amount: ethers.utils.formatEther(delta),
         context: this.context,
+        chain,
       });
 
       const tx = await chainConnection.signer!.sendTransaction({
@@ -299,12 +302,14 @@ class ContextRelayerFunder {
         relayer: relayerInfo,
         txUrl: chainConnection.getTxUrl(tx),
         context: this.context,
+        chain,
       });
       const receipt = await tx.wait(chainConnection.confirmations);
       log('Got transaction receipt', {
         relayer: relayerInfo,
         receipt,
         context: this.context,
+        chain,
       });
     }
   }
