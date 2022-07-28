@@ -2,7 +2,12 @@
   "avalanche": {
     "upgradeBeaconController": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
     "abacusConnectionManager": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
-    "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+    "interchainGasPaymaster": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0xed9a722c543883FB7e07E78F3879762DE09eA7D5",
+      "implementation": "0xcAf034CE568fad5B85Cfbf088FF43974C39287cC",
+      "beacon": "0xcf2d1D59C51a341818d23b0f6AfB7c85d668Dc77"
+    },
     "inboxes": {
       "celo": {
         "inbox": {
@@ -70,7 +75,12 @@
   "bsc": {
     "upgradeBeaconController": "0x149db7afD694722747035d5AEC7007ccb6F8f112",
     "abacusConnectionManager": "0x19dc38aeae620380430C200a6E990D5Af5480117",
-    "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+    "interchainGasPaymaster": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0x47bf94790241B1764fC41A35a8329A15569E121C",
+      "implementation": "0x4419922ca3C11F92bd11D31489932C39BAB57DA3",
+      "beacon": "0xc2Da384799488B4e1E773d70a83346529145085B"
+    },
     "inboxes": {
       "avalanche": {
         "inbox": {
@@ -138,7 +148,12 @@
   "polygon": {
     "upgradeBeaconController": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
     "abacusConnectionManager": "0x1Ab68dC4f7b6cfcd00218D4b761b7F3b5a724555",
-    "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+    "interchainGasPaymaster": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0x60B8d195f1b2EcaC26d54b95C69E6399cFD64b53",
+      "implementation": "0x13E83ac41e696856B6996263501fB3225AD5E6F5",
+      "beacon": "0x61374178e45F65fF9D6252d017Cd580FC60B7654"
+    },
     "inboxes": {
       "bsc": {
         "inbox": {
@@ -206,7 +221,12 @@
   "celo": {
     "upgradeBeaconController": "0x48083C69f5a42c6B69ABbAd48AE195BD36770ee2",
     "abacusConnectionManager": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
-    "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+    "interchainGasPaymaster": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0xCDeb368Db32ecCefaf7018e152DA9120565cb572",
+      "implementation": "0x70EbA87Cd15616f32C736B3f3BdCfaeD0713a82B",
+      "beacon": "0x99fEFc1119E86Ee0153eb887cF8E8ab2d92A16e8"
+    },
     "inboxes": {
       "bsc": {
         "inbox": {
@@ -274,7 +294,12 @@
   "arbitrum": {
     "upgradeBeaconController": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
     "abacusConnectionManager": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
-    "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+    "interchainGasPaymaster": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0x376aD181E8cd45eAd5403F78d5A871D08c3c4D77",
+      "implementation": "0x5c12ADC734699C07b095fe30B8312F1A7bbaA788",
+      "beacon": "0xc23BaF5Eb5848D19701BbE7f139645e6bd58a319"
+    },
     "inboxes": {
       "bsc": {
         "inbox": {
@@ -342,7 +367,12 @@
   "optimism": {
     "upgradeBeaconController": "0x15ab173bDB6832f9b64276bA128659b0eD77730B",
     "abacusConnectionManager": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
-    "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+    "interchainGasPaymaster": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0xc5D6aCaafBCcEC6D7fD7d92F4509befce641c563",
+      "implementation": "0xFB9e40D811Cea562cc8a322b029eF2BDcC3ef6ed",
+      "beacon": "0x6119B76720CcfeB3D256EC1b91218EEfFD6756E1"
+    },
     "inboxes": {
       "bsc": {
         "inbox": {
@@ -410,7 +440,12 @@
   "ethereum": {
     "upgradeBeaconController": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
     "abacusConnectionManager": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-    "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+    "interchainGasPaymaster": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0x17E216fBb22dF4ef8A6640ae9Cb147C92710ac84",
+      "implementation": "0x1Ab68dC4f7b6cfcd00218D4b761b7F3b5a724555",
+      "beacon": "0xFC62DeF1f08793aBf0E67f69257c6be258194F72"
+    },
     "inboxes": {
       "bsc": {
         "inbox": {
