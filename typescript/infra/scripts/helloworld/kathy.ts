@@ -28,8 +28,16 @@ const currentPairingIndexGauge = new Gauge({
   registers: [metricsRegister],
   labelNames: [],
 });
+const messageSendSeconds = new Counter({
+  name: 'abacus_kathy_message_send_seconds',
+  help: 'Total time spent waiting on messages to get sent including time spent waiting on it to be received.',
+  registers: [metricsRegister],
+  labelNames: ['origin', 'remote'],
+});
+
 metricsRegister.registerMetric(messagesSendCount);
 metricsRegister.registerMetric(currentPairingIndexGauge);
+metricsRegister.registerMetric(messageSendSeconds);
 
 /** How long we should take to go through all the message pairings in milliseconds. 6hrs by default. */
 const FULL_CYCLE_TIME =
@@ -101,6 +109,7 @@ async function main() {
       origin,
       remote: destination,
     };
+    const startTime = Date.now();
     try {
       await sendMessage(app, origin, destination, gasCalc);
       log('Message sent successfully', { origin, destination });
@@ -113,6 +122,7 @@ async function main() {
       });
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
     }
+    messageSendSeconds.labels(labels).inc((Date.now() - startTime) / 1000);
 
     // print stats once every cycle through the pairings
     if (currentPairingIndex == 0) {
