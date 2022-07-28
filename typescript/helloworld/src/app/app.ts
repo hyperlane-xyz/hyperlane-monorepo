@@ -1,5 +1,6 @@
 import { BigNumber, ethers } from 'ethers';
 
+import { timeout } from '@abacus-network/infra/dist/src/utils/utils';
 import {
   AbacusApp,
   AbacusCore,
@@ -54,34 +55,22 @@ export class HelloWorldApp<
     });
     console.log(tx);
 
-    const promise = tx.wait(chainConnection.confirmations);
-    if (timeoutMs && timeoutMs > 0) {
-      return new Promise((resolve, reject) => {
-        setTimeout(
-          () => reject(new Error('Timeout waiting for message to be sent')),
-          timeoutMs,
-        );
-        promise.then(resolve).catch(reject);
-      });
-    }
-    return promise;
+    return timeout(
+      tx.wait(chainConnection.confirmations),
+      timeoutMs,
+      'Timeout waiting for message to be sent',
+    );
   }
 
   async waitForMessageReceipt(
     receipt: ethers.ContractReceipt,
     timeoutMs?: number,
   ): Promise<ethers.ContractReceipt[]> {
-    const promise = this.core.waitForMessageProcessing(receipt);
-    if (timeoutMs && timeoutMs > 0) {
-      return new Promise((resolve, reject) => {
-        setTimeout(
-          () => reject(new Error('Timeout waiting for message receipt')),
-          timeoutMs,
-        );
-        promise.then(resolve).catch(reject);
-      });
-    }
-    return promise;
+    return timeout(
+      this.core.waitForMessageProcessing(receipt),
+      timeoutMs,
+      'Timeout waiting for message receipt',
+    );
   }
 
   async channelStats<From extends Chain>(
