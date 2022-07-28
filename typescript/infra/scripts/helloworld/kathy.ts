@@ -74,9 +74,13 @@ if (!Number.isSafeInteger(MAX_SEND_RETRIES) || MAX_SEND_RETRIES < 0) {
   process.exit(1);
 }
 
+/** The maximum number of messages we will allow to get queued up if we are sending too slowly. */
+const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
+
 async function main() {
   startMetricsServer(metricsRegister);
   const environment = await getEnvironment();
+  debug('Starting up', { environment });
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
   const gasCalculator = InterchainGasCalculator.fromEnvironment(
@@ -106,11 +110,19 @@ async function main() {
     .filter((v) => v !== null)
     .map((v) => v!);
 
+  debug('Parings calculated', { chains, pairings });
+
   // track how many we are still allowed to send in case some messages send slower than expected.
-  let allowedToSend = 0;
+  let allowedToSend = 1;
+  const sendFrequency = FULL_CYCLE_TIME / pairings.length;
   setInterval(() => {
-    allowedToSend++;
-  }, FULL_CYCLE_TIME / pairings.length);
+    // bucket cap since if we are getting really behind it probably does not make sense to let it run away.
+    allowedToSend = Math.max(allowedToSend + 1, MAX_MESSAGES_ALLOWED_TO_SEND);
+    debug('Tick; allowed to send another message', {
+      allowedToSend,
+      sendFrequency,
+    });
+  }, sendFrequency);
 
   for (
     // in case we are restarting kathy, keep it from always running the exact same messages first
@@ -119,15 +131,26 @@ async function main() {
     currentPairingIndex = (currentPairingIndex + 1) % pairings.length
   ) {
     currentPairingIndexGauge.set(currentPairingIndex);
-    // wait until we are allowed to send the message
-    while (allowedToSend <= 0) await sleep(1000);
-    allowedToSend--;
-
     const { origin, destination } = pairings[currentPairingIndex];
     const labels = {
       origin,
       remote: destination,
     };
+    const logCtx = {
+      currentPairingIndex,
+      origin,
+      destination,
+    };
+    // wait until we are allowed to send the message
+    if (allowedToSend <= 0)
+      debug('Waiting before sending next message', {
+        ...logCtx,
+        sendFrequency,
+      });
+    while (allowedToSend <= 0) await sleep(1000);
+    allowedToSend--;
+
+    debug('Initiating sending of new message', logCtx);
 
     for (
       let attempt = 1, needToRetry = true;
@@ -143,8 +166,7 @@ async function main() {
       } catch (e) {
         error(`Error sending message, continuing...`, {
           error: format(e),
-          origin,
-          destination,
+          ...logCtx,
           attempt,
         });
         messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
