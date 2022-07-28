@@ -181,6 +181,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     sourceTx: ethers.ContractReceipt,
   ): Promise<ethers.ContractReceipt[]> {
     const messages = this.getDispatchedMessages(sourceTx);
+
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
   }
 }

@@ -8,8 +8,8 @@ import {
   Chains,
   InterchainGasCalculator,
 } from '@abacus-network/sdk';
+import { debug, error, log } from '@abacus-network/utils/src/logging';
 
-import { debug, error, log } from '../../src/utils/logging';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { diagonalize, sleep } from '../../src/utils/utils';
 import { getCoreEnvironmentConfig, getEnvironment } from '../utils';

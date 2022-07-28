@@ -276,23 +276,3 @@ export function diagonalize<T>(array: Array<Array<T>>): Array<T> {
   }
   return diagonalized;
 }
-
-/**
- * Wait up to a given amount of time, and throw an error if the promise does not resolve in time.
- * @param promise The promise to timeout on.
- * @param timeoutMs How long to wait for the promise in milliseconds.
- * @param message The error message if a timeout occurs.
- */
-export function timeout<T>(
-  promise: Promise<T>,
-  timeoutMs?: number,
-  message = 'Timeout reached',
-): Promise<T> {
-  if (!timeoutMs || timeoutMs <= 0) return promise;
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      throw new Error(message);
-    }, timeoutMs);
-    promise.then(resolve).catch(reject);
-  });
-}

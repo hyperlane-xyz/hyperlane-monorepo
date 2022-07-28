@@ -3,11 +3,11 @@ import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import { ChainConnection, CompleteChainMap } from '@abacus-network/sdk';
+import { error, log } from '@abacus-network/utils/src/logging';
 
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
 import { getRelayerKeys } from '../../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
-import { error, log } from '../../src/utils/logging';
 import { submitMetrics } from '../../src/utils/metrics';
 import { readJSONAtPath } from '../../src/utils/utils';
 import {
