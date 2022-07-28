@@ -1,6 +1,7 @@
 import { Console } from 'console';
 import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
+import { format } from 'util';
 
 import { ChainConnection, CompleteChainMap } from '@abacus-network/sdk';
 
@@ -247,7 +248,9 @@ function relayerKeyInfo(relayerKey: AgentKey) {
 
 main().catch((err) => {
   error('Error occurred in main', {
-    error: err,
+    // JSON.stringifying an Error returns '{}'.
+    // This is a workaround from https://stackoverflow.com/a/60370781
+    error: format(err),
   });
   process.exit(1);
 });

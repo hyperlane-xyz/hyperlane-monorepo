@@ -70,7 +70,7 @@ export const alfajores: IChainConnection = {
     'https://alfajores-forno.celo-testnet.org',
     44787,
   ),
-  confirmations: 0,
+  confirmations: 1,
   blockExplorerUrl: 'https://alfajores-blockscout.celo-testnet.org/',
 };
 
@@ -185,6 +185,12 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   arbitrumrinkeby,
   optimism,
   optimismkovan,
+  test1,
+  test2,
+  test3,
+};
+
+export const testChainConnectionConfigs = {
   test1,
   test2,
   test3,
