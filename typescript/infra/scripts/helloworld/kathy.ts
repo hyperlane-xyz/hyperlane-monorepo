@@ -18,7 +18,7 @@ import { getApp } from './utils';
 const metricsRegister = new Registry();
 const messagesSendCount = new Counter({
   name: 'abacus_kathy_messages',
-  help: 'Whether messages which have been sent from one chain to another successfully; will report 0 for unsuccessful and 1 for successful.',
+  help: 'Count of messages sent; records successes and failures by status label',
   registers: [metricsRegister],
   labelNames: ['origin', 'remote', 'status'],
 });
