@@ -404,6 +404,10 @@ export class ChainAgentConfig<Chain extends ChainName> {
     return this.agentConfig.relayer !== undefined;
   }
 
+  get validatorSet(): ValidatorSet {
+    return this.agentConfig.validatorSets[this.chainName];
+  }
+
   // Returns true if any of the validators in the validator set are using an S3 checkpoint syncer.
   get s3CheckpointSyncerExists(): boolean {
     return (
