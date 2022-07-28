@@ -69,43 +69,43 @@ export class ReadOnlyAgentKey extends AgentKey {
     address: string,
   ): ReadOnlyAgentKey {
     const regex =
-      /.*([a-zA-Z0-9]+)-([a-zA-Z0-9]+)-key-([a-zA-Z0-9]+)-?([a-zA-Z0-9]+)?-?([0-9]+)?/g;
+      /(alias\/)?([a-zA-Z0-9]+)-([a-zA-Z0-9]+)-key-([a-zA-Z0-9]+)-?([a-zA-Z0-9]+)?-?([0-9]+)?/g;
     const matches = regex.exec(identifier);
     if (!matches) {
       throw Error('Invalid identifier');
     }
-    const context = assertContext(matches[1]);
-    const environment = matches[2];
+    const context = assertContext(matches[2]);
+    const environment = matches[3];
 
-    // If matches[4] is undefined, this key doesn't have a chainName, and matches[3]
+    // If matches[5] is undefined, this key doesn't have a chainName, and matches[3]
     // is the role name.
-    if (matches[4] === undefined) {
-      return new ReadOnlyAgentKey(
-        environment,
-        context,
-        assertRole(matches[3]),
-        identifier,
-        address,
-      );
-    } else if (matches[5] === undefined) {
-      // If matches[5] is undefined, this key doesn't have an index.
+    if (matches[5] === undefined) {
       return new ReadOnlyAgentKey(
         environment,
         context,
         assertRole(matches[4]),
         identifier,
         address,
-        assertChain(matches[3]),
+      );
+    } else if (matches[6] === undefined) {
+      // If matches[6] is undefined, this key doesn't have an index.
+      return new ReadOnlyAgentKey(
+        environment,
+        context,
+        assertRole(matches[5]),
+        identifier,
+        address,
+        assertChain(matches[4]),
       );
     } else {
       return new ReadOnlyAgentKey(
         environment,
         context,
-        assertRole(matches[4]),
+        assertRole(matches[5]),
         identifier,
         address,
-        assertChain(matches[3]),
-        parseInt(matches[5]),
+        assertChain(matches[4]),
+        parseInt(matches[6]),
       );
     }
   }
