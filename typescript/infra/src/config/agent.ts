@@ -140,32 +140,6 @@ interface ValidatorConfig extends BaseValidatorConfig {
   validator: KeyConfig;
 }
 
-// ===============================
-// =====     Kathy Agent     =====
-// ===============================
-
-interface ChatGenConfig {
-  type: 'static';
-  message: string;
-  recipient: string;
-}
-
-// Full kathy agent config for a single chain
-interface KathyConfig {
-  // The message interval (in seconds)
-  interval: number;
-  // Configuration for kathy's chat
-  chat: ChatGenConfig;
-  // Whether kathy is enabled
-  enabled: boolean;
-}
-
-// Per-chain kathy agent configs
-type ChainKathyConfigs<Chain extends ChainName> = ChainOverridableConfig<
-  Chain,
-  KathyConfig
->;
-
 // Eventually consumed by Rust, which expects camelCase values
 export enum KeyType {
   Aws = 'aws',
@@ -216,7 +190,6 @@ export interface AgentConfig<Chain extends ChainName> {
   validatorSets: ChainValidatorSets<Chain>;
   validator?: ChainValidatorConfigs<Chain>;
   relayer?: ChainRelayerConfigs<Chain>;
-  kathy?: ChainKathyConfigs<Chain>;
   // Roles to manage keys for
   rolesWithKeys: KEY_ROLE_ENUM[];
 }
@@ -429,57 +402,6 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
   get relayerEnabled(): boolean {
     return this.agentConfig.relayer !== undefined;
-  }
-
-  // Gets signer info, creating them if necessary
-  async kathySigners() {
-    if (!this.kathyEnabled) {
-      return [];
-    }
-
-    let keyConfig;
-
-    if (this.awsKeys) {
-      const awsUser = new AgentAwsUser(
-        this.agentConfig.environment,
-        this.agentConfig.context,
-        this.chainName,
-        KEY_ROLE_ENUM.Kathy,
-        this.agentConfig.aws!.region,
-      );
-      await awsUser.createIfNotExists();
-      const key = await awsUser.createKeyIfNotExists(this.agentConfig);
-      keyConfig = key.keyConfig;
-    } else {
-      keyConfig = this.keyConfig(KEY_ROLE_ENUM.Kathy);
-    }
-
-    return [
-      {
-        name: this.chainName,
-        keyConfig,
-      },
-    ];
-  }
-
-  get kathyRequiresAwsCredentials() {
-    return this.awsKeys;
-  }
-
-  get kathyConfig(): KathyConfig | undefined {
-    if (!this.agentConfig.kathy) {
-      return undefined;
-    }
-    return getChainOverriddenConfig(this.agentConfig.kathy, this.chainName);
-  }
-
-  get kathyEnabled() {
-    const kathyConfig = this.kathyConfig;
-    return kathyConfig !== undefined && kathyConfig.enabled;
-  }
-
-  get validatorSet(): ValidatorSet {
-    return this.agentConfig.validatorSets[this.chainName];
   }
 
   // Returns true if any of the validators in the validator set are using an S3 checkpoint syncer.
