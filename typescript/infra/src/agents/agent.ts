@@ -77,7 +77,7 @@ export class ReadOnlyAgentKey extends AgentKey {
     const context = assertContext(matches[2]);
     const environment = matches[3];
 
-    // If matches[5] is undefined, this key doesn't have a chainName, and matches[3]
+    // If matches[5] is undefined, this key doesn't have a chainName, and matches[4]
     // is the role name.
     if (matches[5] === undefined) {
       return new ReadOnlyAgentKey(
