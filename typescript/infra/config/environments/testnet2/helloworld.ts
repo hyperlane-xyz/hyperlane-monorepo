@@ -15,5 +15,6 @@ export const helloWorld: HelloWorldConfig<TestnetChains> = {
     namespace: environment,
     fullCycleTime: 1000 * 60 * 60 * 2, // every 2 hours
     messageReceiptTimeout: 1000 * 60 * 15, // 15 min
+    maxSendRetries: 2,
   },
 };
