@@ -25,6 +25,7 @@ describe('ReadOnlyAgentKey', () => {
       // AWS and GCP agent keys to get the identifiers from
       // and ensure they can be correctly parsed
       const testKeys = [
+        new AgentGCPKey(environment, context, KEY_ROLE_ENUM.Deployer),
         new AgentGCPKey(environment, context, KEY_ROLE_ENUM.Relayer, chainName),
         new AgentGCPKey(
           environment,
@@ -33,6 +34,7 @@ describe('ReadOnlyAgentKey', () => {
           chainName,
           0,
         ),
+        new AgentAwsKey(mockAgentConfig, KEY_ROLE_ENUM.Deployer),
         new AgentAwsKey(mockAgentConfig, KEY_ROLE_ENUM.Relayer, chainName),
         new AgentAwsKey(mockAgentConfig, KEY_ROLE_ENUM.Validator, chainName, 0),
       ];
