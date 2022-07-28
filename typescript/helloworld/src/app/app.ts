@@ -1,6 +1,5 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { timeout } from '@abacus-network/infra/dist/src/utils/utils';
 import {
   AbacusApp,
   AbacusCore,
@@ -10,6 +9,7 @@ import {
   MultiProvider,
   Remotes,
 } from '@abacus-network/sdk';
+import { timeout } from '@abacus-network/utils/src/utils';
 
 import { HelloWorldContracts } from './contracts';
 
