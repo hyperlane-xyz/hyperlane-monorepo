@@ -1,12 +1,21 @@
-import { Inbox, Outbox } from '@abacus-network/core';
+import { ethers } from 'ethers';
+
+import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
+import { ParsedMessage } from '@abacus-network/utils/dist/src/types';
+import {
+  messageHash,
+  parseMessage,
+} from '@abacus-network/utils/dist/src/utils';
 
 import { AbacusApp } from '../AbacusApp';
 import { environments } from '../consts/environments';
 import { buildContracts } from '../contracts';
+import { DomainIdToChainName } from '../domains';
+import { ChainConnection } from '../providers/ChainConnection';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router';
 import { ChainMap, ChainName, Remotes } from '../types';
-import { objMap } from '../utils';
+import { objMap, pick } from '../utils';
 
 import { CoreContracts, coreFactories } from './contracts';
 
@@ -20,6 +29,12 @@ export type CoreContractsMap<Chain extends ChainName> = {
   [local in Chain]: CoreContracts<Chain, local>;
 };
 
+type DispatchedMessage = {
+  leafIndex: number;
+  message: string;
+  parsed: ParsedMessage;
+};
+
 export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
   CoreContracts<Chain, Chain>,
   Chain
@@ -31,15 +46,33 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     super(contractsMap, multiProvider);
   }
 
-  static fromEnvironment<Env extends CoreEnvironment>(
-    env: Env,
-    multiProvider: MultiProvider<CoreEnvironmentChain<Env>>,
-  ): AbacusCore<CoreEnvironmentChain<Env>> {
+  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+  static fromEnvironment<
+    Env extends CoreEnvironment,
+    Chain extends ChainName = ChainName,
+  >(env: Env, multiProvider: MultiProvider<Chain>) {
+    const envConfig = environments[env];
+    if (!envConfig) {
+      throw new Error(`No default env config found for ${env}`);
+    }
+
+    type EnvChain = keyof typeof envConfig;
+    type IntersectionChain = EnvChain & Chain;
+    const envChains = Object.keys(envConfig) as IntersectionChain[];
+
+    const { intersection, multiProvider: intersectionProvider } =
+      multiProvider.intersect<IntersectionChain>(envChains);
+
+    const intersectionConfig = pick(
+      envConfig as ChainMap<Chain, any>,
+      intersection,
+    );
     const contractsMap = buildContracts(
-      environments[env],
+      intersectionConfig,
       coreFactories,
-    ) as CoreContractsMap<CoreEnvironmentChain<Env>>;
-    return new AbacusCore(contractsMap, multiProvider);
+    ) as CoreContractsMap<IntersectionChain>;
+
+    return new AbacusCore(contractsMap, intersectionProvider);
   }
 
   // override type to be derived from chain key
@@ -92,5 +125,62 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     const destinationInbox =
       this.getContracts(destination).inboxes[origin].inbox.contract;
     return { originOutbox, destinationInbox };
+  }
+
+  protected getDestination(message: DispatchedMessage): {
+    inbox: Inbox;
+    chainConnection: ChainConnection;
+  } {
+    const sourceChain = DomainIdToChainName[message.parsed.origin] as Chain;
+    const destinationChain = DomainIdToChainName[
+      message.parsed.destination
+    ] as Chain;
+    const { destinationInbox } = this.getMailboxPair(
+      sourceChain as Exclude<Chain, typeof destinationChain>,
+      destinationChain,
+    );
+    const chainConnection =
+      this.multiProvider.getChainConnection(destinationChain);
+    return { inbox: destinationInbox, chainConnection };
+  }
+
+  protected waitForProcessReceipt(
+    message: DispatchedMessage,
+  ): Promise<ethers.ContractReceipt> {
+    const hash = messageHash(message.message, message.leafIndex);
+    const { inbox, chainConnection } = this.getDestination(message);
+    const filter = inbox.filters.Process(hash);
+
+    return new Promise<ethers.ContractReceipt>((resolve, reject) => {
+      inbox.once(filter, (emittedHash, event) => {
+        if (hash !== emittedHash) {
+          reject(`Expected message hash ${hash} but got ${emittedHash}`);
+        }
+        resolve(chainConnection.handleTx(event.getTransaction()));
+      });
+    });
+  }
+
+  getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
+    const outbox = Outbox__factory.createInterface();
+    const describedLogs = sourceTx.logs.map((log) => outbox.parseLog(log));
+    const dispatchLogs = describedLogs.filter(
+      (log) => log && log.name === 'Dispatch',
+    );
+    if (dispatchLogs.length === 0) {
+      throw new Error('Dispatch logs not found');
+    }
+    return dispatchLogs.map((log) => {
+      const message = log.args['message'];
+      const parsed = parseMessage(message);
+      return { leafIndex: log.args['leafIndex'], message, parsed };
+    });
+  }
+
+  waitForMessageProcessing(
+    sourceTx: ethers.ContractReceipt,
+  ): Promise<ethers.ContractReceipt[]> {
+    const messages = this.getDispatchedMessages(sourceTx);
+    return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
   }
 }

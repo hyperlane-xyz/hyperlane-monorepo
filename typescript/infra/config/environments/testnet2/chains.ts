@@ -4,7 +4,13 @@ export const testnetConfigs = {
   alfajores: chainConnectionConfigs.alfajores,
   kovan: chainConnectionConfigs.kovan,
   fuji: chainConnectionConfigs.fuji,
-  mumbai: chainConnectionConfigs.mumbai,
+  mumbai: {
+    ...chainConnectionConfigs.mumbai,
+    overrides: {
+      maxFeePerGas: 100 * 10 ** 9, // 100 gwei
+      maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
+    },
+  },
   bsctestnet: chainConnectionConfigs.bsctestnet,
   arbitrumrinkeby: chainConnectionConfigs.arbitrumrinkeby,
   optimismkovan: chainConnectionConfigs.optimismkovan,

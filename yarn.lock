@@ -11,16 +11,16 @@ __metadata:
   dependencies:
     "@abacus-network/core": 0.3.1
     "@abacus-network/utils": 0.3.1
-    "@nomiclabs/hardhat-ethers": ^2.0.1
-    "@nomiclabs/hardhat-waffle": ^2.0.1
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts-upgradeable": ^4.5.0
     "@typechain/ethers-v5": 10.0.0
     "@typechain/hardhat": ^6.0.0
     "@types/mocha": ^9.1.0
     chai: ^4.3.0
-    ethereum-waffle: ^3.2.2
+    ethereum-waffle: ^3.4.4
     ethers: ^5.6.8
-    hardhat: ^2.8.3
+    hardhat: ^2.8.4
     hardhat-gas-reporter: ^1.0.7
     prettier: ^2.4.1
     prettier-plugin-solidity: ^1.0.0-beta.5
@@ -47,17 +47,17 @@ __metadata:
   resolution: "@abacus-network/core@workspace:solidity/core"
   dependencies:
     "@abacus-network/utils": 0.3.1
-    "@nomiclabs/hardhat-ethers": ^2.0.1
-    "@nomiclabs/hardhat-waffle": ^2.0.1
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts": ^4.6.0
     "@openzeppelin/contracts-upgradeable": ^4.6.0
     "@summa-tx/memview-sol": ^2.0.0
     "@typechain/ethers-v5": 10.0.0
     "@typechain/hardhat": ^6.0.0
     chai: ^4.3.0
-    ethereum-waffle: ^3.2.2
+    ethereum-waffle: ^3.4.4
     ethers: ^5.6.8
-    hardhat: ^2.8.3
+    hardhat: ^2.8.4
     hardhat-gas-reporter: ^1.0.7
     prettier: ^2.4.1
     prettier-plugin-solidity: ^1.0.0-beta.5
@@ -70,24 +70,46 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/helloworld@npm:0.3.1-beta0":
-  version: 0.3.1-beta0
-  resolution: "@abacus-network/helloworld@npm:0.3.1-beta0"
+"@abacus-network/helloworld@0.3.1, @abacus-network/helloworld@workspace:typescript/helloworld":
+  version: 0.0.0-use.local
+  resolution: "@abacus-network/helloworld@workspace:typescript/helloworld"
   dependencies:
-    "@abacus-network/sdk": ^0.3.1-beta0
+    "@abacus-network/sdk": ^0.3.1
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts-upgradeable": ^4.6.0
-    ethers: ^5.4.7
-  checksum: 21114292ef0eb5408405f217942524ef54e379e189120edae94a4a2d2739a5c21edbfd98210831b309ca9a0118640c7ae231d13179f13c503ed94714a91c3055
-  languageName: node
-  linkType: hard
+    "@trivago/prettier-plugin-sort-imports": ^3.2.0
+    "@typechain/ethers-v5": 10.0.0
+    "@typechain/hardhat": ^6.0.0
+    "@types/mocha": ^9.1.0
+    "@typescript-eslint/eslint-plugin": ^5.27.0
+    "@typescript-eslint/parser": ^5.27.0
+    chai: ^4.3.0
+    eslint: ^8.16.0
+    eslint-config-prettier: ^8.5.0
+    ethereum-waffle: ^3.4.4
+    ethers: ^5.6.8
+    hardhat: ^2.8.4
+    hardhat-gas-reporter: ^1.0.7
+    prettier: ^2.4.1
+    prettier-plugin-solidity: ^1.0.0-beta.5
+    solhint: ^3.3.2
+    solhint-plugin-prettier: ^0.0.5
+    solidity-coverage: ^0.7.14
+    ts-node: ^10.8.0
+    typechain: 8.0.0
+    typescript: ^4.7.2
+  languageName: unknown
+  linkType: soft
 
 "@abacus-network/infra@workspace:typescript/infra":
   version: 0.0.0-use.local
   resolution: "@abacus-network/infra@workspace:typescript/infra"
   dependencies:
     "@abacus-network/celo-ethers-provider": ^0.1.0
-    "@abacus-network/helloworld": 0.3.1-beta0
+    "@abacus-network/helloworld": 0.3.1
     "@abacus-network/sdk": 0.3.1
+    "@abacus-network/utils": 0.3.1
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
@@ -102,10 +124,11 @@ __metadata:
     asn1.js: 5.4.1
     chai: ^4.3.4
     dotenv: ^10.0.0
-    ethereum-waffle: ^3.2.2
+    ethereum-waffle: ^3.4.4
     ethers: ^5.6.8
     hardhat: ^2.8.4
     prettier: ^2.4.1
+    prom-client: ^14.0.1
     ts-node: ^10.8.0
     typescript: ^4.7.2
     yargs: ^17.4.1
@@ -127,7 +150,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/sdk@0.3.1, @abacus-network/sdk@^0.3.1-beta0, @abacus-network/sdk@workspace:typescript/sdk":
+"@abacus-network/sdk@0.3.1, @abacus-network/sdk@^0.3.1, @abacus-network/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@abacus-network/sdk@workspace:typescript/sdk"
   dependencies:
@@ -137,19 +160,22 @@ __metadata:
     "@abacus-network/utils": 0.3.1
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@types/coingecko-api": ^1.0.10
     "@types/debug": ^4.1.7
     "@types/node": ^16.9.1
     chai: ^4.3.6
+    coingecko-api: ^1.0.10
     cross-fetch: ^3.1.5
     debug: ^4.3.4
     dotenv: ^10.0.0
-    ethereum-waffle: ^3.2.2
+    ethereum-waffle: ^3.4.4
     ethers: ^5.6.8
     fs: 0.0.1-security
     hardhat: ^2.8.4
     mocha: ^9.2.2
     prettier: ^2.4.1
     sinon: ^13.0.2
+    ts-node: ^10.8.0
     typescript: ^4.7.2
   languageName: unknown
   linkType: soft
@@ -2970,7 +2996,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nomiclabs/hardhat-ethers@npm:^2.0.1, @nomiclabs/hardhat-ethers@npm:^2.0.5":
+"@nomiclabs/hardhat-ethers@npm:^2.0.5":
   version: 2.0.6
   resolution: "@nomiclabs/hardhat-ethers@npm:2.0.6"
   peerDependencies:
@@ -3000,7 +3026,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nomiclabs/hardhat-waffle@npm:^2.0.1, @nomiclabs/hardhat-waffle@npm:^2.0.2":
+"@nomiclabs/hardhat-waffle@npm:^2.0.2":
   version: 2.0.3
   resolution: "@nomiclabs/hardhat-waffle@npm:2.0.3"
   dependencies:
@@ -3428,6 +3454,13 @@ __metadata:
   version: 4.3.1
   resolution: "@types/chai@npm:4.3.1"
   checksum: 2ee246b76c469cd620a7a1876a73bc597074361b67d547b4bd96a0c1adb43597ede2d8589ab626192e14349d83cbb646cc11e2c179eeeb43ff11596de94d82c4
+  languageName: node
+  linkType: hard
+
+"@types/coingecko-api@npm:^1.0.10":
+  version: 1.0.10
+  resolution: "@types/coingecko-api@npm:1.0.10"
+  checksum: e9683f9ea9ce2f855f6565089981dd3fceb6c4674365438f3fc3877d089a2fb82cdea011b59d59c7baa1635dc610860cd29a10a4b7a650ff96521ead46f22a50
   languageName: node
   linkType: hard
 
@@ -4392,23 +4425,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"async@npm:1.x, async@npm:^1.4.2":
-  version: 1.5.2
-  resolution: "async@npm:1.5.2"
-  checksum: fe5d6214d8f15bd51eee5ae8ec5079b228b86d2d595f47b16369dec2e11b3ff75a567bb5f70d12d79006665fbbb7ee0a7ec0e388524eefd454ecbe651c124ebd
-  languageName: node
-  linkType: hard
-
-"async@npm:2.6.2":
-  version: 2.6.2
-  resolution: "async@npm:2.6.2"
-  dependencies:
-    lodash: ^4.17.11
-  checksum: e5e90a3bcc4d9bf964bfc6b77d63b8f5bee8c14e9a51c3317dbcace44d5b6b1fe01cd4fd347449704a107da7fcd25e1382ee8545957b2702782ae720605cf7a4
-  languageName: node
-  linkType: hard
-
-"async@npm:^2.0.1, async@npm:^2.1.2, async@npm:^2.4.0, async@npm:^2.5.0, async@npm:^2.6.1":
+"async@npm:^2.6.4":
   version: 2.6.4
   resolution: "async@npm:2.6.4"
   dependencies:
@@ -5164,6 +5181,13 @@ __metadata:
   version: 2.2.0
   resolution: "binary-extensions@npm:2.2.0"
   checksum: ccd267956c58d2315f5d3ea6757cf09863c5fc703e50fbeb13a7dc849b812ef76e3cf9ca8f35a0c48498776a7478d7b4a0418e1e2b8cb9cb9731f2922aaad7f8
+  languageName: node
+  linkType: hard
+
+"bintrees@npm:1.0.2":
+  version: 1.0.2
+  resolution: "bintrees@npm:1.0.2"
+  checksum: 56a52b7d3634e30002b1eda740d2517a22fa8e9e2eb088e919f37c030a0ed86e364ab59e472fc770fc8751308054bb1c892979d150e11d9e11ac33bcc1b5d16e
   languageName: node
   linkType: hard
 
@@ -5943,6 +5967,13 @@ __metadata:
   version: 1.1.0
   resolution: "code-point-at@npm:1.1.0"
   checksum: 17d5666611f9b16d64fdf48176d9b7fb1c7d1c1607a189f7e600040a11a6616982876af148230336adb7d8fe728a559f743a4e29db3747e3b1a32fa7f4529681
+  languageName: node
+  linkType: hard
+
+"coingecko-api@npm:^1.0.10":
+  version: 1.0.10
+  resolution: "coingecko-api@npm:1.0.10"
+  checksum: c900f5f7261dbfa2ecf3f6a2b018eb9de445db17bf9ef331e2751904f24c4e361144e9aa8ab1501fb4e741fa900dd61007e330a6b95a778d35b48d2ca5b61148
   languageName: node
   linkType: hard
 
@@ -6848,7 +6879,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"encoding@npm:^0.1.11, encoding@npm:^0.1.13":
+"encoding@npm:^0.1.13":
   version: 0.1.13
   resolution: "encoding@npm:0.1.13"
   dependencies:
@@ -7545,7 +7576,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethereum-waffle@npm:^3.2.2":
+"ethereum-waffle@npm:^3.4.4":
   version: 3.4.4
   resolution: "ethereum-waffle@npm:3.4.4"
   dependencies:
@@ -7822,7 +7853,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethers@npm:^5.0.1, ethers@npm:^5.0.2, ethers@npm:^5.4.7, ethers@npm:^5.5.2, ethers@npm:^5.6.8":
+"ethers@npm:^5.0.1, ethers@npm:^5.0.2, ethers@npm:^5.5.2, ethers@npm:^5.6.8":
   version: 5.6.8
   resolution: "ethers@npm:5.6.8"
   dependencies:
@@ -8127,12 +8158,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fetch-ponyfill@npm:^4.0.0":
-  version: 4.1.0
-  resolution: "fetch-ponyfill@npm:4.1.0"
+"fetch-ponyfill@npm:^7.1":
+  version: 7.1.0
+  resolution: "fetch-ponyfill@npm:7.1.0"
   dependencies:
-    node-fetch: ~1.7.1
-  checksum: 00c85b661a8314e18cb314640b69d3b6e9635517d54290c8f366ddcb21b506ac8fa5d92f899c0fe21bc2163238130be2cf73ffd9d5a8a41a9866a55c52f57f16
+    node-fetch: ~2.6.1
+  checksum: 7fd497dd5f7db890e80193de5bc1cd0115a62400272cd9a992849288e66886fcdb0724ea1ed161be7b8db2daeafda8c58d0259acdda42d6561155dbcdbb0720a
   languageName: node
   linkType: hard
 
@@ -9069,7 +9100,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"hardhat@npm:^2.8.3, hardhat@npm:^2.8.4":
+"hardhat@npm:^2.8.4":
   version: 2.9.9
   resolution: "hardhat@npm:2.9.9"
   dependencies:
@@ -10023,7 +10054,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"is-stream@npm:^1.0.0, is-stream@npm:^1.0.1":
+"is-stream@npm:^1.0.0":
   version: 1.1.0
   resolution: "is-stream@npm:1.1.0"
   checksum: 063c6bec9d5647aa6d42108d4c59723d2bd4ae42135a2d4db6eadbd49b7ea05b750fd69d279e5c7c45cf9da753ad2c00d8978be354d65aa9f6bb434969c6a2ae
@@ -10941,14 +10972,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lodash@npm:4.17.20":
-  version: 4.17.20
-  resolution: "lodash@npm:4.17.20"
-  checksum: b31afa09739b7292a88ec49ffdb2fcaeb41f690def010f7a067eeedffece32da6b6847bfe4d38a77e6f41778b9b2bca75eeab91209936518173271f0b69376ea
-  languageName: node
-  linkType: hard
-
-"lodash@npm:4.17.21, lodash@npm:^4.17.11, lodash@npm:^4.17.12, lodash@npm:^4.17.14, lodash@npm:^4.17.15, lodash@npm:^4.17.19, lodash@npm:^4.17.21, lodash@npm:^4.17.4":
+"lodash@npm:^4.17.21":
   version: 4.17.21
   resolution: "lodash@npm:4.17.21"
   checksum: eb835a2e51d381e561e508ce932ea50a8e5a68f4ebdd771ea240d3048244a8d13658acbd502cd4829768c56f2e16bdd4340b9ea141297d472517b83868e677f7
@@ -11866,7 +11890,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-fetch@npm:2.6.7, node-fetch@npm:^2.6.1, node-fetch@npm:^2.6.7":
+"node-fetch@npm:2.6.7, node-fetch@npm:^2.6.1, node-fetch@npm:^2.6.7, node-fetch@npm:~2.6.1":
   version: 2.6.7
   resolution: "node-fetch@npm:2.6.7"
   dependencies:
@@ -11877,16 +11901,6 @@ __metadata:
     encoding:
       optional: true
   checksum: 8d816ffd1ee22cab8301c7756ef04f3437f18dace86a1dae22cf81db8ef29c0bf6655f3215cb0cdb22b420b6fe141e64b26905e7f33f9377a7fa59135ea3e10b
-  languageName: node
-  linkType: hard
-
-"node-fetch@npm:~1.7.1":
-  version: 1.7.3
-  resolution: "node-fetch@npm:1.7.3"
-  dependencies:
-    encoding: ^0.1.11
-    is-stream: ^1.0.1
-  checksum: 3bb0528c05d541316ebe52770d71ee25a6dce334df4231fd55df41a644143e07f068637488c18a5b0c43f05041dbd3346752f9e19b50df50569a802484544d5b
   languageName: node
   linkType: hard
 
@@ -12770,6 +12784,15 @@ __metadata:
   version: 2.0.3
   resolution: "progress@npm:2.0.3"
   checksum: f67403fe7b34912148d9252cb7481266a354bd99ce82c835f79070643bb3c6583d10dbcfda4d41e04bbc1d8437e9af0fb1e1f2135727878f5308682a579429b7
+  languageName: node
+  linkType: hard
+
+"prom-client@npm:^14.0.1":
+  version: 14.0.1
+  resolution: "prom-client@npm:14.0.1"
+  dependencies:
+    tdigest: ^0.1.1
+  checksum: 864c19b7086eda8fae652385bc8b8aeb155f85922e58672d07a64918a603341e120e65e08f9d77ccab546518dc18930284da8743c2aac3c968f626d7063d6bba
   languageName: node
   linkType: hard
 
@@ -14845,6 +14868,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"tdigest@npm:^0.1.1":
+  version: 0.1.2
+  resolution: "tdigest@npm:0.1.2"
+  dependencies:
+    bintrees: 1.0.2
+  checksum: 44de8246752b6f8c2924685f969fd3d94c36949f22b0907e99bef2b2220726dd8467f4730ea96b06040b9aa2587c0866049640039d1b956952dfa962bc2075a3
+  languageName: node
+  linkType: hard
+
 "test-value@npm:^2.1.0":
   version: 2.1.0
   resolution: "test-value@npm:2.1.0"
@@ -15404,10 +15436,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"underscore@npm:1.9.1":
-  version: 1.9.1
-  resolution: "underscore@npm:1.9.1"
-  checksum: bee6f587661a6a9ca2f77e611896141e0287af51d8ca6034b11d0d4163ddbdd181a9720078ddbe94d265b7694f4880bc7f4c2ad260cfb8985ee2f9adcf13df03
+"underscore@npm:^1.13":
+  version: 1.13.4
+  resolution: "underscore@npm:1.13.4"
+  checksum: 6b04f66cd454e8793a552dc49c71e24e5208a29b9d9c0af988a96948af79103399c36fb15db43f3629bfed152f8b1fe94f44e1249e9d196069c0fc7edfadb636
   languageName: node
   linkType: hard
 

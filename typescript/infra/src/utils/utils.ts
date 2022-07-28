@@ -7,7 +7,8 @@ import path from 'path';
 
 import { AllChains, ChainName } from '@abacus-network/sdk';
 
-import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
+import { Contexts } from '../../config/contexts';
+import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -126,10 +127,6 @@ export async function execCmdAndParseJson(
   return JSON.parse(stdout);
 }
 
-export const ensure0x = (hexstr: string) =>
-  hexstr.startsWith('0x') ? hexstr : '0x' + hexstr;
-export const strip0x = (hexstr: string) =>
-  hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
 export function includeConditionally(condition: boolean, data: any) {
   return condition ? data : {};
 }
@@ -181,7 +178,7 @@ export function readJSONAtPath(filepath: string) {
 
 export function assertRole(roleStr: string) {
   const role = roleStr as KEY_ROLE_ENUM;
-  if (!KEY_ROLES.includes(role)) {
+  if (!ALL_KEY_ROLES.includes(role)) {
     throw Error(`Invalid role ${role}`);
   }
   return role;
@@ -193,4 +190,18 @@ export function assertChain(chainStr: string) {
     throw Error(`Invalid chain ${chain}`);
   }
   return chain;
+}
+
+export function assertContext(contextStr: string): Contexts {
+  const context = contextStr as Contexts;
+  if (Object.values(Contexts).includes(context)) {
+    return context;
+  }
+  throw new Error(
+    `Invalid context ${contextStr}, must be one of ${Object.values(
+      Contexts,
+    )}. ${
+      contextStr === undefined ? ' Did you specify --context <context>?' : ''
+    }`,
+  );
 }

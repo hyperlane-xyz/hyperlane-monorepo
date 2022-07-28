@@ -43,7 +43,7 @@ export class AgentAwsKey extends AgentKey {
     chainName?: ChainName,
     index?: number,
   ) {
-    super(agentConfig.environment, role, chainName, index);
+    super(agentConfig.environment, agentConfig.context, role, chainName, index);
     if (!agentConfig.aws) {
       throw new Error('Not configured as AWS');
     }
@@ -63,6 +63,7 @@ export class AgentAwsKey extends AgentKey {
   get identifier() {
     return `alias/${keyIdentifier(
       this.environment,
+      this.context,
       this.role,
       this.chainName,
       this.index,

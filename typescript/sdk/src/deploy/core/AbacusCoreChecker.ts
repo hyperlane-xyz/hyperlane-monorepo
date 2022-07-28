@@ -22,29 +22,34 @@ export class AbacusCoreChecker<
   Chain extends ChainName,
 > extends AbacusAppChecker<Chain, AbacusCore<Chain>, CoreConfig> {
   async checkChain(chain: Chain): Promise<void> {
-    // await this.checkDomainOwnership(chain);
+    await this.checkDomainOwnership(chain);
     await this.checkProxiedContracts(chain);
     await this.checkOutbox(chain);
     await this.checkInboxes(chain);
     await this.checkAbacusConnectionManager(chain);
     await this.checkValidatorManagers(chain);
+    await this.checkInterchainGasPaymaster(chain);
   }
 
-  // CoreConfig does not have `owner`
-  // async checkDomainOwnership(chain: Chain): Promise<void> {
-  //   const config = this.configMap[chain];
-  //   const contracts = this.app.getContracts(chain);
-  //   const ownables = [
-  //     contracts.abacusConnectionManager,
-  //     contracts.upgradeBeaconController,
-  //     contracts.outbox.outbox,
-  //     contracts.outbox.outboxValidatorManager,
-  //     ...Object.values(contracts.inboxes)
-  //       .map((inbox: any) => [inbox.inbox, inbox.validatorManager])
-  //       .flat(),
-  //   ];
-  //   return AbacusAppChecker.checkOwnership(config.owner, ownables);
-  // }
+  async checkDomainOwnership(chain: Chain): Promise<void> {
+    const config = this.configMap[chain];
+    if (config.owner) {
+      const contracts = this.app.getContracts(chain);
+      const ownables = [
+        contracts.abacusConnectionManager,
+        contracts.upgradeBeaconController,
+        contracts.outbox.contract,
+        contracts.outboxValidatorManager,
+        ...Object.values(contracts.inboxes)
+          .map((inbox: any) => [
+            inbox.inbox.contract,
+            inbox.inboxValidatorManager,
+          ])
+          .flat(),
+      ];
+      return this.checkOwnership(chain, config.owner, ownables);
+    }
+  }
 
   async checkOutbox(chain: Chain): Promise<void> {
     const contracts = this.app.getContracts(chain);
@@ -114,7 +119,7 @@ export class AbacusCoreChecker<
         expected: validatorToEnroll,
         data: {
           type: ValidatorViolationType.EnrollValidator,
-          validatorManagerAddress: validatorManager.address,
+          validatorManager,
         },
       };
       this.addViolation(violation);
@@ -129,7 +134,7 @@ export class AbacusCoreChecker<
         expected: undefined,
         data: {
           type: ValidatorViolationType.UnenrollValidator,
-          validatorManagerAddress: validatorManager.address,
+          validatorManager,
         },
       };
       this.addViolation(violation);
@@ -148,7 +153,7 @@ export class AbacusCoreChecker<
         expected: expectedThreshold,
         data: {
           type: ValidatorViolationType.Threshold,
-          validatorManagerAddress: validatorManager.address,
+          validatorManager,
         },
       };
       this.addViolation(violation);
@@ -222,5 +227,28 @@ export class AbacusCoreChecker<
         this.checkUpgradeBeacon(chain, 'Inbox', inbox.inbox.addresses),
       ),
     );
+  }
+
+  async checkInterchainGasPaymaster(chain: Chain): Promise<void> {
+    const contracts = this.app.getContracts(chain);
+    if (contracts.interchainGasPaymaster.addresses) {
+      await this.checkUpgradeBeacon(
+        chain,
+        'InterchainGasPaymaster',
+        contracts.interchainGasPaymaster.addresses,
+      );
+    } else {
+      this.violations.push({
+        type: CoreViolationType.NotDeployed,
+        chain: chain,
+        expected: undefined,
+        actual: undefined,
+        data: {
+          contract: 'InterchainGasPaymaster',
+        },
+      });
+    }
+
+    return;
   }
 }

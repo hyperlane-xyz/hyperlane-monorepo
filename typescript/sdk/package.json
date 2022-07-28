@@ -8,6 +8,7 @@
     "@abacus-network/core": "0.3.1",
     "@abacus-network/utils": "0.3.1",
     "@types/debug": "^4.1.7",
+    "coingecko-api": "^1.0.10",
     "cross-fetch": "^3.1.5",
     "debug": "^4.3.4",
     "ethers": "^5.6.8"
@@ -15,15 +16,17 @@
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.5",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
+    "@types/coingecko-api": "^1.0.10",
     "@types/node": "^16.9.1",
     "chai": "^4.3.6",
     "dotenv": "^10.0.0",
-    "ethereum-waffle": "^3.2.2",
+    "ethereum-waffle": "^3.4.4",
     "fs": "0.0.1-security",
     "hardhat": "^2.8.4",
     "mocha": "^9.2.2",
     "prettier": "^2.4.1",
     "sinon": "^13.0.2",
+    "ts-node": "^10.8.0",
     "typescript": "^4.7.2"
   },
   "files": [

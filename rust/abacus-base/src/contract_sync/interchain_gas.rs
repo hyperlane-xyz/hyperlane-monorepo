@@ -44,11 +44,15 @@ where
             loop {
                 indexed_height.set(from.into());
 
-                // Only index blocks considered final
-                let tip = indexer.get_finalized_block_number().await?;
+                // Only index blocks considered final.
+                // If there's an error getting the block number, just start the loop over
+                let tip = if let Ok(num) = indexer.get_finalized_block_number().await {
+                    num
+                } else {
+                    continue;
+                };
                 if tip <= from {
                     debug!(tip=?tip, from=?from, "[GasPayments]: caught up to tip, waiting for new block");
-                    // TODO: Make this configurable
                     // Sleep if caught up to tip
                     sleep(Duration::from_secs(1)).await;
                     continue;

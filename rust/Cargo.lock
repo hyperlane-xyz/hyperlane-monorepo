@@ -56,16 +56,20 @@ dependencies = [
 name = "abacus-core"
 version = "0.1.0"
 dependencies = [
+ "abacus-base",
  "async-trait",
  "bytes",
  "color-eyre",
+ "config",
  "ethers",
  "ethers-providers",
  "ethers-signers",
  "eyre",
  "hex",
  "lazy_static",
+ "maplit",
  "num",
+ "num-traits",
  "rocksdb",
  "serde",
  "serde_json",
@@ -74,6 +78,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-futures",
+ "walkdir",
 ]
 
 [[package]]
@@ -113,6 +118,7 @@ dependencies = [
  "rocksdb",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",

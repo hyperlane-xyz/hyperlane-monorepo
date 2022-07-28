@@ -16,7 +16,7 @@ export const ethereum: IChainConnection = {
 export const celo: IChainConnection = {
   provider: new StaticCeloJsonRpcProvider('https://forno.celo.org', 42220),
   confirmations: 1,
-  blockExplorerUrl: 'https://celoscan.xyz',
+  blockExplorerUrl: 'https://celoscan.io',
 };
 
 export const polygon: IChainConnection = {
@@ -33,7 +33,7 @@ export const avalanche: IChainConnection = {
     'https://api.avax.network/ext/bc/C/rpc',
     43114,
   ),
-  confirmations: 1,
+  confirmations: 3,
   blockExplorerUrl: 'https://snowtrace.io',
 };
 
@@ -53,6 +53,7 @@ export const optimism: IChainConnection = {
   ),
   confirmations: 1,
   blockExplorerUrl: 'https://optimistic.etherscan.io/',
+  apiPrefix: 'api-',
 };
 
 export const bsc: IChainConnection = {
@@ -86,7 +87,7 @@ export const fuji: IChainConnection = {
     'https://api.avax-test.network/ext/bc/C/rpc',
     43113,
   ),
-  confirmations: 1,
+  confirmations: 3,
   blockExplorerUrl: 'https://testnet.snowtrace.io/',
 };
 
@@ -184,6 +185,12 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   arbitrumrinkeby,
   optimism,
   optimismkovan,
+  test1,
+  test2,
+  test3,
+};
+
+export const testChainConnectionConfigs = {
   test1,
   test2,
   test3,

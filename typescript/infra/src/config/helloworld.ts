@@ -8,6 +8,7 @@ export interface HelloWorldKathyConfig<Chain extends ChainName> {
   runEnv: string;
   namespace: string;
   chainsToSkip: Chain[];
+  prometheusPushGateway: string;
 }
 
 export interface HelloWorldConfig<Chain extends ChainName> {
