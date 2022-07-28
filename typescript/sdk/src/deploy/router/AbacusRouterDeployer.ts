@@ -14,10 +14,10 @@ import { RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
   Chain extends ChainName,
+  Config extends RouterConfig,
   Contracts extends RouterContracts,
   Factories extends RouterFactories,
-  Config extends RouterConfig,
-> extends AbacusDeployer<Chain, Config, Factories, Contracts> {
+> extends AbacusDeployer<Chain, Config, Contracts, Factories> {
   constructor(
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, Config>,
@@ -70,7 +70,7 @@ export abstract class AbacusRouterDeployer<
     contractsMap: ChainMap<Chain, Contracts>,
   ): Promise<void> {
     this.logger(`Enrolling deployed routers with each other...`);
-    // Make all routers aware of eachother.
+    // Make all routers aware of each other.
     await promiseObjAll(
       objMap(contractsMap, async (local, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(local);
