@@ -11,9 +11,9 @@ import { RouterConfig } from './types';
 
 export class AbacusRouterChecker<
   Chain extends ChainName,
-  Contracts extends RouterContracts,
   App extends AbacusApp<Contracts, Chain>,
   Config extends RouterConfig,
+  Contracts extends RouterContracts,
 > extends AbacusAppChecker<Chain, App, Config> {
   checkOwnership(chain: Chain): Promise<void> {
     const owner = this.configMap[chain].owner;

@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import { ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
@@ -55,7 +56,7 @@ async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
-  const gasCalc = InterchainGasCalculator.fromEnvironment(
+  const gasCalculator = InterchainGasCalculator.fromEnvironment(
     environment,
     app.multiProvider as any,
   );
@@ -112,7 +113,7 @@ async function main() {
     };
     const startTime = Date.now();
     try {
-      await sendMessage(app, origin, destination, gasCalc);
+      await sendMessage(app, origin, destination, gasCalculator);
       log('Message sent successfully', { origin, destination });
       messagesSendCount.labels({ ...labels, status: 'success' }).inc();
     } catch (e) {
@@ -145,14 +146,12 @@ async function sendMessage(
   gasCalc: InterchainGasCalculator<any>,
 ) {
   const msg = 'Hello!';
-  const expected = {
+  const expectedHandleGas = BigNumber.from(100_000);
+  const value = await gasCalc.estimatePaymentForHandleGas(
     origin,
     destination,
-    sender: app.getContracts(origin).router.address,
-    recipient: app.getContracts(destination).router.address,
-    body: msg,
-  };
-  const value = await gasCalc.estimatePaymentForMessage(expected);
+    expectedHandleGas,
+  );
 
   log('Sending message', { origin, destination });
 

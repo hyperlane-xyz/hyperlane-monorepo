@@ -456,6 +456,22 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
         num_expected_messages_processed,
         msg_processed_count.into_iter().sum::<u32>()
     );
+
+    let gas_payment_events_count = ureq::get("http://127.0.0.1:9092/metrics")
+        .call()
+        .unwrap()
+        .into_string()
+        .unwrap()
+        .lines()
+        .filter(|l| l.starts_with("abacus_contract_sync_stored_events"))
+        .filter(|l| l.contains(r#"data_type="gas_payments""#))
+        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .next()
+        .unwrap();
+    assert!(
+        gas_payment_events_count >= num_expected_messages_processed,
+        "Synced gas payment event count is less than the number of messages"
+    );
 }
 
 /// Basically `tail -f file | grep <FILTER>` but also has to write to the file (writes to file all

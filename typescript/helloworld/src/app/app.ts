@@ -43,15 +43,16 @@ export class HelloWorldApp<
     const estimated = await sender.estimateGas.sendHelloWorld(
       toDomain,
       message,
-      chainConnection.overrides,
+      { ...chainConnection.overrides, value },
     );
-    const gasLimit = estimated.mul(11).div(10);
+    const gasLimit = estimated.mul(12).div(10);
 
     const tx = await sender.sendHelloWorld(toDomain, message, {
       ...chainConnection.overrides,
       gasLimit,
       value,
     });
+    console.log(tx);
     const receipt = await tx.wait(chainConnection.confirmations);
 
     // just sent, but have not yet waited for it to complete
