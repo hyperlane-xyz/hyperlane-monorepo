@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
+import { format } from 'util';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
 import {
@@ -116,7 +117,7 @@ async function main() {
       messagesSendCount.labels({ ...labels, status: 'success' }).inc();
     } catch (e) {
       error(`Error sending message, continuing...`, {
-        error: e,
+        error: format(e),
         origin,
         destination,
       });
