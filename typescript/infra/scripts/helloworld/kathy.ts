@@ -45,11 +45,23 @@ metricsRegister.registerMetric(messageSendSeconds);
 const FULL_CYCLE_TIME =
   parseInt(process.env['KATHY_FULL_CYCLE_TIME'] as string) ||
   1000 * 60 * 60 * 6;
+if (!Number.isSafeInteger(FULL_CYCLE_TIME) || FULL_CYCLE_TIME <= 0) {
+  error('Invalid cycle time provided');
+  process.exit(1);
+}
 
 /** How long we should wait for a message to be received in milliseconds. 10 min by default. */
 const MESSAGE_RECEIPT_TIMEOUT =
   parseInt(process.env['KATHY_MESSAGE_RECEIPT_TIMEOUT'] as string) ||
   10 * 60 * 1000;
+
+/** On an error sending a message, how many times to retry. */
+const MAX_SEND_RETRIES =
+  parseInt(process.env['KATHY_MAX_SEND_RETRIES'] as string) || 0;
+if (!Number.isSafeInteger(MAX_SEND_RETRIES) || MAX_SEND_RETRIES < 0) {
+  error('Invalid max send retires provided');
+  process.exit(1);
+}
 
 async function main() {
   startMetricsServer(metricsRegister);
@@ -83,12 +95,6 @@ async function main() {
     .filter((v) => v !== null)
     .map((v) => v!);
 
-  // default to once every 6 hours getting through all pairs
-  if (!Number.isSafeInteger(FULL_CYCLE_TIME) || FULL_CYCLE_TIME <= 0) {
-    error('Invalid cycle time provided');
-    process.exit(1);
-  }
-
   // track how many we are still allowed to send in case some messages send slower than expected.
   let allowedToSend = 0;
   setInterval(() => {
@@ -111,20 +117,30 @@ async function main() {
       origin,
       remote: destination,
     };
-    const startTime = Date.now();
-    try {
-      await sendMessage(app, origin, destination, gasCalculator);
-      log('Message sent successfully', { origin, destination });
-      messagesSendCount.labels({ ...labels, status: 'success' }).inc();
-    } catch (e) {
-      error(`Error sending message, continuing...`, {
-        error: format(e),
-        origin,
-        destination,
-      });
-      messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
+
+    for (
+      let attempt = 1, needToRetry = true;
+      attempt <= MAX_SEND_RETRIES + 1 && needToRetry;
+      ++attempt
+    ) {
+      const startTime = Date.now();
+      try {
+        await sendMessage(app, origin, destination, gasCalculator);
+        needToRetry = false;
+        log('Message sent successfully', { origin, destination, attempt });
+        messagesSendCount.labels({ ...labels, status: 'success' }).inc();
+      } catch (e) {
+        error(`Error sending message, continuing...`, {
+          error: format(e),
+          origin,
+          destination,
+          attempt,
+        });
+        messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
+      }
+
+      messageSendSeconds.labels(labels).inc((Date.now() - startTime) / 1000);
     }
-    messageSendSeconds.labels(labels).inc((Date.now() - startTime) / 1000);
 
     // print stats once every cycle through the pairings
     if (currentPairingIndex == 0) {
@@ -154,14 +170,19 @@ async function sendMessage(
   );
 
   log('Sending message', { origin, destination });
+  let sent = false;
 
   await new Promise<ethers.ContractReceipt[]>((resolve, reject) => {
-    setTimeout(
-      () => reject(new Error('Timeout waiting for message receipt')),
-      MESSAGE_RECEIPT_TIMEOUT,
-    );
+    setTimeout(() => {
+      if (sent) {
+        reject(new Error('Timeout waiting for message receipt'));
+      } else {
+        reject(new Error('Timeout attempting to send message'));
+      }
+    }, MESSAGE_RECEIPT_TIMEOUT);
     app
       .sendHelloWorld(origin, destination, msg, value, (receipt) => {
+        sent = true;
         log('Message sent', {
           origin,
           destination,
