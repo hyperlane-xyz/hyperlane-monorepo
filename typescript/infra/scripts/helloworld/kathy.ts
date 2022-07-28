@@ -31,8 +31,15 @@ const currentPairingIndexGauge = new Gauge({
 metricsRegister.registerMetric(messagesSendCount);
 metricsRegister.registerMetric(currentPairingIndexGauge);
 
-/** How long we should take to go through all the message pairings in milliseconds. */
-const DEFAULT_FULL_CYCLE_TIME = 1000 * 60 * 60 * 6;
+/** How long we should take to go through all the message pairings in milliseconds. 6hrs by default. */
+const FULL_CYCLE_TIME =
+  parseInt(process.env['KATHY_FULL_CYCLE_TIME'] as string) ||
+  1000 * 60 * 60 * 6;
+
+/** How long we should wait for a message to be received in milliseconds. 10 min by default. */
+const MESSAGE_RECEIPT_TIMEOUT =
+  parseInt(process.env['KATHY_MESSAGE_RECEIPT_TIMEOUT'] as string) ||
+  10 * 60 * 1000;
 
 async function main() {
   startMetricsServer(metricsRegister);
@@ -67,10 +74,7 @@ async function main() {
     .map((v) => v!);
 
   // default to once every 6 hours getting through all pairs
-  const fullCycleTime = process.env['KATHY_FULL_CYCLE_TIME']
-    ? parseInt(process.env['KATHY_FULL_CYCLE_TIME'])
-    : DEFAULT_FULL_CYCLE_TIME;
-  if (!Number.isSafeInteger(fullCycleTime) || fullCycleTime <= 0) {
+  if (!Number.isSafeInteger(FULL_CYCLE_TIME) || FULL_CYCLE_TIME <= 0) {
     error('Invalid cycle time provided');
     process.exit(1);
   }
@@ -79,7 +83,7 @@ async function main() {
   let allowedToSend = 0;
   setInterval(() => {
     allowedToSend++;
-  }, fullCycleTime / pairings.length);
+  }, FULL_CYCLE_TIME / pairings.length);
 
   for (
     // in case we are restarting kathy, keep it from always running the exact same messages first
@@ -122,11 +126,6 @@ async function main() {
     }
   }
 }
-
-// 10 min by default
-const MESSAGE_RECEIPT_TIMEOUT =
-  parseInt(process.env['KATHY_MESSAGE_RECEIPT_TIMEOUT'] as string) ||
-  10 * 60 * 1000;
 
 async function sendMessage(
   app: HelloWorldApp<any>,
