@@ -9,7 +9,7 @@ export interface HelloWorldKathyConfig<Chain extends ChainName> {
   chainsToSkip: Chain[];
   /** How long kathy should take to send a message to all chain pairs before looping (milliseconds) */
   fullCycleTime: number;
-  /** How long kathy should wait before declaring an attempted to send a failure. */
+  /** How long kathy should wait before declaring an attempted to send a failure (milliseconds). */
   messageReceiptTimeout: number;
 }
 
