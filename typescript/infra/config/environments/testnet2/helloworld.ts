@@ -8,13 +8,13 @@ export const helloWorld: HelloWorldConfig<TestnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-f0c45a1',
+      tag: 'sha-1f62484',
     },
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
     fullCycleTime: 1000 * 60 * 60 * 2, // every 2 hours
-    messageSendTimeout: 1000 * 60 * 10, // 10 min
+    messageSendTimeout: 1000 * 60 * 15, // 15 min
     messageReceiptTimeout: 1000 * 60 * 15, // 15 min
   },
 };
