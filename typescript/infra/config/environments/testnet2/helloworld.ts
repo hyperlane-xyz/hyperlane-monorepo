@@ -10,11 +10,11 @@ export const helloWorld: HelloWorldConfig<TestnetChains> = {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
       tag: 'sha-f0c45a1',
     },
-    cronSchedule: '0 */2 * * *', // Once every 2 hours
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
-    prometheusPushGateway:
-      'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
+    fullCycleTime: 1000 * 60 * 60 * 2, // every 2 hours
+    messageSendTimeout: 1000 * 60 * 10, // 10 min
+    messageReceiptTimeout: 1000 * 60 * 15, // 15 min
   },
 };
