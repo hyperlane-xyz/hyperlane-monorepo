@@ -9,7 +9,7 @@ import {
   MultiProvider,
   Remotes,
 } from '@abacus-network/sdk';
-import { timeout } from '@abacus-network/utils/src/utils';
+import { utils } from '@abacus-network/utils';
 
 import { HelloWorldContracts } from './contracts';
 
@@ -55,7 +55,7 @@ export class HelloWorldApp<
     });
     console.log(tx);
 
-    return timeout(
+    return utils.timeout(
       tx.wait(chainConnection.confirmations),
       timeoutMs,
       'Timeout waiting for message to be sent',
@@ -66,7 +66,7 @@ export class HelloWorldApp<
     receipt: ethers.ContractReceipt,
     timeoutMs?: number,
   ): Promise<ethers.ContractReceipt[]> {
-    return timeout(
+    return utils.timeout(
       this.core.waitForMessageProcessing(receipt),
       timeoutMs,
       'Timeout waiting for message receipt',

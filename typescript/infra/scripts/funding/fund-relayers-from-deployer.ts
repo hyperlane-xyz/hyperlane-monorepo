@@ -3,7 +3,7 @@ import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import { ChainConnection, CompleteChainMap } from '@abacus-network/sdk';
-import { error, log } from '@abacus-network/utils/src/logging';
+import { error, log } from '@abacus-network/utils';
 
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
 import { getRelayerKeys } from '../../src/agents/key-utils';

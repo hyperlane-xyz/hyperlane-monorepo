@@ -8,7 +8,7 @@ import {
   Chains,
   InterchainGasCalculator,
 } from '@abacus-network/sdk';
-import { debug, error, log } from '@abacus-network/utils/src/logging';
+import { debug, error, log } from '@abacus-network/utils';
 
 import { startMetricsServer } from '../../src/utils/metrics';
 import { diagonalize, sleep } from '../../src/utils/utils';
@@ -49,8 +49,7 @@ metricsRegister.registerMetric(messageReceiptSeconds);
 
 /** How long we should take to go through all the message pairings in milliseconds. 6hrs by default. */
 const FULL_CYCLE_TIME =
-  parseInt(process.env['KATHY_FULL_CYCLE_TIME'] as string) ||
-  1000 * 60 * 60 * 6;
+  parseInt(process.env['KATHY_FULL_CYCLE_TIME'] as string) || 1000 * 100;
 if (!Number.isSafeInteger(FULL_CYCLE_TIME) || FULL_CYCLE_TIME <= 0) {
   error('Invalid cycle time provided');
   process.exit(1);
@@ -117,7 +116,7 @@ async function main() {
   const sendFrequency = FULL_CYCLE_TIME / pairings.length;
   setInterval(() => {
     // bucket cap since if we are getting really behind it probably does not make sense to let it run away.
-    allowedToSend = Math.max(allowedToSend + 1, MAX_MESSAGES_ALLOWED_TO_SEND);
+    allowedToSend = Math.min(allowedToSend + 1, MAX_MESSAGES_ALLOWED_TO_SEND);
     debug('Tick; allowed to send another message', {
       allowedToSend,
       sendFrequency,
@@ -152,17 +151,12 @@ async function main() {
 
     debug('Initiating sending of new message', logCtx);
 
-    for (
-      let attempt = 1, needToRetry = true;
-      attempt <= MAX_SEND_RETRIES + 1 && needToRetry;
-      ++attempt
-    ) {
-      const startTime = Date.now();
+    for (let attempt = 1; attempt <= MAX_SEND_RETRIES + 1; ++attempt) {
       try {
         await sendMessage(app, origin, destination, gasCalculator);
-        needToRetry = false;
         log('Message sent successfully', { origin, destination, attempt });
         messagesSendCount.labels({ ...labels, status: 'success' }).inc();
+        break;
       } catch (e) {
         error(`Error sending message, continuing...`, {
           error: format(e),
@@ -171,8 +165,6 @@ async function main() {
         });
         messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
       }
-
-      messageSendSeconds.labels(labels).inc((Date.now() - startTime) / 1000);
     }
 
     // print stats once every cycle through the pairings
@@ -212,7 +204,7 @@ async function sendMessage(
     value,
     MESSAGE_SEND_TIMEOUT,
   );
-  messageSendSeconds.labels(metricLabels).inc(Date.now() - startTime);
+  messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
   log('Message sent', {
     origin,
     destination,
@@ -221,7 +213,9 @@ async function sendMessage(
   });
 
   await app.waitForMessageReceipt(receipt, MESSAGE_RECEIPT_TIMEOUT);
-  messageReceiptSeconds.labels(metricLabels).inc(Date.now() - startTime);
+  messageReceiptSeconds
+    .labels(metricLabels)
+    .inc((Date.now() - startTime) / 1000);
   log('Message received', {
     origin,
     destination,
