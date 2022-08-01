@@ -132,7 +132,13 @@ async function main() {
       origin,
       destination,
     };
-    // wait until we are allowed to send the message
+    // wait until we are allowed to send the message; we don't want to send on
+    // the interval directly because low intervals could cause multiple to be
+    // sent concurrently. Using allowedToSend creates a token-bucket system that
+    // allows for a few to be sent if one message takes significantly longer
+    // than most do. It is also more accurate to do it this way for keeping the
+    // interval schedule than to use a fixed sleep which would not account for
+    // how long messages took to send.
     if (allowedToSend <= 0)
       debug('Waiting before sending next message', {
         ...logCtx,
