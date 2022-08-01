@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import { TypedListener } from '@abacus-network/core/dist/common';
 import {
@@ -19,6 +19,7 @@ export class HelloWorldApp<
     from: From,
     to: Remotes<Chain, From>,
     message: string,
+    value: BigNumber,
     receiveHandler?: TypedListener<ReceivedHelloWorldEvent>,
   ): Promise<ethers.ContractReceipt> {
     const sender = this.getContracts(from).router;
@@ -29,14 +30,16 @@ export class HelloWorldApp<
     const estimated = await sender.estimateGas.sendHelloWorld(
       toDomain,
       message,
-      chainConnection.overrides,
+      { ...chainConnection.overrides, value },
     );
     const gasLimit = estimated.mul(12).div(10);
 
     const tx = await sender.sendHelloWorld(toDomain, message, {
       ...chainConnection.overrides,
       gasLimit,
+      value,
     });
+    console.log(tx);
     const receipt = await tx.wait(chainConnection.confirmations);
 
     if (receiveHandler) {
