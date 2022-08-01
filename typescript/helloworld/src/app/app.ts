@@ -9,6 +9,7 @@ import {
   MultiProvider,
   Remotes,
 } from '@abacus-network/sdk';
+import { debug } from '@abacus-network/utils';
 
 import { HelloWorldContracts } from './contracts';
 
@@ -51,7 +52,12 @@ export class HelloWorldApp<
       gasLimit,
       value,
     });
-    console.log(tx);
+    debug('Sending hello message', {
+      from,
+      to,
+      message,
+      tx,
+    });
     return tx.wait(chainConnection.confirmations);
   }
 
