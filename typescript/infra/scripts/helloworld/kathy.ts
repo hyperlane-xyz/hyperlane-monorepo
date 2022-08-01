@@ -8,7 +8,7 @@ import {
   Chains,
   InterchainGasCalculator,
 } from '@abacus-network/sdk';
-import { debug, error, log } from '@abacus-network/utils';
+import { debug, error, log, utils } from '@abacus-network/utils';
 
 import { startMetricsServer } from '../../src/utils/metrics';
 import { diagonalize, sleep } from '../../src/utils/utils';
@@ -185,12 +185,10 @@ async function sendMessage(
   const metricLabels = { origin, remote: destination };
 
   log('Sending message', { origin, destination });
-  const receipt = await app.sendHelloWorld(
-    origin,
-    destination,
-    msg,
-    value,
+  const receipt = await utils.timeout(
+    app.sendHelloWorld(origin, destination, msg, value),
     MESSAGE_SEND_TIMEOUT,
+    'Timeout sending message',
   );
   messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
   log('Message sent', {
@@ -200,7 +198,11 @@ async function sendMessage(
     logs: receipt.logs,
   });
 
-  await app.waitForMessageReceipt(receipt, MESSAGE_RECEIPT_TIMEOUT);
+  await utils.timeout(
+    app.waitForMessageReceipt(receipt),
+    MESSAGE_RECEIPT_TIMEOUT,
+    'Timeout waiting for message to be received',
+  );
   messageReceiptSeconds
     .labels(metricLabels)
     .inc((Date.now() - startTime) / 1000);

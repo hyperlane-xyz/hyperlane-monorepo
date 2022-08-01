@@ -9,7 +9,6 @@ import {
   MultiProvider,
   Remotes,
 } from '@abacus-network/sdk';
-import { utils } from '@abacus-network/utils';
 
 import { HelloWorldContracts } from './contracts';
 
@@ -34,7 +33,6 @@ export class HelloWorldApp<
     to: Remotes<Chain, From>,
     message: string,
     value: BigNumber,
-    timeoutMs?: number,
   ): Promise<ethers.ContractReceipt> {
     const sender = this.getContracts(from).router;
     const toDomain = ChainNameToDomainId[to];
@@ -54,23 +52,13 @@ export class HelloWorldApp<
       value,
     });
     console.log(tx);
-
-    return utils.timeout(
-      tx.wait(chainConnection.confirmations),
-      timeoutMs,
-      'Timeout waiting for message to be sent',
-    );
+    return tx.wait(chainConnection.confirmations);
   }
 
   async waitForMessageReceipt(
     receipt: ethers.ContractReceipt,
-    timeoutMs?: number,
   ): Promise<ethers.ContractReceipt[]> {
-    return utils.timeout(
-      this.core.waitForMessageProcessing(receipt),
-      timeoutMs,
-      'Timeout waiting for message receipt',
-    );
+    return this.core.waitForMessageProcessing(receipt);
   }
 
   async channelStats<From extends Chain>(
