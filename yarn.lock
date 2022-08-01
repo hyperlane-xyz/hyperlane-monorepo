@@ -5,14 +5,14 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@abacus-network/app@npm:0.3.1":
-  version: 0.3.1
-  resolution: "@abacus-network/app@npm:0.3.1"
+"@abacus-network/app@npm:0.4.0":
+  version: 0.4.0
+  resolution: "@abacus-network/app@npm:0.4.0"
   dependencies:
-    "@abacus-network/core": 0.3.1
-    "@abacus-network/utils": 0.3.1
+    "@abacus-network/core": 0.4.0
+    "@abacus-network/utils": 0.4.0
     "@openzeppelin/contracts-upgradeable": ^4.5.0
-  checksum: 9cfc42d4f496792b02c5d95e4f55fe161e0e4c539f0e28a8822b05ddc33ab24635d026b874fcf2a3bafc21db64254bb96c5369487c3c85f9bde37a4e98ac1eb0
+  checksum: 943e86f932b14e9273de14844f7ab80995098a502fe4eb5b4546966a0a28aa377f092e1d33e96718ba8f1379d9052ff7cedf63baef4a1384f8af14e785979fc4
   languageName: node
   linkType: hard
 
@@ -25,15 +25,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@abacus-network/core@npm:0.3.1":
-  version: 0.3.1
-  resolution: "@abacus-network/core@npm:0.3.1"
+"@abacus-network/core@npm:0.4.0":
+  version: 0.4.0
+  resolution: "@abacus-network/core@npm:0.4.0"
   dependencies:
-    "@abacus-network/utils": 0.3.1
+    "@abacus-network/utils": 0.4.0
     "@openzeppelin/contracts": ^4.6.0
     "@openzeppelin/contracts-upgradeable": ^4.6.0
     "@summa-tx/memview-sol": ^2.0.0
-  checksum: 0e3ec428059d8488be742e27e32cfcbe983704dd32c359ad4389c686adb13506043f067c2e38dafdc2703d9d7c224a9d05b4b148a939a059f672e3960cda5dd0
+  checksum: 8094df2b9fdbd0e865d9cd3a6d3b65f79dad9ee0edda7e7336d594c1ff5633dc0e1b0e9c6bcdd3f3a5b174e5c8b5d5315733d7a00ef58143786e80588d50f110
   languageName: node
   linkType: hard
 
@@ -41,7 +41,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@abacus-network/helloworld@workspace:."
   dependencies:
-    "@abacus-network/sdk": ^0.3.1
+    "@abacus-network/sdk": ^0.4.0
+    "@abacus-network/utils": ^0.4.0
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts-upgradeable": ^4.6.0
@@ -69,28 +70,29 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/sdk@npm:^0.3.1":
-  version: 0.3.1
-  resolution: "@abacus-network/sdk@npm:0.3.1"
+"@abacus-network/sdk@npm:^0.4.0":
+  version: 0.4.0
+  resolution: "@abacus-network/sdk@npm:0.4.0"
   dependencies:
-    "@abacus-network/app": 0.3.1
+    "@abacus-network/app": 0.4.0
     "@abacus-network/celo-ethers-provider": ^0.1.0
-    "@abacus-network/core": 0.3.1
-    "@abacus-network/utils": 0.3.1
+    "@abacus-network/core": 0.4.0
+    "@abacus-network/utils": 0.4.0
     "@types/debug": ^4.1.7
+    coingecko-api: ^1.0.10
     cross-fetch: ^3.1.5
     debug: ^4.3.4
     ethers: ^5.6.8
-  checksum: 53081f88aa9f8cf8750d5a4135d01b618505843681ac199387a98d0794904cc9ef23dbcb2a63db92ff31f6e1f1a34c5b52612c914cc618617285d0a73383b077
+  checksum: ddf7ec4f5a6f3949d01d512e3eb85303302179cc44b4765d6e0c0869696ecab5a5e0b8f6a6192e78d4eabe0cf81f7bdac7076a034ae2d3db2bd95dbb7df704cd
   languageName: node
   linkType: hard
 
-"@abacus-network/utils@npm:0.3.1":
-  version: 0.3.1
-  resolution: "@abacus-network/utils@npm:0.3.1"
+"@abacus-network/utils@npm:0.4.0, @abacus-network/utils@npm:^0.4.0":
+  version: 0.4.0
+  resolution: "@abacus-network/utils@npm:0.4.0"
   dependencies:
     ethers: ^5.6.8
-  checksum: b0871b3c28f523348e1c12a1dd5c3a4c037cb671d767010e71ebdd46d7e8af918c8bae80875662720b0f8973ca71af53df1178f31e6a9b390a14c3bcd16577c7
+  checksum: 1234fcc302a82f7ff7419eca2c0f257748b91689c484057f945856780691219a1c219041cfbbf57d5dff6fcc9de92999c1f685c10538c538e123ccf246f2a938
   languageName: node
   linkType: hard
 
@@ -3973,6 +3975,13 @@ __metadata:
   version: 1.1.0
   resolution: "code-point-at@npm:1.1.0"
   checksum: 17d5666611f9b16d64fdf48176d9b7fb1c7d1c1607a189f7e600040a11a6616982876af148230336adb7d8fe728a559f743a4e29db3747e3b1a32fa7f4529681
+  languageName: node
+  linkType: hard
+
+"coingecko-api@npm:^1.0.10":
+  version: 1.0.10
+  resolution: "coingecko-api@npm:1.0.10"
+  checksum: c900f5f7261dbfa2ecf3f6a2b018eb9de445db17bf9ef331e2751904f24c4e361144e9aa8ab1501fb4e741fa900dd61007e330a6b95a778d35b48d2ca5b61148
   languageName: node
   linkType: hard
 

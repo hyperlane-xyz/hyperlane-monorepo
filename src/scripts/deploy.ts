@@ -1,25 +1,31 @@
-import '@nomiclabs/hardhat-ethers';
-import { ethers } from 'hardhat';
+import { Wallet } from 'ethers';
 
 import {
   AbacusCore,
-  getMultiProviderFromConfigAndSigner,
+  MultiProvider,
+  getChainToOwnerMap,
+  objMap,
   serializeContracts,
 } from '@abacus-network/sdk';
 
-import { getConfigMap, testConfigs } from '../deploy/config';
+import { prodConfigs } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
 
 async function main() {
-  const [signer] = await ethers.getSigners();
-  const multiProvider = getMultiProviderFromConfigAndSigner(
-    testConfigs,
-    signer,
-  );
+  console.info('Getting signer');
+  const signer = new Wallet('SET KEY HERE OR CREATE YOUR OWN SIGNER');
 
-  const core = AbacusCore.fromEnvironment('test', multiProvider);
+  console.info('Preparing utilities');
+  const chainProviders = objMap(prodConfigs, (_, config) => ({
+    provider: config.provider,
+    confirmations: config.confirmations,
+    overrides: config.overrides,
+  }));
+  const multiProvider = new MultiProvider(chainProviders);
+
+  const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
   const config = core.extendWithConnectionClientConfig(
-    getConfigMap(signer.address),
+    getChainToOwnerMap(prodConfigs, signer.address),
   );
 
   const deployer = new HelloWorldDeployer(multiProvider, config, core);
