@@ -28,7 +28,6 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
     fullCycleTime: kathyConfig.fullCycleTime,
     messageSendTimeout: kathyConfig.messageSendTimeout,
     messageReceiptTimeout: kathyConfig.messageReceiptTimeout,
-    maxSendRetries: kathyConfig.maxSendRetries,
     abacus: {
       runEnv: kathyConfig.runEnv,
       // This is just used for fetching secrets, and is not actually

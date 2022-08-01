@@ -65,14 +65,6 @@ const MESSAGE_RECEIPT_TIMEOUT =
   parseInt(process.env['KATHY_MESSAGE_RECEIPT_TIMEOUT'] as string) ||
   10 * 60 * 1000;
 
-/** On an error sending a message, how many times to retry. */
-const MAX_SEND_RETRIES =
-  parseInt(process.env['KATHY_MAX_SEND_RETRIES'] as string) || 0;
-if (!Number.isSafeInteger(MAX_SEND_RETRIES) || MAX_SEND_RETRIES < 0) {
-  error('Invalid max send retires provided');
-  process.exit(1);
-}
-
 /** The maximum number of messages we will allow to get queued up if we are sending too slowly. */
 const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
 
@@ -151,20 +143,16 @@ async function main() {
 
     debug('Initiating sending of new message', logCtx);
 
-    for (let attempt = 1; attempt <= MAX_SEND_RETRIES + 1; ++attempt) {
-      try {
-        await sendMessage(app, origin, destination, gasCalculator);
-        log('Message sent successfully', { origin, destination, attempt });
-        messagesSendCount.labels({ ...labels, status: 'success' }).inc();
-        break;
-      } catch (e) {
-        error(`Error sending message, continuing...`, {
-          error: format(e),
-          ...logCtx,
-          attempt,
-        });
-        messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
-      }
+    try {
+      await sendMessage(app, origin, destination, gasCalculator);
+      log('Message sent successfully', { origin, destination });
+      messagesSendCount.labels({ ...labels, status: 'success' }).inc();
+    } catch (e) {
+      error(`Error sending message, continuing...`, {
+        error: format(e),
+        ...logCtx,
+      });
+      messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
     }
 
     // print stats once every cycle through the pairings

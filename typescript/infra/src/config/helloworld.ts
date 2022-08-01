@@ -13,8 +13,6 @@ export interface HelloWorldKathyConfig<Chain extends ChainName> {
   messageSendTimeout: number;
   /** How long kathy should wait before giving up on waiting for the message to be received (milliseconds). */
   messageReceiptTimeout: number;
-  /** How many times to attempt retrying sending a message. 0 means only attempt 1 time and do not retry on failure. */
-  maxSendRetries: number;
 }
 
 export interface HelloWorldConfig<Chain extends ChainName> {
