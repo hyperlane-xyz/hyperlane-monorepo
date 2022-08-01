@@ -49,7 +49,8 @@ metricsRegister.registerMetric(messageReceiptSeconds);
 
 /** How long we should take to go through all the message pairings in milliseconds. 6hrs by default. */
 const FULL_CYCLE_TIME =
-  parseInt(process.env['KATHY_FULL_CYCLE_TIME'] as string) || 1000 * 100;
+  parseInt(process.env['KATHY_FULL_CYCLE_TIME'] as string) ||
+  1000 * 60 * 60 * 6;
 if (!Number.isSafeInteger(FULL_CYCLE_TIME) || FULL_CYCLE_TIME <= 0) {
   error('Invalid cycle time provided');
   process.exit(1);
