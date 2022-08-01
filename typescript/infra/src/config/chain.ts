@@ -19,8 +19,8 @@ export async function fetchProvider(
   const provider = celoChainNames.has(chainName)
     ? new StaticCeloJsonRpcProvider(rpc)
     : new RetryJsonRpcProvider(new ethers.providers.JsonRpcProvider(rpc), {
-        retryLimit: 2,
-        interval: 250,
+        maxRequests: 6,
+        baseRetryMs: 50,
       });
   return provider;
 }
