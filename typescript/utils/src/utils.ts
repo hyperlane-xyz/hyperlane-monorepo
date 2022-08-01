@@ -101,12 +101,13 @@ export function sleep(ms: number): Promise<void> {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-// Retries an async function when it raises an exception
-// if all the tries fail it raises the last thrown exception
+// Retries an async function if it raises an exception,
+// with exponential backoff.
+// If all the tries fail it raises the last thrown exception
 export async function retryAsync<T>(
   runner: () => T,
-  attempts = 3,
-  delay = 500,
+  attempts = 5,
+  baseRetryMs = 50,
 ) {
   let saveError;
   for (let i = 0; i < attempts; i++) {
@@ -114,7 +115,7 @@ export async function retryAsync<T>(
       return runner();
     } catch (error) {
       saveError = error;
-      await sleep(delay * (i + 1));
+      await sleep(baseRetryMs * 2 ** i);
     }
   }
   throw saveError;

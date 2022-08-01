@@ -14,7 +14,7 @@ use abacus_core::{
     db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, MultisigSignedCheckpoint, Outbox,
 };
 
-use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::whitelist::Whitelist};
+use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
 
 use super::SubmitMessageArgs;
 
@@ -23,7 +23,8 @@ pub(crate) struct MessageProcessor {
     outbox: Outboxes,
     db: AbacusDB,
     inbox_contracts: InboxContracts,
-    whitelist: Arc<Whitelist>,
+    whitelist: Arc<MatchingList>,
+    blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,
     tx_msg: mpsc::UnboundedSender<SubmitMessageArgs>,
     ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
@@ -37,7 +38,8 @@ impl MessageProcessor {
         outbox: Outboxes,
         db: AbacusDB,
         inbox_contracts: InboxContracts,
-        whitelist: Arc<Whitelist>,
+        whitelist: Arc<MatchingList>,
+        blacklist: Arc<MatchingList>,
         metrics: MessageProcessorMetrics,
         tx_msg: mpsc::UnboundedSender<SubmitMessageArgs>,
         ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
@@ -47,6 +49,7 @@ impl MessageProcessor {
             db: db.clone(),
             inbox_contracts,
             whitelist,
+            blacklist,
             metrics,
             tx_msg,
             ckpt_rx,
@@ -143,7 +146,7 @@ impl MessageProcessor {
         }
 
         // Skip if not whitelisted.
-        if !self.whitelist.msg_matches(&message.message) {
+        if !self.whitelist.msg_matches(&message.message, true) {
             debug!(
                 inbox_name=?self.inbox_contracts.inbox.chain_name(),
                 local_domain=?self.inbox_contracts.inbox.local_domain(),
@@ -151,6 +154,19 @@ impl MessageProcessor {
                 whitelist=?self.whitelist,
                 msg=?message,
                 "Message not whitelisted, skipping idx {}", self.message_leaf_index);
+            self.message_leaf_index += 1;
+            return Ok(());
+        }
+
+        // skip if the message is blacklisted
+        if self.blacklist.msg_matches(&message.message, false) {
+            debug!(
+                inbox_name=?self.inbox_contracts.inbox.chain_name(),
+                local_domain=?self.inbox_contracts.inbox.local_domain(),
+                dst=?message.message.destination,
+                blacklist=?self.blacklist,
+                msg=?message,
+                "Message blacklisted, skipping idx {}", self.message_leaf_index);
             self.message_leaf_index += 1;
             return Ok(());
         }

@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
@@ -106,8 +107,14 @@ async function sendMessage(
   gasCalc: InterchainGasCalculator<any>,
 ) {
   const msg = 'Hello!';
+  const expectedHandleGas = BigNumber.from(100_000);
+  const value = await gasCalc.estimatePaymentForHandleGas(
+    origin,
+    destination,
+    expectedHandleGas,
+  );
   console.log(`Sending message from ${origin} to ${destination}`);
-  const receipt = await app.sendHelloWorld(origin, destination, msg);
+  const receipt = await app.sendHelloWorld(origin, destination, msg, value);
   console.log(JSON.stringify(receipt.events || receipt.logs));
 }
 
