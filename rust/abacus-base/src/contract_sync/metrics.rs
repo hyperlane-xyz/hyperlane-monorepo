@@ -8,7 +8,7 @@ pub struct ContractSyncMetrics {
     /// Most recently indexed block height.
     ///
     /// Labels:
-    /// - `data_type`: which indexer is recording the information.
+    /// - `data_type`: the data the indexer is recording. E.g. `messages` or `gas_payments`.
     /// - `chain`: Chain the indexer is collecting data from.
     pub indexed_height: IntGaugeVec,
 
@@ -16,7 +16,7 @@ pub struct ContractSyncMetrics {
     /// messages)
     ///
     /// Labels:
-    /// - `data_type`: which indexer is recording the information.
+    /// - `data_type`: the data the indexer is recording. E.g. `messages` or `gas_payments`.
     /// - `chain`: Chain the indexer is collecting data from.
     pub stored_events: IntGaugeVec,
 
@@ -24,7 +24,7 @@ pub struct ContractSyncMetrics {
     /// differentiate checkpoints vs. messages)
     ///
     /// Labels:
-    /// - `data_type`: which indexer is recording the information.
+    /// - `data_type`: the data the indexer is recording. E.g. `messages` or `gas_payments`.
     /// - `chain`: Chain the indexer is collecting data from.
     pub missed_events: IntCounterVec,
 
