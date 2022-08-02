@@ -1,23 +1,23 @@
 {
   "bsc": {
-    "router": "0xFC62DeF1f08793aBf0E67f69257c6be258194F72"
+    "router": "0x8eC5f0239C77295452Ed899FDB851e785cA5FC31"
   },
   "avalanche": {
-    "router": "0x82825C0884558C9c5A94B545e7563c95aBA49197"
+    "router": "0x23f63C65c474f2A5BF80ea845Ca496Da3689A2B9"
   },
   "polygon": {
-    "router": "0x0054D19613f20dD72721A146ED408971a2CCA9BD"
-  },
-  "arbitrum": {
-    "router": "0xb3d652BA393f83c0Cf7eF5e0Fc30532ebd49d45B"
-  },
-  "optimism": {
-    "router": "0x8249cD1275855F2BB20eE71f0B9fA3c9155E5FaB"
-  },
-  "ethereum": {
-    "router": "0x8202df0d3a5ba6d65fabe63122fAaCC1529E054F"
+    "router": "0xb3eCff91A3C3FB1A2F57DE2881a0Cab7b56E129b"
   },
   "celo": {
-    "router": "0x0054D19613f20dD72721A146ED408971a2CCA9BD"
+    "router": "0x37fcf9DAEFAb05939c6e299c1AB8e7430A5715c8"
+  },
+  "arbitrum": {
+    "router": "0x2e542a3DF4fde491faa77da05eD48377aca9E44e"
+  },
+  "optimism": {
+    "router": "0x2A532fc8cF9a72142eA8753a0d2AB68098C19585"
+  },
+  "ethereum": {
+    "router": "0x4Ee9dEBB3046139661b51E17bdfD54Fd63211de7"
   }
 }
