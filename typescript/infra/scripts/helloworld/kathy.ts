@@ -116,6 +116,15 @@ async function main() {
     });
   }, sendFrequency);
 
+  // init the metrics because it can take a while for kathy to get through everything and we do not
+  // want the metrics to be reported as null in the meantime.
+  for (const { origin, destination: remote } of pairings) {
+    messagesSendCount.labels({ origin, remote, status: 'success' }).inc(0);
+    messagesSendCount.labels({ origin, remote, status: 'failure' }).inc(0);
+    messageSendSeconds.labels({ origin, remote }).inc(0);
+    messageReceiptSeconds.labels({ origin, remote }).inc(0);
+  }
+
   for (
     // in case we are restarting kathy, keep it from always running the exact same messages first
     let currentPairingIndex = Date.now() % pairings.length;
