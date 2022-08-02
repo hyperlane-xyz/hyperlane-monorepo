@@ -181,7 +181,7 @@ export function timeout<T>(
   if (!timeoutMs || timeoutMs <= 0) return promise;
   return new Promise((resolve, reject) => {
     setTimeout(() => {
-      throw new Error(message);
+      reject(new Error(message));
     }, timeoutMs);
     promise.then(resolve).catch(reject);
   });
