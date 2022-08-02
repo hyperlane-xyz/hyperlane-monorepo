@@ -73,10 +73,7 @@ where
                 for gas_payment in gas_payments.iter() {
                     db.process_gas_payment(gas_payment)?;
                 }
-                // TODO: this is technically not recording the number of events in the DB but rather
-                // just the number we think we have written. I suspect there are cases were we could
-                // end up thinking we wrote more than are actually in the database due to
-                // overwriting.
+
                 stored_messages.add(gas_payments.len().try_into()?);
 
                 db.store_latest_indexed_gas_payment_block(to)?;
