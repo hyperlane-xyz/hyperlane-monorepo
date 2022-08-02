@@ -28,8 +28,8 @@ export interface DeployerOptions {
 export abstract class AbacusDeployer<
   Chain extends ChainName,
   Config,
-  Factories extends AbacusFactories,
   Contracts extends AbacusContracts,
+  Factories extends AbacusFactories,
 > {
   public deployedContracts: Partial<Record<Chain, Contracts>> = {};
 
