@@ -45,7 +45,7 @@ describe('deploy', async () => {
 
   it('builds app', async () => {
     contracts = await deployer.deploy();
-    app = new HelloWorldApp(contracts, multiProvider);
+    app = new HelloWorldApp(core, contracts, multiProvider);
   });
 
   it('checks', async () => {

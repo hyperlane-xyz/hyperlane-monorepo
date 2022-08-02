@@ -1,9 +1,9 @@
-import { Console } from 'console';
 import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import { ChainConnection, CompleteChainMap } from '@abacus-network/sdk';
+import { error, log } from '@abacus-network/utils';
 
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
 import { getRelayerKeys } from '../../src/agents/key-utils';
@@ -44,12 +44,6 @@ metricsRegister.registerMetric(walletBalanceGauge);
 // Min delta is 1/10 of the desired balance
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(1);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
-
-const console = new Console({
-  stdout: process.stdout,
-  stderr: process.stderr,
-  groupIndentation: 4,
-});
 
 const desiredBalancePerChain: CompleteChainMap<string> = {
   celo: '0.1',
@@ -212,30 +206,6 @@ function getRelayerKeysFromSerializedAddressFile(path: string): AgentKey[] {
       ),
     )
     .filter((key: AgentKey) => key.role === KEY_ROLE_ENUM.Relayer);
-}
-
-function log(message: string, data?: any) {
-  logWithFunction(console.log, message, data);
-}
-
-// function warn(message: string, data?: any) {
-//   logWithFunction(console.warn, message, data);
-// }
-
-function error(message: string, data?: any) {
-  logWithFunction(console.error, message, data);
-}
-
-function logWithFunction(
-  logFn: (...contents: any[]) => void,
-  message: string,
-  data?: any,
-) {
-  const fullLog = {
-    ...data,
-    message,
-  };
-  logFn(JSON.stringify(fullLog));
 }
 
 function relayerKeyInfo(relayerKey: AgentKey) {
