@@ -3,6 +3,7 @@ image:
   tag:
 abacus:
   runEnv: testnet2
+  context: abacus
   # Only used for fetching secrets, so all chains should be included regardless of being skipped
   chains: []
 chainsToSkip: []
