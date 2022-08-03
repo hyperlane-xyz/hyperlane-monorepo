@@ -1,4 +1,3 @@
-import { Console } from 'console';
 import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
@@ -9,6 +8,7 @@ import {
   CompleteChainMap,
   MultiProvider,
 } from '@abacus-network/sdk';
+import { error, log } from '@abacus-network/utils';
 
 import { Contexts } from '../../config/contexts';
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
@@ -51,12 +51,6 @@ metricsRegister.registerMetric(walletBalanceGauge);
 // Min delta is 1/10 of the desired balance
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(1);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
-
-const console = new Console({
-  stdout: process.stdout,
-  stderr: process.stderr,
-  groupIndentation: 4,
-});
 
 const desiredBalancePerChain: CompleteChainMap<string> = {
   celo: '0.1',
@@ -313,26 +307,6 @@ class ContextRelayerFunder {
       });
     }
   }
-}
-
-function log(message: string, data?: any) {
-  logWithFunction(console.log, message, data);
-}
-
-function error(message: string, data?: any) {
-  logWithFunction(console.error, message, data);
-}
-
-function logWithFunction(
-  logFn: (...contents: any[]) => void,
-  message: string,
-  data?: any,
-) {
-  const fullLog = {
-    ...data,
-    message,
-  };
-  logFn(JSON.stringify(fullLog));
 }
 
 function relayerKeyInfo(relayerKey: AgentKey) {
