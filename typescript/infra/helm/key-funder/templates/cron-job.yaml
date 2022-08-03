@@ -24,13 +24,11 @@ spec:
             - {{ .Values.abacus.runEnv }}
             - --context
             - {{ .Values.abacus.contextFundingFrom }}
-{{- range .Values.abacus.rolesToFund }}
-            - --roles-to-fund
-            - {{ . }}
-{{- end }}
-{{- range .Values.abacus.contextsToFund }}
+{{- range $context, $roles := .Values.abacus.contextsAndRoles }}
+            - --contexts-and-roles
+            - {{ $context }}={{ join "," $roles }}
             - -f
-            - /addresses-secret/{{ . }}-addresses.json
+            - /addresses-secret/{{ $context }}-addresses.json
 {{- end }}
             env:
             - name: PROMETHEUS_PUSH_GATEWAY

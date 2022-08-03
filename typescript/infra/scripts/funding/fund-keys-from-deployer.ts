@@ -14,6 +14,7 @@ import { Contexts } from '../../config/contexts';
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
 import { getAllKeys } from '../../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
+import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
   assertContext,
@@ -81,13 +82,16 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
 
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
+// The --contexts-and-roles flag is used to specify the contexts and the key roles
+// for each context to fund.
 // There are two ways to configure this script so that key addresses are known.
 // You can pass in files using `-f`, which are expected to each be JSON arrays of objects
 // of the form { identifier: '..', address: '..' }, where the keys described in one file
 // are all for the same context. This will avoid requiring any sort of GCP/AWS credentials for
-// fetching addresses from the keys themselves.
-// Alternatively, using `--contexts-to-fund` will fetch key addresses from GCP/AWS, which
-// requires credentials.
+// fetching addresses from the keys themselves. A file for each context specified in --contexts-and-roles
+// must be provided
+// If the -f flag is not provided, addresses will be read directly from GCP/AWS for each
+// context provided in --contexts-and-roles, which requires the appropriate credentials.
 async function main() {
   const argv = await getArgs()
     .string('f')
@@ -95,58 +99,45 @@ async function main() {
     .alias('f', 'address-files')
     .describe(
       'f',
-      'Files each containing JSON arrays of identifier and address objects for a context',
+      'Files each containing JSON arrays of identifier and address objects for a single context. If not specified, key addresses are fetched from GCP/AWS and require sufficient credentials.',
     )
-    .string('contexts-to-fund')
-    .array('contexts-to-fund')
+    .string('contexts-and-roles')
+    .array('contexts-and-roles')
     .describe(
-      'contexts-to-fund',
-      'Contexts to fund keys for. If specified, key addresses are fetched from GCP/AWS and require sufficient credentials.',
+      'contexts-and-roles',
+      'Array indicating contexts and the roles to fund for each context. Each element is expected as <context>=<role>,<role>,<role>...',
     )
-    .coerce('contexts-to-fund', (contexts: string[]) => {
-      return contexts.map(assertContext);
-    })
-    // Require only one of the two methods for getting key addresses
-    .conflicts('f', 'contexts-to-fund')
-    .string('roles-to-fund')
-    .array('roles-to-fund')
-    .describe(
-      'roles-to-fund',
-      'The roles to fund for every context. Note this is not context-specific.',
-    )
-    .coerce('roles-to-fund', (roleStrs: string[]) => {
-      const roles = roleStrs.map(assertRole);
-      // For now, restrict the valid roles we want to fund
-      const validRoles = new Set([KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy]);
-      for (const role of roles) {
-        if (!validRoles.has(role)) {
-          throw Error(
-            `Invalid role ${role}, must be one of ${Array.from(validRoles)}`,
-          );
-        }
-      }
-      return roles;
-    })
-    .demandOption('roles-to-fund').argv;
+    .coerce('contexts-and-roles', coerceContextAndRolesMap)
+    .demandOption('contexts-and-roles').argv;
 
   const environment = assertEnvironment(argv.e as string);
   constMetricLabels.abacus_deployment = environment;
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  const contextFunders = argv.f
-    ? argv.f.map((path) =>
-        ContextFunder.fromSerializedAddressFile(
+  let contextFunders: ContextFunder[];
+
+  if (argv.f) {
+    contextFunders = argv.f.map((path) =>
+      ContextFunder.fromSerializedAddressFile(
+        multiProvider,
+        path,
+        argv.contextsAndRoles,
+      ),
+    );
+  } else {
+    contextFunders = [];
+    const contexts = Object.keys(argv.contextsAndRoles) as Contexts[];
+    contextFunders = await Promise.all(
+      contexts.map((context) =>
+        ContextFunder.fromContext(
           multiProvider,
-          path,
-          argv.rolesToFund,
+          context,
+          argv.contextsAndRoles[context]!,
         ),
-      )
-    : await Promise.all(
-        argv.contextsToFund!.map((context) =>
-          ContextFunder.fromContext(multiProvider, context, argv.rolesToFund),
-        ),
-      );
+      ),
+    );
+  }
 
   let failureOccurred = false;
   for (const funder of contextFunders) {
@@ -184,7 +175,7 @@ class ContextFunder {
   static fromSerializedAddressFile(
     multiProvider: MultiProvider<any>,
     path: string,
-    rolesToFund: KEY_ROLE_ENUM[],
+    contextsAndRolesToFund: ContextAndRolesMap,
   ) {
     log('Reading identifiers and addresses from file', {
       path,
@@ -206,6 +197,13 @@ class ContextFunder {
         );
       }
     });
+
+    const rolesToFund = contextsAndRolesToFund[context];
+    if (!rolesToFund) {
+      throw Error(
+        `Expected context ${context} to be defined in contextsAndRolesToFund`,
+      );
+    }
 
     log('Read keys for context from file', {
       path,
@@ -414,6 +412,46 @@ function getKeyInfo(key: AgentKey) {
     originChain: key.chainName,
     role: key.role,
     index: key.index,
+  };
+}
+
+function coerceContextAndRolesMap(strs: string[]): ContextAndRolesMap {
+  const contextsAndRoles = strs.map(coerceContextAndRoles);
+  return contextsAndRoles.reduce(
+    (prev, curr) => ({
+      ...prev,
+      [curr.context]: curr.roles,
+    }),
+    {},
+  );
+}
+
+// Parses strings of the form <context>=<role>,<role>,<role>...
+// e.g.:
+//   abacus=relayer
+//   flowcarbon=relayer,kathy
+function coerceContextAndRoles(str: string): ContextAndRoles {
+  const [contextStr, rolesStr] = str.split('=');
+  const context = assertContext(contextStr);
+
+  const roles = rolesStr.split(',').map(assertRole);
+  if (roles.length === 0) {
+    throw Error('Expected > 0 roles');
+  }
+
+  // For now, restrict the valid roles we think are reasonable to want to fund
+  const validRoles = new Set([KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy]);
+  for (const role of roles) {
+    if (!validRoles.has(role)) {
+      throw Error(
+        `Invalid role ${role}, must be one of ${Array.from(validRoles)}`,
+      );
+    }
+  }
+
+  return {
+    context,
+    roles,
   };
 }
 

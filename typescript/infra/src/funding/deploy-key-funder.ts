@@ -15,7 +15,7 @@ export function runKeyFunderHelmCommand<Chain extends ChainName>(
   return execCmd(
     `helm ${helmCommand} key-funder ./helm/key-funder --namespace ${
       keyFunderConfig.namespace
-    } ${values.join(' ')}`,
+    } --debug --dry-run ${values.join(' ')}`,
     {},
     false,
     true,
@@ -35,8 +35,7 @@ function getKeyFunderHelmValues<Chain extends ChainName>(
       // Only used for fetching RPC urls as env vars
       chains: agentConfig.contextChainNames,
       contextFundingFrom: keyFunderConfig.contextFundingFrom,
-      contextsToFund: keyFunderConfig.contextsToFund,
-      rolesToFund: keyFunderConfig.rolesToFund,
+      contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
     },
     image: {
       repository: keyFunderConfig.docker.repo,
