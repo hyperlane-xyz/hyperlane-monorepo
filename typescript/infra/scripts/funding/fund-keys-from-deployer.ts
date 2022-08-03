@@ -142,11 +142,9 @@ async function main() {
           argv.rolesToFund,
         ),
       )
-    : argv.contextsToFund!.map((context) =>
-        ContextFunder.fromSerializedAddressFile(
-          multiProvider,
-          context,
-          argv.rolesToFund,
+    : await Promise.all(
+        argv.contextsToFund!.map((context) =>
+          ContextFunder.fromContext(multiProvider, context, argv.rolesToFund),
         ),
       );
 
@@ -262,7 +260,7 @@ class ContextFunder {
 
     for (const chain of this.chains) {
       for (const key of keys) {
-        let failure = await this.fundKey(key, chain);
+        let failure = await this.attemptToFundKey(key, chain);
         if (failure) {
           failureOccurred = true;
         }
@@ -281,13 +279,16 @@ class ContextFunder {
 
     for (const chain of this.chains) {
       for (const key of keys.filter((k) => k.chainName !== chain)) {
-        await this.fundKey(key, chain);
+        await this.attemptToFundKey(key, chain);
       }
     }
     return failureOccurred;
   }
 
-  private async fundKey(key: AgentKey, chain: ChainName): Promise<boolean> {
+  private async attemptToFundKey(
+    key: AgentKey,
+    chain: ChainName,
+  ): Promise<boolean> {
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const desiredBalance = desiredBalancePerChain[chain];
 
@@ -311,27 +312,8 @@ class ContextFunder {
     return failureOccurred;
   }
 
-  private async updateWalletBalanceGauge(
-    chainConnection: ChainConnection,
-    chain: ChainName,
-  ) {
-    const funderAddress = await chainConnection.getAddress();
-    walletBalanceGauge
-      .labels({
-        chain,
-        wallet_address: funderAddress ?? 'unknown',
-        wallet_name: 'key-funder',
-        token_symbol: 'Native',
-        token_name: 'Native',
-        ...constMetricLabels,
-      })
-      .set(
-        parseFloat(
-          ethers.utils.formatEther(await chainConnection.signer!.getBalance()),
-        ),
-      );
-  }
-
+  // Tops up the key's balance to the desired balance if the current balance
+  // is lower than the desired balance by the min delta
   private async fundKeyIfRequired(
     chainConnection: ChainConnection,
     chain: ChainName,
@@ -396,6 +378,27 @@ class ContextFunder {
         chain,
       });
     }
+  }
+
+  private async updateWalletBalanceGauge(
+    chainConnection: ChainConnection,
+    chain: ChainName,
+  ) {
+    const funderAddress = await chainConnection.getAddress();
+    walletBalanceGauge
+      .labels({
+        chain,
+        wallet_address: funderAddress ?? 'unknown',
+        wallet_name: 'key-funder',
+        token_symbol: 'Native',
+        token_name: 'Native',
+        ...constMetricLabels,
+      })
+      .set(
+        parseFloat(
+          ethers.utils.formatEther(await chainConnection.signer!.getBalance()),
+        ),
+      );
   }
 
   private getKeysWithRole(role: KEY_ROLE_ENUM) {
