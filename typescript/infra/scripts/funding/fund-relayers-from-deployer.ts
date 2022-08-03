@@ -12,7 +12,7 @@ import { error, log } from '@abacus-network/utils';
 
 import { Contexts } from '../../config/contexts';
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
-import { getKey, getRelayerKeys } from '../../src/agents/key-utils';
+import { getAllKeys } from '../../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
@@ -79,14 +79,14 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   test3: '0',
 };
 
-// Funds relayer addresses for multiple contexts from the deployer key of the context
+// Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
-// There are two ways to configure this script so that relayer addresses are known.
+// There are two ways to configure this script so that key addresses are known.
 // You can pass in files using `-f`, which are expected to each be JSON arrays of objects
 // of the form { identifier: '..', address: '..' }, where the keys described in one file
 // are all for the same context. This will avoid requiring any sort of GCP/AWS credentials for
 // fetching addresses from the keys themselves.
-// Alternatively, using `--contexts-to-fund` will fetch relayer addresses from GCP/AWS, which
+// Alternatively, using `--contexts-to-fund` will fetch key addresses from GCP/AWS, which
 // requires credentials.
 async function main() {
   const argv = await getArgs()
@@ -101,12 +101,12 @@ async function main() {
     .array('contexts-to-fund')
     .describe(
       'contexts-to-fund',
-      'Contexts to fund relayers for. If specified, relayer addresses are fetched from GCP/AWS and require sufficient credentials.',
+      'Contexts to fund keys for. If specified, key addresses are fetched from GCP/AWS and require sufficient credentials.',
     )
     .coerce('contexts-to-fund', (contexts: string[]) => {
       return contexts.map(assertContext);
     })
-    // Only one of the two methods for getting relayer addresses
+    // Require only one of the two methods for getting key addresses
     .conflicts('f', 'contexts-to-fund')
     .string('roles-to-fund')
     .array('roles-to-fund')
@@ -114,8 +114,18 @@ async function main() {
       'roles-to-fund',
       'The roles to fund for every context. Note this is not context-specific.',
     )
-    .coerce('roles-to-fund', (roles: string[]) => {
-      return roles.map(assertRole);
+    .coerce('roles-to-fund', (roleStrs: string[]) => {
+      const roles = roleStrs.map(assertRole);
+      // For now, restrict the valid roles we want to fund
+      const validRoles = new Set([KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy]);
+      for (const role of roles) {
+        if (!validRoles.has(role)) {
+          throw Error(
+            `Invalid role ${role}, must be one of ${Array.from(validRoles)}`,
+          );
+        }
+      }
+      return roles;
     })
     .demandOption('roles-to-fund').argv;
 
@@ -124,7 +134,7 @@ async function main() {
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  const contextRelayerFunders = argv.f
+  const contextFunders = argv.f
     ? argv.f.map((path) =>
         ContextFunder.fromSerializedAddressFile(
           multiProvider,
@@ -141,22 +151,22 @@ async function main() {
       );
 
   let failureOccurred = false;
-  for (const relayerFunder of contextRelayerFunders) {
-    const failure = await relayerFunder.fundRolesOnAllChains();
+  for (const funder of contextFunders) {
+    const failure = await funder.fund();
     if (failure) {
       failureOccurred = true;
     }
   }
 
-  await submitMetrics(metricsRegister, 'relayer-funder');
+  await submitMetrics(metricsRegister, 'key-funder');
 
   if (failureOccurred) {
-    error('At least one failure occurred when funding relayers');
+    error('At least one failure occurred when funding');
     process.exit(1);
   }
 }
 
-// Funds relayers for a single context
+// Funds keys for a single context
 class ContextFunder {
   public readonly chains: ChainName[];
 
@@ -166,7 +176,11 @@ class ContextFunder {
     public readonly context: Contexts,
     public readonly rolesToFund: KEY_ROLE_ENUM[],
   ) {
-    this.chains = keys.map((key) => key.chainName!);
+    const uniqueChains = new Set(
+      keys.map((key) => key.chainName!).filter((chain) => chain !== undefined),
+    );
+
+    this.chains = Array.from(uniqueChains);
   }
 
   static fromSerializedAddressFile(
@@ -178,14 +192,12 @@ class ContextFunder {
       path,
     });
     const idsAndAddresses = readJSONAtPath(path);
-    const keys: AgentKey[] = idsAndAddresses
-      .map((idAndAddress: any) =>
-        ReadOnlyAgentKey.fromSerializedAddress(
-          idAndAddress.identifier,
-          idAndAddress.address,
-        ),
-      )
-      .filter((key: AgentKey) => key.role === KEY_ROLE_ENUM.Relayer);
+    const keys: AgentKey[] = idsAndAddresses.map((idAndAddress: any) =>
+      ReadOnlyAgentKey.fromSerializedAddress(
+        idAndAddress.identifier,
+        idAndAddress.address,
+      ),
+    );
 
     const context = keys[0].context;
     // Ensure all keys have the same context, just to be safe
@@ -217,21 +229,22 @@ class ContextFunder {
     const agentConfig = await getAgentConfig(context);
     return new ContextFunder(
       multiProvider,
-      getRelayerKeys(agentConfig),
+      getAllKeys(agentConfig),
       context,
       rolesToFund,
     );
   }
 
+  // Funds all the roles in this.rolesToFund
   // Returns whether a failure occurred.
-  async fundRolesOnAllChains(): Promise<boolean> {
+  async fund(): Promise<boolean> {
     let failureOccurred = false;
 
     for (const role of this.rolesToFund) {
       const failure =
         role === KEY_ROLE_ENUM.Relayer
-          ? await this.fundRelayersOnAllChains()
-          : await this.fundRoleOnAllChains();
+          ? await this.fundRelayersOnAllRequiredChains()
+          : await this.fundNonRelayerKeysOnAllChains(role);
       if (failure) {
         failureOccurred = true;
       }
@@ -240,66 +253,49 @@ class ContextFunder {
   }
 
   // Returns whether a failure occurred.
-  private async fundRoleOnAllChains(): Promise<boolean> {
-    for (const chain of this.chains) {
-      const chainConnection = this.multiProvider.getChainConnection(chain);
-    }
-  }
-
-  // Funds the relayers on all the chains found in `this.chains`.
-  // Returns whether a failure occurred.
-  private async fundRelayersOnAllChains(): Promise<boolean> {
+  private async fundNonRelayerKeysOnAllChains(
+    roleToFund: KEY_ROLE_ENUM,
+  ): Promise<boolean> {
     let failureOccurred = false;
 
+    const keys = this.getKeysWithRole(roleToFund);
+
     for (const chain of this.chains) {
-      const chainConnection = this.multiProvider.getChainConnection(chain);
-
-      const desiredBalance = desiredBalancePerChain[chain];
-      const funderAddress = await chainConnection.getAddress();
-
-      log('Funding relayers on chain...', {
-        chain,
-        funder: {
-          address: funderAddress,
-          balance: ethers.utils.formatEther(
-            await chainConnection.signer!.getBalance(),
-          ),
-          desiredRelayerBalance: desiredBalance,
-        },
-        context: this.context,
-      });
-
-      for (const key of this.keys.filter((k) => k.chainName !== chain)) {
-        await this.fundKey(key, chain);
+      for (const key of keys) {
+        let failure = await this.fundKey(key, chain);
+        if (failure) {
+          failureOccurred = true;
+        }
       }
-
-      walletBalanceGauge
-        .labels({
-          chain,
-          wallet_address: funderAddress ?? 'unknown',
-          wallet_name: 'relayer-funder',
-          token_symbol: 'Native',
-          token_name: 'Native',
-          ...constMetricLabels,
-        })
-        .set(
-          parseFloat(
-            ethers.utils.formatEther(
-              await chainConnection.signer!.getBalance(),
-            ),
-          ),
-        );
     }
     return failureOccurred;
   }
 
-  private async fundKey(key: AgentKey, chain: ChainName) {
+  // Funds the relayers on all the chains found in `this.chains`.
+  // Does not fund a relayer key on its outbox chain.
+  // Returns whether a failure occurred.
+  private async fundRelayersOnAllRequiredChains(): Promise<boolean> {
+    let failureOccurred = false;
+
+    const keys = this.getKeysWithRole(KEY_ROLE_ENUM.Relayer);
+
+    for (const chain of this.chains) {
+      for (const key of keys.filter((k) => k.chainName !== chain)) {
+        await this.fundKey(key, chain);
+      }
+    }
+    return failureOccurred;
+  }
+
+  private async fundKey(key: AgentKey, chain: ChainName): Promise<boolean> {
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const desiredBalance = desiredBalancePerChain[chain];
 
     let failureOccurred = false;
 
+    // Some types of keys must be fetched
     await key.fetch();
+
     try {
       await this.fundKeyIfRequired(chainConnection, chain, key, desiredBalance);
     } catch (err) {
@@ -310,7 +306,7 @@ class ContextFunder {
       });
       failureOccurred = true;
     }
-    await this.updateWalletBalanceGauge();
+    await this.updateWalletBalanceGauge(chainConnection, chain);
 
     return failureOccurred;
   }
@@ -357,6 +353,22 @@ class ContextFunder {
 
     const keyInfo = getKeyInfo(key);
 
+    log('Assessing key for funding', {
+      key: keyInfo,
+      keyBalanceDelta: ethers.utils.formatEther(delta),
+      minKeyBalanceDelta: ethers.utils.formatEther(minDelta),
+      currentKeyBalance: ethers.utils.formatEther(currentBalance),
+      desiredKeyBalance: desiredBalance,
+      funder: {
+        address: await chainConnection.getAddress(),
+        balance: ethers.utils.formatEther(
+          await chainConnection.signer!.getBalance(),
+        ),
+      },
+      context: this.context,
+      chain,
+    });
+
     if (delta.gt(minDelta)) {
       log('Sending funds...', {
         key: keyInfo,
@@ -384,6 +396,10 @@ class ContextFunder {
         chain,
       });
     }
+  }
+
+  private getKeysWithRole(role: KEY_ROLE_ENUM) {
+    return this.keys.filter((k) => k.role === role);
   }
 }
 
