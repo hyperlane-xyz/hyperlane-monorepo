@@ -5,11 +5,11 @@ use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use abacus_base::{run_all, AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers};
+use abacus_base::{AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers, run_all};
 use abacus_core::{AbacusContract, Signers};
 
-use crate::submit::ValidatorSubmitterMetrics;
 use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
+use crate::submit::ValidatorSubmitterMetrics;
 
 /// A validator agent
 #[derive(Debug)]
@@ -72,10 +72,8 @@ impl BaseAgent for Validator {
             core,
         ))
     }
-}
 
-impl Validator {
-    pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let submit = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,

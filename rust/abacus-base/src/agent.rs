@@ -59,6 +59,9 @@ pub trait BaseAgent: Send + Sync + Debug {
     async fn from_settings(settings: Self::Settings) -> Result<Self>
     where
         Self: Sized;
+
+    /// Start running this agent.
+    fn run(&self) -> Instrumented<JoinHandle<Result<()>>>;
 }
 
 /// A trait for an abacus agent.
@@ -113,7 +116,7 @@ impl<B: BaseAgent + AsRef<AbacusAgentCore>> Agent for B {
     }
 }
 
-/// Run tasks
+/// Utility to run multiple tasks and shutdown if any one task ends.
 #[allow(clippy::unit_arg, unused_must_use)]
 pub fn run_all(
     tasks: Vec<Instrumented<JoinHandle<Result<(), Report>>>>,

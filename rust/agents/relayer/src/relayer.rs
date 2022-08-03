@@ -71,6 +71,36 @@ impl BaseAgent for Relayer {
             blacklist,
         })
     }
+
+    fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let (signed_checkpoint_sender, signed_checkpoint_receiver) =
+            tokio::sync::watch::channel::<Option<MultisigSignedCheckpoint>>(None);
+
+        let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
+            .inboxes()
+            .iter()
+            .map(|(inbox_name, inbox_contracts)| {
+                self.run_inbox(
+                    inbox_contracts.clone(),
+                    signed_checkpoint_receiver.clone(),
+                    self.core.settings.inboxes[inbox_name].gelato_conf.clone(),
+                )
+            })
+            .collect();
+
+        tasks.push(self.run_checkpoint_fetcher(signed_checkpoint_sender));
+
+        let sync_metrics = ContractSyncMetrics::new(self.metrics());
+        tasks.push(self.run_outbox_sync(sync_metrics.clone()));
+
+        if let Some(paymaster) = self.interchain_gas_paymaster() {
+            tasks.push(self.run_interchain_gas_paymaster_sync(paymaster, sync_metrics));
+        } else {
+            info!("Interchain Gas Paymaster not provided, not running sync");
+        }
+
+        run_all(tasks)
+    }
 }
 
 impl Relayer {
@@ -164,36 +194,6 @@ impl Relayer {
             Ok(())
         })
         .instrument(info_span!("run inbox"))
-    }
-
-    pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let (signed_checkpoint_sender, signed_checkpoint_receiver) =
-            tokio::sync::watch::channel::<Option<MultisigSignedCheckpoint>>(None);
-
-        let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
-            .inboxes()
-            .iter()
-            .map(|(inbox_name, inbox_contracts)| {
-                self.run_inbox(
-                    inbox_contracts.clone(),
-                    signed_checkpoint_receiver.clone(),
-                    self.core.settings.inboxes[inbox_name].gelato_conf.clone(),
-                )
-            })
-            .collect();
-
-        tasks.push(self.run_checkpoint_fetcher(signed_checkpoint_sender));
-
-        let sync_metrics = ContractSyncMetrics::new(self.metrics());
-        tasks.push(self.run_outbox_sync(sync_metrics.clone()));
-
-        if let Some(paymaster) = self.interchain_gas_paymaster() {
-            tasks.push(self.run_interchain_gas_paymaster_sync(paymaster, sync_metrics));
-        } else {
-            info!("Interchain Gas Paymaster not provided, not running sync");
-        }
-
-        run_all(tasks)
     }
 }
 

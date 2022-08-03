@@ -44,6 +44,17 @@ impl BaseAgent for Kathy {
                 .await?,
         ))
     }
+
+    fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
+            .inboxes()
+            .iter()
+            .map(|(inbox_name, inbox_contracts)| {
+                self.wrap_inbox_run(inbox_name, inbox_contracts.inbox.clone())
+            })
+            .collect();
+        run_all(inbox_tasks)
+    }
 }
 
 impl Kathy {
@@ -103,17 +114,6 @@ impl Kathy {
         let fut = async move { handle.await?.wrap_err(m) };
 
         tokio::spawn(fut).in_current_span()
-    }
-
-    pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
-            .inboxes()
-            .iter()
-            .map(|(inbox_name, inbox_contracts)| {
-                self.wrap_inbox_run(inbox_name, inbox_contracts.inbox.clone())
-            })
-            .collect();
-        run_all(inbox_tasks)
     }
 }
 
