@@ -15,7 +15,7 @@ export function runKeyFunderHelmCommand<Chain extends ChainName>(
   return execCmd(
     `helm ${helmCommand} key-funder ./helm/key-funder --namespace ${
       keyFunderConfig.namespace
-    } --debug --dry-run ${values.join(' ')}`,
+    } ${values.join(' ')}`,
     {},
     false,
     true,
