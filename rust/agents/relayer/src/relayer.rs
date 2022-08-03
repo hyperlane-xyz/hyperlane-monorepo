@@ -9,7 +9,10 @@ use tokio::{
 };
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use abacus_base::{chains::GelatoConf, AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer, BaseAgent};
+use abacus_base::{
+    chains::GelatoConf, run_all, AbacusAgentCore, Agent, BaseAgent, CachingInterchainGasPaymaster,
+    ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
+};
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
 
 use crate::msg::gelato_submitter::GelatoSubmitter;
@@ -190,7 +193,7 @@ impl Relayer {
             info!("Interchain Gas Paymaster not provided, not running sync");
         }
 
-        self.run_all(tasks)
+        run_all(tasks)
     }
 }
 

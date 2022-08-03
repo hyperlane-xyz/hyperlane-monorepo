@@ -5,7 +5,7 @@ use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use abacus_base::{AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers};
+use abacus_base::{run_all, AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers};
 use abacus_core::{AbacusContract, Signers};
 
 use crate::submit::ValidatorSubmitterMetrics;
@@ -85,7 +85,7 @@ impl Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, self.outbox().chain_name()),
         );
 
-        self.run_all(vec![submit.spawn()])
+        run_all(vec![submit.spawn()])
     }
 }
 
