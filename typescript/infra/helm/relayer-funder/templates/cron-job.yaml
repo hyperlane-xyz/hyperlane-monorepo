@@ -24,6 +24,10 @@ spec:
             - {{ .Values.abacus.runEnv }}
             - --context
             - {{ .Values.abacus.contextFundingFrom }}
+{{- range .Values.abacus.rolesToFund }}
+            - --roles-to-fund
+            - {{ . }}
+{{- end }}
 {{- range .Values.abacus.contextsToFund }}
             - -f
             - /addresses-secret/{{ . }}-addresses.json

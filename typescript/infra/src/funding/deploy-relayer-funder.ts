@@ -36,6 +36,7 @@ function getRelayerFunderHelmValues<Chain extends ChainName>(
       chains: agentConfig.contextChainNames,
       contextFundingFrom: relayerFunderConfig.contextFundingFrom,
       contextsToFund: relayerFunderConfig.contextsToFund,
+      rolesToFund: relayerFunderConfig.rolesToFund,
     },
     image: {
       repository: relayerFunderConfig.docker.repo,

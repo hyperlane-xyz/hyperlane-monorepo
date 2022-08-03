@@ -1,3 +1,4 @@
+import { KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { RelayerFunderConfig } from '../../../src/config/funding';
 import { Contexts } from '../../contexts';
 
@@ -14,4 +15,5 @@ export const relayerFunderConfig: RelayerFunderConfig = {
     'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Abacus,
   contextsToFund: [Contexts.Abacus],
+  rolesToFund: [KEY_ROLE_ENUM.Relayer],
 };
