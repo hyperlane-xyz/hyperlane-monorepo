@@ -7,6 +7,7 @@ members = [
     "abacus-core",
     "agents/kathy",
     "agents/relayer",
+    "agents/scraper",
     "abacus-test",
     "agents/validator",
     "chains/abacus-ethereum",
