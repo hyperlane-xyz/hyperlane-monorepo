@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use abacus_base::{AbacusAgentCore, Agent, CheckpointSyncers};
+use abacus_base::{AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers};
 use abacus_core::{AbacusContract, Signers};
-use eyre::Result;
 
 use crate::submit::ValidatorSubmitterMetrics;
-use crate::{settings::ValidatorSettings as Settings, submit::ValidatorSubmitter};
+use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
 
 /// A validator agent
 #[derive(Debug)]
@@ -19,12 +19,6 @@ pub struct Validator {
     interval: u64,
     checkpoint_syncer: Arc<CheckpointSyncers>,
     pub(crate) core: AbacusAgentCore,
-}
-
-impl AsRef<AbacusAgentCore> for Validator {
-    fn as_ref(&self) -> &AbacusAgentCore {
-        &self.core
-    }
 }
 
 impl Validator {
@@ -46,11 +40,17 @@ impl Validator {
     }
 }
 
+impl AsRef<AbacusAgentCore> for Validator {
+    fn as_ref(&self) -> &AbacusAgentCore {
+        &self.core
+    }
+}
+
 #[async_trait]
-impl Agent for Validator {
+impl BaseAgent for Validator {
     const AGENT_NAME: &'static str = "validator";
 
-    type Settings = Settings;
+    type Settings = ValidatorSettings;
 
     async fn from_settings(settings: Self::Settings) -> Result<Self>
     where

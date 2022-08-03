@@ -6,7 +6,7 @@
 
 use eyre::Result;
 
-use abacus_base::Agent;
+use abacus_base::{Agent, BaseAgent};
 
 use crate::kathy::Kathy;
 
