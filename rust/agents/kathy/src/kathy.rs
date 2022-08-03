@@ -8,7 +8,7 @@ use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
 use tracing::instrument::Instrumented;
 use tracing::{info, Instrument};
 
-use abacus_base::{decl_agent, AbacusAgentCore, Agent, BaseAgent, CachingInbox};
+use abacus_base::{decl_agent, run_all, AbacusAgentCore, Agent, BaseAgent, CachingInbox};
 use abacus_core::{AbacusCommon, Message, Outbox};
 
 decl_agent!(Kathy {
@@ -113,7 +113,7 @@ impl Kathy {
                 self.wrap_inbox_run(inbox_name, inbox_contracts.inbox.clone())
             })
             .collect();
-        self.run_all(inbox_tasks)
+        run_all(inbox_tasks)
     }
 }
 

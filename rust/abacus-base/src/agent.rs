@@ -59,28 +59,6 @@ pub trait BaseAgent: Send + Sync + Debug {
     async fn from_settings(settings: Self::Settings) -> Result<Self>
     where
         Self: Sized;
-
-    /// Run tasks
-    #[allow(clippy::unit_arg, unused_must_use)]
-    fn run_all(
-        &self,
-        tasks: Vec<Instrumented<JoinHandle<Result<(), Report>>>>,
-    ) -> Instrumented<JoinHandle<Result<()>>>
-    where
-        Self: Sized + 'static,
-    {
-        let span = info_span!("run_all");
-        tokio::spawn(async move {
-            let (res, _, remaining) = select_all(tasks).await;
-
-            for task in remaining.into_iter() {
-                cancel_task!(task);
-            }
-
-            res?
-        })
-        .instrument(span)
-    }
 }
 
 /// A trait for an abacus agent.
@@ -133,4 +111,22 @@ impl<B: BaseAgent + AsRef<AbacusAgentCore>> Agent for B {
     fn inbox_by_name(&self, name: &str) -> Option<InboxContracts> {
         self.inboxes().get(name).map(Clone::clone)
     }
+}
+
+/// Run tasks
+#[allow(clippy::unit_arg, unused_must_use)]
+pub fn run_all(
+    tasks: Vec<Instrumented<JoinHandle<Result<(), Report>>>>,
+) -> Instrumented<JoinHandle<Result<()>>> {
+    let span = info_span!("run_all");
+    tokio::spawn(async move {
+        let (res, _, remaining) = select_all(tasks).await;
+
+        for task in remaining.into_iter() {
+            cancel_task!(task);
+        }
+
+        res?
+    })
+    .instrument(span)
 }
