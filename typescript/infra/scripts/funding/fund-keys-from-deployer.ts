@@ -92,6 +92,9 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
 // must be provided
 // If the -f flag is not provided, addresses will be read directly from GCP/AWS for each
 // context provided in --contexts-and-roles, which requires the appropriate credentials.
+//
+// Example usage:
+//   ts-node ./scripts/funding/fund-keys-from-deployer.ts -e testnet2 --context abacus --contexts-and-roles abacus=relayer
 async function main() {
   const argv = await getArgs()
     .string('f')
