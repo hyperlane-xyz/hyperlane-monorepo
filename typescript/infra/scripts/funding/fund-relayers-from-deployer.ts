@@ -12,10 +12,14 @@ import { error, log } from '@abacus-network/utils';
 
 import { Contexts } from '../../config/contexts';
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
-import { getRelayerKeys } from '../../src/agents/key-utils';
+import { getKey, getRelayerKeys } from '../../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { submitMetrics } from '../../src/utils/metrics';
-import { assertContext, readJSONAtPath } from '../../src/utils/utils';
+import {
+  assertContext,
+  assertRole,
+  readJSONAtPath,
+} from '../../src/utils/utils';
 import {
   assertEnvironment,
   getAgentConfig,
@@ -103,7 +107,17 @@ async function main() {
       return contexts.map(assertContext);
     })
     // Only one of the two methods for getting relayer addresses
-    .conflicts('f', 'contexts-to-fund').argv;
+    .conflicts('f', 'contexts-to-fund')
+    .string('roles-to-fund')
+    .array('roles-to-fund')
+    .describe(
+      'roles-to-fund',
+      'The roles to fund for every context. Note this is not context-specific.',
+    )
+    .coerce('roles-to-fund', (roles: string[]) => {
+      return roles.map(assertRole);
+    })
+    .demandOption('roles-to-fund').argv;
 
   const environment = assertEnvironment(argv.e as string);
   constMetricLabels.abacus_deployment = environment;
@@ -112,15 +126,23 @@ async function main() {
 
   const contextRelayerFunders = argv.f
     ? argv.f.map((path) =>
-        ContextRelayerFunder.fromSerializedAddressFile(multiProvider, path),
+        ContextFunder.fromSerializedAddressFile(
+          multiProvider,
+          path,
+          argv.rolesToFund,
+        ),
       )
     : argv.contextsToFund!.map((context) =>
-        ContextRelayerFunder.fromSerializedAddressFile(multiProvider, context),
+        ContextFunder.fromSerializedAddressFile(
+          multiProvider,
+          context,
+          argv.rolesToFund,
+        ),
       );
 
   let failureOccurred = false;
   for (const relayerFunder of contextRelayerFunders) {
-    const failure = await relayerFunder.fundRelayersOnAllChains();
+    const failure = await relayerFunder.fundRolesOnAllChains();
     if (failure) {
       failureOccurred = true;
     }
@@ -135,13 +157,14 @@ async function main() {
 }
 
 // Funds relayers for a single context
-class ContextRelayerFunder {
+class ContextFunder {
   public readonly chains: ChainName[];
 
   constructor(
     public readonly multiProvider: MultiProvider<any>,
     public readonly keys: AgentKey[],
     public readonly context: Contexts,
+    public readonly rolesToFund: KEY_ROLE_ENUM[],
   ) {
     this.chains = keys.map((key) => key.chainName!);
   }
@@ -149,6 +172,7 @@ class ContextRelayerFunder {
   static fromSerializedAddressFile(
     multiProvider: MultiProvider<any>,
     path: string,
+    rolesToFund: KEY_ROLE_ENUM[],
   ) {
     log('Reading identifiers and addresses from file', {
       path,
@@ -179,7 +203,7 @@ class ContextRelayerFunder {
       context,
     });
 
-    return new ContextRelayerFunder(multiProvider, keys, context);
+    return new ContextFunder(multiProvider, keys, context, rolesToFund);
   }
 
   // The keys here are not ReadOnlyAgentKeys, instead they are AgentGCPKey or AgentAWSKeys,
@@ -188,17 +212,43 @@ class ContextRelayerFunder {
   static async fromContext(
     multiProvider: MultiProvider<any>,
     context: Contexts,
+    rolesToFund: KEY_ROLE_ENUM[],
   ) {
     const agentConfig = await getAgentConfig(context);
-    return new ContextRelayerFunder(
+    return new ContextFunder(
       multiProvider,
       getRelayerKeys(agentConfig),
       context,
+      rolesToFund,
     );
   }
 
-  // Funds the relayers on all the chains found in `this.chains`
-  async fundRelayersOnAllChains() {
+  // Returns whether a failure occurred.
+  async fundRolesOnAllChains(): Promise<boolean> {
+    let failureOccurred = false;
+
+    for (const role of this.rolesToFund) {
+      const failure =
+        role === KEY_ROLE_ENUM.Relayer
+          ? await this.fundRelayersOnAllChains()
+          : await this.fundRoleOnAllChains();
+      if (failure) {
+        failureOccurred = true;
+      }
+    }
+    return failureOccurred;
+  }
+
+  // Returns whether a failure occurred.
+  private async fundRoleOnAllChains(): Promise<boolean> {
+    for (const chain of this.chains) {
+      const chainConnection = this.multiProvider.getChainConnection(chain);
+    }
+  }
+
+  // Funds the relayers on all the chains found in `this.chains`.
+  // Returns whether a failure occurred.
+  private async fundRelayersOnAllChains(): Promise<boolean> {
     let failureOccurred = false;
 
     for (const chain of this.chains) {
@@ -220,22 +270,7 @@ class ContextRelayerFunder {
       });
 
       for (const key of this.keys.filter((k) => k.chainName !== chain)) {
-        await key.fetch();
-        try {
-          await this.fundRelayerIfRequired(
-            chainConnection,
-            chain,
-            key,
-            desiredBalance,
-          );
-        } catch (err) {
-          error('Error funding relayer', {
-            relayer: relayerKeyInfo(key),
-            context: this.context,
-            error: err,
-          });
-          failureOccurred = true;
-        }
+        await this.fundKey(key, chain);
       }
 
       walletBalanceGauge
@@ -258,7 +293,50 @@ class ContextRelayerFunder {
     return failureOccurred;
   }
 
-  private async fundRelayerIfRequired(
+  private async fundKey(key: AgentKey, chain: ChainName) {
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const desiredBalance = desiredBalancePerChain[chain];
+
+    let failureOccurred = false;
+
+    await key.fetch();
+    try {
+      await this.fundKeyIfRequired(chainConnection, chain, key, desiredBalance);
+    } catch (err) {
+      error('Error funding key', {
+        key: getKeyInfo(key),
+        context: this.context,
+        error: err,
+      });
+      failureOccurred = true;
+    }
+    await this.updateWalletBalanceGauge();
+
+    return failureOccurred;
+  }
+
+  private async updateWalletBalanceGauge(
+    chainConnection: ChainConnection,
+    chain: ChainName,
+  ) {
+    const funderAddress = await chainConnection.getAddress();
+    walletBalanceGauge
+      .labels({
+        chain,
+        wallet_address: funderAddress ?? 'unknown',
+        wallet_name: 'key-funder',
+        token_symbol: 'Native',
+        token_name: 'Native',
+        ...constMetricLabels,
+      })
+      .set(
+        parseFloat(
+          ethers.utils.formatEther(await chainConnection.signer!.getBalance()),
+        ),
+      );
+  }
+
+  private async fundKeyIfRequired(
     chainConnection: ChainConnection,
     chain: ChainName,
     key: AgentKey,
@@ -277,11 +355,11 @@ class ContextRelayerFunder {
       .mul(MIN_DELTA_NUMERATOR)
       .div(MIN_DELTA_DENOMINATOR);
 
-    const relayerInfo = relayerKeyInfo(key);
+    const keyInfo = getKeyInfo(key);
 
     if (delta.gt(minDelta)) {
-      log('Sending relayer funds...', {
-        relayer: relayerInfo,
+      log('Sending funds...', {
+        key: keyInfo,
         amount: ethers.utils.formatEther(delta),
         context: this.context,
         chain,
@@ -293,14 +371,14 @@ class ContextRelayerFunder {
         ...chainConnection.overrides,
       });
       log('Sent transaction', {
-        relayer: relayerInfo,
+        key: keyInfo,
         txUrl: chainConnection.getTxUrl(tx),
         context: this.context,
         chain,
       });
       const receipt = await tx.wait(chainConnection.confirmations);
       log('Got transaction receipt', {
-        relayer: relayerInfo,
+        key: keyInfo,
         receipt,
         context: this.context,
         chain,
@@ -309,12 +387,14 @@ class ContextRelayerFunder {
   }
 }
 
-function relayerKeyInfo(relayerKey: AgentKey) {
+function getKeyInfo(key: AgentKey) {
   return {
-    context: relayerKey.context,
-    address: relayerKey.address,
-    identifier: relayerKey.identifier,
-    originChain: relayerKey.chainName,
+    context: key.context,
+    address: key.address,
+    identifier: key.identifier,
+    originChain: key.chainName,
+    role: key.role,
+    index: key.index,
   };
 }
 
