@@ -8,7 +8,7 @@ use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
 use tracing::instrument::Instrumented;
 use tracing::{info, Instrument};
 
-use abacus_base::{decl_agent, AbacusAgentCore, Agent, CachingInbox};
+use abacus_base::{decl_agent, AbacusAgentCore, Agent, BaseAgent, CachingInbox};
 use abacus_core::{AbacusCommon, Message, Outbox};
 
 decl_agent!(Kathy {
@@ -29,7 +29,7 @@ impl Kathy {
 }
 
 #[async_trait::async_trait]
-impl Agent for Kathy {
+impl BaseAgent for Kathy {
     const AGENT_NAME: &'static str = "kathy";
 
     type Settings = crate::settings::KathySettings;

@@ -9,10 +9,7 @@ use tokio::{
 };
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use abacus_base::{
-    chains::GelatoConf, AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics,
-    InboxContracts, MultisigCheckpointSyncer,
-};
+use abacus_base::{chains::GelatoConf, AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer, BaseAgent};
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
 
 use crate::msg::gelato_submitter::GelatoSubmitter;
@@ -40,7 +37,7 @@ impl AsRef<AbacusAgentCore> for Relayer {
 
 #[async_trait]
 #[allow(clippy::unit_arg)]
-impl Agent for Relayer {
+impl BaseAgent for Relayer {
     const AGENT_NAME: &'static str = "relayer";
 
     type Settings = RelayerSettings;

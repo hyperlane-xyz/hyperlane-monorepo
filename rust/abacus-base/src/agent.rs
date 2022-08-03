@@ -1,19 +1,21 @@
+use std::fmt::Debug;
+use std::{collections::HashMap, sync::Arc};
+
+use async_trait::async_trait;
+use eyre::{Report, Result};
+use futures_util::future::select_all;
+use tokio::task::JoinHandle;
+use tracing::instrument::Instrumented;
+use tracing::{info_span, Instrument};
+
+use abacus_core::db::DB;
+
 use crate::{
     cancel_task,
     metrics::CoreMetrics,
     settings::{IndexSettings, Settings},
     CachingInbox, CachingInterchainGasPaymaster, CachingOutbox, InboxValidatorManagers,
 };
-use abacus_core::db::DB;
-use async_trait::async_trait;
-use eyre::{Report, Result};
-use futures_util::future::select_all;
-use tracing::instrument::Instrumented;
-use tracing::{info_span, Instrument};
-
-use std::fmt::Debug;
-use std::{collections::HashMap, sync::Arc};
-use tokio::task::JoinHandle;
 
 /// Contracts relating to an inbox chain
 #[derive(Clone, Debug)]
@@ -43,9 +45,10 @@ pub struct AbacusAgentCore {
     pub settings: Settings,
 }
 
-/// A trait for an abacus agent
+/// A fundamental agent which does not make any assumptions about the tools
+/// which are used.
 #[async_trait]
-pub trait Agent: Send + Sync + Debug + AsRef<AbacusAgentCore> {
+pub trait BaseAgent: Send + Sync + Debug {
     /// The agent's name
     const AGENT_NAME: &'static str;
 
@@ -56,36 +59,6 @@ pub trait Agent: Send + Sync + Debug + AsRef<AbacusAgentCore> {
     async fn from_settings(settings: Self::Settings) -> Result<Self>
     where
         Self: Sized;
-
-    /// Return a handle to the metrics registry
-    fn metrics(&self) -> Arc<CoreMetrics> {
-        self.as_ref().metrics.clone()
-    }
-
-    /// Return a handle to the DB
-    fn db(&self) -> DB {
-        self.as_ref().db.clone()
-    }
-
-    /// Return a reference to an Outbox contract
-    fn outbox(&self) -> Arc<CachingOutbox> {
-        self.as_ref().outbox.clone()
-    }
-
-    /// Return a reference to an InterchainGasPaymaster contract
-    fn interchain_gas_paymaster(&self) -> Option<Arc<CachingInterchainGasPaymaster>> {
-        self.as_ref().interchain_gas_paymaster.clone()
-    }
-
-    /// Get a reference to the inboxes map
-    fn inboxes(&self) -> &HashMap<String, InboxContracts> {
-        &self.as_ref().inboxes
-    }
-
-    /// Get a reference to an inbox's contracts by its name
-    fn inbox_by_name(&self, name: &str) -> Option<InboxContracts> {
-        self.inboxes().get(name).map(Clone::clone)
-    }
 
     /// Run tasks
     #[allow(clippy::unit_arg, unused_must_use)]
@@ -107,5 +80,57 @@ pub trait Agent: Send + Sync + Debug + AsRef<AbacusAgentCore> {
             res?
         })
         .instrument(span)
+    }
+}
+
+/// A trait for an abacus agent.
+/// Adds assumptions for the indexer and metric methods.
+///
+/// To use the default implementation you must `impl AsRef<AbacusAgentCore>`
+#[async_trait]
+pub trait Agent: BaseAgent {
+    /// Return a handle to the metrics registry
+    fn metrics(&self) -> Arc<CoreMetrics>;
+
+    /// Return a handle to the DB
+    fn db(&self) -> DB;
+
+    /// Return a reference to an Outbox contract
+    fn outbox(&self) -> Arc<CachingOutbox>;
+
+    /// Return a reference to an InterchainGasPaymaster contract
+    fn interchain_gas_paymaster(&self) -> Option<Arc<CachingInterchainGasPaymaster>>;
+
+    /// Get a reference to the inboxes map
+    fn inboxes(&self) -> &HashMap<String, InboxContracts>;
+
+    /// Get a reference to an inbox's contracts by its name
+    fn inbox_by_name(&self, name: &str) -> Option<InboxContracts>;
+}
+
+#[async_trait]
+impl<B: BaseAgent + AsRef<AbacusAgentCore>> Agent for B {
+    fn metrics(&self) -> Arc<CoreMetrics> {
+        self.as_ref().metrics.clone()
+    }
+
+    fn db(&self) -> DB {
+        self.as_ref().db.clone()
+    }
+
+    fn outbox(&self) -> Arc<CachingOutbox> {
+        self.as_ref().outbox.clone()
+    }
+
+    fn interchain_gas_paymaster(&self) -> Option<Arc<CachingInterchainGasPaymaster>> {
+        self.as_ref().interchain_gas_paymaster.clone()
+    }
+
+    fn inboxes(&self) -> &HashMap<String, InboxContracts> {
+        &self.as_ref().inboxes
+    }
+
+    fn inbox_by_name(&self, name: &str) -> Option<InboxContracts> {
+        self.inboxes().get(name).map(Clone::clone)
     }
 }
