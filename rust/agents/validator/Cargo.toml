@@ -27,7 +27,6 @@ abacus-ethereum = { path = "../../chains/abacus-ethereum" }
 [dev-dependencies]
 tokio-test = "0.4"
 abacus-test = { path = "../../abacus-test" }
-prometheus = "0.13"
 
 [features]
 default = ["color-eyre"]
