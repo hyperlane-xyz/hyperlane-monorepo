@@ -1,10 +1,10 @@
 import { KEY_ROLE_ENUM } from '../../../src/agents/roles';
-import { RelayerFunderConfig } from '../../../src/config/funding';
+import { KeyFunderConfig } from '../../../src/config/funding';
 import { Contexts } from '../../contexts';
 
 import { environment } from './chains';
 
-export const relayerFunderConfig: RelayerFunderConfig = {
+export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
     tag: 'sha-d24eaa4',

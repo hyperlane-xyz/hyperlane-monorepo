@@ -3,7 +3,7 @@ import { KEY_ROLE_ENUM } from '../agents/roles';
 
 import { DockerConfig } from './agent';
 
-export interface RelayerFunderConfig {
+export interface KeyFunderConfig {
   docker: DockerConfig;
   cronSchedule: string;
   namespace: string;

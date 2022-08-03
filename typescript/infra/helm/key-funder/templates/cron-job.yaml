@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: relayer-funder
+  name: key-funder
 spec:
   schedule: "{{ .Values.cronjob.schedule }}"
   successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
@@ -14,7 +14,7 @@ spec:
         spec:
           restartPolicy: Never
           containers:
-          - name: relayer-funder
+          - name: key-funder
             image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
             imagePullPolicy: IfNotPresent
             command:
@@ -37,12 +37,12 @@ spec:
               value: {{ .Values.infra.prometheusPushGateway }}
             envFrom:
             - secretRef:
-                name: relayer-funder-env-var-secret
+                name: key-funder-env-var-secret
             volumeMounts:
-            - name: relayer-funder-addresses-secret
+            - name: key-funder-addresses-secret
               mountPath: /addresses-secret
           volumes:
-          - name: relayer-funder-addresses-secret
+          - name: key-funder-addresses-secret
             secret:
-              secretName: relayer-funder-addresses-secret
+              secretName: key-funder-addresses-secret
               defaultMode: 0400
