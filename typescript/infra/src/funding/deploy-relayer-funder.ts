@@ -16,6 +16,9 @@ export function runRelayerFunderHelmCommand<Chain extends ChainName>(
     `helm ${helmCommand} relayer-funder ./helm/relayer-funder --namespace ${
       relayerFunderConfig.namespace
     } ${values.join(' ')}`,
+    {},
+    false,
+    true,
   );
 }
 
@@ -29,7 +32,10 @@ function getRelayerFunderHelmValues<Chain extends ChainName>(
     },
     abacus: {
       runEnv: agentConfig.environment,
+      // Only used for fetching RPC urls as env vars
       chains: agentConfig.contextChainNames,
+      contextFundingFrom: relayerFunderConfig.contextFundingFrom,
+      contextsToFund: relayerFunderConfig.contextsToFund,
     },
     image: {
       repository: relayerFunderConfig.docker.repo,
