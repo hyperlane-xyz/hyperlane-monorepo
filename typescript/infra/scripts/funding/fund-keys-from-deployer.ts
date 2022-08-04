@@ -418,7 +418,7 @@ function getKeyInfo(key: AgentKey) {
   };
 }
 
-function coerceContextAndRolesMap(strs: string[]): ContextAndRolesMap {
+function parseContextAndRolesMap(strs: string[]): ContextAndRolesMap {
   const contextsAndRoles = strs.map(coerceContextAndRoles);
   return contextsAndRoles.reduce(
     (prev, curr) => ({
