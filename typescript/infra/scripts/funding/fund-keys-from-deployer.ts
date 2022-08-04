@@ -433,7 +433,7 @@ function parseContextAndRolesMap(strs: string[]): ContextAndRolesMap {
 // e.g.:
 //   abacus=relayer
 //   flowcarbon=relayer,kathy
-function coerceContextAndRoles(str: string): ContextAndRoles {
+function parseContextAndRoles(str: string): ContextAndRoles {
   const [contextStr, rolesStr] = str.split('=');
   const context = assertContext(contextStr);
 
