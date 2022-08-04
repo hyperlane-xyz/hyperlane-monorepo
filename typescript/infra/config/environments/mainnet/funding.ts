@@ -1,9 +1,10 @@
-import { RelayerFunderConfig } from '../../../src/config/funding';
+import { KEY_ROLE_ENUM } from '../../../src/agents/roles';
+import { KeyFunderConfig } from '../../../src/config/funding';
 import { Contexts } from '../../contexts';
 
 import { environment } from './chains';
 
-export const relayerFunderConfig: RelayerFunderConfig = {
+export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
     tag: 'sha-d24eaa4',
@@ -13,5 +14,7 @@ export const relayerFunderConfig: RelayerFunderConfig = {
   prometheusPushGateway:
     'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Abacus,
-  contextsToFund: [Contexts.Abacus],
+  contextsAndRolesToFund: {
+    [Contexts.Abacus]: [KEY_ROLE_ENUM.Relayer],
+  },
 };

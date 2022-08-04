@@ -9,7 +9,7 @@ import {
   testnetConfigs,
 } from './chains';
 import { core } from './core';
-import { relayerFunderConfig } from './funding';
+import { keyFunderConfig } from './funding';
 import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
 
@@ -22,5 +22,5 @@ export const environment: CoreEnvironmentConfig<TestnetChains> = {
   core,
   infra: infrastructure,
   helloWorld,
-  relayerFunderConfig,
+  keyFunderConfig,
 };
