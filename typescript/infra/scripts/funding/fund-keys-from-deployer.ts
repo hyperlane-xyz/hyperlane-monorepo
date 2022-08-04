@@ -110,7 +110,7 @@ async function main() {
       'contexts-and-roles',
       'Array indicating contexts and the roles to fund for each context. Each element is expected as <context>=<role>,<role>,<role>...',
     )
-    .coerce('contexts-and-roles', coerceContextAndRolesMap)
+    .coerce('contexts-and-roles', parseContextAndRolesMap)
     .demandOption('contexts-and-roles').argv;
 
   const environment = assertEnvironment(argv.e as string);
@@ -193,13 +193,13 @@ class ContextFunder {
 
     const context = keys[0].context;
     // Ensure all keys have the same context, just to be safe
-    keys.forEach((key) => {
+    for (const key of keys) {
       if (key.context !== context) {
         throw Error(
           `Expected all keys at path ${path} to have context ${context}, found ${key.context}`,
         );
       }
-    });
+    }
 
     const rolesToFund = contextsAndRolesToFund[context];
     if (!rolesToFund) {
@@ -419,7 +419,7 @@ function getKeyInfo(key: AgentKey) {
 }
 
 function parseContextAndRolesMap(strs: string[]): ContextAndRolesMap {
-  const contextsAndRoles = strs.map(coerceContextAndRoles);
+  const contextsAndRoles = strs.map(parseContextAndRoles);
   return contextsAndRoles.reduce(
     (prev, curr) => ({
       ...prev,
