@@ -43,7 +43,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     const allTestnets = isMainnet.every((v) => v === false);
     if (allTestnets) {
       // Testnet tokens are all artificially priced at 1.0 USD.
-      return chains.map((_) => 1);
+      return chains.map(() => 1);
     }
 
     if (!allMainnets) {

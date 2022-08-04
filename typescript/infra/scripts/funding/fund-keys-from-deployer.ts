@@ -261,7 +261,7 @@ class ContextFunder {
 
     for (const chain of this.chains) {
       for (const key of keys) {
-        let failure = await this.attemptToFundKey(key, chain);
+        const failure = await this.attemptToFundKey(key, chain);
         if (failure) {
           failureOccurred = true;
         }
@@ -280,7 +280,10 @@ class ContextFunder {
 
     for (const chain of this.chains) {
       for (const key of keys.filter((k) => k.chainName !== chain)) {
-        await this.attemptToFundKey(key, chain);
+        const failure = await this.attemptToFundKey(key, chain);
+        if (failure) {
+          failureOccurred = true;
+        }
       }
     }
     return failureOccurred;
