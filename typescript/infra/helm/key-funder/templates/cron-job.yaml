@@ -19,7 +19,7 @@ spec:
             imagePullPolicy: IfNotPresent
             command:
             - ./node_modules/.bin/ts-node
-            - ./typescript/infra/scripts/funding/fund-relayers-from-deployer.ts
+            - ./typescript/infra/scripts/funding/fund-keys-from-deployer.ts
             - -e
             - {{ .Values.abacus.runEnv }}
             - --context
