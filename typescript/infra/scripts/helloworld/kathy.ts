@@ -1,3 +1,4 @@
+import { info } from 'console';
 import { BigNumber } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
@@ -11,8 +12,8 @@ import {
 import { debug, error, log, utils } from '@abacus-network/utils';
 
 import { startMetricsServer } from '../../src/utils/metrics';
-import { diagonalize, sleep } from '../../src/utils/utils';
-import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
+import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
+import { getArgs, getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
 import { getApp } from './utils';
 
@@ -69,6 +70,54 @@ const MESSAGE_RECEIPT_TIMEOUT =
 /** The maximum number of messages we will allow to get queued up if we are sending too slowly. */
 const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
 
+function getKathyArgs(validChains: ChainName[]) {
+  return getArgs()
+    .boolean('cycle-once')
+    .describe(
+      'cycle-once',
+      'If true, will cycle through all chain pairs once as quick as possible',
+    )
+    .default('cycle-once', false)
+
+    .number('full-cycle-time')
+    .describe(
+      'full-cycle-time',
+      'How long it should take to go through all the message pairings in milliseconds. Ignored if --cycle-once is true. Defaults to 6 hours.',
+    )
+    .default('full-cycle-time', 1000 * 60 * 60 * 6) // 6 hrs
+
+    .number('message-send-timeout')
+    .describe(
+      'message-send-timeout',
+      'How long to wait for a message to be sent in milliseconds. Defaults to 10 min.',
+    )
+    .default('message-send-timeout', 10 * 60 * 1000) // 10 min
+
+    .number('message-receipt-timeout')
+    .describe(
+      'message-receipt-timeout',
+      'How long to wait for a message to be received on the destination in milliseconds. Defaults to 10 min.',
+    )
+    .default('message-receipt-timeout', 10 * 60 * 1000) // 10 min
+
+    .string('chains-to-skip')
+    .array('chains-to-skip')
+    .describe('chains-to-skip', 'Chains to skip sending from or sending to.')
+    .default('chains-to-skip', [])
+    .coerce('chains-to-skip', (chainStrs: string[]) =>
+      chainStrs.map((chainStr: string) => {
+        const chain = assertChain(chainStr);
+        // Ensure the specified chains are actually valid for the app
+        if (!validChains.includes(chain)) {
+          throw Error(
+            `Chain to skip ${chain} invalid, not found in ${validChains}`,
+          );
+        }
+        return chain;
+      }),
+    ).argv;
+}
+
 async function main() {
   startMetricsServer(metricsRegister);
   const environment = await getEnvironment();
@@ -79,22 +128,16 @@ async function main() {
     environment,
     app.multiProvider as any,
   );
-  const chains = app.chains() as Chains[];
-  const skip = process.env.CHAINS_TO_SKIP?.split(',').filter(
-    (skipChain) => skipChain.length > 0,
-  );
+  const appChains = app.chains() as Chains[];
 
-  const invalidChains = skip?.filter(
-    (skipChain: any) => !chains.includes(skipChain),
-  );
-  if (invalidChains && invalidChains.length > 0) {
-    throw new Error(`Invalid chains to skip ${invalidChains}`);
-  }
+  const argv = await getKathyArgs(appChains);
 
-  const origins = chains.filter((chain) => !skip || !skip.includes(chain));
+  const chains = appChains.filter(
+    (chain) => !argv.chainsToSkip || !argv.chainsToSkip.includes(chain),
+  );
   const pairings = diagonalize(
-    origins.map((origin) =>
-      origins.map((destination) =>
+    chains.map((origin) =>
+      chains.map((destination) =>
         origin == destination ? null : { origin, destination },
       ),
     ),
@@ -102,19 +145,39 @@ async function main() {
     .filter((v) => v !== null)
     .map((v) => v!);
 
-  debug('Parings calculated', { chains, pairings });
+  debug('Pairings calculated', { chains, pairings });
 
-  // track how many we are still allowed to send in case some messages send slower than expected.
-  let allowedToSend = 1;
-  const sendFrequency = FULL_CYCLE_TIME / pairings.length;
-  setInterval(() => {
-    // bucket cap since if we are getting really behind it probably does not make sense to let it run away.
-    allowedToSend = Math.min(allowedToSend + 1, MAX_MESSAGES_ALLOWED_TO_SEND);
-    debug('Tick; allowed to send another message', {
-      allowedToSend,
+  let allowedToSend: number;
+  let currentPairingIndex: number;
+  let sendFrequency: number | undefined;
+
+  if (argv.cycleOnce) {
+    // If we're cycling just once, we're allowed to send all the pairings
+    allowedToSend = pairings.length;
+    currentPairingIndex = 0;
+
+    debug('Cycling once through all pairs');
+  } else {
+    // If we are not cycling just once and are running this as a service, do so at an interval.
+    // Track how many we are still allowed to send in case some messages send slower than expected.
+    allowedToSend = 1;
+    sendFrequency = FULL_CYCLE_TIME / pairings.length;
+    // in case we are restarting kathy, keep it from always running the exact same messages first
+    currentPairingIndex = Date.now() % pairings.length;
+
+    debug('Running as a service', {
       sendFrequency,
     });
-  }, sendFrequency);
+
+    setInterval(() => {
+      // bucket cap since if we are getting really behind it probably does not make sense to let it run away.
+      allowedToSend = Math.min(allowedToSend + 1, MAX_MESSAGES_ALLOWED_TO_SEND);
+      debug('Tick; allowed to send another message', {
+        allowedToSend,
+        sendFrequency,
+      });
+    }, sendFrequency);
+  }
 
   // init the metrics because it can take a while for kathy to get through everything and we do not
   // want the metrics to be reported as null in the meantime.
@@ -125,12 +188,7 @@ async function main() {
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
 
-  for (
-    // in case we are restarting kathy, keep it from always running the exact same messages first
-    let currentPairingIndex = Date.now() % pairings.length;
-    ;
-    currentPairingIndex = (currentPairingIndex + 1) % pairings.length
-  ) {
+  while (true) {
     currentPairingIndexGauge.set(currentPairingIndex);
     const { origin, destination } = pairings[currentPairingIndex];
     const labels = {
@@ -149,12 +207,17 @@ async function main() {
     // than most do. It is also more accurate to do it this way for keeping the
     // interval schedule than to use a fixed sleep which would not account for
     // how long messages took to send.
-    if (allowedToSend <= 0)
-      debug('Waiting before sending next message', {
-        ...logCtx,
-        sendFrequency,
-      });
-    while (allowedToSend <= 0) await sleep(1000);
+    if (allowedToSend <= 0) {
+      if (argv.cycleOnce) {
+        break;
+      } else {
+        debug('Waiting before sending next message', {
+          ...logCtx,
+          sendFrequency,
+        });
+        while (allowedToSend <= 0) await sleep(1000);
+      }
+    }
     allowedToSend--;
 
     debug('Initiating sending of new message', logCtx);
@@ -172,13 +235,18 @@ async function main() {
     }
 
     // print stats once every cycle through the pairings
-    if (currentPairingIndex == 0) {
+    if (currentPairingIndex == pairings.length - 1) {
       for (const [origin, destinationStats] of Object.entries(
         await app.stats(),
       )) {
         for (const [destination, counts] of Object.entries(destinationStats)) {
           debug('Message stats', { origin, destination, ...counts });
         }
+      }
+
+      if (argv.cycleOnce) {
+        info('Finished cycling through all pairs once');
+        return;
       }
     }
   }
