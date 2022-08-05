@@ -31,7 +31,5 @@ export async function fetchSigner(
   provider: Provider,
 ) {
   const key = await getSecretDeployerKey(environment, context, chainName);
-  const wallet = new ethers.Wallet(key, provider);
-  return wallet;
-  // return new NonceManager(wallet);
+  return new ethers.Wallet(key, provider);
 }
