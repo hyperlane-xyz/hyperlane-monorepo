@@ -223,7 +223,7 @@ export class AgentAwsKey extends AgentKey {
     if (!keyId) {
       throw Error('Key ID not defined');
     }
-    const signer = new KmsEthersSigner(
+    return new KmsEthersSigner(
       {
         keyId,
         kmsClientConfig: {
@@ -232,7 +232,6 @@ export class AgentAwsKey extends AgentKey {
       },
       provider,
     );
-    return signer;
   }
 
   private requireFetched() {

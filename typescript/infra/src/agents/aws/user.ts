@@ -160,7 +160,7 @@ export class AgentAwsUser<Chain extends ChainName> {
     if (this.chainName !== undefined) {
       tags = {
         ...tags,
-        chainName: this.chainName,
+        chain: this.chainName,
       };
     }
     return tags;

@@ -13,6 +13,7 @@ import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
 import { getCurrentKubernetesContext } from '../src/agents';
+import { AgentKey } from '../src/agents/agent';
 import { getKey } from '../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { DeployEnvironment } from '../src/config';
@@ -97,7 +98,7 @@ async function getKeyForRole<Chain extends ChainName>(
   chain: Chain,
   role: KEY_ROLE_ENUM,
   index?: number,
-) {
+): Promise<AgentKey> {
   const coreConfig = getCoreEnvironmentConfig(environment);
   const agentConfig = await getAgentConfig(context, coreConfig);
   return getKey(agentConfig, role, chain, index);
@@ -109,7 +110,7 @@ export async function getMultiProviderForRole<Chain extends ChainName>(
   context: Contexts,
   role: KEY_ROLE_ENUM,
   index?: number,
-) {
+): Promise<MultiProvider<Chain>> {
   const connections = await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {
       const provider = await fetchProvider(environment, chain);

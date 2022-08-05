@@ -18,12 +18,10 @@ export async function runHelloworldKathyHelmCommand<Chain extends ChainName>(
       agentConfig.environment,
       agentConfig.context,
       KEY_ROLE_ENUM.Kathy,
-      agentConfig.aws!.region,
+      agentConfig.aws.region,
     );
     await awsUser.createIfNotExists();
     await awsUser.createKeyIfNotExists(agentConfig);
-
-    console.log('awsUser.userName', awsUser.userName);
   }
 
   const values = getHelloworldKathyHelmValues(agentConfig, kathyConfig);
@@ -31,7 +29,7 @@ export async function runHelloworldKathyHelmCommand<Chain extends ChainName>(
   return execCmd(
     `helm ${helmCommand} helloworld-kathy ./helm/helloworld-kathy --namespace ${
       kathyConfig.namespace
-    } --debug --dry-run ${values.join(' ')}`,
+    } ${values.join(' ')}`,
     {},
     false,
     true,
