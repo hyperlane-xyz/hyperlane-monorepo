@@ -1,4 +1,5 @@
-import { getMultiProviderFromGCP } from '../../../scripts/utils';
+import { getMultiProviderForRole } from '../../../scripts/utils';
+import { KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { CoreEnvironmentConfig } from '../../../src/config';
 import { Contexts } from '../../contexts';
 
@@ -16,8 +17,13 @@ import { infrastructure } from './infrastructure';
 export const environment: CoreEnvironmentConfig<MainnetChains> = {
   environment: environmentName,
   transactionConfigs: mainnetConfigs,
-  getMultiProvider: (context?: Contexts) =>
-    getMultiProviderFromGCP(mainnetConfigs, environmentName, context),
+  getMultiProvider: (context?: Contexts, role?: KEY_ROLE_ENUM) =>
+    getMultiProviderForRole(
+      mainnetConfigs,
+      environmentName,
+      context ?? Contexts.Abacus,
+      role ?? KEY_ROLE_ENUM.Deployer,
+    ),
   agents,
   core,
   infra: infrastructure,

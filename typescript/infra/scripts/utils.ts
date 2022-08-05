@@ -13,6 +13,7 @@ import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
 import { getCurrentKubernetesContext } from '../src/agents';
+import { getKey } from '../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { DeployEnvironment } from '../src/config';
 import { CoreEnvironmentConfig } from '../src/config';
@@ -88,6 +89,40 @@ export async function getAgentConfig<Chain extends ChainName>(
     );
   }
   return agentConfig;
+}
+
+async function getKeyForRole<Chain extends ChainName>(
+  environment: DeployEnvironment,
+  context: Contexts,
+  chain: Chain,
+  role: KEY_ROLE_ENUM,
+  index?: number,
+) {
+  const coreConfig = getCoreEnvironmentConfig(environment);
+  const agentConfig = await getAgentConfig(context, coreConfig);
+  return getKey(agentConfig, role, chain, index);
+}
+
+export async function getMultiProviderForRole<Chain extends ChainName>(
+  txConfigs: ChainMap<Chain, IChainConnection>,
+  environment: DeployEnvironment,
+  context: Contexts,
+  role: KEY_ROLE_ENUM,
+  index?: number,
+) {
+  const connections = await promiseObjAll(
+    objMap(txConfigs, async (chain, config) => {
+      const provider = await fetchProvider(environment, chain);
+      const key = await getKeyForRole(environment, context, chain, role, index);
+      const signer = await key.getSigner(provider);
+      return {
+        ...config,
+        provider,
+        signer,
+      };
+    }),
+  );
+  return new MultiProvider<Chain>(connections);
 }
 
 export async function getMultiProviderFromGCP<Chain extends ChainName>(

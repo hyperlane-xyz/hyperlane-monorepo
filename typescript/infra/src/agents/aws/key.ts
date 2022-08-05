@@ -13,6 +13,8 @@ import {
   PutKeyPolicyCommand,
   UpdateAliasCommand,
 } from '@aws-sdk/client-kms';
+import { ethers } from 'ethers';
+import { AwsKmsSigner } from 'ethers-aws-kms-signer';
 
 import { ChainName } from '@abacus-network/sdk';
 
@@ -214,6 +216,23 @@ export class AgentAwsKey extends AgentKey {
     // TODO should this be awaited? fetch is async
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     this.fetch();
+  }
+
+  async getSigner(
+    provider?: ethers.providers.Provider,
+  ): Promise<ethers.Signer> {
+    const keyId = await this.getId();
+    if (!keyId) {
+      throw Error('Key ID not defined');
+    }
+    const signer = new AwsKmsSigner({
+      keyId,
+      region: this.region,
+    });
+    if (provider) {
+      return signer.connect(provider);
+    }
+    return signer;
   }
 
   private requireFetched() {
