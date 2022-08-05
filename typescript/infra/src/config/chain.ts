@@ -1,5 +1,4 @@
 import { Provider } from '@ethersproject/abstract-provider';
-import { NonceManager } from '@ethersproject/experimental';
 import { ethers } from 'ethers';
 
 import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
@@ -32,6 +31,5 @@ export async function fetchSigner(
   provider: Provider,
 ) {
   const key = await getSecretDeployerKey(environment, context, chainName);
-  const wallet = new ethers.Wallet(key, provider);
-  return new NonceManager(wallet);
+  return new ethers.Wallet(key, provider);
 }
