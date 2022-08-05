@@ -114,7 +114,9 @@ export class AgentGCPKey extends AgentKey {
   async getSigner(
     provider?: ethers.providers.Provider,
   ): Promise<ethers.Signer> {
-    await this.fetch();
+    if (!this.remoteKey.fetched) {
+      await this.fetch();
+    }
     return new Wallet(this.privateKey, provider);
   }
 

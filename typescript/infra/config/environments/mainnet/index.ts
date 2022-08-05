@@ -17,13 +17,10 @@ import { infrastructure } from './infrastructure';
 export const environment: CoreEnvironmentConfig<MainnetChains> = {
   environment: environmentName,
   transactionConfigs: mainnetConfigs,
-  getMultiProvider: (context?: Contexts, role?: KEY_ROLE_ENUM) =>
-    getMultiProviderForRole(
-      mainnetConfigs,
-      environmentName,
-      context ?? Contexts.Abacus,
-      role ?? KEY_ROLE_ENUM.Deployer,
-    ),
+  getMultiProvider: (
+    context: Contexts = Contexts.Abacus,
+    role: KEY_ROLE_ENUM = KEY_ROLE_ENUM.Deployer,
+  ) => getMultiProviderForRole(mainnetConfigs, environmentName, context, role),
   agents,
   core,
   infra: infrastructure,

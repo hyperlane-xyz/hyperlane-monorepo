@@ -13,8 +13,8 @@ import {
   PutKeyPolicyCommand,
   UpdateAliasCommand,
 } from '@aws-sdk/client-kms';
+import { KmsEthersSigner } from 'aws-kms-ethers-signer';
 import { ethers } from 'ethers';
-import { AwsKmsSigner } from 'ethers-aws-kms-signer';
 
 import { ChainName } from '@abacus-network/sdk';
 
@@ -213,9 +213,7 @@ export class AgentAwsKey extends AgentKey {
     await client.send(new DeleteAliasCommand({ AliasName: newAlias }));
 
     // Address should have changed now
-    // TODO should this be awaited? fetch is async
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    this.fetch();
+    await this.fetch();
   }
 
   async getSigner(
@@ -225,13 +223,15 @@ export class AgentAwsKey extends AgentKey {
     if (!keyId) {
       throw Error('Key ID not defined');
     }
-    const signer = new AwsKmsSigner({
-      keyId,
-      region: this.region,
-    });
-    if (provider) {
-      return signer.connect(provider);
-    }
+    const signer = new KmsEthersSigner(
+      {
+        keyId,
+        kmsClientConfig: {
+          region: this.region,
+        },
+      },
+      provider,
+    );
     return signer;
   }
 
