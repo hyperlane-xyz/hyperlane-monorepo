@@ -17,7 +17,7 @@ import { getKey } from '../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { DeployEnvironment } from '../src/config';
 import { CoreEnvironmentConfig } from '../src/config';
-import { fetchProvider, fetchSigner } from '../src/config/chain';
+import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames } from '../src/config/environment';
 import { assertContext } from '../src/utils/utils';
 
@@ -115,30 +115,6 @@ export async function getMultiProviderForRole<Chain extends ChainName>(
       const provider = await fetchProvider(environment, chain);
       const key = await getKeyForRole(environment, context, chain, role, index);
       const signer = await key.getSigner(provider);
-      return {
-        ...config,
-        provider,
-        signer,
-      };
-    }),
-  );
-  return new MultiProvider<Chain>(connections);
-}
-
-export async function getMultiProviderFromGCP<Chain extends ChainName>(
-  txConfigs: ChainMap<Chain, IChainConnection>,
-  environment: DeployEnvironment,
-  context?: Contexts,
-) {
-  const connections = await promiseObjAll(
-    objMap(txConfigs, async (chain, config) => {
-      const provider = await fetchProvider(environment, chain);
-      const signer = await fetchSigner(
-        environment,
-        context ?? Contexts.Abacus,
-        chain,
-        provider,
-      );
       return {
         ...config,
         provider,

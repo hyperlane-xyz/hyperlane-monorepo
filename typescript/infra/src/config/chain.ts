@@ -1,12 +1,9 @@
-import { Provider } from '@ethersproject/abstract-provider';
-import { NonceManager } from '@ethersproject/experimental';
 import { ethers } from 'ethers';
 
 import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
 import { ChainName, RetryJsonRpcProvider } from '@abacus-network/sdk';
 
-import { Contexts } from '../../config/contexts';
-import { getSecretDeployerKey, getSecretRpcEndpoint } from '../agents';
+import { getSecretRpcEndpoint } from '../agents';
 
 import { DeployEnvironment } from './environment';
 
@@ -23,15 +20,4 @@ export async function fetchProvider(
         baseRetryMs: 50,
       });
   return provider;
-}
-
-export async function fetchSigner(
-  environment: DeployEnvironment,
-  context: Contexts,
-  chainName: ChainName,
-  provider: Provider,
-) {
-  const key = await getSecretDeployerKey(environment, context, chainName);
-  const wallet = new ethers.Wallet(key, provider);
-  return new NonceManager(wallet);
 }
