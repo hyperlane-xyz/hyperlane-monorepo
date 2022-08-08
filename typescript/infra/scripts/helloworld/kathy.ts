@@ -11,9 +11,15 @@ import {
 } from '@abacus-network/sdk';
 import { debug, error, log, utils } from '@abacus-network/utils';
 
+import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getArgs, getCoreEnvironmentConfig, getEnvironment } from '../utils';
+import {
+  getArgs,
+  getContext,
+  getCoreEnvironmentConfig,
+  getEnvironment,
+} from '../utils';
 
 import { getApp } from './utils';
 
@@ -123,7 +129,8 @@ async function main() {
   const environment = await getEnvironment();
   debug('Starting up', { environment });
   const coreConfig = getCoreEnvironmentConfig(environment);
-  const app = await getApp(coreConfig);
+  const context = await getContext();
+  const app = await getApp(coreConfig, context, KEY_ROLE_ENUM.Kathy);
   const gasCalculator = InterchainGasCalculator.fromEnvironment(
     environment,
     app.multiProvider as any,
@@ -154,6 +161,7 @@ async function main() {
   if (argv.cycleOnce) {
     // If we're cycling just once, we're allowed to send all the pairings
     allowedToSend = pairings.length;
+    // Start with pairing 0
     currentPairingIndex = 0;
 
     debug('Cycling once through all pairs');
@@ -207,16 +215,14 @@ async function main() {
     // than most do. It is also more accurate to do it this way for keeping the
     // interval schedule than to use a fixed sleep which would not account for
     // how long messages took to send.
+    // In the cycle-once case, the loop is expected to exit before ever hitting
+    // this condition.
     if (allowedToSend <= 0) {
-      if (argv.cycleOnce) {
-        break;
-      } else {
-        debug('Waiting before sending next message', {
-          ...logCtx,
-          sendFrequency,
-        });
-        while (allowedToSend <= 0) await sleep(1000);
-      }
+      debug('Waiting before sending next message', {
+        ...logCtx,
+        sendFrequency,
+      });
+      while (allowedToSend <= 0) await sleep(1000);
     }
     allowedToSend--;
 
@@ -234,7 +240,10 @@ async function main() {
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
     }
 
-    // print stats once every cycle through the pairings
+    // Print stats once every cycle through the pairings.
+    // For the cycle-once case, it's important this checks if the current index is
+    // the final index in pairings. For the long-running case, this index choice
+    // is arbitrary.
     if (currentPairingIndex == pairings.length - 1) {
       for (const [origin, destinationStats] of Object.entries(
         await app.stats(),
@@ -246,7 +255,7 @@ async function main() {
 
       if (argv.cycleOnce) {
         info('Finished cycling through all pairs once');
-        return;
+        break;
       }
     }
   }

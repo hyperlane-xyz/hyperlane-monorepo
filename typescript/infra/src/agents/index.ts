@@ -157,9 +157,9 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       user = new AgentAwsUser(
         agentConfig.environment,
         agentConfig.context,
-        outboxChainName,
         role,
         agentConfig.aws!.region,
+        outboxChainName,
       );
     }
 
