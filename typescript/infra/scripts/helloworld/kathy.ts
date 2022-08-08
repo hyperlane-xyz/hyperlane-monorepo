@@ -1,25 +1,20 @@
-import { info } from 'console';
 import { BigNumber } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
-import {
-  ChainName,
-  Chains,
-  InterchainGasCalculator,
-} from '@abacus-network/sdk';
+import { ChainName, InterchainGasCalculator } from '@abacus-network/sdk';
 import { debug, error, log, utils } from '@abacus-network/utils';
 
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
-import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
 import {
-  getArgs,
-  getContext,
-  getCoreEnvironmentConfig,
-  getEnvironment,
-} from '../utils';
+  assertChain,
+  assertContext,
+  diagonalize,
+  sleep,
+} from '../../src/utils/utils';
+import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from '../utils';
 
 import { getApp } from './utils';
 
@@ -54,30 +49,17 @@ metricsRegister.registerMetric(currentPairingIndexGauge);
 metricsRegister.registerMetric(messageSendSeconds);
 metricsRegister.registerMetric(messageReceiptSeconds);
 
-/** How long we should take to go through all the message pairings in milliseconds. 6hrs by default. */
-const FULL_CYCLE_TIME =
-  parseInt(process.env['KATHY_FULL_CYCLE_TIME'] as string) ||
-  1000 * 60 * 60 * 6;
-if (!Number.isSafeInteger(FULL_CYCLE_TIME) || FULL_CYCLE_TIME <= 0) {
-  error('Invalid cycle time provided');
-  process.exit(1);
-}
-
-/** How long we should wait for a message to be sent in milliseconds. 10 min by default. */
-const MESSAGE_SEND_TIMEOUT =
-  parseInt(process.env['KATHY_MESSAGE_SEND_TIMEOUT'] as string) ||
-  10 * 60 * 1000;
-
-/** How long we should wait for a message to be received in milliseconds. 10 min by default. */
-const MESSAGE_RECEIPT_TIMEOUT =
-  parseInt(process.env['KATHY_MESSAGE_RECEIPT_TIMEOUT'] as string) ||
-  10 * 60 * 1000;
-
 /** The maximum number of messages we will allow to get queued up if we are sending too slowly. */
 const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
 
-function getKathyArgs(validChains: ChainName[]) {
+function getKathyArgs() {
   return getArgs()
+    .coerce('e', assertEnvironment)
+    .demandOption('e')
+
+    .coerce('context', assertContext)
+    .demandOption('context')
+
     .boolean('cycle-once')
     .describe(
       'cycle-once',
@@ -110,37 +92,45 @@ function getKathyArgs(validChains: ChainName[]) {
     .array('chains-to-skip')
     .describe('chains-to-skip', 'Chains to skip sending from or sending to.')
     .default('chains-to-skip', [])
+    .demandOption('chains-to-skip')
     .coerce('chains-to-skip', (chainStrs: string[]) =>
-      chainStrs.map((chainStr: string) => {
-        const chain = assertChain(chainStr);
-        // Ensure the specified chains are actually valid for the app
-        if (!validChains.includes(chain)) {
-          throw Error(
-            `Chain to skip ${chain} invalid, not found in ${validChains}`,
-          );
-        }
-        return chain;
-      }),
+      chainStrs.map((chainStr: string) => assertChain(chainStr)),
     ).argv;
 }
 
 async function main() {
+  const {
+    e: environment,
+    context,
+    chainsToSkip,
+    cycleOnce,
+    fullCycleTime,
+    messageSendTimeout,
+    messageReceiptTimeout,
+  } = await getKathyArgs();
+
   startMetricsServer(metricsRegister);
-  const environment = await getEnvironment();
   debug('Starting up', { environment });
+
   const coreConfig = getCoreEnvironmentConfig(environment);
-  const context = await getContext();
   const app = await getApp(coreConfig, context, KEY_ROLE_ENUM.Kathy);
   const gasCalculator = InterchainGasCalculator.fromEnvironment(
     environment,
     app.multiProvider as any,
   );
-  const appChains = app.chains() as Chains[];
+  const appChains = app.chains();
 
-  const argv = await getKathyArgs(appChains);
+  // Ensure the specified chains to skip are actually valid for the app
+  for (const chainToSkip of chainsToSkip ?? []) {
+    if (!appChains.includes(chainToSkip)) {
+      throw Error(
+        `Chain to skip ${chainToSkip} invalid, not found in ${appChains}`,
+      );
+    }
+  }
 
   const chains = appChains.filter(
-    (chain) => !argv.chainsToSkip || !argv.chainsToSkip.includes(chain),
+    (chain) => !chainsToSkip || !chainsToSkip.includes(chain),
   );
   const pairings = diagonalize(
     chains.map((origin) =>
@@ -158,7 +148,7 @@ async function main() {
   let currentPairingIndex: number;
   let sendFrequency: number | undefined;
 
-  if (argv.cycleOnce) {
+  if (cycleOnce) {
     // If we're cycling just once, we're allowed to send all the pairings
     allowedToSend = pairings.length;
     // Start with pairing 0
@@ -169,7 +159,7 @@ async function main() {
     // If we are not cycling just once and are running this as a service, do so at an interval.
     // Track how many we are still allowed to send in case some messages send slower than expected.
     allowedToSend = 1;
-    sendFrequency = FULL_CYCLE_TIME / pairings.length;
+    sendFrequency = fullCycleTime / pairings.length;
     // in case we are restarting kathy, keep it from always running the exact same messages first
     currentPairingIndex = Date.now() % pairings.length;
 
@@ -229,7 +219,14 @@ async function main() {
     debug('Initiating sending of new message', logCtx);
 
     try {
-      await sendMessage(app, origin, destination, gasCalculator);
+      await sendMessage(
+        app,
+        origin,
+        destination,
+        gasCalculator,
+        messageSendTimeout,
+        messageReceiptTimeout,
+      );
       log('Message sent successfully', { origin, destination });
       messagesSendCount.labels({ ...labels, status: 'success' }).inc();
     } catch (e) {
@@ -253,11 +250,14 @@ async function main() {
         }
       }
 
-      if (argv.cycleOnce) {
-        info('Finished cycling through all pairs once');
+      if (cycleOnce) {
+        log('Finished cycling through all pairs once');
         break;
       }
     }
+
+    // Move on to the next index
+    currentPairingIndex++;
   }
 }
 
@@ -266,6 +266,8 @@ async function sendMessage(
   origin: ChainName,
   destination: ChainName,
   gasCalc: InterchainGasCalculator<any>,
+  messageSendTimeout: number,
+  messageReceiptTimeout: number,
 ) {
   const startTime = Date.now();
   const msg = 'Hello!';
@@ -280,7 +282,7 @@ async function sendMessage(
   log('Sending message', { origin, destination });
   const receipt = await utils.timeout(
     app.sendHelloWorld(origin, destination, msg, value),
-    MESSAGE_SEND_TIMEOUT,
+    messageSendTimeout,
     'Timeout sending message',
   );
   messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
@@ -293,7 +295,7 @@ async function sendMessage(
 
   await utils.timeout(
     app.waitForMessageReceipt(receipt),
-    MESSAGE_RECEIPT_TIMEOUT,
+    messageReceiptTimeout,
     'Timeout waiting for message to be received',
   );
   messageReceiptSeconds
