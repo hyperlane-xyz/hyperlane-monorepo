@@ -161,7 +161,7 @@ describe('InterchainGasCalculator', () => {
 
       // (100_000 dest handler gas + 100_000 process overhead gas)
       // * 10 gas price * ($5.5 per destination token / $9.0909 per origin token)
-      expect(estimatedPayment.toNumber()).to.equal(1_210_001);
+      expect(estimatedPayment.toNumber()).to.equal(1_210_000);
     });
   });
   */
