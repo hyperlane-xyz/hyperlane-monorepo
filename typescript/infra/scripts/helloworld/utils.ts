@@ -14,6 +14,8 @@ import {
   promiseObjAll,
 } from '@abacus-network/sdk';
 
+import { Contexts } from '../../config/contexts';
+import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../../src/config';
 import { HelloWorldConfig } from '../../src/config/helloworld';
 
@@ -44,13 +46,18 @@ export async function getConfiguration<Chain extends ChainName>(
 
 export async function getApp<Chain extends ChainName>(
   coreConfig: CoreEnvironmentConfig<Chain>,
+  context: Contexts,
+  keyRole: KEY_ROLE_ENUM,
 ) {
   const helloworldConfig = getHelloWorldConfig(coreConfig);
   const contracts = buildContracts(
     helloworldConfig.addresses,
     helloWorldFactories,
   ) as ChainMap<Chain, HelloWorldContracts>;
-  const multiProvider: MultiProvider<any> = await coreConfig.getMultiProvider();
+  const multiProvider: MultiProvider<any> = await coreConfig.getMultiProvider(
+    context,
+    keyRole,
+  );
   const core = AbacusCore.fromEnvironment(
     coreConfig.environment,
     multiProvider as any,

@@ -8,6 +8,7 @@ import {
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
+import { KEY_ROLE_ENUM } from '../agents/roles';
 
 import { AgentConfig } from './agent';
 import { KeyFunderConfig } from './funding';
@@ -28,7 +29,10 @@ export type CoreEnvironmentConfig<Chain extends ChainName> = {
   agents: Partial<Record<Contexts, AgentConfig<Chain>>>;
   core: ChainMap<Chain, CoreConfig>;
   infra: InfrastructureConfig;
-  getMultiProvider: (context?: Contexts) => Promise<MultiProvider<Chain>>;
+  getMultiProvider: (
+    context?: Contexts,
+    role?: KEY_ROLE_ENUM,
+  ) => Promise<MultiProvider<Chain>>;
   helloWorld?: HelloWorldConfig<Chain>;
   keyFunderConfig?: KeyFunderConfig;
 };

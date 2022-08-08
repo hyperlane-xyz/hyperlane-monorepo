@@ -10,9 +10,10 @@ import {
 } from '@abacus-network/sdk';
 import { debug, error, log, utils } from '@abacus-network/utils';
 
+import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { diagonalize, sleep } from '../../src/utils/utils';
-import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
+import { getContext, getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
 import { getApp } from './utils';
 
@@ -74,7 +75,8 @@ async function main() {
   const environment = await getEnvironment();
   debug('Starting up', { environment });
   const coreConfig = getCoreEnvironmentConfig(environment);
-  const app = await getApp(coreConfig);
+  const context = await getContext();
+  const app = await getApp(coreConfig, context, KEY_ROLE_ENUM.Kathy);
   const gasCalculator = InterchainGasCalculator.fromEnvironment(
     environment,
     app.multiProvider as any,
