@@ -104,7 +104,7 @@ async function main() {
     .filter((v) => v !== null)
     .map((v) => v!);
 
-  debug('Parings calculated', { chains, pairings });
+  debug('Pairings calculated', { chains, pairings });
 
   // track how many we are still allowed to send in case some messages send slower than expected.
   let allowedToSend = 1;

@@ -3,6 +3,8 @@ import {
   CreateAliasCommand,
   CreateKeyCommand,
   DeleteAliasCommand,
+  DescribeKeyCommand,
+  DescribeKeyCommandOutput,
   GetPublicKeyCommand,
   KMSClient,
   KeySpec,
@@ -132,7 +134,7 @@ export class AgentAwsKey extends AgentKey {
           Principal: {
             AWS: userArn,
           },
-          Action: ['kms:GetPublicKey', 'kms:Sign'],
+          Action: ['kms:GetPublicKey', 'kms:Sign', 'kms:DescribeKey'],
           Resource: '*',
         },
       ],
@@ -148,9 +150,8 @@ export class AgentAwsKey extends AgentKey {
 
   // Gets the Key's ID if it exists, undefined otherwise
   async getId() {
-    const aliases = await this.getAliases();
-    const match = aliases.find((_) => _.AliasName === this.identifier);
-    return match?.TargetKeyId;
+    const keyDescription = await this.describeKey();
+    return keyDescription.KeyMetadata?.KeyId;
   }
 
   create() {
@@ -176,7 +177,6 @@ export class AgentAwsKey extends AgentKey {
     const client = await this.getClient();
 
     // Get the key IDs
-    // TODO handle cases when there are > 100 keys
     const aliases = await this.getAliases();
     const canonicalMatch = aliases.find((_) => _.AliasName === canonicalAlias);
     const newMatch = aliases.find((_) => _.AliasName === newAlias);
@@ -295,6 +295,15 @@ export class AgentAwsKey extends AgentKey {
     );
 
     return getEthereumAddress(Buffer.from(publicKeyResponse.PublicKey!));
+  }
+
+  private async describeKey(): Promise<DescribeKeyCommandOutput> {
+    const client = await this.getClient();
+    return client.send(
+      new DescribeKeyCommand({
+        KeyId: this.identifier,
+      }),
+    );
   }
 
   private async getAliases(): Promise<AliasListEntry[]> {
