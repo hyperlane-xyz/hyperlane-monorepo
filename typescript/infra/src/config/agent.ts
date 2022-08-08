@@ -356,9 +356,9 @@ export class ChainAgentConfig<Chain extends ChainName> {
       const awsUser = new AgentAwsUser(
         this.agentConfig.environment,
         this.agentConfig.context,
-        this.chainName,
         KEY_ROLE_ENUM.Relayer,
         awsRegion,
+        this.chainName,
       );
       await awsUser.createIfNotExists();
       // If we're using AWS keys, ensure the key is created and the user can use it
@@ -381,9 +381,9 @@ export class ChainAgentConfig<Chain extends ChainName> {
     const awsUser = new AgentAwsUser(
       this.agentConfig.environment,
       this.agentConfig.context,
-      this.chainName,
       KEY_ROLE_ENUM.Relayer,
       this.agentConfig.aws!.region,
+      this.chainName,
     );
     await awsUser.createIfNotExists();
     const key = await awsUser.createKeyIfNotExists(this.agentConfig);
@@ -443,9 +443,9 @@ export class ChainAgentConfig<Chain extends ChainName> {
       const awsUser = new AgentAwsUser(
         this.agentConfig.environment,
         this.agentConfig.context,
-        this.chainName,
         KEY_ROLE_ENUM.Kathy,
         this.agentConfig.aws!.region,
+        this.chainName,
       );
       await awsUser.createIfNotExists();
       const key = await awsUser.createKeyIfNotExists(this.agentConfig);
