@@ -226,7 +226,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     const PRECISION = 1000;
 
     return convertDecimalValue(
-      value.mul(exchangeRate * PRECISION).div(PRECISION),
+      value.mul(Math.round(exchangeRate * PRECISION)).div(PRECISION),
       this.tokenDecimals(fromChain),
       this.tokenDecimals(toChain),
     );
