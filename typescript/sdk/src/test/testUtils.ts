@@ -58,7 +58,7 @@ export class MockCoinGecko implements CoinGeckoInterface {
     this.tokenPrices = {};
     this.idToChain = {};
     for (const chain of AllChains) {
-      const id = chainMetadata[chain].coinGeckoId || chain;
+      const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
       this.idToChain[id] = chain;
     }
   }
