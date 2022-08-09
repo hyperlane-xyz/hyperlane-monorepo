@@ -45,6 +45,7 @@ const messageReceiptSeconds = new Counter({
 const walletBalance = new Gauge({
   name: 'abacus_wallet_balance',
   help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
+  registers: [metricsRegister],
   labelNames: [
     'chain',
     'wallet_address',
@@ -54,11 +55,6 @@ const walletBalance = new Gauge({
     'token_name',
   ],
 });
-
-metricsRegister.registerMetric(messagesSendCount);
-metricsRegister.registerMetric(currentPairingIndexGauge);
-metricsRegister.registerMetric(messageSendSeconds);
-metricsRegister.registerMetric(messageReceiptSeconds);
 
 /** How long we should take to go through all the message pairings in milliseconds. 6hrs by default. */
 const FULL_CYCLE_TIME =
@@ -140,7 +136,7 @@ async function main() {
   }
   await Promise.all(
     origins.map(async (origin) => {
-      await updateBalanceFor(app, origin);
+      await updateWalletBalanceMetricFor(app, origin);
     }),
   );
 
@@ -189,7 +185,7 @@ async function main() {
       });
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
     }
-    updateBalanceFor(app, origin).catch((e) => {
+    updateWalletBalanceMetricFor(app, origin).catch((e) => {
       warn('Failed to update wallet balance for chain', {
         chain: origin,
         err: format(e),
@@ -268,25 +264,28 @@ async function sendMessage(
   });
 }
 
-async function updateBalanceFor(
+async function updateWalletBalanceMetricFor(
   app: HelloWorldApp<any>,
   chain: ChainName,
 ): Promise<void> {
   const provider = app.multiProvider.getChainConnection(chain).provider;
-  const routerAddress = app.getContracts(chain).router.address;
-  const routerBalance = await provider.getBalance(routerAddress);
-  const balance = parseFloat(ethers.utils.formatEther(routerBalance));
+  const signerAddress = await app
+    .getContracts(chain)
+    .router.signer.getAddress();
+  const signerBalance = await provider.getBalance(signerAddress);
+  const balance = parseFloat(ethers.utils.formatEther(signerBalance));
   walletBalance
     .labels({
       chain,
-      wallet_address: routerAddress,
+      // this address should not have the 0x prefix and should be all lowercase
+      wallet_address: signerAddress.toLowerCase().slice(2),
       wallet_name: 'kathy',
       token_address: 'none',
       token_name: 'Native',
       token_symbol: 'Native',
     })
     .set(balance);
-  debug('Wallet balance updated for chain', { chain, routerAddress, balance });
+  debug('Wallet balance updated for chain', { chain, signerAddress, balance });
 }
 
 main()
