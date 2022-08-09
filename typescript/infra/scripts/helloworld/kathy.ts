@@ -203,6 +203,10 @@ async function sendMessage(
   const metricLabels = { origin, remote: destination };
 
   log('Sending message', { origin, destination });
+
+  log('jk');
+
+  return;
   const receipt = await utils.timeout(
     app.sendHelloWorld(origin, destination, msg, value),
     MESSAGE_SEND_TIMEOUT,

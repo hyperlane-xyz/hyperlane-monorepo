@@ -1,10 +1,10 @@
 import { HelloWorldConfig } from '../../../src/config';
 
 import { TestnetChains, environment } from './chains';
-import helloWorldAddresses from './helloworld/addresses.json';
+import abacusAddresses from './helloworld/abacus/addresses.json';
 
-export const helloWorld: HelloWorldConfig<TestnetChains> = {
-  addresses: helloWorldAddresses,
+export const abacus: HelloWorldConfig<TestnetChains> = {
+  addresses: abacusAddresses,
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
@@ -17,4 +17,8 @@ export const helloWorld: HelloWorldConfig<TestnetChains> = {
     messageSendTimeout: 1000 * 60 * 15, // 15 min
     messageReceiptTimeout: 1000 * 60 * 15, // 15 min
   },
+};
+
+export const helloWorld = {
+  abacus,
 };

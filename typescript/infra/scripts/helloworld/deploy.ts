@@ -14,6 +14,7 @@ import {
 
 import { readJSON, writeJSON } from '../../src/utils/utils';
 import {
+  getContext,
   getCoreEnvironmentConfig,
   getEnvironment,
   getEnvironmentDirectory,
@@ -23,12 +24,17 @@ import { getConfiguration } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
+  const context = await getContext();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider();
   const configMap = await getConfiguration(environment, multiProvider);
   const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
   const deployer = new HelloWorldDeployer(multiProvider, configMap, core);
-  const dir = path.join(getEnvironmentDirectory(environment), 'helloworld');
+  const dir = path.join(
+    getEnvironmentDirectory(environment),
+    'helloworld',
+    context,
+  );
 
   let partialContracts: ChainMap<any, HelloWorldContracts>;
   try {

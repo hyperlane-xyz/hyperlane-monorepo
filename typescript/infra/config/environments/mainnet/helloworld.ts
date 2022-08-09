@@ -3,7 +3,7 @@ import { HelloWorldConfig } from '../../../src/config';
 import { MainnetChains, environment } from './chains';
 import helloWorldAddresses from './helloworld/addresses.json';
 
-export const helloWorld: HelloWorldConfig<MainnetChains> = {
+export const abacus: HelloWorldConfig<MainnetChains> = {
   addresses: helloWorldAddresses,
   kathy: {
     docker: {
@@ -17,4 +17,8 @@ export const helloWorld: HelloWorldConfig<MainnetChains> = {
     messageSendTimeout: 1000 * 60 * 15, // 15 min
     messageReceiptTimeout: 1000 * 60 * 15, // 15 min
   },
+};
+
+export const helloWorld = {
+  abacus,
 };

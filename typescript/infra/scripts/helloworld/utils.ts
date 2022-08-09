@@ -49,7 +49,7 @@ export async function getApp<Chain extends ChainName>(
   context: Contexts,
   keyRole: KEY_ROLE_ENUM,
 ) {
-  const helloworldConfig = getHelloWorldConfig(coreConfig);
+  const helloworldConfig = getHelloWorldConfig(coreConfig, context);
   const contracts = buildContracts(
     helloworldConfig.addresses,
     helloWorldFactories,
@@ -67,12 +67,17 @@ export async function getApp<Chain extends ChainName>(
 
 export function getHelloWorldConfig<Chain extends ChainName>(
   coreConfig: CoreEnvironmentConfig<Chain>,
+  context: Contexts,
 ): HelloWorldConfig<Chain> {
-  const helloWorldConfig = coreConfig.helloWorld;
-  if (!helloWorldConfig) {
+  const helloWorldConfigs = coreConfig.helloWorld;
+  if (!helloWorldConfigs) {
     throw new Error(
       `Environment ${coreConfig.environment} does not have a HelloWorld config`,
     );
   }
-  return helloWorldConfig;
+  const config = helloWorldConfigs[context];
+  if (!config) {
+    throw new Error(`Context ${context} does not have a HelloWorld config`);
+  }
+  return config;
 }
