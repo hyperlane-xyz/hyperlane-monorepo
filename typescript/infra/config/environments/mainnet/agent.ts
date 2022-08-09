@@ -59,5 +59,5 @@ export const abacus: AgentConfig<MainnetChains> = {
 };
 
 export const agents = {
-  abacus,
+  [Contexts.Abacus]: abacus,
 };

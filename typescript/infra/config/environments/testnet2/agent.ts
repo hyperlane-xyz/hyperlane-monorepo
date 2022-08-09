@@ -91,7 +91,8 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer],
 };
 
-export const agents: Record<Contexts, AgentConfig<TestnetChains>> = {
-  abacus,
-  flowcarbon,
+export const agents = {
+  [Contexts.Abacus]: abacus,
+  [Contexts.Flowcarbon]: flowcarbon,
+  [Contexts.ReleaseCandidate]: {} as any, // todo revisit
 };
