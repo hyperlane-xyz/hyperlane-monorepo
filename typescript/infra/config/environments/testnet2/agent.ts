@@ -91,8 +91,41 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer],
 };
 
+export const releaseCandidate: AgentConfig<TestnetChains> = {
+  environment,
+  namespace: environment,
+  runEnv: environment,
+  context: Contexts.ReleaseCandidate,
+  docker: {
+    repo: 'gcr.io/abacus-labs-dev/abacus-agent',
+    tag: 'sha-90287d8',
+  },
+  aws: {
+    region: 'us-east-1',
+  },
+  environmentChainNames: chainNames,
+  contextChainNames: chainNames,
+  validatorSets: validators,
+  relayer: {
+    default: {
+      signedCheckpointPollingInterval: 5,
+      maxProcessingRetries: 10,
+      // Don't try to process any messages just yet
+      whitelist: [
+        {
+          sourceDomain: '1',
+          sourceAddress: '0x0000000000000000000000000000000000000000',
+          destinationDomain: '1',
+          destinationAddress: '0x0000000000000000000000000000000000000000',
+        },
+      ],
+    },
+  },
+  rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
+};
+
 export const agents = {
   [Contexts.Abacus]: abacus,
   [Contexts.Flowcarbon]: flowcarbon,
-  [Contexts.ReleaseCandidate]: {} as any, // todo revisit
+  [Contexts.ReleaseCandidate]: releaseCandidate,
 };

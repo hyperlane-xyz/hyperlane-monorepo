@@ -48,6 +48,7 @@ export async function getApp<Chain extends ChainName>(
   coreConfig: CoreEnvironmentConfig<Chain>,
   context: Contexts,
   keyRole: KEY_ROLE_ENUM,
+  keyContext: Contexts = context,
 ) {
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
   const contracts = buildContracts(
@@ -55,7 +56,7 @@ export async function getApp<Chain extends ChainName>(
     helloWorldFactories,
   ) as ChainMap<Chain, HelloWorldContracts>;
   const multiProvider: MultiProvider<any> = await coreConfig.getMultiProvider(
-    context,
+    keyContext,
     keyRole,
   );
   const core = AbacusCore.fromEnvironment(
