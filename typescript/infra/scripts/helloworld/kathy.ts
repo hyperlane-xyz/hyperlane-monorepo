@@ -138,7 +138,11 @@ async function main() {
     messageSendSeconds.labels({ origin, remote }).inc(0);
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
-  await Promise.all(origins.map((origin) => updateBalanceFor(app, origin)));
+  await Promise.all(
+    origins.map(async (origin) => {
+      await updateBalanceFor(app, origin);
+    }),
+  );
 
   for (
     // in case we are restarting kathy, keep it from always running the exact same messages first
@@ -266,21 +270,23 @@ async function sendMessage(
 
 async function updateBalanceFor(
   app: HelloWorldApp<any>,
-  origin: ChainName,
+  chain: ChainName,
 ): Promise<void> {
-  const provider = app.multiProvider.getChainConnection(origin).provider;
-  const routerAddress = app.getContracts(origin).router.address;
+  const provider = app.multiProvider.getChainConnection(chain).provider;
+  const routerAddress = app.getContracts(chain).router.address;
   const routerBalance = await provider.getBalance(routerAddress);
+  const balance = parseFloat(ethers.utils.formatEther(routerBalance));
   walletBalance
     .labels({
-      chain: origin,
+      chain,
       wallet_address: routerAddress,
       wallet_name: 'kathy',
       token_address: 'none',
       token_name: 'Native',
       token_symbol: 'Native',
     })
-    .set(parseFloat(ethers.utils.formatEther(routerBalance)));
+    .set(balance);
+  debug('Wallet balance updated for chain', { chain, routerAddress, balance });
 }
 
 main()
