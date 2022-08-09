@@ -15,6 +15,6 @@ export const keyFunderConfig: KeyFunderConfig = {
     'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Abacus,
   contextsAndRolesToFund: {
-    [Contexts.Abacus]: [KEY_ROLE_ENUM.Relayer],
+    [Contexts.Abacus]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
   },
 };

@@ -28,6 +28,8 @@ spec:
         - ./typescript/infra/scripts/helloworld/kathy.ts
         - -e
         - {{ .Values.abacus.runEnv }}
+        - --context
+        - {{ .Values.abacus.context }}
         envFrom:
         - secretRef:
             name: helloworld-kathy-secret
