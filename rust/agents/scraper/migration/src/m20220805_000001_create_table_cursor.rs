@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Cursor::DomainId)
-                            .big_unsigned()
+                            .unsigned()
                             .not_null()
                             .primary_key(),
                     )

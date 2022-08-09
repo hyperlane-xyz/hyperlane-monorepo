@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Domain::Id)
-                            .big_unsigned()
+                            .unsigned()
                             .not_null()
                             .primary_key(),
                     )
@@ -26,7 +26,9 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Domain::IsTestNet).boolean().not_null())
                     .to_owned(),
             )
-            .await
+            .await?;
+        let db = manager.get_connection();
+        Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -54,4 +56,23 @@ enum Domain {
     ChainId,
     /// Whether this is a test network
     IsTestNet,
+}
+
+mod domain {
+    use sea_orm_migration::sea_orm::entity::prelude::*;
+    use sea_orm_migration::sea_orm::prelude::*;
+    use sea_orm_migration::sea_orm::{DerivePrimaryKey, EnumIter};
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "domain")]
+    struct Model {
+        #[sea_orm(primary_key)]
+        id: u32,
+        time_created: DateTime,
+        time_updated: DateTime,
+        name: String,
+        native_token: String,
+        chain_id: u64,
+        is_test_net: bool,
+    }
 }
