@@ -15,7 +15,7 @@ import { ChainConnection } from '../providers/ChainConnection';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router';
 import { ChainMap, ChainName, Remotes } from '../types';
-import { objMap } from '../utils';
+import { objMap, pick } from '../utils';
 
 import { CoreContracts, coreFactories } from './contracts';
 
@@ -46,15 +46,33 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     super(contractsMap, multiProvider);
   }
 
-  static fromEnvironment<Env extends CoreEnvironment>(
-    env: Env,
-    multiProvider: MultiProvider<CoreEnvironmentChain<Env>>,
-  ): AbacusCore<CoreEnvironmentChain<Env>> {
+  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+  static fromEnvironment<
+    Env extends CoreEnvironment,
+    Chain extends ChainName = ChainName,
+  >(env: Env, multiProvider: MultiProvider<Chain>) {
+    const envConfig = environments[env];
+    if (!envConfig) {
+      throw new Error(`No default env config found for ${env}`);
+    }
+
+    type EnvChain = keyof typeof envConfig;
+    type IntersectionChain = EnvChain & Chain;
+    const envChains = Object.keys(envConfig) as IntersectionChain[];
+
+    const { intersection, multiProvider: intersectionProvider } =
+      multiProvider.intersect<IntersectionChain>(envChains);
+
+    const intersectionConfig = pick(
+      envConfig as ChainMap<Chain, any>,
+      intersection,
+    );
     const contractsMap = buildContracts(
-      environments[env],
+      intersectionConfig,
       coreFactories,
-    ) as CoreContractsMap<CoreEnvironmentChain<Env>>;
-    return new AbacusCore(contractsMap, multiProvider);
+    ) as CoreContractsMap<IntersectionChain>;
+
+    return new AbacusCore(contractsMap, intersectionProvider);
   }
 
   // override type to be derived from chain key
@@ -145,10 +163,16 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
 
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
     const outbox = Outbox__factory.createInterface();
-    const describedLogs = sourceTx.logs.map((log) => outbox.parseLog(log));
+    const describedLogs = sourceTx.logs.map((log) => {
+      try {
+        return outbox.parseLog(log);
+      } catch (e) {
+        return undefined;
+      }
+    });
     const dispatchLogs = describedLogs.filter(
       (log) => log && log.name === 'Dispatch',
-    );
+    ) as ethers.utils.LogDescription[];
     if (dispatchLogs.length === 0) {
       throw new Error('Dispatch logs not found');
     }
@@ -163,6 +187,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     sourceTx: ethers.ContractReceipt,
   ): Promise<ethers.ContractReceipt[]> {
     const messages = this.getDispatchedMessages(sourceTx);
+
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
   }
 }

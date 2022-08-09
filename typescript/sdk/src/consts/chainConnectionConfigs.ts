@@ -33,7 +33,7 @@ export const avalanche: IChainConnection = {
     'https://api.avax.network/ext/bc/C/rpc',
     43114,
   ),
-  confirmations: 1,
+  confirmations: 3,
   blockExplorerUrl: 'https://snowtrace.io',
 };
 
@@ -88,7 +88,7 @@ export const fuji: IChainConnection = {
     'https://api.avax-test.network/ext/bc/C/rpc',
     43113,
   ),
-  confirmations: 1,
+  confirmations: 3,
   blockExplorerUrl: 'https://testnet.snowtrace.io/',
   apiPrefix: 'api-',
 };
@@ -192,6 +192,12 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   arbitrumrinkeby,
   optimism,
   optimismkovan,
+  test1,
+  test2,
+  test3,
+};
+
+export const testChainConnectionConfigs = {
   test1,
   test2,
   test3,

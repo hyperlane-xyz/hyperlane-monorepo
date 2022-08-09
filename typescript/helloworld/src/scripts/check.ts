@@ -1,38 +1,45 @@
-import { ethers } from 'hardhat';
-
 import {
   AbacusCore,
   ChainMap,
   ChainName,
+  MultiProvider,
   buildContracts,
-  getMultiProviderFromConfigAndSigner,
+  getChainToOwnerMap,
+  objMap,
 } from '@abacus-network/sdk';
 
 import { HelloWorldApp } from '../app/app';
 import { HelloWorldContracts, helloWorldFactories } from '../app/contracts';
-import testEnvironmentAddresses from '../app/environments/test.json';
 import { HelloWorldChecker } from '../deploy/check';
-import { getConfigMap, testConfigs } from '../deploy/config';
+import { prodConfigs } from '../deploy/config';
+
+// COPY FROM OUTPUT OF DEPLOYMENT SCRIPT OR IMPORT FROM ELSEWHERE
+const deploymentAddresses = {};
+
+// SET CONTRACT OWNER ADDRESS HERE
+const ownerAddress = '0x123...';
 
 async function check() {
-  const [signer] = await ethers.getSigners();
-  const multiProvider = getMultiProviderFromConfigAndSigner(
-    testConfigs,
-    signer,
-  );
+  console.info('Preparing utilities');
+  const chainProviders = objMap(prodConfigs, (_, config) => ({
+    provider: config.provider,
+    confirmations: config.confirmations,
+    overrides: config.overrides,
+  }));
+  const multiProvider = new MultiProvider(chainProviders);
 
   const contractsMap = buildContracts(
-    testEnvironmentAddresses,
+    deploymentAddresses,
     helloWorldFactories,
   ) as ChainMap<ChainName, HelloWorldContracts>;
 
-  const app = new HelloWorldApp(contractsMap, multiProvider);
-
-  const core = AbacusCore.fromEnvironment('test', multiProvider);
+  const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
+  const app = new HelloWorldApp(core, contractsMap, multiProvider);
   const config = core.extendWithConnectionClientConfig(
-    getConfigMap(signer.address),
+    getChainToOwnerMap(prodConfigs, ownerAddress),
   );
 
+  console.info('Starting check');
   const helloWorldChecker = new HelloWorldChecker(multiProvider, app, config);
   await helloWorldChecker.check();
   helloWorldChecker.expectEmpty();
