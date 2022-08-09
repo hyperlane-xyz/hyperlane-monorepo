@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
@@ -8,7 +8,7 @@ import {
   Chains,
   InterchainGasCalculator,
 } from '@abacus-network/sdk';
-import { debug, error, log, utils } from '@abacus-network/utils';
+import { debug, error, log, utils, warn } from '@abacus-network/utils';
 
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
@@ -41,6 +41,18 @@ const messageReceiptSeconds = new Counter({
   help: 'Total time spent waiting on messages to be received including time to be sent.',
   registers: [metricsRegister],
   labelNames: ['origin', 'remote'],
+});
+const walletBalance = new Gauge({
+  name: 'abacus_wallet_balance',
+  help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
+  labelNames: [
+    'chain',
+    'wallet_address',
+    'wallet_name',
+    'token_address',
+    'token_symbol',
+    'token_name',
+  ],
 });
 
 metricsRegister.registerMetric(messagesSendCount);
@@ -126,6 +138,7 @@ async function main() {
     messageSendSeconds.labels({ origin, remote }).inc(0);
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
+  await Promise.all(origins.map((origin) => updateBalanceFor(app, origin)));
 
   for (
     // in case we are restarting kathy, keep it from always running the exact same messages first
@@ -172,6 +185,12 @@ async function main() {
       });
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
     }
+    updateBalanceFor(app, origin).catch((e) => {
+      warn('Failed to update wallet balance for chain', {
+        chain: origin,
+        err: format(e),
+      });
+    });
 
     // print stats once every cycle through the pairings
     if (currentPairingIndex == 0) {
@@ -243,6 +262,25 @@ async function sendMessage(
     origin,
     destination,
   });
+}
+
+async function updateBalanceFor(
+  app: HelloWorldApp<any>,
+  origin: ChainName,
+): Promise<void> {
+  const provider = app.multiProvider.getChainConnection(origin).provider;
+  const routerAddress = app.getContracts(origin).router.address;
+  const routerBalance = await provider.getBalance(routerAddress);
+  walletBalance
+    .labels({
+      chain: origin,
+      wallet_address: routerAddress,
+      wallet_name: 'kathy',
+      token_address: 'none',
+      token_name: 'Native',
+      token_symbol: 'Native',
+    })
+    .set(parseFloat(ethers.utils.formatEther(routerBalance)));
 }
 
 main()
