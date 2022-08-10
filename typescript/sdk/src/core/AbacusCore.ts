@@ -1,11 +1,7 @@
 import { ethers } from 'ethers';
 
 import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
-import { ParsedMessage } from '@abacus-network/utils/dist/src/types';
-import {
-  messageHash,
-  parseMessage,
-} from '@abacus-network/utils/dist/src/utils';
+import { types, utils } from '@abacus-network/utils';
 
 import { AbacusApp } from '../AbacusApp';
 import { environments } from '../consts/environments';
@@ -32,7 +28,7 @@ export type CoreContractsMap<Chain extends ChainName> = {
 type DispatchedMessage = {
   leafIndex: number;
   message: string;
-  parsed: ParsedMessage;
+  parsed: types.ParsedMessage;
 };
 
 export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
@@ -147,7 +143,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
   protected waitForProcessReceipt(
     message: DispatchedMessage,
   ): Promise<ethers.ContractReceipt> {
-    const hash = messageHash(message.message, message.leafIndex);
+    const hash = utils.messageHash(message.message, message.leafIndex);
     const { inbox, chainConnection } = this.getDestination(message);
     const filter = inbox.filters.Process(hash);
 
@@ -178,7 +174,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     }
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
-      const parsed = parseMessage(message);
+      const parsed = utils.parseMessage(message);
       return { leafIndex: log.args['leafIndex'], message, parsed };
     });
   }
