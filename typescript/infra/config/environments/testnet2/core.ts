@@ -4,6 +4,7 @@ import { TestnetChains } from './chains';
 
 export const core: ChainMap<TestnetChains, CoreConfig> = {
   alfajores: {
+    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
     validatorManager: {
       validators: [
         '0x7716860b2be4079137dc21533ac6d26a99d76e83',
@@ -14,6 +15,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
     },
   },
   kovan: {
+    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
     validatorManager: {
       validators: [
         '0x1ee94e776cbe4bf74d2f80dae551758efbc21887',
@@ -24,6 +26,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
     },
   },
   fuji: {
+    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
     validatorManager: {
       validators: [
         '0xc0ab1f3e3317521a92462927849b8844cf408b09',
@@ -34,6 +37,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
     },
   },
   mumbai: {
+    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
     validatorManager: {
       validators: [
         '0x0f1a231cb2ecc5f26696c433d76fe59521a227e0',
@@ -44,6 +48,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
     },
   },
   bsctestnet: {
+    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
     validatorManager: {
       validators: [
         '0xa7959b2f03f6fc77c9592547bd0ca12fe2c7bf8f',
@@ -54,6 +59,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
     },
   },
   arbitrumrinkeby: {
+    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
     validatorManager: {
       validators: [
         '0xf5a871bcb9d6dfa2d3519caf396e7ab3c5a7a2ee',
@@ -64,6 +70,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
     },
   },
   optimismkovan: {
+    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
     validatorManager: {
       validators: [
         '0xef0d7bbb9c71fef7dc148722060afd78d0ff09d8',

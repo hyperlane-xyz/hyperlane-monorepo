@@ -82,6 +82,9 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     console.log(
       `${violation.chain}: transferring ownership of ${violation.data.contract.address} from ${violation.actual} to ${violation.expected}`,
     );
+    if (violation.actual != violation.expected) {
+      throw new Error('error');
+    }
     const response = await violation.data.contract.transferOwnership(
       violation.expected,
       chainConnection.overrides,

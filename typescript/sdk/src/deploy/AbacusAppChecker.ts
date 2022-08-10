@@ -68,7 +68,7 @@ export abstract class AbacusAppChecker<
     await Promise.all(
       ownables.map(async (contract) => {
         const actual = await contract.owner();
-        if (actual.toLowerCase() != owner.toLowerCase()) {
+        if (actual.toLowerCase() === owner.toLowerCase()) {
           const violation: OwnerViolation = {
             chain,
             type: ViolationType.Owner,
