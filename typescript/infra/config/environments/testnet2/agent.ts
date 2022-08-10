@@ -102,7 +102,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-90287d8',
+    tag: 'sha-b2f2cb3',
   },
   aws: {
     region: 'us-east-1',
@@ -116,8 +116,6 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
       maxProcessingRetries: 10,
       // Only process messages between the release candidate helloworld routers
       whitelist: releaseCandidateHelloworldMatchingList,
-      // Blacklist everything else
-      blacklist: MATCHING_LIST_ALL_WILDCARDS,
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
