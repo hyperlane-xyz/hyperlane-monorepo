@@ -37,7 +37,9 @@ export const rc: HelloWorldConfig<TestnetChains> = {
   },
 };
 
-export const helloWorld = {
+export const helloWorld: Partial<
+  Record<Contexts, HelloWorldConfig<TestnetChains>>
+> = {
   [Contexts.Abacus]: abacus,
   [Contexts.ReleaseCandidate]: rc,
 };
