@@ -24,7 +24,7 @@ spec:
             - {{ .Values.abacus.runEnv }}
             - --context
             - {{ .Values.abacus.contextFundingFrom }}
-{{- range $context, $roles := .Values.abacus.contextsAndRoles }}
+{{- range $context, $roles := .Values.abacus.contextsAndRolesToFund }}
             - --contexts-and-roles
             - {{ $context }}={{ join "," $roles }}
             - -f

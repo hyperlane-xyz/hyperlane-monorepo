@@ -8,7 +8,7 @@ export const helloWorld: HelloWorldConfig<MainnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-f0c45a1',
+      tag: 'sha-1d4c40e',
     },
     chainsToSkip: [],
     runEnv: environment,

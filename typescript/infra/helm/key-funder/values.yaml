@@ -7,7 +7,7 @@ abacus:
   chains: []
   contextFundingFrom: abacus
   # key = context, value = array of roles to fund
-  contextsAndRoles:
+  contextsAndRolesToFund:
     abacus:
     - relayer
 cronjob:

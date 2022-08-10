@@ -272,14 +272,29 @@ async function sendMessage(
   const startTime = Date.now();
   const msg = 'Hello!';
   const expectedHandleGas = BigNumber.from(100_000);
-  const value = await gasCalc.estimatePaymentForHandleGas(
+  let value = await gasCalc.estimatePaymentForHandleGas(
     origin,
     destination,
     expectedHandleGas,
   );
   const metricLabels = { origin, remote: destination };
 
-  log('Sending message', { origin, destination });
+  log('Sending message', {
+    origin,
+    destination,
+    interchainGasPayment: value.toString(),
+  });
+
+  // For now, pay just 1 wei, as Kathy typically doesn't have enough
+  // funds to send from a cheap chain to expensive chains like Ethereum.
+  //
+  // TODO remove this once the Kathy key is funded with a higher
+  // balance and interchain gas payments are cycled back into
+  // the funder frequently.
+  value = BigNumber.from(1);
+  // Log it as an obvious reminder
+  log('Intentionally setting interchain gas payment to 1');
+
   const receipt = await utils.timeout(
     app.sendHelloWorld(origin, destination, msg, value),
     messageSendTimeout,

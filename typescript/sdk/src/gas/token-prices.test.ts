@@ -10,7 +10,7 @@ describe('TokenPriceGetter', () => {
   const chainA = Chains.ethereum,
     chainB = Chains.polygon,
     priceA = 10,
-    priceB = 5;
+    priceB = 5.5;
   beforeEach(async () => {
     const mockCoinGecko = new MockCoinGecko();
     // Origin token
