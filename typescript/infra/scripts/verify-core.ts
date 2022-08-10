@@ -1,8 +1,11 @@
 import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 
-import { CompleteChainMap, ContractVerifier } from '@abacus-network/sdk';
-import { CompilerOptions } from '@abacus-network/sdk/dist/deploy/verify/types';
+import {
+  CompilerOptions,
+  CompleteChainMap,
+  ContractVerifier,
+} from '@abacus-network/sdk';
 
 import { fetchGCPSecret } from '../src/utils/gcloud';
 import { execCmd, readJSON } from '../src/utils/utils';
