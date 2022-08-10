@@ -1,14 +1,7 @@
-import { Console } from 'console';
-
+/* eslint-disable no-console */
 type LOG_LEVEL = 'none' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
-const console = new Console({
-  stdout: process.stdout,
-  stderr: process.stderr,
-  groupIndentation: 4,
-});
-
-const consoleLog = console.log.bind(console);
+const consoleLog = console.log;
 const ENV_LOG_LEVEL = (
   process.env['LOG_LEVEL'] ?? 'debug'
 ).toLowerCase() as LOG_LEVEL;
