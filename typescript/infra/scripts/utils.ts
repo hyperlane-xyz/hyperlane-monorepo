@@ -7,8 +7,9 @@ import {
   ChainName,
   IChainConnection,
   MultiProvider,
+  objMap,
+  promiseObjAll,
 } from '@abacus-network/sdk';
-import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
@@ -16,8 +17,7 @@ import { getCurrentKubernetesContext } from '../src/agents';
 import { AgentKey } from '../src/agents/agent';
 import { getKey } from '../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
-import { DeployEnvironment } from '../src/config';
-import { CoreEnvironmentConfig } from '../src/config';
+import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames } from '../src/config/environment';
 import { assertContext } from '../src/utils/utils';
