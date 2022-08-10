@@ -16,5 +16,6 @@ export const keyFunderConfig: KeyFunderConfig = {
   contextFundingFrom: Contexts.Abacus,
   contextsAndRolesToFund: {
     [Contexts.Abacus]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
+    [Contexts.ReleaseCandidate]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
   },
 };
