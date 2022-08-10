@@ -10,7 +10,7 @@ export const abacus: HelloWorldConfig<TestnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-a621485',
+      tag: 'sha-1d4c40e',
     },
     chainsToSkip: [],
     runEnv: environment,

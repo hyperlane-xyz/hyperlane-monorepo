@@ -1,7 +1,6 @@
 import { ethers } from 'ethers';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { AllChains } from '../consts/chains';
 import {
   CoinGeckoInterface,
   CoinGeckoResponse,
@@ -51,23 +50,18 @@ export class MockProvider extends ethers.providers.BaseProvider {
 
 // A mock CoinGecko intended to be used by tests
 export class MockCoinGecko implements CoinGeckoInterface {
-  private tokenPrices: Partial<ChainMap<ChainName, number>>;
-  private idToChain: Record<string, ChainName>;
+  // Prices keyed by coingecko id
+  private tokenPrices: Record<string, number>;
 
   constructor() {
     this.tokenPrices = {};
-    this.idToChain = {};
-    for (const chain of AllChains) {
-      const id = chainMetadata[chain].coinGeckoId || chain;
-      this.idToChain[id] = chain;
-    }
   }
 
   price(params: CoinGeckoSimplePriceParams): CoinGeckoResponse {
     const data: any = {};
     for (const id of params.ids) {
       data[id] = {
-        usd: this.tokenPrices[this.idToChain[id]],
+        usd: this.tokenPrices[id],
       };
     }
     return Promise.resolve({
@@ -83,7 +77,8 @@ export class MockCoinGecko implements CoinGeckoInterface {
   }
 
   setTokenPrice(chain: ChainName, price: number) {
-    this.tokenPrices[chain] = price;
+    const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
+    this.tokenPrices[id] = price;
   }
 }
 

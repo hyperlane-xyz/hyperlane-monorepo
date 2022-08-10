@@ -56,7 +56,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     // The CoinGecko API expects, in some cases, IDs that do not match
     // ChainNames.
     const ids = chains.map(
-      (chain) => chainMetadata[chain].coinGeckoId || chain,
+      (chain) => chainMetadata[chain].gasCurrencyCoinGeckoId || chain,
     );
     const response = await this.coinGecko.simple.price({
       ids,
