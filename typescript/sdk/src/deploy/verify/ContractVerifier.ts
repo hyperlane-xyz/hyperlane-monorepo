@@ -112,6 +112,15 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       }
     }
 
+    if (
+      result.message === 'OK' &&
+      result.result.length &&
+      result.result.length > 0 &&
+      result.result[0].ABI === 'Contract source code not verified'
+    ) {
+      return undefined;
+    }
+
     return result.result;
   }
 
