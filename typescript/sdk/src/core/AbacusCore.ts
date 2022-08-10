@@ -15,7 +15,7 @@ import { ChainConnection } from '../providers/ChainConnection';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router';
 import { ChainMap, ChainName, Remotes } from '../types';
-import { objMap, pick } from '../utils';
+import { objMap, pick } from '../utils/objects';
 
 import { CoreContracts, coreFactories } from './contracts';
 
