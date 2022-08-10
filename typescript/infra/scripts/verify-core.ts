@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'fs';
-import path from 'path';
+import path, { join } from 'path';
 
 import { CompleteChainMap, ContractVerifier } from '@abacus-network/sdk';
 import { CompilerOptions } from '@abacus-network/sdk/dist/deploy/verify/types';
@@ -9,8 +9,8 @@ import { execCmd, readJSON } from '../src/utils/utils';
 
 import {
   getCoreEnvironmentConfig,
-  getCoreVerificationDirectory,
   getEnvironment,
+  getEnvironmentDirectory,
 } from './utils';
 
 async function main() {
@@ -19,12 +19,12 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
 
   const verification = readJSON(
-    getCoreVerificationDirectory(environment),
+    join(getEnvironmentDirectory(environment), 'testrecipient'),
     'verification.json',
   );
 
   const sourcePath = path.join(
-    getCoreVerificationDirectory(environment),
+    join(getEnvironmentDirectory(environment), 'testrecipient'),
     'flattened.sol',
   );
   if (!existsSync(sourcePath)) {
@@ -66,6 +66,7 @@ async function main() {
     flattenedSource,
     compilerOptions,
   );
+  console.log(verifier);
 
   return verifier.verify();
 }

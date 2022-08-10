@@ -1,10 +1,20 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
+interface IMessageRecipient {
+    function handle(
+        uint32 _origin,
+        bytes32 _sender,
+        bytes calldata _message
+    ) external;
+}
 
 contract TestRecipient is IMessageRecipient {
-    bool public processed = false;
+    event ReceivedMessage(
+        uint32 indexed origin,
+        bytes32 indexed sender,
+        string message
+    );
 
     // solhint-disable-next-line payable-fallback
     fallback() external {
@@ -12,24 +22,10 @@ contract TestRecipient is IMessageRecipient {
     }
 
     function handle(
-        uint32,
-        bytes32,
-        bytes calldata
-    ) external pure override {} // solhint-disable-line no-empty-blocks
-
-    function receiveString(string calldata _str)
-        public
-        pure
-        returns (string memory)
-    {
-        return _str;
-    }
-
-    function processCall(bool callProcessed) public {
-        processed = callProcessed;
-    }
-
-    function message() public pure returns (string memory) {
-        return "message received";
+        uint32 origin,
+        bytes32 sender,
+        bytes calldata data
+    ) external override {
+        emit ReceivedMessage(origin, sender, string(data));
     }
 }
