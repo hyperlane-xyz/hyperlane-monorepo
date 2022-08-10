@@ -21,7 +21,7 @@ export const abacus: HelloWorldConfig<TestnetChains> = {
   },
 };
 
-export const rc: HelloWorldConfig<TestnetChains> = {
+export const releaseCandidate: HelloWorldConfig<TestnetChains> = {
   addresses: rcAddresses,
   kathy: {
     docker: {
@@ -41,5 +41,5 @@ export const helloWorld: Partial<
   Record<Contexts, HelloWorldConfig<TestnetChains>>
 > = {
   [Contexts.Abacus]: abacus,
-  [Contexts.ReleaseCandidate]: rc,
+  [Contexts.ReleaseCandidate]: releaseCandidate,
 };
