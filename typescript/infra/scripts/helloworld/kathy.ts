@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
@@ -8,7 +8,7 @@ import {
   Chains,
   InterchainGasCalculator,
 } from '@abacus-network/sdk';
-import { debug, error, log, utils } from '@abacus-network/utils';
+import { debug, error, log, utils, warn } from '@abacus-network/utils';
 
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
@@ -42,11 +42,19 @@ const messageReceiptSeconds = new Counter({
   registers: [metricsRegister],
   labelNames: ['origin', 'remote'],
 });
-
-metricsRegister.registerMetric(messagesSendCount);
-metricsRegister.registerMetric(currentPairingIndexGauge);
-metricsRegister.registerMetric(messageSendSeconds);
-metricsRegister.registerMetric(messageReceiptSeconds);
+const walletBalance = new Gauge({
+  name: 'abacus_wallet_balance',
+  help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
+  registers: [metricsRegister],
+  labelNames: [
+    'chain',
+    'wallet_address',
+    'wallet_name',
+    'token_address',
+    'token_symbol',
+    'token_name',
+  ],
+});
 
 /** How long we should take to go through all the message pairings in milliseconds. 6hrs by default. */
 const FULL_CYCLE_TIME =
@@ -126,6 +134,11 @@ async function main() {
     messageSendSeconds.labels({ origin, remote }).inc(0);
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
+  await Promise.all(
+    origins.map(async (origin) => {
+      await updateWalletBalanceMetricFor(app, origin);
+    }),
+  );
 
   for (
     // in case we are restarting kathy, keep it from always running the exact same messages first
@@ -172,6 +185,12 @@ async function main() {
       });
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
     }
+    updateWalletBalanceMetricFor(app, origin).catch((e) => {
+      warn('Failed to update wallet balance for chain', {
+        chain: origin,
+        err: format(e),
+      });
+    });
 
     // print stats once every cycle through the pairings
     if (currentPairingIndex == 0) {
@@ -243,6 +262,30 @@ async function sendMessage(
     origin,
     destination,
   });
+}
+
+async function updateWalletBalanceMetricFor(
+  app: HelloWorldApp<any>,
+  chain: ChainName,
+): Promise<void> {
+  const provider = app.multiProvider.getChainConnection(chain).provider;
+  const signerAddress = await app
+    .getContracts(chain)
+    .router.signer.getAddress();
+  const signerBalance = await provider.getBalance(signerAddress);
+  const balance = parseFloat(ethers.utils.formatEther(signerBalance));
+  walletBalance
+    .labels({
+      chain,
+      // this address should not have the 0x prefix and should be all lowercase
+      wallet_address: signerAddress.toLowerCase().slice(2),
+      wallet_name: 'kathy',
+      token_address: 'none',
+      token_name: 'Native',
+      token_symbol: 'Native',
+    })
+    .set(balance);
+  debug('Wallet balance updated for chain', { chain, signerAddress, balance });
 }
 
 main()
