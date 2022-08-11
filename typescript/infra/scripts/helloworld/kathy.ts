@@ -237,7 +237,7 @@ async function sendMessage(
   // Log it as an obvious reminder
   log('Intentionally setting interchain gas payment to 1');
 
-  const statsBefore = await app.channelStats(origin, destination);
+  const channelStatsBefore = await app.channelStats(origin, destination);
   const receipt = await utils.timeout(
     app.sendHelloWorld(origin, destination, msg, value),
     MESSAGE_SEND_TIMEOUT,
