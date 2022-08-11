@@ -44,24 +44,31 @@ The name of the ClusterSecretStore
 {{/*
 The Kathy command to run
 */}}
-{{- define "abacus.helloworld-kathy.command" }}
-- ./node_modules/.bin/ts-node
-- ./typescript/infra/scripts/helloworld/kathy.ts
-- -e
-- {{ .Values.abacus.runEnv }}
-- --context
-- {{ .Values.abacus.context }}
-- --full-cycle-time
-- {{ .Values.abacus.fullCycleTime }}
-- --message-send-timeout
-- {{ .Values.abacus.messageSendTimeout }}
-- --message-receipt-timeout
-- {{ .Values.abacus.messageReceiptTimeout }}
-{{- range .Values.abacus.chainsToSkip }}
-- --messages-to-skip
-- {{ . }}
-{{- end }}
-{{- if .Values.abacus.cycleOnce }}
-- --cycle-once
-{{- end }}
+{{- define "abacus.helloworld-kathy.container" }}
+- name: helloworld-kathy
+  image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+  imagePullPolicy: IfNotPresent
+  command:
+  - ./node_modules/.bin/ts-node
+  - ./typescript/infra/scripts/helloworld/kathy.ts
+  - -e
+  - {{ .Values.abacus.runEnv }}
+  - --context
+  - {{ .Values.abacus.context }}
+  - --full-cycle-time
+  - {{ .Values.abacus.fullCycleTime }}
+  - --message-send-timeout
+  - {{ .Values.abacus.messageSendTimeout }}
+  - --message-receipt-timeout
+  - {{ .Values.abacus.messageReceiptTimeout }}
+  {{- range .Values.abacus.chainsToSkip }}
+  - --messages-to-skip
+  - {{ . }}
+  {{- end }}
+  {{- if .Values.abacus.cycleOnce }}
+  - --cycle-once
+  {{- end }}
+  envFrom:
+  - secretRef:
+      name: helloworld-kathy-secret
 {{- end }}
