@@ -74,18 +74,18 @@ The helloworld-kathy container
   - {{ .Values.abacus.context }}
 {{- if .Values.abacus.fullCycleTime }}
   - --full-cycle-time
-  - {{ .Values.abacus.fullCycleTime }}
+  - "{{ .Values.abacus.fullCycleTime }}"
 {{- end }}
 {{- if .Values.abacus.messageSendTimeout }}
   - --message-send-timeout
-  - {{ .Values.abacus.messageSendTimeout }}
+  - "{{ .Values.abacus.messageSendTimeout }}"
 {{- end }}
 {{- if .Values.abacus.messageReceiptTimeout }}
   - --message-receipt-timeout
-  - {{ .Values.abacus.messageReceiptTimeout }}
+  - "{{ .Values.abacus.messageReceiptTimeout }}"
 {{- end }}
 {{- range .Values.abacus.chainsToSkip }}
-  - --messages-to-skip
+  - --chains-to-skip
   - {{ . }}
 {{- end }}
 {{- if .Values.abacus.cycleOnce }}

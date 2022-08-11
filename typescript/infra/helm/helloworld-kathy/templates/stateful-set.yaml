@@ -9,8 +9,8 @@ metadata:
     app.kubernetes.io/component: kathy
 spec:
   selector:
-    matchLabels:
-      *metadata_labels
+    matchLabels: *metadata_labels
+  replicas: 1
   serviceName: {{ include "abacus.fullname" . }}
   template:
     metadata:

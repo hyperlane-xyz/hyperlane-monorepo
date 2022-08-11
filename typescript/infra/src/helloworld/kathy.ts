@@ -1,5 +1,6 @@
 import { ChainName } from '@abacus-network/sdk';
 
+import { Contexts } from '../../config/contexts';
 import { AgentAwsUser } from '../agents/aws';
 import { KEY_ROLE_ENUM } from '../agents/roles';
 import { AgentConfig } from '../config';
@@ -27,15 +28,21 @@ export async function runHelloworldKathyHelmCommand<Chain extends ChainName>(
   const values = getHelloworldKathyHelmValues(agentConfig, kathyConfig);
 
   return execCmd(
-    `helm ${helmCommand} helloworld-kathy-${
-      agentConfig.context
-    } ./helm/helloworld-kathy --namespace ${
+    `helm ${helmCommand} ${getHelmReleaseName(
+      agentConfig.context,
+    )} ./helm/helloworld-kathy --namespace ${
       kathyConfig.namespace
     } ${values.join(' ')}`,
     {},
     false,
     true,
   );
+}
+
+function getHelmReleaseName(context: Contexts): string {
+  // For backward compatibility, keep the abacus context release name as
+  // 'helloworld-kathy', and add `-${context}` as a suffix for any other contexts
+  return `helloworld-kathy${context === Contexts.Abacus ? '' : `-${context}`}`;
 }
 
 function getHelloworldKathyHelmValues<Chain extends ChainName>(
