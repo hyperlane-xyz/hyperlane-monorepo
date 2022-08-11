@@ -1,6 +1,9 @@
 import { providers } from 'ethers';
 
-import { TypedEvent, TypedEventFilter } from '@abacus-network/core/dist/common';
+import type {
+  TypedEvent,
+  TypedEventFilter,
+} from '@abacus-network/core/dist/common';
 
 import { chainMetadata } from './consts/chainMetadata';
 import { MultiProvider } from './providers/MultiProvider';

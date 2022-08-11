@@ -2,4 +2,5 @@
 export enum Contexts {
   Abacus = 'abacus',
   Flowcarbon = 'flowcarbon',
+  ReleaseCandidate = 'rc',
 }

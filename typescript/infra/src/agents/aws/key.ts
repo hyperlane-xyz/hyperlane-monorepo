@@ -150,8 +150,15 @@ export class AgentAwsKey extends AgentKey {
 
   // Gets the Key's ID if it exists, undefined otherwise
   async getId() {
-    const keyDescription = await this.describeKey();
-    return keyDescription.KeyMetadata?.KeyId;
+    try {
+      const keyDescription = await this.describeKey();
+      return keyDescription.KeyMetadata?.KeyId;
+    } catch (err: any) {
+      if (err.name === 'NotFoundException') {
+        return undefined;
+      }
+      throw err;
+    }
   }
 
   create() {

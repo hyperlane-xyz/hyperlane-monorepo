@@ -1,14 +1,33 @@
 import { HelloWorldConfig } from '../../../src/config';
+import { Contexts } from '../../contexts';
 
 import { TestnetChains, environment } from './chains';
-import helloWorldAddresses from './helloworld/addresses.json';
+import abacusAddresses from './helloworld/abacus/addresses.json';
+import rcAddresses from './helloworld/rc/addresses.json';
 
-export const helloWorld: HelloWorldConfig<TestnetChains> = {
-  addresses: helloWorldAddresses,
+export const abacus: HelloWorldConfig<TestnetChains> = {
+  addresses: abacusAddresses,
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-1d4c40e',
+      tag: 'sha-66033e4',
+    },
+    chainsToSkip: [],
+    runEnv: environment,
+    namespace: environment,
+    fullCycleTime: 1000 * 60 * 60 * 2, // every 2 hours
+    messageSendTimeout: 1000 * 60 * 15, // 15 min
+    messageReceiptTimeout: 1000 * 60 * 15, // 15 min
+    cycleOnce: false,
+  },
+};
+
+export const releaseCandidate: HelloWorldConfig<TestnetChains> = {
+  addresses: rcAddresses,
+  kathy: {
+    docker: {
+      repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
+      tag: 'sha-a621485',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -18,4 +37,11 @@ export const helloWorld: HelloWorldConfig<TestnetChains> = {
     messageReceiptTimeout: 1000 * 60 * 15, // 15 min
     cycleOnce: true,
   },
+};
+
+export const helloWorld: Partial<
+  Record<Contexts, HelloWorldConfig<TestnetChains>>
+> = {
+  [Contexts.Abacus]: abacus,
+  [Contexts.ReleaseCandidate]: releaseCandidate,
 };
