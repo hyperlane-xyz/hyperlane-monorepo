@@ -111,5 +111,14 @@ export {
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
 
-export { objMap, objMapEntries, promiseObjAll } from './utils';
-export * as utils from './utils';
+export { canonizeId, evmId } from './utils/ids';
+export { MultiGeneric } from './utils/MultiGeneric';
+export {
+  bigToFixed,
+  convertDecimalValue,
+  fixedToBig,
+  mulBigAndFixed,
+} from './utils/number';
+export { objMap, objMapEntries, promiseObjAll, pick } from './utils/objects';
+export { setDifference } from './utils/sets';
+export { delay } from './utils/time';

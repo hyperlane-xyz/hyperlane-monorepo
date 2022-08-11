@@ -6,7 +6,8 @@ import {
 } from './contracts';
 import { MultiProvider } from './providers/MultiProvider';
 import { ChainMap, ChainName, Connection } from './types';
-import { MultiGeneric, objMap } from './utils';
+import { MultiGeneric } from './utils/MultiGeneric';
+import { objMap } from './utils/objects';
 
 export class AbacusApp<
   Contracts extends AbacusContracts,

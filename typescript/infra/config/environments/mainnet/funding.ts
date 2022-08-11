@@ -7,7 +7,7 @@ import { environment } from './chains';
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-    tag: 'sha-936afa7',
+    tag: 'sha-66033e4',
   },
   cronSchedule: '45 * * * *', // Every hour at the 45 minute mark
   namespace: environment,
@@ -15,6 +15,6 @@ export const keyFunderConfig: KeyFunderConfig = {
     'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Abacus,
   contextsAndRolesToFund: {
-    [Contexts.Abacus]: [KEY_ROLE_ENUM.Relayer],
+    [Contexts.Abacus]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
   },
 };

@@ -33,6 +33,6 @@ export type CoreEnvironmentConfig<Chain extends ChainName> = {
     context?: Contexts,
     role?: KEY_ROLE_ENUM,
   ) => Promise<MultiProvider<Chain>>;
-  helloWorld?: HelloWorldConfig<Chain>;
+  helloWorld?: Partial<Record<Contexts, HelloWorldConfig<Chain>>>;
   keyFunderConfig?: KeyFunderConfig;
 };
