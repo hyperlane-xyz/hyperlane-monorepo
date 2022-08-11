@@ -1,7 +1,8 @@
 import { ethers } from 'ethers';
 
 import { ChainMap, ChainName, IChainConnection, Remotes } from '../types';
-import { MultiGeneric, objMap, pick } from '../utils';
+import { MultiGeneric } from '../utils/MultiGeneric';
+import { objMap, pick } from '../utils/objects';
 
 import { ChainConnection } from './ChainConnection';
 
