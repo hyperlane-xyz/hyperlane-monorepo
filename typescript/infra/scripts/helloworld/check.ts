@@ -1,5 +1,6 @@
 import { HelloWorldChecker } from '@abacus-network/helloworld';
 
+import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { getContext, getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
@@ -10,7 +11,12 @@ async function main() {
   const coreConfig = getCoreEnvironmentConfig(environment);
   const context = await getContext();
   const multiProvider = await coreConfig.getMultiProvider();
-  const app = await getApp(coreConfig, context, KEY_ROLE_ENUM.Deployer);
+  const app = await getApp(
+    coreConfig,
+    context,
+    KEY_ROLE_ENUM.Deployer,
+    Contexts.Abacus, // Owner should always be from the abacus context
+  );
   const configMap = await getConfiguration(environment, multiProvider);
   const checker = new HelloWorldChecker(multiProvider, app, configMap);
   await checker.check();

@@ -86,9 +86,9 @@ export type ChainValidatorSets<Chain extends ChainName> = ChainMap<
 // =====     Relayer Agent     =====
 // =================================
 
-type Whitelist = WhitelistElement[];
+export type MatchingList = MatchingListElement[];
 
-interface WhitelistElement {
+interface MatchingListElement {
   sourceDomain?: '*' | string | string[] | number | number[];
   sourceAddress?: '*' | string | string[];
   destinationDomain?: '*' | string | string[] | number | number[];
@@ -101,7 +101,8 @@ interface BaseRelayerConfig {
   signedCheckpointPollingInterval: number;
   // The maxinmum number of times a processor will try to process a message
   maxProcessingRetries: number;
-  whitelist?: Whitelist;
+  whitelist?: MatchingList;
+  blacklist?: MatchingList;
 }
 
 // Per-chain relayer agent configs
@@ -111,9 +112,11 @@ type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
 >;
 
 // Full relayer agent config for a single chain
-interface RelayerConfig extends Omit<BaseRelayerConfig, 'whitelist'> {
+interface RelayerConfig
+  extends Omit<BaseRelayerConfig, 'whitelist' | 'blacklist'> {
   multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
   whitelist?: string;
+  blacklist?: string;
 }
 
 // ===================================
@@ -411,7 +414,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
       {},
     );
 
-    const obj: RelayerConfig = {
+    const relayerConfig: RelayerConfig = {
       signedCheckpointPollingInterval:
         baseConfig.signedCheckpointPollingInterval,
       maxProcessingRetries: baseConfig.maxProcessingRetries,
@@ -421,10 +424,13 @@ export class ChainAgentConfig<Chain extends ChainName> {
       },
     };
     if (baseConfig.whitelist) {
-      obj.whitelist = JSON.stringify(baseConfig.whitelist);
+      relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
+    }
+    if (baseConfig.blacklist) {
+      relayerConfig.blacklist = JSON.stringify(baseConfig.blacklist);
     }
 
-    return obj;
+    return relayerConfig;
   }
 
   get relayerEnabled(): boolean {
