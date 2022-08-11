@@ -16,8 +16,8 @@ export const abacus: HelloWorldConfig<MainnetChains> = {
     runEnv: environment,
     namespace: environment,
     fullCycleTime: 1000 * 60 * 60 * 6, // every 6 hours
-    messageSendTimeout: 1000 * 60 * 15, // 15 min
-    messageReceiptTimeout: 1000 * 60 * 15, // 15 min
+    messageSendTimeout: 1000 * 60 * 8, // 8 min
+    messageReceiptTimeout: 1000 * 60 * 20, // 20 min
   },
 };
 
