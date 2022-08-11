@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: helloworld-kathy
+  name: {{ include "abacus.fullname" . }}
   labels: &metadata_labels
     abacus/deployment: {{ .Values.abacus.runEnv | quote }}
     abacus/context: {{ .Values.abacus.context | quote }}
@@ -11,7 +11,7 @@ spec:
   selector:
     matchLabels:
       *metadata_labels
-  serviceName: helloworld-kathy
+  serviceName: {{ include "abacus.fullname" . }}
   template:
     metadata:
       labels: *metadata_labels

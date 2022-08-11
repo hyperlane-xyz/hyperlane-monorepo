@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: helloworld-kathy-{{ .Values.abacus.context }}-cycle-once
+  name: {{ include "abacus.fullname" . }}-cycle-once
   labels: &metadata_labels
     abacus/deployment: {{ .Values.abacus.runEnv | quote }}
     abacus/context: {{ .Values.abacus.context | quote }}

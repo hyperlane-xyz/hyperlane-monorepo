@@ -72,20 +72,26 @@ The helloworld-kathy container
   - {{ .Values.abacus.runEnv }}
   - --context
   - {{ .Values.abacus.context }}
+{{- if .Values.abacus.fullCycleTime }}
   - --full-cycle-time
   - {{ .Values.abacus.fullCycleTime }}
+{{- end }}
+{{- if .Values.abacus.messageSendTimeout }}
   - --message-send-timeout
   - {{ .Values.abacus.messageSendTimeout }}
+{{- end }}
+{{- if .Values.abacus.messageReceiptTimeout }}
   - --message-receipt-timeout
   - {{ .Values.abacus.messageReceiptTimeout }}
-  {{- range .Values.abacus.chainsToSkip }}
+{{- end }}
+{{- range .Values.abacus.chainsToSkip }}
   - --messages-to-skip
   - {{ . }}
-  {{- end }}
-  {{- if .Values.abacus.cycleOnce }}
+{{- end }}
+{{- if .Values.abacus.cycleOnce }}
   - --cycle-once
   {{- end }}
   envFrom:
   - secretRef:
-      name: helloworld-kathy-secret
+      name: {{ include "abacus.fullname" . }}-secret
 {{- end }}

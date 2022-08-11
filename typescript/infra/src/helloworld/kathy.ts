@@ -27,7 +27,9 @@ export async function runHelloworldKathyHelmCommand<Chain extends ChainName>(
   const values = getHelloworldKathyHelmValues(agentConfig, kathyConfig);
 
   return execCmd(
-    `helm ${helmCommand} helloworld-kathy ./helm/helloworld-kathy --namespace ${
+    `helm ${helmCommand} helloworld-kathy-${
+      agentConfig.context
+    } ./helm/helloworld-kathy --namespace ${
       kathyConfig.namespace
     } --debug --dry-run ${values.join(' ')}`,
     {},
@@ -51,9 +53,9 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
       aws: agentConfig.aws !== undefined,
 
       chainsToSkip: kathyConfig.chainsToSkip,
-      fullCycleTime: kathyConfig.fullCycleTime,
-      messageSendTimeout: kathyConfig.messageSendTimeout,
-      messageReceiptTimeout: kathyConfig.messageReceiptTimeout,
+      fullCycleTime: kathyConfig.fullCycleTime ?? '',
+      messageSendTimeout: kathyConfig.messageSendTimeout ?? '',
+      messageReceiptTimeout: kathyConfig.messageReceiptTimeout ?? '',
       cycleOnce: kathyConfig.cycleOnce,
     },
     image: {
