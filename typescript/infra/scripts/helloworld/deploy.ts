@@ -12,8 +12,11 @@ import {
   serializeContracts,
 } from '@abacus-network/sdk';
 
+import { Contexts } from '../../config/contexts';
+import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { readJSON, writeJSON } from '../../src/utils/utils';
 import {
+  getContext,
   getCoreEnvironmentConfig,
   getEnvironment,
   getEnvironmentDirectory,
@@ -23,12 +26,21 @@ import { getConfiguration } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
+  const context = await getContext();
   const coreConfig = getCoreEnvironmentConfig(environment);
-  const multiProvider = await coreConfig.getMultiProvider();
+  // Always deploy from the abacus deployer
+  const multiProvider = await coreConfig.getMultiProvider(
+    Contexts.Abacus,
+    KEY_ROLE_ENUM.Deployer,
+  );
   const configMap = await getConfiguration(environment, multiProvider);
   const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
   const deployer = new HelloWorldDeployer(multiProvider, configMap, core);
-  const dir = path.join(getEnvironmentDirectory(environment), 'helloworld');
+  const dir = path.join(
+    getEnvironmentDirectory(environment),
+    'helloworld',
+    context,
+  );
 
   let partialContracts: ChainMap<any, HelloWorldContracts>;
   try {

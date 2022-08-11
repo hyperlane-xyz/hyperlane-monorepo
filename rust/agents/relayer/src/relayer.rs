@@ -17,7 +17,7 @@ use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
 use crate::msg::SubmitMessageArgs;
-use crate::settings::whitelist::Whitelist;
+use crate::settings::matching_list::MatchingList;
 use crate::settings::RelayerSettings;
 use crate::{checkpoint_fetcher::CheckpointFetcher, msg::serial_submitter::SerialSubmitterMetrics};
 
@@ -27,7 +27,8 @@ pub struct Relayer {
     signed_checkpoint_polling_interval: u64,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
-    whitelist: Arc<Whitelist>,
+    whitelist: Arc<MatchingList>,
+    blacklist: Arc<MatchingList>,
 }
 
 impl AsRef<AbacusAgentCore> for Relayer {
@@ -50,16 +51,10 @@ impl Agent for Relayer {
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
             .try_into_multisig_checkpoint_syncer()?;
-        let whitelist = Arc::new(
-            settings
-                .whitelist
-                .as_ref()
-                .map(|wl| serde_json::from_str(wl))
-                .transpose()
-                .expect("Invalid whitelist received")
-                .unwrap_or_default(),
-        );
-        info!(whitelist = %whitelist, "Whitelist configuration");
+
+        let whitelist = parse_matching_list(&settings.whitelist);
+        let blacklist = parse_matching_list(&settings.blacklist);
+        info!(whitelist = %whitelist, blacklist = %blacklist, "Whitelist configuration");
 
         Ok(Self {
             signed_checkpoint_polling_interval: settings
@@ -72,6 +67,7 @@ impl Agent for Relayer {
                 .try_into_abacus_core(Self::AGENT_NAME, true)
                 .await?,
             whitelist,
+            blacklist,
         })
     }
 }
@@ -171,6 +167,7 @@ impl Relayer {
             self.outbox().db(),
             inbox_contracts,
             self.whitelist.clone(),
+            self.blacklist.clone(),
             metrics,
             msg_send,
             signed_checkpoint_receiver,
@@ -222,6 +219,16 @@ impl Relayer {
 
         Ok(self.run_all(tasks))
     }
+}
+
+fn parse_matching_list(list: &Option<String>) -> Arc<MatchingList> {
+    Arc::new(
+        list.as_deref()
+            .map(serde_json::from_str)
+            .transpose()
+            .expect("Invalid matching list received")
+            .unwrap_or_default(),
+    )
 }
 
 #[cfg(test)]

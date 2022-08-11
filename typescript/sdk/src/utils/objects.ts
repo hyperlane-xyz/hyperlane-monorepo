@@ -19,11 +19,20 @@ export function objMap<K extends string, I = any, O = any>(
 }
 
 // promiseObjectAll :: {k: Promise a} -> Promise {k: a}
-export const promiseObjAll = <K extends string, V>(object: {
+export function promiseObjAll<K extends string, V>(obj: {
   [key in K]: Promise<V>;
-}): Promise<Record<K, V>> => {
-  const promiseList = Object.entries(object).map(([name, promise]) =>
+}): Promise<Record<K, V>> {
+  const promiseList = Object.entries(obj).map(([name, promise]) =>
     (promise as Promise<V>).then((result) => [name, result]),
   );
   return Promise.all(promiseList).then(Object.fromEntries);
-};
+}
+
+// Get the subset of the object from key list
+export function pick<K extends string, V = any>(obj: Record<K, V>, keys: K[]) {
+  const ret: Partial<Record<K, V>> = {};
+  for (const key of keys) {
+    ret[key] = obj[key];
+  }
+  return ret as Record<K, V>;
+}

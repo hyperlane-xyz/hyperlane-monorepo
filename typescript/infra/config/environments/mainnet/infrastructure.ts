@@ -32,6 +32,6 @@ export const infrastructure: InfrastructureConfig = {
       version: '0.5.1',
     },
     gcpServiceAccountName: 'k8s-external-secrets-mainnet',
-    accessibleGCPSecretPrefixes: ['abacus-mainnet-', 'mainnet-'],
+    accessibleGCPSecretPrefixes: ['abacus-mainnet-', 'rc-mainnet-', 'mainnet-'],
   },
 };
