@@ -1,6 +1,6 @@
 {{- if .Values.abacus.cycleOnce }}
-apiVersion: batch/v1
-kind: Job
+apiVersion: v1
+kind: Pod
 metadata:
   name: {{ include "abacus.fullname" . }}-cycle-once
   labels: &metadata_labels
@@ -8,10 +8,7 @@ metadata:
     abacus/context: {{ .Values.abacus.context | quote }}
     app.kubernetes.io/component: kathy
 spec:
-  template:
-    metadata:
-      labels: *metadata_labels
-    spec:
-      containers:
-{{- include "abacus.helloworld-kathy.container" . | indent 6 }}
+  restartPolicy: Never
+  containers:
+{{- include "abacus.helloworld-kathy.container" . | indent 2 }}
 {{- end }}

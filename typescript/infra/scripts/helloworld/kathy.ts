@@ -367,8 +367,7 @@ async function updateWalletBalanceMetricFor(
 
 main()
   .then(() => {
-    error('Main exited');
-    process.exit(1);
+    log('Main exited');
   })
   .catch((e) => {
     error('Error in main', { error: format(e) });

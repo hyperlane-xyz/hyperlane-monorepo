@@ -31,7 +31,7 @@ export async function runHelloworldKathyHelmCommand<Chain extends ChainName>(
       agentConfig.context
     } ./helm/helloworld-kathy --namespace ${
       kathyConfig.namespace
-    } --debug --dry-run ${values.join(' ')}`,
+    } ${values.join(' ')}`,
     {},
     false,
     true,
@@ -45,6 +45,7 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
   const values = {
     abacus: {
       runEnv: kathyConfig.runEnv,
+      context: agentConfig.context,
       // This is just used for fetching secrets, and is not actually
       // the list of chains that kathy will send to. Because Kathy
       // will fetch secrets for all chains, regardless of skipping them or
