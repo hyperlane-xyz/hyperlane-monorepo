@@ -29,7 +29,7 @@ export async function runHelloworldKathyHelmCommand<Chain extends ChainName>(
   return execCmd(
     `helm ${helmCommand} helloworld-kathy ./helm/helloworld-kathy --namespace ${
       kathyConfig.namespace
-    } ${values.join(' ')}`,
+    } --debug --dry-run ${values.join(' ')}`,
     {},
     false,
     true,
@@ -41,10 +41,6 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
   kathyConfig: HelloWorldKathyConfig<Chain>,
 ) {
   const values = {
-    chainsToSkip: kathyConfig.chainsToSkip,
-    fullCycleTime: kathyConfig.fullCycleTime,
-    messageSendTimeout: kathyConfig.messageSendTimeout,
-    messageReceiptTimeout: kathyConfig.messageReceiptTimeout,
     abacus: {
       runEnv: kathyConfig.runEnv,
       // This is just used for fetching secrets, and is not actually
@@ -53,6 +49,12 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
       // not, we pass in all chains
       chains: agentConfig.contextChainNames,
       aws: agentConfig.aws !== undefined,
+
+      chainsToSkip: kathyConfig.chainsToSkip,
+      fullCycleTime: kathyConfig.fullCycleTime,
+      messageSendTimeout: kathyConfig.messageSendTimeout,
+      messageReceiptTimeout: kathyConfig.messageReceiptTimeout,
+      cycleOnce: kathyConfig.cycleOnce,
     },
     image: {
       repository: kathyConfig.docker.repo,

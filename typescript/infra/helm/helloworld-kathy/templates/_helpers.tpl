@@ -39,3 +39,29 @@ The name of the ClusterSecretStore
 {{- define "abacus.cluster-secret-store.name" -}}
 {{- default "external-secrets-gcp-cluster-secret-store" .Values.externalSecrets.clusterSecretStore }}
 {{- end }}
+
+
+{{/*
+The Kathy command to run
+*/}}
+{{- define "abacus.helloworld-kathy.command" }}
+- ./node_modules/.bin/ts-node
+- ./typescript/infra/scripts/helloworld/kathy.ts
+- -e
+- {{ .Values.abacus.runEnv }}
+- --context
+- {{ .Values.abacus.context }}
+- --full-cycle-time
+- {{ .Values.abacus.fullCycleTime }}
+- --message-send-timeout
+- {{ .Values.abacus.messageSendTimeout }}
+- --message-receipt-timeout
+- {{ .Values.abacus.messageReceiptTimeout }}
+{{- range .Values.abacus.chainsToSkip }}
+- --messages-to-skip
+- {{ . }}
+{{- end }}
+{{- if .Values.abacus.cycleOnce }}
+- --cycle-once
+{{- end }}
+{{- end }}

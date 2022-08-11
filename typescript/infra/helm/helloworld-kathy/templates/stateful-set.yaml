@@ -1,3 +1,4 @@
+{{- if not .Values.abacus.cycleOnce }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -24,21 +25,8 @@ spec:
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         imagePullPolicy: IfNotPresent
         command:
-        - ./node_modules/.bin/ts-node
-        - ./typescript/infra/scripts/helloworld/kathy.ts
-        - -e
-        - {{ .Values.abacus.runEnv }}
-        - --context
-        - {{ .Values.abacus.context }}
+{{- include "abacus.helloworld-kathy.command" . | indent 8 }}
         envFrom:
         - secretRef:
             name: helloworld-kathy-secret
-        env:
-        - name: CHAINS_TO_SKIP
-          value: {{ join "," .Values.chainsToSkip }}
-        - name: KATHY_FULL_CYCLE_TIME
-          value: "{{ .Values.fullCycleTime }}"
-        - name: KATHY_MESSAGE_SEND_TIMEOUT
-          value: "{{ .Values.messageSendTimeout }}"
-        - name: KATHY_MESSAGE_RECEIPT_TIMEOUT
-          value: "{{ .Values.messageReceiptTimeout }}"
+{{- end }}
