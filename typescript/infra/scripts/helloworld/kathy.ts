@@ -259,7 +259,7 @@ async function sendMessage(
     );
   } catch (error) {
     // If we weren't able to get the receipt for message processing, try to read the state to ensure it wasn't a transient provider issue
-    const statsAfter = await app.channelStats(origin, destination);
+    const channelStatsNow = await app.channelStats(origin, destination);
     if (statsAfter.received === statsBefore.received) {
       throw error;
     }
