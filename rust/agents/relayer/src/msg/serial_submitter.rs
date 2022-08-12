@@ -184,13 +184,11 @@ impl SerialSubmitter {
         // Promote any newly-ready messages from the wait queue to the run queue.
         // The order of wait_messages is preserved and pushed at the front of the run_queue
         // to ensure that new messages are evaluated first.
-        let wait_messages: Vec<_> = self.wait_queue.drain(..).rev().collect();
-        for msg in wait_messages {
+        for msg in self.wait_queue.drain(..).rev() {
             // TODO(webbhorn): Check against interchain gas paymaster.  If now enough payment,
             // promote to run queue.
             self.run_queue.push_front(msg);
         }
-        self.wait_queue = Vec::new();
 
         self.metrics
             .wait_queue_length_gauge
