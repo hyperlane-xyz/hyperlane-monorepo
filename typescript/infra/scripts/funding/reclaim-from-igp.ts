@@ -1,6 +1,11 @@
+import { BigNumber } from 'ethers';
+
 import { AbacusCore, objMap, promiseObjAll } from '@abacus-network/sdk';
 
 import { getEnvironment, getEnvironmentConfig } from '../utils';
+
+// Some arbitrary treshold for now
+const RECLAIM_BALANCE_THRESHOLD = BigNumber.from(10).pow(17);
 
 async function main() {
   const environment = await getEnvironment();
@@ -27,6 +32,11 @@ async function main() {
 
   const reclaimTxHashes = await promiseObjAll(
     objMap(paymasters, async (chain, paymaster) => {
+      const balance = balances[chain];
+      // Only reclaim when greater than the reclaim threshold
+      if (balance.lt(RECLAIM_BALANCE_THRESHOLD)) {
+        return 'N/A';
+      }
       const tx = await paymaster.contract.claim();
       const chainConnection = multiProvider.getChainConnection(chain);
       return chainConnection.getTxUrl(tx);
