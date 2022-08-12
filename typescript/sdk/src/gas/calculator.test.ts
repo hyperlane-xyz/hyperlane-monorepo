@@ -69,8 +69,8 @@ describe('InterchainGasCalculator', () => {
 
   beforeEach(() => {
     tokenPriceGetter = new MockTokenPriceGetter();
-    tokenPriceGetter.setTokenPrice(origin, 10);
-    tokenPriceGetter.setTokenPrice(destination, 5);
+    tokenPriceGetter.setTokenPrice(origin, 9.0909);
+    tokenPriceGetter.setTokenPrice(destination, 5.5);
     calculator = new TestInterchainGasCalculator(multiProvider, core, {
       tokenPriceGetter,
       // A multiplier of 1 makes testing easier to reason about
@@ -97,8 +97,8 @@ describe('InterchainGasCalculator', () => {
         BigNumber.from(HANDLE_GAS),
       );
 
-      // 100k gas * 10 gas price * ($5 per destination token / $10 per origin token)
-      expect(estimatedPayment.toNumber()).to.equal(500_000);
+      // 100k gas * 10 gas price * ($5.5 per destination token / $9.0909 per origin token)
+      expect(estimatedPayment.toNumber()).to.equal(605_000);
     });
   });
 
@@ -122,8 +122,8 @@ describe('InterchainGasCalculator', () => {
       );
 
       // (100_000 dest handler gas + 100_000 process overhead gas)
-      // * 10 gas price * ($5 per destination token / $10 per origin token)
-      expect(estimatedPayment.toNumber()).to.equal(1_000_000);
+      // * 10 gas price * ($5.5 per destination token / $9.0909 per origin token)
+      expect(estimatedPayment.toNumber()).to.equal(1_210_000);
     });
   });
 
@@ -160,8 +160,8 @@ describe('InterchainGasCalculator', () => {
       );
 
       // (100_000 dest handler gas + 100_000 process overhead gas)
-      // * 10 gas price * ($5 per destination token / $10 per origin token)
-      expect(estimatedPayment.toNumber()).to.equal(1_000_000);
+      // * 10 gas price * ($5.5 per destination token / $9.0909 per origin token)
+      expect(estimatedPayment.toNumber()).to.equal(1_210_000);
     });
   });
   */
@@ -176,7 +176,8 @@ describe('InterchainGasCalculator', () => {
         destinationWei,
       );
 
-      expect(originWei.toNumber()).to.equal(500);
+      // 1000 * (5.5 / 9.0909)
+      expect(originWei.toNumber()).to.equal(605);
     });
 
     it('considers when the origin token decimals > the destination token decimals', async () => {
@@ -193,7 +194,8 @@ describe('InterchainGasCalculator', () => {
         destinationWei,
       );
 
-      expect(originWei.toNumber()).to.equal(50000);
+      // 1000 * (5.5 / 9.0909) * 100
+      expect(originWei.toNumber()).to.equal(60500);
     });
 
     it('considers when the origin token decimals < the destination token decimals', async () => {
@@ -212,7 +214,8 @@ describe('InterchainGasCalculator', () => {
         destinationWei,
       );
 
-      expect(originWei.toNumber()).to.equal(5);
+      // 1000 * (5.5 / 9.0909) / 100
+      expect(originWei.toNumber()).to.equal(6);
     });
   });
 

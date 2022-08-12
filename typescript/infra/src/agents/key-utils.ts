@@ -21,7 +21,8 @@ export function getKey<Chain extends ChainName>(
   chainName?: Chain,
   index?: number,
 ): AgentKey {
-  if (agentConfig.aws) {
+  // The deployer is always GCP-based
+  if (agentConfig.aws && role !== KEY_ROLE_ENUM.Deployer) {
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
     return new AgentGCPKey(

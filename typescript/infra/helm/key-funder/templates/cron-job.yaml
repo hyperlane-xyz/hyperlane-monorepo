@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: relayer-funder
+  name: key-funder
 spec:
   schedule: "{{ .Values.cronjob.schedule }}"
   successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
@@ -14,29 +14,33 @@ spec:
         spec:
           restartPolicy: Never
           containers:
-          - name: relayer-funder
+          - name: key-funder
             image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
             imagePullPolicy: IfNotPresent
             command:
             - ./node_modules/.bin/ts-node
-            - ./typescript/infra/scripts/funding/fund-relayers-from-deployer.ts
+            - ./typescript/infra/scripts/funding/fund-keys-from-deployer.ts
             - -e
             - {{ .Values.abacus.runEnv }}
-            - -f
-            - /addresses-secret/addresses.json
             - --context
-            - abacus
+            - {{ .Values.abacus.contextFundingFrom }}
+{{- range $context, $roles := .Values.abacus.contextsAndRolesToFund }}
+            - --contexts-and-roles
+            - {{ $context }}={{ join "," $roles }}
+            - -f
+            - /addresses-secret/{{ $context }}-addresses.json
+{{- end }}
             env:
             - name: PROMETHEUS_PUSH_GATEWAY
               value: {{ .Values.infra.prometheusPushGateway }}
             envFrom:
             - secretRef:
-                name: relayer-funder-env-var-secret
+                name: key-funder-env-var-secret
             volumeMounts:
-            - name: relayer-funder-addresses-secret
+            - name: key-funder-addresses-secret
               mountPath: /addresses-secret
           volumes:
-          - name: relayer-funder-addresses-secret
+          - name: key-funder-addresses-secret
             secret:
-              secretName: relayer-funder-addresses-secret
+              secretName: key-funder-addresses-secret
               defaultMode: 0400

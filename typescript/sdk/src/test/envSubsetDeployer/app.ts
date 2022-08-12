@@ -10,7 +10,7 @@ import { RouterConfig } from '../../deploy/router/types';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
 import { ChainMap, ChainName } from '../../types';
-import { objMap, promiseObjAll } from '../../utils';
+import { objMap, promiseObjAll } from '../../utils/objects';
 
 export const fullEnvTestConfigs = {
   test1: chainConnectionConfigs.test1,

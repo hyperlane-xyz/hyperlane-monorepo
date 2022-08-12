@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
@@ -8,11 +8,12 @@ import {
   Chains,
   InterchainGasCalculator,
 } from '@abacus-network/sdk';
-import { debug, error, log, utils } from '@abacus-network/utils';
+import { debug, error, log, utils, warn } from '@abacus-network/utils';
 
+import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { diagonalize, sleep } from '../../src/utils/utils';
-import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
+import { getContext, getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
 import { getApp } from './utils';
 
@@ -41,11 +42,19 @@ const messageReceiptSeconds = new Counter({
   registers: [metricsRegister],
   labelNames: ['origin', 'remote'],
 });
-
-metricsRegister.registerMetric(messagesSendCount);
-metricsRegister.registerMetric(currentPairingIndexGauge);
-metricsRegister.registerMetric(messageSendSeconds);
-metricsRegister.registerMetric(messageReceiptSeconds);
+const walletBalance = new Gauge({
+  name: 'abacus_wallet_balance',
+  help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
+  registers: [metricsRegister],
+  labelNames: [
+    'chain',
+    'wallet_address',
+    'wallet_name',
+    'token_address',
+    'token_symbol',
+    'token_name',
+  ],
+});
 
 /** How long we should take to go through all the message pairings in milliseconds. 6hrs by default. */
 const FULL_CYCLE_TIME =
@@ -74,7 +83,8 @@ async function main() {
   const environment = await getEnvironment();
   debug('Starting up', { environment });
   const coreConfig = getCoreEnvironmentConfig(environment);
-  const app = await getApp(coreConfig);
+  const context = await getContext();
+  const app = await getApp(coreConfig, context, KEY_ROLE_ENUM.Kathy);
   const gasCalculator = InterchainGasCalculator.fromEnvironment(
     environment,
     app.multiProvider as any,
@@ -102,7 +112,7 @@ async function main() {
     .filter((v) => v !== null)
     .map((v) => v!);
 
-  debug('Parings calculated', { chains, pairings });
+  debug('Pairings calculated', { chains, pairings });
 
   // track how many we are still allowed to send in case some messages send slower than expected.
   let allowedToSend = 1;
@@ -124,6 +134,11 @@ async function main() {
     messageSendSeconds.labels({ origin, remote }).inc(0);
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
+  await Promise.all(
+    origins.map(async (origin) => {
+      await updateWalletBalanceMetricFor(app, origin);
+    }),
+  );
 
   for (
     // in case we are restarting kathy, keep it from always running the exact same messages first
@@ -170,6 +185,12 @@ async function main() {
       });
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
     }
+    updateWalletBalanceMetricFor(app, origin).catch((e) => {
+      warn('Failed to update wallet balance for chain', {
+        chain: origin,
+        err: format(e),
+      });
+    });
 
     // print stats once every cycle through the pairings
     if (currentPairingIndex == 0) {
@@ -193,14 +214,30 @@ async function sendMessage(
   const startTime = Date.now();
   const msg = 'Hello!';
   const expectedHandleGas = BigNumber.from(100_000);
-  const value = await gasCalc.estimatePaymentForHandleGas(
+  let value = await gasCalc.estimatePaymentForHandleGas(
     origin,
     destination,
     expectedHandleGas,
   );
   const metricLabels = { origin, remote: destination };
 
-  log('Sending message', { origin, destination });
+  log('Sending message', {
+    origin,
+    destination,
+    interchainGasPayment: value.toString(),
+  });
+
+  // For now, pay just 1 wei, as Kathy typically doesn't have enough
+  // funds to send from a cheap chain to expensive chains like Ethereum.
+  //
+  // TODO remove this once the Kathy key is funded with a higher
+  // balance and interchain gas payments are cycled back into
+  // the funder frequently.
+  value = BigNumber.from(1);
+  // Log it as an obvious reminder
+  log('Intentionally setting interchain gas payment to 1');
+
+  const channelStatsBefore = await app.channelStats(origin, destination);
   const receipt = await utils.timeout(
     app.sendHelloWorld(origin, destination, msg, value),
     MESSAGE_SEND_TIMEOUT,
@@ -214,11 +251,24 @@ async function sendMessage(
     logs: receipt.logs,
   });
 
-  await utils.timeout(
-    app.waitForMessageReceipt(receipt),
-    MESSAGE_RECEIPT_TIMEOUT,
-    'Timeout waiting for message to be received',
-  );
+  try {
+    await utils.timeout(
+      app.waitForMessageReceipt(receipt),
+      MESSAGE_RECEIPT_TIMEOUT,
+      'Timeout waiting for message to be received',
+    );
+  } catch (error) {
+    // If we weren't able to get the receipt for message processing, try to read the state to ensure it wasn't a transient provider issue
+    const channelStatsNow = await app.channelStats(origin, destination);
+    if (channelStatsNow.received <= channelStatsBefore.received) {
+      throw error;
+    }
+    log(
+      'Did not receive event for message delivery even though it was delivered',
+      { origin, destination },
+    );
+  }
+
   messageReceiptSeconds
     .labels(metricLabels)
     .inc((Date.now() - startTime) / 1000);
@@ -226,6 +276,30 @@ async function sendMessage(
     origin,
     destination,
   });
+}
+
+async function updateWalletBalanceMetricFor(
+  app: HelloWorldApp<any>,
+  chain: ChainName,
+): Promise<void> {
+  const provider = app.multiProvider.getChainConnection(chain).provider;
+  const signerAddress = await app
+    .getContracts(chain)
+    .router.signer.getAddress();
+  const signerBalance = await provider.getBalance(signerAddress);
+  const balance = parseFloat(ethers.utils.formatEther(signerBalance));
+  walletBalance
+    .labels({
+      chain,
+      // this address should not have the 0x prefix and should be all lowercase
+      wallet_address: signerAddress.toLowerCase().slice(2),
+      wallet_name: 'kathy',
+      token_address: 'none',
+      token_name: 'Native',
+      token_symbol: 'Native',
+    })
+    .set(balance);
+  debug('Wallet balance updated for chain', { chain, signerAddress, balance });
 }
 
 main()
