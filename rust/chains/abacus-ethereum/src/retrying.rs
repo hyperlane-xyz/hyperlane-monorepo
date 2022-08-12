@@ -62,9 +62,9 @@ impl<P> RetryingProvider<P> {
 }
 
 /// How to handle the result from the underlying provider
-enum HandleMethod<R, RPE, PE> {
+enum HandleMethod<R, PE> {
     Accept(R),
-    Error(RPE),
+    Halt(PE),
     Retry(PE),
 }
 
@@ -86,7 +86,7 @@ where
             u32,
             // what the next backoff will be in ms
             u64,
-        ) -> HandleMethod<R, RetryingProviderError<P>, P::Error>,
+        ) -> HandleMethod<R, P::Error>,
     ) -> Result<R, RetryingProviderError<P>>
     where
         T: Debug + Serialize + Send + Sync,
@@ -110,8 +110,8 @@ where
                 HandleMethod::Accept(v) => {
                     return Ok(v);
                 }
-                HandleMethod::Error(e) => {
-                    return Err(e);
+                HandleMethod::Halt(e) => {
+                    return Err(RetryingProviderError::JsonRpcClientError(e));
                 }
                 HandleMethod::Retry(e) => {
                     last_err = e;
@@ -185,9 +185,7 @@ impl JsonRpcClient for RetryingProvider<Http> {
                 // transient provider (connection or other) errors.
                 if METHODS_TO_NOT_RETRY.contains(&method) {
                     warn!(error = %e, "JsonRpcError in retrying provider; not retrying.");
-                    HandleMethod::Error(RetryingProviderError::JsonRpcClientError(
-                        HttpClientError::JsonRpcError(e),
-                    ))
+                    HandleMethod::Halt(HttpClientError::JsonRpcError(e))
                 } else {
                     info!(error = %e, "JsonRpcError in retrying provider.");
                     HandleMethod::Retry(HttpClientError::JsonRpcError(e))
@@ -197,6 +195,35 @@ impl JsonRpcClient for RetryingProvider<Http> {
                 info!(error = %err, "SerdeJson error in retrying provider");
                 HandleMethod::Retry(HttpClientError::SerdeJson { err, text })
             }
+        })
+        .await
+    }
+}
+
+#[async_trait]
+impl JsonRpcClient for RetryingProvider<QuorumProvider<Http>> {
+    type Error = RetryingProviderError<QuorumProvider<Http>>;
+
+    async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
+    where
+        T: Debug + Serialize + Send + Sync,
+        R: DeserializeOwned,
+    {
+        use HandleMethod::*;
+        self.request_with_retry::<T, R>(method, params, |res, attempt, next_backoff_ms| match res {
+            Ok(v) => Accept(v),
+            Err(ProviderError::CustomError(e)) => Retry(ProviderError::CustomError(e)),
+            Err(ProviderError::EnsError(e)) => Retry(ProviderError::EnsError(e)),
+            Err(ProviderError::EnsNotOwned(e)) => Halt(ProviderError::EnsNotOwned(e)),
+            Err(ProviderError::HTTPError(e)) => Retry(ProviderError::HTTPError(e)),
+            Err(ProviderError::HexError(e)) => Halt(ProviderError::HexError(e)),
+            Err(ProviderError::JsonRpcClientError(e)) => {
+                Retry(ProviderError::JsonRpcClientError(e))
+            }
+            Err(ProviderError::SerdeJson(e)) => Retry(ProviderError::SerdeJson(e)),
+            Err(ProviderError::SignerUnavailable) => Halt(ProviderError::SignerUnavailable),
+            Err(ProviderError::UnsupportedNodeClient) => Halt(ProviderError::UnsupportedNodeClient),
+            Err(ProviderError::UnsupportedRPC) => Halt(ProviderError::UnsupportedRPC),
         })
         .await
     }
