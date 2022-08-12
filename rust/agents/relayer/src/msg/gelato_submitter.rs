@@ -1,6 +1,7 @@
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::{db::AbacusDB, Signers};
 use abacus_core::{AbacusCommon, InboxValidatorManager};
+use ethers::signers::Signer;
 use ethers::types::{Address, U256};
 use eyre::{bail, Result};
 use gelato::chains::Chain;
@@ -19,23 +20,19 @@ const DEFAULT_MAX_FEE: u32 = 1_000_000_000;
 pub(crate) struct GelatoSubmitter {
     /// Source of messages to submit.
     pub message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-    /// TODO fix:
-    ///  The Abacus domain of the source chain for messages to be submitted via this GelatoSubmitter.
-    pub outbox_gelato_chain: Chain,
-    /// TODO fix:
-    ///  The Abacus domain of the destination chain for messages submitted with this GelatoSubmitter.
-    pub inbox_gelato_chain: Chain,
-
     /// Inbox / InboxValidatorManager on the destination chain.
     pub inbox_contracts: InboxContracts,
-
-    /// The address of the 'sponsor' contract providing payment to Gelato.
-    pub sponsor_address: Address,
+    /// The outbox chain in the format expected by the Gelato crate.
+    pub outbox_gelato_chain: Chain,
+    /// The inbox chain in the format expected by the Gelato crate.
+    pub inbox_gelato_chain: Chain,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     /// TODO(webbhorn): Promote to non-_-prefixed name once we're checking gas payments.
     pub _abacus_db: AbacusDB,
-    /// Signer to use for EIP-712 meta-transaction signatures.
-    pub signer: Signers,
+    /// The signer of the Gelato sponsor, used for EIP-712 meta-transaction signatures.
+    pub gelato_sponsor_signer: Signers,
+    /// The address of the Gelato sponsor.
+    pub gelato_sponsor_address: Address,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     /// Intended to be shared by reqwest library.
     pub http_client: reqwest::Client,
@@ -50,7 +47,7 @@ impl GelatoSubmitter {
         outbox_domain: u32,
         inbox_contracts: InboxContracts,
         abacus_db: AbacusDB,
-        signer: Signers,
+        gelato_sponsor_signer: Signers,
         http_client: reqwest::Client,
         metrics: GelatoSubmitterMetrics,
     ) -> Self {
@@ -60,10 +57,10 @@ impl GelatoSubmitter {
             inbox_gelato_chain: abacus_domain_to_gelato_chain(inbox_contracts.inbox.local_domain()).unwrap(),
             inbox_contracts,
             _abacus_db: abacus_db,
-            signer,
+            gelato_sponsor_address: gelato_sponsor_signer.address(),
+            gelato_sponsor_signer,
             http_client,
             _metrics: metrics,
-            sponsor_address: Address::zero(),
         }
     }
 
@@ -87,7 +84,7 @@ impl GelatoSubmitter {
                     let op = ForwardRequestOp {
                         args: self.make_forward_request_args(msg)?,
                         opts: ForwardRequestOptions::default(),
-                        signer: self.signer.clone(),
+                        signer: self.gelato_sponsor_signer.clone(),
                         http: self.http_client.clone(),
                     };
                     tokio::spawn(async move {
@@ -129,7 +126,7 @@ impl GelatoSubmitter {
             nonce: U256::zero(),
             enforce_sponsor_nonce: false,
             enforce_sponsor_nonce_ordering: false,
-            sponsor: self.sponsor_address,
+            sponsor: self.gelato_sponsor_address,
         })
     }
 }
