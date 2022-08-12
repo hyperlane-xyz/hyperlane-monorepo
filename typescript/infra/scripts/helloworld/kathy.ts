@@ -314,6 +314,7 @@ async function sendMessage(
   // Log it as an obvious reminder
   log('Intentionally setting interchain gas payment to 1');
 
+  const channelStatsBefore = await app.channelStats(origin, destination);
   const receipt = await utils.timeout(
     app.sendHelloWorld(origin, destination, msg, value),
     messageSendTimeout,
@@ -327,11 +328,24 @@ async function sendMessage(
     logs: receipt.logs,
   });
 
-  await utils.timeout(
-    app.waitForMessageReceipt(receipt),
-    messageReceiptTimeout,
-    'Timeout waiting for message to be received',
-  );
+  try {
+    await utils.timeout(
+      app.waitForMessageReceipt(receipt),
+      messageReceiptTimeout,
+      'Timeout waiting for message to be received',
+    );
+  } catch (error) {
+    // If we weren't able to get the receipt for message processing, try to read the state to ensure it wasn't a transient provider issue
+    const channelStatsNow = await app.channelStats(origin, destination);
+    if (channelStatsNow.received <= channelStatsBefore.received) {
+      throw error;
+    }
+    log(
+      'Did not receive event for message delivery even though it was delivered',
+      { origin, destination },
+    );
+  }
+
   messageReceiptSeconds
     .labels(metricLabels)
     .inc((Date.now() - startTime) / 1000);
