@@ -19,5 +19,5 @@ pub trait Inbox: AbacusCommon + Send + Sync + Debug {
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError>;
 
     /// The on-chain address of the inbox contract.
-    fn contract_address(&self) -> Option<Address>;
+    fn contract_address(&self) -> Address;
 }

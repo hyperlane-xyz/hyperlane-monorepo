@@ -12,7 +12,7 @@ mock! {
         // Inbox
         pub fn _local_domain(&self) -> u32 {}
 
-        pub fn _contract_address(&self) -> Option<Address> {}
+        pub fn _contract_address(&self) -> Address {}
 
         pub fn _remote_domain(&self) -> Result<u32, ChainCommunicationError> {}
 
@@ -51,7 +51,7 @@ impl Inbox for MockInboxContract {
         self._message_status(leaf)
     }
 
-    fn contract_address(&self) -> Option<Address> {
+    fn contract_address(&self) -> Address {
         self._contract_address()
     }
 }

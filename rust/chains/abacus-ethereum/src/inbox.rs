@@ -124,8 +124,8 @@ where
         Ok(MessageStatus::try_from(status).expect("Bad status from solidity"))
     }
 
-    fn contract_address(&self) -> Option<Address> {
-        Some(self.contract.address().into())
+    fn contract_address(&self) -> Address {
+        self.contract.address().into()
     }
 }
 
