@@ -228,7 +228,7 @@ impl SerialSubmitter {
                 info!(msg=?msg, "Message processed");
             }
             Err(e) => {
-                info!(msg=?msg, leaf_index=msg.leaf_index, error=?e, "Message processing failed: {}", e);
+                info!(msg=?msg, leaf_index=msg.leaf_index, error=?e, "Message processing failed");
                 msg.num_retries += 1;
                 self.run_queue.push(msg);
             }
