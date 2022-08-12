@@ -1,5 +1,4 @@
 use ethers::signers::Signer;
-use ethers::types::Address;
 use eyre::Report;
 use serde::Deserialize;
 
@@ -44,10 +43,6 @@ impl Default for ChainConf {
 pub struct GelatoConf {
     /// Whether to use Gelato's Relay service for processing messages for this ChainConf's inbox.
     pub enabled: bool,
-    /// The address of the 'sponsor' contract that used to provide payment to Gelato.
-    /// Relayer interprets this to mean an address on the relayer's /outbox/ chain, not the
-    /// inbox chain.
-    pub sponsor_address: Address,
 }
 
 /// Addresses for outbox chain contracts
