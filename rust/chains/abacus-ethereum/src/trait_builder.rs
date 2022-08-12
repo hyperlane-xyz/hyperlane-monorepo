@@ -1,7 +1,9 @@
-use async_trait::async_trait;
-use ethers::prelude::*;
 use std::sync::Arc;
 use std::time::Duration;
+
+use async_trait::async_trait;
+use ethers::prelude::*;
+use eyre::eyre;
 
 use abacus_core::{ContractLocator, Signers};
 use ethers_prometheus::{PrometheusMiddleware, PrometheusMiddlewareConf, ProviderMetrics};
@@ -17,8 +19,9 @@ pub trait MakeableWithProvider {
     /// The type that will be created.
     type Output;
 
-    /// Construct a new instance of the associated trait using a connection config.
-    /// This is the first step and will wrap the provider with metrics and a signer as needed.
+    /// Construct a new instance of the associated trait using a connection
+    /// config. This is the first step and will wrap the provider with
+    /// metrics and a signer as needed.
     async fn make_with_connection(
         &self,
         conn: Connection,
@@ -27,6 +30,27 @@ pub trait MakeableWithProvider {
         metrics: Option<(ProviderMetrics, PrometheusMiddlewareConf)>,
     ) -> eyre::Result<Self::Output> {
         Ok(match conn {
+            Connection::HttpQuorum { urls, weights } => {
+                let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
+                for (i, url) in urls.into_iter().enumerate() {
+                    let http_provider = url.parse::<Http>()?;
+                    let weighted_provider = if let Some(weights) = &weights {
+                        WeightedProvider::with_weight(
+                            http_provider,
+                            weights
+                                .get(i)
+                                .cloned()
+                                .ok_or(eyre!("Expected one weight for every url provided"))?,
+                        )
+                    } else {
+                        WeightedProvider::with_weight(http_provider, 1)
+                    };
+                    builder = builder.add_provider(weighted_provider);
+                }
+                // let retrying = RetryingProvider::new(builder.build(), 6, 50);
+                self.wrap_with_metrics(builder.build(), locator, signer, metrics)
+                    .await?
+            }
             Connection::Http { url } => {
                 let http = url.parse::<RetryingProvider<Http>>()?;
                 self.wrap_with_metrics(http, locator, signer, metrics)
@@ -39,7 +63,8 @@ pub trait MakeableWithProvider {
         })
     }
 
-    /// Wrap the provider creation with metrics if provided; this is the second step
+    /// Wrap the provider creation with metrics if provided; this is the second
+    /// step
     async fn wrap_with_metrics<P>(
         &self,
         client: P,
@@ -60,7 +85,8 @@ pub trait MakeableWithProvider {
         })
     }
 
-    /// Wrap the provider creation with a signing provider if signers were provided; this is the third step.
+    /// Wrap the provider creation with a signing provider if signers were
+    /// provided; this is the third step.
     async fn wrap_with_signer<M>(
         &self,
         provider: M,

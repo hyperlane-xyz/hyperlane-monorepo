@@ -49,6 +49,13 @@ mod retrying;
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Connection {
+    /// A HTTP-only quorum.
+    HttpQuorum {
+        /// List of fully qualified strings to connect to
+        urls: Vec<String>,
+        /// Optional list of weights which correspond to the urls.
+        weights: Option<Vec<u64>>,
+    },
     /// HTTP connection details
     Http {
         /// Fully qualified string to connect to
