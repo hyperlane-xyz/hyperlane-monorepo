@@ -77,7 +77,9 @@ impl InboxValidatorManager for InboxValidatorManagerVariants {
             InboxValidatorManagerVariants::Mock(validator_manager) => {
                 validator_manager.contract_address()
             }
-            InboxValidatorManagerVariants::Other(_) => unimplemented!(),
+            InboxValidatorManagerVariants::Other(validator_manager) => {
+                validator_manager.contract_address()
+            }
         }
     }
 }
