@@ -1,9 +1,7 @@
-use abacus_base::CoreMetrics;
-use abacus_core::{db::AbacusDB, Encode, Signers};
-use abacus_ethereum::validator_manager::INBOXVALIDATORMANAGER_ABI as ivm_abi;
-use ethers::abi::Token;
+use abacus_base::{CoreMetrics, InboxContracts};
+use abacus_core::{db::AbacusDB, Signers};
+use abacus_core::{AbacusCommon, InboxValidatorManager};
 use ethers::types::{Address, U256};
-use ethers_contract::BaseContract;
 use eyre::{bail, Result};
 use gelato::chains::Chain;
 use gelato::fwd_req_call::{ForwardRequestArgs, PaymentType, NATIVE_FEE_TOKEN_ADDRESS};
@@ -21,32 +19,54 @@ const DEFAULT_MAX_FEE: u32 = 1_000_000_000;
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
     /// Source of messages to submit.
-    pub messages: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-    /// The Abacus domain of the source chain for messages to be submitted via this GelatoSubmitter.
-    pub outbox_domain: u32,
+    pub message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+    /// TODO fix:
+    ///  The Abacus domain of the source chain for messages to be submitted via this GelatoSubmitter.
+    pub outbox_gelato_chain: Chain,
     /// The Abacus domain of the destination chain for messages submitted with this GelatoSubmitter.
     pub inbox_domain: u32,
-    /// The on-chain address of the inbox contract on the destination chain.
-    pub inbox_address: Address,
-    /// Address of the inbox validator manager contract that will be specified
-    /// to Gelato in ForwardRequest submissions to process new messages.
-    pub ivm_address: Address,
+
+    /// Inbox / InboxValidatorManager on the destination chain.
+    pub inbox_contracts: InboxContracts,
+
     /// The address of the 'sponsor' contract providing payment to Gelato.
     pub sponsor_address: Address,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     /// TODO(webbhorn): Promote to non-_-prefixed name once we're checking gas payments.
-    pub _db: AbacusDB,
+    pub _abacus_db: AbacusDB,
     /// Signer to use for EIP-712 meta-transaction signatures.
     pub signer: Signers,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     /// Intended to be shared by reqwest library.
-    pub http: reqwest::Client,
+    pub http_client: reqwest::Client,
     /// Prometheus metrics.
     /// TODO(webbhorn): Promote to non-_-prefixed name once we're populating metrics.
     pub _metrics: GelatoSubmitterMetrics,
 }
 
 impl GelatoSubmitter {
+    pub fn new(
+        message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+        outbox_domain: u32,
+        inbox_contracts: InboxContracts,
+        abacus_db: AbacusDB,
+        signer: Signers,
+        http_client: reqwest::Client,
+        metrics: GelatoSubmitterMetrics,
+    ) -> Self {
+        Self {
+            message_receiver,
+            outbox_gelato_chain: abacus_domain_to_gelato_chain(outbox_domain).unwrap(),
+            inbox_domain: inbox_contracts.inbox.local_domain(),
+            inbox_contracts,
+            _abacus_db: abacus_db,
+            signer,
+            http_client,
+            _metrics: metrics,
+            sponsor_address: Address::zero(),
+        }
+    }
+
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         tokio::spawn(async move { self.work_loop().await })
             .instrument(info_span!("gelato submitter work loop"))
@@ -62,13 +82,13 @@ impl GelatoSubmitter {
     async fn tick(&mut self) -> Result<()> {
         // Pull any messages sent by processor over channel.
         loop {
-            match self.messages.try_recv() {
+            match self.message_receiver.try_recv() {
                 Ok(msg) => {
                     let op = ForwardRequestOp {
                         args: self.make_forward_request_args(msg)?,
                         opts: ForwardRequestOptions::default(),
                         signer: self.signer.clone(),
-                        http: self.http.clone(),
+                        http: self.http_client.clone(),
                     };
                     tokio::spawn(async move {
                         op.run()
@@ -88,39 +108,24 @@ impl GelatoSubmitter {
     }
 
     fn make_forward_request_args(&self, msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
-        let ivm_base_contract = BaseContract::from(ivm_abi.clone());
-        let call_data = ivm_base_contract.encode(
-            "process",
-            [
-                Token::Address(self.inbox_address),
-                Token::FixedBytes(msg.checkpoint.checkpoint.root.to_fixed_bytes().into()),
-                Token::Uint(msg.checkpoint.checkpoint.index.into()),
-                Token::Array(
-                    msg.checkpoint
-                        .signatures
-                        .iter()
-                        .map(|s| Token::Bytes(s.to_vec()))
-                        .collect(),
-                ),
-                Token::Bytes(msg.committed_message.message.to_vec()),
-                Token::FixedArray(
-                    msg.proof.path[0..32]
-                        .iter()
-                        .map(|e| Token::FixedBytes(e.to_vec()))
-                        .collect(),
-                ),
-                Token::Uint(msg.leaf_index.into()),
-            ],
+        let calldata = self.inbox_contracts.validator_manager.process_calldata(
+            &msg.checkpoint,
+            &msg.committed_message.message,
+            &msg.proof,
         )?;
         Ok(ForwardRequestArgs {
             chain_id: abacus_domain_to_gelato_chain(self.inbox_domain)?,
-            target: self.ivm_address,
-            data: call_data,
+            target: self
+                .inbox_contracts
+                .validator_manager
+                .contract_address()
+                .into(),
+            data: calldata,
             fee_token: NATIVE_FEE_TOKEN_ADDRESS,
             payment_type: PaymentType::AsyncGasTank,
             max_fee: DEFAULT_MAX_FEE.into(), // Maximum fee that sponsor is willing to pay.
             gas: DEFAULT_MAX_FEE.into(),     // Gas limit.
-            sponsor_chain_id: abacus_domain_to_gelato_chain(self.outbox_domain)?,
+            sponsor_chain_id: self.outbox_gelato_chain,
             nonce: U256::zero(),
             enforce_sponsor_nonce: false,
             enforce_sponsor_nonce_ordering: false,
