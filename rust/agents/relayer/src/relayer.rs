@@ -116,7 +116,7 @@ impl Relayer {
             messages: message_receiver,
             outbox_domain: self.outbox().local_domain(),
             inbox_domain: inbox_contracts.inbox.local_domain(),
-            inbox_address: inbox_contracts.inbox.contract_address().unwrap().into(),
+            inbox_address: inbox_contracts.inbox.contract_address().into(),
             ivm_address: inbox_contracts.validator_manager.contract_address().into(),
             sponsor_address: cfg.sponsor_address,
             _db: self.outbox().db(),
@@ -191,7 +191,8 @@ impl Relayer {
 
         let inboxes = self.inboxes();
 
-        let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = Vec::with_capacity(inboxes.len());
+        let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> =
+            Vec::with_capacity(inboxes.len());
 
         for (inbox_name, inbox_contracts) in inboxes {
             let signer = self
