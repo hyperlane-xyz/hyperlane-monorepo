@@ -189,9 +189,11 @@ impl Relayer {
         let (signed_checkpoint_sender, signed_checkpoint_receiver) =
             watch::channel::<Option<MultisigSignedCheckpoint>>(None);
 
-        let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = Vec::new();
+        let inboxes = self.inboxes();
 
-        for (inbox_name, inbox_contracts) in self.inboxes() {
+        let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = Vec::with_capacity(inboxes.len());
+
+        for (inbox_name, inbox_contracts) in inboxes {
             let signer = self
                 .core
                 .settings
