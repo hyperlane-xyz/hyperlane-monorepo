@@ -26,18 +26,19 @@ pub(crate) struct GelatoSubmitter {
     pub outbox_gelato_chain: Chain,
     /// The inbox chain in the format expected by the Gelato crate.
     pub inbox_gelato_chain: Chain,
-    /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
-    /// TODO(webbhorn): Promote to non-_-prefixed name once we're checking gas payments.
-    pub _abacus_db: AbacusDB,
     /// The signer of the Gelato sponsor, used for EIP-712 meta-transaction signatures.
     pub gelato_sponsor_signer: Signers,
     /// The address of the Gelato sponsor.
     pub gelato_sponsor_address: Address,
+    /// Messages we are aware of that we want to eventually submit, but haven't yet, for
+    /// whatever reason.
+    pub wait_queue: Vec<SubmitMessageArgs>,
+    /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
+    pub _abacus_db: AbacusDB,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     /// Intended to be shared by reqwest library.
-    pub http_client: reqwest::Client,
+    pub _http_client: reqwest::Client,
     /// Prometheus metrics.
-    /// TODO(webbhorn): Promote to non-_-prefixed name once we're populating metrics.
     pub _metrics: GelatoSubmitterMetrics,
 }
 
@@ -59,8 +60,9 @@ impl GelatoSubmitter {
             _abacus_db: abacus_db,
             gelato_sponsor_address: gelato_sponsor_signer.address(),
             gelato_sponsor_signer,
-            http_client,
+            _http_client: http_client,
             _metrics: metrics,
+            wait_queue: Vec::new(),
         }
     }
 
@@ -81,17 +83,7 @@ impl GelatoSubmitter {
         loop {
             match self.message_receiver.try_recv() {
                 Ok(msg) => {
-                    let op = ForwardRequestOp {
-                        args: self.make_forward_request_args(msg)?,
-                        opts: ForwardRequestOptions::default(),
-                        signer: self.gelato_sponsor_signer.clone(),
-                        http: self.http_client.clone(),
-                    };
-                    tokio::spawn(async move {
-                        op.run()
-                            .await
-                            .expect("failed unimplemented forward request submit op");
-                    });
+                    self.wait_queue.push(msg);
                 }
                 Err(TryRecvError::Empty) => {
                     break;
@@ -101,10 +93,28 @@ impl GelatoSubmitter {
                 }
             }
         }
+
+        // TODO: process the wait queue, creating a ForwardRequestOp for each
+        // message that we successfully estimate gas for.
+
+        // Rough way to create a ForwardRequestOp:
+        //
+        // let op = ForwardRequestOp {
+        //     args: self.create_forward_request_args(msg)?,
+        //     opts: ForwardRequestOptions::default(),
+        //     signer: self.gelato_sponsor_signer.clone(),
+        //     http: self.http_client.clone(),
+        // };
+        // tokio::spawn(async move {
+        //     op.run()
+        //         .await
+        //         .expect("failed unimplemented forward request submit op");
+        // });
+
         Ok(())
     }
 
-    fn make_forward_request_args(&self, msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
+    fn create_forward_request_args(&self, msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
         let calldata = self.inbox_contracts.validator_manager.process_calldata(
             &msg.checkpoint,
             &msg.committed_message.message,
@@ -131,34 +141,6 @@ impl GelatoSubmitter {
     }
 }
 
-// TODO(webbhorn): Is there already somewhere actually canonical/authoritative to use instead
-// of duplicating this here?  Perhaps we can expand `macro_rules! domain_and_chain`?
-// Otherwise, try to keep this translation logic out of the gelato crate at least so that we
-// don't start introducing any Abacus concepts (like domain) into it.
-fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
-    Ok(match domain {
-        6648936 => Chain::Mainnet,
-        1634872690 => Chain::Rinkeby,
-        3000 => Chain::Kovan,
-        1886350457 => Chain::Polygon,
-        80001 => Chain::PolygonMumbai,
-        1635148152 => Chain::Avalanche,
-        43113 => Chain::AvalancheFuji,
-        6386274 => Chain::Arbitrum,
-        28528 => Chain::Optimism,
-        1869622635 => Chain::OptimismKovan,
-        6452067 => Chain::BinanceSmartChain,
-        1651715444 => Chain::BinanceSmartChainTestnet,
-        // TODO(webbhorn): Uncomment once Gelato supports Celo.
-        // 1667591279 => Chain::Celo,
-        // TODO(webbhorn): Need Alfajores support too.
-        // TODO(webbhorn): What is the difference between ArbitrumRinkeby and ArbitrumTestnet?
-        // 421611 => Chain::ArbitrumTestnet,
-        // TODO(webbhorn): Abacus hasn't assigned a domain id for Alfajores yet.
-        // 5 => Chain::Goerli,
-        _ => bail!("Unknown domain {}", domain),
-    })
-}
 // TODO(webbhorn): Remove 'allow unused' once we impl run() and ref internal fields.
 #[allow(unused)]
 #[derive(Debug, Clone)]
@@ -231,4 +213,33 @@ impl GelatoSubmitterMetrics {
             max_submitted_leaf_index: 0,
         }
     }
+}
+
+// TODO(webbhorn): Is there already somewhere actually canonical/authoritative to use instead
+// of duplicating this here?  Perhaps we can expand `macro_rules! domain_and_chain`?
+// Otherwise, try to keep this translation logic out of the gelato crate at least so that we
+// don't start introducing any Abacus concepts (like domain) into it.
+fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
+    Ok(match domain {
+        6648936 => Chain::Mainnet,
+        1634872690 => Chain::Rinkeby,
+        3000 => Chain::Kovan,
+        1886350457 => Chain::Polygon,
+        80001 => Chain::PolygonMumbai,
+        1635148152 => Chain::Avalanche,
+        43113 => Chain::AvalancheFuji,
+        6386274 => Chain::Arbitrum,
+        28528 => Chain::Optimism,
+        1869622635 => Chain::OptimismKovan,
+        6452067 => Chain::BinanceSmartChain,
+        1651715444 => Chain::BinanceSmartChainTestnet,
+        // TODO(webbhorn): Uncomment once Gelato supports Celo.
+        // 1667591279 => Chain::Celo,
+        // TODO(webbhorn): Need Alfajores support too.
+        // TODO(webbhorn): What is the difference between ArbitrumRinkeby and ArbitrumTestnet?
+        // 421611 => Chain::ArbitrumTestnet,
+        // TODO(webbhorn): Abacus hasn't assigned a domain id for Alfajores yet.
+        // 5 => Chain::Goerli,
+        _ => bail!("Unknown domain {}", domain),
+    })
 }
