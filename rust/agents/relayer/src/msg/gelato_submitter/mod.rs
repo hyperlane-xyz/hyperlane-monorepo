@@ -12,9 +12,18 @@ use tokio::time::{sleep, Duration};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
+use self::fwd_req_op::{ForwardRequestOp, ForwardRequestOptions};
+
 use super::SubmitMessageArgs;
 
-const DEFAULT_MAX_FEE: u32 = 1_000_000_000;
+mod fwd_req_op;
+
+/// The max fee to use for Gelato ForwardRequests.
+/// Gelato isn't charging fees on testnet. For now, use this hardcoded value
+/// of 1e18, or 1.0 ether.
+/// TODO: revisit when testing on mainnet and actually considering interchain
+/// gas payments.
+const DEFAULT_MAX_FEE: u64 = 1000000000000000000;
 
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
@@ -37,7 +46,7 @@ pub(crate) struct GelatoSubmitter {
     pub _abacus_db: AbacusDB,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     /// Intended to be shared by reqwest library.
-    pub _http_client: reqwest::Client,
+    pub http_client: reqwest::Client,
     /// Prometheus metrics.
     pub _metrics: GelatoSubmitterMetrics,
 }
@@ -55,12 +64,13 @@ impl GelatoSubmitter {
         Self {
             message_receiver,
             outbox_gelato_chain: abacus_domain_to_gelato_chain(outbox_domain).unwrap(),
-            inbox_gelato_chain: abacus_domain_to_gelato_chain(inbox_contracts.inbox.local_domain()).unwrap(),
+            inbox_gelato_chain: abacus_domain_to_gelato_chain(inbox_contracts.inbox.local_domain())
+                .unwrap(),
             inbox_contracts,
             _abacus_db: abacus_db,
             gelato_sponsor_address: gelato_sponsor_signer.address(),
             gelato_sponsor_signer,
-            _http_client: http_client,
+            http_client,
             _metrics: metrics,
             wait_queue: Vec::new(),
         }
@@ -97,19 +107,24 @@ impl GelatoSubmitter {
         // TODO: process the wait queue, creating a ForwardRequestOp for each
         // message that we successfully estimate gas for.
 
-        // Rough way to create a ForwardRequestOp:
-        //
-        // let op = ForwardRequestOp {
-        //     args: self.create_forward_request_args(msg)?,
-        //     opts: ForwardRequestOptions::default(),
-        //     signer: self.gelato_sponsor_signer.clone(),
-        //     http: self.http_client.clone(),
-        // };
-        // tokio::spawn(async move {
-        //     op.run()
-        //         .await
-        //         .expect("failed unimplemented forward request submit op");
-        // });
+        // Pick the next message to try processing.
+        let msg = match self.wait_queue.pop() {
+            Some(m) => m,
+            None => return Ok(()),
+        };
+
+        let op = ForwardRequestOp {
+            args: self.create_forward_request_args(msg)?,
+            opts: ForwardRequestOptions::default(),
+            signer: self.gelato_sponsor_signer.clone(),
+            http: self.http_client.clone(),
+        };
+
+        tokio::spawn(async move {
+            op.run()
+                .await
+                .expect("failed unimplemented forward request submit op");
+        });
 
         Ok(())
     }
@@ -141,38 +156,7 @@ impl GelatoSubmitter {
     }
 }
 
-// TODO(webbhorn): Remove 'allow unused' once we impl run() and ref internal fields.
-#[allow(unused)]
-#[derive(Debug, Clone)]
-pub struct ForwardRequestOp<S> {
-    args: ForwardRequestArgs,
-    opts: ForwardRequestOptions,
-    signer: S,
-    http: reqwest::Client,
-}
-
-impl<S> ForwardRequestOp<S> {
-    async fn run(&self) -> Result<()> {
-        todo!()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ForwardRequestOptions {
-    pub poll_interval: Duration,
-    pub retry_submit_interval: Duration,
-}
-
-impl Default for ForwardRequestOptions {
-    fn default() -> Self {
-        Self {
-            poll_interval: Duration::from_secs(60),
-            retry_submit_interval: Duration::from_secs(20 * 60),
-        }
-    }
-}
-
-// TODO(webbhorn): Drop allow dead code directive once we handle
+// TODO(tkporter): Drop allow dead code directive once we handle
 // updating each of these metrics.
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -221,25 +205,28 @@ impl GelatoSubmitterMetrics {
 // don't start introducing any Abacus concepts (like domain) into it.
 fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
     Ok(match domain {
-        6648936 => Chain::Mainnet,
+        6648936 => Chain::Ethereum,
         1634872690 => Chain::Rinkeby,
         3000 => Chain::Kovan,
+
         1886350457 => Chain::Polygon,
         80001 => Chain::PolygonMumbai,
+
         1635148152 => Chain::Avalanche,
         43113 => Chain::AvalancheFuji,
+
         6386274 => Chain::Arbitrum,
+        421611 => Chain::ArbitrumRinkeby,
+
         28528 => Chain::Optimism,
         1869622635 => Chain::OptimismKovan,
+
         6452067 => Chain::BinanceSmartChain,
         1651715444 => Chain::BinanceSmartChainTestnet,
-        // TODO(webbhorn): Uncomment once Gelato supports Celo.
-        // 1667591279 => Chain::Celo,
-        // TODO(webbhorn): Need Alfajores support too.
-        // TODO(webbhorn): What is the difference between ArbitrumRinkeby and ArbitrumTestnet?
-        // 421611 => Chain::ArbitrumTestnet,
-        // TODO(webbhorn): Abacus hasn't assigned a domain id for Alfajores yet.
-        // 5 => Chain::Goerli,
+
+        1667591279 => Chain::Celo,
+        1000 => Chain::Alfajores,
+
         _ => bail!("Unknown domain {}", domain),
     })
 }
