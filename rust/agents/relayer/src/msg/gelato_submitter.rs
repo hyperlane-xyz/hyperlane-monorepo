@@ -23,8 +23,9 @@ pub(crate) struct GelatoSubmitter {
     /// TODO fix:
     ///  The Abacus domain of the source chain for messages to be submitted via this GelatoSubmitter.
     pub outbox_gelato_chain: Chain,
-    /// The Abacus domain of the destination chain for messages submitted with this GelatoSubmitter.
-    pub inbox_domain: u32,
+    /// TODO fix:
+    ///  The Abacus domain of the destination chain for messages submitted with this GelatoSubmitter.
+    pub inbox_gelato_chain: Chain,
 
     /// Inbox / InboxValidatorManager on the destination chain.
     pub inbox_contracts: InboxContracts,
@@ -57,7 +58,7 @@ impl GelatoSubmitter {
         Self {
             message_receiver,
             outbox_gelato_chain: abacus_domain_to_gelato_chain(outbox_domain).unwrap(),
-            inbox_domain: inbox_contracts.inbox.local_domain(),
+            inbox_gelato_chain: abacus_domain_to_gelato_chain(inbox_contracts.inbox.local_domain()).unwrap(),
             inbox_contracts,
             _abacus_db: abacus_db,
             signer,
@@ -114,7 +115,7 @@ impl GelatoSubmitter {
             &msg.proof,
         )?;
         Ok(ForwardRequestArgs {
-            chain_id: abacus_domain_to_gelato_chain(self.inbox_domain)?,
+            chain_id: self.inbox_gelato_chain,
             target: self
                 .inbox_contracts
                 .validator_manager
