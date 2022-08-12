@@ -186,7 +186,7 @@ impl SerialSubmitter {
         // to ensure that new messages are evaluated first.
         let wait_messages: Vec<_> = self.wait_queue.drain(..).rev().collect();
         for msg in wait_messages {
-            // TODO(webbhorn): Check against interchain gas paymaster.  If not enough payment,
+            // TODO(webbhorn): Check against interchain gas paymaster.  If now enough payment,
             // promote to run queue.
             self.run_queue.push_front(msg);
         }
