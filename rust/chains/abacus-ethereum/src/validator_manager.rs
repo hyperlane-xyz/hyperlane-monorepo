@@ -6,6 +6,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use ethers::abi::Token;
 use ethers::prelude::*;
 use eyre::Result;
 
@@ -120,6 +121,43 @@ where
         let gassed = tx.gas(gas);
         let receipt = report_tx(gassed).await?;
         Ok(receipt.into())
+    }
+
+    fn process_calldata(
+        &self,
+        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
+    ) -> Result<Bytes, AbiError> {
+        self.contract.encode(
+            "process",
+            [
+                Token::Address(self.inbox_address),
+                Token::FixedBytes(
+                    multisig_signed_checkpoint
+                        .checkpoint
+                        .root
+                        .to_fixed_bytes()
+                        .into(),
+                ),
+                Token::Uint(multisig_signed_checkpoint.checkpoint.index.into()),
+                Token::Array(
+                    multisig_signed_checkpoint
+                        .signatures
+                        .iter()
+                        .map(|s| Token::Bytes(s.to_vec()))
+                        .collect(),
+                ),
+                Token::Bytes(message.to_vec()),
+                Token::FixedArray(
+                    proof.path[0..32]
+                        .iter()
+                        .map(|e| Token::FixedBytes(e.to_vec()))
+                        .collect(),
+                ),
+                Token::Uint(proof.index.into()),
+            ],
+        )
     }
 
     fn contract_address(&self) -> abacus_core::Address {

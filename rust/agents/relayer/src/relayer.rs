@@ -9,9 +9,7 @@ use abacus_base::{
     chains::GelatoConf, AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics,
     InboxContracts, MultisigCheckpointSyncer,
 };
-use abacus_core::{
-    AbacusCommon, AbacusContract, Inbox, InboxValidatorManager, MultisigSignedCheckpoint, Signers,
-};
+use abacus_core::{AbacusCommon, AbacusContract, MultisigSignedCheckpoint, Signers};
 
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
@@ -107,27 +105,25 @@ impl Relayer {
     /// Helper to construct a new GelatoSubmitter instance for submission to a particular inbox.
     fn make_gelato_submitter_for_inbox(
         &self,
-        cfg: &GelatoConf,
+        _cfg: &GelatoConf,
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         signer: Signers,
     ) -> GelatoSubmitter {
-        GelatoSubmitter {
-            messages: message_receiver,
-            outbox_domain: self.outbox().local_domain(),
-            inbox_domain: inbox_contracts.inbox.local_domain(),
-            inbox_address: inbox_contracts.inbox.contract_address().into(),
-            ivm_address: inbox_contracts.validator_manager.contract_address().into(),
-            sponsor_address: cfg.sponsor_address,
-            _db: self.outbox().db(),
+        let inbox_chain_name = inbox_contracts.inbox.chain_name().to_owned();
+        GelatoSubmitter::new(
+            message_receiver,
+            self.outbox().local_domain(),
+            inbox_contracts,
+            self.outbox().db(),
             signer,
-            http: reqwest::Client::new(),
-            _metrics: GelatoSubmitterMetrics::new(
+            reqwest::Client::new(),
+            GelatoSubmitterMetrics::new(
                 &self.core.metrics,
                 self.outbox().outbox().chain_name(),
-                inbox_contracts.inbox.chain_name(),
+                &inbox_chain_name,
             ),
-        }
+        )
     }
 
     #[tracing::instrument(fields(inbox=%inbox_contracts.inbox.chain_name()))]
