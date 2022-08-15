@@ -130,8 +130,7 @@ async function checkMessage(
       to: recipientAddress,
       data: messageHandlerInterface.encodeFunctionData('handle', [
         message.parsed.origin,
-        //message.parsed.sender,
-        '0x0000000000000000000000000000000000000000000000000000000000000000',
+        message.parsed.sender,
         message.parsed.body,
       ]),
     });
