@@ -34,17 +34,17 @@ pub trait MakeableWithProvider {
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
                 for (i, url) in urls.into_iter().enumerate() {
                     let http_provider = url.parse::<Http>()?;
-                    let weighted_provider = if let Some(weights) = &weights {
-                        WeightedProvider::with_weight(
-                            http_provider,
+                    let weight = weights
+                        .as_ref()
+                        .map(|weights| {
                             weights
                                 .get(i)
-                                .cloned()
-                                .ok_or(eyre!("Expected one weight for every url provided"))?,
-                        )
-                    } else {
-                        WeightedProvider::with_weight(http_provider, 1)
-                    };
+                                .ok_or(eyre!("Expected one weight for every url provided"))
+                        })
+                        .transpose()?
+                        .cloned()
+                        .unwrap_or(1);
+                    let weighted_provider = WeightedProvider::with_weight(http_provider, weight);
                     builder = builder.add_provider(weighted_provider);
                 }
                 // let retrying = RetryingProvider::new(builder.build(), 6, 50);
