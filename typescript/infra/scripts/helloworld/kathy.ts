@@ -131,7 +131,7 @@ async function main() {
   // Ensure the specified chains to skip are actually valid for the app.
   // Despite setting a default and demanding it as an option, yargs believes
   // chainsToSkip can possibly be undefined.
-  for (const chainToSkip of chainsToSkip ?? []) {
+  for (const chainToSkip of chainsToSkip!) {
     if (!appChains.includes(chainToSkip)) {
       throw Error(
         `Chain to skip ${chainToSkip} invalid, not found in ${appChains}`,
