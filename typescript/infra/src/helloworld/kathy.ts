@@ -4,7 +4,10 @@ import { Contexts } from '../../config/contexts';
 import { AgentAwsUser } from '../agents/aws';
 import { KEY_ROLE_ENUM } from '../agents/roles';
 import { AgentConfig } from '../config';
-import { HelloWorldKathyConfig } from '../config/helloworld';
+import {
+  HelloWorldKathyConfig,
+  HelloWorldKathyRunMode,
+} from '../config/helloworld';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
@@ -49,6 +52,13 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
   agentConfig: AgentConfig<Chain>,
   kathyConfig: HelloWorldKathyConfig<Chain>,
 ) {
+  const cycleOnce =
+    kathyConfig.runConfig.mode === HelloWorldKathyRunMode.CycleOnce;
+  const fullCycleTime =
+    kathyConfig.runConfig.mode === HelloWorldKathyRunMode.Service
+      ? kathyConfig.runConfig.fullCycleTime
+      : '';
+
   const values = {
     abacus: {
       runEnv: kathyConfig.runEnv,
@@ -61,10 +71,10 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
       aws: agentConfig.aws !== undefined,
 
       chainsToSkip: kathyConfig.chainsToSkip,
-      fullCycleTime: kathyConfig.fullCycleTime ?? '',
-      messageSendTimeout: kathyConfig.messageSendTimeout ?? '',
-      messageReceiptTimeout: kathyConfig.messageReceiptTimeout ?? '',
-      cycleOnce: kathyConfig.cycleOnce,
+      messageSendTimeout: kathyConfig.messageSendTimeout,
+      messageReceiptTimeout: kathyConfig.messageReceiptTimeout,
+      cycleOnce,
+      fullCycleTime,
     },
     image: {
       repository: kathyConfig.docker.repo,

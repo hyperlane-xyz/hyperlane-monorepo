@@ -1,4 +1,5 @@
 import { HelloWorldConfig } from '../../../src/config';
+import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
 import { Contexts } from '../../contexts';
 
 import { MainnetChains, environment } from './chains';
@@ -15,10 +16,12 @@ export const abacus: HelloWorldConfig<MainnetChains> = {
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
-    fullCycleTime: 1000 * 60 * 60 * 6, // every 6 hours
+    runConfig: {
+      mode: HelloWorldKathyRunMode.Service,
+      fullCycleTime: 1000 * 60 * 60 * 6, // every 6 hours
+    },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    cycleOnce: false,
   },
 };
 
@@ -32,7 +35,11 @@ export const releaseCandidate: HelloWorldConfig<MainnetChains> = {
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
-    cycleOnce: true,
+    runConfig: {
+      mode: HelloWorldKathyRunMode.CycleOnce,
+    },
+    messageSendTimeout: 1000 * 60 * 8, // 8 min
+    messageReceiptTimeout: 1000 * 60 * 20, // 20 min
   },
 };
 
