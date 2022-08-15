@@ -6,12 +6,13 @@ import {
   DispatchedMessage,
   DomainIdToChainName,
   MultiProvider,
+  chainConnectionConfigs,
 } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 
 import { assertChain } from '../src/utils/utils';
 
-import { getArgs, getCoreEnvironmentConfig, getEnvironment } from './utils';
+import { getArgs, getEnvironment } from './utils';
 
 async function main() {
   const argv = await getArgs()
@@ -37,8 +38,10 @@ async function main() {
     .demandOption('origin-chain').argv;
 
   const environment = await getEnvironment();
-  const coreConfig = getCoreEnvironmentConfig(environment);
-  const multiProvider = await coreConfig.getMultiProvider();
+
+  // Intentionally use public RPC providers to avoid requiring access to our GCP secrets
+  // to run this script
+  const multiProvider = new MultiProvider(chainConnectionConfigs);
 
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
 
