@@ -130,19 +130,18 @@ async function checkMessage(
       to: recipientAddress,
       data: messageHandlerInterface.encodeFunctionData('handle', [
         message.parsed.origin,
-        message.parsed.sender,
+        //message.parsed.sender,
+        '0x0000000000000000000000000000000000000000000000000000000000000000',
         message.parsed.body,
       ]),
     });
-    console.log('Calling recipient `handle` function does not revert');
+    console.log(
+      'Calling recipient `handle` function from the inbox does not revert',
+    );
   } catch (err: any) {
     console.error(
-      `Error calling recipient \`handle\` function`,
+      `Error calling recipient \`handle\` function from the inbox`,
       err,
-      'err.message:',
-      err.message,
-      'err.reason:',
-      err.reason,
     );
   }
 }
