@@ -38,6 +38,8 @@ contract MockInbox {
         address recipient = pendingMessage.recipient.bytes32ToAddress();
 
         IMessageRecipient(recipient).handle(
+            // This is completely arbitrary and consumers should not rely
+            // on domain handling in the mock mailbox contracts.
             1,
             pendingMessage.sender,
             pendingMessage.messageBody

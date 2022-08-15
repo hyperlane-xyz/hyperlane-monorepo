@@ -19,7 +19,8 @@ describe('Mock mailbox contracts', function () {
 
     const data = ethers.utils.toUtf8Bytes('This is a test message');
 
-    await outbox.dispatch(1, utils.addressToBytes32(recipient.address), data);
+    // Mailbox mocks do not handle domains currently, so this is arbitrary
+    await outbox.dispatch(0, utils.addressToBytes32(recipient.address), data);
     await inbox.processNextPendingMessage();
 
     const dataReceived = await recipient.lastData();
