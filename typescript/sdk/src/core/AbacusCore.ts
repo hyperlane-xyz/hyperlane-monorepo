@@ -140,7 +140,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     return { inbox: destinationInbox, chainConnection };
   }
 
-  waitForProcessReceipt(
+  protected waitForProcessReceipt(
     message: DispatchedMessage,
   ): Promise<ethers.ContractReceipt> {
     const hash = utils.messageHash(message.message, message.leafIndex);
