@@ -1,4 +1,3 @@
-from cgi import print_environ
 import json
 
 def readJson(filename):
