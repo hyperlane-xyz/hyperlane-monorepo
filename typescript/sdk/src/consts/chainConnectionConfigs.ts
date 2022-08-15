@@ -6,7 +6,7 @@ import { ChainMap, ChainName, IChainConnection } from '../types';
 
 export const ethereum: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
-    'https://mainnet-nethermind.blockscout.com',
+    'https://cloudflare-eth.com',
     1,
   ),
   confirmations: 7,

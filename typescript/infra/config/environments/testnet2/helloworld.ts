@@ -10,14 +10,14 @@ export const abacus: HelloWorldConfig<TestnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-66033e4',
+      tag: 'sha-59aaef0',
     },
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
     fullCycleTime: 1000 * 60 * 60 * 2, // every 2 hours
-    messageSendTimeout: 1000 * 60 * 15, // 15 min
-    messageReceiptTimeout: 1000 * 60 * 15, // 15 min
+    messageSendTimeout: 1000 * 60 * 8, // 8 min
+    messageReceiptTimeout: 1000 * 60 * 20, // 20 min
   },
 };
 
@@ -26,7 +26,7 @@ export const releaseCandidate: HelloWorldConfig<TestnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-a621485',
+      tag: 'sha-59aaef0',
     },
     chainsToSkip: [],
     runEnv: environment,
