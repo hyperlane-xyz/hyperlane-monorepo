@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-interface IMessageRecipient {
-    function handle(
-        uint32 _origin,
-        bytes32 _sender,
-        bytes calldata _message
-    ) external;
-}
+import {TypeCasts} from "../libs/TypeCasts.sol";
+import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 
 contract MockInbox {
+    using TypeCasts for bytes32;
+
     struct PendingMessage {
         bytes32 sender;
         bytes32 recipient;
@@ -38,7 +35,7 @@ contract MockInbox {
             messageProcessed
         ];
 
-        address recipient = bytes32ToAddress(pendingMessage.recipient);
+        address recipient = pendingMessage.recipient.bytes32ToAddress();
 
         IMessageRecipient(recipient).handle(
             1,
@@ -46,9 +43,5 @@ contract MockInbox {
             pendingMessage.messageBody
         );
         messageProcessed += 1;
-    }
-
-    function bytes32ToAddress(bytes32 _buf) internal pure returns (address) {
-        return address(uint160(uint256(_buf)));
     }
 }

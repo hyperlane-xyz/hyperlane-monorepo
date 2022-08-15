@@ -2,9 +2,11 @@
 pragma solidity ^0.8.0;
 
 import {MockInbox} from "./MockInbox.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 
 contract MockOutbox {
     MockInbox inbox;
+    using TypeCasts for address;
 
     constructor(address _inbox) {
         inbox = MockInbox(_inbox);
@@ -16,13 +18,9 @@ contract MockOutbox {
         bytes calldata _messageBody
     ) external {
         inbox.addPendingMessage(
-            addressToBytes32(msg.sender),
+            msg.sender.addressToBytes32(),
             _recipientAddress,
             _messageBody
         );
-    }
-
-    function addressToBytes32(address _addr) internal pure returns (bytes32) {
-        return bytes32(uint256(uint160(_addr)));
     }
 }
