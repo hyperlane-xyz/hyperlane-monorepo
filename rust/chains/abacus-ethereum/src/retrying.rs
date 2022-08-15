@@ -6,7 +6,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{debug, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::{HttpClientError, QuorumProvider};
 
@@ -75,6 +75,7 @@ where
     /// The retrying provider logic which accepts a matcher function that can
     /// handle specific cases for different underlying provider
     /// implementations.
+    #[instrument(level = "error", skip_all, fields(method = %method))]
     async fn request_with_retry<T, R>(
         &self,
         method: &str,
@@ -175,7 +176,7 @@ impl JsonRpcClient for RetryingProvider<Http> {
                     next_backoff_ms,
                     retries_remaining = self.max_requests - attempt,
                     error = %e,
-                    "ReqwestError in retrying provider.",
+                    "ReqwestError in http provider.",
                 );
                 HandleMethod::Retry(HttpClientError::ReqwestError(e))
             }
@@ -184,15 +185,15 @@ impl JsonRpcClient for RetryingProvider<Http> {
                 // retrying them or that indicate an error in higher-order logic and not
                 // transient provider (connection or other) errors.
                 if METHODS_TO_NOT_RETRY.contains(&method) {
-                    warn!(error = %e, "JsonRpcError in retrying provider; not retrying.");
+                    warn!(error = %e, "JsonRpcError in http provider; not retrying.");
                     HandleMethod::Halt(HttpClientError::JsonRpcError(e))
                 } else {
-                    info!(error = %e, "JsonRpcError in retrying provider.");
+                    info!(error = %e, "JsonRpcError in http provider.");
                     HandleMethod::Retry(HttpClientError::JsonRpcError(e))
                 }
             }
             Err(HttpClientError::SerdeJson { err, text }) => {
-                info!(error = %err, "SerdeJson error in retrying provider");
+                info!(error = %err, "SerdeJson error in http provider");
                 HandleMethod::Retry(HttpClientError::SerdeJson { err, text })
             }
         })
@@ -204,26 +205,49 @@ impl JsonRpcClient for RetryingProvider<Http> {
 impl JsonRpcClient for RetryingProvider<QuorumProvider<Http>> {
     type Error = RetryingProviderError<QuorumProvider<Http>>;
 
+    #[instrument(level = "error", skip_all, fields(method = %method))]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
         T: Debug + Serialize + Send + Sync,
         R: DeserializeOwned,
     {
         use HandleMethod::*;
-        self.request_with_retry::<T, R>(method, params, |res, attempt, next_backoff_ms| match res {
-            Ok(v) => Accept(v),
-            Err(ProviderError::CustomError(e)) => Retry(ProviderError::CustomError(e)),
-            Err(ProviderError::EnsError(e)) => Retry(ProviderError::EnsError(e)),
-            Err(ProviderError::EnsNotOwned(e)) => Halt(ProviderError::EnsNotOwned(e)),
-            Err(ProviderError::HTTPError(e)) => Retry(ProviderError::HTTPError(e)),
-            Err(ProviderError::HexError(e)) => Halt(ProviderError::HexError(e)),
-            Err(ProviderError::JsonRpcClientError(e)) => {
-                Retry(ProviderError::JsonRpcClientError(e))
+        self.request_with_retry::<T, R>(method, params, |res, attempt, next_backoff_ms| {
+            let handling = match res {
+                Ok(v) => Accept(v),
+                Err(ProviderError::CustomError(e)) => Retry(ProviderError::CustomError(e)),
+                Err(ProviderError::EnsError(e)) => Retry(ProviderError::EnsError(e)),
+                Err(ProviderError::EnsNotOwned(e)) => Halt(ProviderError::EnsNotOwned(e)),
+                Err(ProviderError::HTTPError(e)) => Retry(ProviderError::HTTPError(e)),
+                Err(ProviderError::HexError(e)) => Halt(ProviderError::HexError(e)),
+                Err(ProviderError::JsonRpcClientError(e)) => {
+                    if METHODS_TO_NOT_RETRY.contains(&method) {
+                        Halt(ProviderError::JsonRpcClientError(e))
+                    } else {
+                        Retry(ProviderError::JsonRpcClientError(e))
+                    }
+                }
+                Err(ProviderError::SerdeJson(e)) => Retry(ProviderError::SerdeJson(e)),
+                Err(ProviderError::SignerUnavailable) => Halt(ProviderError::SignerUnavailable),
+                Err(ProviderError::UnsupportedNodeClient) => {
+                    Halt(ProviderError::UnsupportedNodeClient)
+                }
+                Err(ProviderError::UnsupportedRPC) => Halt(ProviderError::UnsupportedRPC),
+            };
+
+            match &handling {
+                Accept(_) => {
+                    trace!("Quorum reached successfully.");
+                }
+                Halt(e) => {
+                    error!(error = %e, "Failed to reach quorum; not retrying.");
+                }
+                Retry(e) => {
+                    warn!(error = %e, "Failed to reach quorum; suggesting retry.");
+                }
             }
-            Err(ProviderError::SerdeJson(e)) => Retry(ProviderError::SerdeJson(e)),
-            Err(ProviderError::SignerUnavailable) => Halt(ProviderError::SignerUnavailable),
-            Err(ProviderError::UnsupportedNodeClient) => Halt(ProviderError::UnsupportedNodeClient),
-            Err(ProviderError::UnsupportedRPC) => Halt(ProviderError::UnsupportedRPC),
+
+            handling
         })
         .await
     }
