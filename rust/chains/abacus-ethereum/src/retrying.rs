@@ -185,15 +185,15 @@ impl JsonRpcClient for RetryingProvider<Http> {
                 // retrying them or that indicate an error in higher-order logic and not
                 // transient provider (connection or other) errors.
                 if METHODS_TO_NOT_RETRY.contains(&method) {
-                    warn!(error = %e, "JsonRpcError in http provider; not retrying.");
+                    warn!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider; not retrying.");
                     HandleMethod::Halt(HttpClientError::JsonRpcError(e))
                 } else {
-                    info!(error = %e, "JsonRpcError in http provider.");
+                    info!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider.");
                     HandleMethod::Retry(HttpClientError::JsonRpcError(e))
                 }
             }
             Err(HttpClientError::SerdeJson { err, text }) => {
-                info!(error = %err, "SerdeJson error in http provider");
+                info!(attempt, next_backoff_ms, error = %err, "SerdeJson error in http provider");
                 HandleMethod::Retry(HttpClientError::SerdeJson { err, text })
             }
         })
@@ -240,10 +240,10 @@ impl JsonRpcClient for RetryingProvider<QuorumProvider<Http>> {
                     trace!("Quorum reached successfully.");
                 }
                 Halt(e) => {
-                    error!(error = %e, "Failed to reach quorum; not retrying.");
+                    error!(attempt, next_backoff_ms, error = %e, "Failed to reach quorum; not retrying.");
                 }
                 Retry(e) => {
-                    warn!(error = %e, "Failed to reach quorum; suggesting retry.");
+                    warn!(attempt, next_backoff_ms, error = %e, "Failed to reach quorum; suggesting retry.");
                 }
             }
 
