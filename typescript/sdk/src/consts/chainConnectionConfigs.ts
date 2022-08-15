@@ -43,7 +43,7 @@ export const arbitrum: IChainConnection = {
     42161,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://arbiscan.io/',
+  blockExplorerUrl: 'https://arbiscan.io',
 };
 
 export const optimism: IChainConnection = {
@@ -52,7 +52,7 @@ export const optimism: IChainConnection = {
     10,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://optimistic.etherscan.io/',
+  blockExplorerUrl: 'https://optimistic.etherscan.io',
   apiPrefix: 'api-',
 };
 
@@ -62,7 +62,7 @@ export const bsc: IChainConnection = {
     56,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://bscscan.com/',
+  blockExplorerUrl: 'https://bscscan.com',
 };
 
 export const alfajores: IChainConnection = {
@@ -71,7 +71,7 @@ export const alfajores: IChainConnection = {
     44787,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://alfajores-blockscout.celo-testnet.org/',
+  blockExplorerUrl: 'https://alfajores-blockscout.celo-testnet.org',
 };
 
 export const auroratestnet: IChainConnection = {
@@ -88,7 +88,7 @@ export const fuji: IChainConnection = {
     43113,
   ),
   confirmations: 3,
-  blockExplorerUrl: 'https://testnet.snowtrace.io/',
+  blockExplorerUrl: 'https://testnet.snowtrace.io',
 };
 
 export const goerli: IChainConnection = {
@@ -105,7 +105,7 @@ export const kovan: IChainConnection = {
     42,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://kovan.etherscan.io/',
+  blockExplorerUrl: 'https://kovan.etherscan.io',
 };
 
 export const mumbai: IChainConnection = {
@@ -114,7 +114,7 @@ export const mumbai: IChainConnection = {
     80001,
   ),
   confirmations: 30,
-  blockExplorerUrl: 'https://mumbai.polygonscan.com/',
+  blockExplorerUrl: 'https://mumbai.polygonscan.com',
 };
 
 export const bsctestnet: IChainConnection = {
@@ -123,7 +123,7 @@ export const bsctestnet: IChainConnection = {
     97,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://testnet.bscscan.com/',
+  blockExplorerUrl: 'https://testnet.bscscan.com',
 };
 
 export const arbitrumrinkeby: IChainConnection = {
@@ -132,7 +132,7 @@ export const arbitrumrinkeby: IChainConnection = {
     421611,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://testnet.arbiscan.io/',
+  blockExplorerUrl: 'https://testnet.arbiscan.io',
 };
 
 export const optimismkovan: IChainConnection = {
@@ -141,7 +141,7 @@ export const optimismkovan: IChainConnection = {
     69,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://kovan-optimistic.etherscan.io/',
+  blockExplorerUrl: 'https://kovan-optimistic.etherscan.io',
 };
 
 export const test1: IChainConnection = {
