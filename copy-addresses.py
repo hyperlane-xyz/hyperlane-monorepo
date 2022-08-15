@@ -50,7 +50,7 @@ def inboxes_table(addresses):
                 capitalize(inboxNetwork),
                 address_url(inboxNetwork, inboxStruct['inbox']['proxy'])
             ])
-    return table(headers, rows)
+    return h(2, 'Inboxes') + '\n' + table(headers, rows)
 
 def print_environment(env):
     addresses = readJson('typescript/sdk/src/consts/environments/' + env + '.json')
