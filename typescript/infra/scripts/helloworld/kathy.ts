@@ -128,7 +128,9 @@ async function main() {
   );
   const appChains = app.chains();
 
-  // Ensure the specified chains to skip are actually valid for the app
+  // Ensure the specified chains to skip are actually valid for the app.
+  // Despite setting a default and demanding it as an option, yargs believes
+  // chainsToSkip can possibly be undefined.
   for (const chainToSkip of chainsToSkip ?? []) {
     if (!appChains.includes(chainToSkip)) {
       throw Error(
