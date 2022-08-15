@@ -25,7 +25,7 @@ export type CoreContractsMap<Chain extends ChainName> = {
   [local in Chain]: CoreContracts<Chain, local>;
 };
 
-type DispatchedMessage = {
+export type DispatchedMessage = {
   leafIndex: number;
   message: string;
   parsed: types.ParsedMessage;
@@ -140,7 +140,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     return { inbox: destinationInbox, chainConnection };
   }
 
-  protected waitForProcessReceipt(
+  waitForProcessReceipt(
     message: DispatchedMessage,
   ): Promise<ethers.ContractReceipt> {
     const hash = utils.messageHash(message.message, message.leafIndex);
