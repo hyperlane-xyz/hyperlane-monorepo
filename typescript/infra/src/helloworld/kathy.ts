@@ -1,21 +1,38 @@
 import { ChainName } from '@abacus-network/sdk';
 
+import { AgentAwsUser } from '../agents/aws';
+import { KEY_ROLE_ENUM } from '../agents/roles';
 import { AgentConfig } from '../config';
 import { HelloWorldKathyConfig } from '../config/helloworld';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
-export function runHelloworldKathyHelmCommand<Chain extends ChainName>(
+export async function runHelloworldKathyHelmCommand<Chain extends ChainName>(
   helmCommand: HelmCommand,
   agentConfig: AgentConfig<Chain>,
   kathyConfig: HelloWorldKathyConfig<Chain>,
 ) {
+  // If using AWS keys, ensure the Kathy user and key has been created
+  if (agentConfig.aws) {
+    const awsUser = new AgentAwsUser<Chain>(
+      agentConfig.environment,
+      agentConfig.context,
+      KEY_ROLE_ENUM.Kathy,
+      agentConfig.aws.region,
+    );
+    await awsUser.createIfNotExists();
+    await awsUser.createKeyIfNotExists(agentConfig);
+  }
+
   const values = getHelloworldKathyHelmValues(agentConfig, kathyConfig);
 
   return execCmd(
     `helm ${helmCommand} helloworld-kathy ./helm/helloworld-kathy --namespace ${
       kathyConfig.namespace
     } ${values.join(' ')}`,
+    {},
+    false,
+    true,
   );
 }
 
@@ -25,9 +42,9 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
 ) {
   const values = {
     chainsToSkip: kathyConfig.chainsToSkip,
-    cronjob: {
-      schedule: kathyConfig.cronSchedule,
-    },
+    fullCycleTime: kathyConfig.fullCycleTime,
+    messageSendTimeout: kathyConfig.messageSendTimeout,
+    messageReceiptTimeout: kathyConfig.messageReceiptTimeout,
     abacus: {
       runEnv: kathyConfig.runEnv,
       // This is just used for fetching secrets, and is not actually
@@ -35,13 +52,11 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
       // will fetch secrets for all chains, regardless of skipping them or
       // not, we pass in all chains
       chains: agentConfig.contextChainNames,
+      aws: agentConfig.aws !== undefined,
     },
     image: {
       repository: kathyConfig.docker.repo,
       tag: kathyConfig.docker.tag,
-    },
-    infra: {
-      prometheusPushGateway: kathyConfig.prometheusPushGateway,
     },
   };
 

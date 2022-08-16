@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: key-funder
+spec:
+  schedule: "{{ .Values.cronjob.schedule }}"
+  successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cronjob.failedJobsHistoryLimit }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: key-funder
+            image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+            imagePullPolicy: IfNotPresent
+            command:
+            - ./node_modules/.bin/ts-node
+            - ./typescript/infra/scripts/funding/fund-keys-from-deployer.ts
+            - -e
+            - {{ .Values.abacus.runEnv }}
+            - --context
+            - {{ .Values.abacus.contextFundingFrom }}
+{{- range $context, $roles := .Values.abacus.contextsAndRolesToFund }}
+            - --contexts-and-roles
+            - {{ $context }}={{ join "," $roles }}
+            - -f
+            - /addresses-secret/{{ $context }}-addresses.json
+{{- end }}
+            env:
+            - name: PROMETHEUS_PUSH_GATEWAY
+              value: {{ .Values.infra.prometheusPushGateway }}
+            envFrom:
+            - secretRef:
+                name: key-funder-env-var-secret
+            volumeMounts:
+            - name: key-funder-addresses-secret
+              mountPath: /addresses-secret
+          volumes:
+          - name: key-funder-addresses-secret
+            secret:
+              secretName: key-funder-addresses-secret
+              defaultMode: 0400

@@ -7,13 +7,15 @@ import {
   TestChainNames,
   TestCoreApp,
   TestCoreDeployer,
-  getMultiProviderFromConfigAndSigner,
+  getChainToOwnerMap,
+  getTestMultiProvider,
+  testChainConnectionConfigs,
 } from '@abacus-network/sdk';
 
 import { HelloWorldApp } from '../app/app';
 import { HelloWorldContracts } from '../app/contracts';
 import { HelloWorldChecker } from '../deploy/check';
-import { HelloWorldConfig, getConfigMap, testConfigs } from '../deploy/config';
+import { HelloWorldConfig } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
 
 describe('deploy', async () => {
@@ -26,13 +28,13 @@ describe('deploy', async () => {
 
   before(async () => {
     const [signer] = await ethers.getSigners();
-    multiProvider = getMultiProviderFromConfigAndSigner(testConfigs, signer);
+    multiProvider = getTestMultiProvider(signer);
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     core = new TestCoreApp(coreContractsMaps, multiProvider);
     config = core.extendWithConnectionClientConfig(
-      getConfigMap(signer.address),
+      getChainToOwnerMap(testChainConnectionConfigs, signer.address),
     );
     deployer = new HelloWorldDeployer(multiProvider, config, core);
   });
@@ -43,7 +45,7 @@ describe('deploy', async () => {
 
   it('builds app', async () => {
     contracts = await deployer.deploy();
-    app = new HelloWorldApp(contracts, multiProvider);
+    app = new HelloWorldApp(core, contracts, multiProvider);
   });
 
   it('checks', async () => {

@@ -4,32 +4,15 @@ pragma solidity >=0.8.0;
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 
 contract TestRecipient is IMessageRecipient {
-    bool public processed = false;
-
-    // solhint-disable-next-line payable-fallback
-    fallback() external {
-        revert("Fallback");
-    }
+    bytes32 public lastSender;
+    bytes public lastData;
 
     function handle(
         uint32,
-        bytes32,
-        bytes calldata
-    ) external pure override {} // solhint-disable-line no-empty-blocks
-
-    function receiveString(string calldata _str)
-        public
-        pure
-        returns (string memory)
-    {
-        return _str;
-    }
-
-    function processCall(bool callProcessed) public {
-        processed = callProcessed;
-    }
-
-    function message() public pure returns (string memory) {
-        return "message received";
+        bytes32 _sender,
+        bytes calldata _data
+    ) external override {
+        lastSender = _sender;
+        lastData = _data;
     }
 }

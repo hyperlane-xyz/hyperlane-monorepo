@@ -1,20 +1,43 @@
 import { HelloWorldConfig } from '../../../src/config';
+import { Contexts } from '../../contexts';
 
 import { MainnetChains, environment } from './chains';
-import helloWorldAddresses from './helloworld/addresses.json';
+import abacusAddresses from './helloworld/abacus/addresses.json';
+import rcAddresses from './helloworld/rc/addresses.json';
 
-export const helloWorld: HelloWorldConfig<MainnetChains> = {
-  addresses: helloWorldAddresses,
+export const abacus: HelloWorldConfig<MainnetChains> = {
+  addresses: abacusAddresses,
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-cd7dded',
+      tag: 'sha-59aaef0',
     },
-    cronSchedule: '0 */6 * * *', // Once every 6 hours
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
-    prometheusPushGateway:
-      'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
+    fullCycleTime: 1000 * 60 * 60 * 6, // every 6 hours
+    messageSendTimeout: 1000 * 60 * 8, // 8 min
+    messageReceiptTimeout: 1000 * 60 * 20, // 20 min
   },
+};
+
+export const releaseCandidate: HelloWorldConfig<MainnetChains> = {
+  addresses: rcAddresses,
+  kathy: {
+    docker: {
+      repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
+      tag: 'sha-59aaef0',
+    },
+    chainsToSkip: [],
+    runEnv: environment,
+    namespace: environment,
+    fullCycleTime: 1000 * 60 * 60 * 6, // every 6 hours
+    messageSendTimeout: 1000 * 60 * 15, // 15 min
+    messageReceiptTimeout: 1000 * 60 * 15, // 15 min
+  },
+};
+
+export const helloWorld = {
+  [Contexts.Abacus]: abacus,
+  [Contexts.ReleaseCandidate]: releaseCandidate,
 };

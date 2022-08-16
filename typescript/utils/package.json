@@ -1,7 +1,7 @@
 {
   "name": "@abacus-network/utils",
   "description": "General utilities for the Abacus network",
-  "version": "0.3.1",
+  "version": "0.4.1",
   "dependencies": {
     "ethers": "^5.6.8"
   },
