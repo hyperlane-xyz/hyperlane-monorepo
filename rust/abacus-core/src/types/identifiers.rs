@@ -6,7 +6,7 @@ use crate::{Decode, Encode};
 ///
 /// Normally these will map to address types for different networks. For Abacus,
 /// we choose to _always_ serialize as 32 bytes
-#[derive(Debug, Default, Copy, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct AbacusIdentifier(H256);
 
 impl AbacusIdentifier {

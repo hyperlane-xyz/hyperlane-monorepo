@@ -22,7 +22,7 @@ where
     // due to a segfault etc encountered during the test.
     let db_tmp_dir = TempDir::new().unwrap();
     let db = setup_db(db_tmp_dir.path().to_str().unwrap().into());
-    let _test_result = test(db).await;
+    test(db).await;
     let _ = rocksdb::DB::destroy(&Options::default(), db_tmp_dir);
 }
 

@@ -41,7 +41,7 @@ pub enum MerkleTree {
 
 /// A merkle proof object. The leaf, its path to the root, and its index in the
 /// tree.
-#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq)]
+#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub struct Proof {
     /// The leaf
     pub leaf: H256,
@@ -95,7 +95,7 @@ impl Decode for Proof {
 }
 
 /// Error type for merkle tree ops.
-#[derive(Debug, PartialEq, Clone, Error)]
+#[derive(Debug, PartialEq, Eq, Clone, Error)]
 pub enum MerkleTreeError {
     /// Trying to push in a leaf
     #[error("Trying to push in a leaf")]
