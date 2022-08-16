@@ -182,8 +182,9 @@ impl SerialSubmitter {
         // queue for further processing.
 
         // Promote any newly-ready messages from the wait queue to the run queue.
-        // The order of wait_messages is preserved and pushed at the front of the run_queue
-        // to ensure that new messages are evaluated first.
+        // The order of wait_messages, which includes messages asc ordered by leaf index,
+        // is preserved and pushed at the front of the run_queue to ensure that new messages
+        // are evaluated first.
         for msg in self.wait_queue.drain(..).rev() {
             // TODO(webbhorn): Check against interchain gas paymaster.  If now enough payment,
             // promote to run queue.
@@ -225,7 +226,8 @@ impl SerialSubmitter {
         debug!(msg=?msg, "Ready to process message");
         // TODO: consider differentiating types of processing errors, and pushing to the front of the
         // run queue for intermittent types of errors that can occur even if a message's processing isn't
-        // reverting, e.g. timeouts or txs being dropped from the mempool.
+        // reverting, e.g. timeouts or txs being dropped from the mempool. To avoid consistently retrying
+        // only these messages, the number of retries could be considered.
         match self.process_message(&msg).await {
             Ok(()) => {
                 info!(msg=?msg, "Message processed");
