@@ -10,9 +10,13 @@ import { DeployEnvironment } from './environment';
 const CELO_CHAIN_NAMES = new Set(['alfajores', 'baklava', 'celo']);
 
 const providerBuilder = (url: string, chainName: ChainName, retry = true) => {
-  const baseProvider = CELO_CHAIN_NAMES.has(chainName)
-    ? new StaticCeloJsonRpcProvider(url)
-    : new ethers.providers.JsonRpcProvider(url);
+  // TODO: get StaticCeloJsonRpcProvider to be compatible with the RetryJsonRpcProvider.
+  // For now, the two are incompatible, so even if retrying is requested for a Celo chain,
+  // we don't use a RetryJsonRpcProvider.
+  if (CELO_CHAIN_NAMES.has(chainName)) {
+    return new StaticCeloJsonRpcProvider(url);
+  }
+  const baseProvider = new ethers.providers.JsonRpcProvider(url);
   return retry
     ? new RetryJsonRpcProvider(baseProvider, {
         maxRequests: 6,
