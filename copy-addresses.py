@@ -55,10 +55,15 @@ def inboxes_table(addresses):
 def print_environment(env):
     addresses = readJson('typescript/sdk/src/consts/environments/' + env + '.json')
     print(h(1, env))
+    print('\n')
     print(any_table(addresses, 'outbox'))
+    print('\n')
     print(inboxes_table(addresses))
+    print('\n')
     print(any_table(addresses, 'interchainGasPaymaster'))
+    print('\n')
     print(any_table(addresses, 'abacusConnectionManager'))
+    print('\n')
 
 print_environment('mainnet')
 print_environment('testnet2')
