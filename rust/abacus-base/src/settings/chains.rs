@@ -31,17 +31,11 @@ impl Default for ChainConf {
     }
 }
 
-/// Configuration for using Gelato to interact with some chain.  If this setting is provided as
-/// part of an Inbox ChainConf, then the Abacus relayer job will configure itself to
-/// process messages for delivery onto that chain via the Gelato Relay API, rather than via an
-/// ethers-rs provider. The sponsor address will be interpreted by the relayer to refer to an
-/// address on the same chain as the corresponding **outbox** (source chain, from perspective of
-/// message being delivered), despite the fact that this GelatoConf setting is specified in
-/// configs for an Inbox chain's ChainConf.
+/// Configuration for using the Gelato Relay to interact with some chain.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GelatoConf {
-    /// Whether to use Gelato's Relay service for processing messages for this ChainConf's inbox.
+    /// Whether to use the Gelato Relay service for transactions submitted to the chain.
     pub enabled: bool,
 }
 

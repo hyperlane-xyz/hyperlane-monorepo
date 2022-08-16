@@ -105,7 +105,6 @@ impl Relayer {
     /// Helper to construct a new GelatoSubmitter instance for submission to a particular inbox.
     fn make_gelato_submitter_for_inbox(
         &self,
-        _cfg: &GelatoConf,
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         signer: Signers,
@@ -134,15 +133,17 @@ impl Relayer {
         gelato_conf: Option<&GelatoConf>,
         signer: Signers,
     ) -> Instrumented<JoinHandle<Result<()>>> {
+        let outbox = self.outbox().outbox();
+        let outbox_name = outbox.chain_name();
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
-            self.outbox().outbox().chain_name(),
+            outbox_name,
             inbox_contracts.inbox.chain_name(),
         );
         let (msg_send, msg_receive) = mpsc::unbounded_channel();
         let submit_fut = match gelato_conf {
             Some(cfg) if cfg.enabled => self
-                .make_gelato_submitter_for_inbox(cfg, msg_receive, inbox_contracts.clone(), signer)
+                .make_gelato_submitter_for_inbox(msg_receive, inbox_contracts.clone(), signer)
                 .spawn(),
             _ => {
                 let serial_submitter = SerialSubmitter::new(
@@ -151,7 +152,7 @@ impl Relayer {
                     self.outbox().db(),
                     SerialSubmitterMetrics::new(
                         &self.core.metrics,
-                        self.outbox().outbox().chain_name(),
+                        outbox_name,
                         inbox_contracts.inbox.chain_name(),
                     ),
                 );
@@ -159,7 +160,7 @@ impl Relayer {
             }
         };
         let message_processor = MessageProcessor::new(
-            self.outbox().outbox(),
+            outbox,
             self.outbox().db(),
             inbox_contracts,
             self.whitelist.clone(),

@@ -46,6 +46,8 @@ impl FromStr for Chain {
     type Err = GelatoError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
+            // TODO: confirm the unusual chain name strings used by Gelato,
+            // e.g. mainnet for Ethereum and arbitrumtestnet for Arbitrum Rinkeby.
             "mainnet" => Ok(Chain::Ethereum),
             "rinkeby" => Ok(Chain::Rinkeby),
             "goerli" => Ok(Chain::Goerli),
@@ -67,24 +69,6 @@ impl FromStr for Chain {
 
 impl From<Chain> for u32 {
     fn from(chain: Chain) -> Self {
-        // match chain {
-        //     Chain::Ethereum => 1,
-        //     Chain::Rinkeby => 4,
-        //     Chain::Goerli => 5,
-        //     Chain::Kovan => 42,
-        //     Chain::Polygon => 137,
-        //     Chain::PolygonMumbai => 80001,
-        //     Chain::Avalanche => 43114,
-        //     Chain::AvalancheFuji => 43113,
-        //     Chain::Arbitrum => 42161,
-        //     Chain::ArbitrumRinkeby => 421611,
-        //     Chain::Optimism => 10,
-        //     Chain::OptimismKovan => 69,
-        //     Chain::BinanceSmartChain => 56,
-        //     Chain::BinanceSmartChainTestnet => 97,
-        //     Chain::Celo => ,
-        //     Chain::Alfajores =>
-        // }
         chain as u32
     }
 }

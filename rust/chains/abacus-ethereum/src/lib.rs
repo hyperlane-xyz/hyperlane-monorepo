@@ -32,7 +32,7 @@ mod inbox;
 
 /// InboxValidatorManager abi
 #[cfg(not(doctest))]
-pub mod validator_manager;
+mod validator_manager;
 
 /// InterchainGasPaymaster abi
 #[cfg(not(doctest))]
@@ -40,7 +40,7 @@ mod interchain_gas;
 
 /// Generated contract bindings.
 #[cfg(not(doctest))]
-pub mod contracts;
+mod contracts;
 
 /// Retrying Provider
 mod retrying;
