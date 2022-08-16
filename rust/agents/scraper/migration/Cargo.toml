@@ -11,3 +11,8 @@ path = "src/lib.rs"
 [dependencies]
 tokio = { version = "1", features = ["rt", "macros"] }
 sea-orm-migration = { version = "0.9", features = ["runtime-tokio-native-tls", "sqlx-postgres"]}
+serde = { version = "1.0", features = ["derive"] }
+abacus-core = { path = "../../../abacus-core" }
+
+[dependencies.sea-orm]
+features = ["macros"]

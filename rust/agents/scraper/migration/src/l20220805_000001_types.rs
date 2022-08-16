@@ -1,14 +1,18 @@
 use sea_orm_migration::prelude::*;
 
+#[allow(non_upper_case_globals)]
 pub const Hash: ColumnType = ColumnType::Binary(BlobSize::Blob(Some(256 / 8)));
+#[allow(non_upper_case_globals)]
 pub const Address: ColumnType = ColumnType::Binary(BlobSize::Blob(Some(256 / 8)));
 
 /// 256-bit integer as base-10 digits: ceil(log_10(2^256))
-const significant_digits_in_256_bit_integer: u32 = 78;
+const SIGNIFICANT_DIGITS_IN_256_BIT_INTEGER: u32 = 78;
 /// At least right now all of the native tokens are scaled as 10^18
-const decimal_digits_in_crypto_numeric: u32 = 18;
-/// A type to represent a U256 crypto currency scaled integer value with 2^18 scaling
+const DECIMAL_DIGITS_IN_CRYPTO_NUMERIC: u32 = 18;
+/// A type to represent a U256 crypto currency scaled integer value with 2^18
+/// scaling
+#[allow(non_upper_case_globals)]
 pub const CryptoCurrency: ColumnType = ColumnType::Decimal(Some((
-    significant_digits_in_256_bit_integer,
-    decimal_digits_in_crypto_numeric,
+    SIGNIFICANT_DIGITS_IN_256_BIT_INTEGER,
+    DECIMAL_DIGITS_IN_CRYPTO_NUMERIC,
 )));
