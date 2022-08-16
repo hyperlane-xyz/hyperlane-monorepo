@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: {{ include "abacus.fullname" . }}-cycle-once
+  name: {{ include "abacus.fullname" . }}-cycle-once-{{ (randAlphaNum 4 | nospace | lower) }}
   labels: &metadata_labels
     abacus/deployment: {{ .Values.abacus.runEnv | quote }}
     abacus/context: {{ .Values.abacus.context | quote }}

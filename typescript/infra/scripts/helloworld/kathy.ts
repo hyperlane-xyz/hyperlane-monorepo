@@ -106,7 +106,8 @@ function getKathyArgs() {
     ).argv;
 }
 
-async function main() {
+// Returns whether an error occurred
+async function main(): Promise<boolean> {
   const {
     e: environment,
     context,
@@ -116,6 +117,8 @@ async function main() {
     messageSendTimeout,
     messageReceiptTimeout,
   } = await getKathyArgs();
+
+  let errorOccurred = false;
 
   startMetricsServer(metricsRegister);
   debug('Starting up', { environment });
@@ -250,6 +253,7 @@ async function main() {
         ...logCtx,
       });
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
+      errorOccurred = true;
     }
     updateWalletBalanceMetricFor(app, origin).catch((e) => {
       warn('Failed to update wallet balance for chain', {
@@ -280,6 +284,7 @@ async function main() {
     // Move on to the next index
     currentPairingIndex++;
   }
+  return errorOccurred;
 }
 
 async function sendMessage(
@@ -382,9 +387,14 @@ async function updateWalletBalanceMetricFor(
 }
 
 main()
-  .then(() => {
+  .then((errorOccurred: boolean) => {
     log('Main exited');
-    process.exit(0);
+    if (errorOccurred) {
+      error('An error occurred at some point');
+      process.exit(1);
+    } else {
+      process.exit(0);
+    }
   })
   .catch((e) => {
     error('Error in main', { error: format(e) });
