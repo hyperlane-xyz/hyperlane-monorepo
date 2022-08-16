@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::{db::AbacusDB, Signers};
 use abacus_core::{AbacusCommon, InboxValidatorManager};
@@ -24,6 +26,10 @@ mod fwd_req_op;
 /// gas payments.
 const DEFAULT_MAX_FEE: u64 = 1000000000000000000;
 
+/// The default gas limit to use for Gelato ForwardRequests.
+/// TODO: instead estimate gas for messages.
+const DEFAULT_GAS_LIMIT: u64 = 3000000;
+
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
     /// Source of messages to submit.
@@ -40,11 +46,10 @@ pub(crate) struct GelatoSubmitter {
     pub gelato_sponsor_address: Address,
     /// Messages we are aware of that we want to eventually submit, but haven't yet, for
     /// whatever reason.
-    pub wait_queue: Vec<SubmitMessageArgs>,
+    pub wait_queue: VecDeque<SubmitMessageArgs>,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     pub _abacus_db: AbacusDB,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
-    /// Intended to be shared by reqwest library.
     pub http_client: reqwest::Client,
     /// Prometheus metrics.
     pub _metrics: GelatoSubmitterMetrics,
@@ -71,7 +76,7 @@ impl GelatoSubmitter {
             gelato_sponsor_signer,
             http_client,
             _metrics: metrics,
-            wait_queue: Vec::new(),
+            wait_queue: VecDeque::new(),
         }
     }
 
@@ -88,11 +93,13 @@ impl GelatoSubmitter {
     }
 
     async fn tick(&mut self) -> Result<()> {
-        // Pull any messages sent by processor over channel.
+        // Pull any messages sent by processor over channel and push
+        // them into the `received_messages` in asc order by message leaf index.
+        let mut received_messages = Vec::new();
         loop {
             match self.message_receiver.try_recv() {
                 Ok(msg) => {
-                    self.wait_queue.push(msg);
+                    received_messages.push(msg);
                 }
                 Err(TryRecvError::Empty) => {
                     break;
@@ -103,11 +110,20 @@ impl GelatoSubmitter {
             }
         }
 
-        // TODO: process the wait queue, creating a ForwardRequestOp for each
-        // message that we successfully estimate gas for.
+        // Insert received messages into the front of the wait queue, ensuring
+        // the asc ordering by message leaf index is preserved.
+        for msg in received_messages.into_iter().rev() {
+            self.wait_queue.push_front(msg);
+        }
+
+        // TODO: correctly process the wait queue.
+        // Messages should be popped from the wait queue. For messages
+        // with successful gas estimation, a ForwardRequestOp should
+        // be created. Messages whose gas estimation reverts should be
+        // pushed to the back of the queue.
 
         // Pick the next message to try processing.
-        let msg = match self.wait_queue.pop() {
+        let msg = match self.wait_queue.pop_front() {
             Some(m) => m,
             None => return Ok(()),
         };
@@ -144,8 +160,8 @@ impl GelatoSubmitter {
             data: calldata,
             fee_token: NATIVE_FEE_TOKEN_ADDRESS,
             payment_type: PaymentType::AsyncGasTank,
-            max_fee: DEFAULT_MAX_FEE.into(), // Maximum fee that sponsor is willing to pay.
-            gas: DEFAULT_MAX_FEE.into(),     // Gas limit.
+            max_fee: DEFAULT_MAX_FEE.into(),
+            gas: DEFAULT_GAS_LIMIT.into(),
             sponsor_chain_id: self.outbox_gelato_chain,
             nonce: U256::zero(),
             enforce_sponsor_nonce: false,
@@ -192,23 +208,18 @@ impl Default for ForwardRequestOptions {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitterMetrics {
-    run_queue_length_gauge: IntGauge,
     wait_queue_length_gauge: IntGauge,
     queue_duration_hist: Histogram,
     processed_gauge: IntGauge,
     messages_processed_count: IntCounter,
+
     /// Private state used to update actual metrics each tick.
-    max_submitted_leaf_index: u32,
+    highest_submitted_leaf_index: u32,
 }
 
 impl GelatoSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
         Self {
-            run_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                outbox_chain,
-                inbox_chain,
-                "run_queue",
-            ]),
             wait_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
                 outbox_chain,
                 inbox_chain,
@@ -225,15 +236,11 @@ impl GelatoSubmitterMetrics {
                 outbox_chain,
                 inbox_chain,
             ]),
-            max_submitted_leaf_index: 0,
+            highest_submitted_leaf_index: 0,
         }
     }
 }
 
-// TODO(webbhorn): Is there already somewhere actually canonical/authoritative to use instead
-// of duplicating this here?  Perhaps we can expand `macro_rules! domain_and_chain`?
-// Otherwise, try to keep this translation logic out of the gelato crate at least so that we
-// don't start introducing any Abacus concepts (like domain) into it.
 fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
     Ok(match domain {
         6648936 => Chain::Ethereum,
