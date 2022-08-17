@@ -46,7 +46,11 @@ export { ChainConnection } from './providers/ChainConnection';
 export { MultiProvider } from './providers/MultiProvider';
 export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
 
-export { AbacusCore, CoreContractsMap } from './core/AbacusCore';
+export {
+  AbacusCore,
+  CoreContractsMap,
+  DispatchedMessage,
+} from './core/AbacusCore';
 export {
   CoreContracts,
   coreFactories,
