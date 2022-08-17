@@ -1,4 +1,4 @@
-use std::collections::BinaryHeap;
+use std::collections::VecDeque;
 
 use abacus_base::CoreMetrics;
 use abacus_base::InboxContracts;
@@ -91,18 +91,18 @@ use super::SubmitMessageArgs;
 ///       reasons listed above (e.g. index not covered by checkpoint, insufficient gas, etc).
 ///
 /// Note that there is no retry queue. This is because if submission fails for a retriable
-/// reason, the message instead goes directly back on to the runnable queue (though it will be
-/// prioritized lower than it was prior to the failed attempt due to the increased
-/// num_retries).
+/// reason, the message instead goes directly back on to the runnable queue.
+/// If submission fails, the message is sent to the back of the queue. This is to ensure
+/// all messages are retried frequently, and not just those that happen to have a lower
+/// retry count.
 ///
 /// To summarize: each scheduler `tick()`, new messages from the processor are inserted onto
 /// the wait queue.  We then scan the wait_queue, looking for messages which can be promoted to
 /// the runnable_queue, e.g. by comparing with a recent checkpoint or latest gas payments on
 /// source chain. If eligible for delivery, the message is promoted to the runnable queue and
-/// prioritized accordingly. Note that for messages that have never been attempted before, they
-/// will sort very highly due to num_retries==0 and probably be tried soon.
+/// prioritized accordingly. These messages that have never been tried before are pushed to
+/// the front of the runnable queue.
 
-// TODO(webbhorn): Metrics data.
 // TODO(webbhorn): Do we also want to await finality_blocks on source chain before attempting
 // submission? Does this already happen?
 
@@ -117,7 +117,7 @@ pub(crate) struct SerialSubmitter {
     /// Messages that are in theory deliverable, but which are waiting in a queue for their turn
     /// to be dispatched. The SerialSubmitter can only dispatch one message at a time, so this
     /// queue could grow.
-    run_queue: BinaryHeap<SubmitMessageArgs>,
+    run_queue: VecDeque<SubmitMessageArgs>,
     /// Inbox / InboxValidatorManager on the destination chain.
     inbox_contracts: InboxContracts,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
@@ -136,7 +136,7 @@ impl SerialSubmitter {
         Self {
             rx,
             wait_queue: Vec::new(),
-            run_queue: BinaryHeap::new(),
+            run_queue: VecDeque::new(),
             inbox_contracts,
             db,
             metrics,
@@ -182,13 +182,14 @@ impl SerialSubmitter {
         // queue for further processing.
 
         // Promote any newly-ready messages from the wait queue to the run queue.
-        let wait_messages: Vec<_> = self.wait_queue.drain(..).collect();
-        for msg in wait_messages {
+        // The order of wait_messages, which includes messages asc ordered by leaf index,
+        // is preserved and pushed at the front of the run_queue to ensure that new messages
+        // are evaluated first.
+        for msg in self.wait_queue.drain(..).rev() {
             // TODO(webbhorn): Check against interchain gas paymaster.  If now enough payment,
             // promote to run queue.
-            self.run_queue.push(msg);
+            self.run_queue.push_front(msg);
         }
-        self.wait_queue = Vec::new();
 
         self.metrics
             .wait_queue_length_gauge
@@ -198,7 +199,7 @@ impl SerialSubmitter {
             .set(self.run_queue.len() as i64);
 
         // Pick the next message to try processing.
-        let mut msg = match self.run_queue.pop() {
+        let mut msg = match self.run_queue.pop_front() {
             Some(m) => m,
             None => return Ok(()),
         };
@@ -223,6 +224,10 @@ impl SerialSubmitter {
 
         // Go ahead and attempt processing of message to destination chain.
         debug!(msg=?msg, "Ready to process message");
+        // TODO: consider differentiating types of processing errors, and pushing to the front of the
+        // run queue for intermittent types of errors that can occur even if a message's processing isn't
+        // reverting, e.g. timeouts or txs being dropped from the mempool. To avoid consistently retrying
+        // only these messages, the number of retries could be considered.
         match self.process_message(&msg).await {
             Ok(()) => {
                 info!(msg=?msg, "Message processed");
@@ -230,7 +235,7 @@ impl SerialSubmitter {
             Err(e) => {
                 info!(msg=?msg, leaf_index=msg.leaf_index, error=?e, "Message processing failed");
                 msg.num_retries += 1;
-                self.run_queue.push(msg);
+                self.run_queue.push_back(msg);
             }
         }
 
