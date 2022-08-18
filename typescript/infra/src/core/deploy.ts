@@ -20,26 +20,25 @@ export class AbacusCoreInfraDeployer<
       const contracts = contractsMap[chain];
 
       const outboxMetadata = chainMetadata[chain];
-      const outbox = {
-        addresses: {
-          outbox: contracts.outbox.address,
-          interchainGasPaymaster: contracts.interchainGasPaymaster.address,
-        },
-        domain: outboxMetadata.id.toString(),
-        name: chain,
-        rpcStyle: 'ethereum',
-        finalityBlocks: outboxMetadata.finalityBlocks.toString(),
-        connection: {
-          type: 'http',
-          url: '',
-        },
-      };
 
       const rustConfig: RustConfig<Chain> = {
         environment,
         signers: {},
         inboxes: {},
-        outbox,
+        outbox: {
+          addresses: {
+            outbox: contracts.outbox.address,
+            interchainGasPaymaster: contracts.interchainGasPaymaster.address,
+          },
+          domain: outboxMetadata.id.toString(),
+          name: chain,
+          rpcStyle: 'ethereum',
+          finalityBlocks: outboxMetadata.finalityBlocks.toString(),
+          connection: {
+            type: 'httpQuorum',
+            urls: '',
+          },
+        },
         tracing: {
           level: 'debug',
           fmt: 'json',
@@ -74,7 +73,7 @@ export class AbacusCoreInfraDeployer<
             inbox: inboxContracts.inbox.address,
             validatorManager: inboxContracts.inboxValidatorManager.address,
           },
-        };
+        } as const;
 
         rustConfig.inboxes[remote] = inbox;
       });
