@@ -21,6 +21,8 @@ tokio = "1"
 hex = "0.4.3"
 rocksdb = "0.18"
 tracing-futures = "0.2"
+# version determined by deps
+futures = "*"
 
 abacus-core = { path = "../../abacus-core" }
 ethers-prometheus = { path = "../../ethers-prometheus" }
@@ -28,3 +30,7 @@ ethers-prometheus = { path = "../../ethers-prometheus" }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen" }
+
+[[bin]]
+name = "quorum"
+path = "bin/quorum/main.rs"
