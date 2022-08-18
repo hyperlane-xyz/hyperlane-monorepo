@@ -52,9 +52,7 @@ pub enum Connection {
     /// A HTTP-only quorum.
     HttpQuorum {
         /// List of fully qualified strings to connect to
-        urls: Vec<String>,
-        /// Optional list of weights which correspond to the urls.
-        weights: Option<Vec<u64>>,
+        urls: String,
     },
     /// HTTP connection details
     Http {

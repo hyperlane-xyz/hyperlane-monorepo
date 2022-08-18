@@ -2,8 +2,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use ethers::prelude::*;
-use eyre::eyre;
+use ethers::prelude::{
+    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
+    SignerMiddleware, WeightedProvider, Ws,
+};
 
 use abacus_core::{ContractLocator, Signers};
 use ethers_prometheus::{PrometheusMiddleware, PrometheusMiddlewareConf, ProviderMetrics};
@@ -30,25 +32,16 @@ pub trait MakeableWithProvider {
         metrics: Option<(ProviderMetrics, PrometheusMiddlewareConf)>,
     ) -> eyre::Result<Self::Output> {
         Ok(match conn {
-            Connection::HttpQuorum { urls, weights } => {
+            Connection::HttpQuorum { urls } => {
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
-                for (i, url) in urls.into_iter().enumerate() {
-                    let http_provider = url.parse::<Http>()?;
-                    let weight = weights
-                        .as_ref()
-                        .map(|weights| {
-                            weights
-                                .get(i)
-                                .ok_or(eyre!("Expected one weight for every url provided"))
-                        })
-                        .transpose()?
-                        .cloned()
-                        .unwrap_or(1);
-                    let weighted_provider = WeightedProvider::with_weight(http_provider, weight);
+                for url in urls.split(',') {
+                    let http_provider: Http = url.parse()?;
+                    let weighted_provider = WeightedProvider::new(http_provider);
                     builder = builder.add_provider(weighted_provider);
                 }
-                // let retrying = RetryingProvider::new(builder.build(), 6, 50);
-                self.wrap_with_metrics(builder.build(), locator, signer, metrics)
+                let quorum_provider = builder.build();
+                let retrying = RetryingProvider::new(quorum_provider, 3, 1000);
+                self.wrap_with_metrics(retrying, locator, signer, metrics)
                     .await?
             }
             Connection::Http { url } => {
