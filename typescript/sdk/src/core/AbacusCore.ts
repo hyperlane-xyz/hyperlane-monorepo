@@ -25,7 +25,7 @@ export type CoreContractsMap<Chain extends ChainName> = {
   [local in Chain]: CoreContracts<Chain, local>;
 };
 
-type DispatchedMessage = {
+export type DispatchedMessage = {
   leafIndex: number;
   message: string;
   parsed: types.ParsedMessage;
