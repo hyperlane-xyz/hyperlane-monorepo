@@ -117,7 +117,7 @@ where
                     from = full_chunk_from,
                     to = to,
                     message_count = sorted_messages.len(),
-                    "[Messages]: indexed block heights {full_chunk_from}...{to}"
+                    "[Messages]: indexed block range"
                 );
 
                 // Get the latest known leaf index. All messages whose indices are <= this index
