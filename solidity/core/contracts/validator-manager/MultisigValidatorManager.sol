@@ -2,6 +2,8 @@
 pragma solidity >=0.8.0;
 pragma abicoder v2;
 
+import {Versioned} from "../upgrade/Versioned.sol";
+
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -12,7 +14,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
  * reach a quorum.
  */
-abstract contract MultisigValidatorManager is Ownable {
+abstract contract MultisigValidatorManager is Ownable, Versioned {
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -70,12 +72,11 @@ abstract contract MultisigValidatorManager is Ownable {
     constructor(
         uint32 _domain,
         address[] memory _validators,
-        uint256 _threshold,
-        uint8 _version
+        uint256 _threshold
     ) Ownable() {
         // Set immutables.
         domain = _domain;
-        domainHash = _domainHash(_domain, _version);
+        domainHash = _domainHash(_domain);
 
         // Enroll validators. Reverts if there are any duplicates.
         uint256 _numValidators = _validators.length;
@@ -251,11 +252,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @notice Hash of `_domain` concatenated with "ABACUS".
      * @param _domain The domain to hash.
      */
-    function _domainHash(uint32 _domain, uint8 _version)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encodePacked(_domain, "ABACUS", _version));
+    function _domainHash(uint32 _domain) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_domain, "ABACUS", VERSION));
     }
 }
