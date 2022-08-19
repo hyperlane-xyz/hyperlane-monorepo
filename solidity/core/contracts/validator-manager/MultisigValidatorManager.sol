@@ -70,11 +70,12 @@ abstract contract MultisigValidatorManager is Ownable {
     constructor(
         uint32 _domain,
         address[] memory _validators,
-        uint256 _threshold
+        uint256 _threshold,
+        uint8 _version
     ) Ownable() {
         // Set immutables.
         domain = _domain;
-        domainHash = _domainHash(_domain);
+        domainHash = _domainHash(_domain, _version);
 
         // Enroll validators. Reverts if there are any duplicates.
         uint256 _numValidators = _validators.length;
@@ -250,7 +251,11 @@ abstract contract MultisigValidatorManager is Ownable {
      * @notice Hash of `_domain` concatenated with "ABACUS".
      * @param _domain The domain to hash.
      */
-    function _domainHash(uint32 _domain) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_domain, "ABACUS"));
+    function _domainHash(uint32 _domain, uint8 _version)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(_domain, "ABACUS", _version));
     }
 }
