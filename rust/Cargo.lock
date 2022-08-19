@@ -730,9 +730,9 @@ checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
 
 [[package]]
 name = "cpufeatures"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59a6001667ab124aebae2a495118e11d30984c3a653e99d86d58971708cf5e4b"
+checksum = "1079fb8528d9f9c888b1e8aa651e6e079ade467323d58f75faf1d30b1808f540"
 dependencies = [
  "libc",
 ]
@@ -1089,7 +1089,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=master#10e24ca39ad5386a0578f5cc8d0f2d67a77c3eb4"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=master#b8c149b6ad1fa8d482a0252cf511f71558b180e5"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -1103,7 +1103,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=master#10e24ca39ad5386a0578f5cc8d0f2d67a77c3eb4"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=master#b8c149b6ad1fa8d482a0252cf511f71558b180e5"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -1114,7 +1114,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=master#10e24ca39ad5386a0578f5cc8d0f2d67a77c3eb4"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=master#b8c149b6ad1fa8d482a0252cf511f71558b180e5"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -1132,7 +1132,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=master#10e24ca39ad5386a0578f5cc8d0f2d67a77c3eb4"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=master#b8c149b6ad1fa8d482a0252cf511f71558b180e5"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -1155,7 +1155,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=master#10e24ca39ad5386a0578f5cc8d0f2d67a77c3eb4"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=master#b8c149b6ad1fa8d482a0252cf511f71558b180e5"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -1169,7 +1169,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=master#10e24ca39ad5386a0578f5cc8d0f2d67a77c3eb4"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=master#b8c149b6ad1fa8d482a0252cf511f71558b180e5"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -1200,7 +1200,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=master#10e24ca39ad5386a0578f5cc8d0f2d67a77c3eb4"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=master#b8c149b6ad1fa8d482a0252cf511f71558b180e5"
 dependencies = [
  "ethers-core",
  "getrandom",
@@ -1216,7 +1216,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=master#10e24ca39ad5386a0578f5cc8d0f2d67a77c3eb4"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=master#b8c149b6ad1fa8d482a0252cf511f71558b180e5"
 dependencies = [
  "async-trait",
  "ethers-contract",
@@ -1260,7 +1260,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=master#10e24ca39ad5386a0578f5cc8d0f2d67a77c3eb4"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=master#b8c149b6ad1fa8d482a0252cf511f71558b180e5"
 dependencies = [
  "async-trait",
  "auto_impl",
@@ -1296,7 +1296,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=master#10e24ca39ad5386a0578f5cc8d0f2d67a77c3eb4"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=master#b8c149b6ad1fa8d482a0252cf511f71558b180e5"
 dependencies = [
  "async-trait",
  "coins-bip32",
@@ -1811,9 +1811,9 @@ dependencies = [
 
 [[package]]
 name = "iana-time-zone"
-version = "0.1.45"
+version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef5528d9c2817db4e10cc78f8d4c8228906e5854f389ff6b076cee3572a09d35"
+checksum = "ad2bfd338099682614d3ee3fe0cd72e0b6a41ca6a87f6a74a3bd593c91650501"
 dependencies = [
  "android_system_properties",
  "core-foundation-sys",
@@ -3388,9 +3388,9 @@ dependencies = [
 
 [[package]]
 name = "security-framework"
-version = "2.6.1"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dc14f172faf8a0194a3aded622712b0de276821addc574fa54fc0a1167e10dc"
+checksum = "2bc1bb97804af6631813c55739f771071e0f2ed33ee20b68c86ec505d906356c"
 dependencies = [
  "bitflags",
  "core-foundation",
