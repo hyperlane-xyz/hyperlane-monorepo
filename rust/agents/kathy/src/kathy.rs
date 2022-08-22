@@ -45,7 +45,8 @@ impl BaseAgent for Kathy {
         ))
     }
 
-    fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    #[allow(clippy::async_yields_async)]
+    async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
             .inboxes()
             .iter()

@@ -69,7 +69,8 @@ impl BaseAgent for Relayer {
         })
     }
 
-    fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    #[allow(clippy::async_yields_async)]
+    async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let (signed_checkpoint_sender, signed_checkpoint_receiver) =
             watch::channel::<Option<MultisigSignedCheckpoint>>(None);
 
@@ -103,7 +104,7 @@ impl BaseAgent for Relayer {
             info!("Interchain Gas Paymaster not provided, not running sync");
         }
 
-        self.run_all(tasks)
+        run_all(tasks)
     }
 }
 

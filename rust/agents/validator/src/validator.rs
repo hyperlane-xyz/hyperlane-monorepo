@@ -73,7 +73,8 @@ impl BaseAgent for Validator {
         ))
     }
 
-    fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    #[allow(clippy::async_yields_async)]
+    async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let submit = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,

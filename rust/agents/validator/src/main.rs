@@ -31,7 +31,7 @@ async fn _main() -> Result<()> {
         .start_tracing(&agent.metrics())?;
     let _ = agent.metrics().run_http_server();
 
-    agent.run().await??;
+    agent.run().await.await??;
     Ok(())
 }
 
