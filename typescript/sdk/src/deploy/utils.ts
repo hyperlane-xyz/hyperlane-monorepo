@@ -5,7 +5,7 @@ import { types } from '@abacus-network/utils';
 import { testChainConnectionConfigs } from '../consts/chainConnectionConfigs';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName, TestChainNames } from '../types';
-import { objMap } from '../utils';
+import { objMap } from '../utils/objects';
 
 import { EnvironmentConfig } from './types';
 

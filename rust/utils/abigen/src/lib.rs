@@ -44,7 +44,8 @@ pub fn generate_bindings_for_dir(abi_dir: impl AsRef<Path>, output_dir: impl AsR
 
     println!("Creating module file at {}", mod_file_path.display());
     let mut mod_file = File::create(&mod_file_path).expect("could not create modfile");
-    write!(mod_file, "#![allow(clippy::all)]\n\n").unwrap();
+    writeln!(mod_file, "#![allow(clippy::all)]").unwrap();
+    write!(mod_file, "#![allow(missing_docs)]\n\n").unwrap();
     for m in modules {
         writeln!(mod_file, "pub(crate) mod {};", m).expect("failed to write to modfile");
     }

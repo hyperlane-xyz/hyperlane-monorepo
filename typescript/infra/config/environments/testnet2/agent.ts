@@ -1,9 +1,19 @@
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
 import { Contexts } from '../../contexts';
+import {
+  MATCHING_LIST_ALL_WILDCARDS,
+  helloworldMatchingList,
+} from '../../utils';
 
 import { TestnetChains, chainNames, environment } from './chains';
+import { helloWorld } from './helloworld';
 import { validators } from './validators';
+
+const releaseCandidateHelloworldMatchingList = helloworldMatchingList(
+  helloWorld,
+  Contexts.ReleaseCandidate,
+);
 
 export const abacus: AgentConfig<TestnetChains> = {
   environment,
@@ -12,7 +22,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-90287d8',
+    tag: 'sha-33b82dc',
   },
   aws: {
     region: 'us-east-1',
@@ -53,6 +63,7 @@ export const abacus: AgentConfig<TestnetChains> = {
     default: {
       signedCheckpointPollingInterval: 5,
       maxProcessingRetries: 10,
+      blacklist: releaseCandidateHelloworldMatchingList,
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,
@@ -65,7 +76,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   context: Contexts.Flowcarbon,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-90287d8',
+    tag: 'sha-33b82dc',
   },
   aws: {
     region: 'us-east-1',
@@ -77,21 +88,41 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
     default: {
       signedCheckpointPollingInterval: 5,
       maxProcessingRetries: 10,
-      // Don't try to process any messages just yet
-      whitelist: [
-        {
-          sourceDomain: '1',
-          sourceAddress: '0x0000000000000000000000000000000000000000',
-          destinationDomain: '1',
-          destinationAddress: '0x0000000000000000000000000000000000000000',
-        },
-      ],
+      // Blacklist everything for now
+      blacklist: MATCHING_LIST_ALL_WILDCARDS,
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer],
 };
 
-export const agents: Record<Contexts, AgentConfig<TestnetChains>> = {
-  abacus,
-  flowcarbon,
+export const releaseCandidate: AgentConfig<TestnetChains> = {
+  environment,
+  namespace: environment,
+  runEnv: environment,
+  context: Contexts.ReleaseCandidate,
+  docker: {
+    repo: 'gcr.io/abacus-labs-dev/abacus-agent',
+    tag: 'sha-33b82dc',
+  },
+  aws: {
+    region: 'us-east-1',
+  },
+  environmentChainNames: chainNames,
+  contextChainNames: chainNames,
+  validatorSets: validators,
+  relayer: {
+    default: {
+      signedCheckpointPollingInterval: 5,
+      maxProcessingRetries: 10,
+      // Only process messages between the release candidate helloworld routers
+      whitelist: releaseCandidateHelloworldMatchingList,
+    },
+  },
+  rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
+};
+
+export const agents = {
+  [Contexts.Abacus]: abacus,
+  [Contexts.Flowcarbon]: flowcarbon,
+  [Contexts.ReleaseCandidate]: releaseCandidate,
 };

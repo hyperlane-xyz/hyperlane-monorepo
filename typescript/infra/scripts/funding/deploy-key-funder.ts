@@ -1,7 +1,7 @@
 import {
-  getRelayerFunderConfig,
-  runRelayerFunderHelmCommand,
-} from '../../src/funding/deploy-relayer-funder';
+  getKeyFunderConfig,
+  runKeyFunderHelmCommand,
+} from '../../src/funding/deploy-key-funder';
 import { HelmCommand } from '../../src/utils/helm';
 import {
   assertCorrectKubeContext,
@@ -14,13 +14,13 @@ async function main() {
 
   await assertCorrectKubeContext(coreConfig);
 
-  const relayerFunderConfig = getRelayerFunderConfig(coreConfig);
+  const keyFunderConfig = getKeyFunderConfig(coreConfig);
   const agentConfig = await getContextAgentConfig(coreConfig);
 
-  await runRelayerFunderHelmCommand(
+  await runKeyFunderHelmCommand(
     HelmCommand.InstallOrUpgrade,
     agentConfig,
-    relayerFunderConfig,
+    keyFunderConfig,
   );
 }
 
