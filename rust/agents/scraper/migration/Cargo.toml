@@ -11,3 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 tokio = { version = "1", features = ["rt", "macros"] }
 sea-orm-migration = { version = "0.9", features = ["runtime-tokio-native-tls", "sqlx-postgres"]}
+
+[[bin]]
+name = "init-db"
+path = "bin/init_db.rs"
