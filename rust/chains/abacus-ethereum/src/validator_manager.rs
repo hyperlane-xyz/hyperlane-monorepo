@@ -98,11 +98,9 @@ where
         message: &AbacusMessage,
         proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        let contract_call = self.process_contract_call(
-            multisig_signed_checkpoint,
-            message,
-            proof,
-        ).await?;
+        let contract_call = self
+            .process_contract_call(multisig_signed_checkpoint, message, proof)
+            .await?;
         let receipt = report_tx(contract_call).await?;
         Ok(receipt.into())
     }
@@ -113,11 +111,9 @@ where
         message: &AbacusMessage,
         proof: &Proof,
     ) -> Result<TransactionRequest, ChainCommunicationError> {
-        let contract_call = self.process_contract_call(
-            multisig_signed_checkpoint,
-            message,
-            proof,
-        ).await?;
+        let contract_call = self
+            .process_contract_call(multisig_signed_checkpoint, message, proof)
+            .await?;
 
         Ok(contract_call.tx.into())
     }
@@ -166,7 +162,8 @@ where
 
 impl<M> EthereumInboxValidatorManager<M>
 where
-M: Middleware + 'static {
+    M: Middleware + 'static,
+{
     async fn process_contract_call(
         &self,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,

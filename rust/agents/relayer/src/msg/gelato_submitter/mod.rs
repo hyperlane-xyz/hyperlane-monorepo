@@ -7,7 +7,7 @@ use eyre::{bail, Result};
 use gelato::chains::Chain;
 use gelato::fwd_req_call::{ForwardRequestArgs, PaymentType, NATIVE_FEE_TOKEN_ADDRESS};
 use prometheus::{Histogram, IntCounter, IntGauge};
-use tokio::sync::mpsc::{self, UnboundedSender, UnboundedReceiver};
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::time::{sleep, Duration};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
 use tracing::{info_span, instrument::Instrumented, Instrument};
@@ -56,7 +56,6 @@ pub(crate) struct GelatoSubmitter {
     fwd_req_failure_sender: UnboundedSender<SubmitMessageArgs>,
     #[allow(dead_code)]
     fwd_req_failure_receiver: UnboundedReceiver<SubmitMessageArgs>,
-
     // all_fwd_requests
 }
 
@@ -70,7 +69,8 @@ impl GelatoSubmitter {
         http_client: reqwest::Client,
         metrics: GelatoSubmitterMetrics,
     ) -> Self {
-        let (fwd_req_failure_sender, fwd_req_failure_receiver) = mpsc::unbounded_channel::<SubmitMessageArgs>();
+        let (fwd_req_failure_sender, fwd_req_failure_receiver) =
+            mpsc::unbounded_channel::<SubmitMessageArgs>();
         Self {
             message_receiver,
             outbox_gelato_chain: abacus_domain_to_gelato_chain(outbox_domain).unwrap(),
@@ -128,10 +128,7 @@ impl GelatoSubmitter {
                 self.gelato_sponsor_signer.clone(),
                 self.http_client.clone(),
             );
-            tokio::spawn(async move {
-                op.run()
-                    .await
-            });
+            tokio::spawn(async move { op.run().await });
         }
 
         Ok(())
@@ -139,7 +136,6 @@ impl GelatoSubmitter {
 
     #[allow(dead_code)]
     fn create_forward_request_args(&self, msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
-
         // TODO come back here - I think there's a way to do it without Results
         let calldata = self.inbox_contracts.validator_manager.process_calldata(
             &msg.checkpoint,

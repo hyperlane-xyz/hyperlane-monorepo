@@ -1,8 +1,11 @@
-use std::{time::Duration, sync::Arc};
+use std::{sync::Arc, time::Duration};
 
 use ethers::signers::Signer;
 use eyre::Result;
-use gelato::{fwd_req_call::{ForwardRequestArgs, ForwardRequestCall, ForwardRequestCallResult}, task_status_call::{TaskStatusCall, TaskStatusCallArgs, TaskStatus}};
+use gelato::{
+    fwd_req_call::{ForwardRequestArgs, ForwardRequestCall, ForwardRequestCallResult},
+    task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs},
+};
 use tokio::time::{sleep, timeout};
 
 // /// The max fee to use for Gelato ForwardRequests.
@@ -29,8 +32,8 @@ pub(crate) struct ForwardRequestOp<S> {
 impl<S> ForwardRequestOp<S>
 where
     S: Signer,
-    S::Error: 'static
- {
+    S::Error: 'static,
+{
     #[allow(dead_code)]
     pub fn new(
         opts: ForwardRequestOptions,
@@ -61,11 +64,16 @@ where
 
             // let fwd_req_result = self.send_forward_request_call().await.unwrap();
 
-            match timeout(self.opts.retry_submit_interval, self.wait_for_fwd_req_terminal_state(fwd_req_result.task_id)).await {
+            match timeout(
+                self.opts.retry_submit_interval,
+                self.wait_for_fwd_req_terminal_state(fwd_req_result.task_id),
+            )
+            .await
+            {
                 Ok(Ok(())) => {
                     tracing::info!("successful processing!");
                     return;
-                },
+                }
                 Ok(Err(_)) | Err(_) => {
                     // Start loop over
                 }
@@ -75,15 +83,13 @@ where
 
     async fn wait_for_fwd_req_terminal_state(&self, task_id: String) -> Result<()> {
         loop {
-            sleep(
-                self.opts.poll_interval
-            ).await;
+            sleep(self.opts.poll_interval).await;
 
             let status_call = TaskStatusCall {
                 http: Arc::new(self.http.clone()),
                 args: TaskStatusCallArgs {
                     task_id: task_id.clone(),
-                }
+                },
             };
             let status_result = status_call.run().await?;
 
@@ -114,7 +120,7 @@ where
     //             &submit_msg_args.committed_message.message,
     //             &submit_msg_args.proof,
     //         )?;
-        
+
     //     Ok(ForwardRequestArgs {
     //         sponsor_chain_id: sponsor_chain,
     //         chain_id: target_chain,

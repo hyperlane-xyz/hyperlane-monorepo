@@ -1,5 +1,8 @@
 use async_trait::async_trait;
-use ethers::{prelude::AbiError, types::{Bytes, TransactionRequest}};
+use ethers::{
+    prelude::AbiError,
+    types::{Bytes, TransactionRequest},
+};
 use std::sync::Arc;
 
 use abacus_core::{
@@ -78,16 +81,19 @@ impl InboxValidatorManager for InboxValidatorManagerVariants {
     ) -> Result<TransactionRequest, ChainCommunicationError> {
         match self {
             InboxValidatorManagerVariants::Ethereum(validator_manager) => {
-                validator_manager.process_tx(multisig_signed_checkpoint, message, proof)
+                validator_manager
+                    .process_tx(multisig_signed_checkpoint, message, proof)
                     .await
             }
             InboxValidatorManagerVariants::Mock(mock_validator_manager) => {
-                mock_validator_manager.process_tx(multisig_signed_checkpoint, message, proof)
+                mock_validator_manager
+                    .process_tx(multisig_signed_checkpoint, message, proof)
                     .await
             }
             InboxValidatorManagerVariants::Other(validator_manager) => {
-                validator_manager.process_tx(multisig_signed_checkpoint, message, proof)
-                .await
+                validator_manager
+                    .process_tx(multisig_signed_checkpoint, message, proof)
+                    .await
             }
         }
     }
