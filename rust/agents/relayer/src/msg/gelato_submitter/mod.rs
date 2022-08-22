@@ -9,7 +9,7 @@ use eyre::{bail, Result};
 use gelato::chains::Chain;
 use gelato::fwd_req_call::{ForwardRequestArgs, PaymentType, NATIVE_FEE_TOKEN_ADDRESS};
 use prometheus::{Histogram, IntCounter, IntGauge};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, UnboundedSender, UnboundedReceiver};
 use tokio::time::{sleep, Duration};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
 use tracing::{info_span, instrument::Instrumented, Instrument};
@@ -53,6 +53,11 @@ pub(crate) struct GelatoSubmitter {
     pub http_client: reqwest::Client,
     /// Prometheus metrics.
     pub _metrics: GelatoSubmitterMetrics,
+
+    fwd_req_failure_sender: UnboundedSender<SubmitMessageArgs>,
+    fwd_req_failure_receiver: UnboundedReceiver<SubmitMessageArgs>,
+
+    // all_fwd_requests
 }
 
 impl GelatoSubmitter {
@@ -65,6 +70,7 @@ impl GelatoSubmitter {
         http_client: reqwest::Client,
         metrics: GelatoSubmitterMetrics,
     ) -> Self {
+        let (fwd_req_failure_sender, fwd_req_failure_receiver) = mpsc::unbounded_channel::<SubmitMessageArgs>();
         Self {
             message_receiver,
             outbox_gelato_chain: abacus_domain_to_gelato_chain(outbox_domain).unwrap(),
@@ -77,6 +83,8 @@ impl GelatoSubmitter {
             http_client,
             _metrics: metrics,
             wait_queue: VecDeque::new(),
+            fwd_req_failure_sender,
+            fwd_req_failure_receiver,
         }
     }
 
@@ -128,17 +136,32 @@ impl GelatoSubmitter {
             None => return Ok(()),
         };
 
-        let op = ForwardRequestOp {
-            args: self.create_forward_request_args(msg)?,
-            opts: ForwardRequestOptions::default(),
-            signer: self.gelato_sponsor_signer.clone(),
-            http: self.http_client.clone(),
+        let op = if let Ok(op) = ForwardRequestOp::new(
+            ForwardRequestOptions::default(),
+            self.outbox_gelato_chain,
+            self.inbox_gelato_chain,
+            self.inbox_contracts.validator_manager.clone(),
+            msg,
+            self.gelato_sponsor_signer.clone(),
+            self.http_client.clone(),
+            self.fwd_req_failure_sender.clone()
+        ).await {
+            op
+        } else {
+            return eyre::bail!("Op failed to be created");
         };
 
-        tokio::spawn(async move {
+        // let op = ForwardRequestOp {
+        //     args: self.create_forward_request_args(msg)?,
+        //     opts: ForwardRequestOptions::default(),
+        //     signer: self.gelato_sponsor_signer.clone(),
+        //     http: self.http_client.clone(),
+        // };
+
+        let handle = tokio::spawn(async move {
             op.run()
                 .await
-                .expect("failed unimplemented forward request submit op");
+                // .expect("failed unimplemented forward request submit op");
         });
 
         Ok(())

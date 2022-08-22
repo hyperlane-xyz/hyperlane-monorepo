@@ -8,6 +8,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::abi::Token;
 use ethers::prelude::*;
+use ethers_contract::builders::ContractCall;
 use eyre::Result;
 
 use abacus_core::{
@@ -98,29 +99,28 @@ where
         message: &AbacusMessage,
         proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        let mut sol_proof: [[u8; 32]; 32] = Default::default();
-        sol_proof
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
-
-        let tx = self.contract.process(
-            self.inbox_address,
-            multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
-            multisig_signed_checkpoint.checkpoint.index.into(),
-            multisig_signed_checkpoint
-                .signatures
-                .iter()
-                .map(|s| s.to_vec().into())
-                .collect(),
-            message.to_vec().into(),
-            sol_proof,
-            proof.index.into(),
-        );
-        let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
-        let gassed = tx.gas(gas);
-        let receipt = report_tx(gassed).await?;
+        let contract_call = self.process_contract_call(
+            multisig_signed_checkpoint,
+            message,
+            proof,
+        ).await?;
+        let receipt = report_tx(contract_call).await?;
         Ok(receipt.into())
+    }
+
+    async fn process_tx(
+        &self,
+        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
+    ) -> Result<TransactionRequest, ChainCommunicationError> {
+        let contract_call = self.process_contract_call(
+            multisig_signed_checkpoint,
+            message,
+            proof,
+        ).await?;
+
+        Ok(contract_call.tx.into())
     }
 
     fn process_calldata(
@@ -162,6 +162,40 @@ where
 
     fn contract_address(&self) -> abacus_core::Address {
         self.contract.address().into()
+    }
+}
+
+impl<M> EthereumInboxValidatorManager<M>
+where
+M: Middleware + 'static {
+    async fn process_contract_call(
+        &self,
+        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
+    ) -> Result<ContractCall<M, ()>, ChainCommunicationError> {
+        let mut sol_proof: [[u8; 32]; 32] = Default::default();
+        sol_proof
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
+
+        let tx = self.contract.process(
+            self.inbox_address,
+            multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
+            multisig_signed_checkpoint.checkpoint.index.into(),
+            multisig_signed_checkpoint
+                .signatures
+                .iter()
+                .map(|s| s.to_vec().into())
+                .collect(),
+            message.to_vec().into(),
+            sol_proof,
+            proof.index.into(),
+        );
+        let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
+        let gassed = tx.gas(gas);
+        Ok(gassed)
     }
 }
 
