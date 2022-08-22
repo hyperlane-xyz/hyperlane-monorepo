@@ -1,8 +1,36 @@
-use crate::l20220805_000001_types::*;
+use std::time;
+use std::time::UNIX_EPOCH;
+
+use sea_orm::prelude::DateTime;
 use sea_orm_migration::prelude::*;
+
+use abacus_core::domain_from_chain;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
+
+/// Chain name, native currency symbol, chain id, is test net
+const DOMAINS: &[(&str, &str, u64, bool)] = &[
+    ("alfajores", "CELO", 44787, true),
+    ("arbitrum", "ETH", 42161, false),
+    ("arbitrumrinkeby", "ETH", 421611, true),
+    ("auroratestnet", "ETH", 1313161555, true),
+    ("avalanche", "AVAX", 43114, false),
+    ("bsc", "BNB", 56, false),
+    ("bsctestnet", "tBNB", 97, true),
+    ("celo", "CELO", 42220, false),
+    ("ethereum", "ETH", 1, false),
+    ("fuji", "AVAX", 43113, true),
+    ("goerli", "ETH", 5, true),
+    ("kovan", "ETH", 42, true),
+    ("mumbai", "MATIC", 80001, true),
+    ("optimism", "ETH", 10, false),
+    ("optimismkovan", "ETH", 69, true),
+    ("polygon", "MATIC", 137, false),
+    ("test1", "ETH", 0, true),
+    ("test2", "ETH", 0, true),
+    ("test3", "ETH", 0, true),
+];
 
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
@@ -27,7 +55,30 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+
+        use sea_orm_migration::sea_orm::ActiveValue::Set;
+        use sea_orm_migration::sea_orm::EntityTrait as _;
+
         let db = manager.get_connection();
+        let models = DOMAINS.iter().map(|domain| {
+            let now = {
+                let sys = time::SystemTime::now();
+                let dur = sys.duration_since(UNIX_EPOCH).unwrap();
+                DateTime::from_timestamp(dur.as_secs() as i64, dur.subsec_nanos())
+            };
+
+            domain::ActiveModel {
+                id: Set(domain_from_chain(domain.0).expect("Unknown chain name")),
+                time_created: Set(now),
+                time_updated: Set(now),
+                name: Set(domain.0.to_owned()),
+                native_token: Set(domain.1.to_owned()),
+                chain_id: Set(domain.2),
+                is_test_net: Set(domain.3),
+            }
+        });
+        domain::Entity::insert_many(models).exec(db).await.unwrap();
+
         Ok(())
     }
 
@@ -50,7 +101,7 @@ enum Domain {
     TimeUpdated,
     /// Human readable name of the domain
     Name,
-    /// Name of the native token
+    /// Symbol for the native token
     NativeToken,
     /// For EVM compatible chains, the official EVM chain ID
     ChainId,
@@ -60,12 +111,10 @@ enum Domain {
 
 mod domain {
     use sea_orm_migration::sea_orm::entity::prelude::*;
-    use sea_orm_migration::sea_orm::prelude::*;
-    use sea_orm_migration::sea_orm::{DerivePrimaryKey, EnumIter};
 
     #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
     #[sea_orm(table_name = "domain")]
-    struct Model {
+    pub struct Model {
         #[sea_orm(primary_key)]
         id: u32,
         time_created: DateTime,
@@ -75,4 +124,9 @@ mod domain {
         chain_id: u64,
         is_test_net: bool,
     }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
 }
