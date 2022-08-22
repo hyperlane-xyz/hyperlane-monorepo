@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {Versioned} from "./upgrade/Versioned.sol";
+import {Version0} from "./Version0.sol";
 import {Mailbox} from "./Mailbox.sol";
 import {MerkleLib} from "./libs/Merkle.sol";
 import {Message} from "./libs/Message.sol";
@@ -20,7 +20,7 @@ import {IOutbox} from "../interfaces/IOutbox.sol";
  * Accepts submissions of fraudulent signatures
  * by the Validator and slashes the Validator in this case.
  */
-contract Outbox is IOutbox, Versioned, MerkleTreeManager, Mailbox {
+contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
