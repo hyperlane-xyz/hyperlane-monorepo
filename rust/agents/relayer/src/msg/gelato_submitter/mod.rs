@@ -12,8 +12,9 @@ use tokio::time::{sleep, Duration};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use gelato::fwd_req_call::{ForwardRequestArgs, PaymentType};
-use gelato::fwd_req_op::{ForwardRequestOp, ForwardRequestOptions};
+use crate::msg::gelato_submitter::fwd_req_op::{ForwardRequestOp, ForwardRequestOptions};
+
+use super::SubmitMessageArgs;
 
 mod fwd_req_op;
 
@@ -162,38 +163,6 @@ impl GelatoSubmitter {
         })
     }
 }
-
-// TODO(webbhorn): Remove 'allow unused' once we impl run() and ref internal fields.
-#[allow(unused)]
-#[derive(Debug, Clone)]
-pub struct ForwardRequestOp<S> {
-    args: ForwardRequestArgs,
-    opts: ForwardRequestOptions,
-    signer: S,
-    http: reqwest::Client,
-}
-
-impl<S> ForwardRequestOp<S> {
-    async fn run(&self) -> Result<()> {
-        todo!()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ForwardRequestOptions {
-    pub poll_interval: Duration,
-    pub retry_submit_interval: Duration,
-}
-
-impl Default for ForwardRequestOptions {
-    fn default() -> Self {
-        Self {
-            poll_interval: Duration::from_secs(60),
-            retry_submit_interval: Duration::from_secs(20 * 60),
-        }
-    }
-}
-
 
 // TODO(webbhorn): Drop allow dead code directive once we handle
 // updating each of these metrics.

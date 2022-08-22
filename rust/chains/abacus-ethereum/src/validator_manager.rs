@@ -194,6 +194,7 @@ where
         Ok(gassed)
     }
 
+    #[allow(dead_code)]
     fn process_calldata(
         &self,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
@@ -231,6 +232,7 @@ where
         )
     }
 
+    #[allow(dead_code)]
     fn contract_address(&self) -> abacus_core::Address {
         self.contract.address().into()
     }
