@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::{db::AbacusDB, Signers};
 use abacus_core::{AbacusCommon, InboxValidatorManager};
@@ -46,7 +44,7 @@ pub(crate) struct GelatoSubmitter {
     pub gelato_sponsor_address: Address,
     /// Messages we are aware of that we want to eventually submit, but haven't yet, for
     /// whatever reason.
-    pub wait_queue: VecDeque<SubmitMessageArgs>,
+    // pub wait_queue: VecDeque<SubmitMessageArgs>,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     pub _abacus_db: AbacusDB,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
@@ -54,7 +52,9 @@ pub(crate) struct GelatoSubmitter {
     /// Prometheus metrics.
     pub _metrics: GelatoSubmitterMetrics,
 
+    #[allow(dead_code)]
     fwd_req_failure_sender: UnboundedSender<SubmitMessageArgs>,
+    #[allow(dead_code)]
     fwd_req_failure_receiver: UnboundedReceiver<SubmitMessageArgs>,
 
     // all_fwd_requests
@@ -82,7 +82,7 @@ impl GelatoSubmitter {
             gelato_sponsor_signer,
             http_client,
             _metrics: metrics,
-            wait_queue: VecDeque::new(),
+            // wait_queue: VecDeque::new(),
             fwd_req_failure_sender,
             fwd_req_failure_receiver,
         }
@@ -120,54 +120,27 @@ impl GelatoSubmitter {
 
         // Insert received messages into the front of the wait queue, ensuring
         // the asc ordering by message leaf index is preserved.
-        for msg in received_messages.into_iter().rev() {
-            self.wait_queue.push_front(msg);
+        for msg in received_messages.into_iter() {
+            tracing::info!(msg=?msg, "Spawning forward request op for message");
+            let op = ForwardRequestOp::new(
+                ForwardRequestOptions::default(),
+                self.create_forward_request_args(msg)?,
+                self.gelato_sponsor_signer.clone(),
+                self.http_client.clone(),
+            );
+            tokio::spawn(async move {
+                op.run()
+                    .await
+            });
         }
-
-        // TODO: correctly process the wait queue.
-        // Messages should be popped from the wait queue. For messages
-        // with successful gas estimation, a ForwardRequestOp should
-        // be created. Messages whose gas estimation reverts should be
-        // pushed to the back of the queue.
-
-        // Pick the next message to try processing.
-        let msg = match self.wait_queue.pop_front() {
-            Some(m) => m,
-            None => return Ok(()),
-        };
-
-        let op = if let Ok(op) = ForwardRequestOp::new(
-            ForwardRequestOptions::default(),
-            self.outbox_gelato_chain,
-            self.inbox_gelato_chain,
-            self.inbox_contracts.validator_manager.clone(),
-            msg,
-            self.gelato_sponsor_signer.clone(),
-            self.http_client.clone(),
-            self.fwd_req_failure_sender.clone()
-        ).await {
-            op
-        } else {
-            return eyre::bail!("Op failed to be created");
-        };
-
-        // let op = ForwardRequestOp {
-        //     args: self.create_forward_request_args(msg)?,
-        //     opts: ForwardRequestOptions::default(),
-        //     signer: self.gelato_sponsor_signer.clone(),
-        //     http: self.http_client.clone(),
-        // };
-
-        let handle = tokio::spawn(async move {
-            op.run()
-                .await
-                // .expect("failed unimplemented forward request submit op");
-        });
 
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn create_forward_request_args(&self, msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
+
+        // TODO come back here - I think there's a way to do it without Results
         let calldata = self.inbox_contracts.validator_manager.process_calldata(
             &msg.checkpoint,
             &msg.committed_message.message,

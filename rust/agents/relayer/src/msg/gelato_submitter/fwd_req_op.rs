@@ -1,13 +1,20 @@
 use std::{time::Duration, sync::Arc};
 
-use abacus_base::InboxValidatorManagers;
-use abacus_core::InboxValidatorManager;
-use ethers::{signers::Signer, types::{U256, Address, H160}};
+use ethers::signers::Signer;
 use eyre::Result;
-use gelato::{fwd_req_call::{ForwardRequestArgs, ForwardRequestCall, PaymentType, ForwardRequestCallResult}, chains::Chain, task_status_call::{TaskStatusCall, TaskStatusCallArgs, TaskStatus}};
-use tokio::{time::{sleep, timeout}, sync::mpsc::UnboundedSender};
+use gelato::{fwd_req_call::{ForwardRequestArgs, ForwardRequestCall, ForwardRequestCallResult}, task_status_call::{TaskStatusCall, TaskStatusCallArgs, TaskStatus}};
+use tokio::time::{sleep, timeout};
 
-use crate::msg::SubmitMessageArgs;
+// /// The max fee to use for Gelato ForwardRequests.
+// /// Gelato isn't charging fees on testnet. For now, use this hardcoded value
+// /// of 1e18, or 1.0 ether.
+// /// TODO: revisit when testing on mainnet and actually considering interchain
+// /// gas payments.
+// const DEFAULT_MAX_FEE: u64 = 1000000000000000000;
+
+// /// The default gas limit to use for Gelato ForwardRequests.
+// /// TODO: instead estimate gas for messages.
+// const DEFAULT_GAS_LIMIT: u64 = 3000000;
 
 // TODO(webbhorn): Remove 'allow unused' once we impl run() and ref internal fields.
 #[allow(unused)]
@@ -17,11 +24,6 @@ pub(crate) struct ForwardRequestOp<S> {
     pub opts: ForwardRequestOptions,
     pub signer: S,
     pub http: reqwest::Client,
-
-    submit_msg_args: SubmitMessageArgs,
-
-    inbox_validator_manager: Arc<InboxValidatorManagers>,
-    fwd_req_failure_sender: UnboundedSender<SubmitMessageArgs>,
 }
 
 impl<S> ForwardRequestOp<S>
@@ -30,35 +32,18 @@ where
     S::Error: 'static
  {
     #[allow(dead_code)]
-    pub async fn new(
+    pub fn new(
         opts: ForwardRequestOptions,
-        sponsor_chain: Chain,
-        target_chain: Chain,
-        inbox_validator_manager: Arc<InboxValidatorManagers>,
-        submit_msg_args: SubmitMessageArgs,
+        args: ForwardRequestArgs,
         signer: S,
         http: reqwest::Client,
-        fwd_req_failure_sender: UnboundedSender<SubmitMessageArgs>,
-    ) -> Result<ForwardRequestOp<S>> {
-        let args = ForwardRequestOp::<S>::create_forward_request_args(
-            sponsor_chain,
-            target_chain,
-            &inbox_validator_manager,
-            &submit_msg_args,
-            signer.address(),
-        ).await?;
-
-        Ok(
-            ForwardRequestOp {
-                args,
-                opts,
-                signer,
-                http,
-                inbox_validator_manager,
-                fwd_req_failure_sender,
-                submit_msg_args,
-            }
-        )
+    ) -> ForwardRequestOp<S> {
+        ForwardRequestOp {
+            args,
+            opts,
+            signer,
+            http,
+        }
     }
 
     #[allow(unused)]
@@ -66,15 +51,20 @@ where
         loop {
             let fwd_req_result = match self.send_forward_request_call().await {
                 Ok(fwd_req_result) => fwd_req_result,
-                Err(e) => {
-                    self.fwd_req_failure_sender.send(self.submit_msg_args.clone()).unwrap();
-                    return;
+                Err(err) => {
+                    // self.fwd_req_failure_sender.send(self.submit_msg_args.clone()).unwrap();
+                    tracing::warn!(err=?err, "Error sending forward_request_call");
+                    sleep(self.opts.retry_submit_interval).await;
+                    continue;
                 }
             };
 
+            // let fwd_req_result = self.send_forward_request_call().await.unwrap();
+
             match timeout(self.opts.retry_submit_interval, self.wait_for_fwd_req_terminal_state(fwd_req_result.task_id)).await {
                 Ok(Ok(())) => {
-                    // return Ok(());
+                    tracing::info!("successful processing!");
+                    return;
                 },
                 Ok(Err(_)) | Err(_) => {
                     // Start loop over
@@ -98,11 +88,11 @@ where
             let status_result = status_call.run().await?;
 
             if let [tx_status] = &status_result.data[..] {
-                tracing::info!(task_id=?task_id, tx_status=?tx_status, "Got forward request status");
+                tracing::info!(task_id=?task_id, tx_status=?tx_status, status_result=?status_result, "Got forward request status");
 
                 match tx_status.task_state {
                     TaskStatus::ExecSuccess => return Ok(()),
-                    TaskStatus::Cancelled => eyre::bail!("Task canelled"),
+                    TaskStatus::Cancelled => eyre::bail!("Task cancelled"),
                     _ => {}
                 }
             } else {
@@ -111,39 +101,38 @@ where
         }
     }
 
-    async fn create_forward_request_args(
-        sponsor_chain: Chain,
-        target_chain: Chain,
-        inbox_validator_manager: &Arc<InboxValidatorManagers>,
-        submit_msg_args: &SubmitMessageArgs,
-        sponsor_address: H160,
-    ) -> Result<ForwardRequestArgs> {
-        let tx_request = inbox_validator_manager
-            .process_tx(
-                &submit_msg_args.checkpoint,
-                &submit_msg_args.committed_message.message,
-                &submit_msg_args.proof,
-            )
-            .await?;
+    // fn create_forward_request_args(
+    //     sponsor_chain: Chain,
+    //     target_chain: Chain,
+    //     inbox_validator_manager: &Arc<InboxValidatorManagers>,
+    //     submit_msg_args: &SubmitMessageArgs,
+    //     sponsor_address: H160,
+    // ) -> Result<ForwardRequestArgs> {
+    //     let calldata = inbox_validator_manager
+    //         .process_calldata(
+    //             &submit_msg_args.checkpoint,
+    //             &submit_msg_args.committed_message.message,
+    //             &submit_msg_args.proof,
+    //         )?;
         
-        Ok(ForwardRequestArgs {
-            sponsor_chain_id: sponsor_chain,
-            chain_id: target_chain,
+    //     Ok(ForwardRequestArgs {
+    //         sponsor_chain_id: sponsor_chain,
+    //         chain_id: target_chain,
 
-            target: inbox_validator_manager
-                .contract_address()
-                .into(),
-            data: tx_request.data.unwrap(),
-            fee_token: Address::zero(),
-            payment_type: PaymentType::AsyncGasTank,
-            max_fee: U256::zero(),
-            gas: tx_request.gas.unwrap(),
-            nonce: U256::zero(),
-            enforce_sponsor_nonce: false,
-            enforce_sponsor_nonce_ordering: false,
-            sponsor: sponsor_address,
-        })
-    }
+    //         target: inbox_validator_manager
+    //             .contract_address()
+    //             .into(),
+    //         data: calldata,
+    //         fee_token: Address::zero(),
+    //         payment_type: PaymentType::AsyncGasTank,
+    //         max_fee: U256::from(DEFAULT_MAX_FEE),
+    //         gas: U256::from(DEFAULT_GAS_LIMIT),
+    //         nonce: U256::zero(),
+    //         enforce_sponsor_nonce: false,
+    //         enforce_sponsor_nonce_ordering: false,
+    //         sponsor: sponsor_address,
+    //     })
+    // }
 
     async fn send_forward_request_call(&self) -> Result<ForwardRequestCallResult> {
         let signature = self.signer.sign_typed_data(&self.args).await?;

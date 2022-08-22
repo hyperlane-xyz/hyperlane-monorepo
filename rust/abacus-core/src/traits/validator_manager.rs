@@ -1,8 +1,7 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use ethers::{prelude::{AbiError, builders::ContractCall}, types::{Bytes, TransactionRequest}};
-use ethers_providers::Middleware;
+use ethers::{prelude::AbiError, types::{Bytes, TransactionRequest}};
 use eyre::Result;
 
 use crate::{
