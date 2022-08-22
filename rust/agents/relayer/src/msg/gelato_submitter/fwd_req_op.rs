@@ -62,19 +62,25 @@ where
                 }
             };
 
+            tracing::info!(fwd_req_result=?fwd_req_result, "Sent forward request");
+
             // let fwd_req_result = self.send_forward_request_call().await.unwrap();
 
             match timeout(
                 self.opts.retry_submit_interval,
-                self.wait_for_fwd_req_terminal_state(fwd_req_result.task_id),
+                self.wait_for_fwd_req_terminal_state(fwd_req_result.task_id.clone()),
             )
             .await
             {
                 Ok(Ok(())) => {
                     tracing::info!("successful processing!");
                     return;
-                }
-                Ok(Err(_)) | Err(_) => {
+                },
+                Ok(Err(err)) => {
+                    tracing::info!(fwd_req_result=?fwd_req_result, err=?err, "Error sending forward request Ok(Err())");
+                },
+                Err(err) => {
+                    tracing::info!(fwd_req_result=?fwd_req_result, err=?err, "Error sending forward request Err()");
                     // Start loop over
                 }
             }
