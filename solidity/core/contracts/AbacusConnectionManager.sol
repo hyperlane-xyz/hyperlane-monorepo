@@ -4,7 +4,9 @@ pragma abicoder v2;
 
 // ============ Internal Imports ============
 import {IOutbox} from "../interfaces/IOutbox.sol";
+import {IInbox} from "../interfaces/IInbox.sol";
 import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.sol";
+import {IMultisigValidatorManager} from "../interfaces/IMultisigValidatorManager.sol";
 
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -18,6 +20,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
  */
 contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
 
     // ============ Public Storage ============
 
@@ -27,6 +30,8 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     mapping(address => uint32) public inboxToDomain;
     // remote Outbox domain => local Inbox addresses
     mapping(uint32 => EnumerableSet.AddressSet) domainToInboxes;
+    // inbox domain => domain hashes ever used
+    mapping(uint32 => EnumerableSet.Bytes32Set) domainHashesEverUsed;
 
     // ============ Events ============
 
@@ -71,8 +76,22 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @param _domain the remote domain of the Outbox contract for the Inbox
      * @param _inbox the address of the Inbox
      */
-    function enrollInbox(uint32 _domain, address _inbox) external onlyOwner {
+    function enrollInbox(uint32 _domain, address _inbox) public onlyOwner {
         require(!isInbox(_inbox), "already inbox");
+
+        IInbox inbox = IInbox(_inbox);
+        require(_domain == inbox.localDomain(), "inbox domain mismatch");
+
+        bytes32 domainhash = IMultisigValidatorManager(inbox.validatorManager())
+            .domainHash();
+        require(
+            !domainHashesEverUsed[domain].contains(domainhash),
+            "domain hash has been used"
+        );
+
+        // mark domain hash as used
+        domainHashesEverUsed[domain].add(domainHash);
+
         // add inbox and domain to two-way mapping
         inboxToDomain[_inbox] = _domain;
         domainToInboxes[_domain].add(_inbox);
@@ -124,6 +143,20 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      */
     function isInbox(address _inbox) public view override returns (bool) {
         return inboxToDomain[_inbox] != 0;
+    }
+
+    /**
+     * @notice Check whether domain hash of _inbox has been used
+     * @param _inbox the inbox to check for enrollment
+     * @return TRUE iff _inbox.validatorManager.domainHash has been used for _inbox.domain
+     */
+    function isConflictingInbox(address _inbox) public view returns (bool) {
+        IInbox inbox = IInbox(_inbox);
+        address validatorManager = inbox.validatorManager();
+        uint32 domain = inbox.localDomain();
+        bytes32 domainhash = IMultisigValidatorManager(validatorManager)
+            .domainHash();
+        return domainHashesInUse[domain].contains(domainhash);
     }
 
     // ============ Internal Functions ============
