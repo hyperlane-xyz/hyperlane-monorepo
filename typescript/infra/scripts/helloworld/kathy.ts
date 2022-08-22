@@ -282,7 +282,7 @@ async function main(): Promise<boolean> {
     }
 
     // Move on to the next index
-    currentPairingIndex++;
+    currentPairingIndex = (currentPairingIndex + 1) % pairings.length;
   }
   return errorOccurred;
 }
