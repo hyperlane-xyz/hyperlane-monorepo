@@ -78,7 +78,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @param _inbox the address of the Inbox
      */
     function enrollInbox(uint32 _domain, address _inbox) external onlyOwner {
-        _domain = _domain; // suppress unused variable warning
+        _domain; // suppress unused variable warning
         enrollInboxAddress(_inbox);
     }
 
