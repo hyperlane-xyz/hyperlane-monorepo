@@ -305,10 +305,17 @@ async function sendMessage(
   );
   const metricLabels = { origin, remote: destination };
 
+  const originProvider = app.multiProvider.getChainConnection(origin).provider;
+  const destinationProvider =
+    app.multiProvider.getChainConnection(destination).provider;
+
   log('Sending message', {
     origin,
     destination,
     interchainGasPayment: value.toString(),
+    // To help with debugging, log the block numbers
+    originBlockNumber: await originProvider.getBlockNumber(),
+    destinationBlockNumber: await destinationProvider.getBlockNumber(),
   });
 
   // For now, pay just 1 wei, as Kathy typically doesn't have enough
@@ -322,6 +329,13 @@ async function sendMessage(
   log('Intentionally setting interchain gas payment to 1');
 
   const channelStatsBefore = await app.channelStats(origin, destination);
+  log('Message stats before sending message', {
+    stats: channelStatsBefore,
+    // To help with debugging, log the block numbers
+    originBlockNumber: await originProvider.getBlockNumber(),
+    destinationBlockNumber: await destinationProvider.getBlockNumber(),
+  });
+
   const receipt = await utils.timeout(
     app.sendHelloWorld(origin, destination, msg, value),
     messageSendTimeout,
@@ -344,6 +358,13 @@ async function sendMessage(
   } catch (error) {
     // If we weren't able to get the receipt for message processing, try to read the state to ensure it wasn't a transient provider issue
     const channelStatsNow = await app.channelStats(origin, destination);
+    log('Checking if message was received despite timeout', {
+      channelStatsNow,
+      channelStatsBefore,
+      // To help with debugging, log the block numbers
+      originBlockNumber: await originProvider.getBlockNumber(),
+      destinationBlockNumber: await destinationProvider.getBlockNumber(),
+    });
     if (channelStatsNow.received <= channelStatsBefore.received) {
       throw error;
     }
