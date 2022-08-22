@@ -7,12 +7,18 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
+// ============ Internal Imports ============
+import {IMultisigValidatorManager} from "../../interfaces/IMultisigValidatorManager.sol";
+
 /**
  * @title MultisigValidatorManager
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
  * reach a quorum.
  */
-abstract contract MultisigValidatorManager is Ownable {
+abstract contract MultisigValidatorManager is
+    IMultisigValidatorManager,
+    Ownable
+{
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
