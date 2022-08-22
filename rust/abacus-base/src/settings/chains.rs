@@ -76,7 +76,7 @@ pub struct ChainSetup<T> {
     #[serde(flatten)]
     pub chain: ChainConf,
     /// Gelato configuration for this chain (Gelato unused if None)
-    pub gelato_conf: Option<GelatoConf>,
+    pub gelato: Option<GelatoConf>,
     /// Set this key to disable the inbox. Does nothing for outboxes.
     #[serde(default)]
     pub disabled: Option<String>,
