@@ -30,8 +30,8 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     mapping(address => uint32) public inboxToDomain;
     // remote Outbox domain => local Inbox addresses
     mapping(uint32 => EnumerableSet.AddressSet) domainToInboxes;
-    // inbox domain => domain hashes ever used
-    mapping(uint32 => EnumerableSet.Bytes32Set) domainHashesEverUsed;
+    // domain hashes ever used
+    EnumerableSet.Bytes32Set domainHashesEverUsed;
 
     // ============ Events ============
 
@@ -73,39 +73,26 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
 
     /**
      * @notice Allow Owner to enroll Inbox contract
-     * @dev DEPRECATED: use enrollInboxAddress(address)
      * @param _domain the remote domain of the Outbox contract for the Inbox
      * @param _inbox the address of the Inbox
      */
     function enrollInbox(uint32 _domain, address _inbox) external onlyOwner {
-        _domain; // suppress unused variable warning
-        enrollInboxAddress(_inbox);
-    }
-
-    /**
-     * @notice Allow Owner to enroll Inbox contract
-     * @param _inbox the address of the Inbox
-     */
-    function enrollInboxAddress(address _inbox) public onlyOwner {
         require(!isInbox(_inbox), "already inbox");
 
+        // prevent enrolling an inbox that matches any historical domain hash
         IInbox inbox = IInbox(_inbox);
-        uint32 domain = inbox.remoteDomain();
-
         address vm = inbox.validatorManager();
         bytes32 domainHash = IMultisigValidatorManager(vm).domainHash();
         require(
-            !domainHashesEverUsed[domain].contains(domainHash),
+            !domainHashesEverUsed.contains(domainHash),
             "domain hash has been used"
         );
-
-        // mark domain hash as used
-        domainHashesEverUsed[domain].add(domainHash);
+        domainHashesEverUsed.add(domainHash);
 
         // add inbox and domain to two-way mapping
-        inboxToDomain[_inbox] = domain;
-        domainToInboxes[domain].add(_inbox);
-        emit InboxEnrolled(domain, _inbox);
+        inboxToDomain[_inbox] = _domain;
+        domainToInboxes[_domain].add(_inbox);
+        emit InboxEnrolled(_domain, _inbox);
     }
 
     /**
