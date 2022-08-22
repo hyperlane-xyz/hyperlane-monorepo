@@ -142,7 +142,7 @@ impl Relayer {
         );
         let (msg_send, msg_receive) = mpsc::unbounded_channel();
         let submit_fut = match gelato {
-            Some(cfg) if cfg.enabled => self
+            Some(cfg) if cfg.enabled.parse::<bool>().unwrap() => self
                 .make_gelato_submitter_for_inbox(msg_receive, inbox_contracts.clone(), signer)
                 .spawn(),
             _ => {

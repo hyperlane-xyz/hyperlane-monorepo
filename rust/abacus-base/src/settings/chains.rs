@@ -36,7 +36,7 @@ impl Default for ChainConf {
 #[serde(rename_all = "camelCase")]
 pub struct GelatoConf {
     /// Whether to use the Gelato Relay service for transactions submitted to the chain.
-    pub enabled: bool,
+    pub enabled: String,
 }
 
 /// Addresses for outbox chain contracts
