@@ -1,7 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -11,15 +10,13 @@ use ethers::prelude::*;
 use eyre::Result;
 
 use abacus_core::{
-    accumulator::merkle::Proof, AbacusAbi, AbacusMessage, ChainCommunicationError, ContractLocator,
-    Encode, InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
+    accumulator::merkle::Proof, AbacusMessage, ChainCommunicationError, ContractLocator, Encode,
+    InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
 };
 
 use crate::contracts::inbox_validator_manager::InboxValidatorManager as EthereumInboxValidatorManagerInternal;
 use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
-
-pub use crate::contracts::inbox_validator_manager::INBOXVALIDATORMANAGER_ABI;
 
 impl<M> Display for EthereumInboxValidatorManagerInternal<M>
 where
@@ -162,13 +159,5 @@ where
 
     fn contract_address(&self) -> abacus_core::Address {
         self.contract.address().into()
-    }
-}
-
-pub struct EthereumInboxValidatorManagerAbi;
-
-impl AbacusAbi for EthereumInboxValidatorManagerAbi {
-    fn fn_map() -> HashMap<Selector, &'static str> {
-        super::extract_fn_map(&INBOXVALIDATORMANAGER_ABI)
     }
 }

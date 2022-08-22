@@ -188,8 +188,7 @@ impl Relayer {
 
         let inboxes = self.inboxes();
 
-        let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> =
-            Vec::with_capacity(inboxes.len());
+        let mut tasks = Vec::with_capacity(inboxes.len());
 
         for (inbox_name, inbox_contracts) in inboxes {
             let signer = self
@@ -197,7 +196,7 @@ impl Relayer {
                 .settings
                 .get_signer(inbox_name)
                 .await
-                .expect("get signer for inbox");
+                .expect("expected signer for inbox");
             tasks.push(self.run_inbox(
                 inbox_contracts.clone(),
                 signed_checkpoint_receiver.clone(),
