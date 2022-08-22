@@ -1,8 +1,10 @@
+import { safelyAccessEnvVar } from './utils';
+
 /* eslint-disable no-console */
 type LOG_LEVEL = 'none' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
 const ENV_LOG_LEVEL = (
-  process.env['LOG_LEVEL'] ?? 'debug'
+  safelyAccessEnvVar('LOG_LEVEL') ?? 'debug'
 ).toLowerCase() as LOG_LEVEL;
 const LOG_TRACE = ENV_LOG_LEVEL == 'trace';
 const LOG_DEBUG = LOG_TRACE || ENV_LOG_LEVEL == 'debug';
