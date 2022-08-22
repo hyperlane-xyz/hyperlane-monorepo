@@ -1,4 +1,3 @@
-use crate::l20220805_000001_types::*;
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]

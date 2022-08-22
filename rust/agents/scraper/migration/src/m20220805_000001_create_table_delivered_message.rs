@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(DeliveredMessage::Id)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null()
                             .auto_increment()
                             .primary_key(),
@@ -30,12 +30,12 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(DeliveredMessage::MsgId)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .col(
                         ColumnDef::new(DeliveredMessage::TxId)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .index(Index::create().name("idx-tx").col(DeliveredMessage::TxId))

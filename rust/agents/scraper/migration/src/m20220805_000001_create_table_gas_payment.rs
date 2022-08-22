@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(GasPayment::Id)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null()
                             .auto_increment()
                             .primary_key(),
@@ -28,7 +28,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(GasPayment::LeafIndex).unsigned().not_null())
                     .col(ColumnDef::new_with_type(GasPayment::OutboxAddress, Address).not_null())
                     .col(ColumnDef::new_with_type(GasPayment::Amount, CryptoCurrency).not_null())
-                    .col(ColumnDef::new(GasPayment::TxId).big_unsigned().not_null())
+                    .col(ColumnDef::new(GasPayment::TxId).big_integer().not_null())
                     .index(
                         Index::create()
                             .name("idx-domain-outbox-leaf")

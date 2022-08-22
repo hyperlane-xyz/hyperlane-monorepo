@@ -1,4 +1,3 @@
-use crate::l20220805_000001_types::*;
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
@@ -14,7 +13,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(CheckpointUpdate::Id)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null()
                             .auto_increment()
                             .primary_key(),
@@ -26,7 +25,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(CheckpointUpdate::CheckpointId)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .col(
@@ -36,7 +35,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(CheckpointUpdate::TxId)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .index(

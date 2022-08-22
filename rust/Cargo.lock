@@ -2662,6 +2662,8 @@ dependencies = [
  "sea-orm-migration",
  "serde",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

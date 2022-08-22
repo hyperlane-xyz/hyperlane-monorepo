@@ -19,6 +19,17 @@ pub struct Migrator;
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![Box::new(m20220805_000001_create_table_message::Migration)]
+        vec![
+            Box::new(m20220805_000001_create_table_block::Migration),
+            Box::new(m20220805_000001_create_table_checkpoint::Migration),
+            Box::new(m20220805_000001_create_table_checkpoint_update::Migration),
+            Box::new(m20220805_000001_create_table_cursor::Migration),
+            Box::new(m20220805_000001_create_table_delivered_message::Migration),
+            Box::new(m20220805_000001_create_table_domain::Migration),
+            Box::new(m20220805_000001_create_table_gas_payment::Migration),
+            Box::new(m20220805_000001_create_table_message::Migration),
+            Box::new(m20220805_000001_create_table_message_state::Migration),
+            Box::new(m20220805_000001_create_table_transaction::Migration),
+        ]
     }
 }

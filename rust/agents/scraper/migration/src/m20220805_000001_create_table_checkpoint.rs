@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Checkpoint::Id)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null()
                             .auto_increment()
                             .primary_key(),

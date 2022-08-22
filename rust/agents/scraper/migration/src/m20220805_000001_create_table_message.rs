@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Message::Id)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null()
                             .auto_increment()
                             .primary_key(),
@@ -22,14 +22,14 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Message::TimeCreated).timestamp().not_null())
                     .col(ColumnDef::new(Message::Origin).unsigned().not_null())
                     .col(ColumnDef::new(Message::Destination).unsigned().not_null())
-                    .col(ColumnDef::new(Message::LeafIndex).big_unsigned().not_null())
+                    .col(ColumnDef::new(Message::LeafIndex).unsigned().not_null())
                     .col(ColumnDef::new_with_type(Message::Sender, Address).not_null())
                     .col(ColumnDef::new_with_type(Message::Recipient, Address).not_null())
                     .col(ColumnDef::new(Message::MsgBody).binary())
                     .col(ColumnDef::new_with_type(Message::OutboxAddress, Address).not_null())
                     .col(
                         ColumnDef::new(Message::DispatchTxId)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .index(

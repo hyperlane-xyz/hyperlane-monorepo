@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Transaction::Id)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null()
                             .auto_increment()
                             .primary_key(),
@@ -27,7 +27,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(Transaction::Hash, Hash).not_null())
                     .col(
                         ColumnDef::new(Transaction::BlockId)
-                            .big_unsigned()
+                            .big_integer()
                             .not_null(),
                     )
                     .col(ColumnDef::new_with_type(Transaction::GasUsed, CryptoCurrency).not_null())
