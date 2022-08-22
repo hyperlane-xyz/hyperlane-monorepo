@@ -3,9 +3,9 @@ use ethers::prelude::*;
 use std::sync::Arc;
 use std::time::Duration;
 
-use reqwest::{Client, Url};
 use abacus_core::{ContractLocator, Signers};
 use ethers_prometheus::{PrometheusMiddleware, PrometheusMiddlewareConf, ProviderMetrics};
+use reqwest::{Client, Url};
 
 use crate::{Connection, RetryingProvider};
 
@@ -32,7 +32,8 @@ pub trait MakeableWithProvider {
             Connection::Http { url } => {
                 let client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
                 let http_provider = Http::new_with_client(url.parse::<Url>()?, client);
-                let retrying_http_provider: RetryingProvider<Http> = RetryingProvider::new(http_provider, None, None);
+                let retrying_http_provider: RetryingProvider<Http> =
+                    RetryingProvider::new(http_provider, None, None);
                 self.wrap_with_metrics(retrying_http_provider, locator, signer, metrics)
                     .await?
             }
