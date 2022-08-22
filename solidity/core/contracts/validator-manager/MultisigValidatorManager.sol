@@ -253,6 +253,11 @@ abstract contract MultisigValidatorManager is Ownable, Versioned {
      * @param _domain The domain to hash.
      */
     function _domainHash(uint32 _domain) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_domain, "ABACUS", VERSION));
+        if (VERSION > 0) {
+            return keccak256(abi.encodePacked(_domain, "ABACUS", VERSION));
+        } else {
+            // for backwards compatibility with initial deployment (VERSION == 0)
+            return keccak256(abi.encodePacked(_domain, "ABACUS"));
+        }
     }
 }
