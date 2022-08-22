@@ -1,7 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -12,8 +11,8 @@ use ethers_contract::builders::ContractCall;
 use eyre::Result;
 
 use abacus_core::{
-    accumulator::merkle::Proof, AbacusAbi, AbacusMessage, ChainCommunicationError, ContractLocator,
-    Encode, InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
+    accumulator::merkle::Proof, AbacusMessage, ChainCommunicationError, ContractLocator, Encode,
+    InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
 };
 
 use crate::contracts::inbox_validator_manager::InboxValidatorManager as EthereumInboxValidatorManagerInternal;
@@ -197,12 +196,45 @@ M: Middleware + 'static {
         let gassed = tx.gas(gas);
         Ok(gassed)
     }
-}
 
-pub struct EthereumInboxValidatorManagerAbi;
+    fn process_calldata(
+        &self,
+        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
+    ) -> Result<Bytes, AbiError> {
+        self.contract.encode(
+            "process",
+            [
+                Token::Address(self.inbox_address),
+                Token::FixedBytes(
+                    multisig_signed_checkpoint
+                        .checkpoint
+                        .root
+                        .to_fixed_bytes()
+                        .into(),
+                ),
+                Token::Uint(multisig_signed_checkpoint.checkpoint.index.into()),
+                Token::Array(
+                    multisig_signed_checkpoint
+                        .signatures
+                        .iter()
+                        .map(|s| Token::Bytes(s.to_vec()))
+                        .collect(),
+                ),
+                Token::Bytes(message.to_vec()),
+                Token::FixedArray(
+                    proof.path[0..32]
+                        .iter()
+                        .map(|e| Token::FixedBytes(e.to_vec()))
+                        .collect(),
+                ),
+                Token::Uint(proof.index.into()),
+            ],
+        )
+    }
 
-impl AbacusAbi for EthereumInboxValidatorManagerAbi {
-    fn fn_map() -> HashMap<Selector, &'static str> {
-        super::extract_fn_map(&INBOXVALIDATORMANAGER_ABI)
+    fn contract_address(&self) -> abacus_core::Address {
+        self.contract.address().into()
     }
 }

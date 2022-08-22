@@ -14,6 +14,7 @@ use abacus_core::{AbacusCommon, AbacusContract, MultisigSignedCheckpoint, Signer
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
+use crate::msg::SubmitMessageArgs;
 use crate::settings::matching_list::MatchingList;
 use crate::settings::RelayerSettings;
 use crate::{checkpoint_fetcher::CheckpointFetcher, msg::serial_submitter::SerialSubmitterMetrics};
