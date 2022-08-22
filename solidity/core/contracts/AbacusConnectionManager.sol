@@ -75,6 +75,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @notice Allow Owner to enroll Inbox contract
      * @param _domain the remote domain of the Outbox contract for the Inbox
      * @param _inbox the address of the Inbox
+     * @dev prefer using the `enrollInbox(address)` function instead
      */
     function enrollInbox(uint32 _domain, address _inbox) public onlyOwner {
         require(!isInbox(_inbox), "already inbox");
@@ -82,20 +83,28 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
         IInbox inbox = IInbox(_inbox);
         require(_domain == inbox.localDomain(), "inbox domain mismatch");
 
-        bytes32 domainhash = IMultisigValidatorManager(inbox.validatorManager())
+        bytes32 domainHash = IMultisigValidatorManager(inbox.validatorManager())
             .domainHash();
         require(
-            !domainHashesEverUsed[domain].contains(domainhash),
+            !domainHashesEverUsed[_domain].contains(domainHash),
             "domain hash has been used"
         );
 
         // mark domain hash as used
-        domainHashesEverUsed[domain].add(domainHash);
+        domainHashesEverUsed[_domain].add(domainHash);
 
         // add inbox and domain to two-way mapping
         inboxToDomain[_inbox] = _domain;
         domainToInboxes[_domain].add(_inbox);
         emit InboxEnrolled(_domain, _inbox);
+    }
+
+    /**
+     * @notice Allow Owner to enroll Inbox contract
+     * @param _inbox the address of the Inbox
+     */
+    function enrollInbox(address _inbox) public onlyOwner {
+        enrollInbox(IInbox(_inbox).localDomain(), _inbox);
     }
 
     /**
@@ -143,20 +152,6 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      */
     function isInbox(address _inbox) public view override returns (bool) {
         return inboxToDomain[_inbox] != 0;
-    }
-
-    /**
-     * @notice Check whether domain hash of _inbox has been used
-     * @param _inbox the inbox to check for enrollment
-     * @return TRUE iff _inbox.validatorManager.domainHash has been used for _inbox.domain
-     */
-    function isConflictingInbox(address _inbox) public view returns (bool) {
-        IInbox inbox = IInbox(_inbox);
-        address validatorManager = inbox.validatorManager();
-        uint32 domain = inbox.localDomain();
-        bytes32 domainhash = IMultisigValidatorManager(validatorManager)
-            .domainHash();
-        return domainHashesInUse[domain].contains(domainhash);
     }
 
     // ============ Internal Functions ============
