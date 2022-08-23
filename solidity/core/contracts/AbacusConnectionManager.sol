@@ -30,7 +30,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     // local Inbox address => remote Outbox domain
     mapping(address => uint32) public inboxToDomain;
     // remote Outbox domain => local Inbox addresses
-    mapping(uint32 => EnumerableSet.AddressSet) domainToInboxes;
+    mapping(uint32 => EnumerableSet.AddressSet) internal domainToInboxes;
     // complete history of enrolled inbox domain hashes, even if unenrolled
     EnumerableSet.Bytes32Set domainHashes;
 
