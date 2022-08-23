@@ -1,4 +1,5 @@
 use crate::l20220805_types::*;
+use crate::m20220805_000001_create_table_domain::Domain;
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
@@ -35,13 +36,23 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new_with_type(Checkpoint::OutboxAddress, Address).not_null())
-                    .index(
-                        Index::create()
-                            .name("idx-outbox-domain-index")
-                            .col(Checkpoint::OutboxAddress)
-                            .col(Checkpoint::OriginDomain)
-                            .col(Checkpoint::Index),
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk-origin-domain")
+                            .from_col(Checkpoint::OriginDomain)
+                            .to(Domain::Table, Domain::DomainId),
                     )
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(Checkpoint::Table)
+                    .name("idx-outbox-domain-index")
+                    .col(Checkpoint::OutboxAddress)
+                    .col(Checkpoint::OriginDomain)
+                    .col(Checkpoint::Index)
                     .to_owned(),
             )
             .await
@@ -56,7 +67,7 @@ impl MigrationTrait for Migration {
 
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
-enum Checkpoint {
+pub enum Checkpoint {
     Table,
     /// Unique database ID
     Id,
