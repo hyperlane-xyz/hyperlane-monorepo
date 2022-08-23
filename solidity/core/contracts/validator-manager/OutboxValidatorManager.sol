@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
-pragma abicoder v2;
 
 // ============ Internal Imports ============
 import {IOutbox} from "../../interfaces/IOutbox.sol";
