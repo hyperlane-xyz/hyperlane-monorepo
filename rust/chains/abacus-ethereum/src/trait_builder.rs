@@ -1,7 +1,11 @@
-use async_trait::async_trait;
-use ethers::prelude::*;
 use std::sync::Arc;
 use std::time::Duration;
+
+use async_trait::async_trait;
+use ethers::prelude::{
+    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
+    SignerMiddleware, WeightedProvider, Ws,
+};
 
 use abacus_core::{ContractLocator, Signers};
 use ethers_prometheus::{PrometheusMiddleware, PrometheusMiddlewareConf, ProviderMetrics};
@@ -19,8 +23,9 @@ pub trait MakeableWithProvider {
     /// The type that will be created.
     type Output;
 
-    /// Construct a new instance of the associated trait using a connection config.
-    /// This is the first step and will wrap the provider with metrics and a signer as needed.
+    /// Construct a new instance of the associated trait using a connection
+    /// config. This is the first step and will wrap the provider with
+    /// metrics and a signer as needed.
     async fn make_with_connection(
         &self,
         conn: Connection,
@@ -29,6 +34,18 @@ pub trait MakeableWithProvider {
         metrics: Option<(ProviderMetrics, PrometheusMiddlewareConf)>,
     ) -> eyre::Result<Self::Output> {
         Ok(match conn {
+            Connection::HttpQuorum { urls } => {
+                let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
+                for url in urls.split(',') {
+                    let http_provider: Http = url.parse()?;
+                    let weighted_provider = WeightedProvider::new(http_provider);
+                    builder = builder.add_provider(weighted_provider);
+                }
+                let quorum_provider = builder.build();
+                let retrying = RetryingProvider::new(quorum_provider, Some(3), Some(1000));
+                self.wrap_with_metrics(retrying, locator, signer, metrics)
+                    .await?
+            }
             Connection::Http { url } => {
                 let client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
                 let http_provider = Http::new_with_client(url.parse::<Url>()?, client);
@@ -44,7 +61,8 @@ pub trait MakeableWithProvider {
         })
     }
 
-    /// Wrap the provider creation with metrics if provided; this is the second step
+    /// Wrap the provider creation with metrics if provided; this is the second
+    /// step
     async fn wrap_with_metrics<P>(
         &self,
         client: P,
@@ -65,7 +83,8 @@ pub trait MakeableWithProvider {
         })
     }
 
-    /// Wrap the provider creation with a signing provider if signers were provided; this is the third step.
+    /// Wrap the provider creation with a signing provider if signers were
+    /// provided; this is the third step.
     async fn wrap_with_signer<M>(
         &self,
         provider: M,

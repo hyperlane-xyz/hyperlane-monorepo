@@ -6,7 +6,7 @@
 
 use eyre::Result;
 
-use abacus_base::Agent;
+use abacus_base::{Agent, BaseAgent};
 
 use crate::kathy::Kathy;
 
@@ -29,7 +29,7 @@ async fn _main() -> Result<()> {
         .start_tracing(&agent.metrics())?;
     let _ = agent.metrics().run_http_server();
 
-    agent.run().await?
+    agent.run().await.await?
 }
 
 fn main() -> Result<()> {
