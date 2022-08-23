@@ -8,7 +8,7 @@ use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
 use tracing::instrument::Instrumented;
 use tracing::{info, Instrument};
 
-use abacus_base::{decl_agent, AbacusAgentCore, Agent, CachingInbox};
+use abacus_base::{decl_agent, run_all, AbacusAgentCore, Agent, BaseAgent, CachingInbox};
 use abacus_core::{AbacusCommon, Message, Outbox};
 
 decl_agent!(Kathy {
@@ -29,7 +29,7 @@ impl Kathy {
 }
 
 #[async_trait::async_trait]
-impl Agent for Kathy {
+impl BaseAgent for Kathy {
     const AGENT_NAME: &'static str = "kathy";
 
     type Settings = crate::settings::KathySettings;
@@ -43,6 +43,18 @@ impl Agent for Kathy {
                 .try_into_abacus_core(Self::AGENT_NAME, true)
                 .await?,
         ))
+    }
+
+    #[allow(clippy::async_yields_async)]
+    async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
+            .inboxes()
+            .iter()
+            .map(|(inbox_name, inbox_contracts)| {
+                self.wrap_inbox_run(inbox_name, inbox_contracts.inbox.clone())
+            })
+            .collect();
+        run_all(inbox_tasks)
     }
 }
 
@@ -103,17 +115,6 @@ impl Kathy {
         let fut = async move { handle.await?.wrap_err(m) };
 
         tokio::spawn(fut).in_current_span()
-    }
-
-    pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
-            .inboxes()
-            .iter()
-            .map(|(inbox_name, inbox_contracts)| {
-                self.wrap_inbox_run(inbox_name, inbox_contracts.inbox.clone())
-            })
-            .collect();
-        self.run_all(inbox_tasks)
     }
 }
 
