@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use tracing::info;
 use tracing::instrument;
 
-const GATEWAY_URL: &str = "https://gateway.api.gelato.digital";
+const GATEWAY_URL: &str = "https://relay.gelato.digital";
 
 pub const NATIVE_FEE_TOKEN_ADDRESS: ethers::types::Address = Address::repeat_byte(0xEE);
 
@@ -52,7 +52,8 @@ impl ForwardRequestCall {
         };
         info!(?url, ?http_args);
         let res = self.http.post(url).json(&http_args).send().await?;
-        let result: HTTPResult = res.json().await.unwrap();
+        tracing::info!(res=?res, "ForwardRequestCall res");
+        let result: HTTPResult = res.json().await?;
         Ok(ForwardRequestCallResult::from(result))
     }
 }

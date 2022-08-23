@@ -104,7 +104,7 @@ impl InboxValidatorManager for InboxValidatorManagerVariants {
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
         message: &AbacusMessage,
         proof: &Proof,
-    ) -> Result<Bytes, AbiError> {
+    ) -> Vec<u8> {
         match self {
             InboxValidatorManagerVariants::Ethereum(validator_manager) => {
                 validator_manager.process_calldata(multisig_signed_checkpoint, message, proof)

@@ -125,42 +125,44 @@ impl GelatoSubmitter {
             tracing::info!(msg=?msg, "Spawning forward request op for message");
             let op = ForwardRequestOp::new(
                 ForwardRequestOptions::default(),
-                self.create_forward_request_args(msg)?,
+                self.create_forward_request_args(msg),
                 self.gelato_sponsor_signer.clone(),
                 self.http_client.clone(),
             );
+            tracing::info!(op=?op, "Created op");
+
             tokio::spawn(async move { op.run().await });
         }
 
         Ok(())
     }
 
-    #[allow(dead_code)]
-    fn create_forward_request_args(&self, msg: SubmitMessageArgs) -> Result<ForwardRequestArgs> {
-        // TODO come back here - I think there's a way to do it without Results
+    fn create_forward_request_args(&self, msg: SubmitMessageArgs) -> ForwardRequestArgs {
+        tracing::info!("In create_forward_request_args");
         let calldata = self.inbox_contracts.validator_manager.process_calldata(
             &msg.checkpoint,
             &msg.committed_message.message,
             &msg.proof,
-        )?;
-        Ok(ForwardRequestArgs {
+        );
+        tracing::info!(calldata=?calldata, "In create_forward_request_args, got calldata");
+        ForwardRequestArgs {
             chain_id: self.inbox_gelato_chain,
             target: self
                 .inbox_contracts
                 .validator_manager
                 .contract_address()
                 .into(),
-            data: calldata,
+            data: calldata.into(),
             fee_token: NATIVE_FEE_TOKEN_ADDRESS,
             payment_type: PaymentType::AsyncGasTank,
             max_fee: DEFAULT_MAX_FEE.into(),
             gas: DEFAULT_GAS_LIMIT.into(),
-            sponsor_chain_id: self.outbox_gelato_chain,
+            sponsor_chain_id: self.inbox_gelato_chain, // self.outbox_gelato_chain, // <- there's a bug here, just use the target chain id
             nonce: U256::zero(),
             enforce_sponsor_nonce: false,
             enforce_sponsor_nonce_ordering: false,
             sponsor: self.gelato_sponsor_address,
-        })
+        }
     }
 }
 

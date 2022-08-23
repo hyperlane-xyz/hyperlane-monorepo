@@ -41,6 +41,7 @@ where
         signer: S,
         http: reqwest::Client,
     ) -> ForwardRequestOp<S> {
+        tracing::info!(args=?args, opts=?opts, "Creating fwd_req_op");
         ForwardRequestOp {
             args,
             opts,
@@ -51,6 +52,7 @@ where
 
     #[allow(unused)]
     pub async fn run(&self) {
+        tracing::info!("In fwd_req_op run");
         loop {
             let fwd_req_result = match self.send_forward_request_call().await {
                 Ok(fwd_req_result) => fwd_req_result,
@@ -147,13 +149,17 @@ where
     // }
 
     async fn send_forward_request_call(&self) -> Result<ForwardRequestCallResult> {
+        tracing::info!("About to sign send_forward_request_call...");
         let signature = self.signer.sign_typed_data(&self.args).await?;
+        tracing::info!(signature=?signature, "Signed send_forward_request_call");
 
         let fwd_req_call = ForwardRequestCall {
             args: self.args.clone(),
             http: self.http.clone(),
             signature,
         };
+
+        tracing::info!(fwd_req_call=?fwd_req_call, "About to run fwd_req_call");
 
         Ok(fwd_req_call.run().await?)
     }
