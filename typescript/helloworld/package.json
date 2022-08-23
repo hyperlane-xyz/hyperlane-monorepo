@@ -1,9 +1,10 @@
 {
   "name": "@abacus-network/helloworld",
   "description": "A basic skeleton of an Abacus app",
-  "version": "0.3.1",
+  "version": "0.5.0",
   "dependencies": {
-    "@abacus-network/sdk": "^0.3.1",
+    "@abacus-network/sdk": "^0.4.1",
+    "@abacus-network/utils": "^0.4.1",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "ethers": "^5.6.8"
   },

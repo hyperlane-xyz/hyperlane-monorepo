@@ -391,6 +391,11 @@ impl Settings {
         match &self.outbox.chain {
             ChainConf::Ethereum(conn) => Ok(InterchainGasPaymasterIndexers::Ethereum(
                 InterchainGasPaymasterIndexerBuilder {
+                    outbox_address: self
+                        .outbox
+                        .addresses
+                        .outbox
+                        .parse::<ethers::types::Address>()?,
                     from_height: self.index.from(),
                     chunk_size: self.index.chunk_size(),
                     finality_blocks: self.outbox.finality_blocks(),

@@ -1,20 +1,45 @@
-import { ethers } from 'ethers';
+import { Signer, providers } from 'ethers';
 
+import { types } from '@abacus-network/utils';
+
+import { testChainConnectionConfigs } from '../consts/chainConnectionConfigs';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
-import { objMap } from '../utils';
+import { ChainMap, ChainName, TestChainNames } from '../types';
+import { objMap } from '../utils/objects';
 
 import { EnvironmentConfig } from './types';
 
-export function getMultiProviderFromConfigAndSigner<Chain extends ChainName>(
-  environmentConfig: EnvironmentConfig<Chain>,
-  signer: ethers.Signer,
+export function getTestMultiProvider<Chain extends TestChainNames>(
+  signerOrProvider: Signer | providers.Provider,
+  configs: EnvironmentConfig<Chain> = testChainConnectionConfigs,
 ): MultiProvider<Chain> {
-  const chainProviders = objMap(environmentConfig, (_, config) => ({
-    provider: signer.provider!,
+  let signer: Signer | undefined;
+  let provider: providers.Provider;
+  if (Signer.isSigner(signerOrProvider) && signerOrProvider.provider) {
+    signer = signerOrProvider;
+    provider = signerOrProvider.provider;
+  } else if (providers.Provider.isProvider(signerOrProvider)) {
+    provider = signerOrProvider;
+  } else {
+    throw new Error('signerOrProvider is invalid');
+  }
+
+  const chainProviders = objMap(configs, (_, config) => ({
     signer,
+    provider,
     confirmations: config.confirmations,
     overrides: config.overrides,
   }));
   return new MultiProvider(chainProviders);
+}
+
+export function getChainToOwnerMap<Chain extends ChainName>(
+  configMap: ChainMap<Chain, any>,
+  owner: types.Address,
+): ChainMap<Chain, { owner: string }> {
+  return objMap(configMap, () => {
+    return {
+      owner,
+    };
+  });
 }

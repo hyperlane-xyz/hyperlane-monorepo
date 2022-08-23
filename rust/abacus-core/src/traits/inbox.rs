@@ -6,7 +6,7 @@ use eyre::Result;
 
 use crate::{
     traits::{AbacusCommon, ChainCommunicationError},
-    MessageStatus,
+    Address, MessageStatus,
 };
 
 /// Interface for on-chain inboxes
@@ -17,4 +17,7 @@ pub trait Inbox: AbacusCommon + Send + Sync + Debug {
 
     /// Fetch the status of a message
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError>;
+
+    /// The on-chain address of the inbox contract.
+    fn contract_address(&self) -> Address;
 }

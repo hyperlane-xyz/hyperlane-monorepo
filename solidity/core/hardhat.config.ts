@@ -23,7 +23,7 @@ module.exports = {
   typechain: {
     outDir: './types',
     target: 'ethers-v5',
-    alwaysGenerateOverloads: true,
+    alwaysGenerateOverloads: false,
   },
   mocha: {
     bail: true,

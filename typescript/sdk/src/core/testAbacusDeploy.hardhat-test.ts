@@ -8,7 +8,7 @@ import { TestOutbox, TestRecipient__factory } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { getMultiProviderFromConfigAndSigner } from '../deploy/utils';
+import { getTestMultiProvider } from '../deploy/utils';
 
 import { TestCoreApp } from './TestCoreApp';
 import { TestCoreDeployer } from './TestCoreDeployer';
@@ -28,12 +28,7 @@ describe('TestCoreDeployer', async () => {
   beforeEach(async () => {
     const [signer] = await ethers.getSigners();
 
-    const config = {
-      test1: { provider: ethers.provider },
-      test2: { provider: ethers.provider },
-      test3: { provider: ethers.provider },
-    };
-    const multiProvider = getMultiProviderFromConfigAndSigner(config, signer);
+    const multiProvider = getTestMultiProvider(signer);
     const deployer = new TestCoreDeployer(multiProvider);
     abacus = await deployer.deployApp();
 

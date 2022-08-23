@@ -44,11 +44,15 @@ where
             loop {
                 indexed_height.set(from.into());
 
-                // Only index blocks considered final
-                let tip = indexer.get_finalized_block_number().await?;
+                // Only index blocks considered final.
+                // If there's an error getting the block number, just start the loop over
+                let tip = if let Ok(num) = indexer.get_finalized_block_number().await {
+                    num
+                } else {
+                    continue;
+                };
                 if tip <= from {
                     debug!(tip=?tip, from=?from, "[GasPayments]: caught up to tip, waiting for new block");
-                    // TODO: Make this configurable
                     // Sleep if caught up to tip
                     sleep(Duration::from_secs(1)).await;
                     continue;
@@ -56,19 +60,22 @@ where
 
                 let candidate = from + chunk_size;
                 let to = min(tip, candidate);
+                // Still search the full-size chunk size to possibly catch events that nodes have dropped "close to the tip"
+                let full_chunk_from = to.checked_sub(chunk_size).unwrap_or_default();
 
-                let gas_payments = indexer.fetch_gas_payments(from, to).await?;
+                let gas_payments = indexer.fetch_gas_payments(full_chunk_from, to).await?;
 
-                debug!(
-                    from = from,
+                info!(
+                    from = full_chunk_from,
                     to = to,
                     gas_payments_count = gas_payments.len(),
-                    "[GasPayments]: indexed block heights {from}...{to}"
+                    "[GasPayments]: indexed block range"
                 );
 
                 for gas_payment in gas_payments.iter() {
                     db.process_gas_payment(gas_payment)?;
                 }
+
                 stored_messages.add(gas_payments.len().try_into()?);
 
                 db.store_latest_indexed_gas_payment_block(to)?;

@@ -32,18 +32,17 @@ export type TestCoreContracts<Local extends TestChainNames> = CoreContracts<
     inboxes: ChainMap<Remotes<TestChainNames, Local>, TestInboxContracts>;
   };
 
-export class TestCoreApp extends AbacusCore<TestChainNames> {
-  getContracts<Local extends TestChainNames>(
+export class TestCoreApp<
+  TestChain extends TestChainNames = TestChainNames,
+> extends AbacusCore<TestChain> {
+  getContracts<Local extends TestChain>(
     chain: Local,
   ): TestCoreContracts<Local> {
     return super.getContracts(chain) as TestCoreContracts<Local>;
   }
 
   async processMessages(): Promise<
-    Map<
-      TestChainNames,
-      Map<TestChainNames, ethers.providers.TransactionResponse[]>
-    >
+    Map<TestChain, Map<TestChain, ethers.providers.TransactionResponse[]>>
   > {
     const responses = new Map();
     for (const origin of this.chains()) {
@@ -57,7 +56,7 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
     return responses;
   }
 
-  async processOutboundMessages<Local extends TestChainNames>(
+  async processOutboundMessages<Local extends TestChain>(
     origin: Local,
   ): Promise<Map<ChainName, any>> {
     const responses = new Map<ChainName, any>();

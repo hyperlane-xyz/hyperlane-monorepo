@@ -9,7 +9,7 @@ export class HelloWorldChecker<
   Chain extends ChainName,
 > extends AbacusRouterChecker<
   Chain,
-  HelloWorldContracts,
   HelloWorldApp<Chain>,
-  HelloWorldConfig
+  HelloWorldConfig,
+  HelloWorldContracts
 > {}

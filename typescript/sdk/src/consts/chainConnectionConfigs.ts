@@ -6,7 +6,7 @@ import { ChainMap, ChainName, IChainConnection } from '../types';
 
 export const ethereum: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
-    'https://mainnet-nethermind.blockscout.com',
+    'https://cloudflare-eth.com',
     1,
   ),
   confirmations: 7,
@@ -16,7 +16,7 @@ export const ethereum: IChainConnection = {
 export const celo: IChainConnection = {
   provider: new StaticCeloJsonRpcProvider('https://forno.celo.org', 42220),
   confirmations: 1,
-  blockExplorerUrl: 'https://celoscan.xyz',
+  blockExplorerUrl: 'https://celoscan.io',
 };
 
 export const polygon: IChainConnection = {
@@ -33,7 +33,7 @@ export const avalanche: IChainConnection = {
     'https://api.avax.network/ext/bc/C/rpc',
     43114,
   ),
-  confirmations: 1,
+  confirmations: 3,
   blockExplorerUrl: 'https://snowtrace.io',
 };
 
@@ -43,7 +43,7 @@ export const arbitrum: IChainConnection = {
     42161,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://arbiscan.io/',
+  blockExplorerUrl: 'https://arbiscan.io',
 };
 
 export const optimism: IChainConnection = {
@@ -52,7 +52,8 @@ export const optimism: IChainConnection = {
     10,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://optimistic.etherscan.io/',
+  blockExplorerUrl: 'https://optimistic.etherscan.io',
+  apiPrefix: 'api-',
 };
 
 export const bsc: IChainConnection = {
@@ -61,7 +62,7 @@ export const bsc: IChainConnection = {
     56,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://bscscan.com/',
+  blockExplorerUrl: 'https://bscscan.com',
 };
 
 export const alfajores: IChainConnection = {
@@ -70,7 +71,7 @@ export const alfajores: IChainConnection = {
     44787,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://alfajores-blockscout.celo-testnet.org/',
+  blockExplorerUrl: 'https://alfajores-blockscout.celo-testnet.org',
 };
 
 export const auroratestnet: IChainConnection = {
@@ -86,8 +87,8 @@ export const fuji: IChainConnection = {
     'https://api.avax-test.network/ext/bc/C/rpc',
     43113,
   ),
-  confirmations: 1,
-  blockExplorerUrl: 'https://testnet.snowtrace.io/',
+  confirmations: 3,
+  blockExplorerUrl: 'https://testnet.snowtrace.io',
 };
 
 export const goerli: IChainConnection = {
@@ -100,11 +101,11 @@ export const goerli: IChainConnection = {
 
 export const kovan: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
-    'https://kovan.poa.network',
+    'https://kovan.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161',
     42,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://kovan.etherscan.io/',
+  blockExplorerUrl: 'https://kovan.etherscan.io',
 };
 
 export const mumbai: IChainConnection = {
@@ -113,7 +114,7 @@ export const mumbai: IChainConnection = {
     80001,
   ),
   confirmations: 30,
-  blockExplorerUrl: 'https://mumbai.polygonscan.com/',
+  blockExplorerUrl: 'https://mumbai.polygonscan.com',
 };
 
 export const bsctestnet: IChainConnection = {
@@ -122,7 +123,7 @@ export const bsctestnet: IChainConnection = {
     97,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://testnet.bscscan.com/',
+  blockExplorerUrl: 'https://testnet.bscscan.com',
 };
 
 export const arbitrumrinkeby: IChainConnection = {
@@ -131,7 +132,7 @@ export const arbitrumrinkeby: IChainConnection = {
     421611,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://testnet.arbiscan.io/',
+  blockExplorerUrl: 'https://testnet.arbiscan.io',
 };
 
 export const optimismkovan: IChainConnection = {
@@ -140,7 +141,7 @@ export const optimismkovan: IChainConnection = {
     69,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://kovan-optimistic.etherscan.io/',
+  blockExplorerUrl: 'https://kovan-optimistic.etherscan.io',
 };
 
 export const test1: IChainConnection = {
@@ -184,6 +185,12 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   arbitrumrinkeby,
   optimism,
   optimismkovan,
+  test1,
+  test2,
+  test3,
+};
+
+export const testChainConnectionConfigs = {
   test1,
   test2,
   test3,

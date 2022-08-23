@@ -1,5 +1,5 @@
 import {
-  getCoreEnvironmentConfig,
+  getContextAgentConfig,
   getEnvironment,
   getKeyRoleAndChainArgs,
 } from './utils';
@@ -9,13 +9,13 @@ async function rotateKey() {
   const argv = await args.argv;
 
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const agentConfig = await getContextAgentConfig();
 
   switch (environment) {
     // TODO: re-implement this when the environments actually get readded
     case 'test': {
       console.log("I don't do anything");
-      console.log(argv, config.agent);
+      console.log(argv, agentConfig);
     }
     // case DeployEnvironment.dev: {
     //   await rotateGCPKey(environment, argv.r, argv.c);

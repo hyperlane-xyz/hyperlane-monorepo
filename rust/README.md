@@ -5,13 +5,13 @@
 - install `rustup`
   - [link here](https://rustup.rs/)
 
-Note: You should be running >= version `1.61.0` of the rustc compiler, you can see that version with this command and should see similar output:
+Note: You should be running >= version `1.63.0` of the rustc compiler, you can see that version with this command and should see similar output:
 
 ```
 $ rustup --version
 rustup 1.24.3 (ce5817a94 2021-05-31)
 info: This is the version for the rustup toolchain manager, not the rustc compiler.
-info: The currently active `rustc` version is `rustc 1.61.0 (fe5b13d68 2022-05-18)`
+info: The currently active `rustc` version is `rustc 1.63.0 (4b91a6ea7 2022-08-08)`
 ```
 
 ### Useful cargo commands

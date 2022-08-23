@@ -7,7 +7,7 @@ import { AbacusCoreDeployer } from '../deploy/core/AbacusCoreDeployer';
 import { CoreConfig, ValidatorManagerConfig } from '../deploy/core/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ProxiedContract } from '../proxy';
-import { Remotes, TestChainNames } from '../types';
+import { ChainMap, Remotes, TestChainNames } from '../types';
 
 import {
   TestCoreApp,
@@ -38,21 +38,26 @@ function mockProxy(contract: ethers.Contract) {
   });
 }
 
-export class TestCoreDeployer extends AbacusCoreDeployer<TestChainNames> {
-  constructor(public readonly multiProvider: MultiProvider<TestChainNames>) {
-    super(
-      multiProvider,
-      {
+export class TestCoreDeployer<
+  TestChain extends TestChainNames = TestChainNames,
+> extends AbacusCoreDeployer<TestChain> {
+  constructor(
+    public readonly multiProvider: MultiProvider<TestChain>,
+    configMap?: ChainMap<TestChain, CoreConfig>,
+  ) {
+    const configs =
+      configMap ??
+      ({
         test1: testValidatorManagerConfig,
         test2: testValidatorManagerConfig,
         test3: testValidatorManagerConfig,
-      },
-      testCoreFactories,
-    );
+      } as ChainMap<TestChain, CoreConfig>); // cast so param can be optional
+
+    super(multiProvider, configs, testCoreFactories);
   }
 
   // skip proxying
-  async deployOutbox<LocalChain extends TestChainNames>(
+  async deployOutbox<LocalChain extends TestChain>(
     chain: LocalChain,
     config: ValidatorManagerConfig,
   ): Promise<TestOutboxContracts> {
@@ -74,9 +79,9 @@ export class TestCoreDeployer extends AbacusCoreDeployer<TestChainNames> {
   }
 
   // skip proxying
-  async deployInbox<LocalChain extends TestChainNames>(
+  async deployInbox<LocalChain extends TestChain>(
     local: LocalChain,
-    remote: Remotes<TestChainNames, LocalChain>,
+    remote: Remotes<TestChain, LocalChain>,
     config: ValidatorManagerConfig,
   ): Promise<TestInboxContracts> {
     const localDomain = chainMetadata[local].id;
@@ -96,7 +101,7 @@ export class TestCoreDeployer extends AbacusCoreDeployer<TestChainNames> {
     } as TestInboxContracts;
   }
 
-  async deployApp(): Promise<TestCoreApp> {
+  async deployApp(): Promise<TestCoreApp<TestChain>> {
     return new TestCoreApp(await this.deploy(), this.multiProvider);
   }
 }

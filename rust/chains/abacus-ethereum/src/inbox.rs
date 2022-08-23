@@ -10,8 +10,8 @@ use ethers::prelude::*;
 use eyre::Result;
 
 use abacus_core::{
-    AbacusAbi, AbacusCommon, AbacusContract, ChainCommunicationError, ContractLocator, Inbox,
-    MessageStatus, TxOutcome,
+    AbacusAbi, AbacusCommon, AbacusContract, Address, ChainCommunicationError, ContractLocator,
+    Inbox, MessageStatus, TxOutcome,
 };
 
 use crate::contracts::inbox::{Inbox as EthereumInboxInternal, INBOX_ABI};
@@ -122,6 +122,10 @@ where
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
         let status = self.contract.messages(leaf.into()).call().await?;
         Ok(MessageStatus::try_from(status).expect("Bad status from solidity"))
+    }
+
+    fn contract_address(&self) -> Address {
+        self.contract.address().into()
     }
 }
 

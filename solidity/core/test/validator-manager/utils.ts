@@ -1,32 +1,22 @@
-import { BigNumberish } from 'ethers';
-
 import { Validator, types } from '@abacus-network/utils';
 
 // Signs a checkpoint with the provided validators and returns
 // the signatures sorted by validator addresses in ascending order
 export async function signCheckpoint(
   root: types.HexString,
-  index: BigNumberish,
+  index: number,
   unsortedValidators: Validator[],
 ): Promise<string[]> {
   const validators = unsortedValidators.sort((a, b) => {
     // Remove the checksums for accurate comparison
     const aAddress = a.address.toLowerCase();
-    const bAddress = b.address.toLowerCase();
-
-    if (aAddress < bAddress) {
-      return -1;
-    } else if (aAddress > bAddress) {
-      return 1;
-    } else {
-      return 0;
-    }
+    return aAddress.localeCompare(b.address.toLowerCase());
   });
 
   const signedCheckpoints = await Promise.all(
     validators.map((validator) => validator.signCheckpoint(root, index)),
   );
   return signedCheckpoints.map(
-    (signedCheckpoint) => signedCheckpoint.signature,
+    (signedCheckpoint) => signedCheckpoint.signature as string, // cast is safe because signCheckpoint serializes to hex
   );
 }

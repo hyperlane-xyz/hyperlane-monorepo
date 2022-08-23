@@ -1,122 +1,166 @@
 import fetch from 'cross-fetch';
+import { Debugger, debug } from 'debug';
+import { ethers } from 'ethers';
 
-import type { types } from '@abacus-network/utils';
+import { utils } from '@abacus-network/utils';
 
-import { ChainName } from '../../types';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { ChainMap, ChainName } from '../../types';
+import { MultiGeneric } from '../../utils/MultiGeneric';
 
-import { ContractVerificationInput, VerificationInput } from './types';
+import {
+  CompilerOptions,
+  ContractVerificationInput,
+  VerificationInput,
+} from './types';
 
-const etherscanChains = [
-  'ethereum',
-  'kovan',
-  'goerli',
-  'ropsten',
-  'rinkeby',
-  'polygon',
-];
+enum ExplorerApiActions {
+  VERIFY_IMPLEMENTATION = 'verifysourcecode',
+  MARK_PROXY = 'verifyproxycontract',
+  CHECK_STATUS = 'checkverifystatus',
+  CHECK_PROXY_STATUS = 'checkproxyverification',
+}
 
-export abstract class ContractVerifier {
-  constructor(public readonly key: string) {}
+enum ExplorerApiErrors {
+  ALREADY_VERIFIED = 'Contract source code already verified',
+  VERIFICATION_PENDING = 'Pending in queue',
+  PROXY_FAILED = 'A corresponding implementation contract was unfortunately not detected for the proxy address.',
+}
 
-  abstract chainNames: ChainName[];
-  abstract getVerificationInput(chain: ChainName): VerificationInput;
+export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
+  Chain,
+  VerificationInput
+> {
+  protected logger: Debugger;
 
-  static etherscanLink(chain: ChainName, address: types.Address): string {
-    if (chain === 'polygon') {
-      return `https://polygonscan.com/address/${address}`;
-    }
-
-    const prefix = chain === 'ethereum' ? '' : `${chain}.`;
-    return `https://${prefix}etherscan.io/address/${address}`;
+  constructor(
+    verificationInputs: ChainMap<Chain, VerificationInput>,
+    protected readonly multiProvider: MultiProvider<Chain>,
+    protected readonly apiKeys: ChainMap<Chain, string>,
+    protected readonly flattenedSource: string, // flattened source code from eg `hardhat flatten`
+    protected readonly compilerOptions: CompilerOptions,
+  ) {
+    super(verificationInputs);
+    this.logger = debug('abacus:ContractVerifier');
   }
 
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-  async verify(hre: any): Promise<void> {
-    let chain = hre.network.name;
+  verify(): Promise<PromiseSettledResult<void>[]> {
+    return Promise.allSettled(
+      this.chains().map((chain) => this.verifyChain(chain, this.get(chain))),
+    );
+  }
 
-    if (chain === 'mainnet') {
-      chain = 'ethereum';
+  async verifyChain(chain: Chain, inputs: VerificationInput): Promise<void> {
+    this.logger(`Verifying ${chain}...`);
+    const chainLogger = this.logger.extend(chain);
+    for (const input of inputs) {
+      await this.verifyContract(chain, input, chainLogger);
+    }
+  }
+
+  private async submitForm(
+    chain: Chain,
+    action: ExplorerApiActions,
+    options?: Record<string, string>,
+  ): Promise<any> {
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const apiUrl = chainConnection.getApiUrl();
+
+    const params = new URLSearchParams({
+      apikey: this.apiKeys[chain],
+      module: 'contract',
+      action,
+      ...options,
+    });
+
+    let response: Response;
+    if (
+      action === ExplorerApiActions.CHECK_STATUS ||
+      action === ExplorerApiActions.CHECK_PROXY_STATUS
+    ) {
+      response = await fetch(`${apiUrl}?${params}`);
+    } else {
+      response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params,
+      });
     }
 
-    const envError = (network: string) =>
-      `pass --network tag to hardhat task (current network=${network})`;
+    // avoid rate limiting (5 requests per second)
+    await utils.sleep(1000 / 5);
 
-    // assert that network from .env is supported by Etherscan
-    if (!etherscanChains.includes(chain)) {
-      throw new Error(`Network not supported by Etherscan; ${envError(chain)}`);
+    const result = JSON.parse(await response.text());
+    if (result.message === 'NOTOK') {
+      switch (result.result) {
+        case ExplorerApiErrors.VERIFICATION_PENDING:
+          await utils.sleep(5000);
+          return this.submitForm(chain, action, options);
+        case ExplorerApiErrors.ALREADY_VERIFIED:
+          return;
+        case ExplorerApiErrors.PROXY_FAILED:
+        default:
+          throw new Error(`Verification failed: ${result.result}`);
+      }
     }
 
-    // get the JSON verification inputs for the given network
-    // from the latest contract deploy; throw if not found
-    const verificationInputs = this.getVerificationInput(chain);
-
-    // loop through each verification input for each contract in the file
-    for (const verificationInput of verificationInputs) {
-      // attempt to verify contract on etherscan
-      // (await one-by-one so that Etherscan doesn't rate limit)
-      await this.verifyContract(chain, verificationInput, hre);
-    }
+    return result.result;
   }
 
   async verifyContract(
-    chain: ChainName,
+    chain: Chain,
     input: ContractVerificationInput,
-    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-    hre: any,
+    logger = this.logger,
   ): Promise<void> {
-    try {
-      console.log(
-        `   Attempt to verify ${
-          input.name
-        }   -  ${ContractVerifier.etherscanLink(chain, input.address)}`,
-      );
-      await hre.run('verify:verify', {
-        chain,
-        address: input.address,
-        constructorArguments: input.constructorArguments,
-      });
-      console.log(`   SUCCESS verifying ${input.name}`);
-
-      if (input.isProxy) {
-        console.log(`   Attempt to verify as proxy`);
-        await this.verifyProxy(chain, input.address);
-        console.log(`   SUCCESS submitting proxy verification`);
-      }
-    } catch (e) {
-      console.log(`   ERROR verifying ${input.name}`);
-      console.error(e);
+    if (input.address === ethers.constants.AddressZero) {
+      return;
     }
-    console.log('\n\n'); // add space after each attempt
-  }
 
-  async verifyProxy(chain: ChainName, address: types.Address): Promise<void> {
-    const suffix = chain === 'ethereum' ? '' : `-${chain}`;
+    logger(`Checking ${input.address} (${input.name})...`);
 
-    console.log(`   Submit ${address} for proxy verification on ${chain}`);
-    // Submit contract for verification
-    const verifyResponse = await fetch(
-      `https://api${suffix}.etherscan.io/api?address=${address}`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          module: 'contract',
-          action: 'verifyproxycontract',
-          apikey: this.key,
-        }),
-      },
+    const data = {
+      sourceCode: this.flattenedSource,
+      contractname: input.name,
+      contractaddress: input.address,
+      // TYPO IS ENFORCED BY API
+      constructorArguements: utils.strip0x(input.constructorArguments ?? ''),
+      ...this.compilerOptions,
+    };
+
+    const guid = await this.submitForm(
+      chain,
+      ExplorerApiActions.VERIFY_IMPLEMENTATION,
+      data,
     );
 
-    // Validate that submission worked
-    if (!verifyResponse.ok) {
-      throw new Error('Verify POST failed');
+    const addressUrl = await this.multiProvider
+      .getChainConnection(chain)
+      .getAddressUrl(input.address);
+
+    // poll for verified status
+    if (guid) {
+      await this.submitForm(chain, ExplorerApiActions.CHECK_STATUS, { guid });
     }
+    logger(`Already verified at ${addressUrl}#code`);
 
-    const data = await verifyResponse.json();
-
-    if (data?.status != '1') {
-      throw new Error(data?.result);
+    // mark as proxy (if applicable)
+    if (input.isProxy) {
+      const proxyGuid = await this.submitForm(
+        chain,
+        ExplorerApiActions.MARK_PROXY,
+        {
+          address: input.address,
+        },
+      );
+      // poll for verified proxy status
+      if (proxyGuid) {
+        await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {
+          guid: proxyGuid,
+        });
+      }
+      logger(`Already verified at ${addressUrl}#readProxyContract`);
     }
-
-    console.log(`   Submitted.`);
   }
 }

@@ -10,23 +10,30 @@ use crate::err::GelatoError;
 
 // This list is currently trimmed to the *intersection* of
 // {chains used by Abacus in any environment} and {chains included in ethers::types::Chain}.
-// Notably missing is Celo/Alfajores.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Chain {
-    Mainnet = 1,
+    Ethereum = 1,
     Rinkeby = 4,
     Goerli = 5,
     Kovan = 42,
+
     Polygon = 137,
     PolygonMumbai = 80001,
+
     Avalanche = 43114,
     AvalancheFuji = 43113,
+
     Arbitrum = 42161,
-    ArbitrumTestnet = 421611,
+    ArbitrumRinkeby = 421611,
+
     Optimism = 10,
     OptimismKovan = 69,
+
     BinanceSmartChain = 56,
     BinanceSmartChainTestnet = 97,
+
+    Celo = 42220,
+    Alfajores = 44787,
 }
 
 impl fmt::Display for Chain {
@@ -39,7 +46,9 @@ impl FromStr for Chain {
     type Err = GelatoError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "mainnet" => Ok(Chain::Mainnet),
+            // TODO: confirm the unusual chain name strings used by Gelato,
+            // e.g. mainnet for Ethereum and arbitrumtestnet for Arbitrum Rinkeby.
+            "mainnet" => Ok(Chain::Ethereum),
             "rinkeby" => Ok(Chain::Rinkeby),
             "goerli" => Ok(Chain::Goerli),
             "kovan" => Ok(Chain::Kovan),
@@ -48,7 +57,7 @@ impl FromStr for Chain {
             "avalanche" => Ok(Chain::Avalanche),
             "avalanchefuji" => Ok(Chain::AvalancheFuji),
             "arbitrum" => Ok(Chain::Arbitrum),
-            "arbitrumtestnet" => Ok(Chain::ArbitrumTestnet),
+            "arbitrumtestnet" => Ok(Chain::ArbitrumRinkeby),
             "optimism" => Ok(Chain::Optimism),
             "optimismkovan" => Ok(Chain::OptimismKovan),
             "bsc" => Ok(Chain::BinanceSmartChain),
@@ -60,22 +69,7 @@ impl FromStr for Chain {
 
 impl From<Chain> for u32 {
     fn from(chain: Chain) -> Self {
-        match chain {
-            Chain::Mainnet => 1,
-            Chain::Rinkeby => 4,
-            Chain::Goerli => 5,
-            Chain::Kovan => 42,
-            Chain::Polygon => 137,
-            Chain::PolygonMumbai => 80001,
-            Chain::Avalanche => 43114,
-            Chain::AvalancheFuji => 43113,
-            Chain::Arbitrum => 42161,
-            Chain::ArbitrumTestnet => 421611,
-            Chain::Optimism => 10,
-            Chain::OptimismKovan => 69,
-            Chain::BinanceSmartChain => 56,
-            Chain::BinanceSmartChainTestnet => 97,
-        }
+        chain as u32
     }
 }
 
@@ -129,8 +123,8 @@ mod tests {
     #[test]
     fn names() {
         // FromStr provides both 'from_str' and a str.parse() implementation.
-        assert_eq!(Chain::from_str("MAINNET").unwrap(), Chain::Mainnet);
-        assert_eq!("MAINNET".parse::<Chain>().unwrap(), Chain::Mainnet);
+        assert_eq!(Chain::from_str("MAINNET").unwrap(), Chain::Ethereum);
+        assert_eq!("MAINNET".parse::<Chain>().unwrap(), Chain::Ethereum);
         // Conversions are case insensitive.
         assert_eq!(
             "polyGoNMuMBai".parse::<Chain>().unwrap(),
@@ -139,9 +133,16 @@ mod tests {
         // Error for unknown names.
         assert!("notChain".parse::<Chain>().is_err());
     }
+
+    #[test]
+    fn u32_from_chain() {
+        assert_eq!(u32::from(Chain::Ethereum), 1);
+        assert_eq!(u32::from(Chain::Celo), 42220);
+    }
+
     #[test]
     fn contracts() {
-        assert!(!Chain::Mainnet.relay_fwd_addr().is_ok());
+        assert!(!Chain::Ethereum.relay_fwd_addr().is_ok());
         assert!(Chain::Rinkeby.relay_fwd_addr().is_ok());
         assert!(Chain::Goerli.relay_fwd_addr().is_ok());
         assert!(Chain::Kovan.relay_fwd_addr().is_ok());

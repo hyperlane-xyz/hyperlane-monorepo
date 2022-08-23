@@ -7,7 +7,8 @@ import path from 'path';
 
 import { AllChains, ChainName } from '@abacus-network/sdk';
 
-import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
+import { Contexts } from '../../config/contexts';
+import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -126,10 +127,6 @@ export async function execCmdAndParseJson(
   return JSON.parse(stdout);
 }
 
-export const ensure0x = (hexstr: string) =>
-  hexstr.startsWith('0x') ? hexstr : '0x' + hexstr;
-export const strip0x = (hexstr: string) =>
-  hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
 export function includeConditionally(condition: boolean, data: any) {
   return condition ? data : {};
 }
@@ -181,7 +178,7 @@ export function readJSONAtPath(filepath: string) {
 
 export function assertRole(roleStr: string) {
   const role = roleStr as KEY_ROLE_ENUM;
-  if (!KEY_ROLES.includes(role)) {
+  if (!ALL_KEY_ROLES.includes(role)) {
     throw Error(`Invalid role ${role}`);
   }
   return role;
@@ -193,4 +190,54 @@ export function assertChain(chainStr: string) {
     throw Error(`Invalid chain ${chain}`);
   }
   return chain;
+}
+
+export function assertContext(contextStr: string): Contexts {
+  const context = contextStr as Contexts;
+  if (Object.values(Contexts).includes(context)) {
+    return context;
+  }
+  throw new Error(
+    `Invalid context ${contextStr}, must be one of ${Object.values(
+      Contexts,
+    )}. ${
+      contextStr === undefined ? ' Did you specify --context <context>?' : ''
+    }`,
+  );
+}
+
+/**
+ * Converts a matrix to 1d array ordered by diagonals. This is useful if you
+ * want to make sure that the order operations are performed in are ordered but
+ * not repeating the same values from the inner or outer array in sequence.
+ *
+ * @warn Requires a square matrix.
+ *
+ * // 0,0 1,0 2,0 3,0
+ * //
+ * // 0,1 1,1 2,1 3,1
+ * //
+ * // 0,2 1,2 2,2 3,2
+ * //
+ * // 0,3 1,3 2,3 3,3
+ *
+ * becomes
+ *
+ * 0,0; 1,0; 0,1; 2,0; 1,1; 0,2; 3,0; 2,1; 1,2; 0,3; 3,1; 2,2; 1,3; 3,2; 2,3; 3,3
+ *
+ * Adapted from
+ * https://www.geeksforgeeks.org/zigzag-or-diagonal-traversal-of-matrix/
+ */
+export function diagonalize<T>(array: Array<Array<T>>): Array<T> {
+  const diagonalized: T[] = [];
+  for (let line = 1; line <= array.length * 2; ++line) {
+    const start_col = Math.max(0, line - array.length);
+    const count = Math.min(line, array.length - start_col, array.length);
+    for (let j = 0; j < count; ++j) {
+      const k = Math.min(array.length, line) - j - 1;
+      const l = start_col + j;
+      diagonalized.push(array[k][l]);
+    }
+  }
+  return diagonalized;
 }

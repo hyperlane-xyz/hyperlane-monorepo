@@ -1,6 +1,9 @@
 export { AllChains, Chains } from './consts/chains';
 export { chainMetadata } from './consts/chainMetadata';
-export { chainConnectionConfigs } from './consts/chainConnectionConfigs';
+export {
+  chainConnectionConfigs,
+  testChainConnectionConfigs,
+} from './consts/chainConnectionConfigs';
 export { environments as coreEnvironments } from './consts/environments';
 
 export {
@@ -43,7 +46,11 @@ export { ChainConnection } from './providers/ChainConnection';
 export { MultiProvider } from './providers/MultiProvider';
 export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
 
-export { AbacusCore, CoreContractsMap } from './core/AbacusCore';
+export {
+  AbacusCore,
+  CoreContractsMap,
+  DispatchedMessage,
+} from './core/AbacusCore';
 export {
   CoreContracts,
   coreFactories,
@@ -71,11 +78,19 @@ export {
 } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 
-export { InterchainGasCalculator } from './gas/calculator';
-export { DefaultTokenPriceGetter, TokenPriceGetter } from './gas/token-prices';
+export { InterchainGasCalculator, ParsedMessage } from './gas/calculator';
+export {
+  CoinGeckoTokenPriceGetter,
+  TokenPriceGetter,
+} from './gas/token-prices';
 
-export { AbacusAppChecker, Ownable } from './deploy/AbacusAppChecker';
-export { CheckerViolation, EnvironmentConfig } from './deploy/types';
+export { AbacusAppChecker } from './deploy/AbacusAppChecker';
+export {
+  CheckerViolation,
+  EnvironmentConfig,
+  OwnerViolation,
+  ViolationType,
+} from './deploy/types';
 export { AbacusCoreDeployer } from './deploy/core/AbacusCoreDeployer';
 export { AbacusCoreChecker } from './deploy/core/AbacusCoreChecker';
 export {
@@ -91,13 +106,23 @@ export { UpgradeBeaconViolation } from './deploy/proxy';
 export { AbacusRouterDeployer } from './deploy/router/AbacusRouterDeployer';
 export { AbacusRouterChecker } from './deploy/router/AbacusRouterChecker';
 export { RouterConfig } from './deploy/router/types';
-export { getMultiProviderFromConfigAndSigner } from './deploy/utils';
+export { getTestMultiProvider, getChainToOwnerMap } from './deploy/utils';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
 export {
   ContractVerificationInput,
   VerificationInput,
+  CompilerOptions,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
 
-export { objMap, objMapEntries, promiseObjAll } from './utils';
-export * as utils from './utils';
+export { canonizeId, evmId } from './utils/ids';
+export { MultiGeneric } from './utils/MultiGeneric';
+export {
+  bigToFixed,
+  convertDecimalValue,
+  fixedToBig,
+  mulBigAndFixed,
+} from './utils/number';
+export { objMap, objMapEntries, promiseObjAll, pick } from './utils/objects';
+export { setDifference } from './utils/sets';
+export { delay } from './utils/time';

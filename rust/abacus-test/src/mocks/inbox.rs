@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use mockall::*;
 
-use ethers::core::types::H256;
+use ethers::types::H256;
 
 use abacus_core::{accumulator::merkle::Proof, *};
 
@@ -11,6 +11,8 @@ mock! {
     pub InboxContract {
         // Inbox
         pub fn _local_domain(&self) -> u32 {}
+
+        pub fn _contract_address(&self) -> Address {}
 
         pub fn _remote_domain(&self) -> Result<u32, ChainCommunicationError> {}
 
@@ -47,6 +49,10 @@ impl Inbox for MockInboxContract {
 
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
         self._message_status(leaf)
+    }
+
+    fn contract_address(&self) -> Address {
+        self._contract_address()
     }
 }
 

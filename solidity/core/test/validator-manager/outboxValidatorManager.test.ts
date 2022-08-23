@@ -319,7 +319,7 @@ describe('OutboxValidatorManager', () => {
       await outbox.cacheCheckpoint();
       const signatures = await signCheckpoint(
         fraudulent.root,
-        fraudulent.index.sub(1),
+        fraudulent.index - 1,
         [validator0, validator1], // 2/2 signers is a quorum
       );
 
@@ -327,7 +327,7 @@ describe('OutboxValidatorManager', () => {
         validatorManager.fraudulentCheckpoint(
           outbox.address,
           fraudulent.root,
-          fraudulent.index.sub(1),
+          fraudulent.index - 1,
           signatures,
           fraudulent.leaf,
           fraudulent.proof,
