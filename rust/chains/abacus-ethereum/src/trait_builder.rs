@@ -9,11 +9,13 @@ use ethers::prelude::{
 
 use abacus_core::{ContractLocator, Signers};
 use ethers_prometheus::{PrometheusMiddleware, PrometheusMiddlewareConf, ProviderMetrics};
+use reqwest::{Client, Url};
 
 use crate::{Connection, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
+const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// A trait for dynamic trait creation with provider initialization.
 #[async_trait]
@@ -45,8 +47,11 @@ pub trait MakeableWithProvider {
                     .await?
             }
             Connection::Http { url } => {
-                let http = url.parse::<RetryingProvider<Http>>()?;
-                self.wrap_with_metrics(http, locator, signer, metrics)
+                let client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
+                let http_provider = Http::new_with_client(url.parse::<Url>()?, client);
+                let retrying_http_provider: RetryingProvider<Http> =
+                    RetryingProvider::new(http_provider, None, None);
+                self.wrap_with_metrics(retrying_http_provider, locator, signer, metrics)
                     .await?
             }
             Connection::Ws { url } => {

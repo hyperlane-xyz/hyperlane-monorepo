@@ -26,15 +26,12 @@ pub struct RetryingProvider<P> {
 
 impl<P> RetryingProvider<P> {
     /// Instantiate a RetryingProvider
-    pub fn new(inner: P, max_requests: u32, base_retry_ms: u64) -> Self {
-        let mut zelf = Self {
+    pub fn new(inner: P, max_requests: Option<u32>, base_retry_ms: Option<u64>) -> Self {
+        Self {
             inner,
-            max_requests: 0,
-            base_retry_ms: 0,
-        };
-        zelf.set_max_requests(max_requests);
-        zelf.set_base_retry_ms(base_retry_ms);
-        zelf
+            max_requests: max_requests.unwrap_or(6),
+            base_retry_ms: base_retry_ms.unwrap_or(50),
+        }
     }
 
     /// Set the max_requests (and by extension the total time a request can
@@ -260,6 +257,6 @@ where
     type Err = <P as FromStr>::Err;
 
     fn from_str(src: &str) -> Result<Self, Self::Err> {
-        Ok(Self::new(src.parse()?, 6, 50))
+        Ok(Self::new(src.parse()?, None, None))
     }
 }
