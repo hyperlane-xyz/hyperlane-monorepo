@@ -354,12 +354,13 @@ async function sendMessage(
     // If we weren't able to get the receipt for message processing, try to read the state to ensure it wasn't a transient provider issue
     const channelStatsNow = await app.channelStats(origin, destination);
     if (channelStatsNow.received <= channelStatsBefore.received) {
+      log(
+        'Did not receive event for message delivery even though it was delivered',
+        { origin, destination },
+      );
       throw error;
     }
-    log(
-      'Did not receive event for message delivery even though it was delivered',
-      { origin, destination },
-    );
+
   }
 
   messageReceiptSeconds
