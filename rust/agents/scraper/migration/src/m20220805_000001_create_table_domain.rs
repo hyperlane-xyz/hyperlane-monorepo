@@ -42,42 +42,51 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Domain::Id)
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(Domain::DomainId)
                             .unsigned()
                             .not_null()
-                            .primary_key(),
+                            .unique_key(),
                     )
                     .col(ColumnDef::new(Domain::TimeCreated).timestamp().not_null())
                     .col(ColumnDef::new(Domain::TimeUpdated).timestamp().not_null())
-                    .col(ColumnDef::new(Domain::Name).char().not_null())
-                    .col(ColumnDef::new(Domain::NativeToken).char().not_null())
-                    .col(ColumnDef::new(Domain::ChainId).big_unsigned())
+                    .col(ColumnDef::new(Domain::Name).text().not_null())
+                    .col(ColumnDef::new(Domain::NativeToken).text().not_null())
+                    .col(ColumnDef::new(Domain::ChainId).big_unsigned().unique_key())
                     .col(ColumnDef::new(Domain::IsTestNet).boolean().not_null())
                     .to_owned(),
             )
             .await?;
 
-        use sea_orm_migration::sea_orm::ActiveValue::Set;
-        use sea_orm_migration::sea_orm::EntityTrait as _;
+        use sea_orm_migration::sea_orm::ActiveValue::{NotSet, Set};
+        use sea_orm_migration::sea_orm::EntityTrait;
 
         let db = manager.get_connection();
-        let models = DOMAINS.iter().map(|domain| {
+        for domain in DOMAINS {
             let now = {
                 let sys = time::SystemTime::now();
                 let dur = sys.duration_since(UNIX_EPOCH).unwrap();
                 DateTime::from_timestamp(dur.as_secs() as i64, dur.subsec_nanos())
             };
 
-            domain::ActiveModel {
-                id: Set(domain_from_chain(domain.0).expect("Unknown chain name")),
+            EntityTrait::insert(domain::ActiveModel {
+                id: NotSet,
+                domain_id: Set(domain_from_chain(domain.0).expect("Unknown chain name")),
                 time_created: Set(now),
                 time_updated: Set(now),
                 name: Set(domain.0.to_owned()),
                 native_token: Set(domain.1.to_owned()),
-                chain_id: Set(domain.2),
+                chain_id: if domain.2 == 0 { NotSet } else { Set(domain.2) },
                 is_test_net: Set(domain.3),
-            }
-        });
-        domain::Entity::insert_many(models).exec(db).await.unwrap();
+            })
+            .exec(db)
+            .await?;
+        }
 
         Ok(())
     }
@@ -91,10 +100,12 @@ impl MigrationTrait for Migration {
 
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
-enum Domain {
+pub enum Domain {
     Table,
-    /// Abacus domain ID
+    /// Unique database ID
     Id,
+    /// Abacus domain ID
+    DomainId,
     /// Time of record creation
     TimeCreated,
     /// Time of the last record update
@@ -112,11 +123,12 @@ enum Domain {
 mod domain {
     use sea_orm_migration::sea_orm::entity::prelude::*;
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
     #[sea_orm(table_name = "domain")]
     pub struct Model {
         #[sea_orm(primary_key)]
-        id: u32,
+        id: i32,
+        domain_id: u32,
         time_created: DateTime,
         time_updated: DateTime,
         name: String,
