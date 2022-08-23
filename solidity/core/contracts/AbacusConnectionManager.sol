@@ -30,6 +30,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     mapping(address => uint32) public inboxToDomain;
     // remote Outbox domain => local Inbox addresses
     mapping(uint32 => EnumerableSet.AddressSet) domainToInboxes;
+    // complete history of enrolled inbox domain hashes, even if unenrolled
     EnumerableSet.Bytes32Set domainHashes;
 
     // ============ Events ============
@@ -78,7 +79,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     function enrollInbox(uint32 _domain, address _inbox) external onlyOwner {
         require(!isInbox(_inbox), "already inbox");
 
-        // prevent enrolling an inbox that matches any historical domain hash
+        // prevent enrolling an inbox that matches any previously enrolled domain hash
         bytes32 domainHash = getDomainHash(_inbox);
         require(!domainHashes.contains(domainHash), "domain hash in use");
         domainHashes.add(domainHash);
@@ -155,15 +156,8 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      */
     function _unenrollInbox(address _inbox) internal {
         uint32 _currentDomain = inboxToDomain[_inbox];
-
-        // remove inbox and domain from two-way mapping
         domainToInboxes[_currentDomain].remove(_inbox);
         inboxToDomain[_inbox] = 0;
-
-        // remove domain hash of inbox from hashes in use
-        bytes32 domainHash = getDomainHash(_inbox);
-        domainHashes.remove(domainHash);
-
         emit InboxUnenrolled(_currentDomain, _inbox);
     }
 }
