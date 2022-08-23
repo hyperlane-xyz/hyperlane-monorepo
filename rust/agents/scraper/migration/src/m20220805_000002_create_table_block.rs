@@ -1,4 +1,4 @@
-use crate::l20220805_000001_types::*;
+use crate::l20220805_types::*;
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
@@ -24,13 +24,17 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(Block::Hash, Hash).not_null())
                     .col(ColumnDef::new(Block::Height).big_unsigned().not_null())
                     .col(ColumnDef::new(Block::Timestamp).timestamp().not_null())
-                    .index(
-                        Index::create()
-                            .name("idx-domain-height")
-                            .col(Block::Domain)
-                            .col(Block::Height),
-                    )
                     .index(Index::create().name("idx-hash").col(Block::Hash).unique())
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(Block::Table)
+                    .name("idx-domain-height")
+                    .col(Block::Domain)
+                    .col(Block::Height)
                     .to_owned(),
             )
             .await
