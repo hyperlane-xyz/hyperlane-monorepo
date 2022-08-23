@@ -42,7 +42,7 @@ pub trait MakeableWithProvider {
                     builder = builder.add_provider(weighted_provider);
                 }
                 let quorum_provider = builder.build();
-                let retrying = RetryingProvider::new(quorum_provider, 3, 1000);
+                let retrying = RetryingProvider::new(quorum_provider, Some(3), Some(1000));
                 self.wrap_with_metrics(retrying, locator, signer, metrics)
                     .await?
             }
