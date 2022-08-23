@@ -66,7 +66,7 @@ impl MigrationTrait for Migration {
 
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
-enum MessageState {
+pub enum MessageState {
     Table,
     /// Unique database ID
     Id,

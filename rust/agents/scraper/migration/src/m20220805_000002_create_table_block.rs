@@ -1,6 +1,7 @@
+use sea_orm_migration::prelude::*;
+
 use crate::l20220805_types::*;
 use crate::m20220805_000001_create_table_domain::Domain;
-use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

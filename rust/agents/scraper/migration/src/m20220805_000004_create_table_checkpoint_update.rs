@@ -1,5 +1,9 @@
 use sea_orm_migration::prelude::*;
 
+use crate::m20220805_000001_create_type_enum_checkpoint_update::CheckpointUpdateType;
+use crate::m20220805_000003_create_table_checkpoint::Checkpoint;
+use crate::m20220805_000003_create_table_transaction::Transaction;
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -30,7 +34,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(
                         ColumnDef::new(CheckpointUpdate::UpdateType)
-                            .enumeration("CheckpointUpdateType", &["Premature", "Fraudulent"])
+                            .custom(CheckpointUpdateType::Table)
                             .not_null(),
                     )
                     .col(
@@ -38,11 +42,25 @@ impl MigrationTrait for Migration {
                             .big_integer()
                             .not_null(),
                     )
-                    .index(
-                        Index::create()
-                            .name("idx-checkpoint")
-                            .col(CheckpointUpdate::CheckpointId),
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(CheckpointUpdate::CheckpointId)
+                            .to(Checkpoint::Table, Checkpoint::Id),
                     )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(CheckpointUpdate::TxId)
+                            .to(Transaction::Table, Transaction::Id),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx-checkpoint")
+                    .table(CheckpointUpdate::Table)
+                    .col(CheckpointUpdate::CheckpointId)
                     .to_owned(),
             )
             .await
@@ -57,7 +75,7 @@ impl MigrationTrait for Migration {
 
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
-enum CheckpointUpdate {
+pub enum CheckpointUpdate {
     Table,
     /// Unique database ID
     Id,

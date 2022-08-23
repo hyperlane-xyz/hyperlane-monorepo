@@ -21,12 +21,7 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_type(
-                Type::drop()
-                    .name(CheckpointUpdateType::Table)
-                    .if_exists()
-                    .to_owned(),
-            )
+            .drop_type(Type::drop().name(CheckpointUpdateType::Table).to_owned())
             .await
     }
 }

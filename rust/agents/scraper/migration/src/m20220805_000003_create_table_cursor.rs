@@ -1,4 +1,5 @@
 use sea_orm_migration::prelude::*;
+
 use crate::m20220805_000001_create_table_domain::Domain;
 
 #[derive(DeriveMigrationName)]
