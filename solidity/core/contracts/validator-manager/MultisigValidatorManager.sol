@@ -227,6 +227,7 @@ abstract contract MultisigValidatorManager is
      * @param _validator The validator to add to the validator set.
      */
     function _enrollValidator(address _validator) internal {
+        require(_validator != address(0), "zero address");
         require(validatorSet.add(_validator), "already enrolled");
         emit ValidatorEnrolled(_validator, validatorCount());
     }

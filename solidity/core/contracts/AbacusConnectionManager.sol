@@ -10,6 +10,7 @@ import {IMultisigValidatorManager} from "../interfaces/IMultisigValidatorManager
 
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /**
@@ -67,6 +68,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @param _outbox The address of the new local Outbox contract.
      */
     function setOutbox(address _outbox) external onlyOwner {
+        require(Address.isContract(_outbox), "outbox !contract");
         outbox = IOutbox(_outbox);
         emit OutboxSet(_outbox);
     }
@@ -77,6 +79,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @param _inbox the address of the Inbox
      */
     function enrollInbox(uint32 _domain, address _inbox) external onlyOwner {
+        require(Address.isContract(_inbox), "inbox !contract");
         require(!isInbox(_inbox), "already inbox");
 
         // prevent enrolling an inbox that matches any previously enrolled domain hash
