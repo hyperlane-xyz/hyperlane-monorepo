@@ -1,5 +1,7 @@
-use crate::l20220805_types::*;
 use sea_orm_migration::prelude::*;
+
+use crate::l20220805_types::*;
+use crate::m20220805_000002_create_table_block::Block;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -24,7 +26,11 @@ impl MigrationTrait for Migration {
                             .timestamp()
                             .not_null(),
                     )
-                    .col(ColumnDef::new_with_type(Transaction::Hash, Hash).not_null())
+                    .col(
+                        ColumnDef::new_with_type(Transaction::Hash, Hash)
+                            .unique_key()
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(Transaction::BlockId)
                             .big_integer()
@@ -32,14 +38,29 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new_with_type(Transaction::GasUsed, CryptoCurrency).not_null())
                     .col(ColumnDef::new_with_type(Transaction::Sender, Address).not_null())
-                    .index(
-                        Index::create()
-                            .name("idx-hash")
-                            .col(Transaction::Hash)
-                            .unique(),
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(Transaction::BlockId)
+                            .to(Block::Table, Block::Id),
                     )
-                    .index(Index::create().name("idx-sender").col(Transaction::Sender))
-                    .index(Index::create().name("idx-block").col(Transaction::BlockId))
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx-sender")
+                    .table(Transaction::Table)
+                    .col(Transaction::Sender)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx-block")
+                    .table(Transaction::Table)
+                    .col(Transaction::BlockId)
                     .to_owned(),
             )
             .await
@@ -54,7 +75,7 @@ impl MigrationTrait for Migration {
 
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
-enum Transaction {
+pub enum Transaction {
     Table,
     /// Unique database ID
     Id,

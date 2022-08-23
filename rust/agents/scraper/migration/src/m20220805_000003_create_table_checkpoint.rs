@@ -38,7 +38,6 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(Checkpoint::OutboxAddress, Address).not_null())
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-origin-domain")
                             .from_col(Checkpoint::OriginDomain)
                             .to(Domain::Table, Domain::DomainId),
                     )

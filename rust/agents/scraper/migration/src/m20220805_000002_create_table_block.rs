@@ -22,16 +22,18 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Block::TimeCreated).timestamp().not_null())
                     .col(ColumnDef::new(Block::Domain).unsigned().not_null())
-                    .col(ColumnDef::new_with_type(Block::Hash, Hash).not_null())
+                    .col(
+                        ColumnDef::new_with_type(Block::Hash, Hash)
+                            .unique_key()
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(Block::Height).big_unsigned().not_null())
                     .col(ColumnDef::new(Block::Timestamp).timestamp().not_null())
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-domain")
                             .from_col(Block::Domain)
                             .to(Domain::Table, Domain::DomainId),
                     )
-                    .index(Index::create().name("idx-hash").col(Block::Hash).unique())
                     .to_owned(),
             )
             .await?;
