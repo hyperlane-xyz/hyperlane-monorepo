@@ -318,17 +318,10 @@ async function sendMessage(
   );
   const metricLabels = { origin, remote: destination };
 
-  const originProvider = app.multiProvider.getChainConnection(origin).provider;
-  const destinationProvider =
-    app.multiProvider.getChainConnection(destination).provider;
-
   log('Sending message', {
     origin,
     destination,
     interchainGasPayment: value.toString(),
-    // To help with debugging, log the block numbers
-    originBlockNumber: await originProvider.getBlockNumber(),
-    destinationBlockNumber: await destinationProvider.getBlockNumber(),
   });
 
   // For now, pay just 1 wei, as Kathy typically doesn't have enough
@@ -372,9 +365,6 @@ async function sendMessage(
     // try to read the state to ensure it wasn't a transient provider issue
     log('Checking if message was received despite timeout', {
       message,
-      // To help with debugging, log the block numbers
-      originBlockNumber: await originProvider.getBlockNumber(),
-      destinationBlockNumber: await destinationProvider.getBlockNumber(),
     });
 
     // Try a few times to see if the message has been processed --
