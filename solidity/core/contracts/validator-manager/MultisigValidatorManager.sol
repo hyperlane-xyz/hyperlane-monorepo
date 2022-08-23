@@ -2,17 +2,26 @@
 pragma solidity >=0.8.0;
 pragma abicoder v2;
 
+import {Versioned} from "../upgrade/Versioned.sol";
+
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
+// ============ Internal Imports ============
+import {IMultisigValidatorManager} from "../../interfaces/IMultisigValidatorManager.sol";
 
 /**
  * @title MultisigValidatorManager
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
  * reach a quorum.
  */
-abstract contract MultisigValidatorManager is Ownable {
+abstract contract MultisigValidatorManager is
+    IMultisigValidatorManager,
+    Ownable,
+    Versioned
+{
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -218,6 +227,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _validator The validator to add to the validator set.
      */
     function _enrollValidator(address _validator) internal {
+        require(_validator != address(0), "zero address");
         require(validatorSet.add(_validator), "already enrolled");
         emit ValidatorEnrolled(_validator, validatorCount());
     }
@@ -247,10 +257,16 @@ abstract contract MultisigValidatorManager is Ownable {
     }
 
     /**
-     * @notice Hash of `_domain` concatenated with "ABACUS".
+     * @notice Hash of `_domain` concatenated with "ABACUS" and deployment version.
+     * @dev Domain hash is salted with deployment version to prevent validator signature replay.
      * @param _domain The domain to hash.
      */
     function _domainHash(uint32 _domain) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_domain, "ABACUS"));
+        if (VERSION > 0) {
+            return keccak256(abi.encodePacked(_domain, "ABACUS", VERSION));
+        } else {
+            // for backwards compatibility with initial deployment (VERSION == 0)
+            return keccak256(abi.encodePacked(_domain, "ABACUS"));
+        }
     }
 }
