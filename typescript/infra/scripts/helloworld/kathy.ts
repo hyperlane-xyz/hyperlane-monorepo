@@ -298,10 +298,15 @@ async function sendMessage(
   const startTime = Date.now();
   const msg = 'Hello!';
   const expectedHandleGas = BigNumber.from(100_000);
-  let value = await gasCalc.estimatePaymentForHandleGas(
-    origin,
-    destination,
-    expectedHandleGas,
+
+  let value = await utils.retryAsync(
+    () =>
+      gasCalc.estimatePaymentForHandleGas(
+        origin,
+        destination,
+        expectedHandleGas,
+      ),
+    2,
   );
   const metricLabels = { origin, remote: destination };
 
@@ -336,10 +341,14 @@ async function sendMessage(
     destinationBlockNumber: await destinationProvider.getBlockNumber(),
   });
 
-  const receipt = await utils.timeout(
-    app.sendHelloWorld(origin, destination, msg, value),
-    messageSendTimeout,
-    'Timeout sending message',
+  const receipt = await utils.retryAsync(
+    () =>
+      utils.timeout(
+        app.sendHelloWorld(origin, destination, msg, value),
+        messageSendTimeout,
+        'Timeout sending message',
+      ),
+    2,
   );
   messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
   log('Message sent', {
