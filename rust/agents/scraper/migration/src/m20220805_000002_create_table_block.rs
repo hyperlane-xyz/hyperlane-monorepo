@@ -1,4 +1,5 @@
 use crate::l20220805_types::*;
+use crate::m20220805_000001_create_table_domain::Domain;
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
@@ -24,6 +25,12 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(Block::Hash, Hash).not_null())
                     .col(ColumnDef::new(Block::Height).big_unsigned().not_null())
                     .col(ColumnDef::new(Block::Timestamp).timestamp().not_null())
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk-domain")
+                            .from_col(Block::Domain)
+                            .to(Domain::Table, Domain::DomainId),
+                    )
                     .index(Index::create().name("idx-hash").col(Block::Hash).unique())
                     .to_owned(),
             )
@@ -49,7 +56,7 @@ impl MigrationTrait for Migration {
 
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
-enum Block {
+pub enum Block {
     Table,
     /// Unique database ID
     Id,
