@@ -3,17 +3,18 @@ import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
-import {
-  ChainName,
-  Chains,
-  InterchainGasCalculator,
-} from '@abacus-network/sdk';
+import { ChainName, InterchainGasCalculator } from '@abacus-network/sdk';
 import { debug, error, log, utils, warn } from '@abacus-network/utils';
 
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
-import { diagonalize, sleep } from '../../src/utils/utils';
-import { getContext, getCoreEnvironmentConfig, getEnvironment } from '../utils';
+import {
+  assertChain,
+  assertContext,
+  diagonalize,
+  sleep,
+} from '../../src/utils/utils';
+import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from '../utils';
 
 import { getApp } from './utils';
 
@@ -56,55 +57,97 @@ const walletBalance = new Gauge({
   ],
 });
 
-/** How long we should take to go through all the message pairings in milliseconds. 6hrs by default. */
-const FULL_CYCLE_TIME =
-  parseInt(process.env['KATHY_FULL_CYCLE_TIME'] as string) ||
-  1000 * 60 * 60 * 6;
-if (!Number.isSafeInteger(FULL_CYCLE_TIME) || FULL_CYCLE_TIME <= 0) {
-  error('Invalid cycle time provided');
-  process.exit(1);
-}
-
-/** How long we should wait for a message to be sent in milliseconds. 10 min by default. */
-const MESSAGE_SEND_TIMEOUT =
-  parseInt(process.env['KATHY_MESSAGE_SEND_TIMEOUT'] as string) ||
-  10 * 60 * 1000;
-
-/** How long we should wait for a message to be received in milliseconds. 10 min by default. */
-const MESSAGE_RECEIPT_TIMEOUT =
-  parseInt(process.env['KATHY_MESSAGE_RECEIPT_TIMEOUT'] as string) ||
-  10 * 60 * 1000;
-
 /** The maximum number of messages we will allow to get queued up if we are sending too slowly. */
 const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
 
-async function main() {
+function getKathyArgs() {
+  return getArgs()
+    .coerce('e', assertEnvironment)
+    .demandOption('e')
+
+    .coerce('context', assertContext)
+    .demandOption('context')
+
+    .boolean('cycle-once')
+    .describe(
+      'cycle-once',
+      'If true, will cycle through all chain pairs once as quick as possible',
+    )
+    .default('cycle-once', false)
+
+    .number('full-cycle-time')
+    .describe(
+      'full-cycle-time',
+      'How long it should take to go through all the message pairings in milliseconds. Ignored if --cycle-once is true. Defaults to 6 hours.',
+    )
+    .default('full-cycle-time', 1000 * 60 * 60 * 6) // 6 hrs
+
+    .number('message-send-timeout')
+    .describe(
+      'message-send-timeout',
+      'How long to wait for a message to be sent in milliseconds. Defaults to 10 min.',
+    )
+    .default('message-send-timeout', 10 * 60 * 1000) // 10 min
+
+    .number('message-receipt-timeout')
+    .describe(
+      'message-receipt-timeout',
+      'How long to wait for a message to be received on the destination in milliseconds. Defaults to 10 min.',
+    )
+    .default('message-receipt-timeout', 10 * 60 * 1000) // 10 min
+
+    .string('chains-to-skip')
+    .array('chains-to-skip')
+    .describe('chains-to-skip', 'Chains to skip sending from or sending to.')
+    .default('chains-to-skip', [])
+    .demandOption('chains-to-skip')
+    .coerce('chains-to-skip', (chainStrs: string[]) =>
+      chainStrs.map((chainStr: string) => assertChain(chainStr)),
+    ).argv;
+}
+
+// Returns whether an error occurred
+async function main(): Promise<boolean> {
+  const {
+    e: environment,
+    context,
+    chainsToSkip,
+    cycleOnce,
+    fullCycleTime,
+    messageSendTimeout,
+    messageReceiptTimeout,
+  } = await getKathyArgs();
+
+  let errorOccurred = false;
+
   startMetricsServer(metricsRegister);
-  const environment = await getEnvironment();
   debug('Starting up', { environment });
+
   const coreConfig = getCoreEnvironmentConfig(environment);
-  const context = await getContext();
   const app = await getApp(coreConfig, context, KEY_ROLE_ENUM.Kathy);
   const gasCalculator = InterchainGasCalculator.fromEnvironment(
     environment,
     app.multiProvider as any,
   );
-  const chains = app.chains() as Chains[];
-  const skip = process.env.CHAINS_TO_SKIP?.split(',').filter(
-    (skipChain) => skipChain.length > 0,
-  );
+  const appChains = app.chains();
 
-  const invalidChains = skip?.filter(
-    (skipChain: any) => !chains.includes(skipChain),
-  );
-  if (invalidChains && invalidChains.length > 0) {
-    throw new Error(`Invalid chains to skip ${invalidChains}`);
+  // Ensure the specified chains to skip are actually valid for the app.
+  // Despite setting a default and demanding it as an option, yargs believes
+  // chainsToSkip can possibly be undefined.
+  for (const chainToSkip of chainsToSkip!) {
+    if (!appChains.includes(chainToSkip)) {
+      throw Error(
+        `Chain to skip ${chainToSkip} invalid, not found in ${appChains}`,
+      );
+    }
   }
 
-  const origins = chains.filter((chain) => !skip || !skip.includes(chain));
+  const chains = appChains.filter(
+    (chain) => !chainsToSkip || !chainsToSkip.includes(chain),
+  );
   const pairings = diagonalize(
-    origins.map((origin) =>
-      origins.map((destination) =>
+    chains.map((origin) =>
+      chains.map((destination) =>
         origin == destination ? null : { origin, destination },
       ),
     ),
@@ -114,17 +157,38 @@ async function main() {
 
   debug('Pairings calculated', { chains, pairings });
 
-  // track how many we are still allowed to send in case some messages send slower than expected.
-  let allowedToSend = 1;
-  const sendFrequency = FULL_CYCLE_TIME / pairings.length;
-  setInterval(() => {
-    // bucket cap since if we are getting really behind it probably does not make sense to let it run away.
-    allowedToSend = Math.min(allowedToSend + 1, MAX_MESSAGES_ALLOWED_TO_SEND);
-    debug('Tick; allowed to send another message', {
-      allowedToSend,
+  let allowedToSend: number;
+  let currentPairingIndex: number;
+  let sendFrequency: number | undefined;
+
+  if (cycleOnce) {
+    // If we're cycling just once, we're allowed to send all the pairings
+    allowedToSend = pairings.length;
+    // Start with pairing 0
+    currentPairingIndex = 0;
+
+    debug('Cycling once through all pairs');
+  } else {
+    // If we are not cycling just once and are running this as a service, do so at an interval.
+    // Track how many we are still allowed to send in case some messages send slower than expected.
+    allowedToSend = 1;
+    sendFrequency = fullCycleTime / pairings.length;
+    // in case we are restarting kathy, keep it from always running the exact same messages first
+    currentPairingIndex = Date.now() % pairings.length;
+
+    debug('Running as a service', {
       sendFrequency,
     });
-  }, sendFrequency);
+
+    setInterval(() => {
+      // bucket cap since if we are getting really behind it probably does not make sense to let it run away.
+      allowedToSend = Math.min(allowedToSend + 1, MAX_MESSAGES_ALLOWED_TO_SEND);
+      debug('Tick; allowed to send another message', {
+        allowedToSend,
+        sendFrequency,
+      });
+    }, sendFrequency);
+  }
 
   // init the metrics because it can take a while for kathy to get through everything and we do not
   // want the metrics to be reported as null in the meantime.
@@ -135,17 +199,12 @@ async function main() {
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
   await Promise.all(
-    origins.map(async (origin) => {
-      await updateWalletBalanceMetricFor(app, origin);
+    chains.map(async (chain) => {
+      await updateWalletBalanceMetricFor(app, chain);
     }),
   );
 
-  for (
-    // in case we are restarting kathy, keep it from always running the exact same messages first
-    let currentPairingIndex = Date.now() % pairings.length;
-    ;
-    currentPairingIndex = (currentPairingIndex + 1) % pairings.length
-  ) {
+  while (true) {
     currentPairingIndexGauge.set(currentPairingIndex);
     const { origin, destination } = pairings[currentPairingIndex];
     const labels = {
@@ -164,18 +223,28 @@ async function main() {
     // than most do. It is also more accurate to do it this way for keeping the
     // interval schedule than to use a fixed sleep which would not account for
     // how long messages took to send.
-    if (allowedToSend <= 0)
+    // In the cycle-once case, the loop is expected to exit before ever hitting
+    // this condition.
+    if (allowedToSend <= 0) {
       debug('Waiting before sending next message', {
         ...logCtx,
         sendFrequency,
       });
-    while (allowedToSend <= 0) await sleep(1000);
+      while (allowedToSend <= 0) await sleep(1000);
+    }
     allowedToSend--;
 
     debug('Initiating sending of new message', logCtx);
 
     try {
-      await sendMessage(app, origin, destination, gasCalculator);
+      await sendMessage(
+        app,
+        origin,
+        destination,
+        gasCalculator,
+        messageSendTimeout,
+        messageReceiptTimeout,
+      );
       log('Message sent successfully', { origin, destination });
       messagesSendCount.labels({ ...labels, status: 'success' }).inc();
     } catch (e) {
@@ -184,6 +253,7 @@ async function main() {
         ...logCtx,
       });
       messagesSendCount.labels({ ...labels, status: 'failure' }).inc();
+      errorOccurred = true;
     }
     updateWalletBalanceMetricFor(app, origin).catch((e) => {
       warn('Failed to update wallet balance for chain', {
@@ -192,8 +262,11 @@ async function main() {
       });
     });
 
-    // print stats once every cycle through the pairings
-    if (currentPairingIndex == 0) {
+    // Print stats once every cycle through the pairings.
+    // For the cycle-once case, it's important this checks if the current index is
+    // the final index in pairings. For the long-running case, this index choice
+    // is arbitrary.
+    if (currentPairingIndex == pairings.length - 1) {
       for (const [origin, destinationStats] of Object.entries(
         await app.stats(),
       )) {
@@ -201,8 +274,17 @@ async function main() {
           debug('Message stats', { origin, destination, ...counts });
         }
       }
+
+      if (cycleOnce) {
+        log('Finished cycling through all pairs once');
+        break;
+      }
     }
+
+    // Move on to the next index
+    currentPairingIndex = (currentPairingIndex + 1) % pairings.length;
   }
+  return errorOccurred;
 }
 
 async function sendMessage(
@@ -210,14 +292,21 @@ async function sendMessage(
   origin: ChainName,
   destination: ChainName,
   gasCalc: InterchainGasCalculator<any>,
+  messageSendTimeout: number,
+  messageReceiptTimeout: number,
 ) {
   const startTime = Date.now();
   const msg = 'Hello!';
   const expectedHandleGas = BigNumber.from(100_000);
-  let value = await gasCalc.estimatePaymentForHandleGas(
-    origin,
-    destination,
-    expectedHandleGas,
+
+  let value = await utils.retryAsync(
+    () =>
+      gasCalc.estimatePaymentForHandleGas(
+        origin,
+        destination,
+        expectedHandleGas,
+      ),
+    2,
   );
   const metricLabels = { origin, remote: destination };
 
@@ -238,10 +327,14 @@ async function sendMessage(
   log('Intentionally setting interchain gas payment to 1');
 
   const channelStatsBefore = await app.channelStats(origin, destination);
-  const receipt = await utils.timeout(
-    app.sendHelloWorld(origin, destination, msg, value),
-    MESSAGE_SEND_TIMEOUT,
-    'Timeout sending message',
+  const receipt = await utils.retryAsync(
+    () =>
+      utils.timeout(
+        app.sendHelloWorld(origin, destination, msg, value),
+        messageSendTimeout,
+        'Timeout sending message',
+      ),
+    2,
   );
   messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
   log('Message sent', {
@@ -254,7 +347,7 @@ async function sendMessage(
   try {
     await utils.timeout(
       app.waitForMessageReceipt(receipt),
-      MESSAGE_RECEIPT_TIMEOUT,
+      messageReceiptTimeout,
       'Timeout waiting for message to be received',
     );
   } catch (error) {
@@ -303,9 +396,14 @@ async function updateWalletBalanceMetricFor(
 }
 
 main()
-  .then(() => {
-    error('Main exited');
-    process.exit(1);
+  .then((errorOccurred: boolean) => {
+    log('Main exited');
+    if (errorOccurred) {
+      error('An error occurred at some point');
+      process.exit(1);
+    } else {
+      process.exit(0);
+    }
   })
   .catch((e) => {
     error('Error in main', { error: format(e) });

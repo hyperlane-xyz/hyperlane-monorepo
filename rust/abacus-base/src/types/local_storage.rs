@@ -20,15 +20,11 @@ impl LocalStorage {
         }
     }
     fn checkpoint_file_path(&self, index: u32) -> String {
-        let mut path = self.path.clone();
-        path.push_str(&format!("/{}.json", index));
-        path
+        format!("{}/{index}.json", self.path)
     }
 
     fn latest_index_file_path(&self) -> String {
-        let mut path = self.path.clone();
-        path.push_str("/index.json");
-        path
+        format!("{}/index.json", self.path)
     }
 
     async fn write_index(&self, index: u32) -> Result<()> {

@@ -69,7 +69,7 @@ where
                     from = full_chunk_from,
                     to = to,
                     gas_payments_count = gas_payments.len(),
-                    "[GasPayments]: indexed block heights {from}...{to}"
+                    "[GasPayments]: indexed block range"
                 );
 
                 for gas_payment in gas_payments.iter() {

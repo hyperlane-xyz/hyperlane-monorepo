@@ -24,11 +24,7 @@ impl MigrationTrait for Migration {
                             .timestamp()
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(MessageState::MsgId)
-                            .big_integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(MessageState::MsgId).big_integer().not_null())
                     .col(
                         ColumnDef::new(MessageState::BlockHeight)
                             .big_unsigned()

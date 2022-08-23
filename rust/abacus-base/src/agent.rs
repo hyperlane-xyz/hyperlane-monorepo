@@ -61,7 +61,8 @@ pub trait BaseAgent: Send + Sync + Debug {
         Self: Sized;
 
     /// Start running this agent.
-    fn run(&self) -> Instrumented<JoinHandle<Result<()>>>;
+    #[allow(clippy::async_yields_async)]
+    async fn run(&self) -> Instrumented<JoinHandle<Result<()>>>;
 }
 
 /// A trait for an abacus agent.

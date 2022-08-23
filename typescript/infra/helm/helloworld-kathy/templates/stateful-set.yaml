@@ -1,17 +1,17 @@
+{{- if not .Values.abacus.cycleOnce }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: helloworld-kathy
+  name: {{ include "abacus.fullname" . }}
   labels: &metadata_labels
     abacus/deployment: {{ .Values.abacus.runEnv | quote }}
     abacus/context: {{ .Values.abacus.context | quote }}
     app.kubernetes.io/component: kathy
 spec:
   selector:
-    matchLabels:
-      app.kubernetes.io/component: kathy
+    matchLabels: *metadata_labels
   replicas: 1
-  serviceName: helloworld-kathy
+  serviceName: {{ include "abacus.fullname" . }}
   template:
     metadata:
       labels: *metadata_labels
@@ -20,25 +20,5 @@ spec:
         prometheus.io/scrape: "true"
     spec:
       containers:
-      - name: helloworld-kathy
-        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-        imagePullPolicy: IfNotPresent
-        command:
-        - ./node_modules/.bin/ts-node
-        - ./typescript/infra/scripts/helloworld/kathy.ts
-        - -e
-        - {{ .Values.abacus.runEnv }}
-        - --context
-        - {{ .Values.abacus.context }}
-        envFrom:
-        - secretRef:
-            name: helloworld-kathy-secret
-        env:
-        - name: CHAINS_TO_SKIP
-          value: {{ join "," .Values.chainsToSkip }}
-        - name: KATHY_FULL_CYCLE_TIME
-          value: "{{ .Values.fullCycleTime }}"
-        - name: KATHY_MESSAGE_SEND_TIMEOUT
-          value: "{{ .Values.messageSendTimeout }}"
-        - name: KATHY_MESSAGE_RECEIPT_TIMEOUT
-          value: "{{ .Values.messageReceiptTimeout }}"
+{{- include "abacus.helloworld-kathy.container" . | indent 6 }}
+{{- end }}
