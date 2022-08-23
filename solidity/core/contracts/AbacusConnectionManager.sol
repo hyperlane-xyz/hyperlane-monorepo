@@ -81,7 +81,10 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
 
         // prevent enrolling an inbox that matches any previously enrolled domain hash
         bytes32 domainHash = getDomainHash(_inbox);
-        require(!domainHashes.contains(domainHash), "domain hash in use");
+        require(
+            !domainHashes.contains(domainHash),
+            "domain hash previously enrolled"
+        );
         domainHashes.add(domainHash);
 
         // add inbox and domain to two-way mapping

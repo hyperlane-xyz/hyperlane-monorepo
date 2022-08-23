@@ -136,19 +136,18 @@ describe('AbacusConnectionManager', async () => {
   });
 
   it('Owner cannot enroll multiple inboxes with same domain hash', async () => {
-    const newRemoteDomain = 3000;
     const inboxFactory = new TestInbox__factory(signer);
     const newInbox = await inboxFactory.deploy(localDomain);
-    await newInbox.initialize(newRemoteDomain, validatorManager.address);
+    await newInbox.initialize(remoteDomain, validatorManager.address);
+    await connectionManager.unenrollInbox(enrolledInbox.address);
     await expect(
-      connectionManager.enrollInbox(newRemoteDomain, newInbox.address),
-    ).to.be.revertedWith('domain hash in use');
+      connectionManager.enrollInbox(remoteDomain, newInbox.address),
+    ).to.be.revertedWith('domain hash previously enrolled');
   });
 
   it('Owner cannot enroll an inbox twice', async () => {
-    const newRemoteDomain = 3000;
     await expect(
-      connectionManager.enrollInbox(newRemoteDomain, enrolledInbox.address),
+      connectionManager.enrollInbox(remoteDomain, enrolledInbox.address),
     ).to.be.revertedWith('already inbox');
   });
 });
