@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import { ChainName } from '@abacus-network/sdk';
 
 import { Contexts } from '../../config/contexts';
@@ -23,6 +25,10 @@ export abstract class AgentKey {
   abstract delete(): Promise<void>;
   // Returns new address
   abstract update(): Promise<string>;
+
+  abstract getSigner(
+    provider?: ethers.providers.Provider,
+  ): Promise<ethers.Signer>;
 
   serializeAsAddress() {
     return {
@@ -131,6 +137,10 @@ export class ReadOnlyAgentKey extends AgentKey {
   }
 
   async update(): Promise<string> {
+    throw Error('Not supported');
+  }
+
+  async getSigner(): Promise<ethers.Signer> {
     throw Error('Not supported');
   }
 }

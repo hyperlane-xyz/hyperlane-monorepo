@@ -1,20 +1,51 @@
 import { HelloWorldConfig } from '../../../src/config';
+import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
+import { Contexts } from '../../contexts';
 
 import { TestnetChains, environment } from './chains';
-import helloWorldAddresses from './helloworld/addresses.json';
+import abacusAddresses from './helloworld/abacus/addresses.json';
+import rcAddresses from './helloworld/rc/addresses.json';
 
-export const helloWorld: HelloWorldConfig<TestnetChains> = {
-  addresses: helloWorldAddresses,
+export const abacus: HelloWorldConfig<TestnetChains> = {
+  addresses: abacusAddresses,
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-f0c45a1',
+      tag: 'sha-8b8fdde',
     },
-    cronSchedule: '0 */2 * * *', // Once every 2 hours
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
-    prometheusPushGateway:
-      'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
+    runConfig: {
+      mode: HelloWorldKathyRunMode.Service,
+      fullCycleTime: 1000 * 60 * 60 * 2, // every 2 hours
+    },
+    messageSendTimeout: 1000 * 60 * 8, // 8 min
+    messageReceiptTimeout: 1000 * 60 * 20, // 20 min
   },
+};
+
+export const releaseCandidate: HelloWorldConfig<TestnetChains> = {
+  addresses: rcAddresses,
+  kathy: {
+    docker: {
+      repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
+      tag: 'sha-8b8fdde',
+    },
+    chainsToSkip: [],
+    runEnv: environment,
+    namespace: environment,
+    runConfig: {
+      mode: HelloWorldKathyRunMode.CycleOnce,
+    },
+    messageSendTimeout: 1000 * 60 * 8, // 8 min
+    messageReceiptTimeout: 1000 * 60 * 20, // 20 min
+  },
+};
+
+export const helloWorld: Partial<
+  Record<Contexts, HelloWorldConfig<TestnetChains>>
+> = {
+  [Contexts.Abacus]: abacus,
+  [Contexts.ReleaseCandidate]: releaseCandidate,
 };

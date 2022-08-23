@@ -1,26 +1,39 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { TypedListener } from '@abacus-network/core/dist/common';
 import {
   AbacusApp,
+  AbacusCore,
+  ChainMap,
   ChainName,
   ChainNameToDomainId,
+  MultiProvider,
   Remotes,
 } from '@abacus-network/sdk';
-
-import { ReceivedHelloWorldEvent } from '../types/contracts/HelloWorld';
+import { debug } from '@abacus-network/utils';
 
 import { HelloWorldContracts } from './contracts';
+
+type Counts = {
+  sent: number;
+  received: number;
+};
 
 export class HelloWorldApp<
   Chain extends ChainName = ChainName,
 > extends AbacusApp<HelloWorldContracts, Chain> {
+  constructor(
+    public readonly core: AbacusCore<Chain>,
+    contractsMap: ChainMap<Chain, HelloWorldContracts>,
+    multiProvider: MultiProvider<Chain>,
+  ) {
+    super(contractsMap, multiProvider);
+  }
+
   async sendHelloWorld<From extends Chain>(
     from: From,
     to: Remotes<Chain, From>,
     message: string,
     value: BigNumber,
-    receiveHandler?: TypedListener<ReceivedHelloWorldEvent>,
   ): Promise<ethers.ContractReceipt> {
     const sender = this.getContracts(from).router;
     const toDomain = ChainNameToDomainId[to];
@@ -39,22 +52,25 @@ export class HelloWorldApp<
       gasLimit,
       value,
     });
-    console.log(tx);
-    const receipt = await tx.wait(chainConnection.confirmations);
-
-    if (receiveHandler) {
-      const recipient = this.getContracts(to).router;
-      const filter = recipient.filters.ReceivedHelloWorld(
-        ChainNameToDomainId[from],
-        ChainNameToDomainId[to],
-      );
-      recipient.once(filter, receiveHandler);
-    }
-
-    return receipt;
+    debug('Sending hello message', {
+      from,
+      to,
+      message,
+      tx,
+    });
+    return tx.wait(chainConnection.confirmations);
   }
 
-  async channelStats<From extends Chain>(from: From, to: Remotes<Chain, From>) {
+  async waitForMessageReceipt(
+    receipt: ethers.ContractReceipt,
+  ): Promise<ethers.ContractReceipt[]> {
+    return this.core.waitForMessageProcessing(receipt);
+  }
+
+  async channelStats<From extends Chain>(
+    from: From,
+    to: Remotes<Chain, From>,
+  ): Promise<Counts> {
     const sent = await this.getContracts(from).router.sentTo(
       ChainNameToDomainId[to],
     );
@@ -65,8 +81,8 @@ export class HelloWorldApp<
     return { sent: sent.toNumber(), received: received.toNumber() };
   }
 
-  async stats() {
-    const entries = await Promise.all(
+  async stats(): Promise<Record<Chain, Record<Chain, Counts>>> {
+    const entries: Array<[Chain, Record<Chain, Counts>]> = await Promise.all(
       this.chains().map(async (source) => {
         const destinationEntries = await Promise.all(
           this.remoteChains(source).map(async (destination) => [
@@ -74,9 +90,12 @@ export class HelloWorldApp<
             await this.channelStats(source, destination),
           ]),
         );
-        return [source, Object.fromEntries(destinationEntries)];
+        return [
+          source,
+          Object.fromEntries(destinationEntries) as Record<Chain, Counts>,
+        ];
       }),
     );
-    return Object.fromEntries(entries);
+    return Object.fromEntries(entries) as Record<Chain, Record<Chain, Counts>>;
   }
 }

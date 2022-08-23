@@ -1,4 +1,4 @@
-import { Wallet } from 'ethers';
+import { Wallet, ethers } from 'ethers';
 
 import { ChainName } from '@abacus-network/sdk';
 
@@ -109,6 +109,15 @@ export class AgentGCPKey extends AgentKey {
 
   async delete() {
     await execCmd(`gcloud secrets delete ${this.identifier} --quiet`);
+  }
+
+  async getSigner(
+    provider?: ethers.providers.Provider,
+  ): Promise<ethers.Signer> {
+    if (!this.remoteKey.fetched) {
+      await this.fetch();
+    }
+    return new Wallet(this.privateKey, provider);
   }
 
   private requireFetched() {

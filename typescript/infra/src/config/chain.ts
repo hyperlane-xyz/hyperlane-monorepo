@@ -1,37 +1,41 @@
-import { Provider } from '@ethersproject/abstract-provider';
-import { NonceManager } from '@ethersproject/experimental';
 import { ethers } from 'ethers';
 
 import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
 import { ChainName, RetryJsonRpcProvider } from '@abacus-network/sdk';
 
-import { Contexts } from '../../config/contexts';
-import { getSecretDeployerKey, getSecretRpcEndpoint } from '../agents';
+import { getSecretRpcEndpoint } from '../agents';
 
 import { DeployEnvironment } from './environment';
+
+const CELO_CHAIN_NAMES = new Set(['alfajores', 'baklava', 'celo']);
+
+const providerBuilder = (url: string, chainName: ChainName, retry = true) => {
+  // TODO: get StaticCeloJsonRpcProvider to be compatible with the RetryJsonRpcProvider.
+  // For now, the two are incompatible, so even if retrying is requested for a Celo chain,
+  // we don't use a RetryJsonRpcProvider.
+  if (CELO_CHAIN_NAMES.has(chainName)) {
+    return new StaticCeloJsonRpcProvider(url);
+  }
+  const baseProvider = new ethers.providers.JsonRpcProvider(url);
+  return retry
+    ? new RetryJsonRpcProvider(baseProvider, {
+        maxRequests: 6,
+        baseRetryMs: 50,
+      })
+    : baseProvider;
+};
 
 export async function fetchProvider(
   environment: DeployEnvironment,
   chainName: ChainName,
+  quorum = false,
 ) {
-  const rpc = await getSecretRpcEndpoint(environment, chainName);
-  const celoChainNames = new Set(['alfajores', 'baklava', 'celo']);
-  const provider = celoChainNames.has(chainName)
-    ? new StaticCeloJsonRpcProvider(rpc)
-    : new RetryJsonRpcProvider(new ethers.providers.JsonRpcProvider(rpc), {
-        maxRequests: 6,
-        baseRetryMs: 50,
-      });
-  return provider;
-}
-
-export async function fetchSigner(
-  environment: DeployEnvironment,
-  context: Contexts,
-  chainName: ChainName,
-  provider: Provider,
-) {
-  const key = await getSecretDeployerKey(environment, context, chainName);
-  const wallet = new ethers.Wallet(key, provider);
-  return new NonceManager(wallet);
+  const rpc = await getSecretRpcEndpoint(environment, chainName, quorum);
+  if (quorum) {
+    return new ethers.providers.FallbackProvider(
+      (rpc as string[]).map((url) => providerBuilder(url, chainName, false)), // disable retry for quorum
+    );
+  } else {
+    return providerBuilder(rpc, chainName);
+  }
 }

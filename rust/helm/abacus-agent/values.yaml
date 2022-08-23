@@ -119,6 +119,9 @@ abacus:
         threshold:
         checkpointSyncers:
 
+  kathy:
+    enabled: false
+
 podSecurityContext:
   fsGroup: 2000
 

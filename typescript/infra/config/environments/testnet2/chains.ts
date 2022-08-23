@@ -7,7 +7,7 @@ export const testnetConfigs = {
   mumbai: {
     ...chainConnectionConfigs.mumbai,
     overrides: {
-      maxFeePerGas: 100 * 10 ** 9, // 100 gwei
+      maxFeePerGas: 1000 * 10 ** 9, // 1000 gwei
       maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
     },
   },

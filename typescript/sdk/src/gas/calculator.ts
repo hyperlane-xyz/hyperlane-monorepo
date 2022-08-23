@@ -163,7 +163,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * a message.
    * @param origin The name of the origin chain.
    * @param destination The name of the destination chain.
-   * @param destinationHandleGas The amount of gas the recipient `handle` function
+   * @param handleGas The amount of gas the recipient `handle` function
    * is estimated to use.
    * @returns An estimated amount of origin chain tokens to cover gas costs of the
    * message on the destination chain.
@@ -226,7 +226,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     const PRECISION = 1000;
 
     return convertDecimalValue(
-      value.mul(exchangeRate * PRECISION).div(PRECISION),
+      value.mul(Math.round(exchangeRate * PRECISION)).div(PRECISION),
       this.tokenDecimals(fromChain),
       this.tokenDecimals(toChain),
     );

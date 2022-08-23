@@ -37,6 +37,7 @@ export const infrastructure: InfrastructureConfig = {
       'testnet-',
       'abacus-testnet2-',
       'flowcarbon-testnet2-',
+      'rc-testnet2-',
       'testnet2-',
     ],
   },

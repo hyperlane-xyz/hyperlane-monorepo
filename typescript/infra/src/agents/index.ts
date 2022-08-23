@@ -52,6 +52,12 @@ async function helmValuesForChain<Chain extends ChainName>(
         signers: await chainAgentConfig.relayerSigners(),
         config: chainAgentConfig.relayerConfig,
       },
+      // Hack: These values are not actually needed for the helm chart, but
+      // they've been left here so that Kathy keys get created upon agent
+      // deployment.
+      kathy: {
+        signers: await chainAgentConfig.kathySigners(),
+      },
     },
   };
 }
@@ -151,9 +157,9 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       user = new AgentAwsUser(
         agentConfig.environment,
         agentConfig.context,
-        outboxChainName,
         role,
         agentConfig.aws!.region,
+        outboxChainName,
       );
     }
 
@@ -249,8 +255,12 @@ export async function getSecretAwsCredentials<Chain extends ChainName>(
 export async function getSecretRpcEndpoint(
   environment: string,
   chainName: ChainName,
+  quorum = false,
 ) {
-  return fetchGCPSecret(`${environment}-rpc-endpoint-${chainName}`, false);
+  return fetchGCPSecret(
+    `${environment}-rpc-endpoint${quorum ? 's' : ''}-${chainName}`,
+    quorum,
+  );
 }
 
 export async function getSecretDeployerKey(
@@ -270,31 +280,14 @@ export async function getSecretDeployerKey(
 
 async function getSecretRpcEndpoints<Chain extends ChainName>(
   agentConfig: AgentConfig<Chain>,
+  quorum = false,
 ) {
   const environment = agentConfig.runEnv;
-  return getSecretForEachChain(
-    agentConfig.contextChainNames,
-    (name: ChainName) => `${environment}-rpc-endpoint-${name}`,
-    false,
-  );
-}
-
-async function getSecretForEachChain(
-  chainNames: ChainName[],
-  secretNameGetter: (name: ChainName) => string,
-  parseJson: boolean,
-) {
-  const secrets = await Promise.all(
-    chainNames.map((name: ChainName) =>
-      fetchGCPSecret(secretNameGetter(name), parseJson),
-    ),
-  );
-  return secrets.reduce(
-    (prev: any, secret: string, index: number) => ({
-      ...prev,
-      [chainNames[index]]: secret,
-    }),
-    {},
+  return Object.fromEntries(
+    agentConfig.contextChainNames.map((chainName) => [
+      chainName,
+      getSecretRpcEndpoint(environment, chainName, quorum),
+    ]),
   );
 }
 

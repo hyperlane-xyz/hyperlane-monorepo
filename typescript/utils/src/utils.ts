@@ -166,3 +166,33 @@ export function isCheckpoint(obj: any): obj is Checkpoint {
   const isValidIndex = Number.isSafeInteger(obj.index);
   return isValidIndex && isValidRoot && isValidSignature;
 }
+
+/**
+ * Wait up to a given amount of time, and throw an error if the promise does not resolve in time.
+ * @param promise The promise to timeout on.
+ * @param timeoutMs How long to wait for the promise in milliseconds.
+ * @param message The error message if a timeout occurs.
+ */
+export function timeout<T>(
+  promise: Promise<T>,
+  timeoutMs?: number,
+  message = 'Timeout reached',
+): Promise<T> {
+  if (!timeoutMs || timeoutMs <= 0) return promise;
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      reject(new Error(message));
+    }, timeoutMs);
+    promise.then(resolve).catch(reject);
+  });
+}
+
+// Should be used instead of referencing process directly in case we don't
+// run in node.js
+export function safelyAccessEnvVar(name: string) {
+  try {
+    return process.env[name];
+  } catch (error) {
+    return undefined;
+  }
+}

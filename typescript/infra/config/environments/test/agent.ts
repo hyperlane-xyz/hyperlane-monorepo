@@ -33,5 +33,5 @@ export const abacus: AgentConfig<TestChains> = {
 };
 
 export const agents = {
-  abacus,
+  [Contexts.Abacus]: abacus,
 };

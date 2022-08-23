@@ -1,12 +1,12 @@
 {
   "name": "@abacus-network/sdk",
   "description": "The official SDK for the Abacus Network",
-  "version": "0.3.1",
+  "version": "0.4.1",
   "dependencies": {
-    "@abacus-network/app": "0.3.1",
+    "@abacus-network/app": "0.4.1",
     "@abacus-network/celo-ethers-provider": "^0.1.0",
-    "@abacus-network/core": "0.3.1",
-    "@abacus-network/utils": "0.3.1",
+    "@abacus-network/core": "0.4.1",
+    "@abacus-network/utils": "0.4.1",
     "@types/debug": "^4.1.7",
     "coingecko-api": "^1.0.10",
     "cross-fetch": "^3.1.5",

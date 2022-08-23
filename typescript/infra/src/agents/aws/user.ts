@@ -29,9 +29,9 @@ export class AgentAwsUser<Chain extends ChainName> {
   constructor(
     public readonly environment: string,
     public readonly context: Contexts,
-    public readonly chainName: Chain,
     public readonly role: KEY_ROLE_ENUM,
     public readonly region: string,
+    public readonly chainName?: Chain,
   ) {
     this.adminIamClient = new IAMClient({ region });
   }
@@ -153,11 +153,17 @@ export class AgentAwsUser<Chain extends ChainName> {
   }
 
   get tags(): Record<string, string> {
-    return {
+    let tags: Record<string, string> = {
       environment: this.environment,
       role: this.role,
-      chain: this.chainName,
     };
+    if (this.chainName !== undefined) {
+      tags = {
+        ...tags,
+        chain: this.chainName,
+      };
+    }
+    return tags;
   }
 
   get userName() {

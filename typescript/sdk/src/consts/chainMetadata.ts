@@ -10,7 +10,7 @@ export type ChainMetadata = {
   paginate?: RpcPagination;
   // The CoinGecko API expects, in some cases, IDs that do not match
   // ChainNames.
-  coinGeckoId?: string;
+  gasCurrencyCoinGeckoId?: string;
 };
 
 /**
@@ -41,17 +41,19 @@ export const ethereum: ChainMetadata = {
 export const arbitrum: ChainMetadata = {
   id: 0x617262, // b'arb' interpreted as an int
   finalityBlocks: 0,
+  gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
 };
 
 export const optimism: ChainMetadata = {
   id: 0x6f70, // b'op' interpreted as an int
   finalityBlocks: 0,
+  gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
 };
 
 export const bsc: ChainMetadata = {
   id: 0x627363, // b'bsc' interpreted as an int
   finalityBlocks: 15,
-  coinGeckoId: 'binancecoin',
+  gasCurrencyCoinGeckoId: 'binancecoin',
 };
 
 export const avalanche: ChainMetadata = {
@@ -62,7 +64,7 @@ export const avalanche: ChainMetadata = {
     blocks: 100000,
     from: 6765067,
   },
-  coinGeckoId: 'avalanche-2',
+  gasCurrencyCoinGeckoId: 'avalanche-2',
 };
 
 export const polygon: ChainMetadata = {
@@ -73,7 +75,7 @@ export const polygon: ChainMetadata = {
     blocks: 10000,
     from: 19657100,
   },
-  coinGeckoId: 'matic-network',
+  gasCurrencyCoinGeckoId: 'matic-network',
 };
 
 /**

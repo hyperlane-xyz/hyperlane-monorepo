@@ -1,0 +1,24 @@
+{{- if not .Values.abacus.cycleOnce }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "abacus.fullname" . }}
+  labels: &metadata_labels
+    abacus/deployment: {{ .Values.abacus.runEnv | quote }}
+    abacus/context: {{ .Values.abacus.context | quote }}
+    app.kubernetes.io/component: kathy
+spec:
+  selector:
+    matchLabels: *metadata_labels
+  replicas: 1
+  serviceName: {{ include "abacus.fullname" . }}
+  template:
+    metadata:
+      labels: *metadata_labels
+      annotations:
+        prometheus.io/port: "9090"
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+{{- include "abacus.helloworld-kathy.container" . | indent 6 }}
+{{- end }}

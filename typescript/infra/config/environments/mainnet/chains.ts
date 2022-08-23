@@ -16,7 +16,7 @@ export const mainnetConfigs: ChainMap<any, IChainConnection> = {
     ...chainConnectionConfigs.polygon,
     confirmations: 3,
     overrides: {
-      maxFeePerGas: 100 * 10 ** 9, // 100 gwei
+      maxFeePerGas: 1000 * 10 ** 9, // 1000 gwei
       maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
       // gasPrice: 50 * 10 ** 9, // 50 gwei
     },

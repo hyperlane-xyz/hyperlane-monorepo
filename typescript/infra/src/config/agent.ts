@@ -86,9 +86,9 @@ export type ChainValidatorSets<Chain extends ChainName> = ChainMap<
 // =====     Relayer Agent     =====
 // =================================
 
-type Whitelist = WhitelistElement[];
+export type MatchingList = MatchingListElement[];
 
-interface WhitelistElement {
+interface MatchingListElement {
   sourceDomain?: '*' | string | string[] | number | number[];
   sourceAddress?: '*' | string | string[];
   destinationDomain?: '*' | string | string[] | number | number[];
@@ -101,7 +101,8 @@ interface BaseRelayerConfig {
   signedCheckpointPollingInterval: number;
   // The maxinmum number of times a processor will try to process a message
   maxProcessingRetries: number;
-  whitelist?: Whitelist;
+  whitelist?: MatchingList;
+  blacklist?: MatchingList;
 }
 
 // Per-chain relayer agent configs
@@ -111,9 +112,11 @@ type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
 >;
 
 // Full relayer agent config for a single chain
-interface RelayerConfig extends Omit<BaseRelayerConfig, 'whitelist'> {
+interface RelayerConfig
+  extends Omit<BaseRelayerConfig, 'whitelist' | 'blacklist'> {
   multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
   whitelist?: string;
+  blacklist?: string;
 }
 
 // ===================================
@@ -190,6 +193,7 @@ export interface AgentConfig<Chain extends ChainName> {
   validatorSets: ChainValidatorSets<Chain>;
   validator?: ChainValidatorConfigs<Chain>;
   relayer?: ChainRelayerConfigs<Chain>;
+  kathy?: ChainMap<Chain, boolean>;
   // Roles to manage keys for
   rolesWithKeys: KEY_ROLE_ENUM[];
 }
@@ -329,9 +333,9 @@ export class ChainAgentConfig<Chain extends ChainName> {
       const awsUser = new AgentAwsUser(
         this.agentConfig.environment,
         this.agentConfig.context,
-        this.chainName,
         KEY_ROLE_ENUM.Relayer,
         awsRegion,
+        this.chainName,
       );
       await awsUser.createIfNotExists();
       // If we're using AWS keys, ensure the key is created and the user can use it
@@ -354,9 +358,9 @@ export class ChainAgentConfig<Chain extends ChainName> {
     const awsUser = new AgentAwsUser(
       this.agentConfig.environment,
       this.agentConfig.context,
-      this.chainName,
       KEY_ROLE_ENUM.Relayer,
       this.agentConfig.aws!.region,
+      this.chainName,
     );
     await awsUser.createIfNotExists();
     const key = await awsUser.createKeyIfNotExists(this.agentConfig);
@@ -384,7 +388,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
       {},
     );
 
-    const obj: RelayerConfig = {
+    const relayerConfig: RelayerConfig = {
       signedCheckpointPollingInterval:
         baseConfig.signedCheckpointPollingInterval,
       maxProcessingRetries: baseConfig.maxProcessingRetries,
@@ -394,14 +398,60 @@ export class ChainAgentConfig<Chain extends ChainName> {
       },
     };
     if (baseConfig.whitelist) {
-      obj.whitelist = JSON.stringify(baseConfig.whitelist);
+      relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
+    }
+    if (baseConfig.blacklist) {
+      relayerConfig.blacklist = JSON.stringify(baseConfig.blacklist);
     }
 
-    return obj;
+    return relayerConfig;
   }
 
   get relayerEnabled(): boolean {
     return this.agentConfig.relayer !== undefined;
+  }
+
+  // Gets signer info, creating them if necessary
+  async kathySigners() {
+    if (!this.kathyEnabled) {
+      return [];
+    }
+
+    let keyConfig;
+
+    if (this.awsKeys) {
+      const awsUser = new AgentAwsUser(
+        this.agentConfig.environment,
+        this.agentConfig.context,
+        KEY_ROLE_ENUM.Kathy,
+        this.agentConfig.aws!.region,
+        this.chainName,
+      );
+      await awsUser.createIfNotExists();
+      const key = await awsUser.createKeyIfNotExists(this.agentConfig);
+      keyConfig = key.keyConfig;
+    } else {
+      keyConfig = this.keyConfig(KEY_ROLE_ENUM.Kathy);
+    }
+
+    return [
+      {
+        name: this.chainName,
+        keyConfig,
+      },
+    ];
+  }
+
+  get kathyRequiresAwsCredentials() {
+    return this.awsKeys;
+  }
+
+  get kathyEnabled() {
+    const kathyConfig = this.agentConfig.kathy;
+    if (kathyConfig) {
+      return kathyConfig[this.chainName];
+    }
+    return false;
   }
 
   get validatorSet(): ValidatorSet {
