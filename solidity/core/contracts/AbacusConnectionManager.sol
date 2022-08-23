@@ -75,7 +75,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
         require(!isInbox(_inbox), "already inbox");
         // add inbox and domain to two-way mapping
         inboxToDomain[_inbox] = _domain;
-        domainToInboxes[_domain].add(_inbox);
+        require(domainToInboxes[_domain].add(_inbox), "already enrolled");
         emit InboxEnrolled(_domain, _inbox);
     }
 
@@ -134,7 +134,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      */
     function _unenrollInbox(address _inbox) internal {
         uint32 _currentDomain = inboxToDomain[_inbox];
-        domainToInboxes[_currentDomain].remove(_inbox);
+        require(domainToInboxes[_currentDomain].remove(_inbox), "not enrolled");
         inboxToDomain[_inbox] = 0;
         emit InboxUnenrolled(_currentDomain, _inbox);
     }
