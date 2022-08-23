@@ -30,8 +30,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     mapping(address => uint32) public inboxToDomain;
     // remote Outbox domain => local Inbox addresses
     mapping(uint32 => EnumerableSet.AddressSet) domainToInboxes;
-    // domain hashes ever used
-    EnumerableSet.Bytes32Set domainHashesEverUsed;
+    EnumerableSet.Bytes32Set domainHashes;
 
     // ============ Events ============
 
@@ -80,14 +79,9 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
         require(!isInbox(_inbox), "already inbox");
 
         // prevent enrolling an inbox that matches any historical domain hash
-        IInbox inbox = IInbox(_inbox);
-        address vm = inbox.validatorManager();
-        bytes32 domainHash = IMultisigValidatorManager(vm).domainHash();
-        require(
-            !domainHashesEverUsed.contains(domainHash),
-            "domain hash has been used"
-        );
-        domainHashesEverUsed.add(domainHash);
+        bytes32 domainHash = getDomainHash(_inbox);
+        require(!domainHashes.contains(domainHash), "domain hash in use");
+        domainHashes.add(domainHash);
 
         // add inbox and domain to two-way mapping
         inboxToDomain[_inbox] = _domain;
@@ -142,6 +136,17 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
         return inboxToDomain[_inbox] != 0;
     }
 
+    /**
+     * @notice Check whether _inbox is enrolled
+     * @param _inbox the inbox to check for enrollment
+     * @return TRUE iff _inbox is enrolled
+     */
+    function getDomainHash(address _inbox) public view returns (bytes32) {
+        IInbox inbox = IInbox(_inbox);
+        address vm = inbox.validatorManager();
+        return IMultisigValidatorManager(vm).domainHash();
+    }
+
     // ============ Internal Functions ============
 
     /**
@@ -150,8 +155,15 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      */
     function _unenrollInbox(address _inbox) internal {
         uint32 _currentDomain = inboxToDomain[_inbox];
+
+        // remove inbox and domain from two-way mapping
         domainToInboxes[_currentDomain].remove(_inbox);
         inboxToDomain[_inbox] = 0;
+
+        // remove domain hash of inbox from hashes in use
+        bytes32 domainHash = getDomainHash(_inbox);
+        domainHashes.remove(domainHash);
+
         emit InboxUnenrolled(_currentDomain, _inbox);
     }
 }

@@ -256,7 +256,8 @@ abstract contract MultisigValidatorManager is
     }
 
     /**
-     * @notice Hash of `_domain` concatenated with "ABACUS".
+     * @notice Hash of `_domain` concatenated with "ABACUS" and deployment version.
+     * @dev Domain hash is salted with deployment version to prevent validator signature replay.
      * @param _domain The domain to hash.
      */
     function _domainHash(uint32 _domain) internal pure returns (bytes32) {

@@ -142,7 +142,7 @@ describe('AbacusConnectionManager', async () => {
     await newInbox.initialize(newRemoteDomain, validatorManager.address);
     await expect(
       connectionManager.enrollInbox(newRemoteDomain, newInbox.address),
-    ).to.be.revertedWith('domain hash has been used');
+    ).to.be.revertedWith('domain hash in use');
   });
 
   it('Owner cannot enroll an inbox twice', async () => {
