@@ -130,7 +130,6 @@ async function main(): Promise<boolean> {
 
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig, context, KEY_ROLE_ENUM.Kathy);
-  const core = AbacusCore.fromEnvironment(environment, app.multiProvider);
   const gasCalculator = InterchainGasCalculator.fromEnvironment(
     environment,
     app.multiProvider as any,
@@ -244,7 +243,6 @@ async function main(): Promise<boolean> {
 
     try {
       await sendMessage(
-        core,
         app,
         origin,
         destination,
@@ -295,7 +293,6 @@ async function main(): Promise<boolean> {
 }
 
 async function sendMessage(
-  core: AbacusCore<any>,
   app: HelloWorldApp<any>,
   origin: ChainName,
   destination: ChainName,
@@ -345,7 +342,7 @@ async function sendMessage(
   );
   messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
 
-  const [message] = core.getDispatchedMessages(receipt);
+  const [message] = app.core.getDispatchedMessages(receipt);
   log('Message sent', {
     origin,
     destination,
@@ -371,7 +368,7 @@ async function sendMessage(
     // we've seen some intermittent issues when fetching state.
     // This will throw if the message is found to have not been processed.
     await utils.retryAsync(async () => {
-      if (!(await messageIsProcessed(core, origin, destination, message))) {
+      if (!(await messageIsProcessed(app.core, origin, destination, message))) {
         throw error;
       }
     }, 3);
