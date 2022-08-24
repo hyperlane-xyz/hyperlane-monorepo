@@ -86,7 +86,7 @@ contract Outbox is IOutbox, Versioned, MerkleTreeManager, Mailbox {
 
     // ============ Initializer ============
 
-    function initialize(address _validatorManager) public initializer {
+    function initialize(address _validatorManager) external initializer {
         __Mailbox_initialize(_validatorManager);
         state = States.Active;
     }

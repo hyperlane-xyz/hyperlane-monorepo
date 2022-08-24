@@ -66,7 +66,7 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Versioned, Mailbox {
     // ============ Initializer ============
 
     function initialize(uint32 _remoteDomain, address _validatorManager)
-        public
+        external
         initializer
     {
         __ReentrancyGuard_init();
