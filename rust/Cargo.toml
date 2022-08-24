@@ -5,7 +5,6 @@ cargo-features = ["edition2021"]
 members = [
     "abacus-base",
     "abacus-core",
-    "agents/kathy",
     "agents/relayer",
     "agents/scraper",
     "abacus-test",
