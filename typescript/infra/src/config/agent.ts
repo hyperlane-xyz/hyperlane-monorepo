@@ -284,22 +284,23 @@ export class ChainAgentConfig<Chain extends ChainName> {
         let validator: KeyConfig = {
           type: KeyType.Hex,
         };
-
         if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
-          const awsUser = new ValidatorAgentAwsUser(
-            this.agentConfig.environment,
-            this.agentConfig.context,
-            this.chainName,
-            i,
-            val.checkpointSyncer.region,
-            val.checkpointSyncer.bucket,
-          );
-          await awsUser.createIfNotExists();
-          await awsUser.createBucketIfNotExists();
+          if (!val.readonly) {
+            const awsUser = new ValidatorAgentAwsUser(
+              this.agentConfig.environment,
+              this.agentConfig.context,
+              this.chainName,
+              i,
+              val.checkpointSyncer.region,
+              val.checkpointSyncer.bucket,
+            );
+            await awsUser.createIfNotExists();
+            await awsUser.createBucketIfNotExists();
 
-          if (this.awsKeys) {
-            const key = await awsUser.createKeyIfNotExists(this.agentConfig);
-            validator = key.keyConfig;
+            if (this.awsKeys) {
+              const key = await awsUser.createKeyIfNotExists(this.agentConfig);
+              validator = key.keyConfig;
+            }
           }
         } else {
           console.warn(
