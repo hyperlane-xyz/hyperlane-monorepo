@@ -1,5 +1,8 @@
-use crate::l20220805_types::*;
 use sea_orm_migration::prelude::*;
+
+use crate::l20220805_types::*;
+use crate::m20220805_000003_create_table_transaction::Transaction;
+use crate::m20220805_000004_create_table_message::Message;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -31,23 +34,37 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(DeliveredMessage::MsgId)
                             .big_integer()
-                            .not_null(),
+                            .not_null()
+                            .unique_key(),
                     )
                     .col(
                         ColumnDef::new(DeliveredMessage::TxId)
                             .big_integer()
                             .not_null(),
                     )
-                    .index(Index::create().name("idx-tx").col(DeliveredMessage::TxId))
-                    .index(
-                        Index::create()
-                            .name("idx-msg")
-                            .col(DeliveredMessage::MsgId)
-                            .unique(),
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(DeliveredMessage::MsgId)
+                            .to(Message::Table, Message::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(DeliveredMessage::TxId)
+                            .to(Transaction::Table, Transaction::Id),
                     )
                     .to_owned(),
             )
-            .await
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(DeliveredMessage::Table)
+                    .name("idx-delivered-message_tx")
+                    .col(DeliveredMessage::TxId)
+                    .to_owned(),
+            )
+            .await?;
+        Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
