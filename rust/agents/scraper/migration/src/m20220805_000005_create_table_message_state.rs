@@ -1,5 +1,7 @@
-use crate::l20220805_types::*;
 use sea_orm_migration::prelude::*;
+
+use crate::l20220805_types::*;
+use crate::m20220805_000004_create_table_message::Message;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -45,9 +47,13 @@ impl MigrationTrait for Migration {
                         CryptoCurrency,
                     ))
                     .col(ColumnDef::new(MessageState::ErrorMsg).text())
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(MessageState::MsgId)
+                            .to(Message::Table, Message::Id),
+                    )
                     .index(
                         Index::create()
-                            .name("idx-msg-height")
                             .col(MessageState::MsgId)
                             .col(MessageState::BlockHeight)
                             .unique(),
