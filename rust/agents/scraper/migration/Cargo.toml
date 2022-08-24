@@ -24,7 +24,6 @@ version = "*"
 [[bin]]
 name = "init-db"
 path = "bin/init_db.rs"
-required-features = ["tracing-subscriber", "tracing"]
 
 [features]
 default = []
