@@ -42,6 +42,14 @@ export const validators: ChainValidatorSets<TestnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0xebb97602f6acd259ecec9f9fa811aed5b35981ab',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('alfajores', 3),
+          region: s3BucketRegion,
+        },
+      },
     ],
   },
   kovan: {
@@ -68,6 +76,14 @@ export const validators: ChainValidatorSets<TestnetChains> = {
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('kovan', 2),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0xff94c7660e857ba3f35ee248ae461feea266a504',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('kovan', 3),
           region: s3BucketRegion,
         },
       },
@@ -100,6 +116,14 @@ export const validators: ChainValidatorSets<TestnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0x6f6a95ad0348454a5d4c3029cd3243acecd1cf8b',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('fuji', 3),
+          region: s3BucketRegion,
+        },
+      },
     ],
   },
   mumbai: {
@@ -126,6 +150,14 @@ export const validators: ChainValidatorSets<TestnetChains> = {
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('mumbai', 2),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0xa12b4612d00f682276c994040a3f37d0d6f343c4',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('mumbai', 3),
           region: s3BucketRegion,
         },
       },
@@ -158,6 +190,14 @@ export const validators: ChainValidatorSets<TestnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0x625027ffb9b9b9ba083d267e5b7756af33e636a0',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('bsctestnet', 3),
+          region: s3BucketRegion,
+        },
+      },
     ],
   },
   arbitrumrinkeby: {
@@ -187,6 +227,14 @@ export const validators: ChainValidatorSets<TestnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0x49649a8708f45171f5439ec71dc83baafd98b01c',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('arbitrumrinkeby', 3),
+          region: s3BucketRegion,
+        },
+      },
     ],
   },
   optimismkovan: {
@@ -213,6 +261,14 @@ export const validators: ChainValidatorSets<TestnetChains> = {
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('optimismkovan', 2),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x85f8286a8ee13aecc227e99b75375826cdb512dd',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('optimismkovan', 3),
           region: s3BucketRegion,
         },
       },
