@@ -6,7 +6,7 @@ use eyre::Result;
 use sha3::{Digest, Keccak256};
 
 /// A Stamped message that has been committed at some leaf index
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct RawCommittedMessage {
     /// The index at which the message is committed
     pub leaf_index: u32,

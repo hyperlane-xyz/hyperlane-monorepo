@@ -6,8 +6,8 @@ use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::{
-    chains::GelatoConf, AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics,
-    InboxContracts, MultisigCheckpointSyncer,
+    chains::GelatoConf, run_all, AbacusAgentCore, Agent, BaseAgent, CachingInterchainGasPaymaster,
+    ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
 };
 use abacus_core::{AbacusCommon, AbacusContract, MultisigSignedCheckpoint, Signers};
 
@@ -37,7 +37,7 @@ impl AsRef<AbacusAgentCore> for Relayer {
 
 #[async_trait]
 #[allow(clippy::unit_arg)]
-impl Agent for Relayer {
+impl BaseAgent for Relayer {
     const AGENT_NAME: &'static str = "relayer";
 
     type Settings = RelayerSettings;
@@ -67,6 +67,44 @@ impl Agent for Relayer {
             whitelist,
             blacklist,
         })
+    }
+
+    #[allow(clippy::async_yields_async)]
+    async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let (signed_checkpoint_sender, signed_checkpoint_receiver) =
+            watch::channel::<Option<MultisigSignedCheckpoint>>(None);
+
+        let inboxes = self.inboxes();
+
+        let mut tasks = Vec::with_capacity(inboxes.len() + 3);
+
+        for (inbox_name, inbox_contracts) in inboxes {
+            let signer = self
+                .core
+                .settings
+                .get_signer(inbox_name)
+                .await
+                .expect("expected signer for inbox");
+            tasks.push(self.run_inbox(
+                inbox_contracts.clone(),
+                signed_checkpoint_receiver.clone(),
+                self.core.settings.inboxes[inbox_name].gelato.as_ref(),
+                signer,
+            ));
+        }
+
+        tasks.push(self.run_checkpoint_fetcher(signed_checkpoint_sender));
+
+        let sync_metrics = ContractSyncMetrics::new(self.metrics());
+        tasks.push(self.run_outbox_sync(sync_metrics.clone()));
+
+        if let Some(paymaster) = self.interchain_gas_paymaster() {
+            tasks.push(self.run_interchain_gas_paymaster_sync(paymaster, sync_metrics));
+        } else {
+            info!("Interchain Gas Paymaster not provided, not running sync");
+        }
+
+        run_all(tasks)
     }
 }
 
@@ -180,44 +218,6 @@ impl Relayer {
             Ok(())
         })
         .instrument(info_span!("run inbox"))
-    }
-
-    pub async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let (signed_checkpoint_sender, signed_checkpoint_receiver) =
-            watch::channel::<Option<MultisigSignedCheckpoint>>(None);
-
-        let inboxes = self.inboxes();
-
-        let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> =
-            Vec::with_capacity(inboxes.len());
-
-        for (inbox_name, inbox_contracts) in inboxes {
-            let signer = self
-                .core
-                .settings
-                .get_signer(inbox_name)
-                .await
-                .expect("get signer for inbox");
-            tasks.push(self.run_inbox(
-                inbox_contracts.clone(),
-                signed_checkpoint_receiver.clone(),
-                self.core.settings.inboxes[inbox_name].gelato.as_ref(),
-                signer,
-            ));
-        }
-
-        tasks.push(self.run_checkpoint_fetcher(signed_checkpoint_sender));
-
-        let sync_metrics = ContractSyncMetrics::new(self.metrics());
-        tasks.push(self.run_outbox_sync(sync_metrics.clone()));
-
-        if let Some(paymaster) = self.interchain_gas_paymaster() {
-            tasks.push(self.run_interchain_gas_paymaster_sync(paymaster, sync_metrics));
-        } else {
-            info!("Interchain Gas Paymaster not provided, not running sync");
-        }
-
-        self.run_all(tasks)
     }
 }
 
