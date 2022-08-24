@@ -47,6 +47,36 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     });
   }
 
+  estimateCalls() {
+    objMap(this.calls, async (chain, calls) => {
+      const connection = this.checker.multiProvider.getChainConnection(chain);
+      const signer = connection.signer;
+      if (!signer) {
+        throw new Error(`signer not found for ${chain}`);
+      }
+      for (const call of calls) {
+        await signer.estimateGas({ ...call, from: await signer.getAddress() });
+      }
+    });
+  }
+
+  async executeCalls() {
+    await this.estimateCalls();
+    objMap(this.calls, async (chain, calls) => {
+      const connection = this.checker.multiProvider.getChainConnection(chain);
+      const signer = connection.signer;
+      if (!signer) {
+        throw new Error(`signer not found for ${chain}`);
+      }
+      for (const call of calls) {
+        const response = await signer.sendTransaction(call);
+        console.log(`sent tx ${response.hash} to ${chain}`);
+        await response.wait(connection.confirmations);
+        console.log(`confirmed tx ${response.hash} on ${chain}`);
+      }
+    });
+  }
+
   async handleValidatorViolation(violation: ValidatorViolation) {
     const validatorManager = violation.data.validatorManager;
     switch (violation.data.type) {
@@ -62,6 +92,13 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
           await validatorManager.populateTransaction.unenrollValidator(
             violation.actual,
           );
+        this.pushCall(violation.chain as Chain, call as types.CallData);
+        break;
+      }
+      case ValidatorViolationType.Threshold: {
+        const call = await validatorManager.populateTransaction.setThreshold(
+          violation.expected,
+        );
         this.pushCall(violation.chain as Chain, call as types.CallData);
         break;
       }
