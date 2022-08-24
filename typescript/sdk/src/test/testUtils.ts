@@ -1,5 +1,13 @@
-import { FixedNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
+import { chainMetadata } from '../consts/chainMetadata';
+import {
+  CoinGeckoInterface,
+  CoinGeckoResponse,
+  CoinGeckoSimpleInterface,
+  CoinGeckoSimplePriceParams,
+  TokenPriceGetter,
+} from '../gas/token-prices';
 import { ChainMap, ChainName } from '../types';
 
 const MOCK_NETWORK = {
@@ -40,24 +48,66 @@ export class MockProvider extends ethers.providers.BaseProvider {
   }
 }
 
-// A mock TokenPriceGetter intended to be used by tests when mocking token prices
-export class MockTokenPriceGetter<Chain extends ChainName> {
-  private tokenPrices: Partial<ChainMap<Chain, FixedNumber>>;
+// A mock CoinGecko intended to be used by tests
+export class MockCoinGecko implements CoinGeckoInterface {
+  // Prices keyed by coingecko id
+  private tokenPrices: Record<string, number>;
 
   constructor() {
     this.tokenPrices = {};
   }
 
-  getNativeTokenUsdPrice(chain: Chain): Promise<FixedNumber> {
+  price(params: CoinGeckoSimplePriceParams): CoinGeckoResponse {
+    const data: any = {};
+    for (const id of params.ids) {
+      data[id] = {
+        usd: this.tokenPrices[id],
+      };
+    }
+    return Promise.resolve({
+      success: true,
+      message: '',
+      code: 200,
+      data,
+    });
+  }
+
+  get simple(): CoinGeckoSimpleInterface {
+    return this;
+  }
+
+  setTokenPrice(chain: ChainName, price: number) {
+    const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
+    this.tokenPrices[id] = price;
+  }
+}
+
+// A mock TokenPriceGetter intended to be used by tests when mocking token prices
+export class MockTokenPriceGetter implements TokenPriceGetter {
+  private tokenPrices: Partial<ChainMap<ChainName, number>>;
+
+  constructor() {
+    this.tokenPrices = {};
+  }
+
+  async getTokenExchangeRate(
+    base: ChainName,
+    quote: ChainName,
+  ): Promise<number> {
+    const basePrice = await this.getTokenPrice(base);
+    const quotePrice = await this.getTokenPrice(quote);
+    return basePrice / quotePrice;
+  }
+
+  getTokenPrice(chain: ChainName): Promise<number> {
     const price = this.tokenPrices[chain];
     if (price) {
-      // TS compiler somehow can't deduce the check above
-      return Promise.resolve(price as FixedNumber);
+      return Promise.resolve(price);
     }
     throw Error(`No price for chain ${chain}`);
   }
 
-  setTokenPrice(chain: Chain, price: string | number) {
-    this.tokenPrices[chain] = FixedNumber.from(price);
+  setTokenPrice(chain: ChainName, price: number) {
+    this.tokenPrices[chain] = price;
   }
 }

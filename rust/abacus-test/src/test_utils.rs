@@ -1,10 +1,8 @@
-use abacus_core::db::DB;
-use futures_util::FutureExt;
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use std::{future::Future, panic};
-
+use futures_util::Future;
 use rocksdb::Options;
+use tempfile::TempDir;
+
+use abacus_core::db::DB;
 
 pub fn setup_db(db_path: String) -> DB {
     let mut opts = Options::default();
@@ -16,34 +14,27 @@ pub fn setup_db(db_path: String) -> DB {
 
 pub async fn run_test_db<T, Fut>(test: T)
 where
-    T: FnOnce(DB) -> Fut + panic::UnwindSafe,
+    T: FnOnce(DB) -> Fut,
     Fut: Future<Output = ()>,
 {
-    // RocksDB only allows one unique db handle to be open at a time. Because
-    // `cargo test` is multithreaded by default, we use random db pathnames to
-    // avoid collisions between 2+ threads
-    let rand_path: String = thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(8)
-        .map(char::from)
-        .collect();
-    let result = {
-        let db = setup_db(rand_path.clone());
-
-        let func = panic::AssertUnwindSafe(async { test(db).await });
-        func.catch_unwind().await
-    };
-    let _ = rocksdb::DB::destroy(&Options::default(), rand_path);
-    assert!(result.is_ok())
+    // Use `/tmp`-equivalent so that any resource leak of the db files will
+    // eventually be cleaned up, even if e.g. TempDir's drop handler never runs
+    // due to a segfault etc encountered during the test.
+    let db_tmp_dir = TempDir::new().unwrap();
+    let db = setup_db(db_tmp_dir.path().to_str().unwrap().into());
+    test(db).await;
+    let _ = rocksdb::DB::destroy(&Options::default(), db_tmp_dir);
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use ethers::types::H256;
+
     use abacus_core::{
         accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage,
     };
-    use ethers::types::H256;
+
+    use super::*;
 
     #[tokio::test]
     async fn db_stores_and_retrieves_messages() {

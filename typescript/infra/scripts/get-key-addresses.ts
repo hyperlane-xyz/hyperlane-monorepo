@@ -1,10 +1,11 @@
 import { getAllKeys } from '../src/agents/key-utils';
 
-import { getEnvironmentConfig } from './utils';
+import { getContextAgentConfig } from './utils';
 
 async function main() {
-  const config = await getEnvironmentConfig();
-  const keys = getAllKeys(config.agent);
+  const agentConfig = await getContextAgentConfig();
+
+  const keys = getAllKeys(agentConfig);
 
   const keyInfos = await Promise.all(
     keys.map(async (key) => {

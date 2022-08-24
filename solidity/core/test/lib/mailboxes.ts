@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import { utils } from '@abacus-network/utils';
 
@@ -35,14 +35,15 @@ export const dispatchMessageAndReturnProof = async (
     recipient,
     messageStr,
   );
-  const messageHash = utils.messageHash(message, leafIndex.toNumber());
+  const index = leafIndex.toNumber();
+  const messageHash = utils.messageHash(message, index);
   const root = await outbox.root();
   const proof = await outbox.proof();
   return {
     root,
     proof: proof,
     leaf: messageHash,
-    index: leafIndex,
+    index,
     message,
   };
 };
@@ -51,6 +52,6 @@ export interface MerkleProof {
   root: string;
   proof: string[];
   leaf: string;
-  index: BigNumber;
+  index: number;
   message: string;
 }

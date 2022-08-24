@@ -7,22 +7,28 @@ import {
   ChainName,
   IChainConnection,
   MultiProvider,
+  objMap,
+  promiseObjAll,
 } from '@abacus-network/sdk';
-import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
 
+import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
 import { getCurrentKubernetesContext } from '../src/agents';
+import { AgentKey } from '../src/agents/agent';
+import { getKey } from '../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
-import { DeployEnvironment } from '../src/config';
-import { CoreEnvironmentConfig } from '../src/config';
-import { fetchProvider, fetchSigner } from '../src/config/chain';
+import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
+import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames } from '../src/config/environment';
+import { assertContext } from '../src/utils/utils';
 
 export function getArgs() {
   return yargs(process.argv.slice(2))
     .alias('e', 'env')
     .describe('e', 'deploy environment')
     .string('e')
+    .describe('context', 'deploy context')
+    .string('context')
     .help('h')
     .alias('h', 'help');
 }
@@ -55,14 +61,61 @@ export async function getEnvironmentConfig() {
   return getCoreEnvironmentConfig(await getEnvironment());
 }
 
-export async function getMultiProviderFromGCP<Chain extends ChainName>(
+export async function getContext(): Promise<Contexts> {
+  const argv = await getArgs().argv;
+  return assertContext(argv.context!);
+}
+
+// Gets the agent config for the context that has been specified via yargs.
+export async function getContextAgentConfig<Chain extends ChainName>(
+  coreEnvironmentConfig?: CoreEnvironmentConfig<Chain>,
+) {
+  return getAgentConfig(await getContext(), coreEnvironmentConfig);
+}
+
+// Gets the agent config of a specific context.
+export async function getAgentConfig<Chain extends ChainName>(
+  context: Contexts,
+  coreEnvironmentConfig?: CoreEnvironmentConfig<Chain>,
+) {
+  const coreConfig = coreEnvironmentConfig
+    ? coreEnvironmentConfig
+    : await getEnvironmentConfig();
+  const agentConfig = coreConfig.agents[context];
+  if (!agentConfig) {
+    throw Error(
+      `Invalid context ${context} for environment, must be one of ${Object.keys(
+        coreConfig.agents,
+      )}.`,
+    );
+  }
+  return agentConfig;
+}
+
+async function getKeyForRole<Chain extends ChainName>(
+  environment: DeployEnvironment,
+  context: Contexts,
+  chain: Chain,
+  role: KEY_ROLE_ENUM,
+  index?: number,
+): Promise<AgentKey> {
+  const coreConfig = getCoreEnvironmentConfig(environment);
+  const agentConfig = await getAgentConfig(context, coreConfig);
+  return getKey(agentConfig, role, chain, index);
+}
+
+export async function getMultiProviderForRole<Chain extends ChainName>(
   txConfigs: ChainMap<Chain, IChainConnection>,
   environment: DeployEnvironment,
-) {
+  context: Contexts,
+  role: KEY_ROLE_ENUM,
+  index?: number,
+): Promise<MultiProvider<Chain>> {
   const connections = await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {
       const provider = await fetchProvider(environment, chain);
-      const signer = await fetchSigner(environment, chain, provider);
+      const key = await getKeyForRole(environment, context, chain, role, index);
+      const signer = await key.getSigner(provider);
       return {
         ...config,
         provider,
@@ -120,7 +173,7 @@ export async function assertCorrectKubeContext<Chain extends ChainName>(
     !currentKubeContext.endsWith(`${coreConfig.infra.kubernetes.clusterName}`)
   ) {
     console.error(
-      `Cowardly refusing to deploy ${coreConfig.agent.runEnv} to ${currentKubeContext}; are you sure you have the right k8s context active?`,
+      `Cowardly refusing to deploy using k8s context ${currentKubeContext}; are you sure you have the right k8s context active?`,
     );
     process.exit(1);
   }

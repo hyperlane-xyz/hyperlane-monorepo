@@ -6,7 +6,7 @@
       "domain": "1000",
       "name": "alfajores",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "1",
+      "finalityBlocks": "0",
       "connection": {
         "type": "http",
         "url": ""
@@ -20,7 +20,7 @@
       "domain": "43113",
       "name": "fuji",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "1",
+      "finalityBlocks": "0",
       "connection": {
         "type": "http",
         "url": ""
@@ -62,7 +62,7 @@
       "domain": "1634872690",
       "name": "arbitrumrinkeby",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "1",
+      "finalityBlocks": "0",
       "connection": {
         "type": "http",
         "url": ""
@@ -76,7 +76,7 @@
       "domain": "1869622635",
       "name": "optimismkovan",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "1",
+      "finalityBlocks": "0",
       "connection": {
         "type": "http",
         "url": ""

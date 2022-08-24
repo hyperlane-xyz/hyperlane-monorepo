@@ -121,6 +121,30 @@
         2
       ],
       "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x67fA6577A7558a55BFDA87118dDBbeFB34521758",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0xd95091C1c1A7E0e5DdD7d44568A04588e76e4dDe",
+      "constructorArguments": [
+        "0x67fA6577A7558a55BFDA87118dDBbeFB34521758",
+        "0x15e07BD101dfB4e8C2D0B368AbFeE3524e541277"
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x1Fb165396FB26AC4178ca4240b3724039F75EED7",
+      "constructorArguments": [
+        "0xd95091C1c1A7E0e5DdD7d44568A04588e76e4dDe",
+        "0x8129fc1c"
+      ],
+      "isProxy": true
     }
   ],
   "kovan": [
@@ -245,6 +269,30 @@
         2
       ],
       "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x1c554e54745aeaA7cf33c9Df17A70b9B258279e1",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0xA07b287Bd5Bb8101D28b331Bcd499aea949BC6dc",
+      "constructorArguments": [
+        "0x1c554e54745aeaA7cf33c9Df17A70b9B258279e1",
+        "0x38030040C09B213ec47F121c9B8a396D7FC2636b"
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x74234D5EEb6229fD75fF5370fab7D9819295F0D5",
+      "constructorArguments": [
+        "0xA07b287Bd5Bb8101D28b331Bcd499aea949BC6dc",
+        "0x8129fc1c"
+      ],
+      "isProxy": true
     }
   ],
   "fuji": [
@@ -369,6 +417,30 @@
         2
       ],
       "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x5309959109F031B8459deD683d958aE3393A1786",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x9CA79aDb726866c764f3D4ec6D01d5976351f50F",
+      "constructorArguments": [
+        "0x5309959109F031B8459deD683d958aE3393A1786",
+        "0x97Bbc6bBaFa5Ce3b2FA966c121Af63bD09e940f8"
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x4834a491f78BBF48e983F9Ce0E20D1E4DbE013D8",
+      "constructorArguments": [
+        "0x9CA79aDb726866c764f3D4ec6D01d5976351f50F",
+        "0x8129fc1c"
+      ],
+      "isProxy": true
     }
   ],
   "mumbai": [
@@ -493,6 +565,30 @@
         2
       ],
       "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0xc67b416734FDfa1c37760858aB30a18af6101383",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x4F49f89b6e350B8A3BE3aB8c9Aa6bcd3179FaA02",
+      "constructorArguments": [
+        "0xc67b416734FDfa1c37760858aB30a18af6101383",
+        "0xC81e6D1070aFA48DA4e4f35E744CC1aE43532a10"
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x9A27744C249A11f68B3B56f09D280599585DFBb8",
+      "constructorArguments": [
+        "0x4F49f89b6e350B8A3BE3aB8c9Aa6bcd3179FaA02",
+        "0x8129fc1c"
+      ],
+      "isProxy": true
     }
   ],
   "bsctestnet": [
@@ -617,6 +713,30 @@
         2
       ],
       "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x407eB16cdC073bB9cb0Da779aeb0a9246940D3B8",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0xC6A00ce0f86e88dD9eE45f28a79AB8FA833F01F6",
+      "constructorArguments": [
+        "0x407eB16cdC073bB9cb0Da779aeb0a9246940D3B8",
+        "0x638A831b4d11Be6a72AcB97d1aE79DA05Ae9B1D3"
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x155b1F1801030Ea4dF038107d3cc1b4bA496916e",
+      "constructorArguments": [
+        "0xC6A00ce0f86e88dD9eE45f28a79AB8FA833F01F6",
+        "0x8129fc1c"
+      ],
+      "isProxy": true
     }
   ],
   "arbitrumrinkeby": [
@@ -741,6 +861,30 @@
         2
       ],
       "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0xAFd1f0E77555A835987B1b8A683bA7C67105DFDc",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x3e1420105177FED86Cd55762fd21b14278E1e93e",
+      "constructorArguments": [
+        "0xAFd1f0E77555A835987B1b8A683bA7C67105DFDc",
+        "0xA6cb9B457d1670bb5cDa4AAADA56a2d010E49bb9"
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x76D20943b68985dF999C5bb13d6E7AdF3CFc276F",
+      "constructorArguments": [
+        "0x3e1420105177FED86Cd55762fd21b14278E1e93e",
+        "0x8129fc1c"
+      ],
+      "isProxy": true
     }
   ],
   "optimismkovan": [
@@ -865,6 +1009,30 @@
         2
       ],
       "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0xE48fb6dAF7e7a71856dAA7d5728BE2132175d256",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x07eCE1601749a4813f293F54ec9507DF5e926B10",
+      "constructorArguments": [
+        "0xE48fb6dAF7e7a71856dAA7d5728BE2132175d256",
+        "0xc0Ce04851bF6Ea149fA06bf7a4808c9db81af189"
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0xD7D2B0f61B834D98772e938Fa64425587C0f3481",
+      "constructorArguments": [
+        "0x07eCE1601749a4813f293F54ec9507DF5e926B10",
+        "0x8129fc1c"
+      ],
+      "isProxy": true
     }
   ]
 }

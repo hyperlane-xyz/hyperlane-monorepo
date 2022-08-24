@@ -1,22 +1,49 @@
 import { expect } from 'chai';
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber } from 'ethers';
 import sinon from 'sinon';
-
-import { utils } from '@abacus-network/utils';
 
 import { Chains } from '../consts/chains';
 import { AbacusCore } from '../core/AbacusCore';
 import { CoreContracts } from '../core/contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { MockProvider, MockTokenPriceGetter } from '../test/testUtils';
-import { TestChainNames } from '../types';
+import { ChainName, TestChainNames } from '../types';
 
 import { InterchainGasCalculator, ParsedMessage } from './calculator';
 
 const HANDLE_GAS = 100_000;
 const SUGGESTED_GAS_PRICE = 10;
-const CHECKPOINT_RELAY_GAS = 100_000;
 const INBOX_PROCESS_OVERHEAD_GAS = 100_000;
+
+// Exposes protected methods so they can be stubbed.
+class TestInterchainGasCalculator<
+  Chain extends ChainName,
+> extends InterchainGasCalculator<Chain> {
+  estimateGasForProcess<Destination extends Chain>(
+    origin: Exclude<Chain, Destination>,
+    destination: Destination,
+  ): Promise<BigNumber> {
+    return super.estimateGasForProcess(origin, destination);
+  }
+  estimateGasForHandle<LocalChain extends Chain>(
+    message: ParsedMessage<Chain, LocalChain>,
+  ): Promise<BigNumber> {
+    return super.estimateGasForHandle(message);
+  }
+  convertBetweenTokens(
+    fromChain: Chain,
+    toChain: Chain,
+    fromAmount: BigNumber,
+  ): Promise<BigNumber> {
+    return super.convertBetweenTokens(fromChain, toChain, fromAmount);
+  }
+  tokenDecimals(chain: Chain): number {
+    return super.tokenDecimals(chain);
+  }
+  getGasPrice(chain: Chain): Promise<BigNumber> {
+    return super.getGasPrice(chain);
+  }
+}
 
 describe('InterchainGasCalculator', () => {
   const provider = new MockProvider();
@@ -37,16 +64,14 @@ describe('InterchainGasCalculator', () => {
   const origin = Chains.test1;
   const destination = Chains.test2;
 
-  let tokenPriceGetter: MockTokenPriceGetter<TestChainNames>;
-  let calculator: InterchainGasCalculator<TestChainNames>;
+  let tokenPriceGetter: MockTokenPriceGetter;
+  let calculator: TestInterchainGasCalculator<TestChainNames>;
 
   beforeEach(() => {
     tokenPriceGetter = new MockTokenPriceGetter();
-    // Origin token
-    tokenPriceGetter.setTokenPrice(origin, 10);
-    // Destination token
-    tokenPriceGetter.setTokenPrice(destination, 5);
-    calculator = new InterchainGasCalculator(multiProvider, core, {
+    tokenPriceGetter.setTokenPrice(origin, 9.0909);
+    tokenPriceGetter.setTokenPrice(destination, 5.5);
+    calculator = new TestInterchainGasCalculator(multiProvider, core, {
       tokenPriceGetter,
       // A multiplier of 1 makes testing easier to reason about
       paymentEstimateMultiplier: '1',
@@ -58,7 +83,7 @@ describe('InterchainGasCalculator', () => {
     provider.clearMethodResolveValues();
   });
 
-  describe('estimatePaymentForHandleGasAmount', () => {
+  describe('estimatePaymentForGas', () => {
     it('estimates origin token payment from a specified destination gas amount', async () => {
       // Set destination gas price to 10 wei
       provider.setMethodResolveValue(
@@ -66,45 +91,57 @@ describe('InterchainGasCalculator', () => {
         BigNumber.from(SUGGESTED_GAS_PRICE),
       );
 
-      // Stub the checkpoint relay gas cost
-      sinon
-        .stub(calculator, 'checkpointRelayGas')
-        .returns(Promise.resolve(BigNumber.from(CHECKPOINT_RELAY_GAS)));
-      // Stub the inbox process overhead gas
-      sinon
-        .stub(calculator, 'inboxProcessOverheadGas')
-        .returns(Promise.resolve(BigNumber.from(INBOX_PROCESS_OVERHEAD_GAS)));
+      const estimatedPayment = await calculator.estimatePaymentForGas(
+        origin,
+        destination,
+        BigNumber.from(HANDLE_GAS),
+      );
 
-      const estimatedPayment =
-        await calculator.estimatePaymentForHandleGasAmount(
-          origin,
-          destination,
-          BigNumber.from(HANDLE_GAS),
-        );
-
-      // (100_000 dest handler gas + 100_000 checkpoint relay gas + 100_000 process overhead gas)
-      // * 10 gas price * ($5 per origin token / $10 per origin token)
-      expect(estimatedPayment.toNumber()).to.equal(1_500_000);
+      // 100k gas * 10 gas price * ($5.5 per destination token / $9.0909 per origin token)
+      expect(estimatedPayment.toNumber()).to.equal(605_000);
     });
   });
 
-  describe('estimatePaymentForMessage', () => {
-    it('estimates origin token payment from a specified message', async () => {
-      // Set the estimated handle gas
-      sinon
-        .stub(calculator, 'estimateHandleGasForMessage')
-        .returns(Promise.resolve(BigNumber.from(HANDLE_GAS)));
+  describe('estimatePaymentForHandleGas', () => {
+    it('estimates origin token payment from a specified destination handle gas amount', async () => {
       // Set destination gas price to 10 wei
-      sinon
-        .stub(calculator, 'suggestedGasPrice')
-        .returns(Promise.resolve(BigNumber.from(SUGGESTED_GAS_PRICE)));
-      // Stub the checkpoint relay gas cost
-      sinon
-        .stub(calculator, 'checkpointRelayGas')
-        .returns(Promise.resolve(BigNumber.from(CHECKPOINT_RELAY_GAS)));
+      provider.setMethodResolveValue(
+        'getGasPrice',
+        BigNumber.from(SUGGESTED_GAS_PRICE),
+      );
+
       // Stub the inbox process overhead gas
       sinon
-        .stub(calculator, 'inboxProcessOverheadGas')
+        .stub(calculator, 'estimateGasForProcess')
+        .returns(Promise.resolve(BigNumber.from(INBOX_PROCESS_OVERHEAD_GAS)));
+
+      const estimatedPayment = await calculator.estimatePaymentForHandleGas(
+        origin,
+        destination,
+        BigNumber.from(HANDLE_GAS),
+      );
+
+      // (100_000 dest handler gas + 100_000 process overhead gas)
+      // * 10 gas price * ($5.5 per destination token / $9.0909 per origin token)
+      expect(estimatedPayment.toNumber()).to.equal(1_210_000);
+    });
+  });
+
+  /*
+  describe('estimatePaymentForMessage', () => {
+    it('estimates origin token payment from a specified message', async () => {
+      // Set destination gas price to 10 wei
+      provider.setMethodResolveValue(
+        'getGasPrice',
+        BigNumber.from(SUGGESTED_GAS_PRICE),
+      );
+      // Set the estimated handle gas
+      sinon
+        .stub(calculator, 'estimateGasForHandle')
+        .returns(Promise.resolve(BigNumber.from(HANDLE_GAS)));
+      // Stub the inbox process overhead gas
+      sinon
+        .stub(calculator, 'estimateGasForProcess')
         .returns(Promise.resolve(BigNumber.from(INBOX_PROCESS_OVERHEAD_GAS)));
 
       const zeroAddressBytes32 = utils.addressToBytes32(
@@ -122,45 +159,48 @@ describe('InterchainGasCalculator', () => {
         message,
       );
 
-      // (100_000 dest handler gas + 100_000 checkpoint relay gas + 100_000 process overhead gas)
-      // * 10 gas price * ($5 per origin token / $10 per origin token)
-      expect(estimatedPayment.toNumber()).to.equal(1_500_000);
+      // (100_000 dest handler gas + 100_000 process overhead gas)
+      // * 10 gas price * ($5.5 per destination token / $9.0909 per origin token)
+      expect(estimatedPayment.toNumber()).to.equal(1_210_000);
     });
   });
+  */
 
-  describe('convertBetweenNativeTokens', () => {
+  describe('convertBetweenTokens', () => {
     const destinationWei = BigNumber.from('1000');
 
     it('converts using the USD value of origin and destination native tokens', async () => {
-      const originWei = await calculator.convertBetweenNativeTokens(
+      const originWei = await calculator.convertBetweenTokens(
         destination,
         origin,
         destinationWei,
       );
 
-      expect(originWei.toNumber()).to.equal(500);
+      // 1000 * (5.5 / 9.0909)
+      expect(originWei.toNumber()).to.equal(605);
     });
 
     it('considers when the origin token decimals > the destination token decimals', async () => {
-      calculator.nativeTokenDecimals = (chain: TestChainNames) => {
+      calculator.tokenDecimals = (chain: TestChainNames) => {
         if (chain === origin) {
           return 20;
         }
         return 18;
       };
 
-      const originWei = await calculator.convertBetweenNativeTokens(
+      const originWei = await calculator.convertBetweenTokens(
         destination,
         origin,
         destinationWei,
       );
 
-      expect(originWei.toNumber()).to.equal(50000);
+      // 1000 * (5.5 / 9.0909) * 100
+      expect(originWei.toNumber()).to.equal(60500);
     });
 
     it('considers when the origin token decimals < the destination token decimals', async () => {
       sinon
-        .stub(calculator, 'nativeTokenDecimals')
+        .stub(calculator, 'tokenDecimals')
         .callsFake((chain: TestChainNames) => {
           if (chain === origin) {
             return 16;
@@ -168,30 +208,31 @@ describe('InterchainGasCalculator', () => {
           return 18;
         });
 
-      const originWei = await calculator.convertBetweenNativeTokens(
+      const originWei = await calculator.convertBetweenTokens(
         destination,
         origin,
         destinationWei,
       );
 
-      expect(originWei.toNumber()).to.equal(5);
+      // 1000 * (5.5 / 9.0909) / 100
+      expect(originWei.toNumber()).to.equal(6);
     });
   });
 
-  describe('suggestedGasPrice', () => {
+  describe('getGasPrice', () => {
     it('gets the gas price from the provider', async () => {
       provider.setMethodResolveValue(
         'getGasPrice',
         BigNumber.from(SUGGESTED_GAS_PRICE),
       );
 
-      expect(
-        (await calculator.suggestedGasPrice(destination)).toNumber(),
-      ).to.equal(SUGGESTED_GAS_PRICE);
+      expect((await calculator.getGasPrice(destination)).toNumber()).to.equal(
+        SUGGESTED_GAS_PRICE,
+      );
     });
   });
 
-  describe('checkpointRelayGas', () => {
+  describe('estimateGasForProcess', () => {
     let threshold: number;
     // Mock the return value of InboxValidatorManager.threshold
     // to return `threshold`. Because the mocking involves a closure,
@@ -228,13 +269,13 @@ describe('InterchainGasCalculator', () => {
 
     it('scales the gas cost with the quorum threshold', async () => {
       threshold = 2;
-      const gasWithThresholdLow = await calculator.checkpointRelayGas(
+      const gasWithThresholdLow = await calculator.estimateGasForProcess(
         origin,
         destination,
       );
 
       threshold = 3;
-      const gasWithThresholdHigh = await calculator.checkpointRelayGas(
+      const gasWithThresholdHigh = await calculator.estimateGasForProcess(
         origin,
         destination,
       );

@@ -7,7 +7,7 @@ import { ChainNameToDomainId, DomainIdToChainName } from '../domains';
 import { Annotated, findAnnotatedSingleEvent } from '../events';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName, NameOrDomain } from '../types';
-import { delay } from '../utils';
+import { delay } from '../utils/time';
 
 import { AbacusCore } from './AbacusCore';
 import {

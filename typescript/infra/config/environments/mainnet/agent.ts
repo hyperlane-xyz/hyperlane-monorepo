@@ -1,20 +1,31 @@
+import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
+import { Contexts } from '../../contexts';
+import { helloworldMatchingList } from '../../utils';
 
 import { MainnetChains, chainNames, environment } from './chains';
+import { helloWorld } from './helloworld';
 import { validators } from './validators';
 
-export const agent: AgentConfig<MainnetChains> = {
+const releaseCandidateHelloworldMatchingList = helloworldMatchingList(
+  helloWorld,
+  Contexts.ReleaseCandidate,
+);
+
+export const abacus: AgentConfig<MainnetChains> = {
   environment,
   namespace: environment,
   runEnv: environment,
+  context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-8740021',
+    tag: 'sha-33b82dc',
   },
   aws: {
     region: 'us-east-1',
   },
-  chainNames: chainNames,
+  environmentChainNames: chainNames,
+  contextChainNames: chainNames,
   validatorSets: validators,
   validator: {
     default: {
@@ -23,7 +34,7 @@ export const agent: AgentConfig<MainnetChains> = {
     },
     chainOverrides: {
       celo: {
-        reorgPeriod: 1,
+        reorgPeriod: 0,
       },
       ethereum: {
         reorgPeriod: 20,
@@ -32,13 +43,13 @@ export const agent: AgentConfig<MainnetChains> = {
         reorgPeriod: 15,
       },
       optimism: {
-        reorgPeriod: 20,
+        reorgPeriod: 0,
       },
       arbitrum: {
-        reorgPeriod: 1,
+        reorgPeriod: 0,
       },
       avalanche: {
-        reorgPeriod: 1,
+        reorgPeriod: 3,
       },
       polygon: {
         reorgPeriod: 256,
@@ -49,6 +60,38 @@ export const agent: AgentConfig<MainnetChains> = {
     default: {
       signedCheckpointPollingInterval: 5,
       maxProcessingRetries: 10,
+      blacklist: releaseCandidateHelloworldMatchingList,
     },
   },
+  rolesWithKeys: ALL_KEY_ROLES,
+};
+
+export const releaseCandidate: AgentConfig<MainnetChains> = {
+  environment,
+  namespace: environment,
+  runEnv: environment,
+  context: Contexts.ReleaseCandidate,
+  docker: {
+    repo: 'gcr.io/abacus-labs-dev/abacus-agent',
+    tag: 'sha-33b82dc',
+  },
+  aws: {
+    region: 'us-east-1',
+  },
+  environmentChainNames: chainNames,
+  contextChainNames: chainNames,
+  validatorSets: validators,
+  relayer: {
+    default: {
+      signedCheckpointPollingInterval: 5,
+      maxProcessingRetries: 10,
+      whitelist: releaseCandidateHelloworldMatchingList,
+    },
+  },
+  rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
+};
+
+export const agents = {
+  [Contexts.Abacus]: abacus,
+  [Contexts.ReleaseCandidate]: releaseCandidate,
 };

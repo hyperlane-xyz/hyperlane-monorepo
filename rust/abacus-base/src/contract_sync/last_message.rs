@@ -40,14 +40,14 @@ impl OptLatestLeafIndex {
                 .iter()
                 .any(|message| *last_seen == message.leaf_index - 1);
             if !has_desired_message {
-                return ListValidity::Invalid;
+                return ListValidity::InvalidContinuation;
             }
         }
 
         // Ensure no gaps in new batch of leaves
         for pair in sorted_messages.windows(2) {
             if pair[0].leaf_index != pair[1].leaf_index - 1 {
-                return ListValidity::Invalid;
+                return ListValidity::ContainsGaps;
             }
         }
 

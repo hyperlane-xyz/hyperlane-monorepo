@@ -6,7 +6,7 @@ export enum KEY_ROLE_ENUM {
   Kathy = 'kathy',
 }
 
-export const KEY_ROLES = [
+export const ALL_KEY_ROLES = [
   KEY_ROLE_ENUM.Validator,
   KEY_ROLE_ENUM.Relayer,
   KEY_ROLE_ENUM.Deployer,

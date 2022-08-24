@@ -1,10 +1,10 @@
 import { deleteAgentKeys } from '../src/agents/key-utils';
 
-import { getEnvironmentConfig } from './utils';
+import { getContextAgentConfig } from './utils';
 
 async function main() {
-  const config = await getEnvironmentConfig();
-  return deleteAgentKeys(config.agent);
+  const agentConfig = await getContextAgentConfig();
+  return deleteAgentKeys(agentConfig);
 }
 
 main().then(console.log).catch(console.error);

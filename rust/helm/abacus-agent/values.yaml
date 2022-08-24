@@ -1,16 +1,16 @@
 image:
   repository: gcr.io/clabs-abacus/abacus-agent
   pullPolicy: Always
-  tag: "latest"
+  tag: 'latest'
 
 imagePullSecrets: []
-nameOverride: ""
-fullnameOverride: ""
+nameOverride: ''
+fullnameOverride: ''
 
 serviceAccount:
   create: true
   annotations: {}
-  name: ""
+  name: ''
 
 externalSecrets:
   clusterSecretStore:
@@ -19,7 +19,7 @@ podAnnotations: {}
 podCommonLabels: {}
 
 storage:
-  storageClass: "standard"
+  storageClass: 'standard'
   accessModes: ReadWriteOnce
 
 # -- Abacus Overrides
@@ -29,9 +29,10 @@ storage:
 #       they are not baked into the image for security reasons.
 abacus:
   # Sets the config folder to use
-  runEnv: "default"
+  runEnv: 'default'
+  context: 'abacus'
   # Sets the base config to be used (switch between Homes)
-  baseConfig: "base.json"
+  baseConfig: 'base.json'
   # Set the DB location to be the volume
   dbPath: /usr/share/abacus
   rustBacktrace: full
@@ -40,11 +41,11 @@ abacus:
     format: json
     # Set the log level
     level: info
-    uri: ""
-  metrics: 
+    uri: ''
+  metrics:
     port: 9090
   outboxChain:
-    name: "kovan"
+    name: 'kovan'
     # -- The contract address for the home contract
     address:
     # -- The hard-coded domain corresponding to this blockchain
@@ -57,7 +58,8 @@ abacus:
 
   # -- Replica chain overrides, a sequence
   inboxChains:
-    - name: "alfajores"
+    - name: 'alfajores'
+      disabled: false
       # -- The contract address for the replica contract
       address:
       domain:
@@ -70,14 +72,14 @@ abacus:
   validator:
     enabled: false
     podAnnotations:
-      prometheus.io/port: "9090"
-      prometheus.io/scrape: "true"
+      prometheus.io/port: '9090'
+      prometheus.io/scrape: 'true'
     podLabels: {}
     storage:
       size: 10Gi
       snapshot:
         enabled: false
-        name: ""
+        name: ''
     resources:
       requests:
         cpu: 100m
@@ -93,22 +95,22 @@ abacus:
   relayer:
     enabled: false
     podAnnotations:
-      prometheus.io/port: "9090"
-      prometheus.io/scrape: "true"
+      prometheus.io/port: '9090'
+      prometheus.io/scrape: 'true'
     podLabels: {}
     storage:
       size: 10Gi
       snapshot:
         enabled: false
-        name: ""
+        name: ''
     resources:
       requests:
         cpu: 250m
         memory: 1Gi
     signers:
-      - name: "kovan"
+      - name: 'kovan'
         # aws:
-      - name: "alfajores"
+      - name: 'alfajores'
         # aws:
     config:
       signedCheckpointPollingInterval:
@@ -119,40 +121,12 @@ abacus:
 
   kathy:
     enabled: false
-    podAnnotations: {}
-    podLabels: {}
-    storage:
-      size: 10Gi
-      snapshot:
-        enabled: false
-        name: ""
-    resources:
-      requests:
-        cpu: 250m
-        memory: 512Mi
-    signers:
-      - name: "kovan"
-        # aws:
-        #   keyId: ""
-        #   region: ""
-      - name: "alfajores"
-        # aws:
-        #   keyId: ""
-        #   region: ""
-    # Polling Interval Override
-    config:
-      interval: # 100
-      # -- Configuration for Kathy's message generation code
-      chatGenConfig:
-        destination: # 2000
-        message: # "hello are you listening?"
-        recipient: # "recipient"
-        type: # "static"
 
 podSecurityContext:
   fsGroup: 2000
 
-securityContext: {}
+securityContext:
+  {}
   # capabilities:
   #   drop:
   #   - ALL

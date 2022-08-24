@@ -12,7 +12,7 @@ import {
   CoreConfig,
   CoreContractsMap,
   MultiProvider,
-  getMultiProviderFromConfigAndSigner,
+  getTestMultiProvider,
   objMap,
   serializeContracts,
 } from '@abacus-network/sdk';
@@ -35,10 +35,7 @@ describe('core', async () => {
   beforeEach(async () => {
     const [signer, owner] = await ethers.getSigners();
     // This is kind of awkward and really these tests shouldn't live here
-    multiProvider = getMultiProviderFromConfigAndSigner(
-      testConfig.transactionConfigs,
-      signer,
-    );
+    multiProvider = getTestMultiProvider(signer, testConfig.transactionConfigs);
     coreConfig = testConfig.core;
     deployer = new AbacusCoreInfraDeployer(multiProvider, coreConfig);
     owners = objMap(testConfig.transactionConfigs, () => owner.address);

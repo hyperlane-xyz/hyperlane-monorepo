@@ -1,25 +1,29 @@
-import { getMultiProviderFromGCP } from '../../../scripts/utils';
+import { getMultiProviderForRole } from '../../../scripts/utils';
+import { KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { CoreEnvironmentConfig } from '../../../src/config';
+import { Contexts } from '../../contexts';
 
-import { agent } from './agent';
+import { agents } from './agent';
 import {
   TestnetChains,
   environment as environmentName,
   testnetConfigs,
 } from './chains';
 import { core } from './core';
-import { relayerFunderConfig } from './funding';
+import { keyFunderConfig } from './funding';
 import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
 
 export const environment: CoreEnvironmentConfig<TestnetChains> = {
   environment: environmentName,
   transactionConfigs: testnetConfigs,
-  getMultiProvider: () =>
-    getMultiProviderFromGCP(testnetConfigs, environmentName),
-  agent,
+  getMultiProvider: (
+    context: Contexts = Contexts.Abacus,
+    role: KEY_ROLE_ENUM = KEY_ROLE_ENUM.Deployer,
+  ) => getMultiProviderForRole(testnetConfigs, environmentName, context, role),
+  agents,
   core,
   infra: infrastructure,
   helloWorld,
-  relayerFunderConfig,
+  keyFunderConfig,
 };

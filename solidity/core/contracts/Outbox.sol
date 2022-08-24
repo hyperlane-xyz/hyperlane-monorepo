@@ -118,7 +118,7 @@ contract Outbox is IOutbox, Versioned, MerkleTreeManager, Mailbox {
         bytes calldata _messageBody
     ) external override notFailed returns (uint256) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
-        // The leaf has not been inserted yet at this point1
+        // The leaf has not been inserted yet at this point
         uint256 _leafIndex = count();
         // format the message into packed bytes
         bytes memory _message = Message.formatMessage(

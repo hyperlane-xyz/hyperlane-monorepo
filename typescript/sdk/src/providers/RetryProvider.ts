@@ -7,11 +7,11 @@ import { ethers } from 'ethers';
 import { utils } from '@abacus-network/utils';
 
 export type RetryOptions = {
-  // The wait interval in between
-  interval: number;
+  // Maximum number of times to make the RPC
+  maxRequests: number;
 
-  // Maximum number of times to retry
-  retryLimit: number;
+  // Exponential backoff base value
+  baseRetryMs: number;
 };
 
 export class RetryProvider extends ethers.providers.BaseProvider {
@@ -20,6 +20,10 @@ export class RetryProvider extends ethers.providers.BaseProvider {
     readonly retryOptions: RetryOptions,
   ) {
     super(provider.getNetwork());
+    utils.assert(
+      retryOptions.maxRequests >= 1,
+      'RetryOptions.maxRequests must be >= 1',
+    );
     ethers.utils.defineReadOnly(this, 'provider', provider);
     ethers.utils.defineReadOnly(this, 'retryOptions', retryOptions);
   }
@@ -28,8 +32,8 @@ export class RetryProvider extends ethers.providers.BaseProvider {
   perform(method: string, params: any): Promise<any> {
     return utils.retryAsync(
       () => this.provider.perform(method, params),
-      this.retryOptions.retryLimit,
-      this.retryOptions.interval,
+      this.retryOptions.maxRequests,
+      this.retryOptions.baseRetryMs,
     );
   }
 }
@@ -41,13 +45,17 @@ export class RetryJsonRpcProvider extends ethers.providers.JsonRpcProvider {
     readonly retryOptions: RetryOptions,
   ) {
     super(provider.connection, provider.network);
+    utils.assert(
+      retryOptions.maxRequests >= 1,
+      'RetryOptions.maxRequests must be >= 1',
+    );
   }
 
   async send(method: string, params: Array<any>): Promise<any> {
     return utils.retryAsync(
       async () => this.provider.send(method, params),
-      this.retryOptions.retryLimit,
-      this.retryOptions.interval,
+      this.retryOptions.maxRequests,
+      this.retryOptions.baseRetryMs,
     );
   }
 }

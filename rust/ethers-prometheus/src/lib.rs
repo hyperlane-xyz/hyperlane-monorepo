@@ -119,7 +119,8 @@ pub const TRANSACTION_SEND_DURATION_SECONDS_HELP: &str =
     "Time taken to submit the transaction (not counting time for it to be included)";
 
 /// Expected label names for the `transaction_send_total` metric.
-pub const TRANSACTION_SEND_TOTAL_LABELS: &[&str] = &["chain", "address_from", "address_to"];
+pub const TRANSACTION_SEND_TOTAL_LABELS: &[&str] =
+    &["chain", "address_from", "address_to", "txn_status"];
 /// Help string for the metric.
 pub const TRANSACTION_SEND_TOTAL_HELP: &str = "Number of transactions sent";
 

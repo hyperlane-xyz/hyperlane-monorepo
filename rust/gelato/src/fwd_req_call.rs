@@ -3,11 +3,12 @@ use crate::err::GelatoError;
 use ethers::types::{Address, Bytes, Signature, U256};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
-use std::sync::Arc;
 use tracing::info;
 use tracing::instrument;
 
 const GATEWAY_URL: &str = "https://gateway.api.gelato.digital";
+
+pub const NATIVE_FEE_TOKEN_ADDRESS: ethers::types::Address = Address::repeat_byte(0xEE);
 
 #[derive(Debug, Clone)]
 pub struct ForwardRequestArgs {
@@ -27,7 +28,7 @@ pub struct ForwardRequestArgs {
 
 #[derive(Debug, Clone)]
 pub struct ForwardRequestCall {
-    pub http: Arc<reqwest::Client>,
+    pub http: reqwest::Client,
     pub args: ForwardRequestArgs,
     pub sig: Signature,
 }
@@ -68,7 +69,7 @@ struct HTTPResult {
     pub task_id: String,
 }
 
-// We could try to get equivalent serde serializaztion for this type via the typical attributes,
+// We could try to get equivalent serde serialization for this type via the typical attributes,
 // like #[serde(rename_all...)], #[serde(flatten)], etc, but altogether there are enough changes
 // piled on top of one another that it seems more readable to just explicitly rewrite the relevant
 // fields with inline modifications below.

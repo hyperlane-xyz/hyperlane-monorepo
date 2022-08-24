@@ -20,7 +20,7 @@
       "domain": "1635148152",
       "name": "avalanche",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "1",
+      "finalityBlocks": "3",
       "connection": {
         "type": "http",
         "url": ""
@@ -48,7 +48,7 @@
       "domain": "1667591279",
       "name": "celo",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "1",
+      "finalityBlocks": "0",
       "connection": {
         "type": "http",
         "url": ""
@@ -62,7 +62,7 @@
       "domain": "6386274",
       "name": "arbitrum",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "1",
+      "finalityBlocks": "0",
       "connection": {
         "type": "http",
         "url": ""
@@ -94,7 +94,7 @@
     "domain": "28528",
     "name": "optimism",
     "rpcStyle": "ethereum",
-    "finalityBlocks": "1",
+    "finalityBlocks": "0",
     "connection": {
       "type": "http",
       "url": ""

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:experimental
 
-FROM rust:1.61 as builder
+FROM rust:1.63 as builder
 WORKDIR /usr/src
 
 # 1a: Prepare for static linking
@@ -30,8 +30,7 @@ RUN \
     cargo build --release --no-default-features --features oneline-errors && \
     mkdir -p /release && \
     cp /usr/src/target/release/validator /release && \
-    cp /usr/src/target/release/relayer /release && \
-    cp /usr/src/target/release/kathy /release
+    cp /usr/src/target/release/relayer /release
 
 ## 2: Copy the binaries to release image
 FROM ubuntu:20.04
