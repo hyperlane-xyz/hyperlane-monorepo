@@ -76,7 +76,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x3b989d35931f39d6c7b5bdd41eac3cad5c903af9',
         '0x38566cc4ceb264dfcb0022d9857ffe6c9da33881',
       ],
-      threshold: 3,
+      threshold: 2,
     },
   },
   optimism: {

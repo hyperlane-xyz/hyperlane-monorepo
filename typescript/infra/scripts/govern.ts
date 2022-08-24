@@ -23,15 +23,16 @@ async function check() {
   );
   await coreChecker.check();
   // One add validator and one threshold violation per VM per chain
+  // with the exception of Arbitrum
   await coreChecker.expectViolations(
     [CoreViolationType.Validator],
-    [2 * 7 * 7],
+    [2 * 7 * 6],
   );
 
   const governor = new AbacusCoreGovernor(coreChecker);
 
   await governor.govern();
-  await governor.executeCalls();
+  await governor.logCalls();
 }
 
 check().then(console.log).catch(console.error);
