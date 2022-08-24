@@ -74,6 +74,8 @@ interface ValidatorSet {
 interface Validator {
   address: string;
   checkpointSyncer: CheckpointSyncerConfig;
+  identifier?: string;
+  readonly?: boolean;
 }
 
 // Validator sets for each chain
