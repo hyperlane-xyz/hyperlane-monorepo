@@ -81,7 +81,10 @@ pub enum CheckpointUpdate {
     Id,
     /// Time of record creation
     TimeCreated,
+    /// Checkpoint this is an update for.
     CheckpointId,
+    /// What this update is.
     UpdateType,
+    /// Transaction the update was made in.
     TxId,
 }

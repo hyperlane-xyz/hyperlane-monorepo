@@ -22,7 +22,8 @@ impl BaseAgent for Scraper {
         todo!()
     }
 
-    fn run(&self) -> Instrumented<JoinHandle<eyre::Result<()>>> {
+    #[allow(clippy::async_yields_async)]
+    async fn run(&self) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         todo!()
     }
 }

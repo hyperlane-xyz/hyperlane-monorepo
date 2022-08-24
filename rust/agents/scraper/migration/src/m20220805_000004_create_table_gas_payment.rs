@@ -1,5 +1,8 @@
-use crate::l20220805_types::*;
 use sea_orm_migration::prelude::*;
+
+use crate::l20220805_types::*;
+use crate::m20220805_000001_create_table_domain::Domain;
+use crate::m20220805_000003_create_table_transaction::Transaction;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -29,13 +32,27 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(GasPayment::OutboxAddress, Address).not_null())
                     .col(ColumnDef::new_with_type(GasPayment::Amount, CryptoCurrency).not_null())
                     .col(ColumnDef::new(GasPayment::TxId).big_integer().not_null())
-                    .index(
-                        Index::create()
-                            .name("idx-domain-outbox-leaf")
-                            .col(GasPayment::Domain)
-                            .col(GasPayment::OutboxAddress)
-                            .col(GasPayment::LeafIndex),
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(GasPayment::TxId)
+                            .to(Transaction::Table, Transaction::Id),
                     )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(GasPayment::Domain)
+                            .to(Domain::Table, Domain::DomainId),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(GasPayment::Table)
+                    .name("idx-domain-outbox-leaf")
+                    .col(GasPayment::Domain)
+                    .col(GasPayment::OutboxAddress)
+                    .col(GasPayment::LeafIndex)
                     .to_owned(),
             )
             .await

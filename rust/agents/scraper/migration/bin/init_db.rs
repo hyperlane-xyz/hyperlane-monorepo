@@ -1,7 +1,5 @@
 use std::env;
 
-use sea_orm_migration::SchemaManager;
-
 use migration::sea_orm::Database;
 use migration::{DbErr, Migrator, MigratorTrait as _};
 
