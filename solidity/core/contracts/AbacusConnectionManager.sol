@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
-pragma abicoder v2;
 
 // ============ Internal Imports ============
 import {IOutbox} from "../interfaces/IOutbox.sol";
+import {IInbox} from "../interfaces/IInbox.sol";
 import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.sol";
+import {IMultisigValidatorManager} from "../interfaces/IMultisigValidatorManager.sol";
 
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /**
@@ -18,6 +20,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
  */
 contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
 
     // ============ Public Storage ============
 
@@ -26,7 +29,9 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     // local Inbox address => remote Outbox domain
     mapping(address => uint32) public inboxToDomain;
     // remote Outbox domain => local Inbox addresses
-    mapping(uint32 => EnumerableSet.AddressSet) domainToInboxes;
+    mapping(uint32 => EnumerableSet.AddressSet) internal domainToInboxes;
+    // complete history of enrolled inbox domain hashes, even if unenrolled
+    EnumerableSet.Bytes32Set domainHashes;
 
     // ============ Events ============
 
@@ -62,6 +67,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @param _outbox The address of the new local Outbox contract.
      */
     function setOutbox(address _outbox) external onlyOwner {
+        require(Address.isContract(_outbox), "outbox !contract");
         outbox = IOutbox(_outbox);
         emit OutboxSet(_outbox);
     }
@@ -72,10 +78,20 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @param _inbox the address of the Inbox
      */
     function enrollInbox(uint32 _domain, address _inbox) external onlyOwner {
+        require(Address.isContract(_inbox), "inbox !contract");
         require(!isInbox(_inbox), "already inbox");
+
+        // prevent enrolling an inbox that matches any previously enrolled domain hash
+        bytes32 domainHash = getDomainHash(_inbox);
+        require(
+            !domainHashes.contains(domainHash),
+            "domain hash previously enrolled"
+        );
+        domainHashes.add(domainHash);
+
         // add inbox and domain to two-way mapping
         inboxToDomain[_inbox] = _domain;
-        domainToInboxes[_domain].add(_inbox);
+        require(domainToInboxes[_domain].add(_inbox), "already enrolled");
         emit InboxEnrolled(_domain, _inbox);
     }
 
@@ -126,6 +142,17 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
         return inboxToDomain[_inbox] != 0;
     }
 
+    /**
+     * @notice Check whether _inbox is enrolled
+     * @param _inbox the inbox to check for enrollment
+     * @return TRUE iff _inbox is enrolled
+     */
+    function getDomainHash(address _inbox) public view returns (bytes32) {
+        IInbox inbox = IInbox(_inbox);
+        address vm = inbox.validatorManager();
+        return IMultisigValidatorManager(vm).domainHash();
+    }
+
     // ============ Internal Functions ============
 
     /**
@@ -134,7 +161,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      */
     function _unenrollInbox(address _inbox) internal {
         uint32 _currentDomain = inboxToDomain[_inbox];
-        domainToInboxes[_currentDomain].remove(_inbox);
+        require(domainToInboxes[_currentDomain].remove(_inbox), "not enrolled");
         inboxToDomain[_inbox] = 0;
         emit InboxUnenrolled(_currentDomain, _inbox);
     }

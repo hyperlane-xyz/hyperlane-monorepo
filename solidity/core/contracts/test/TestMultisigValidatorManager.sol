@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
-pragma abicoder v2;
 
 import {MultisigValidatorManager} from "../validator-manager/MultisigValidatorManager.sol";
 
