@@ -11,6 +11,9 @@ import {
   InterchainGasPaymaster__factory,
   Outbox,
   Outbox__factory,
+  TestInbox,
+  TestInbox__factory,
+  TestMultisigValidatorManager__factory,
 } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
@@ -81,16 +84,24 @@ describe('Router', async () => {
   });
 
   describe('when initialized', () => {
+    let inbox: TestInbox;
+
     beforeEach(async () => {
       await router.initialize(connectionManager.address);
+      const validatorManger = await new TestMultisigValidatorManager__factory(
+        signer,
+      ).deploy(origin, [signer.address], 1);
+      inbox = await new TestInbox__factory(signer).deploy(destination);
+      await inbox.initialize(origin, validatorManger.address);
     });
 
     it('accepts message from enrolled inbox and router', async () => {
-      await connectionManager.enrollInbox(origin, signer.address);
+      await connectionManager.enrollInbox(origin, inbox.address);
       const remote = utils.addressToBytes32(nonOwner.address);
       await router.enrollRemoteRouter(origin, remote);
+      const recipient = utils.addressToBytes32(router.address);
       // Does not revert.
-      await router.handle(origin, remote, message);
+      await inbox.testHandle(origin, remote, recipient, message);
     });
 
     it('rejects message from unenrolled inbox', async () => {
@@ -104,13 +115,11 @@ describe('Router', async () => {
     });
 
     it('rejects message from unenrolled router', async () => {
-      await connectionManager.enrollInbox(origin, signer.address);
+      await connectionManager.enrollInbox(origin, inbox.address);
+      const recipient = utils.addressToBytes32(router.address);
+      const sender = utils.addressToBytes32(nonOwner.address);
       await expect(
-        router.handle(
-          origin,
-          utils.addressToBytes32(nonOwner.address),
-          message,
-        ),
+        inbox.testHandle(origin, sender, recipient, message),
       ).to.be.revertedWith('!router');
     });
 

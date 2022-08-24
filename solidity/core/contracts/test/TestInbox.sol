@@ -5,6 +5,7 @@ import "../Inbox.sol";
 
 contract TestInbox is Inbox {
     using Message for bytes32;
+    using TypeCasts for bytes32;
 
     constructor(uint32 _localDomain) Inbox(_localDomain) {} // solhint-disable-line no-empty-blocks
 
@@ -19,6 +20,19 @@ contract TestInbox is Inbox {
     function testProcess(bytes calldata _message, uint256 leafIndex) external {
         bytes32 _messageHash = keccak256(abi.encodePacked(_message, leafIndex));
         _process(_message, _messageHash);
+    }
+
+    function testHandle(
+        uint32 origin,
+        bytes32 sender,
+        bytes32 recipient,
+        bytes calldata body
+    ) external {
+        IMessageRecipient(recipient.bytes32ToAddress()).handle(
+            origin,
+            sender,
+            body
+        );
     }
 
     function setMessageStatus(bytes32 _leaf, MessageStatus status) external {
