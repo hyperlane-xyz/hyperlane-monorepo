@@ -52,12 +52,6 @@ async function helmValuesForChain<Chain extends ChainName>(
         signers: await chainAgentConfig.relayerSigners(),
         config: chainAgentConfig.relayerConfig,
       },
-      kathy: {
-        enabled: chainAgentConfig.kathyEnabled,
-        aws: chainAgentConfig.kathyRequiresAwsCredentials,
-        signers: await chainAgentConfig.kathySigners(),
-        config: chainAgentConfig.kathyConfig,
-      },
     },
   };
 }
@@ -113,8 +107,8 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       index,
     );
 
-    // Only the relayer or kathy need to sign txs
-    if (role === KEY_ROLE_ENUM.Relayer || role === KEY_ROLE_ENUM.Kathy) {
+    // Only the relayer needs to sign txs
+    if (role === KEY_ROLE_ENUM.Relayer) {
       chainNames.forEach((name) => {
         envVars.push(
           `ABC_BASE_SIGNERS_${name.toUpperCase()}_KEY=${utils.strip0x(
@@ -168,8 +162,8 @@ export async function getAgentEnvVars<Chain extends ChainName>(
     envVars.push(`AWS_ACCESS_KEY_ID=${accessKeys.accessKeyId}`);
     envVars.push(`AWS_SECRET_ACCESS_KEY=${accessKeys.secretAccessKey}`);
 
-    // Only the relayer or kathy need to sign txs
-    if (role === KEY_ROLE_ENUM.Relayer || role === KEY_ROLE_ENUM.Kathy) {
+    // Only the relayer needs to sign txs
+    if (role === KEY_ROLE_ENUM.Relayer) {
       chainNames.forEach((chainName) => {
         const key = new AgentAwsKey(agentConfig, role, outboxChainName);
         envVars = envVars.concat(
@@ -198,13 +192,6 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       if (valueDict.abacus.relayer.config) {
         envVars = envVars.concat(
           configEnvVars(valueDict.abacus.relayer.config, KEY_ROLE_ENUM.Relayer),
-        );
-      }
-      break;
-    case KEY_ROLE_ENUM.Kathy:
-      if (valueDict.abacus.kathy.config) {
-        envVars = envVars.concat(
-          configEnvVars(valueDict.abacus.kathy.config, KEY_ROLE_ENUM.Kathy),
         );
       }
       break;
