@@ -22,11 +22,12 @@ async function check() {
     config.core,
   );
   await coreChecker.check();
-  // One add validator and one threshold violation per VM per chain
-  // with the exception of Arbitrum
+  // One threshold violation per VM per chain
+  // One validator violation per VM per chain (zk)
+  // One validator violation per [ethereum, celo, avax, bsc] VM per chain
   await coreChecker.expectViolations(
     [CoreViolationType.Validator],
-    [2 * 7 * 6],
+    [7 * 7 + 7 * 7 + 4 * 7],
   );
 
   const governor = new AbacusCoreGovernor(coreChecker);

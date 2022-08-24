@@ -277,6 +277,16 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0xFF20DFeEE355Ef5a6d3C6dEe25AAB697ad3915a4',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-mainnet-zkv-arbitrum-signatures.s3.eu-west-2.amazonaws.com/',
+          region: 'eu-west-2',
+        },
+      },
     ],
   },
   optimism: {
