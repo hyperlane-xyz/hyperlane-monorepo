@@ -140,7 +140,7 @@ fn main() -> ExitCode {
     };
 
     let relayer_env = hashmap! {
-        "ABC_BASE_OUTBOX_CONNECTION_URL" => "http://localhost:8545",
+        "ABC_BASE_OUTBOX_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         "ABC_BASE_INBOXES_TEST2_CONNECTION_URL" => "http://localhost:8545",
         "ABC_BASE_INBOXES_TEST3_CONNECTION_URL" => "http://localhost:8545",
         "BASE_CONFIG" => "test1_config.json",
@@ -164,9 +164,9 @@ fn main() -> ExitCode {
     };
 
     let validator_env = hashmap! {
-        "ABC_BASE_OUTBOX_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "ABC_BASE_INBOXES_TEST2_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "ABC_BASE_INBOXES_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
+        "ABC_BASE_OUTBOX_CONNECTION_URLS" => "http://localhost:8545,http://localhost:8545,http://localhost:8545",
+        "ABC_BASE_INBOXES_TEST2_CONNECTION_URL" => "http://localhost:8545",
+        "ABC_BASE_INBOXES_TEST3_CONNECTION_URL" => "http://localhost:8545",
         "BASE_CONFIG" => "test1_config.json",
         "RUN_ENV" => "test",
         "ABC_BASE_METRICS" => "9091",

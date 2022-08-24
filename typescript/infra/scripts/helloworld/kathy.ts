@@ -3,7 +3,12 @@ import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import { HelloWorldApp } from '@abacus-network/helloworld';
-import { ChainName, InterchainGasCalculator } from '@abacus-network/sdk';
+import {
+  AbacusCore,
+  ChainName,
+  DispatchedMessage,
+  InterchainGasCalculator,
+} from '@abacus-network/sdk';
 import { debug, error, log, utils, warn } from '@abacus-network/utils';
 
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
@@ -326,7 +331,6 @@ async function sendMessage(
   // Log it as an obvious reminder
   log('Intentionally setting interchain gas payment to 1');
 
-  const channelStatsBefore = await app.channelStats(origin, destination);
   const receipt = await utils.retryAsync(
     () =>
       utils.timeout(
@@ -337,11 +341,14 @@ async function sendMessage(
     2,
   );
   messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
+
+  const [message] = app.core.getDispatchedMessages(receipt);
   log('Message sent', {
     origin,
     destination,
     events: receipt.events,
     logs: receipt.logs,
+    message,
   });
 
   try {
@@ -351,14 +358,25 @@ async function sendMessage(
       'Timeout waiting for message to be received',
     );
   } catch (error) {
-    // If we weren't able to get the receipt for message processing, try to read the state to ensure it wasn't a transient provider issue
-    const channelStatsNow = await app.channelStats(origin, destination);
-    if (channelStatsNow.received <= channelStatsBefore.received) {
-      throw error;
-    }
+    // If we weren't able to get the receipt for message processing,
+    // try to read the state to ensure it wasn't a transient provider issue
+    log('Checking if message was received despite timeout', {
+      message,
+    });
+
+    // Try a few times to see if the message has been processed --
+    // we've seen some intermittent issues when fetching state.
+    // This will throw if the message is found to have not been processed.
+    await utils.retryAsync(async () => {
+      if (!(await messageIsProcessed(app.core, origin, destination, message))) {
+        throw error;
+      }
+    }, 3);
+
+    // Otherwise, the message has been processed
     log(
       'Did not receive event for message delivery even though it was delivered',
-      { origin, destination },
+      { origin, destination, message },
     );
   }
 
@@ -369,6 +387,19 @@ async function sendMessage(
     origin,
     destination,
   });
+}
+
+async function messageIsProcessed(
+  core: AbacusCore<any>,
+  origin: ChainName,
+  destination: ChainName,
+  message: DispatchedMessage,
+): Promise<boolean> {
+  const { destinationInbox: inbox } = core.getMailboxPair(origin, destination);
+  const messageHash = utils.messageHash(message.message, message.leafIndex);
+  const status = await inbox.messages(messageHash);
+  // Return if the status is MessageStatus.Processed
+  return status === 1;
 }
 
 async function updateWalletBalanceMetricFor(

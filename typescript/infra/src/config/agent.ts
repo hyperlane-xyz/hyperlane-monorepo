@@ -203,21 +203,26 @@ export type RustSigner = {
   type: string; // TODO
 };
 
-export type RustConnection = {
-  type: string; // TODO
-  url: string;
-};
+export type RustConnection =
+  | {
+      type: 'http';
+      url: string;
+    }
+  | { type: 'ws'; url: string }
+  | { type: 'httpQuorum'; urls: string };
 
 export type RustContractBlock<T> = {
   addresses: T;
   domain: string;
   name: ChainName;
-  rpcStyle: string; // TODO
+  rpcStyle: 'ethereum';
   connection: RustConnection;
+  finalityBlocks: string;
 };
 
 export type OutboxAddresses = {
   outbox: types.Address;
+  interchainGasPaymaster?: types.Address;
 };
 
 export type InboxAddresses = {

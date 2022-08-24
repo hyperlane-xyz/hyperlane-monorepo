@@ -21,10 +21,10 @@ impl Eip712 for ForwardRequestArgs {
     type Error = GelatoError;
     fn domain(&self) -> Result<EIP712Domain, Self::Error> {
         Ok(EIP712Domain {
-            name: String::from(EIP_712_DOMAIN_NAME),
-            version: String::from(EIP_712_VERSION),
-            chain_id: self.chain_id.into(),
-            verifying_contract: self.chain_id.relay_fwd_addr()?,
+            name: Some(String::from(EIP_712_DOMAIN_NAME)),
+            version: Some(String::from(EIP_712_VERSION)),
+            chain_id: Some(self.chain_id.into()),
+            verifying_contract: Some(self.chain_id.relay_fwd_addr()?),
             salt: None,
         })
     }
