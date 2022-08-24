@@ -8,6 +8,8 @@ import {
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
   Outbox__factory,
+  TestInbox__factory,
+  TestMultisigValidatorManager__factory,
 } from '@abacus-network/core';
 
 import {
@@ -68,7 +70,8 @@ describe('AbacusConnectionClient', async () => {
   });
 
   it('returns outbox from connection manager', async () => {
-    const outbox = nonOwner.address;
+    // must be contract
+    const outbox = connectionManager.address;
     expect(await connectionClient.outbox()).to.equal(
       ethers.constants.AddressZero,
     );
@@ -77,8 +80,14 @@ describe('AbacusConnectionClient', async () => {
   });
 
   it('returns inbox from connection manager', async () => {
-    const inbox = nonOwner.address;
     const domain = 1;
+    const remoteDomain = 2;
+    const validatorManager = await new TestMultisigValidatorManager__factory(
+      signer,
+    ).deploy(domain, [nonOwner.address], 1);
+    const inboxContract = await new TestInbox__factory(signer).deploy(domain);
+    await inboxContract.initialize(remoteDomain, validatorManager.address);
+    const inbox = inboxContract.address;
     expect(await connectionClient.isInbox(inbox)).to.equal(false);
     await connectionManager.enrollInbox(domain, inbox);
     expect(await connectionClient.isInbox(inbox)).to.equal(true);
