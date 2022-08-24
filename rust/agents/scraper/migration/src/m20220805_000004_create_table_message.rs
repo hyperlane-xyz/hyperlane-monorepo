@@ -1,4 +1,6 @@
 use crate::l20220805_types::*;
+use crate::m20220805_000001_create_table_domain::Domain;
+use crate::m20220805_000003_create_table_transaction::Transaction;
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
@@ -32,24 +34,60 @@ impl MigrationTrait for Migration {
                             .big_integer()
                             .not_null(),
                     )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(Message::Origin)
+                            .to(Domain::Table, Domain::DomainId),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(Message::Destination)
+                            .to(Domain::Table, Domain::DomainId),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(Message::DispatchTxId)
+                            .to(Transaction::Table, Transaction::Id),
+                    )
                     .index(
                         Index::create()
                             .unique()
-                            .name("idx-outbox-origin-leaf")
                             .col(Message::OutboxAddress)
                             .col(Message::Origin)
                             .col(Message::LeafIndex),
                     )
-                    .index(Index::create().name("idx-tx").col(Message::DispatchTxId))
-                    .index(Index::create().name("idx-sender").col(Message::Sender))
-                    .index(
-                        Index::create()
-                            .name("idx-recipient")
-                            .col(Message::Recipient),
-                    )
                     .to_owned(),
             )
-            .await
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(Message::Table)
+                    .name("idx-message_tx")
+                    .col(Message::DispatchTxId)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(Message::Table)
+                    .name("idx-message_sender")
+                    .col(Message::Sender)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(Message::Table)
+                    .name("idx-message_recipient")
+                    .col(Message::Recipient)
+                    .to_owned(),
+            )
+            .await?;
+
+        Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {

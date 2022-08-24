@@ -23,7 +23,6 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Cursor::Height).big_unsigned().not_null())
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-domain")
                             .from_col(Cursor::Domain)
                             .to(Domain::Table, Domain::DomainId),
                     )

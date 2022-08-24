@@ -49,7 +49,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(GasPayment::Table)
-                    .name("idx-domain-outbox-leaf")
+                    .name("idx-gas-payment_domain-outbox-leaf")
                     .col(GasPayment::Domain)
                     .col(GasPayment::OutboxAddress)
                     .col(GasPayment::LeafIndex)

@@ -35,7 +35,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20220805_000003_create_table_transaction::Migration),
             Box::new(m20220805_000004_create_table_checkpoint_update::Migration),
             Box::new(m20220805_000004_create_table_gas_payment::Migration),
-            // Box::new(m20220805_000004_create_table_message::Migration),
+            Box::new(m20220805_000004_create_table_message::Migration),
             // Box::new(m20220805_000005_create_table_delivered_message::Migration),
             // Box::new(m20220805_000005_create_table_message_state::Migration),
         ]

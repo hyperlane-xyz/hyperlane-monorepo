@@ -42,7 +42,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(Block::Table)
-                    .name("idx-domain-height")
+                    .name("idx-block_domain-height")
                     .col(Block::Domain)
                     .col(Block::Height)
                     .to_owned(),
