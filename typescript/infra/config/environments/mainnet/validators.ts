@@ -52,6 +52,16 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-west-2',
         },
       },
+      {
+        address: '0x1ba04e4df7DF9D736543cC9A8D6f61278EA140ec',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-validator-signatures-zplabs-celo.s3.eu-central-1.amazonaws.com/',
+          region: 'eu-central-1',
+        },
+      },
     ],
   },
   ethereum: {
@@ -91,6 +101,16 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-west-2',
         },
       },
+      {
+        address: '0xaDF418C044e857C174e70B3a1df7454B55ee258F',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-validator-signatures-zplabs-eth.s3.eu-central-1.amazonaws.com/',
+          region: 'eu-central-1',
+        },
+      },
     ],
   },
   avalanche: {
@@ -128,6 +148,16 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           bucket:
             'https://abacus-mainnet-zkv-avalanche-signatures.s3.eu-west-2.amazonaws.com/',
           region: 'eu-west-2',
+        },
+      },
+      {
+        address: '0xd0b24bb03d2c244c3B1cA78c21A793c9e6ff4d87',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-validator-signatures-zplabs-avax.s3.eu-central-1.amazonaws.com/',
+          region: 'eu-central-1',
         },
       },
     ],
@@ -206,6 +236,16 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           bucket:
             'https://abacus-mainnet-zkv-bsc-signatures.s3.eu-west-2.amazonaws.com/',
           region: 'eu-west-2',
+        },
+      },
+      {
+        address: '0x7e303daC8b6b24cac10b6f032e0eF373A1D80299',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-validator-signatures-zplabs-bsc.s3.eu-central-1.amazonaws.com/',
+          region: 'eu-central-1',
         },
       },
     ],
