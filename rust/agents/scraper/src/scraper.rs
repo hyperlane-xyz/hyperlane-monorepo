@@ -15,7 +15,7 @@ impl BaseAgent for Scraper {
     const AGENT_NAME: &'static str = "scraper";
     type Settings = ScraperSettings;
 
-    async fn from_settings(settings: Self::Settings) -> eyre::Result<Self>
+    async fn from_settings(_settings: Self::Settings) -> eyre::Result<Self>
     where
         Self: Sized,
     {

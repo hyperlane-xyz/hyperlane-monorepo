@@ -26,7 +26,7 @@ async fn main() -> Result<()> {
     #[cfg(not(feature = "oneline-errors"))]
     color_eyre::install()?;
 
-    let settings = settings::ScraperSettings::new()?;
+    let _settings = settings::ScraperSettings::new()?;
     // let agent = Scraper::from_settings(settings).await?;
 
     Ok(())
