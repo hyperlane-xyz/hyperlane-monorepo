@@ -16,7 +16,7 @@ const s3BucketName = <Chain extends ChainName>(
 
 export const validators: ChainValidatorSets<MainnetChains> = {
   celo: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x8784f09c2cfb70329b936a3b75eb61c41b467b65',
@@ -42,10 +42,20 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0xd8B404ad70A1682aaF457d4918F7b506035262D3',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-mainnet-zkv-celo-signatures.s3.eu-west-2.amazonaws.com',
+          region: 'eu-west-2',
+        },
+      },
     ],
   },
   ethereum: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x7c1d96c9e72c41b84d74095dc2e72b979e933904',
@@ -71,10 +81,20 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0x1946782598328C6D5e1CD1076d37Feab680ad9D2',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-mainnet-zkv-ethereum-signatures.s3.eu-west-2.amazonaws.com/',
+          region: 'eu-west-2',
+        },
+      },
     ],
   },
   avalanche: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x1353b91e2b256ca0a283504b02ae3c69374fb105',
@@ -100,10 +120,20 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0x1E1086F3E6F2F5762AF54B8167cdE934186cbAf9',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-mainnet-zkv-avalanche-signatures.s3.eu-west-2.amazonaws.com/',
+          region: 'eu-west-2',
+        },
+      },
     ],
   },
   polygon: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0xff198cae21069d865b142f2b9e798d3b299b8df6',
@@ -129,10 +159,20 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0x8669a883652DBf8c47DECbC4ec8b137E54A5bEAF',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-mainnet-zkv-avalanche-signatures.s3.eu-west-2.amazonaws.com/',
+          region: 'eu-west-2',
+        },
+      },
     ],
   },
   bsc: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x013d01a570b5cfa19032c5176488b5824e225a6b',
@@ -158,10 +198,20 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0x24f9004c3e02C8c354881685B221cAd8FaF4d9B0',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-mainnet-zkv-bsc-signatures.s3.eu-west-2.amazonaws.com/',
+          region: 'eu-west-2',
+        },
+      },
     ],
   },
   arbitrum: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x6289f913acc64c2e6baaa2b5175c7db35f98f62d',
@@ -190,7 +240,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   optimism: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0xcf2dcc3462c84420965501c1dda3d62dde08941d',
@@ -214,6 +264,16 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('optimism', 2),
           region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x8669a883652DBf8c47DECbC4ec8b137E54A5bEAF',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-mainnet-zkv-optimism-signatures.s3.eu-west-2.amazonaws.com/',
+          region: 'eu-west-2',
         },
       },
     ],
