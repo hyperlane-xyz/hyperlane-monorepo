@@ -16,10 +16,12 @@ import {
 } from './TestCoreApp';
 import { coreFactories } from './contracts';
 
+const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
+
 // dummy config as TestInbox and TestOutbox do not use deployed ValidatorManager
 const testValidatorManagerConfig: CoreConfig = {
   validatorManager: {
-    validators: [ethers.constants.AddressZero],
+    validators: [nonZeroAddress],
     threshold: 1,
   },
 };
