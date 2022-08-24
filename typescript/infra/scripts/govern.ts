@@ -31,7 +31,7 @@ async function check() {
   const governor = new AbacusCoreGovernor(coreChecker);
 
   await governor.govern();
-  governor.executeCalls();
+  await governor.executeCalls();
 }
 
 check().then(console.log).catch(console.error);
