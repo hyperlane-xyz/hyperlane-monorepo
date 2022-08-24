@@ -193,7 +193,6 @@ export interface AgentConfig<Chain extends ChainName> {
   validatorSets: ChainValidatorSets<Chain>;
   validator?: ChainValidatorConfigs<Chain>;
   relayer?: ChainRelayerConfigs<Chain>;
-  kathy?: ChainMap<Chain, boolean>;
   // Roles to manage keys for
   rolesWithKeys: KEY_ROLE_ENUM[];
 }
@@ -414,49 +413,6 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
   get relayerEnabled(): boolean {
     return this.agentConfig.relayer !== undefined;
-  }
-
-  // Gets signer info, creating them if necessary
-  async kathySigners() {
-    if (!this.kathyEnabled) {
-      return [];
-    }
-
-    let keyConfig;
-
-    if (this.awsKeys) {
-      const awsUser = new AgentAwsUser(
-        this.agentConfig.environment,
-        this.agentConfig.context,
-        KEY_ROLE_ENUM.Kathy,
-        this.agentConfig.aws!.region,
-        this.chainName,
-      );
-      await awsUser.createIfNotExists();
-      const key = await awsUser.createKeyIfNotExists(this.agentConfig);
-      keyConfig = key.keyConfig;
-    } else {
-      keyConfig = this.keyConfig(KEY_ROLE_ENUM.Kathy);
-    }
-
-    return [
-      {
-        name: this.chainName,
-        keyConfig,
-      },
-    ];
-  }
-
-  get kathyRequiresAwsCredentials() {
-    return this.awsKeys;
-  }
-
-  get kathyEnabled() {
-    const kathyConfig = this.agentConfig.kathy;
-    if (kathyConfig) {
-      return kathyConfig[this.chainName];
-    }
-    return false;
   }
 
   get validatorSet(): ValidatorSet {

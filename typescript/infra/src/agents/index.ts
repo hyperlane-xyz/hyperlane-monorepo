@@ -52,12 +52,6 @@ async function helmValuesForChain<Chain extends ChainName>(
         signers: await chainAgentConfig.relayerSigners(),
         config: chainAgentConfig.relayerConfig,
       },
-      // Hack: These values are not actually needed for the helm chart, but
-      // they've been left here so that Kathy keys get created upon agent
-      // deployment.
-      kathy: {
-        signers: await chainAgentConfig.kathySigners(),
-      },
     },
   };
 }
