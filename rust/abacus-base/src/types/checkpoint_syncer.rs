@@ -1,5 +1,6 @@
 use core::str::FromStr;
 use ethers::types::Address;
+use prometheus::{IntGauge, IntGaugeVec};
 use std::collections::HashMap;
 use tracing::instrument;
 
@@ -30,14 +31,21 @@ pub enum CheckpointSyncerConf {
 
 impl CheckpointSyncerConf {
     /// Turn conf info a Checkpoint Syncer
-    pub fn try_into_checkpoint_syncer(&self) -> Result<CheckpointSyncers, Report> {
+    pub fn try_into_checkpoint_syncer(
+        &self,
+        latest_index_gauge: Option<IntGauge>,
+    ) -> Result<CheckpointSyncers, Report> {
         match self {
-            CheckpointSyncerConf::LocalStorage { path } => {
-                Ok(CheckpointSyncers::Local(LocalStorage::new(path)))
-            }
-            CheckpointSyncerConf::S3 { bucket, region } => Ok(CheckpointSyncers::S3(
-                S3Storage::new(bucket, region.parse().expect("invalid s3 region")),
+            CheckpointSyncerConf::LocalStorage { path } => Ok(CheckpointSyncers::Local(
+                LocalStorage::new(path, latest_index_gauge),
             )),
+            CheckpointSyncerConf::S3 { bucket, region } => {
+                Ok(CheckpointSyncers::S3(S3Storage::new(
+                    bucket,
+                    region.parse().expect("invalid s3 region"),
+                    latest_index_gauge,
+                )))
+            }
         }
     }
 }
@@ -54,10 +62,19 @@ pub struct MultisigCheckpointSyncerConf {
 
 impl MultisigCheckpointSyncerConf {
     /// Get a MultisigCheckpointSyncer from the config
-    pub fn try_into_multisig_checkpoint_syncer(&self) -> Result<MultisigCheckpointSyncer, Report> {
+    pub fn try_into_multisig_checkpoint_syncer(
+        &self,
+        origin: &str,
+        validator_checkpoint_index: IntGaugeVec,
+    ) -> Result<MultisigCheckpointSyncer, Report> {
         let mut checkpoint_syncers = HashMap::new();
         for (key, value) in self.checkpointsyncers.iter() {
-            checkpoint_syncers.insert(Address::from_str(key)?, value.try_into_checkpoint_syncer()?);
+            let gauge = validator_checkpoint_index
+                .with_label_values(&[origin, &key.to_lowercase()]);
+            checkpoint_syncers.insert(
+                Address::from_str(key)?,
+                value.try_into_checkpoint_syncer(Some(gauge))?,
+            );
         }
         Ok(MultisigCheckpointSyncer::new(
             self.threshold,

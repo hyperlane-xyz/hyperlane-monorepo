@@ -42,6 +42,7 @@ pub struct CoreMetrics {
     span_durations: HistogramVec,
     span_events: IntCounterVec,
     last_known_message_leaf_index: IntGaugeVec,
+    validator_checkpoint_index: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
     submitter_queue_duration_histogram: HistogramVec,
 
@@ -103,6 +104,16 @@ impl CoreMetrics {
                 const_labels_ref
             ),
             &["phase", "origin", "remote"],
+            registry
+        )?;
+
+        let validator_checkpoint_index = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("validator_checkpoint_index"),
+                "Observed checkpoint indicies per validator",
+                const_labels_ref
+            ),
+            &["origin", "validator"],
             registry
         )?;
 
@@ -170,6 +181,7 @@ impl CoreMetrics {
             span_durations,
             span_events,
             last_known_message_leaf_index,
+            validator_checkpoint_index,
 
             submitter_queue_length,
             submitter_queue_duration_histogram,
@@ -288,6 +300,14 @@ impl CoreMetrics {
     ///   MessageProcessor loop.
     pub fn last_known_message_leaf_index(&self) -> IntGaugeVec {
         self.last_known_message_leaf_index.clone()
+    }
+
+    /// Gauge for reporting the most recent validator checkpoint index
+    /// Labels:
+    /// - `origin`: Origin chain
+    /// - `validator`: Address of the validator
+    pub fn validator_checkpoint_index(&self) -> IntGaugeVec {
+        self.validator_checkpoint_index.clone()
     }
 
     /// Gauge for reporting the current outbox state. This is either 0 (for
