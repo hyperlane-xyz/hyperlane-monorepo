@@ -169,6 +169,9 @@ where
         }
     }
 
+    // Once gas payments are enforced, we will likely fetch the gas payment from
+    // the DB here. This is why forward request args are created and signed for each
+    // forward request call.
     async fn send_forward_request_call(&self) -> Result<ForwardRequestCallResult> {
         let args = self.create_forward_request_args();
         let signature = self.sponsor_signer.sign_typed_data(&args).await?;
@@ -203,7 +206,8 @@ where
             // At the moment, there's a bug with Gelato where environments that don't charge
             // fees (i.e. testnet) require the sponsor chain ID to be the same as the chain
             // in which the tx will be sent to.
-            sponsor_chain_id: self.destination_chain, // self.sponsor_chain,
+            // This will be fixed in an upcoming release they're doing.
+            sponsor_chain_id: self.destination_chain,
             nonce: U256::zero(),
             enforce_sponsor_nonce: false,
             enforce_sponsor_nonce_ordering: false,

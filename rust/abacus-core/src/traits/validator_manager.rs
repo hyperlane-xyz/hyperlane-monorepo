@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use ethers::types::TransactionRequest;
 use eyre::Result;
 
 use crate::{
@@ -20,14 +19,6 @@ pub trait InboxValidatorManager: Send + Sync + Debug {
         message: &AbacusMessage,
         proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError>;
-
-    /// Foo
-    async fn process_tx(
-        &self,
-        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
-        message: &AbacusMessage,
-        proof: &Proof,
-    ) -> Result<TransactionRequest, ChainCommunicationError>;
 
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint

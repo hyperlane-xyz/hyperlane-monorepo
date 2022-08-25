@@ -7,7 +7,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::*;
-use ethers_contract::builders::ContractCall;
 use eyre::Result;
 
 use abacus_core::{
@@ -100,108 +99,6 @@ where
         message: &AbacusMessage,
         proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        let contract_call = self
-            .process_contract_call(multisig_signed_checkpoint, message, proof)
-            .await?;
-        let receipt = report_tx(contract_call).await?;
-        Ok(receipt.into())
-    }
-
-    async fn process_tx(
-        &self,
-        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
-        message: &AbacusMessage,
-        proof: &Proof,
-    ) -> Result<TransactionRequest, ChainCommunicationError> {
-        let contract_call = self
-            .process_contract_call(multisig_signed_checkpoint, message, proof)
-            .await?;
-
-        Ok(contract_call.tx.into())
-    }
-
-    fn process_calldata(
-        &self,
-        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
-        message: &AbacusMessage,
-        proof: &Proof,
-    ) -> Vec<u8> {
-        // IInbox _inbox,
-        // bytes32 _root,
-        // uint256 _index,
-        // bytes[] calldata _signatures,
-        // bytes calldata _message,
-        // bytes32[32] calldata _proof,
-        // uint256 _leafIndex
-
-        let mut sol_proof: [[u8; 32]; 32] = Default::default();
-        sol_proof
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
-
-        let process_call = ProcessCall {
-            inbox: self.inbox_address,
-            root: multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
-            index: multisig_signed_checkpoint.checkpoint.index.into(),
-            signatures: multisig_signed_checkpoint
-                .signatures
-                .iter()
-                .map(|s| s.to_vec().into())
-                .collect(),
-            message: message.to_vec().into(),
-            proof: sol_proof,
-            leaf_index: proof.index.into(),
-        };
-
-        process_call.encode()
-
-        // self.contract.encode(
-        //     "process",
-        //     [
-        //         Token::Address(self.inbox_address),
-        //         Token::FixedBytes(
-        //             multisig_signed_checkpoint
-        //                 .checkpoint
-        //                 .root
-        //                 .to_fixed_bytes()
-        //                 .into(),
-        //         ),
-        //         Token::Uint(multisig_signed_checkpoint.checkpoint.index.into()),
-        //         Token::Array(
-        //             multisig_signed_checkpoint
-        //                 .signatures
-        //                 .iter()
-        //                 .map(|s| Token::Bytes(s.to_vec()))
-        //                 .collect(),
-        //         ),
-        //         Token::Bytes(message.to_vec()),
-        //         Token::FixedArray(
-        //             proof.path[0..32]
-        //                 .iter()
-        //                 .map(|e| Token::FixedBytes(e.to_vec()))
-        //                 .collect(),
-        //         ),
-        //         Token::Uint(proof.index.into()),
-        //     ],
-        // )
-    }
-
-    fn contract_address(&self) -> abacus_core::Address {
-        self.contract.address().into()
-    }
-}
-
-impl<M> EthereumInboxValidatorManager<M>
-where
-    M: Middleware + 'static,
-{
-    async fn process_contract_call(
-        &self,
-        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
-        message: &AbacusMessage,
-        proof: &Proof,
-    ) -> Result<ContractCall<M, ()>, ChainCommunicationError> {
         let mut sol_proof: [[u8; 32]; 32] = Default::default();
         sol_proof
             .iter_mut()
@@ -223,6 +120,40 @@ where
         );
         let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
         let gassed = tx.gas(gas);
-        Ok(gassed)
+        let receipt = report_tx(gassed).await?;
+        Ok(receipt.into())
+    }
+
+    fn process_calldata(
+        &self,
+        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
+    ) -> Vec<u8> {
+        let mut sol_proof: [[u8; 32]; 32] = Default::default();
+        sol_proof
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
+
+        let process_call = ProcessCall {
+            inbox: self.inbox_address,
+            root: multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
+            index: multisig_signed_checkpoint.checkpoint.index.into(),
+            signatures: multisig_signed_checkpoint
+                .signatures
+                .iter()
+                .map(|s| s.to_vec().into())
+                .collect(),
+            message: message.to_vec().into(),
+            proof: sol_proof,
+            leaf_index: proof.index.into(),
+        };
+
+        process_call.encode()
+    }
+
+    fn contract_address(&self) -> abacus_core::Address {
+        self.contract.address().into()
     }
 }
