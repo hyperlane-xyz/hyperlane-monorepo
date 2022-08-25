@@ -1,12 +1,12 @@
 use std::{sync::Arc, time::Duration};
 
-use abacus_base::CachingInbox;
-use abacus_core::{ChainCommunicationError, Inbox, MessageStatus};
-use ethers::signers::Signer;
+use abacus_base::InboxContracts;
+use abacus_core::{ChainCommunicationError, MessageStatus, InboxValidatorManager, Inbox};
+use ethers::{signers::Signer, types::{H160, U256}};
 use eyre::Result;
 use gelato::{
-    fwd_req_call::{ForwardRequestArgs, ForwardRequestCall, ForwardRequestCallResult},
-    task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs},
+    fwd_req_call::{ForwardRequestArgs, ForwardRequestCall, ForwardRequestCallResult, NATIVE_FEE_TOKEN_ADDRESS, PaymentType},
+    task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs}, chains::Chain,
 };
 use tokio::{
     sync::mpsc::UnboundedSender,
@@ -15,29 +15,33 @@ use tokio::{
 
 use crate::msg::SubmitMessageArgs;
 
-// /// The max fee to use for Gelato ForwardRequests.
-// /// Gelato isn't charging fees on testnet. For now, use this hardcoded value
-// /// of 1e18, or 1.0 ether.
-// /// TODO: revisit when testing on mainnet and actually considering interchain
-// /// gas payments.
-// const DEFAULT_MAX_FEE: u64 = 1000000000000000000;
+/// The max fee to use for Gelato ForwardRequests.
+/// Gelato isn't charging fees on testnet. For now, use this hardcoded value
+/// of 1e18, or 1.0 ether.
+/// TODO: revisit when testing on mainnet and actually considering interchain
+/// gas payments.
+const DEFAULT_MAX_FEE: u64 = 1000000000000000000;
 
-// /// The default gas limit to use for Gelato ForwardRequests.
-// /// TODO: instead estimate gas for messages.
-// const DEFAULT_GAS_LIMIT: u64 = 3000000;
+/// The default gas limit to use for Gelato ForwardRequests.
+/// TODO: once Gelato fully deploys their new version, simply omit the gas
+/// limit so that Gelato does the estimation for us.
+const DEFAULT_GAS_LIMIT: u64 = 5000000;
 
 // TODO(webbhorn): Remove 'allow unused' once we impl run() and ref internal fields.
 #[allow(unused)]
 #[derive(Debug, Clone)]
 pub(crate) struct ForwardRequestOp<S> {
-    pub args: ForwardRequestArgs,
-    pub opts: ForwardRequestOptions,
-    pub signer: S,
-    pub http: reqwest::Client,
+    opts: ForwardRequestOptions,
+    http: reqwest::Client,
 
-    pub message: SubmitMessageArgs,
-    pub inbox: Arc<CachingInbox>,
+    message: SubmitMessageArgs,
+    inbox_contracts: InboxContracts,
+    sponsor_signer: S,
+    sponsor_address: H160,
+    sponsor_chain: Chain,
+    destination_chain: Chain,
 
+    /// A channel to send the message over upon the message being successfully processed.
     message_processed_sender: UnboundedSender<SubmitMessageArgs>,
 }
 
@@ -49,30 +53,30 @@ where
     #[allow(dead_code)]
     pub fn new(
         opts: ForwardRequestOptions,
-        args: ForwardRequestArgs,
-        signer: S,
         http: reqwest::Client,
         message: SubmitMessageArgs,
-        inbox: Arc<CachingInbox>,
-
+        inbox_contracts: InboxContracts,
+        sponsor_signer: S,
+        sponsor_address: H160,
+        sponsor_chain: Chain,
+        destination_chain: Chain,
         message_processed_sender: UnboundedSender<SubmitMessageArgs>,
     ) -> ForwardRequestOp<S> {
-        tracing::info!(args=?args, opts=?opts, "Creating fwd_req_op");
         ForwardRequestOp {
-            args,
             opts,
-            signer,
             http,
             message,
-            inbox,
+            inbox_contracts,
+            sponsor_signer,
+            sponsor_address,
+            sponsor_chain,
+            destination_chain,
             message_processed_sender,
         }
     }
 
     #[allow(unused)]
     pub async fn run(&self) {
-        tracing::info!("In fwd_req_op run");
-
         loop {
             match self.tick().await {
                 Ok(MessageStatus::Processed) => {
@@ -80,10 +84,10 @@ where
                     // stop running.
                     self.send_message_processed();
                     return;
-                }
+                },
                 Err(err) => {
                     tracing::warn!(err=?err, "Error occurred in fwd_req_op tick");
-                }
+                },
                 _ => {}
             }
 
@@ -94,13 +98,12 @@ where
     async fn tick(&self) -> Result<MessageStatus> {
         // Before doing anything, first check if the message has already been processed.
         if let Ok(MessageStatus::Processed) = self.message_status().await {
-            tracing::debug!("Polled inbox and message was processed already");
             return Ok(MessageStatus::Processed);
         }
 
         // Send the forward request.
         let fwd_req_result = self.send_forward_request_call().await?;
-        tracing::info!(fwd_req_result=?fwd_req_result, "Sent forward request");
+        tracing::info!(task_id=?fwd_req_result.task_id, "Sent forward request");
 
         // Wait for a terminal state, timing out according to the retry_submit_interval.
         match timeout(
@@ -147,10 +150,9 @@ where
             let status_result = status_call.run().await?;
 
             if let [tx_status] = &status_result.data[..] {
-                tracing::info!(task_id=?task_id, tx_status=?tx_status, "Got forward request status");
+                tracing::info!(task_id=?task_id, tx_status=?tx_status, "Polled forward request status");
 
                 match tx_status.task_state {
-                    // TaskStatus::ExecSuccess => return Ok(MessageStatus::Processed),
                     TaskStatus::Cancelled => return Ok(MessageStatus::None),
                     _ => {}
                 }
@@ -161,23 +163,49 @@ where
     }
 
     async fn send_forward_request_call(&self) -> Result<ForwardRequestCallResult> {
-        tracing::info!("About to sign send_forward_request_call...");
-        let signature = self.signer.sign_typed_data(&self.args).await?;
-        tracing::info!(signature=?signature, "Signed send_forward_request_call");
+        let args = self.create_forward_request_args();
+        let signature = self.sponsor_signer.sign_typed_data(&args).await?;
 
         let fwd_req_call = ForwardRequestCall {
-            args: self.args.clone(),
+            args,
             http: self.http.clone(),
             signature,
         };
 
-        tracing::info!(fwd_req_call=?fwd_req_call, "About to run fwd_req_call");
-
         Ok(fwd_req_call.run().await?)
     }
 
+    fn create_forward_request_args(&self) -> ForwardRequestArgs {
+        let calldata = self.inbox_contracts.validator_manager.process_calldata(
+            &self.message.checkpoint,
+            &self.message.committed_message.message,
+            &self.message.proof,
+        );
+        ForwardRequestArgs {
+            chain_id: self.destination_chain,
+            target: self
+                .inbox_contracts
+                .validator_manager
+                .contract_address()
+                .into(),
+            data: calldata.into(),
+            fee_token: NATIVE_FEE_TOKEN_ADDRESS,
+            payment_type: PaymentType::AsyncGasTank,
+            max_fee: DEFAULT_MAX_FEE.into(),
+            gas: DEFAULT_GAS_LIMIT.into(),
+            // At the moment, there's a bug with Gelato where environments that don't charge
+            // fees (i.e. testnet) require the sponsor chain ID to be the same as the chain
+            // in which the tx will be sent to.
+            sponsor_chain_id: self.destination_chain, // self.sponsor_chain,
+            nonce: U256::zero(),
+            enforce_sponsor_nonce: false,
+            enforce_sponsor_nonce_ordering: false,
+            sponsor: self.sponsor_address,
+        }
+    }
+
     async fn message_status(&self) -> Result<MessageStatus, ChainCommunicationError> {
-        self.inbox
+        self.inbox_contracts.inbox
             .message_status(self.message.committed_message.to_leaf())
             .await
     }

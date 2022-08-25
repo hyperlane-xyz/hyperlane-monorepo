@@ -1,11 +1,10 @@
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::{db::AbacusDB, Signers};
-use abacus_core::{AbacusCommon, InboxValidatorManager};
+use abacus_core::AbacusCommon;
 use ethers::signers::Signer;
-use ethers::types::{Address, U256};
+use ethers::types::Address;
 use eyre::{bail, Result};
 use gelato::chains::Chain;
-use gelato::fwd_req_call::{ForwardRequestArgs, PaymentType, NATIVE_FEE_TOKEN_ADDRESS};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::time::{sleep, Duration};
@@ -18,17 +17,6 @@ use super::SubmitMessageArgs;
 
 mod fwd_req_op;
 
-/// The max fee to use for Gelato ForwardRequests.
-/// Gelato isn't charging fees on testnet. For now, use this hardcoded value
-/// of 1e18, or 1.0 ether.
-/// TODO: revisit when testing on mainnet and actually considering interchain
-/// gas payments.
-const DEFAULT_MAX_FEE: u64 = 1000000000000000000;
-
-/// The default gas limit to use for Gelato ForwardRequests.
-/// TODO: instead estimate gas for messages.
-const DEFAULT_GAS_LIMIT: u64 = 3000000;
-
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
     /// Source of messages to submit.
@@ -36,7 +24,7 @@ pub(crate) struct GelatoSubmitter {
     /// Inbox / InboxValidatorManager on the destination chain.
     pub inbox_contracts: InboxContracts,
     /// The outbox chain in the format expected by the Gelato crate.
-    pub _outbox_gelato_chain: Chain,
+    pub outbox_gelato_chain: Chain,
     /// The inbox chain in the format expected by the Gelato crate.
     pub inbox_gelato_chain: Chain,
     /// The signer of the Gelato sponsor, used for EIP-712 meta-transaction signatures.
@@ -74,7 +62,7 @@ impl GelatoSubmitter {
             mpsc::unbounded_channel::<SubmitMessageArgs>();
         Self {
             message_receiver,
-            _outbox_gelato_chain: abacus_domain_to_gelato_chain(outbox_domain).unwrap(),
+            outbox_gelato_chain: abacus_domain_to_gelato_chain(outbox_domain).unwrap(),
             inbox_gelato_chain: abacus_domain_to_gelato_chain(inbox_contracts.inbox.local_domain())
                 .unwrap(),
             inbox_contracts,
@@ -124,14 +112,15 @@ impl GelatoSubmitter {
             tracing::info!(msg=?msg, "Spawning forward request op for message");
             let op = ForwardRequestOp::new(
                 ForwardRequestOptions::default(),
-                self.create_forward_request_args(&msg),
-                self.gelato_sponsor_signer.clone(),
                 self.http_client.clone(),
                 msg,
-                self.inbox_contracts.inbox.clone(),
+                self.inbox_contracts.clone(),
+                self.gelato_sponsor_signer.clone(),
+                self.gelato_sponsor_address,
+                self.outbox_gelato_chain,
+                self.inbox_gelato_chain,
                 self.message_processed_sender.clone(),
             );
-            tracing::info!("Created op");
 
             tokio::spawn(async move { op.run().await });
         }
@@ -154,41 +143,13 @@ impl GelatoSubmitter {
         Ok(())
     }
 
-    fn create_forward_request_args(&self, msg: &SubmitMessageArgs) -> ForwardRequestArgs {
-        tracing::info!("In create_forward_request_args");
-        let calldata = self.inbox_contracts.validator_manager.process_calldata(
-            &msg.checkpoint,
-            &msg.committed_message.message,
-            &msg.proof,
-        );
-        tracing::info!(calldata=?calldata, "In create_forward_request_args, got calldata");
-        ForwardRequestArgs {
-            chain_id: self.inbox_gelato_chain,
-            target: self
-                .inbox_contracts
-                .validator_manager
-                .contract_address()
-                .into(),
-            data: calldata.into(),
-            fee_token: NATIVE_FEE_TOKEN_ADDRESS,
-            payment_type: PaymentType::AsyncGasTank,
-            max_fee: DEFAULT_MAX_FEE.into(),
-            gas: DEFAULT_GAS_LIMIT.into(),
-            sponsor_chain_id: self.inbox_gelato_chain, // self.outbox_gelato_chain, // <- there's a bug here, just use the target chain id
-            nonce: U256::zero(),
-            enforce_sponsor_nonce: false,
-            enforce_sponsor_nonce_ordering: false,
-            sponsor: self.gelato_sponsor_address,
-        }
-    }
-
     /// Record in AbacusDB and various metrics that this process has observed the successful
     /// processing of a message. An Ok(()) value returned by this function is the 'commit' point
     /// in a message's lifetime for final processing -- after this function has been seen to
     /// return 'Ok(())', then without a wiped AbacusDB, we will never re-attempt processing for
     /// this message again, even after the relayer restarts.
     fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
-        tracing::info!(msg=?msg, "Recording message as successfully processed by Gelato");
+        tracing::info!(msg=?msg, "Recording message as successfully processed");
         self.db.mark_leaf_as_processed(msg.leaf_index)?;
         // self.metrics
         //     .queue_duration_hist

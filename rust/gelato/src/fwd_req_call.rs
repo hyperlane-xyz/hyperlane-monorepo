@@ -3,7 +3,6 @@ use crate::err::GelatoError;
 use ethers::types::{Address, Bytes, Signature, U256};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
-use tracing::info;
 use tracing::instrument;
 
 const GATEWAY_URL: &str = "https://relay.gelato.digital";
@@ -50,9 +49,7 @@ impl ForwardRequestCall {
             args: self.args.clone(),
             signature: self.signature,
         };
-        info!(?url, ?http_args);
         let res = self.http.post(url).json(&http_args).send().await?;
-        tracing::info!(res=?res, "ForwardRequestCall res");
         let result: HTTPResult = res.json().await?;
         Ok(ForwardRequestCallResult::from(result))
     }
