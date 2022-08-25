@@ -188,6 +188,7 @@ impl GelatoSubmitter {
     /// return 'Ok(())', then without a wiped AbacusDB, we will never re-attempt processing for
     /// this message again, even after the relayer restarts.
     fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
+        tracing::info!(msg=?msg, "Recording message as successfully processed by Gelato");
         self.db.mark_leaf_as_processed(msg.leaf_index)?;
         // self.metrics
         //     .queue_duration_hist
