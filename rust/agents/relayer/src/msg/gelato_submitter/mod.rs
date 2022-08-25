@@ -162,12 +162,8 @@ impl GelatoSubmitter {
     }
 }
 
-// TODO(webbhorn): Drop allow dead code directive once we handle
-// updating each of these metrics.
-#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitterMetrics {
-    wait_queue_length_gauge: IntGauge,
     queue_duration_hist: Histogram,
     processed_gauge: IntGauge,
     messages_processed_count: IntCounter,
@@ -179,11 +175,6 @@ pub(crate) struct GelatoSubmitterMetrics {
 impl GelatoSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
         Self {
-            wait_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                outbox_chain,
-                inbox_chain,
-                "wait_queue",
-            ]),
             queue_duration_hist: metrics
                 .submitter_queue_duration_histogram()
                 .with_label_values(&[outbox_chain, inbox_chain]),

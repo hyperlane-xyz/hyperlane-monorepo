@@ -27,15 +27,14 @@ use crate::msg::SubmitMessageArgs;
 /// of 1e18, or 1.0 ether.
 /// TODO: revisit when testing on mainnet and actually considering interchain
 /// gas payments.
-const DEFAULT_MAX_FEE: u64 = 1000000000000000000;
+const DEFAULT_MAX_FEE: u64 = 10u64.pow(18);
 
-/// The default gas limit to use for Gelato ForwardRequests.
+/// The default gas limit to use for Gelato ForwardRequests, arbitrarily chose
+/// to be 5M.
 /// TODO: once Gelato fully deploys their new version, simply omit the gas
 /// limit so that Gelato does the estimation for us.
 const DEFAULT_GAS_LIMIT: u64 = 5000000;
 
-// TODO(webbhorn): Remove 'allow unused' once we impl run() and ref internal fields.
-#[allow(unused)]
 #[derive(Debug, Clone)]
 pub(crate) struct ForwardRequestOp<S> {
     opts: ForwardRequestOptions,
@@ -45,7 +44,8 @@ pub(crate) struct ForwardRequestOp<S> {
     inbox_contracts: InboxContracts,
     sponsor_signer: S,
     sponsor_address: H160,
-    sponsor_chain: Chain,
+    // Currently unused due to a bug in Gelato's testnet relayer that is currently being upgraded.
+    _sponsor_chain: Chain,
     destination_chain: Chain,
 
     /// A channel to send the message over upon the message being successfully processed.
@@ -57,7 +57,6 @@ where
     S: Signer,
     S::Error: 'static,
 {
-    #[allow(dead_code)]
     pub fn new(
         opts: ForwardRequestOptions,
         http: reqwest::Client,
@@ -76,20 +75,21 @@ where
             inbox_contracts,
             sponsor_signer,
             sponsor_address,
-            sponsor_chain,
+            _sponsor_chain: sponsor_chain,
             destination_chain,
             message_processed_sender,
         }
     }
 
-    #[allow(unused)]
     pub async fn run(&self) {
         loop {
             match self.tick().await {
                 Ok(MessageStatus::Processed) => {
                     // If the message was processed, send it over the channel and
                     // stop running.
-                    self.send_message_processed();
+                    if let Err(err) = self.send_message_processed() {
+                        tracing::error!(err=?err, "Unable to send processed message, receiver is closed or dropped.");
+                    }
                     return;
                 }
                 Err(err) => {
