@@ -7,7 +7,7 @@ use eyre::{bail, Result};
 use gelato::chains::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio::time::{sleep, Duration};
+use tokio::time::{sleep, Duration, Instant};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
@@ -20,32 +20,27 @@ mod fwd_req_op;
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
     /// Source of messages to submit.
-    pub message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+    message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// Inbox / InboxValidatorManager on the destination chain.
-    pub inbox_contracts: InboxContracts,
+    inbox_contracts: InboxContracts,
     /// The outbox chain in the format expected by the Gelato crate.
-    pub outbox_gelato_chain: Chain,
+    outbox_gelato_chain: Chain,
     /// The inbox chain in the format expected by the Gelato crate.
-    pub inbox_gelato_chain: Chain,
+    inbox_gelato_chain: Chain,
     /// The signer of the Gelato sponsor, used for EIP-712 meta-transaction signatures.
-    pub gelato_sponsor_signer: Signers,
+    gelato_sponsor_signer: Signers,
     /// The address of the Gelato sponsor.
-    pub gelato_sponsor_address: Address,
-    /// Messages we are aware of that we want to eventually submit, but haven't yet, for
-    /// whatever reason.
-    // pub wait_queue: VecDeque<SubmitMessageArgs>,
+    gelato_sponsor_address: Address,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
-    pub db: AbacusDB,
+    db: AbacusDB,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
-    pub http_client: reqwest::Client,
+    http_client: reqwest::Client,
     /// Prometheus metrics.
-    pub _metrics: GelatoSubmitterMetrics,
-
-    #[allow(dead_code)]
+    metrics: GelatoSubmitterMetrics,
+    /// Channel used by ForwardRequestOps to send that their message has been successfully processed.
     message_processed_sender: UnboundedSender<SubmitMessageArgs>,
-    #[allow(dead_code)]
+    /// Channel to receive from ForwardRequestOps that a message has been successfully processed.
     message_processed_receiver: UnboundedReceiver<SubmitMessageArgs>,
-    // all_fwd_requests
 }
 
 impl GelatoSubmitter {
@@ -70,7 +65,7 @@ impl GelatoSubmitter {
             gelato_sponsor_address: gelato_sponsor_signer.address(),
             gelato_sponsor_signer,
             http_client,
-            _metrics: metrics,
+            metrics,
             message_processed_sender,
             message_processed_receiver,
         }
@@ -121,6 +116,7 @@ impl GelatoSubmitter {
                 self.inbox_gelato_chain,
                 self.message_processed_sender.clone(),
             );
+            self.metrics.active_forward_request_ops_gauge.add(1);
 
             tokio::spawn(async move { op.run().await });
         }
@@ -151,15 +147,17 @@ impl GelatoSubmitter {
     fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         tracing::info!(msg=?msg, "Recording message as successfully processed");
         self.db.mark_leaf_as_processed(msg.leaf_index)?;
-        // self.metrics
-        //     .queue_duration_hist
-        //     .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
-        // self.metrics.max_submitted_leaf_index =
-        //     std::cmp::max(self.metrics.max_submitted_leaf_index, msg.leaf_index);
-        // self.metrics
-        //     .processed_gauge
-        //     .set(self.metrics.max_submitted_leaf_index as i64);
-        // self.metrics.messages_processed_count.inc();
+
+        self.metrics.active_forward_request_ops_gauge.sub(1);
+        self.metrics
+            .queue_duration_hist
+            .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
+        self.metrics.highest_submitted_leaf_index =
+            std::cmp::max(self.metrics.highest_submitted_leaf_index, msg.leaf_index);
+        self.metrics
+            .processed_gauge
+            .set(self.metrics.highest_submitted_leaf_index as i64);
+        self.metrics.messages_processed_count.inc();
         Ok(())
     }
 }
@@ -173,7 +171,7 @@ pub(crate) struct GelatoSubmitterMetrics {
     queue_duration_hist: Histogram,
     processed_gauge: IntGauge,
     messages_processed_count: IntCounter,
-
+    active_forward_request_ops_gauge: IntGauge,
     /// Private state used to update actual metrics each tick.
     highest_submitted_leaf_index: u32,
 }
@@ -197,6 +195,9 @@ impl GelatoSubmitterMetrics {
                 outbox_chain,
                 inbox_chain,
             ]),
+            active_forward_request_ops_gauge: metrics
+                .submitter_queue_length()
+                .with_label_values(&[outbox_chain, inbox_chain, "active_forward_request_ops"]),
             highest_submitted_leaf_index: 0,
         }
     }
