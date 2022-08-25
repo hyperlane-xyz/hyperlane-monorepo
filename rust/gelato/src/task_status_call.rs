@@ -77,7 +77,7 @@ pub struct Execution {
 #[serde(untagged)]
 pub enum Check {
     Timestamp(String),
-    CheckWithMetadata(CheckInfo),
+    CheckWithMetadata(Box<CheckInfo>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]

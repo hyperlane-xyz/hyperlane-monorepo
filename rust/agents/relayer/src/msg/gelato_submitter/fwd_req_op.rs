@@ -57,6 +57,7 @@ where
     S: Signer,
     S::Error: 'static,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         opts: ForwardRequestOptions,
         http: reqwest::Client,
@@ -159,9 +160,10 @@ where
             if let [tx_status] = &status_result.data[..] {
                 tracing::info!(task_id=?task_id, tx_status=?tx_status, "Polled forward request status");
 
-                match tx_status.task_state {
-                    TaskStatus::Cancelled => return Ok(MessageStatus::None),
-                    _ => {}
+                // The only terminal state status is if the task was cancelled, which happens after
+                // Gelato has known about the task for ~20 minutes and could not execute it.
+                if let TaskStatus::Cancelled = tx_status.task_state {
+                    return Ok(MessageStatus::None);
                 }
             } else {
                 tracing::warn!(task_id=?task_id, status_result_data=?status_result.data, "Unexpected forward request status data");
