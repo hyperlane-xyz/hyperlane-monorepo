@@ -1,12 +1,19 @@
 use std::{sync::Arc, time::Duration};
 
 use abacus_base::InboxContracts;
-use abacus_core::{ChainCommunicationError, MessageStatus, InboxValidatorManager, Inbox};
-use ethers::{signers::Signer, types::{H160, U256}};
+use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
+use ethers::{
+    signers::Signer,
+    types::{H160, U256},
+};
 use eyre::Result;
 use gelato::{
-    fwd_req_call::{ForwardRequestArgs, ForwardRequestCall, ForwardRequestCallResult, NATIVE_FEE_TOKEN_ADDRESS, PaymentType},
-    task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs}, chains::Chain,
+    chains::Chain,
+    fwd_req_call::{
+        ForwardRequestArgs, ForwardRequestCall, ForwardRequestCallResult, PaymentType,
+        NATIVE_FEE_TOKEN_ADDRESS,
+    },
+    task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs},
 };
 use tokio::{
     sync::mpsc::UnboundedSender,
@@ -84,10 +91,10 @@ where
                     // stop running.
                     self.send_message_processed();
                     return;
-                },
+                }
                 Err(err) => {
                     tracing::warn!(err=?err, "Error occurred in fwd_req_op tick");
-                },
+                }
                 _ => {}
             }
 
@@ -205,7 +212,8 @@ where
     }
 
     async fn message_status(&self) -> Result<MessageStatus, ChainCommunicationError> {
-        self.inbox_contracts.inbox
+        self.inbox_contracts
+            .inbox
             .message_status(self.message.committed_message.to_leaf())
             .await
     }

@@ -1,6 +1,6 @@
 use abacus_base::{CoreMetrics, InboxContracts};
-use abacus_core::{db::AbacusDB, Signers};
 use abacus_core::AbacusCommon;
+use abacus_core::{db::AbacusDB, Signers};
 use ethers::signers::Signer;
 use ethers::types::Address;
 use eyre::{bail, Result};
