@@ -25,7 +25,7 @@ use crate::msg::SubmitMessageArgs;
 /// The max fee to use for Gelato ForwardRequests.
 /// Gelato isn't charging fees on testnet. For now, use this hardcoded value
 /// of 1e18, or 1.0 ether.
-/// TODO: revisit when testing on mainnet and actually considering interchain
+/// TODO: revisit before running on mainnet and when we consider interchain
 /// gas payments.
 const DEFAULT_MAX_FEE: u64 = 10u64.pow(18);
 
