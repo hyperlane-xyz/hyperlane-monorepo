@@ -36,7 +36,7 @@ pub(crate) struct GelatoSubmitter {
     /// Inbox / InboxValidatorManager on the destination chain.
     pub inbox_contracts: InboxContracts,
     /// The outbox chain in the format expected by the Gelato crate.
-    pub outbox_gelato_chain: Chain,
+    pub _outbox_gelato_chain: Chain,
     /// The inbox chain in the format expected by the Gelato crate.
     pub inbox_gelato_chain: Chain,
     /// The signer of the Gelato sponsor, used for EIP-712 meta-transaction signatures.
@@ -47,16 +47,16 @@ pub(crate) struct GelatoSubmitter {
     /// whatever reason.
     // pub wait_queue: VecDeque<SubmitMessageArgs>,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
-    pub _abacus_db: AbacusDB,
+    pub db: AbacusDB,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     pub http_client: reqwest::Client,
     /// Prometheus metrics.
     pub _metrics: GelatoSubmitterMetrics,
 
     #[allow(dead_code)]
-    fwd_req_failure_sender: UnboundedSender<SubmitMessageArgs>,
+    message_processed_sender: UnboundedSender<SubmitMessageArgs>,
     #[allow(dead_code)]
-    fwd_req_failure_receiver: UnboundedReceiver<SubmitMessageArgs>,
+    message_processed_receiver: UnboundedReceiver<SubmitMessageArgs>,
     // all_fwd_requests
 }
 
@@ -70,22 +70,21 @@ impl GelatoSubmitter {
         http_client: reqwest::Client,
         metrics: GelatoSubmitterMetrics,
     ) -> Self {
-        let (fwd_req_failure_sender, fwd_req_failure_receiver) =
+        let (message_processed_sender, message_processed_receiver) =
             mpsc::unbounded_channel::<SubmitMessageArgs>();
         Self {
             message_receiver,
-            outbox_gelato_chain: abacus_domain_to_gelato_chain(outbox_domain).unwrap(),
+            _outbox_gelato_chain: abacus_domain_to_gelato_chain(outbox_domain).unwrap(),
             inbox_gelato_chain: abacus_domain_to_gelato_chain(inbox_contracts.inbox.local_domain())
                 .unwrap(),
             inbox_contracts,
-            _abacus_db: abacus_db,
+            db: abacus_db,
             gelato_sponsor_address: gelato_sponsor_signer.address(),
             gelato_sponsor_signer,
             http_client,
             _metrics: metrics,
-            // wait_queue: VecDeque::new(),
-            fwd_req_failure_sender,
-            fwd_req_failure_receiver,
+            message_processed_sender,
+            message_processed_receiver,
         }
     }
 
@@ -125,19 +124,37 @@ impl GelatoSubmitter {
             tracing::info!(msg=?msg, "Spawning forward request op for message");
             let op = ForwardRequestOp::new(
                 ForwardRequestOptions::default(),
-                self.create_forward_request_args(msg),
+                self.create_forward_request_args(&msg),
                 self.gelato_sponsor_signer.clone(),
                 self.http_client.clone(),
+                msg,
+                self.inbox_contracts.inbox.clone(),
+                self.message_processed_sender.clone(),
             );
-            tracing::info!(op=?op, "Created op");
+            tracing::info!("Created op");
 
             tokio::spawn(async move { op.run().await });
+        }
+
+        // Pull any messages that have been successfully processed by ForwardRequestOps
+        loop {
+            match self.message_processed_receiver.try_recv() {
+                Ok(msg) => {
+                    self.record_message_process_success(&msg)?;
+                }
+                Err(TryRecvError::Empty) => {
+                    break;
+                }
+                Err(_) => {
+                    bail!("Disconnected receive channel or fatal err");
+                }
+            }
         }
 
         Ok(())
     }
 
-    fn create_forward_request_args(&self, msg: SubmitMessageArgs) -> ForwardRequestArgs {
+    fn create_forward_request_args(&self, msg: &SubmitMessageArgs) -> ForwardRequestArgs {
         tracing::info!("In create_forward_request_args");
         let calldata = self.inbox_contracts.validator_manager.process_calldata(
             &msg.checkpoint,
@@ -163,6 +180,25 @@ impl GelatoSubmitter {
             enforce_sponsor_nonce_ordering: false,
             sponsor: self.gelato_sponsor_address,
         }
+    }
+
+    /// Record in AbacusDB and various metrics that this process has observed the successful
+    /// processing of a message. An Ok(()) value returned by this function is the 'commit' point
+    /// in a message's lifetime for final processing -- after this function has been seen to
+    /// return 'Ok(())', then without a wiped AbacusDB, we will never re-attempt processing for
+    /// this message again, even after the relayer restarts.
+    fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
+        self.db.mark_leaf_as_processed(msg.leaf_index)?;
+        // self.metrics
+        //     .queue_duration_hist
+        //     .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
+        // self.metrics.max_submitted_leaf_index =
+        //     std::cmp::max(self.metrics.max_submitted_leaf_index, msg.leaf_index);
+        // self.metrics
+        //     .processed_gauge
+        //     .set(self.metrics.max_submitted_leaf_index as i64);
+        // self.metrics.messages_processed_count.inc();
+        Ok(())
     }
 }
 

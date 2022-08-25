@@ -1,12 +1,19 @@
 use std::{sync::Arc, time::Duration};
 
+use abacus_base::CachingInbox;
+use abacus_core::{ChainCommunicationError, Inbox, MessageStatus};
 use ethers::signers::Signer;
 use eyre::Result;
 use gelato::{
     fwd_req_call::{ForwardRequestArgs, ForwardRequestCall, ForwardRequestCallResult},
     task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs},
 };
-use tokio::time::{sleep, timeout};
+use tokio::{
+    sync::mpsc::UnboundedSender,
+    time::{sleep, timeout},
+};
+
+use crate::msg::SubmitMessageArgs;
 
 // /// The max fee to use for Gelato ForwardRequests.
 // /// Gelato isn't charging fees on testnet. For now, use this hardcoded value
@@ -27,6 +34,11 @@ pub(crate) struct ForwardRequestOp<S> {
     pub opts: ForwardRequestOptions,
     pub signer: S,
     pub http: reqwest::Client,
+
+    pub message: SubmitMessageArgs,
+    pub inbox: Arc<CachingInbox>,
+
+    message_processed_sender: UnboundedSender<SubmitMessageArgs>,
 }
 
 impl<S> ForwardRequestOp<S>
@@ -40,6 +52,10 @@ where
         args: ForwardRequestArgs,
         signer: S,
         http: reqwest::Client,
+        message: SubmitMessageArgs,
+        inbox: Arc<CachingInbox>,
+
+        message_processed_sender: UnboundedSender<SubmitMessageArgs>,
     ) -> ForwardRequestOp<S> {
         tracing::info!(args=?args, opts=?opts, "Creating fwd_req_op");
         ForwardRequestOp {
@@ -47,51 +63,80 @@ where
             opts,
             signer,
             http,
+            message,
+            inbox,
+            message_processed_sender,
         }
     }
 
     #[allow(unused)]
     pub async fn run(&self) {
         tracing::info!("In fwd_req_op run");
+
         loop {
-            let fwd_req_result = match self.send_forward_request_call().await {
-                Ok(fwd_req_result) => fwd_req_result,
-                Err(err) => {
-                    // self.fwd_req_failure_sender.send(self.submit_msg_args.clone()).unwrap();
-                    tracing::warn!(err=?err, "Error sending forward_request_call");
-                    sleep(self.opts.retry_submit_interval).await;
-                    continue;
-                }
-            };
-
-            tracing::info!(fwd_req_result=?fwd_req_result, "Sent forward request");
-
-            // let fwd_req_result = self.send_forward_request_call().await.unwrap();
-
-            match timeout(
-                self.opts.retry_submit_interval,
-                self.wait_for_fwd_req_terminal_state(fwd_req_result.task_id.clone()),
-            )
-            .await
-            {
-                Ok(Ok(())) => {
-                    tracing::info!("successful processing!");
+            match self.tick().await {
+                Ok(MessageStatus::Processed) => {
+                    // If the message was processed, send it over the channel and
+                    // stop running.
+                    self.send_message_processed();
                     return;
-                },
-                Ok(Err(err)) => {
-                    tracing::info!(fwd_req_result=?fwd_req_result, err=?err, "Error sending forward request Ok(Err())");
-                },
-                Err(err) => {
-                    tracing::info!(fwd_req_result=?fwd_req_result, err=?err, "Error sending forward request Err()");
-                    // Start loop over
                 }
+                Err(err) => {
+                    tracing::warn!(err=?err, "Error occurred in fwd_req_op tick");
+                }
+                _ => {}
+            }
+
+            sleep(Duration::from_secs(5)).await;
+        }
+    }
+
+    async fn tick(&self) -> Result<MessageStatus> {
+        // Before doing anything, first check if the message has already been processed.
+        if let Ok(MessageStatus::Processed) = self.message_status().await {
+            tracing::debug!("Polled inbox and message was processed already");
+            return Ok(MessageStatus::Processed);
+        }
+
+        // Send the forward request.
+        let fwd_req_result = self.send_forward_request_call().await?;
+        tracing::info!(fwd_req_result=?fwd_req_result, "Sent forward request");
+
+        // Wait for a terminal state, timing out according to the retry_submit_interval.
+        match timeout(
+            self.opts.retry_submit_interval,
+            self.poll_for_terminal_state(fwd_req_result.task_id.clone()),
+        )
+        .await
+        {
+            Ok(result) => {
+                // Bubble up any error that may have occurred in `poll_for_terminal_state`.
+                result
+            }
+            // If a timeout occurred, don't bubble up an error, instead just log
+            // and set ourselves up for the next tick.
+            Err(err) => {
+                tracing::debug!(err=?err, "Forward request timed out, reattempting");
+                Ok(MessageStatus::None)
             }
         }
     }
 
-    async fn wait_for_fwd_req_terminal_state(&self, task_id: String) -> Result<()> {
+    // Waits until the message has either been processed or the task id has been cancelled
+    // by Gelato.
+    async fn poll_for_terminal_state(&self, task_id: String) -> Result<MessageStatus> {
         loop {
             sleep(self.opts.poll_interval).await;
+
+            // Check if the message has been processed. Checking with the Inbox directly
+            // is the best source of truth, and is the only way in which a message can be
+            // marked as processed.
+            if let Ok(MessageStatus::Processed) = self.message_status().await {
+                return Ok(MessageStatus::Processed);
+            }
+
+            // Get the status of the ForwardRequest task from Gelato for debugging.
+            // If the task was cancelled for some reason by Gelato, stop waiting.
 
             let status_call = TaskStatusCall {
                 http: Arc::new(self.http.clone()),
@@ -102,11 +147,11 @@ where
             let status_result = status_call.run().await?;
 
             if let [tx_status] = &status_result.data[..] {
-                tracing::info!(task_id=?task_id, tx_status=?tx_status, status_result=?status_result, "Got forward request status");
+                tracing::info!(task_id=?task_id, tx_status=?tx_status, "Got forward request status");
 
                 match tx_status.task_state {
-                    TaskStatus::ExecSuccess => return Ok(()),
-                    TaskStatus::Cancelled => eyre::bail!("Task cancelled"),
+                    // TaskStatus::ExecSuccess => return Ok(MessageStatus::Processed),
+                    TaskStatus::Cancelled => return Ok(MessageStatus::None),
                     _ => {}
                 }
             } else {
@@ -114,39 +159,6 @@ where
             }
         }
     }
-
-    // fn create_forward_request_args(
-    //     sponsor_chain: Chain,
-    //     target_chain: Chain,
-    //     inbox_validator_manager: &Arc<InboxValidatorManagers>,
-    //     submit_msg_args: &SubmitMessageArgs,
-    //     sponsor_address: H160,
-    // ) -> Result<ForwardRequestArgs> {
-    //     let calldata = inbox_validator_manager
-    //         .process_calldata(
-    //             &submit_msg_args.checkpoint,
-    //             &submit_msg_args.committed_message.message,
-    //             &submit_msg_args.proof,
-    //         )?;
-
-    //     Ok(ForwardRequestArgs {
-    //         sponsor_chain_id: sponsor_chain,
-    //         chain_id: target_chain,
-
-    //         target: inbox_validator_manager
-    //             .contract_address()
-    //             .into(),
-    //         data: calldata,
-    //         fee_token: Address::zero(),
-    //         payment_type: PaymentType::AsyncGasTank,
-    //         max_fee: U256::from(DEFAULT_MAX_FEE),
-    //         gas: U256::from(DEFAULT_GAS_LIMIT),
-    //         nonce: U256::zero(),
-    //         enforce_sponsor_nonce: false,
-    //         enforce_sponsor_nonce_ordering: false,
-    //         sponsor: sponsor_address,
-    //     })
-    // }
 
     async fn send_forward_request_call(&self) -> Result<ForwardRequestCallResult> {
         tracing::info!("About to sign send_forward_request_call...");
@@ -162,6 +174,18 @@ where
         tracing::info!(fwd_req_call=?fwd_req_call, "About to run fwd_req_call");
 
         Ok(fwd_req_call.run().await?)
+    }
+
+    async fn message_status(&self) -> Result<MessageStatus, ChainCommunicationError> {
+        self.inbox
+            .message_status(self.message.committed_message.to_leaf())
+            .await
+    }
+
+    fn send_message_processed(
+        &self,
+    ) -> Result<(), tokio::sync::mpsc::error::SendError<SubmitMessageArgs>> {
+        self.message_processed_sender.send(self.message.clone())
     }
 }
 

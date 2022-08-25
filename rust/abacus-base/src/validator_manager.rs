@@ -1,8 +1,5 @@
 use async_trait::async_trait;
-use ethers::{
-    prelude::AbiError,
-    types::{Bytes, TransactionRequest},
-};
+use ethers::types::TransactionRequest;
 use std::sync::Arc;
 
 use abacus_core::{

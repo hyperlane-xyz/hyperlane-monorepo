@@ -15,7 +15,9 @@ use abacus_core::{
     InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
 };
 
-use crate::contracts::inbox_validator_manager::{InboxValidatorManager as EthereumInboxValidatorManagerInternal, ProcessCall};
+use crate::contracts::inbox_validator_manager::{
+    InboxValidatorManager as EthereumInboxValidatorManagerInternal, ProcessCall,
+};
 use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
 
