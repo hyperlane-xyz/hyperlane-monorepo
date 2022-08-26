@@ -105,7 +105,7 @@ impl GelatoSubmitter {
         // the asc ordering by message leaf index is preserved.
         for msg in received_messages.into_iter() {
             tracing::info!(msg=?msg, "Spawning forward request op for message");
-            let op = ForwardRequestOp::new(
+            let mut op = ForwardRequestOp::new(
                 ForwardRequestOptions::default(),
                 self.http_client.clone(),
                 msg,

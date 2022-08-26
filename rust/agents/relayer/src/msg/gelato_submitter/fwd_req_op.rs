@@ -19,6 +19,7 @@ use tokio::{
     sync::mpsc::UnboundedSender,
     time::{sleep, timeout},
 };
+use tracing::instrument;
 
 use crate::msg::SubmitMessageArgs;
 
@@ -82,23 +83,31 @@ where
         }
     }
 
-    pub async fn run(&self) {
+    #[instrument(skip(self), fields(msg_leaf_index=self.message.leaf_index))]
+    pub async fn run(&mut self) {
         loop {
             match self.tick().await {
                 Ok(MessageStatus::Processed) => {
                     // If the message was processed, send it over the channel and
                     // stop running.
                     if let Err(err) = self.send_message_processed() {
-                        tracing::error!(err=?err, "Unable to send processed message, receiver is closed or dropped.");
+                        tracing::error!(
+                            err=?err,
+                            "Unable to send processed message, receiver is closed or dropped.",
+                        );
                     }
                     return;
                 }
                 Err(err) => {
-                    tracing::warn!(err=?err, "Error occurred in fwd_req_op tick");
+                    tracing::warn!(
+                        err=?err,
+                        "Error occurred in fwd_req_op tick",
+                    );
                 }
                 _ => {}
             }
 
+            self.message.num_retries += 1;
             sleep(Duration::from_secs(5)).await;
         }
     }
@@ -111,7 +120,11 @@ where
 
         // Send the forward request.
         let fwd_req_result = self.send_forward_request_call().await?;
-        tracing::info!(task_id=?fwd_req_result.task_id, "Sent forward request");
+        tracing::info!(
+            msg=?self.message,
+            task_id=?fwd_req_result.task_id,
+            "Sent forward request",
+        );
 
         // Wait for a terminal state, timing out according to the retry_submit_interval.
         match timeout(
@@ -158,7 +171,11 @@ where
             let status_result = status_call.run().await?;
 
             if let [tx_status] = &status_result.data[..] {
-                tracing::info!(task_id=?task_id, tx_status=?tx_status, "Polled forward request status");
+                tracing::info!(
+                    task_id=?task_id,
+                    tx_status=?tx_status,
+                    "Polled forward request status",
+                );
 
                 // The only terminal state status is if the task was cancelled, which happens after
                 // Gelato has known about the task for ~20 minutes and could not execute it.
@@ -166,7 +183,11 @@ where
                     return Ok(MessageStatus::None);
                 }
             } else {
-                tracing::warn!(task_id=?task_id, status_result_data=?status_result.data, "Unexpected forward request status data");
+                tracing::warn!(
+                    task_id=?task_id,
+                    status_result_data=?status_result.data,
+                    "Unexpected forward request status data",
+                );
             }
         }
     }
