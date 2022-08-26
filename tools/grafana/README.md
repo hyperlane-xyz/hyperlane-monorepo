@@ -1,5 +1,8 @@
 # Grafana Dashboards
 
+NOTE: the dashboards here are not synced to our internal grafana and will need to manually be
+updated when we want to update our published templates.
+
 ## Importing
 
 1. replace all instances of `<prometheus>` with your prometheus deployment name in grafana
