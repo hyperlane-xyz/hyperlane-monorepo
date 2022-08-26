@@ -260,7 +260,12 @@ impl Settings {
         metrics: &CoreMetrics,
     ) -> Result<HashMap<String, InboxContracts>, Report> {
         let mut result = HashMap::new();
-        for (k, v) in self.inboxes.iter().filter(|(_, v)| v.disabled.is_none()) {
+        for (k, v) in self.inboxes.iter().filter(|(_, v)| {
+            !v.disabled
+                .as_ref()
+                .and_then(|d| d.parse::<bool>().ok())
+                .unwrap_or_default()
+        }) {
             if k != &v.name {
                 bail!(
                     "Inbox key does not match inbox name:\n key: {}  name: {}",

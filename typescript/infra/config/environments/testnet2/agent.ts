@@ -102,7 +102,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-33b82dc',
+    tag: 'sha-e4c7c96',
   },
   aws: {
     region: 'us-east-1',

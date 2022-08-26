@@ -9,7 +9,7 @@ data:
 {{ $index := 0 }}
 {{- range .Values.abacus.validator.configs }}
   validator-{{ $index }}.env: |
-{{- include "abacus-agent.config-env-vars" (dict "config" . "agent_name" "validator" "dot_env_format" true) | indent 4 }}
+{{- include "abacus-agent.config-env-vars" (dict "config" . "agent_name" "validator" "format" "dot_env") | indent 4 }}
 {{ $index = add1 $index }}
 {{- end }}
 {{- end }}
