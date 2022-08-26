@@ -29,11 +29,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(Message::Recipient, Address).not_null())
                     .col(ColumnDef::new(Message::MsgBody).binary())
                     .col(ColumnDef::new_with_type(Message::OutboxAddress, Address).not_null())
-                    .col(
-                        ColumnDef::new(Message::DispatchTxId)
-                            .big_integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(Message::OriginTxId).big_integer().not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Message::Origin)
@@ -46,7 +42,7 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .from_col(Message::DispatchTxId)
+                            .from_col(Message::OriginTxId)
                             .to(Transaction::Table, Transaction::Id),
                     )
                     .index(
@@ -64,7 +60,7 @@ impl MigrationTrait for Migration {
                 Index::create()
                     .table(Message::Table)
                     .name("idx-message_tx")
-                    .col(Message::DispatchTxId)
+                    .col(Message::OriginTxId)
                     .to_owned(),
             )
             .await?;
@@ -120,6 +116,6 @@ pub enum Message {
     MsgBody,
     /// Address of the outbox contract
     OutboxAddress,
-    /// Transaction this message was sent in.
-    DispatchTxId,
+    /// Transaction this message was dispatched in on the origin chain.
+    OriginTxId,
 }
