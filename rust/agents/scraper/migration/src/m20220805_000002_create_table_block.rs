@@ -35,16 +35,12 @@ impl MigrationTrait for Migration {
                             .from_col(Block::Domain)
                             .to(Domain::Table, Domain::DomainId),
                     )
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .create_index(
-                Index::create()
-                    .table(Block::Table)
-                    .name("idx-block_domain-height")
-                    .col(Block::Domain)
-                    .col(Block::Height)
+                    .index(
+                        Index::create()
+                            .col(Block::Domain)
+                            .col(Block::Height)
+                            .unique(),
+                    )
                     .to_owned(),
             )
             .await
