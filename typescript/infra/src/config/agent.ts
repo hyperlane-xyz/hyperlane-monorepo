@@ -191,6 +191,7 @@ export interface AgentConfig<Chain extends ChainName> {
   // Names of chains this context cares about
   contextChainNames: Chain[];
   validatorSets: ChainValidatorSets<Chain>;
+  gelatoEnabledChains?: Chain[];
   validator?: ChainValidatorConfigs<Chain>;
   relayer?: ChainRelayerConfigs<Chain>;
   // Roles to manage keys for

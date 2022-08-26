@@ -40,6 +40,11 @@ async function helmValuesForChain<Chain extends ChainName>(
           return {
             name: remoteChainName,
             disabled: !agentConfig.contextChainNames.includes(remoteChainName),
+            gelato: {
+              enabled:
+                agentConfig.gelatoEnabledChains?.includes(remoteChainName) ??
+                false,
+            },
           };
         }),
       validator: {

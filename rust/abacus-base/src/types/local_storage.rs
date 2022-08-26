@@ -9,7 +9,7 @@ use crate::traits::CheckpointSyncer;
 /// Type for reading/write to LocalStorage
 pub struct LocalStorage {
     /// base path
-    pub path: String,
+    path: String,
 }
 
 impl LocalStorage {
