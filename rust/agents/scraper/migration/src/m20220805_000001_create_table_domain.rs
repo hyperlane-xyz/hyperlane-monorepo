@@ -42,16 +42,9 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Domain::Id)
-                            .integer()
-                            .not_null()
-                            .auto_increment()
-                            .primary_key(),
-                    )
-                    .col(
-                        ColumnDef::new(Domain::DomainId)
                             .unsigned()
                             .not_null()
-                            .unique_key(),
+                            .primary_key(),
                     )
                     .col(ColumnDef::new(Domain::TimeCreated).timestamp().not_null())
                     .col(ColumnDef::new(Domain::TimeUpdated).timestamp().not_null())
@@ -75,8 +68,7 @@ impl MigrationTrait for Migration {
             };
 
             EntityTrait::insert(domain::ActiveModel {
-                id: NotSet,
-                domain_id: Set(domain_from_chain(domain.0).expect("Unknown chain name")),
+                id: Set(domain_from_chain(domain.0).expect("Unknown chain name")),
                 time_created: Set(now),
                 time_updated: Set(now),
                 name: Set(domain.0.to_owned()),
@@ -102,10 +94,8 @@ impl MigrationTrait for Migration {
 #[derive(Iden)]
 pub enum Domain {
     Table,
-    /// Unique database ID
-    Id,
     /// Abacus domain ID
-    DomainId,
+    Id,
     /// Time of record creation
     TimeCreated,
     /// Time of the last record update
@@ -126,9 +116,8 @@ mod domain {
     #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
     #[sea_orm(table_name = "domain")]
     pub struct Model {
-        #[sea_orm(primary_key)]
-        id: i32,
-        domain_id: u32,
+        #[sea_orm(primary_key, auto_increment = false)]
+        id: u32,
         time_created: DateTime,
         time_updated: DateTime,
         name: String,
