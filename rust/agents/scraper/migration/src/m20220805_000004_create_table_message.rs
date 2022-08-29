@@ -29,6 +29,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(Message::Recipient, Address).not_null())
                     .col(ColumnDef::new(Message::MsgBody).binary())
                     .col(ColumnDef::new_with_type(Message::OutboxAddress, Address).not_null())
+                    .col(ColumnDef::new(Message::Timestamp).timestamp().not_null())
                     .col(ColumnDef::new(Message::OriginTxId).big_integer().not_null())
                     .foreign_key(
                         ForeignKey::create()
@@ -116,6 +117,8 @@ pub enum Message {
     MsgBody,
     /// Address of the outbox contract
     OutboxAddress,
+    /// timestamp on block that includes the origin transaction (saves a double join)
+    Timestamp,
     /// Transaction this message was dispatched in on the origin chain.
     OriginTxId,
 }
