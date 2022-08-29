@@ -6,6 +6,7 @@ import {
   AllChains,
   ChainMap,
   ChainName,
+  CoreConfig,
   IChainConnection,
   MultiProvider,
   objMap,

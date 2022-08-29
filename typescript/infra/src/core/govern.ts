@@ -1,3 +1,7 @@
+import Safe from '@gnosis.pm/safe-core-sdk';
+import EthersAdapter from '@gnosis.pm/safe-ethers-lib';
+import { ethers } from 'ethers';
+
 import {
   AbacusCoreChecker,
   ChainMap,
@@ -44,6 +48,57 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
   logCalls() {
     objMap(this.calls, (chain, calls) => {
       console.log(chain, calls);
+    });
+  }
+
+  logSafeCalls() {
+    objMap(this.calls, async (chain, calls) => {
+      const signer = this.checker.multiProvider.getChainSigner(chain);
+      const ethAdapter = new EthersAdapter({
+        ethers,
+        signer,
+      });
+      const safeAddress = this.checker.configMap[chain].owner;
+      if (!safeAddress) {
+        throw new Error('Contract owner not found');
+      }
+      const safeSdk = await Safe.create({ ethAdapter, safeAddress });
+      const transactions = calls.map((call) => {
+        return { to: call.to, data: call.data.toString(), value: '0' };
+      });
+      console.log(transactions);
+      const safeTransaction = await safeSdk.createTransaction(transactions);
+      console.log(safeTransaction);
+    });
+  }
+
+  estimateCalls() {
+    objMap(this.calls, async (chain, calls) => {
+      const connection = this.checker.multiProvider.getChainConnection(chain);
+      const signer = await connection.signer?.getAddress();
+      for (const call of calls) {
+        await connection.provider.estimateGas({
+          ...call,
+          from: signer,
+        });
+      }
+    });
+  }
+
+  async executeCalls() {
+    await this.estimateCalls();
+    objMap(this.calls, async (chain, calls) => {
+      const connection = this.checker.multiProvider.getChainConnection(chain);
+      const signer = connection.signer;
+      if (!signer) {
+        throw new Error(`signer not found for ${chain}`);
+      }
+      for (const call of calls) {
+        const response = await signer.sendTransaction(call);
+        console.log(`sent tx ${response.hash} to ${chain}`);
+        // await response.wait(connection.confirmations);
+        console.log(`confirmed tx ${response.hash} on ${chain}`);
+      }
     });
   }
 
