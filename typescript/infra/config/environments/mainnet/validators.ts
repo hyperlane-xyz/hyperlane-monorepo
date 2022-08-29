@@ -199,6 +199,16 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-west-2',
         },
       },
+      {
+        address: '0x4c055065DdD22DC874B3494Eb81FcDC1cDe9F57e',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-validator-signatures-zplabs-pgon.s3.eu-central-1.amazonaws.com',
+          region: 'eu-central-1',
+        },
+      },
     ],
   },
   bsc: {
@@ -287,6 +297,16 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-west-2',
         },
       },
+      {
+        address: '0xb2e9B58B63c8676E583c2C0050bD46cecd8Ac8F3',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-validator-signatures-zplabs-arbitrum.s3.eu-central-1.amazonaws.com',
+          region: 'eu-central-1',
+        },
+      },
     ],
   },
   optimism: {
@@ -324,6 +344,16 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           bucket:
             'https://abacus-mainnet-zkv-optimism-signatures.s3.eu-west-2.amazonaws.com/',
           region: 'eu-west-2',
+        },
+      },
+      {
+        address: '0x9D8a7F26B62fC4e481Be0F0736683d2822A8c354',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'https://abacus-validator-signatures-zplabs-optimism.s3.eu-central-1.amazonaws.com',
+          region: 'eu-central-1',
         },
       },
     ],

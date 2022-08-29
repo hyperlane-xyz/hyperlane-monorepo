@@ -57,6 +57,8 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0xc79c2e64c5051ac1c8df4a18df4f9ceb5a2ec767',
         // zk validator
         '0x5201867Fc19c7104cA18B37d07C60bBfe8164197',
+        // zeeprime
+        '0x4c055065DdD22DC874B3494Eb81FcDC1cDe9F57e',
       ],
       threshold: 3,
     },
@@ -70,7 +72,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x27d47d7d5f14f76b5f800481499f4c1cb1eb54d9',
         // zk validator
         '0x24f9004c3e02C8c354881685B221cAd8FaF4d9B0',
-        // zee prime
+        // zeeprime
         '0x7e303daC8b6b24cac10b6f032e0eF373A1D80299',
       ],
       threshold: 3,
@@ -85,6 +87,8 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x38566cc4ceb264dfcb0022d9857ffe6c9da33881',
         // zk validator
         '0xFF20DFeEE355Ef5a6d3C6dEe25AAB697ad3915a4',
+        // zeeprime
+        '0xb2e9B58B63c8676E583c2C0050bD46cecd8Ac8F3',
       ],
       threshold: 3,
     },
@@ -98,6 +102,8 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x95c27b4d029b11f7581f3f36b6575a14daba83d1',
         // zk validator
         '0x8669a883652DBf8c47DECbC4ec8b137E54A5bEAF',
+        // zeeprime
+        '0x9D8a7F26B62fC4e481Be0F0736683d2822A8c354',
       ],
       threshold: 3,
     },
