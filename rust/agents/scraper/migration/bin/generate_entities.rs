@@ -94,8 +94,6 @@ async fn main() -> Result<(), DbErr> {
             "entity",
             "--output-dir",
             db_path.to_str().unwrap(),
-            "--with-serde",
-            "both",
             // we want expanded format because it plays nicely with the IDEs
             "--expanded-format",
             "--date-time-crate",

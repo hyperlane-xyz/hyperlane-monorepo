@@ -16,6 +16,9 @@
 
 use eyre::Result;
 
+#[allow(clippy::all)]
+mod db;
+
 mod scraper;
 mod settings;
 
