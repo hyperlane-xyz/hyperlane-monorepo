@@ -17,7 +17,7 @@ async fn main() -> Result<(), DbErr> {
     println!("Connecting to {url}");
     let db = Database::connect(url).await?;
 
-    // Migrator::down(&db, None).await?;
+    Migrator::down(&db, None).await?;
     Migrator::up(&db, None).await?;
 
     Ok(())
