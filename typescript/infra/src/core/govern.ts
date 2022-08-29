@@ -41,7 +41,8 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     }
   }
 
-  logCalls() {
+  async logCalls() {
+    await this.estimateCalls();
     objMap(this.calls, (chain, calls) => {
       console.log(chain, calls);
     });
@@ -50,12 +51,12 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
   estimateCalls() {
     objMap(this.calls, async (chain, calls) => {
       const connection = this.checker.multiProvider.getChainConnection(chain);
-      const signer = connection.signer;
-      if (!signer) {
-        throw new Error(`signer not found for ${chain}`);
-      }
+      const owner = this.checker.configMap[chain].owner;
       for (const call of calls) {
-        await signer.estimateGas({ ...call, from: await signer.getAddress() });
+        await connection.provider.estimateGas({
+          ...call,
+          from: owner,
+        });
       }
     });
   }
