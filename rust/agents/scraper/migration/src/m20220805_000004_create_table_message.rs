@@ -34,12 +34,12 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Message::Origin)
-                            .to(Domain::Table, Domain::DomainId),
+                            .to(Domain::Table, Domain::Id),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Message::Destination)
-                            .to(Domain::Table, Domain::DomainId),
+                            .to(Domain::Table, Domain::Id),
                     )
                     .foreign_key(
                         ForeignKey::create()

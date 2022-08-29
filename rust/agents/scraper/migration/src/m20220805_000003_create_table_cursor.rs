@@ -24,7 +24,7 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Cursor::Domain)
-                            .to(Domain::Table, Domain::DomainId),
+                            .to(Domain::Table, Domain::Id),
                     )
                     .to_owned(),
             )

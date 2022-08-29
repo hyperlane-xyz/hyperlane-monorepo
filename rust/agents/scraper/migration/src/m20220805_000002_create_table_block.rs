@@ -33,7 +33,7 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Block::Domain)
-                            .to(Domain::Table, Domain::DomainId),
+                            .to(Domain::Table, Domain::Id),
                     )
                     .index(
                         Index::create()
