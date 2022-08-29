@@ -1,5 +1,4 @@
-//! Initialize a new, empty database using the migrations.
-
+//! Tare down an existing database and then re-initialize it.
 use common::*;
 
 mod common;
@@ -8,6 +7,7 @@ mod common;
 async fn main() -> Result<(), DbErr> {
     let db = init().await?;
 
+    Migrator::down(&db, None).await?;
     Migrator::up(&db, None).await?;
 
     Ok(())
