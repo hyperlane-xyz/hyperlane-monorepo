@@ -15,7 +15,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
     },
   },
   ethereum: {
-    owner: '0x5b73A98165778BCCE72979B4EE3faCdb31728b8E',
+    owner: '0x12C5AB61Fe17dF9c65739DBa73dF294708f78d23',
     validatorManager: {
       validators: [
         '0x7c1d96c9e72c41b84d74095dc2e72b979e933904',
@@ -26,7 +26,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
     },
   },
   avalanche: {
-    owner: '0x5b73A98165778BCCE72979B4EE3faCdb31728b8E',
+    owner: '0xDF9B28B76877f1b1B4B8a11526Eb7D8D7C49f4f3',
     validatorManager: {
       validators: [
         '0x1353b91e2b256ca0a283504b02ae3c69374fb105',
@@ -37,7 +37,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
     },
   },
   polygon: {
-    owner: '0x5b73A98165778BCCE72979B4EE3faCdb31728b8E',
+    owner: '0x0D195469f76146F6ae3De8fc887e0f0DFBA691e7',
     validatorManager: {
       validators: [
         '0xff198cae21069d865b142f2b9e798d3b299b8df6',
@@ -48,7 +48,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
     },
   },
   bsc: {
-    owner: '0x5b73A98165778BCCE72979B4EE3faCdb31728b8E',
+    owner: '0xA0d3dcB9d61Fba32cc02Ad63983e101b29E2f28a',
     validatorManager: {
       validators: [
         '0x013d01a570b5cfa19032c5176488b5824e225a6b',
@@ -59,7 +59,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
     },
   },
   arbitrum: {
-    owner: '0x5b73A98165778BCCE72979B4EE3faCdb31728b8E',
+    owner: '0xbA47E1b575980B7D1b1508cc48bE1Df4EE508111',
     validatorManager: {
       validators: [
         '0x6289f913acc64c2e6baaa2b5175c7db35f98f62d',
@@ -70,7 +70,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
     },
   },
   optimism: {
-    owner: '0x5b73A98165778BCCE72979B4EE3faCdb31728b8E',
+    owner: '0xb523CFAf45AACF472859f8B793CB0BFDB16bD257',
     validatorManager: {
       validators: [
         '0xcf2dcc3462c84420965501c1dda3d62dde08941d',
