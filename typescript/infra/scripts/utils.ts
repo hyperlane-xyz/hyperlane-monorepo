@@ -1,3 +1,4 @@
+import { LedgerSigner } from '@ethersproject/hardware-wallets';
 import path from 'path';
 import yargs from 'yargs';
 
@@ -116,6 +117,24 @@ export async function getMultiProviderForRole<Chain extends ChainName>(
       const provider = await fetchProvider(environment, chain);
       const key = await getKeyForRole(environment, context, chain, role, index);
       const signer = await key.getSigner(provider);
+      return {
+        ...config,
+        provider,
+        signer,
+      };
+    }),
+  );
+  return new MultiProvider<Chain>(connections);
+}
+
+export async function getMultiProviderForLedger<Chain extends ChainName>(
+  txConfigs: ChainMap<Chain, IChainConnection>,
+  environment: DeployEnvironment,
+): Promise<MultiProvider<Chain>> {
+  const connections = await promiseObjAll(
+    objMap(txConfigs, async (chain, config) => {
+      const provider = await fetchProvider(environment, chain, false);
+      const signer = new LedgerSigner(provider);
       return {
         ...config,
         provider,
