@@ -1,4 +1,6 @@
 import { LedgerSigner } from '@ethersproject/hardware-wallets';
+// NB: To provide ledger type declarations.
+import '@ethersproject/hardware-wallets/thirdparty';
 import path from 'path';
 import yargs from 'yargs';
 
@@ -6,7 +8,6 @@ import {
   AllChains,
   ChainMap,
   ChainName,
-  CoreConfig,
   IChainConnection,
   MultiProvider,
   objMap,
