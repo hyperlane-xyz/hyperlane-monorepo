@@ -56,7 +56,7 @@ impl ColumnTrait for Column {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Domain => ColumnType::Integer.def(),
-            Self::Hash => ColumnType::Char(Some(16u32)).def().unique(),
+            Self::Hash => ColumnType::String(Some(64u32)).def().unique(),
             Self::Height => ColumnType::BigInteger.def(),
             Self::Timestamp => ColumnType::DateTime.def(),
         }

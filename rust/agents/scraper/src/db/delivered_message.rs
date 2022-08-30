@@ -53,7 +53,7 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
-            Self::InboxAddress => ColumnType::Char(Some(16u32)).def(),
+            Self::InboxAddress => ColumnType::String(Some(64u32)).def(),
             Self::MsgId => ColumnType::BigInteger.def().unique(),
             Self::TxId => ColumnType::BigInteger.def(),
         }

@@ -71,10 +71,10 @@ impl ColumnTrait for Column {
             Self::Origin => ColumnType::Integer.def(),
             Self::Destination => ColumnType::Integer.def(),
             Self::LeafIndex => ColumnType::Integer.def(),
-            Self::Sender => ColumnType::Char(Some(16u32)).def(),
-            Self::Recipient => ColumnType::Char(Some(16u32)).def(),
+            Self::Sender => ColumnType::String(Some(64u32)).def(),
+            Self::Recipient => ColumnType::String(Some(64u32)).def(),
             Self::MsgBody => ColumnType::Binary.def().null(),
-            Self::OutboxAddress => ColumnType::Char(Some(16u32)).def(),
+            Self::OutboxAddress => ColumnType::String(Some(64u32)).def(),
             Self::Timestamp => ColumnType::DateTime.def(),
             Self::OriginTxId => ColumnType::BigInteger.def(),
         }

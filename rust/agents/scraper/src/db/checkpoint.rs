@@ -63,11 +63,11 @@ impl ColumnTrait for Column {
             Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Timestamp => ColumnType::DateTime.def(),
             Self::Signature => ColumnType::Binary.def(),
-            Self::Validator => ColumnType::Char(Some(16u32)).def(),
-            Self::Root => ColumnType::Char(Some(16u32)).def(),
+            Self::Validator => ColumnType::String(Some(64u32)).def(),
+            Self::Root => ColumnType::String(Some(64u32)).def(),
             Self::Index => ColumnType::Integer.def(),
             Self::OriginDomain => ColumnType::Integer.def(),
-            Self::OutboxAddress => ColumnType::Char(Some(16u32)).def(),
+            Self::OutboxAddress => ColumnType::String(Some(64u32)).def(),
         }
     }
 }

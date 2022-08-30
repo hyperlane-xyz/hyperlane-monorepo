@@ -58,10 +58,10 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
-            Self::Hash => ColumnType::Char(Some(16u32)).def().unique(),
+            Self::Hash => ColumnType::String(Some(64u32)).def().unique(),
             Self::BlockId => ColumnType::BigInteger.def(),
             Self::GasUsed => ColumnType::Decimal(Some((78u32, 18u32))).def(),
-            Self::Sender => ColumnType::Char(Some(16u32)).def(),
+            Self::Sender => ColumnType::String(Some(64u32)).def(),
         }
     }
 }

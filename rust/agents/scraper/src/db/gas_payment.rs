@@ -59,7 +59,7 @@ impl ColumnTrait for Column {
             Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Domain => ColumnType::Integer.def(),
             Self::LeafIndex => ColumnType::Integer.def(),
-            Self::OutboxAddress => ColumnType::Char(Some(16u32)).def(),
+            Self::OutboxAddress => ColumnType::String(Some(64u32)).def(),
             Self::Amount => ColumnType::Decimal(Some((78u32, 18u32))).def(),
             Self::TxId => ColumnType::BigInteger.def(),
         }
