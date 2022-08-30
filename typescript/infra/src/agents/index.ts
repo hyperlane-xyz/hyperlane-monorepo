@@ -40,11 +40,7 @@ async function helmValuesForChain<Chain extends ChainName>(
           return {
             name: remoteChainName,
             disabled: !agentConfig.contextChainNames.includes(remoteChainName),
-            ...(agentConfig.quorumProvider
-              ? {
-                  connectionType: 'httpQuorum',
-                }
-              : {}),
+            connectionType: agentConfig.connectionType,
           };
         }),
       validator: {
@@ -309,7 +305,7 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
       agentConfig,
     )} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
       agentConfig.namespace
-    } --debug --dry-run ${values.join(' ')} ${extraPipe}`,
+    } ${values.join(' ')} ${extraPipe}`,
     {},
     false,
     true,

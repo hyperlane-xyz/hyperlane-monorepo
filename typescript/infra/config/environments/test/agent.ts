@@ -1,5 +1,6 @@
 import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
+import { ConnectionType } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 
 import { TestChains, chainNames } from './chains';
@@ -17,6 +18,7 @@ export const abacus: AgentConfig<TestChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   validatorSets: validators,
+  connectionType: ConnectionType.Http,
   validator: {
     default: {
       interval: 5,
