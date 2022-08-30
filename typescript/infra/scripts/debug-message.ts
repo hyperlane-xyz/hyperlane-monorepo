@@ -2,6 +2,7 @@ import { IMessageRecipient__factory } from '@abacus-network/helloworld/dist/src/
 import {
   AbacusCore,
   ChainName,
+  DispatchedMessage,
   DomainIdToChainName,
   MultiProvider,
   chainConnectionConfigs,
@@ -131,6 +132,7 @@ async function checkMessage(
       message.parsed.origin,
       message.parsed.sender,
       message.parsed.body,
+      { from: destinationInbox.address },
     );
     console.log(
       'Calling recipient `handle` function from the inbox does not revert',
