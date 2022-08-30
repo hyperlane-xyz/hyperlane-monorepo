@@ -2,6 +2,7 @@ import { Debugger, debug } from 'debug';
 import { ethers } from 'ethers';
 
 import {
+  Ownable,
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
 } from '@abacus-network/core';
@@ -87,6 +88,19 @@ export abstract class AbacusDeployer<
       );
     }
     return this.deployedContracts as ChainMap<Chain, Contracts>;
+  }
+
+  protected async runIfOwner(
+    chain: Chain,
+    ownable: Ownable,
+    fn: () => Promise<any>,
+  ) {
+    const dc = this.multiProvider.getChainConnection(chain);
+    const address = await dc.signer!.getAddress();
+    const owner = await ownable.owner();
+    if (address === owner) {
+      return fn();
+    }
   }
 
   protected async deployContractFromFactory<F extends ethers.ContractFactory>(
