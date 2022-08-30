@@ -1,7 +1,7 @@
 import {
   AbacusCore,
   AbacusCoreChecker,
-  ViolationType,
+  CoreViolationType,
 } from '@abacus-network/sdk';
 
 import { AbacusCoreGovernor } from '../src/core/govern';
@@ -42,6 +42,7 @@ async function check() {
   await coreChecker.expectViolations([ViolationType.Owner], [6 * 16]);
 
   const governor = new AbacusCoreGovernor(coreChecker);
+
   await governor.govern();
 
   // 1.
