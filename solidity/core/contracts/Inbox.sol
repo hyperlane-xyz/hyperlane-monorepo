@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {Version0} from "./Version0.sol";
+import {Versioned} from "./upgrade/Versioned.sol";
 import {Mailbox} from "./Mailbox.sol";
 import {MerkleLib} from "./libs/Merkle.sol";
 import {Message} from "./libs/Message.sol";
@@ -19,7 +19,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/se
  * @notice Track root updates on Outbox, prove and dispatch messages to end
  * recipients.
  */
-contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
+contract Inbox is IInbox, ReentrancyGuardUpgradeable, Versioned, Mailbox {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -66,7 +66,7 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
     // ============ Initializer ============
 
     function initialize(uint32 _remoteDomain, address _validatorManager)
-        public
+        external
         initializer
     {
         __ReentrancyGuard_init();

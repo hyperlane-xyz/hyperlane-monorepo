@@ -140,7 +140,8 @@ impl Relayer {
         checkpoint_fetcher.spawn()
     }
 
-    /// Helper to construct a new GelatoSubmitter instance for submission to a particular inbox.
+    /// Helper to construct a new GelatoSubmitter instance for submission to a
+    /// particular inbox.
     fn make_gelato_submitter_for_inbox(
         &self,
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
