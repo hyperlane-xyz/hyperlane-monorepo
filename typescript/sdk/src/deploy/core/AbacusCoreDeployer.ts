@@ -141,27 +141,39 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       config.validatorManager,
       upgradeBeaconController.address,
     );
-    await abacusConnectionManager.setOutbox(
-      outbox.outbox.address,
-      dc.overrides,
-    );
-
-    const remotes = this.multiProvider.remoteChains(chain);
-    const inboxes: Partial<Record<Chain, InboxContracts>> = {};
-    let prev: Chain | undefined;
-    for (const remote of remotes) {
-      inboxes[remote] = await this.deployInbox(
-        chain,
-        remote,
-        this.configMap[remote].validatorManager,
-        upgradeBeaconController.address,
-        inboxes[prev]?.inbox,
-      );
-      await abacusConnectionManager.enrollInbox(
-        chainMetadata[remote].id,
-        inboxes[remote]!.inbox.address,
+    const current = await abacusConnectionManager.outbox();
+    if (current !== outbox.outbox.address) {
+      await abacusConnectionManager.setOutbox(
+        outbox.outbox.address,
         dc.overrides,
       );
+    }
+
+    const remotes = this.multiProvider.remoteChains(chain);
+    const inboxes: Partial<Record<Chain, InboxContracts>> =
+      this.deployedContracts[chain]?.inboxes ?? ({} as any);
+
+    let prev: Chain | undefined;
+    for (const remote of remotes) {
+      if (!inboxes[remote]) {
+        inboxes[remote] = await this.deployInbox(
+          chain,
+          remote,
+          this.configMap[remote].validatorManager,
+          upgradeBeaconController.address,
+          inboxes[prev]?.inbox,
+        );
+      }
+
+      const inboxAddress = inboxes[remote]!.inbox.address;
+      const isEnrolled = await abacusConnectionManager.isInbox(inboxAddress);
+      if (!isEnrolled) {
+        await abacusConnectionManager.enrollInbox(
+          chainMetadata[remote].id,
+          inboxAddress,
+          dc.overrides,
+        );
+      }
       prev = remote;
     }
 
