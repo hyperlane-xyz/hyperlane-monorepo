@@ -212,11 +212,6 @@ async function main(): Promise<boolean> {
   while (true) {
     currentPairingIndexGauge.set(currentPairingIndex);
     const { origin, destination } = pairings[currentPairingIndex];
-    if (origin !== 'alfajores' || destination !== 'mumbai') {
-      currentPairingIndex = (currentPairingIndex + 1) % pairings.length;
-      continue;
-    }
-    console.log('doing index', currentPairingIndex);
     const labels = {
       origin,
       remote: destination,

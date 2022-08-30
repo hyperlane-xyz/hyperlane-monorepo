@@ -122,7 +122,7 @@ where
         let fwd_req_result = self.send_forward_request_call().await?;
         tracing::info!(
             msg=?self.message,
-            task_id=?fwd_req_result.task_id,
+            task_id=fwd_req_result.task_id,
             "Sent forward request",
         );
 
@@ -172,7 +172,7 @@ where
 
             if let [tx_status] = &status_result.data[..] {
                 tracing::info!(
-                    task_id=?task_id,
+                    task_id=task_id,
                     tx_status=?tx_status,
                     "Polled forward request status",
                 );
@@ -184,7 +184,7 @@ where
                 }
             } else {
                 tracing::warn!(
-                    task_id=?task_id,
+                    task_id=task_id,
                     status_result_data=?status_result.data,
                     "Unexpected forward request status data",
                 );
