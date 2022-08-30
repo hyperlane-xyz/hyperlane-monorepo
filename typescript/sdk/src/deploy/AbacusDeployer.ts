@@ -202,7 +202,10 @@ export abstract class AbacusDeployer<
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
     const cachedProxy = this.deployedContracts[chain]?.[contractName as any];
     if (cachedProxy) {
+<<<<<<< HEAD
       this.logger(`Recovered proxy ${contractName.toString()} on ${chain}`);
+=======
+>>>>>>> fce75569 (Recover partial contract deployments)
       return cachedProxy as ProxiedContract<C, BeaconProxyAddresses>;
     }
 
