@@ -110,6 +110,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   validatorSets: validators,
+  quorumProvider: true,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,

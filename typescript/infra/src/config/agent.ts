@@ -184,6 +184,7 @@ export interface AgentConfig<Chain extends ChainName> {
   runEnv: string;
   context: Contexts;
   docker: DockerConfig;
+  quorumProvider?: boolean;
   index?: IndexingConfig;
   aws?: AwsConfig;
   // Names of all chains in the environment
