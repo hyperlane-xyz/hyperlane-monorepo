@@ -1,9 +1,7 @@
-import { ethers } from 'ethers';
-
+import { IMessageRecipient__factory } from '@abacus-network/helloworld/dist/src/types';
 import {
   AbacusCore,
   ChainName,
-  DispatchedMessage,
   DomainIdToChainName,
   MultiProvider,
   chainConnectionConfigs,
@@ -123,20 +121,17 @@ async function checkMessage(
   }
 
   const destinationProvider = multiProvider.getChainProvider(destinationChain);
-  const messageHandlerInterface = new ethers.utils.Interface([
-    'function handle(uint32 origin, bytes32 sender, bytes message)',
-  ]);
+  const recipient = IMessageRecipient__factory.connect(
+    recipientAddress,
+    destinationProvider,
+  );
 
   try {
-    await destinationProvider.call({
-      from: destinationInbox.address,
-      to: recipientAddress,
-      data: messageHandlerInterface.encodeFunctionData('handle', [
-        message.parsed.origin,
-        message.parsed.sender,
-        message.parsed.body,
-      ]),
-    });
+    await recipient.callStatic.handle(
+      message.parsed.origin,
+      message.parsed.sender,
+      message.parsed.body,
+    );
     console.log(
       'Calling recipient `handle` function from the inbox does not revert',
     );
