@@ -1,4 +1,7 @@
 import { LedgerSigner } from '@ethersproject/hardware-wallets';
+// NB: To provide ledger type declarations.
+// Needs to be commented out to run.
+import '@ethersproject/hardware-wallets/thirdparty';
 
 import {
   AbacusCoreChecker,

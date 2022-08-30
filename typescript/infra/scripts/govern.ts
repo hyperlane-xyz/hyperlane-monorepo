@@ -4,8 +4,6 @@ import {
   ViolationType,
 } from '@abacus-network/sdk';
 
-// NB: To provide ledger type declarations.
-// import '@ethersproject/hardware-wallets/thirdparty.d.ts';
 import { AbacusCoreGovernor } from '../src/core/govern';
 
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
