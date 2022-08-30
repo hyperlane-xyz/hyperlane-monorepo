@@ -4,22 +4,17 @@ import {
   ViolationType,
 } from '@abacus-network/sdk';
 
+// NB: To provide ledger type declarations.
+// import '@ethersproject/hardware-wallets/thirdparty.d.ts';
 import { AbacusCoreGovernor } from '../src/core/govern';
 
-import {
-  getCoreEnvironmentConfig,
-  getEnvironment,
-  getMultiProviderForLedger,
-} from './utils';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function check() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
 
-  const multiProvider = await getMultiProviderForLedger(
-    config.transactionConfigs,
-    environment,
-  );
+  const multiProvider = await config.getMultiProvider();
 
   // environments union doesn't work well with typescript
   const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
@@ -38,7 +33,7 @@ async function check() {
   await governor.govern();
 
   await governor.logCalls();
-  // await governor.executeCalls();
+  // await governor.executeCallsLedger();
 }
 
 check().then(console.log).catch(console.error);

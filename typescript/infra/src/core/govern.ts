@@ -1,5 +1,8 @@
+import { LedgerSigner } from '@ethersproject/hardware-wallets';
+
 import {
   AbacusCoreChecker,
+  ChainConnection,
   ChainMap,
   ChainName,
   CoreViolationType,
@@ -8,6 +11,7 @@ import {
   ValidatorViolationType,
   ViolationType,
   objMap,
+  promiseObjAll,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
@@ -42,39 +46,84 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
   }
 
   logCalls() {
+    console.log('log calls');
     objMap(this.calls, (chain, calls) => {
       console.log(chain, calls);
     });
   }
 
-  estimateCalls() {
-    objMap(this.calls, async (chain, calls) => {
-      const connection = this.checker.multiProvider.getChainConnection(chain);
-      const signer = connection.signer;
-      if (!signer) {
-        throw new Error(`signer not found for ${chain}`);
-      }
-      for (const call of calls) {
-        await signer.estimateGas({ ...call, from: await signer.getAddress() });
-      }
+  protected async executePerCall(
+    connectionFn: (chain: Chain) => ChainConnection,
+    executeFn: (
+      chain: Chain,
+      connection: ChainConnection,
+      call: types.CallData,
+    ) => Promise<any>,
+  ) {
+    await promiseObjAll(
+      objMap(this.calls, async (chain, calls) => {
+        const connection = connectionFn(chain);
+        for (const call of calls) {
+          await executeFn(chain, connection, call);
+        }
+      }),
+    );
+  }
+
+  protected connectionFn(chain: Chain) {
+    return this.checker.multiProvider.getChainConnection(chain);
+  }
+
+  protected ledgerConnectionFn(chain: Chain) {
+    const connection = this.checker.multiProvider.getChainConnection(chain);
+    return new ChainConnection({
+      signer: new LedgerSigner(connection.provider),
+      provider: connection.provider,
+      overrides: connection.overrides,
+      confirmations: connection.confirmations,
     });
   }
 
-  async executeCalls() {
-    await this.estimateCalls();
-    objMap(this.calls, async (chain, calls) => {
-      const connection = this.checker.multiProvider.getChainConnection(chain);
-      const signer = connection.signer;
-      if (!signer) {
-        throw new Error(`signer not found for ${chain}`);
-      }
-      for (const call of calls) {
-        const response = await signer.sendTransaction(call);
-        console.log(`sent tx ${response.hash} to ${chain}`);
-        // await response.wait(connection.confirmations);
-        // console.log(`confirmed tx ${response.hash} on ${chain}`);
-      }
+  protected async estimateFn(
+    chain: Chain,
+    connection: ChainConnection,
+    call: types.CallData,
+  ) {
+    const signer = connection.signer;
+    if (!signer) throw new Error(`no signer found for ${chain}`);
+    return signer.estimateGas({
+      ...call,
+      from: await signer.getAddress(),
     });
+  }
+
+  protected async sendFn(
+    chain: Chain,
+    connection: ChainConnection,
+    call: types.CallData,
+  ) {
+    const signer = connection.signer;
+    if (!signer) throw new Error(`no signer found for ${chain}`);
+    const response = await signer.sendTransaction(call);
+    console.log(`sent tx ${response.hash} to ${chain}`);
+    await response.wait(connection.confirmations);
+    console.log(`confirmed tx ${response.hash} on ${chain}`);
+  }
+
+  estimateCalls() {
+    return this.executePerCall(this.connectionFn, this.estimateFn);
+  }
+
+  executeCalls() {
+    return this.executePerCall(this.connectionFn, this.sendFn);
+  }
+
+  estimateCallsLedger() {
+    return this.executePerCall(this.ledgerConnectionFn, this.estimateFn);
+  }
+
+  executeCallsLedger() {
+    return this.executePerCall(this.ledgerConnectionFn, this.sendFn);
   }
 
   async handleValidatorViolation(violation: ValidatorViolation) {
@@ -109,20 +158,11 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     }
   }
 
-  // This function is an exception in that it assumes the MultiProvider
-  // is configured with the privileged signers. All other functions assume
-  // governance is done via multisig.
   async handleOwnerViolation(violation: OwnerViolation) {
-    const chainConnection = this.checker.multiProvider.getChainConnection(
-      violation.chain as Chain,
-    );
-    console.log(
-      `${violation.chain}: transferring ownership of ${violation.data.contract.address} from ${violation.actual} to ${violation.expected}`,
-    );
-    const response = await violation.data.contract.transferOwnership(
-      violation.expected,
-      chainConnection.overrides,
-    );
-    await response.wait(chainConnection.confirmations);
+    const call =
+      await violation.data.contract.populateTransaction.transferOwnership(
+        violation.expected,
+      );
+    this.pushCall(violation.chain as Chain, call as types.CallData);
   }
 }
