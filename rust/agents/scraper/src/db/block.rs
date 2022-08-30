@@ -16,7 +16,7 @@ pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
     pub domain: i32,
-    pub hash: Vec<u8>,
+    pub hash: String,
     pub height: i64,
     pub timestamp: TimeDateTime,
 }
@@ -56,7 +56,7 @@ impl ColumnTrait for Column {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Domain => ColumnType::Integer.def(),
-            Self::Hash => ColumnType::Binary.def().unique(),
+            Self::Hash => ColumnType::Char(Some(16u32)).def().unique(),
             Self::Height => ColumnType::BigInteger.def(),
             Self::Timestamp => ColumnType::DateTime.def(),
         }

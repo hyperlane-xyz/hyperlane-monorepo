@@ -17,7 +17,7 @@ pub struct Model {
     pub time_created: TimeDateTime,
     pub domain: i32,
     pub leaf_index: i32,
-    pub outbox_address: Vec<u8>,
+    pub outbox_address: String,
     pub amount: Decimal,
     pub tx_id: i64,
 }
@@ -59,7 +59,7 @@ impl ColumnTrait for Column {
             Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Domain => ColumnType::Integer.def(),
             Self::LeafIndex => ColumnType::Integer.def(),
-            Self::OutboxAddress => ColumnType::Binary.def(),
+            Self::OutboxAddress => ColumnType::Char(Some(16u32)).def(),
             Self::Amount => ColumnType::Decimal(Some((78u32, 18u32))).def(),
             Self::TxId => ColumnType::BigInteger.def(),
         }

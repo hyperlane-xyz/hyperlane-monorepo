@@ -15,10 +15,10 @@ impl EntityName for Entity {
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
-    pub hash: Vec<u8>,
+    pub hash: String,
     pub block_id: i64,
     pub gas_used: Decimal,
-    pub sender: Vec<u8>,
+    pub sender: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -46,8 +46,8 @@ impl PrimaryKeyTrait for PrimaryKey {
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
     Block,
-    DeliveredMessage,
     GasPayment,
+    DeliveredMessage,
     CheckpointUpdate,
     Message,
 }
@@ -58,10 +58,10 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
-            Self::Hash => ColumnType::Binary.def().unique(),
+            Self::Hash => ColumnType::Char(Some(16u32)).def().unique(),
             Self::BlockId => ColumnType::BigInteger.def(),
             Self::GasUsed => ColumnType::Decimal(Some((78u32, 18u32))).def(),
-            Self::Sender => ColumnType::Binary.def(),
+            Self::Sender => ColumnType::Char(Some(16u32)).def(),
         }
     }
 }
@@ -73,8 +73,8 @@ impl RelationTrait for Relation {
                 .from(Column::BlockId)
                 .to(super::block::Column::Id)
                 .into(),
-            Self::DeliveredMessage => Entity::has_many(super::delivered_message::Entity).into(),
             Self::GasPayment => Entity::has_many(super::gas_payment::Entity).into(),
+            Self::DeliveredMessage => Entity::has_many(super::delivered_message::Entity).into(),
             Self::CheckpointUpdate => Entity::has_many(super::checkpoint_update::Entity).into(),
             Self::Message => Entity::has_many(super::message::Entity).into(),
         }
@@ -87,15 +87,15 @@ impl Related<super::block::Entity> for Entity {
     }
 }
 
-impl Related<super::delivered_message::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::DeliveredMessage.def()
-    }
-}
-
 impl Related<super::gas_payment::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::GasPayment.def()
+    }
+}
+
+impl Related<super::delivered_message::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::DeliveredMessage.def()
     }
 }
 

@@ -15,7 +15,7 @@ impl EntityName for Entity {
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
-    pub inbox_address: Vec<u8>,
+    pub inbox_address: String,
     pub msg_id: i64,
     pub tx_id: i64,
 }
@@ -53,7 +53,7 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
-            Self::InboxAddress => ColumnType::Binary.def(),
+            Self::InboxAddress => ColumnType::Char(Some(16u32)).def(),
             Self::MsgId => ColumnType::BigInteger.def().unique(),
             Self::TxId => ColumnType::BigInteger.def(),
         }

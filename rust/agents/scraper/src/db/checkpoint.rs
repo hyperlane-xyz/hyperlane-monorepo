@@ -17,11 +17,11 @@ pub struct Model {
     pub time_created: TimeDateTime,
     pub timestamp: TimeDateTime,
     pub signature: Vec<u8>,
-    pub validator: Vec<u8>,
-    pub root: Vec<u8>,
+    pub validator: String,
+    pub root: String,
     pub index: i32,
     pub origin_domain: i32,
-    pub outbox_address: Vec<u8>,
+    pub outbox_address: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -63,11 +63,11 @@ impl ColumnTrait for Column {
             Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Timestamp => ColumnType::DateTime.def(),
             Self::Signature => ColumnType::Binary.def(),
-            Self::Validator => ColumnType::Binary.def(),
-            Self::Root => ColumnType::Binary.def(),
+            Self::Validator => ColumnType::Char(Some(16u32)).def(),
+            Self::Root => ColumnType::Char(Some(16u32)).def(),
             Self::Index => ColumnType::Integer.def(),
             Self::OriginDomain => ColumnType::Integer.def(),
-            Self::OutboxAddress => ColumnType::Binary.def(),
+            Self::OutboxAddress => ColumnType::Char(Some(16u32)).def(),
         }
     }
 }
