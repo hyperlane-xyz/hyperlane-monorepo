@@ -101,8 +101,7 @@ impl GelatoSubmitter {
             }
         }
 
-        // Insert received messages into the front of the wait queue, ensuring
-        // the asc ordering by message leaf index is preserved.
+        // Spawn a ForwardRequestOp for each received message.
         for msg in received_messages.into_iter() {
             tracing::info!(msg=?msg, "Spawning forward request op for message");
             let mut op = ForwardRequestOp::new(
