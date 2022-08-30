@@ -49,26 +49,26 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
   }
 
   logCalls() {
-    console.log('log calls');
-    objMap(this.calls, (chain, calls) => {
-      console.log(chain, calls);
-    });
+    const logFn = async (
+      chain: Chain,
+      _: ChainConnection,
+      calls: types.CallData[],
+    ) => console.log(chain, calls);
+    return this.executeCalls(this.connectionFn, logFn);
   }
 
-  protected async executePerCall(
+  protected async executeCalls(
     connectionFn: (chain: Chain) => ChainConnection,
     executeFn: (
       chain: Chain,
       connection: ChainConnection,
-      call: types.CallData,
+      calls: types.CallData[],
     ) => Promise<any>,
   ) {
     await promiseObjAll(
       objMap(this.calls, async (chain, calls) => {
         const connection = connectionFn(chain);
-        for (const call of calls) {
-          await executeFn(chain, connection, call);
-        }
+        await executeFn(chain, connection, calls);
       }),
     );
   }
@@ -90,43 +90,50 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
   protected async estimateFn(
     chain: Chain,
     connection: ChainConnection,
-    call: types.CallData,
+    calls: types.CallData[],
   ) {
     const signer = connection.signer;
     if (!signer) throw new Error(`no signer found for ${chain}`);
-    return signer.estimateGas({
-      ...call,
-      from: await signer.getAddress(),
-    });
+    const from = await signer.getAddress();
+    await Promise.all(
+      calls.map((call) =>
+        signer.estimateGas({
+          ...call,
+          from,
+        }),
+      ),
+    );
   }
 
   protected async sendFn(
     chain: Chain,
     connection: ChainConnection,
-    call: types.CallData,
+    calls: types.CallData[],
   ) {
     const signer = connection.signer;
     if (!signer) throw new Error(`no signer found for ${chain}`);
-    const response = await signer.sendTransaction(call);
-    console.log(`sent tx ${response.hash} to ${chain}`);
-    await response.wait(connection.confirmations);
-    console.log(`confirmed tx ${response.hash} on ${chain}`);
+    for (const call of calls) {
+      const response = await signer.sendTransaction(call);
+      console.log(`sent tx ${response.hash} to ${chain}`);
+      await response.wait(connection.confirmations);
+      console.log(`confirmed tx ${response.hash} on ${chain}`);
+    }
   }
 
   estimateCalls() {
-    return this.executePerCall(this.connectionFn, this.estimateFn);
+    return this.executeCalls(this.connectionFn, this.estimateFn);
   }
 
-  executeCalls() {
-    return this.executePerCall(this.connectionFn, this.sendFn);
+  sendCalls() {
+    return this.executeCalls(this.connectionFn, this.sendFn);
   }
 
   estimateCallsLedger() {
-    return this.executePerCall(this.ledgerConnectionFn, this.estimateFn);
+    return this.executeCalls(this.ledgerConnectionFn, this.estimateFn);
   }
 
-  executeCallsLedger() {
-    return this.executePerCall(this.ledgerConnectionFn, this.sendFn);
+  sendCallsLedger() {
+    return this.executeCalls(this.ledgerConnectionFn, this.sendFn);
   }
 
   async handleValidatorViolation(violation: ValidatorViolation) {
