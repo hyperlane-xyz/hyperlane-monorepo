@@ -10,7 +10,6 @@ pub fn url() -> String {
 }
 
 pub async fn init() -> Result<DatabaseConnection, DbErr> {
-    #[cfg(all(feature = "tracing", feature = "tracing-subscriber"))]
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .with_test_writer()
