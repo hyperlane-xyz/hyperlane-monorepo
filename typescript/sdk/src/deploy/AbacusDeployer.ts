@@ -94,7 +94,7 @@ export abstract class AbacusDeployer<
     chain: Chain,
     ownable: Ownable,
     fn: () => Promise<any>,
-  ) {
+  ): Promise<void> {
     const dc = this.multiProvider.getChainConnection(chain);
     const address = await dc.signer!.getAddress();
     const owner = await ownable.owner();
