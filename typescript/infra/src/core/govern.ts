@@ -1,8 +1,3 @@
-import { LedgerSigner } from '@ethersproject/hardware-wallets';
-// NB: To provide ledger type declarations.
-// Needs to be commented out to run.
-import '@ethersproject/hardware-wallets/thirdparty';
-
 import {
   AbacusCoreChecker,
   ChainConnection,
@@ -14,7 +9,6 @@ import {
   ValidatorViolationType,
   ViolationType,
   objMap,
-  promiseObjAll,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
@@ -50,90 +44,75 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
 
   logCalls() {
     const logFn = async (
-      chain: Chain,
       _: ChainConnection,
       calls: types.CallData[],
+      chain?: Chain,
     ) => console.log(chain, calls);
-    return this.executeCalls(this.connectionFn, logFn);
+    return this.mapCalls(this.connectionFn, logFn);
   }
 
-  protected async executeCalls(
+  protected async mapCalls(
     connectionFn: (chain: Chain) => ChainConnection,
-    executeFn: (
-      chain: Chain,
+    mapFn: (
       connection: ChainConnection,
       calls: types.CallData[],
+      chain?: Chain,
     ) => Promise<any>,
   ) {
-    await promiseObjAll(
-      objMap(this.calls, async (chain, calls) => {
-        const connection = connectionFn(chain);
-        await executeFn(chain, connection, calls);
-      }),
-    );
+    for (const chain of Object.keys(this.calls)) {
+      const calls = this.calls[chain as Chain];
+      if (calls.length > 0) {
+        const connection = connectionFn(chain as Chain);
+        await mapFn(connection, calls, chain as Chain);
+      }
+    }
   }
 
-  protected connectionFn(chain: Chain) {
+  connectionFn = (chain: Chain) => {
     return this.checker.multiProvider.getChainConnection(chain);
-  }
+  };
 
-  protected ledgerConnectionFn(chain: Chain) {
+  /*
+  // NB: Add this back in order to run using a Ledger signer.
+  import { LedgerSigner } from '@ethersproject/hardware-wallets';
+
+  // Due to TS funkiness, this needs to be imported in order for this
+  // code to build, but needs to be removed in order for the code to run.
+  import '@ethersproject/hardware-wallets/thirdparty';
+
+  ledgerConnectionFn = (chain: Chain) => {
     const connection = this.checker.multiProvider.getChainConnection(chain);
+    // Ledger Live derivation path, vary the third number  to select different
+    // accounts.
+    const path = "m/44'/60'/2'/0/0";
     return new ChainConnection({
-      signer: new LedgerSigner(connection.provider),
+      signer: new LedgerSigner(connection.provider, 'hid', path),
       provider: connection.provider,
       overrides: connection.overrides,
       confirmations: connection.confirmations,
     });
-  }
+  };
+  */
 
   protected async estimateFn(
-    chain: Chain,
     connection: ChainConnection,
     calls: types.CallData[],
   ) {
-    const signer = connection.signer;
-    if (!signer) throw new Error(`no signer found for ${chain}`);
-    const from = await signer.getAddress();
-    await Promise.all(
-      calls.map((call) =>
-        signer.estimateGas({
-          ...call,
-          from,
-        }),
-      ),
-    );
+    await Promise.all(calls.map((call) => connection.estimateGas(call)));
   }
 
-  protected async sendFn(
-    chain: Chain,
-    connection: ChainConnection,
-    calls: types.CallData[],
-  ) {
-    const signer = connection.signer;
-    if (!signer) throw new Error(`no signer found for ${chain}`);
+  protected async sendFn(connection: ChainConnection, calls: types.CallData[]) {
     for (const call of calls) {
-      const response = await signer.sendTransaction(call);
-      console.log(`sent tx ${response.hash} to ${chain}`);
-      await response.wait(connection.confirmations);
-      console.log(`confirmed tx ${response.hash} on ${chain}`);
+      connection.sendTransaction(call);
     }
   }
 
   estimateCalls() {
-    return this.executeCalls(this.connectionFn, this.estimateFn);
+    return this.mapCalls(this.connectionFn, this.estimateFn);
   }
 
   sendCalls() {
-    return this.executeCalls(this.connectionFn, this.sendFn);
-  }
-
-  estimateCallsLedger() {
-    return this.executeCalls(this.ledgerConnectionFn, this.estimateFn);
-  }
-
-  sendCallsLedger() {
-    return this.executeCalls(this.ledgerConnectionFn, this.sendFn);
+    return this.mapCalls(this.connectionFn, this.sendFn);
   }
 
   async handleValidatorViolation(violation: ValidatorViolation) {

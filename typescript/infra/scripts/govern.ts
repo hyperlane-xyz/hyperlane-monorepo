@@ -24,14 +24,15 @@ async function check() {
   );
   await coreChecker.check();
   // 16 ownable contracts per chain.
-  await coreChecker.expectViolations([ViolationType.Owner], [6 * 16]);
+  await coreChecker.expectViolations([ViolationType.Owner], [3 * 16]);
 
   const governor = new AbacusCoreGovernor(coreChecker);
 
   await governor.govern();
 
   await governor.logCalls();
-  // await governor.executeCallsLedger();
+  // await governor.estimateCallsLedger();
+  // await governor.sendCallsLedger();
 }
 
 check().then(console.log).catch(console.error);
