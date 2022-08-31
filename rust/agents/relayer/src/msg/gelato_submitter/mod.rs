@@ -11,7 +11,9 @@ use tokio::time::{sleep, Duration, Instant};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use crate::msg::gelato_submitter::fwd_req_op::{ForwardRequestOp, ForwardRequestOptions};
+use crate::msg::gelato_submitter::fwd_req_op::{
+    ForwardRequestOp, ForwardRequestOpArgs, ForwardRequestOptions,
+};
 
 use super::SubmitMessageArgs;
 
@@ -104,17 +106,17 @@ impl GelatoSubmitter {
         // Spawn a ForwardRequestOp for each received message.
         for msg in received_messages.into_iter() {
             tracing::info!(msg=?msg, "Spawning forward request op for message");
-            let mut op = ForwardRequestOp::new(
-                ForwardRequestOptions::default(),
-                self.http_client.clone(),
-                msg,
-                self.inbox_contracts.clone(),
-                self.gelato_sponsor_signer.clone(),
-                self.gelato_sponsor_address,
-                self.outbox_gelato_chain,
-                self.inbox_gelato_chain,
-                self.message_processed_sender.clone(),
-            );
+            let mut op = ForwardRequestOp::new(ForwardRequestOpArgs {
+                opts: ForwardRequestOptions::default(),
+                http: self.http_client.clone(),
+                message: msg,
+                inbox_contracts: self.inbox_contracts.clone(),
+                sponsor_signer: self.gelato_sponsor_signer.clone(),
+                sponsor_address: self.gelato_sponsor_address,
+                sponsor_chain: self.outbox_gelato_chain,
+                destination_chain: self.inbox_gelato_chain,
+                message_processed_sender: self.message_processed_sender.clone(),
+            });
             self.metrics.active_forward_request_ops_gauge.add(1);
 
             tokio::spawn(async move { op.run().await });

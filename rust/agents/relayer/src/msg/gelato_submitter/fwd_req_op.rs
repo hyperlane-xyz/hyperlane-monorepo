@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{ops::Deref, sync::Arc, time::Duration};
 
 use abacus_base::InboxContracts;
 use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
@@ -37,20 +37,31 @@ const DEFAULT_MAX_FEE: u64 = 10u64.pow(18);
 const DEFAULT_GAS_LIMIT: u64 = 5000000;
 
 #[derive(Debug, Clone)]
-pub(crate) struct ForwardRequestOp<S> {
-    opts: ForwardRequestOptions,
-    http: reqwest::Client,
+pub struct ForwardRequestOpArgs<S> {
+    pub opts: ForwardRequestOptions,
+    pub http: reqwest::Client,
 
-    message: SubmitMessageArgs,
-    inbox_contracts: InboxContracts,
-    sponsor_signer: S,
-    sponsor_address: H160,
+    pub message: SubmitMessageArgs,
+    pub inbox_contracts: InboxContracts,
+    pub sponsor_signer: S,
+    pub sponsor_address: H160,
     // Currently unused due to a bug in Gelato's testnet relayer that is currently being upgraded.
-    _sponsor_chain: Chain,
-    destination_chain: Chain,
+    pub sponsor_chain: Chain,
+    pub destination_chain: Chain,
 
     /// A channel to send the message over upon the message being successfully processed.
-    message_processed_sender: UnboundedSender<SubmitMessageArgs>,
+    pub message_processed_sender: UnboundedSender<SubmitMessageArgs>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ForwardRequestOp<S>(ForwardRequestOpArgs<S>);
+
+impl<S> Deref for ForwardRequestOp<S> {
+    type Target = ForwardRequestOpArgs<S>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl<S> ForwardRequestOp<S>
@@ -58,32 +69,11 @@ where
     S: Signer,
     S::Error: 'static,
 {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        opts: ForwardRequestOptions,
-        http: reqwest::Client,
-        message: SubmitMessageArgs,
-        inbox_contracts: InboxContracts,
-        sponsor_signer: S,
-        sponsor_address: H160,
-        sponsor_chain: Chain,
-        destination_chain: Chain,
-        message_processed_sender: UnboundedSender<SubmitMessageArgs>,
-    ) -> ForwardRequestOp<S> {
-        ForwardRequestOp {
-            opts,
-            http,
-            message,
-            inbox_contracts,
-            sponsor_signer,
-            sponsor_address,
-            _sponsor_chain: sponsor_chain,
-            destination_chain,
-            message_processed_sender,
-        }
+    pub fn new(args: ForwardRequestOpArgs<S>) -> Self {
+        Self(args)
     }
 
-    #[instrument(skip(self), fields(msg_leaf_index=self.message.leaf_index))]
+    #[instrument(skip(self), fields(msg_leaf_index=self.0.message.leaf_index))]
     pub async fn run(&mut self) {
         loop {
             match self.tick().await {
@@ -107,7 +97,7 @@ where
                 _ => {}
             }
 
-            self.message.num_retries += 1;
+            self.0.message.num_retries += 1;
             sleep(Duration::from_secs(5)).await;
         }
     }
@@ -121,14 +111,14 @@ where
         // Send the forward request.
         let fwd_req_result = self.send_forward_request_call().await?;
         tracing::info!(
-            msg=?self.message,
+            msg=?self.0.message,
             task_id=fwd_req_result.task_id,
             "Sent forward request",
         );
 
         // Wait for a terminal state, timing out according to the retry_submit_interval.
         match timeout(
-            self.opts.retry_submit_interval,
+            self.0.opts.retry_submit_interval,
             self.poll_for_terminal_state(fwd_req_result.task_id.clone()),
         )
         .await
@@ -150,7 +140,7 @@ where
     // by Gelato.
     async fn poll_for_terminal_state(&self, task_id: String) -> Result<MessageStatus> {
         loop {
-            sleep(self.opts.poll_interval).await;
+            sleep(self.0.opts.poll_interval).await;
 
             // Check if the message has been processed. Checking with the Inbox directly
             // is the best source of truth, and is the only way in which a message can be
@@ -163,7 +153,7 @@ where
             // If the task was cancelled for some reason by Gelato, stop waiting.
 
             let status_call = TaskStatusCall {
-                http: Arc::new(self.http.clone()),
+                http: Arc::new(self.0.http.clone()),
                 args: TaskStatusCallArgs {
                     task_id: task_id.clone(),
                 },
@@ -197,11 +187,11 @@ where
     // forward request call.
     async fn send_forward_request_call(&self) -> Result<ForwardRequestCallResult> {
         let args = self.create_forward_request_args();
-        let signature = self.sponsor_signer.sign_typed_data(&args).await?;
+        let signature = self.0.sponsor_signer.sign_typed_data(&args).await?;
 
         let fwd_req_call = ForwardRequestCall {
             args,
-            http: self.http.clone(),
+            http: self.0.http.clone(),
             signature,
         };
 
@@ -209,13 +199,13 @@ where
     }
 
     fn create_forward_request_args(&self) -> ForwardRequestArgs {
-        let calldata = self.inbox_contracts.validator_manager.process_calldata(
-            &self.message.checkpoint,
-            &self.message.committed_message.message,
-            &self.message.proof,
+        let calldata = self.0.inbox_contracts.validator_manager.process_calldata(
+            &self.0.message.checkpoint,
+            &self.0.message.committed_message.message,
+            &self.0.message.proof,
         );
         ForwardRequestArgs {
-            chain_id: self.destination_chain,
+            chain_id: self.0.destination_chain,
             target: self
                 .inbox_contracts
                 .validator_manager
@@ -230,11 +220,11 @@ where
             // fees (i.e. testnet) require the sponsor chain ID to be the same as the chain
             // in which the tx will be sent to.
             // This will be fixed in an upcoming release they're doing.
-            sponsor_chain_id: self.destination_chain,
+            sponsor_chain_id: self.0.destination_chain,
             nonce: U256::zero(),
             enforce_sponsor_nonce: false,
             enforce_sponsor_nonce_ordering: false,
-            sponsor: self.sponsor_address,
+            sponsor: self.0.sponsor_address,
         }
     }
 
