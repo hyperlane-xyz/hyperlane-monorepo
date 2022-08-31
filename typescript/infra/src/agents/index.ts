@@ -37,6 +37,7 @@ async function helmValuesForChain<Chain extends ChainName>(
       baseConfig: `${chainName}_config.json`,
       outboxChain: {
         name: chainName,
+        connectionType: agentConfig.connectionType,
       },
       aws: !!agentConfig.aws,
       inboxChains: agentConfig.environmentChainNames
@@ -50,6 +51,9 @@ async function helmValuesForChain<Chain extends ChainName>(
                 gelatoSupportedOnOutboxChain &&
                 (agentConfig.gelato?.enabledChains?.includes(remoteChainName) ??
                   false),
+            },
+            connection: {
+              type: agentConfig.connectionType,
             },
           };
         }),
