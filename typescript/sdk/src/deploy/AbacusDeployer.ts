@@ -67,8 +67,11 @@ export abstract class AbacusDeployer<
       },
     );
     const configChains = Object.keys(this.configMap) as Chain[];
-    this.logger(`Start deploy to ${configChains}`);
-    for (const chain of configChains) {
+    const targetChains = this.multiProvider
+      .chains()
+      .filter((chain) => configChains.includes(chain));
+    this.logger(`Start deploy to ${targetChains}`);
+    for (const chain of targetChains) {
       const chainConnection = this.multiProvider.getChainConnection(chain);
       const signerUrl = await chainConnection.getAddressUrl();
       this.logger(`Deploying to ${chain} from ${signerUrl}...`);
