@@ -264,7 +264,7 @@ impl Settings {
             !v.disabled
                 .as_ref()
                 .and_then(|d| d.parse::<bool>().ok())
-                .unwrap_or_default()
+                .unwrap_or(false)
         }) {
             if k != &v.name {
                 bail!(
