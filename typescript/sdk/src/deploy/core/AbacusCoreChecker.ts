@@ -7,21 +7,30 @@ import { ChainNameToDomainId } from '../../domains';
 import { BeaconProxyAddresses } from '../../proxy';
 import { ChainName } from '../../types';
 import { objMap, promiseObjAll } from '../../utils/objects';
-import { setDifference } from '../../utils/sets';
 import { AbacusAppChecker } from '../AbacusAppChecker';
 
 import {
+  AbacusConnectionManagerViolationType,
   CoreConfig,
   CoreViolationType,
-  ValidatorManagerViolation,
-  ValidatorViolation,
-  ValidatorViolationType,
+  EnrolledInboxesViolation,
+  EnrolledValidatorsViolation,
+  MailboxValidatorManagerViolation,
+  MailboxViolation,
+  MailboxViolationType,
+  ThresholdViolation,
+  ValidatorManagerViolationType,
 } from './types';
 
 export class AbacusCoreChecker<
   Chain extends ChainName,
 > extends AbacusAppChecker<Chain, AbacusCore<Chain>, CoreConfig> {
   async checkChain(chain: Chain): Promise<void> {
+    const config = this.configMap[chain];
+    if (config.remove) {
+      return;
+    }
+
     await this.checkDomainOwnership(chain);
     await this.checkProxiedContracts(chain);
     await this.checkOutbox(chain);
@@ -60,9 +69,11 @@ export class AbacusCoreChecker<
     const actualManager = await contracts.outbox.contract.validatorManager();
     const expectedManager = contracts.outboxValidatorManager.address;
     if (actualManager !== expectedManager) {
-      const violation: ValidatorManagerViolation = {
+      const violation: MailboxViolation = {
+        type: CoreViolationType.Mailbox,
+        mailboxType: MailboxViolationType.ValidatorManager,
+        contract: outbox,
         chain,
-        type: CoreViolationType.ValidatorManager,
         actual: actualManager,
         expected: expectedManager,
       };
@@ -107,35 +118,14 @@ export class AbacusCoreChecker<
       actualValidators.map((_) => _.toLowerCase()),
     );
 
-    const toEnroll = setDifference(expectedSet, actualSet);
-    const toUnenroll = setDifference(actualSet, expectedSet);
-
-    // Validators that should be enrolled
-    for (const validatorToEnroll of toEnroll) {
-      const violation: ValidatorViolation = {
+    if (!utils.setEquality(expectedSet, actualSet)) {
+      const violation: EnrolledValidatorsViolation = {
+        type: CoreViolationType.ValidatorManager,
+        validatorManagerType: ValidatorManagerViolationType.EnrolledValidators,
+        contract: validatorManager,
         chain: local,
-        type: CoreViolationType.Validator,
-        actual: undefined,
-        expected: validatorToEnroll,
-        data: {
-          type: ValidatorViolationType.EnrollValidator,
-          validatorManager,
-        },
-      };
-      this.addViolation(violation);
-    }
-
-    // Validators that should be unenrolled
-    for (const validatorToUnenroll of toUnenroll) {
-      const violation: ValidatorViolation = {
-        chain: local,
-        type: CoreViolationType.Validator,
-        actual: validatorToUnenroll,
-        expected: undefined,
-        data: {
-          type: ValidatorViolationType.UnenrollValidator,
-          validatorManager,
-        },
+        actual: actualSet,
+        expected: expectedSet,
       };
       this.addViolation(violation);
     }
@@ -143,18 +133,16 @@ export class AbacusCoreChecker<
     const expectedThreshold = validatorManagerConfig.threshold;
     utils.assert(expectedThreshold !== undefined);
 
-    const actualThreshold = await validatorManager.threshold();
+    const actualThreshold = (await validatorManager.threshold()).toNumber();
 
-    if (expectedThreshold !== actualThreshold.toNumber()) {
-      const violation: ValidatorViolation = {
+    if (expectedThreshold !== actualThreshold) {
+      const violation: ThresholdViolation = {
+        type: CoreViolationType.ValidatorManager,
+        validatorManagerType: ValidatorManagerViolationType.Threshold,
+        contract: validatorManager,
         chain: local,
-        type: CoreViolationType.Validator,
         actual: actualThreshold,
         expected: expectedThreshold,
-        data: {
-          type: ValidatorViolationType.Threshold,
-          validatorManager,
-        },
       };
       this.addViolation(violation);
     }
@@ -169,7 +157,17 @@ export class AbacusCoreChecker<
       objMap(coreContracts.inboxes, async (_, inbox) => {
         const expected = inbox.inboxValidatorManager.address;
         const actual = await inbox.inbox.contract.validatorManager();
-        utils.assert(actual === expected);
+        if (expected !== actual) {
+          const violation: MailboxValidatorManagerViolation = {
+            type: CoreViolationType.Mailbox,
+            mailboxType: MailboxViolationType.ValidatorManager,
+            contract: inbox.inbox.contract,
+            chain,
+            actual,
+            expected,
+          };
+          this.addViolation(violation);
+        }
       }),
     );
 
@@ -206,11 +204,31 @@ export class AbacusCoreChecker<
     const coreContracts = this.app.getContracts(chain);
     await promiseObjAll(
       objMap(coreContracts.inboxes, async (remote, inbox) => {
+        // expected configured inboxes for remote on chain
+        const remoteConfig = this.configMap[remote];
+        const expectedInboxes = new Set(
+          remoteConfig.remove ? [] : [inbox.inbox.address],
+        );
+
+        // actual configured inboxes for remote on chain
         const remoteDomain = chainMetadata[remote].id;
-        // inbox is enrolled in abacusConnectionManager
-        const enrolledInboxes =
-          await coreContracts.abacusConnectionManager.getInboxes(remoteDomain);
-        utils.assert(utils.deepEquals(enrolledInboxes, [inbox.inbox.address]));
+        const enrolledInboxes = new Set(
+          await coreContracts.abacusConnectionManager.getInboxes(remoteDomain),
+        );
+
+        if (!utils.setEquality(enrolledInboxes, expectedInboxes)) {
+          const violation: EnrolledInboxesViolation = {
+            type: CoreViolationType.AbacusConnectionManager,
+            abacusConnectionManagerType:
+              AbacusConnectionManagerViolationType.EnrolledInboxes,
+            remote,
+            contract: coreContracts.abacusConnectionManager,
+            chain: chain,
+            actual: enrolledInboxes,
+            expected: expectedInboxes,
+          };
+          this.violations.push(violation);
+        }
       }),
     );
 
@@ -231,24 +249,10 @@ export class AbacusCoreChecker<
 
   async checkInterchainGasPaymaster(chain: Chain): Promise<void> {
     const contracts = this.app.getContracts(chain);
-    if (contracts.interchainGasPaymaster.addresses) {
-      await this.checkUpgradeBeacon(
-        chain,
-        'InterchainGasPaymaster',
-        contracts.interchainGasPaymaster.addresses,
-      );
-    } else {
-      this.violations.push({
-        type: CoreViolationType.NotDeployed,
-        chain: chain,
-        expected: undefined,
-        actual: undefined,
-        data: {
-          contract: 'InterchainGasPaymaster',
-        },
-      });
-    }
-
-    return;
+    await this.checkUpgradeBeacon(
+      chain,
+      'InterchainGasPaymaster',
+      contracts.interchainGasPaymaster.addresses,
+    );
   }
 }

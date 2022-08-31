@@ -24,7 +24,7 @@ async function check() {
   );
   await coreChecker.check();
   // 16 ownable contracts per chain.
-  await coreChecker.expectViolations([ViolationType.Owner], [3 * 16]);
+  coreChecker.expectViolations([ViolationType.Owner], [3 * 16]);
 
   const governor = new AbacusCoreGovernor(coreChecker);
 

@@ -1,16 +1,25 @@
+import { PopulatedTransaction } from 'ethers';
+
 import {
   AbacusCoreChecker,
   ChainConnection,
   ChainMap,
   ChainName,
+  ChainNameToDomainId,
   CoreViolationType,
+  EnrolledInboxesViolation,
   OwnerViolation,
-  ValidatorViolation,
-  ValidatorViolationType,
+  ValidatorManagerViolation,
   ViolationType,
   objMap,
 } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
+import {
+  AbacusConnectionManagerViolation,
+  AbacusConnectionManagerViolationType,
+  EnrolledValidatorsViolation,
+  ValidatorManagerViolationType,
+} from '@abacus-network/sdk/dist/deploy/core/types';
+import { types, utils } from '@abacus-network/utils';
 
 export class AbacusCoreGovernor<Chain extends ChainName> {
   readonly checker: AbacusCoreChecker<Chain>;
@@ -28,12 +37,20 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
   async govern() {
     for (const violation of this.checker.violations) {
       switch (violation.type) {
-        case CoreViolationType.Validator: {
-          await this.handleValidatorViolation(violation as ValidatorViolation);
+        case CoreViolationType.ValidatorManager: {
+          await this.handleValidatorManagerViolation(
+            violation as ValidatorManagerViolation,
+          );
           break;
         }
         case ViolationType.Owner: {
           await this.handleOwnerViolation(violation as OwnerViolation);
+          break;
+        }
+        case CoreViolationType.AbacusConnectionManager: {
+          await this.handleAbacusConnectionManagerViolation(
+            violation as AbacusConnectionManagerViolation,
+          );
           break;
         }
         default:
@@ -115,25 +132,66 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     return this.mapCalls(this.connectionFn, this.sendFn);
   }
 
-  async handleValidatorViolation(violation: ValidatorViolation) {
-    const validatorManager = violation.data.validatorManager;
-    switch (violation.data.type) {
-      case ValidatorViolationType.EnrollValidator: {
-        const call = await validatorManager.populateTransaction.enrollValidator(
-          violation.expected,
+  protected async pushSetReconcilationCalls<T>(reconcile: {
+    chain: ChainName;
+    actual: Set<T>;
+    expected: Set<T>;
+    add: (elem: T) => Promise<PopulatedTransaction>;
+    remove: (elem: T) => Promise<PopulatedTransaction>;
+  }) {
+    let txs: PopulatedTransaction[] = [];
+    utils
+      .difference(reconcile.expected, reconcile.actual)
+      .forEach(async (item) => txs.push(await reconcile.add(item)));
+    utils
+      .difference(reconcile.actual, reconcile.expected)
+      .forEach(async (item) => txs.push(await reconcile.remove(item)));
+    txs.forEach((tx) =>
+      this.pushCall(reconcile.chain as Chain, tx as types.CallData),
+    );
+  }
+
+  async handleAbacusConnectionManagerViolation(
+    violation: AbacusConnectionManagerViolation,
+  ) {
+    const abacusConnectionManager = violation.contract;
+    switch (violation.abacusConnectionManagerType) {
+      case AbacusConnectionManagerViolationType.EnrolledInboxes: {
+        const typedViolation = violation as EnrolledInboxesViolation;
+        const remoteId = ChainNameToDomainId[typedViolation.remote];
+        this.pushSetReconcilationCalls({
+          ...typedViolation,
+          add: (inbox) =>
+            abacusConnectionManager.populateTransaction.enrollInbox(
+              remoteId,
+              inbox,
+            ),
+          remove: (inbox) =>
+            abacusConnectionManager.populateTransaction.unenrollInbox(inbox),
+        });
+        break;
+      }
+      default:
+        throw new Error(
+          `Unsupported abacus connection manager violation type ${violation.abacusConnectionManagerType}`,
         );
-        this.pushCall(violation.chain as Chain, call as types.CallData);
+    }
+  }
+
+  async handleValidatorManagerViolation(violation: ValidatorManagerViolation) {
+    const validatorManager = violation.contract;
+    switch (violation.validatorManagerType) {
+      case ValidatorManagerViolationType.EnrolledValidators: {
+        this.pushSetReconcilationCalls({
+          ...(violation as EnrolledValidatorsViolation),
+          add: (validator) =>
+            validatorManager.populateTransaction.enrollValidator(validator),
+          remove: (validator) =>
+            validatorManager.populateTransaction.unenrollValidator(validator),
+        });
         break;
       }
-      case ValidatorViolationType.UnenrollValidator: {
-        const call =
-          await validatorManager.populateTransaction.unenrollValidator(
-            violation.actual,
-          );
-        this.pushCall(violation.chain as Chain, call as types.CallData);
-        break;
-      }
-      case ValidatorViolationType.Threshold: {
+      case ValidatorManagerViolationType.Threshold: {
         const call = await validatorManager.populateTransaction.setThreshold(
           violation.expected,
         );
@@ -142,7 +200,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
       }
       default:
         throw new Error(
-          `Unsupported validator violation type ${violation.data.type}`,
+          `Unsupported validator manager violation type ${violation.validatorManagerType}`,
         );
     }
   }
