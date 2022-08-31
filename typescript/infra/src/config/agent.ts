@@ -184,6 +184,8 @@ export interface AgentConfig<Chain extends ChainName> {
   runEnv: string;
   context: Contexts;
   docker: DockerConfig;
+  quorumProvider?: boolean;
+  connectionType: ConnectionType;
   index?: IndexingConfig;
   aws?: AwsConfig;
   // Names of all chains in the environment
@@ -202,13 +204,19 @@ export type RustSigner = {
   type: string; // TODO
 };
 
+export enum ConnectionType {
+  Http = 'http',
+  Ws = 'ws',
+  HttpQuorum = 'httpQuorum',
+}
+
 export type RustConnection =
   | {
-      type: 'http';
+      type: ConnectionType.Http;
       url: string;
     }
-  | { type: 'ws'; url: string }
-  | { type: 'httpQuorum'; urls: string };
+  | { type: ConnectionType.Ws; url: string }
+  | { type: ConnectionType.HttpQuorum; urls: string };
 
 export type RustContractBlock<T> = {
   addresses: T;
