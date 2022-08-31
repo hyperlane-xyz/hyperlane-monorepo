@@ -1,7 +1,7 @@
 import {
   AbacusCore,
   AbacusCoreChecker,
-  ViolationType,
+  CoreViolationType,
 } from '@abacus-network/sdk';
 
 import { AbacusCoreGovernor } from '../src/core/govern';
@@ -22,12 +22,16 @@ async function check() {
     config.core,
   );
   await coreChecker.check();
-  // 16 ownable contracts per chain.
-  await coreChecker.expectViolations([ViolationType.Owner], [7 * 16]);
+  // One add validator and one threshold violation per VM per chain
+  await coreChecker.expectViolations(
+    [CoreViolationType.Validator],
+    [2 * 7 * 7],
+  );
 
   const governor = new AbacusCoreGovernor(coreChecker);
+
   await governor.govern();
-  governor.logCalls();
+  await governor.executeCalls();
 }
 
 check().then(console.log).catch(console.error);
