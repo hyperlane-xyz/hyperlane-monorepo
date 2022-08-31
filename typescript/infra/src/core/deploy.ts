@@ -6,6 +6,7 @@ import {
 } from '@abacus-network/sdk';
 
 import { DeployEnvironment, RustConfig } from '../config';
+import { ConnectionType } from '../config/agent';
 import { writeJSON } from '../utils/utils';
 
 export class AbacusCoreInfraDeployer<
@@ -35,8 +36,8 @@ export class AbacusCoreInfraDeployer<
           rpcStyle: 'ethereum',
           finalityBlocks: outboxMetadata.finalityBlocks.toString(),
           connection: {
-            type: 'httpQuorum',
-            urls: '',
+            type: ConnectionType.Http,
+            url: '',
           },
         },
         tracing: {
@@ -66,7 +67,7 @@ export class AbacusCoreInfraDeployer<
           rpcStyle: 'ethereum',
           finalityBlocks: metadata.finalityBlocks.toString(),
           connection: {
-            type: 'http',
+            type: ConnectionType.Http,
             url: '',
           },
           addresses: {
