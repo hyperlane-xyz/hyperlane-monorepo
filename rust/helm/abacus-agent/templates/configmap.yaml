@@ -21,6 +21,9 @@ data:
   {{- if .disabled }}
   ABC_BASE_INBOXES_{{ .name | upper }}_DISABLED: "true"
   {{- end }}
+  {{- if .connectionType }}
+  ABC_BASE_INBOXES_{{ .name | upper }}_CONNECTION_TYPE: {{ .connectionType }}
+  {{- end }}
   {{- end }}
   {{- if .Values.abacus.tracing.uri }}
   ABC_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.abacus.tracing.uri }}
