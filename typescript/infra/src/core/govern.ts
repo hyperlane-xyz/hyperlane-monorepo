@@ -132,6 +132,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     return this.mapCalls(this.connectionFn, this.sendFn);
   }
 
+  // pushes calls which reconcile actual and expected sets on chain
   protected async pushSetReconcilationCalls<T>(reconcile: {
     chain: ChainName;
     actual: Set<T>;
@@ -140,12 +141,15 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     remove: (elem: T) => Promise<PopulatedTransaction>;
   }) {
     let txs: PopulatedTransaction[] = [];
+    // add expected - actual elements
     utils
       .difference(reconcile.expected, reconcile.actual)
       .forEach(async (item) => txs.push(await reconcile.add(item)));
+    // remove actual - expected elements
     utils
       .difference(reconcile.actual, reconcile.expected)
       .forEach(async (item) => txs.push(await reconcile.remove(item)));
+    // push calls
     txs.forEach((tx) =>
       this.pushCall(reconcile.chain as Chain, tx as types.CallData),
     );

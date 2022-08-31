@@ -27,6 +27,7 @@ export class AbacusCoreChecker<
 > extends AbacusAppChecker<Chain, AbacusCore<Chain>, CoreConfig> {
   async checkChain(chain: Chain): Promise<void> {
     const config = this.configMap[chain];
+    // skip chains that are configured to be removed
     if (config.remove) {
       return;
     }
