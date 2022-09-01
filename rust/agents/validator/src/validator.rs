@@ -59,11 +59,12 @@ impl BaseAgent for Validator {
         let signer = settings.validator.try_into_signer().await?;
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
         let interval = settings.interval.parse().expect("invalid uint");
-        let checkpoint_syncer = settings.checkpointsyncer.try_into_checkpoint_syncer()?;
         let core = settings
             .as_ref()
             .try_into_abacus_core(Self::AGENT_NAME, false)
             .await?;
+        let checkpoint_syncer = settings.checkpointsyncer.try_into_checkpoint_syncer(None)?;
+
         Ok(Self::new(
             signer,
             reorg_period,
