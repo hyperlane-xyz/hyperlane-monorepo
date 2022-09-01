@@ -71,7 +71,7 @@ describe('core', async () => {
     });
 
     afterEach(async () => {
-      sinon.reset();
+      sinon.restore();
     });
 
     it('persists partial failure', async () => {
@@ -79,9 +79,10 @@ describe('core', async () => {
     });
 
     it('can be resumed from partial failure', async () => {
-      sinon.reset(); // restore normal deployer behavior and test3 will be deployed
+      sinon.restore(); // restore normal deployer behavior and test3 will be deployed
       const result = await deployer.deploy();
       expect(result).to.have.keys(['test1', 'test2', 'test3']);
+      expect(result.test3).to.have.keys(Object.keys(result.test2));
     });
   });
 
