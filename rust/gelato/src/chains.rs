@@ -90,10 +90,13 @@ impl Chain {
     // for Gelato-suppored chains, until a better / dynamic approach
     // becomes available.
     //
-    // See `getRelayForwarderAddrss()` in the SDK file
-    // https://github.com/gelatodigital/relay-sdk/blob/master/src/constants/index.ts.
+    // See `getRelayForwarderAddress()` in the SDK file
+    // https://github.com/gelatodigital/relay-sdk/blob/8a9b9b2d0ef92ea9a3d6d64a230d9467a4b4da6d/src/constants/index.ts#L87.
     pub fn relay_fwd_addr(&self) -> Result<Address, GelatoError> {
         match self {
+            Chain::Ethereum => Ok(Address::from_str(
+                "5ca448e53e77499222741DcB6B3c959Fa829dAf2",
+            )?),
             Chain::Rinkeby => Ok(Address::from_str(
                 "9B79b798563e538cc326D03696B3Be38b971D282",
             )?),
@@ -103,15 +106,26 @@ impl Chain {
             Chain::Kovan => Ok(Address::from_str(
                 "4F36f93F58d36DcbC1E60b9bdBE213482285C482",
             )?),
+
             Chain::Polygon => Ok(Address::from_str(
                 "c2336e796F77E4E57b6630b6dEdb01f5EE82383e",
             )?),
             Chain::PolygonMumbai => Ok(Address::from_str(
                 "3428E19A01E40333D5D51465A08476b8F61B86f3",
             )?),
+
             Chain::BinanceSmartChain => Ok(Address::from_str(
-                "247A1306b6122ba28862b19a95004899db91f1b5",
+                "eeea839E2435873adA11d5dD4CAE6032742C0445",
             )?),
+
+            Chain::Alfajores => Ok(Address::from_str(
+                "c2336e796F77E4E57b6630b6dEdb01f5EE82383e",
+            )?),
+
+            Chain::Avalanche => Ok(Address::from_str(
+                "3456E168d2D7271847808463D6D383D079Bd5Eaa",
+            )?),
+
             _ => Err(GelatoError::UnknownRelayForwardAddress(*self)),
         }
     }
