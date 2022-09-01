@@ -117,7 +117,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
     useForDisabledOriginChains: true,
   },
   validatorSets: validators,
-  connectionType: ConnectionType.HttpQuorum,
+  connectionType: ConnectionType.Http,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
