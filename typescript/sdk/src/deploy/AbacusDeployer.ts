@@ -2,6 +2,7 @@ import { Debugger, debug } from 'debug';
 import { ethers } from 'ethers';
 
 import {
+  Ownable,
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
 } from '@abacus-network/core';
@@ -31,7 +32,7 @@ export abstract class AbacusDeployer<
   Contracts extends AbacusContracts,
   Factories extends AbacusFactories,
 > {
-  public deployedContracts: Partial<Record<Chain, Contracts>> = {};
+  public deployedContracts: Partial<Record<Chain, Partial<Contracts>>> = {};
 
   verificationInputs: ChainMap<Chain, ContractVerificationInput[]>;
   protected logger: Debugger;
@@ -49,7 +50,7 @@ export abstract class AbacusDeployer<
   abstract deployContracts(chain: Chain, config: Config): Promise<Contracts>;
 
   async deploy(
-    partialDeployment: Partial<Record<Chain, Contracts>> = this
+    partialDeployment: Partial<Record<Chain, Partial<Contracts>>> = this
       .deployedContracts,
   ): Promise<Record<Chain, Contracts>> {
     objMap(
@@ -65,21 +66,15 @@ export abstract class AbacusDeployer<
         );
       },
     );
-    const deployedChains = Object.keys(this.deployedContracts);
-    const configChains = Object.keys(this.configMap);
+    const configChains = Object.keys(this.configMap) as Chain[];
     const targetChains = this.multiProvider
       .chains()
-      .filter(
-        (chain) =>
-          configChains.includes(chain) && !deployedChains.includes(chain),
-      );
+      .filter((chain) => configChains.includes(chain));
     this.logger(`Start deploy to ${targetChains}`);
-    // wait until all promises are resolved / rejected
     for (const chain of targetChains) {
       const chainConnection = this.multiProvider.getChainConnection(chain);
-      this.logger(
-        `Deploying to ${chain} from ${await chainConnection.getAddressUrl()}...`,
-      );
+      const signerUrl = await chainConnection.getAddressUrl();
+      this.logger(`Deploying to ${chain} from ${signerUrl}...`);
       this.deployedContracts[chain] = await this.deployContracts(
         chain,
         this.configMap[chain],
@@ -87,7 +82,9 @@ export abstract class AbacusDeployer<
       // TODO: remove these logs once we have better timeouts
       this.logger(
         JSON.stringify(
-          serializeContracts(this.deployedContracts[chain] ?? {}),
+          serializeContracts(
+            (this.deployedContracts[chain] as Contracts) ?? {},
+          ),
           null,
           2,
         ),
@@ -96,12 +93,31 @@ export abstract class AbacusDeployer<
     return this.deployedContracts as ChainMap<Chain, Contracts>;
   }
 
+  protected async runIfOwner(
+    chain: Chain,
+    ownable: Ownable,
+    fn: () => Promise<any>,
+  ): Promise<void> {
+    const dc = this.multiProvider.getChainConnection(chain);
+    const address = await dc.signer!.getAddress();
+    const owner = await ownable.owner();
+    if (address === owner) {
+      return fn();
+    }
+  }
+
   protected async deployContractFromFactory<F extends ethers.ContractFactory>(
     chain: Chain,
     factory: F,
     contractName: string,
     args: Parameters<F['deploy']>,
   ): Promise<ReturnType<F['deploy']>> {
+    const cachedContract = this.deployedContracts[chain]?.[contractName];
+    if (cachedContract) {
+      this.logger(`Recovered contract ${contractName} on ${chain}`);
+      return cachedContract as ReturnType<F['deploy']>;
+    }
+
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const signer = chainConnection.signer;
     if (!signer) {
@@ -122,7 +138,7 @@ export abstract class AbacusDeployer<
       factory.bytecode,
     );
     this.verificationInputs[chain].push(verificationInput);
-    return contract;
+    return contract as ReturnType<F['deploy']>;
   }
 
   async deployContract<K extends keyof Factories>(
@@ -184,6 +200,12 @@ export abstract class AbacusDeployer<
     ubcAddress: types.Address,
     initArgs: Parameters<C['initialize']>,
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
+    const cachedProxy = this.deployedContracts[chain]?.[contractName as any];
+    if (cachedProxy) {
+      this.logger(`Recovered proxy ${contractName.toString()} on ${chain}`);
+      return cachedProxy as ProxiedContract<C, BeaconProxyAddresses>;
+    }
+
     const implementation = await this.deployContract<K>(
       chain,
       contractName,
