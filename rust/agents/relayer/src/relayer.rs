@@ -46,9 +46,17 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
+        let core = settings
+            .as_ref()
+            .try_into_abacus_core(Self::AGENT_NAME, true)
+            .await?;
+
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
-            .try_into_multisig_checkpoint_syncer()?;
+            .try_into_multisig_checkpoint_syncer(
+                core.outbox.outbox().chain_name(),
+                core.metrics.validator_checkpoint_index(),
+            )?;
 
         let whitelist = parse_matching_list(&settings.whitelist);
         let blacklist = parse_matching_list(&settings.blacklist);
@@ -60,10 +68,7 @@ impl BaseAgent for Relayer {
                 .parse()
                 .unwrap_or(5),
             multisig_checkpoint_syncer,
-            core: settings
-                .as_ref()
-                .try_into_abacus_core(Self::AGENT_NAME, true)
-                .await?,
+            core,
             whitelist,
             blacklist,
         })
