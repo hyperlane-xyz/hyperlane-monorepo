@@ -11,6 +11,7 @@ import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 async function check() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
+
   const multiProvider = await config.getMultiProvider();
 
   // environments union doesn't work well with typescript

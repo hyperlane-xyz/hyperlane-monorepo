@@ -1,5 +1,6 @@
 import {
   AbacusCoreChecker,
+  ChainConnection,
   ChainMap,
   ChainName,
   CoreViolationType,
@@ -41,41 +42,77 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     }
   }
 
-  async logCalls() {
-    await this.estimateCalls();
-    objMap(this.calls, (chain, calls) => {
-      console.log(chain, calls);
+  logCalls() {
+    const logFn = async (
+      _: ChainConnection,
+      calls: types.CallData[],
+      chain?: Chain,
+    ) => console.log(chain, calls);
+    return this.mapCalls(this.connectionFn, logFn);
+  }
+
+  protected async mapCalls(
+    connectionFn: (chain: Chain) => ChainConnection,
+    mapFn: (
+      connection: ChainConnection,
+      calls: types.CallData[],
+      chain?: Chain,
+    ) => Promise<any>,
+  ) {
+    for (const chain of Object.keys(this.calls)) {
+      const calls = this.calls[chain as Chain];
+      if (calls.length > 0) {
+        const connection = connectionFn(chain as Chain);
+        await mapFn(connection, calls, chain as Chain);
+      }
+    }
+  }
+
+  connectionFn = (chain: Chain) => {
+    return this.checker.multiProvider.getChainConnection(chain);
+  };
+
+  /*
+  // NB: Add this back in order to run using a Ledger signer.
+  import { LedgerSigner } from '@ethersproject/hardware-wallets';
+
+  // Due to TS funkiness, this needs to be imported in order for this
+  // code to build, but needs to be removed in order for the code to run.
+  import '@ethersproject/hardware-wallets/thirdparty';
+
+  ledgerConnectionFn = (chain: Chain) => {
+    const connection = this.checker.multiProvider.getChainConnection(chain);
+    // Ledger Live derivation path, vary the third number  to select different
+    // accounts.
+    const path = "m/44'/60'/2'/0/0";
+    return new ChainConnection({
+      signer: new LedgerSigner(connection.provider, 'hid', path),
+      provider: connection.provider,
+      overrides: connection.overrides,
+      confirmations: connection.confirmations,
     });
+  };
+  */
+
+  protected async estimateFn(
+    connection: ChainConnection,
+    calls: types.CallData[],
+  ) {
+    await Promise.all(calls.map((call) => connection.estimateGas(call)));
+  }
+
+  protected async sendFn(connection: ChainConnection, calls: types.CallData[]) {
+    for (const call of calls) {
+      connection.sendTransaction(call);
+    }
   }
 
   estimateCalls() {
-    objMap(this.calls, async (chain, calls) => {
-      const connection = this.checker.multiProvider.getChainConnection(chain);
-      const owner = this.checker.configMap[chain].owner;
-      for (const call of calls) {
-        await connection.provider.estimateGas({
-          ...call,
-          from: owner,
-        });
-      }
-    });
+    return this.mapCalls(this.connectionFn, this.estimateFn);
   }
 
-  async executeCalls() {
-    await this.estimateCalls();
-    objMap(this.calls, async (chain, calls) => {
-      const connection = this.checker.multiProvider.getChainConnection(chain);
-      const signer = connection.signer;
-      if (!signer) {
-        throw new Error(`signer not found for ${chain}`);
-      }
-      for (const call of calls) {
-        const response = await signer.sendTransaction(call);
-        console.log(`sent tx ${response.hash} to ${chain}`);
-        await response.wait(connection.confirmations);
-        console.log(`confirmed tx ${response.hash} on ${chain}`);
-      }
-    });
+  sendCalls() {
+    return this.mapCalls(this.connectionFn, this.sendFn);
   }
 
   async handleValidatorViolation(violation: ValidatorViolation) {
@@ -110,20 +147,11 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     }
   }
 
-  // This function is an exception in that it assumes the MultiProvider
-  // is configured with the privileged signers. All other functions assume
-  // governance is done via multisig.
   async handleOwnerViolation(violation: OwnerViolation) {
-    const chainConnection = this.checker.multiProvider.getChainConnection(
-      violation.chain as Chain,
-    );
-    console.log(
-      `${violation.chain}: transferring ownership of ${violation.data.contract.address} from ${violation.actual} to ${violation.expected}`,
-    );
-    const response = await violation.data.contract.transferOwnership(
-      violation.expected,
-      chainConnection.overrides,
-    );
-    await response.wait(chainConnection.confirmations);
+    const call =
+      await violation.data.contract.populateTransaction.transferOwnership(
+        violation.expected,
+      );
+    this.pushCall(violation.chain as Chain, call as types.CallData);
   }
 }

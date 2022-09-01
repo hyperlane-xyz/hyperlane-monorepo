@@ -2,21 +2,24 @@ use abacus_core::SignedCheckpoint;
 
 use async_trait::async_trait;
 use eyre::Result;
+use prometheus::IntGauge;
 
 use crate::traits::CheckpointSyncer;
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone)]
 /// Type for reading/write to LocalStorage
 pub struct LocalStorage {
     /// base path
-    pub path: String,
+    path: String,
+    latest_index: Option<IntGauge>,
 }
 
 impl LocalStorage {
     /// Constructor
-    pub fn new(path: &str) -> Self {
+    pub fn new(path: &str, latest_index: Option<IntGauge>) -> Self {
         LocalStorage {
             path: path.to_owned(),
+            latest_index,
         }
     }
     fn checkpoint_file_path(&self, index: u32) -> String {
@@ -44,6 +47,9 @@ impl CheckpointSyncer for LocalStorage {
             }) {
             Ok(data) => {
                 let index = data.parse()?;
+                if let Some(gauge) = &self.latest_index {
+                    gauge.set(index as i64);
+                }
                 Ok(Some(index))
             }
             _ => Ok(None),
