@@ -141,9 +141,15 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       config.validatorManager,
       upgradeBeaconController.address,
     );
-    await super.runIfOwner(chain, abacusConnectionManager, () =>
-      abacusConnectionManager.setOutbox(outbox.outbox.address, dc.overrides),
-    );
+    await super.runIfOwner(chain, abacusConnectionManager, async () => {
+      const current = await abacusConnectionManager.outbox();
+      if (current !== outbox.outbox.address) {
+        await abacusConnectionManager.setOutbox(
+          outbox.outbox.address,
+          dc.overrides,
+        );
+      }
+    });
 
     const remotes = this.multiProvider.remoteChains(chain);
     const inboxes: Partial<Record<Chain, InboxContracts>> =
@@ -161,13 +167,18 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
         );
       }
 
-      await super.runIfOwner(chain, abacusConnectionManager, () =>
-        abacusConnectionManager.enrollInbox(
-          chainMetadata[remote].id,
+      await super.runIfOwner(chain, abacusConnectionManager, async () => {
+        const isEnrolled = await abacusConnectionManager.isInbox(
           inboxes[remote]!.inbox.address,
-          dc.overrides,
-        ),
-      );
+        );
+        if (!isEnrolled) {
+          await abacusConnectionManager.enrollInbox(
+            chainMetadata[remote].id,
+            inboxes[remote]!.inbox.address,
+            dc.overrides,
+          );
+        }
+      });
       prev = remote;
     }
 
