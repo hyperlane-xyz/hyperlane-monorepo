@@ -30,7 +30,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     this.calls[chain].push(call);
   }
 
-  async govern() {
+  govern() {
     for (const violation of this.checker.violations) {
       switch (violation.type) {
         case CoreViolationType.ValidatorManager: {
@@ -225,10 +225,12 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
   }
 
   async handleOwnerViolation(violation: OwnerViolation) {
-    const call =
-      await violation.data.contract.populateTransaction.transferOwnership(
-        violation.expected,
-      );
-    this.pushCall(violation.chain as Chain, call as types.CallData);
+    this.pushCall(violation.chain as Chain, {
+      to: violation.contract.address,
+      data: violation.contract.interface.encodeFunctionData(
+        'transferOwnership',
+        [violation.expected],
+      ),
+    });
   }
 }
