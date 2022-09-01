@@ -4,6 +4,7 @@ use abacus_core::SignedCheckpoint;
 use async_trait::async_trait;
 use eyre::{bail, Result};
 use futures_util::TryStreamExt;
+use prometheus::IntGauge;
 use rusoto_core::{credential::EnvironmentProvider, HttpClient, Region, RusotoError};
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 
@@ -18,6 +19,7 @@ pub struct S3Storage {
     region: Region,
     /// client
     client: S3Client,
+    latest_index: Option<IntGauge>,
 }
 
 impl fmt::Debug for S3Storage {
@@ -31,7 +33,7 @@ impl fmt::Debug for S3Storage {
 
 impl S3Storage {
     /// constructor
-    pub fn new(bucket: &str, region: Region) -> Self {
+    pub fn new(bucket: &str, region: Region, latest_index: Option<IntGauge>) -> Self {
         let client = S3Client::new_with(
             HttpClient::new().unwrap(),
             EnvironmentProvider::default(),
@@ -42,6 +44,7 @@ impl S3Storage {
             bucket: bucket.to_owned(),
             region,
             client,
+            latest_index,
         }
     }
 
@@ -84,11 +87,20 @@ impl S3Storage {
 #[async_trait]
 impl CheckpointSyncer for S3Storage {
     async fn latest_index(&self) -> Result<Option<u32>> {
-        self.read_from_bucket(S3Storage::index_key())
+        let ret = self
+            .read_from_bucket(S3Storage::index_key())
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
-            .map_err(Into::into)
+            .map_err(Into::into);
+
+        if let Ok(Some(latest_index)) = ret {
+            if let Some(gauge) = &self.latest_index {
+                gauge.set(latest_index as i64);
+            }
+        }
+
+        ret
     }
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpoint>> {
         self.read_from_bucket(S3Storage::checkpoint_key(index))
