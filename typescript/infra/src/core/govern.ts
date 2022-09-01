@@ -1,6 +1,6 @@
-import { PopulatedTransaction } from 'ethers';
-
 import {
+  AbacusConnectionManagerViolation,
+  AbacusConnectionManagerViolationType,
   AbacusCoreChecker,
   ChainConnection,
   ChainMap,
@@ -8,17 +8,13 @@ import {
   ChainNameToDomainId,
   CoreViolationType,
   EnrolledInboxesViolation,
+  EnrolledValidatorsViolation,
   OwnerViolation,
   ValidatorManagerViolation,
+  ValidatorManagerViolationType,
   ViolationType,
   objMap,
 } from '@abacus-network/sdk';
-import {
-  AbacusConnectionManagerViolation,
-  AbacusConnectionManagerViolationType,
-  EnrolledValidatorsViolation,
-  ValidatorManagerViolationType,
-} from '@abacus-network/sdk/dist/deploy/core/types';
 import { types, utils } from '@abacus-network/utils';
 
 export class AbacusCoreGovernor<Chain extends ChainName> {
@@ -38,17 +34,17 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     for (const violation of this.checker.violations) {
       switch (violation.type) {
         case CoreViolationType.ValidatorManager: {
-          await this.handleValidatorManagerViolation(
+          this.handleValidatorManagerViolation(
             violation as ValidatorManagerViolation,
           );
           break;
         }
         case ViolationType.Owner: {
-          await this.handleOwnerViolation(violation as OwnerViolation);
+          this.handleOwnerViolation(violation as OwnerViolation);
           break;
         }
         case CoreViolationType.AbacusConnectionManager: {
-          await this.handleAbacusConnectionManagerViolation(
+          this.handleAbacusConnectionManagerViolation(
             violation as AbacusConnectionManagerViolation,
           );
           break;
@@ -133,29 +129,29 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
   }
 
   // pushes calls which reconcile actual and expected sets on chain
-  protected async pushSetReconcilationCalls<T>(reconcile: {
+  protected pushSetReconcilationCalls<T>(reconcile: {
     chain: ChainName;
     actual: Set<T>;
     expected: Set<T>;
-    add: (elem: T) => Promise<PopulatedTransaction>;
-    remove: (elem: T) => Promise<PopulatedTransaction>;
+    add: (elem: T) => types.CallData;
+    remove: (elem: T) => types.CallData;
   }) {
-    let txs: PopulatedTransaction[] = [];
     // add expected - actual elements
     utils
       .difference(reconcile.expected, reconcile.actual)
-      .forEach(async (item) => txs.push(await reconcile.add(item)));
-    // remove actual - expected elements
+      .forEach((elem) =>
+        this.pushCall(reconcile.chain as Chain, reconcile.add(elem)),
+      );
+
+    // remote actual - expected elements
     utils
       .difference(reconcile.actual, reconcile.expected)
-      .forEach(async (item) => txs.push(await reconcile.remove(item)));
-    // push calls
-    txs.forEach((tx) =>
-      this.pushCall(reconcile.chain as Chain, tx as types.CallData),
-    );
+      .forEach((elem) =>
+        this.pushCall(reconcile.chain as Chain, reconcile.remove(elem)),
+      );
   }
 
-  async handleAbacusConnectionManagerViolation(
+  handleAbacusConnectionManagerViolation(
     violation: AbacusConnectionManagerViolation,
   ) {
     const abacusConnectionManager = violation.contract;
@@ -165,13 +161,20 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
         const remoteId = ChainNameToDomainId[typedViolation.remote];
         this.pushSetReconcilationCalls({
           ...typedViolation,
-          add: (inbox) =>
-            abacusConnectionManager.populateTransaction.enrollInbox(
-              remoteId,
-              inbox,
+          add: (inbox) => ({
+            to: abacusConnectionManager.address,
+            data: abacusConnectionManager.interface.encodeFunctionData(
+              'enrollInbox',
+              [remoteId, inbox],
             ),
-          remove: (inbox) =>
-            abacusConnectionManager.populateTransaction.unenrollInbox(inbox),
+          }),
+          remove: (inbox) => ({
+            to: abacusConnectionManager.address,
+            data: abacusConnectionManager.interface.encodeFunctionData(
+              'unenrollInbox',
+              [inbox],
+            ),
+          }),
         });
         break;
       }
@@ -182,24 +185,36 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     }
   }
 
-  async handleValidatorManagerViolation(violation: ValidatorManagerViolation) {
+  handleValidatorManagerViolation(violation: ValidatorManagerViolation) {
     const validatorManager = violation.contract;
     switch (violation.validatorManagerType) {
       case ValidatorManagerViolationType.EnrolledValidators: {
         this.pushSetReconcilationCalls({
           ...(violation as EnrolledValidatorsViolation),
-          add: (validator) =>
-            validatorManager.populateTransaction.enrollValidator(validator),
-          remove: (validator) =>
-            validatorManager.populateTransaction.unenrollValidator(validator),
+          add: (validator) => ({
+            to: validatorManager.address,
+            data: validatorManager.interface.encodeFunctionData(
+              'enrollValidator',
+              [validator],
+            ),
+          }),
+          remove: (validator) => ({
+            to: validatorManager.address,
+            data: validatorManager.interface.encodeFunctionData(
+              'unenrollValidator',
+              [validator],
+            ),
+          }),
         });
         break;
       }
       case ValidatorManagerViolationType.Threshold: {
-        const call = await validatorManager.populateTransaction.setThreshold(
-          violation.expected,
-        );
-        this.pushCall(violation.chain as Chain, call as types.CallData);
+        this.pushCall(violation.chain as Chain, {
+          to: validatorManager.address,
+          data: validatorManager.interface.encodeFunctionData('setThreshold', [
+            violation.expected,
+          ]),
+        });
         break;
       }
       default:

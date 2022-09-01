@@ -99,6 +99,10 @@ export {
   ValidatorManagerConfig,
   ValidatorManagerViolation,
   EnrolledInboxesViolation,
+  AbacusConnectionManagerViolation,
+  AbacusConnectionManagerViolationType,
+  EnrolledValidatorsViolation,
+  ValidatorManagerViolationType,
 } from './deploy/core/types';
 export { AbacusDeployer } from './deploy/AbacusDeployer';
 export { UpgradeBeaconViolation } from './deploy/proxy';
