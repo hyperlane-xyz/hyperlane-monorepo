@@ -156,11 +156,27 @@ mod tests {
 
     #[test]
     fn contracts() {
-        assert!(!Chain::Ethereum.relay_fwd_addr().is_ok());
+        assert!(Chain::Ethereum.relay_fwd_addr().is_ok());
         assert!(Chain::Rinkeby.relay_fwd_addr().is_ok());
         assert!(Chain::Goerli.relay_fwd_addr().is_ok());
         assert!(Chain::Kovan.relay_fwd_addr().is_ok());
+
         assert!(Chain::Polygon.relay_fwd_addr().is_ok());
         assert!(Chain::PolygonMumbai.relay_fwd_addr().is_ok());
+
+        assert!(Chain::BinanceSmartChain.relay_fwd_addr().is_ok());
+        assert!(!Chain::BinanceSmartChainTestnet.relay_fwd_addr().is_ok());
+
+        assert!(!Chain::Celo.relay_fwd_addr().is_ok());
+        assert!(Chain::Alfajores.relay_fwd_addr().is_ok());
+
+        assert!(Chain::Avalanche.relay_fwd_addr().is_ok());
+        assert!(!Chain::AvalancheFuji.relay_fwd_addr().is_ok());
+
+        assert!(!Chain::Optimism.relay_fwd_addr().is_ok());
+        assert!(!Chain::OptimismKovan.relay_fwd_addr().is_ok());
+
+        assert!(!Chain::Arbitrum.relay_fwd_addr().is_ok());
+        assert!(!Chain::ArbitrumRinkeby.relay_fwd_addr().is_ok());
     }
 }
