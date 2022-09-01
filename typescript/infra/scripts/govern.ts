@@ -27,13 +27,13 @@ async function check() {
   // Two validator violation per VM per chain (zk and zp)
   await coreChecker.expectViolations(
     [CoreViolationType.Validator],
-    [3 * 7 * 7],
+    // [3 * 7 * 7],
+    [1 * 7 * 1],
   );
 
   const governor = new AbacusCoreGovernor(coreChecker);
 
   await governor.govern();
-  await governor.logCalls();
 }
 
 check().then(console.log).catch(console.error);
