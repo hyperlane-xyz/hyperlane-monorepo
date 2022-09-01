@@ -112,6 +112,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     config: CoreConfig,
   ): Promise<CoreContracts<Chain, LocalChain>> {
     if (config.remove) {
+      // skip deploying to chains configured to be removed
       return undefined as any;
     }
 
