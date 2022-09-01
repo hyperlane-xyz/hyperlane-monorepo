@@ -116,7 +116,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
 
   protected async sendFn(connection: ChainConnection, calls: types.CallData[]) {
     for (const call of calls) {
-      connection.sendTransaction(call);
+      await connection.sendTransaction(call);
     }
   }
 
@@ -224,7 +224,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     }
   }
 
-  async handleOwnerViolation(violation: OwnerViolation) {
+  handleOwnerViolation(violation: OwnerViolation) {
     this.pushCall(violation.chain as Chain, {
       to: violation.contract.address,
       data: violation.contract.interface.encodeFunctionData(
