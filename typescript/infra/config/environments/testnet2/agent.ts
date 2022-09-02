@@ -105,15 +105,19 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-3e60d9a',
+    tag: 'sha-2d9f729',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
+  gelato: {
+    enabledChains: ['alfajores', 'mumbai', 'kovan'],
+    useForDisabledOriginChains: true,
+  },
   validatorSets: validators,
-  connectionType: ConnectionType.HttpQuorum,
+  connectionType: ConnectionType.Http,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,

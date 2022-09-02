@@ -36,7 +36,7 @@ impl Default for ChainConf {
 #[serde(rename_all = "camelCase")]
 pub struct GelatoConf {
     /// Whether to use the Gelato Relay service for transactions submitted to the chain.
-    pub enabled: bool,
+    pub enabled: String,
 }
 
 /// Addresses for outbox chain contracts
@@ -76,7 +76,7 @@ pub struct ChainSetup<T> {
     #[serde(flatten)]
     pub chain: ChainConf,
     /// Gelato configuration for this chain (Gelato unused if None)
-    pub gelato_conf: Option<GelatoConf>,
+    pub gelato: Option<GelatoConf>,
     /// Set this key to disable the inbox. Does nothing for outboxes.
     #[serde(default)]
     pub disabled: Option<String>,
