@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::AbacusCommon;
 use abacus_core::{db::AbacusDB, Signers};
@@ -16,6 +18,7 @@ use crate::msg::gelato_submitter::fwd_req_op::{
 };
 
 use super::SubmitMessageArgs;
+use super::gas_payment_enforcer::GasPaymentEnforcer;
 
 mod fwd_req_op;
 
@@ -43,6 +46,8 @@ pub(crate) struct GelatoSubmitter {
     message_processed_sender: UnboundedSender<SubmitMessageArgs>,
     /// Channel to receive from ForwardRequestOps that a message has been successfully processed.
     message_processed_receiver: UnboundedReceiver<SubmitMessageArgs>,
+    /// Used to determine if messages have made sufficient gas payments.
+    gas_payment_enforcer: Arc<GasPaymentEnforcer>,
 }
 
 impl GelatoSubmitter {
@@ -54,6 +59,7 @@ impl GelatoSubmitter {
         gelato_sponsor_signer: Signers,
         http_client: reqwest::Client,
         metrics: GelatoSubmitterMetrics,
+        gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> Self {
         let (message_processed_sender, message_processed_receiver) =
             mpsc::unbounded_channel::<SubmitMessageArgs>();
@@ -70,6 +76,7 @@ impl GelatoSubmitter {
             metrics,
             message_processed_sender,
             message_processed_receiver,
+            gas_payment_enforcer,
         }
     }
 
@@ -116,6 +123,7 @@ impl GelatoSubmitter {
                 sponsor_chain: self.outbox_gelato_chain,
                 destination_chain: self.inbox_gelato_chain,
                 message_processed_sender: self.message_processed_sender.clone(),
+                gas_payment_enforcer: self.gas_payment_enforcer.clone(),
             });
             self.metrics.active_forward_request_ops_gauge.add(1);
 

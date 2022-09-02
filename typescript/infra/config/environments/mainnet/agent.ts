@@ -61,7 +61,6 @@ export const abacus: AgentConfig<MainnetChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       blacklist: releaseCandidateHelloworldMatchingList,
     },
   },
@@ -87,7 +86,6 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       whitelist: releaseCandidateHelloworldMatchingList,
     },
   },

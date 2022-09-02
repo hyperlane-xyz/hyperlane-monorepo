@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use abacus_base::CoreMetrics;
 use abacus_base::InboxContracts;
@@ -18,6 +19,7 @@ use tracing::instrument;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use super::SubmitMessageArgs;
+use super::gas_payment_enforcer::GasPaymentEnforcer;
 
 /// SerialSubmitter accepts undelivered messages over a channel from a MessageProcessor.  It is
 /// responsible for executing the right strategy to deliver those messages to the destination
@@ -124,6 +126,8 @@ pub(crate) struct SerialSubmitter {
     db: AbacusDB,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
+    /// Used to determine if messages have made sufficient gas payments.
+    gas_payment_enforcer: Arc<GasPaymentEnforcer>,
 }
 
 impl SerialSubmitter {
@@ -132,6 +136,7 @@ impl SerialSubmitter {
         inbox_contracts: InboxContracts,
         db: AbacusDB,
         metrics: SerialSubmitterMetrics,
+        gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> Self {
         Self {
             rx,
@@ -140,6 +145,7 @@ impl SerialSubmitter {
             inbox_contracts,
             db,
             metrics,
+            gas_payment_enforcer,
         }
     }
 
@@ -215,8 +221,9 @@ impl SerialSubmitter {
             .await?
         {
             info!(
-                "Unexpected status for message with leaf index '{}' (already processed): '{:?}'",
-                msg.leaf_index, msg
+                msg_leaf_index=msg.leaf_index,
+                msg=?msg,
+                "Message already processed",
             );
             self.record_message_process_success(&msg)?;
             return Ok(());

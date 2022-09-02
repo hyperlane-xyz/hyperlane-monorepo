@@ -28,7 +28,6 @@ export const abacus: AgentConfig<TestChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,

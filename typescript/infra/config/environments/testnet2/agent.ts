@@ -64,7 +64,6 @@ export const abacus: AgentConfig<TestnetChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       blacklist: releaseCandidateHelloworldMatchingList,
     },
   },
@@ -90,7 +89,6 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       // Blacklist everything for now
       blacklist: MATCHING_LIST_ALL_WILDCARDS,
     },
@@ -121,7 +119,6 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       // Only process messages between the release candidate helloworld routers
       whitelist: releaseCandidateHelloworldMatchingList,
     },

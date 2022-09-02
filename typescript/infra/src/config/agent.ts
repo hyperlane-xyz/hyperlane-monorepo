@@ -99,8 +99,6 @@ interface MatchingListElement {
 interface BaseRelayerConfig {
   // The polling interval to check for new signed checkpoints in seconds
   signedCheckpointPollingInterval: number;
-  // The maxinmum number of times a processor will try to process a message
-  maxProcessingRetries: number;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
 }
@@ -417,7 +415,6 @@ export class ChainAgentConfig<Chain extends ChainName> {
     const relayerConfig: RelayerConfig = {
       signedCheckpointPollingInterval:
         baseConfig.signedCheckpointPollingInterval,
-      maxProcessingRetries: baseConfig.maxProcessingRetries,
       multisigCheckpointSyncer: {
         threshold: this.validatorSet.threshold,
         checkpointSyncers,

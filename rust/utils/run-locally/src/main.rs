@@ -160,7 +160,6 @@ fn main() -> ExitCode {
         "ABC_BASE_SIGNERS_TEST3_TYPE" => "hexKey",
         "ABC_RELAYER_WHITELIST" => r#"[{"sourceAddress": "*", "destinationDomain": ["13372", "13373"], "destinationAddress": "*"}]"#,
         "ABC_RELAYER_SIGNEDCHECKPOINTPOLLINGINTERVAL" => "5",
-        "ABC_RELAYER_MAXPROCESSINGRETRIES" => "5",
         "ABC_RELAYER_MULTISIGCHECKPOINTSYNCER_THRESHOLD" => "1",
         "ABC_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_TYPE" => "localStorage",
         "ABC_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_PATH" => checkpoints_dir.path().to_str().unwrap(),

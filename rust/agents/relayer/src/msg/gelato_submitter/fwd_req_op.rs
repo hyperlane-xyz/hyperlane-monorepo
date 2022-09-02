@@ -21,7 +21,7 @@ use tokio::{
 };
 use tracing::instrument;
 
-use crate::msg::SubmitMessageArgs;
+use crate::msg::{SubmitMessageArgs, gas_payment_enforcer::GasPaymentEnforcer};
 
 /// The max fee to use for Gelato ForwardRequests.
 /// Gelato isn't charging fees on testnet. For now, use this hardcoded value
@@ -36,6 +36,13 @@ const DEFAULT_MAX_FEE: u64 = 10u64.pow(18);
 /// limit so that Gelato does the estimation for us.
 const DEFAULT_GAS_LIMIT: u64 = 5000000;
 
+/// The period to sleep between ticks, in seconds.
+const TICK_SLEEP_PERIOD_SECS: u64 = 5;
+
+/// The period to sleep after observing the message's gas payment
+/// as insufficient, in secs.
+const INSUFFICIENT_GAS_PAYMENT_SLEEP_PERIOD_SECS: u64 = 15;
+
 #[derive(Debug, Clone)]
 pub struct ForwardRequestOpArgs<S> {
     pub opts: ForwardRequestOptions,
@@ -48,6 +55,8 @@ pub struct ForwardRequestOpArgs<S> {
     // Currently unused due to a bug in Gelato's testnet relayer that is currently being upgraded.
     pub sponsor_chain: Chain,
     pub destination_chain: Chain,
+
+    pub gas_payment_enforcer: Arc<GasPaymentEnforcer>,
 
     /// A channel to send the message over upon the message being successfully processed.
     pub message_processed_sender: UnboundedSender<SubmitMessageArgs>,
@@ -98,7 +107,7 @@ where
             }
 
             self.0.message.num_retries += 1;
-            sleep(Duration::from_secs(5)).await;
+            sleep(Duration::from_secs(TICK_SLEEP_PERIOD_SECS)).await;
         }
     }
 
@@ -106,6 +115,15 @@ where
         // Before doing anything, first check if the message has already been processed.
         if let Ok(MessageStatus::Processed) = self.message_status().await {
             return Ok(MessageStatus::Processed);
+        }
+
+        // If the gas payment requirement hasn't been met, ignore it
+        if !self.gas_payment_enforcer.message_meets_gas_payment_requirement(
+            self.0.message.leaf_index,
+        )? {
+            tracing::debug!("Gas payment requirement not met yet");
+            sleep(Duration::from_secs(INSUFFICIENT_GAS_PAYMENT_SLEEP_PERIOD_SECS)).await;
+            return Ok(MessageStatus::None);
         }
 
         // Send the forward request.
