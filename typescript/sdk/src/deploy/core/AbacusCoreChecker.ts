@@ -110,10 +110,9 @@ export class AbacusCoreChecker<
     const config = this.configMap[remote];
 
     const validatorManagerConfig = config.validatorManager;
-    const expectedValidators =
-      local !== remote && config.remove
-        ? []
-        : validatorManagerConfig.validators;
+    const expectedValidators = config.remove
+      ? []
+      : validatorManagerConfig.validators;
     const actualValidators = await validatorManager.validators();
 
     const expectedSet = new Set<string>(
