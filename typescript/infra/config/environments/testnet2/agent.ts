@@ -112,8 +112,12 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
+  gelato: {
+    enabledChains: ['alfajores', 'mumbai', 'kovan'],
+    useForDisabledOriginChains: true,
+  },
   validatorSets: validators,
-  connectionType: ConnectionType.HttpQuorum,
+  connectionType: ConnectionType.Http,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
