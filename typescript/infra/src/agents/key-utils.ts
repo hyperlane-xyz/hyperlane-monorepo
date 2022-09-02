@@ -15,7 +15,7 @@ interface KeyAsAddress {
   address: string;
 }
 
-export function getReadonlyKey<Chain extends ChainName>(
+export function getReadonlyKey(
   identifier: string,
   address: string,
 ): ReadOnlyAgentKey {

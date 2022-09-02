@@ -46,7 +46,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
   private calls: ChainMap<Chain, AnnotatedCallData[]>;
   readonly ledger: boolean;
 
-  constructor(checker: AbacusCoreChecker<Chain>, ledger: boolean = false) {
+  constructor(checker: AbacusCoreChecker<Chain>, ledger = false) {
     this.checker = checker;
     this.calls = objMap(this.checker.app.contractsMap, () => []);
     this.ledger = ledger;
@@ -182,10 +182,10 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     try {
       await connection.estimateGas(call.call);
       return SubmissionType.SIGNER;
-    } catch (_) {}
+    } catch (_) {} // eslint-disable-line no-empty
 
-    // 2. Check if the call will succeed via Gnosis Safe.
     try {
+      // 2. Check if the call will succeed via Gnosis Safe.
       // 2a. Estimate gas as the owner, which we infer to be a Safe.
       const safeAddress = this.checker.configMap[chain!].owner;
       if (!safeAddress) throw new Error(`Safe address not found for ${chain}`);
@@ -214,7 +214,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
       }
 
       return SubmissionType.SAFE;
-    } catch (_) {}
+    } catch (_) {} // eslint-disable-line no-empty
 
     return SubmissionType.MANUAL;
   }

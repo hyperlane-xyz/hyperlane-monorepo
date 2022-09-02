@@ -20,10 +20,8 @@ export class SignerMultiSend extends MultiSend {
 
   async sendTransactions(calls: types.CallData[]) {
     for (const call of calls) {
-      if (false) {
-        const receipt = await this.connection.sendTransaction(call);
-        console.log(`confirmed tx ${receipt.transactionHash}`);
-      }
+      const receipt = await this.connection.sendTransaction(call);
+      console.log(`confirmed tx ${receipt.transactionHash}`);
     }
   }
 }
@@ -76,15 +74,13 @@ export class SafeMultiSend extends MultiSend {
     });
     const safeTransaction = await safeSdk.createTransaction(transactions);
     const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
-    if (false) {
-      const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
-      await safeService.proposeTransaction({
-        safeAddress: this.safeAddress,
-        safeTransactionData: safeTransaction.data,
-        safeTxHash,
-        senderAddress: await signer!.getAddress(),
-        senderSignature: senderSignature.data,
-      });
-    }
+    const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
+    await safeService.proposeTransaction({
+      safeAddress: this.safeAddress,
+      safeTransactionData: safeTransaction.data,
+      safeTxHash,
+      senderAddress: await signer!.getAddress(),
+      senderSignature: senderSignature.data,
+    });
   }
 }
