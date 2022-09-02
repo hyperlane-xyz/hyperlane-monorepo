@@ -18,8 +18,8 @@ use tracing::debug;
 use tracing::instrument;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use super::SubmitMessageArgs;
 use super::gas_payment_enforcer::GasPaymentEnforcer;
+use super::SubmitMessageArgs;
 
 /// SerialSubmitter accepts undelivered messages over a channel from a MessageProcessor.  It is
 /// responsible for executing the right strategy to deliver those messages to the destination
@@ -226,6 +226,15 @@ impl SerialSubmitter {
                 "Message already processed",
             );
             self.record_message_process_success(&msg)?;
+            return Ok(());
+        }
+
+        // If the gas payment requirement hasn't been met, move to the next tick.
+        let (meets_gas_requirement, gas_payment) = self
+            .gas_payment_enforcer
+            .message_meets_gas_payment_requirement(msg.leaf_index)?;
+        if !meets_gas_requirement {
+            tracing::info!(msg_leaf_index=msg.leaf_index, gas_payment=?gas_payment, "Gas payment requirement not met yet");
             return Ok(());
         }
 

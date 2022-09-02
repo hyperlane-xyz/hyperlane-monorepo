@@ -21,7 +21,7 @@ use tokio::{
 };
 use tracing::instrument;
 
-use crate::msg::{SubmitMessageArgs, gas_payment_enforcer::GasPaymentEnforcer};
+use crate::msg::{gas_payment_enforcer::GasPaymentEnforcer, SubmitMessageArgs};
 
 /// The max fee to use for Gelato ForwardRequests.
 /// Gelato isn't charging fees on testnet. For now, use this hardcoded value
@@ -117,12 +117,17 @@ where
             return Ok(MessageStatus::Processed);
         }
 
-        // If the gas payment requirement hasn't been met, ignore it
-        if !self.gas_payment_enforcer.message_meets_gas_payment_requirement(
-            self.0.message.leaf_index,
-        )? {
-            tracing::debug!("Gas payment requirement not met yet");
-            sleep(Duration::from_secs(INSUFFICIENT_GAS_PAYMENT_SLEEP_PERIOD_SECS)).await;
+        // If the gas payment requirement hasn't been met, sleep briefly and wait for the next tick.
+        let (meets_gas_requirement, gas_payment) = self
+            .gas_payment_enforcer
+            .message_meets_gas_payment_requirement(self.0.message.leaf_index)?;
+
+        if !meets_gas_requirement {
+            tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
+            sleep(Duration::from_secs(
+                INSUFFICIENT_GAS_PAYMENT_SLEEP_PERIOD_SECS,
+            ))
+            .await;
             return Ok(MessageStatus::None);
         }
 

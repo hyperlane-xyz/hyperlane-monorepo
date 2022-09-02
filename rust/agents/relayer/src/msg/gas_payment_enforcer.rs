@@ -10,33 +10,27 @@ pub struct GasPaymentEnforcer {
 }
 
 impl GasPaymentEnforcer {
-    pub fn new(
-        policy: GasPaymentEnforcementPolicy,
-        db: AbacusDB,
-    ) -> Self {
-        Self {
-            policy,
-            db,
-        }
+    pub fn new(policy: GasPaymentEnforcementPolicy, db: AbacusDB) -> Self {
+        Self { policy, db }
     }
 
+    /// Returns (gas payment requirement met, current payment according to the DB)
     pub fn message_meets_gas_payment_requirement(
         &self,
         msg_leaf_index: u32,
-    ) -> Result<bool, DbError> {
+    ) -> Result<(bool, U256), DbError> {
+        let current_payment = self.get_message_gas_payment(msg_leaf_index)?;
+
         let meets_requirement = match self.policy {
             GasPaymentEnforcementPolicy::None => true,
-            GasPaymentEnforcementPolicy::Minimum(min_payment) => {
-                let payment = self.get_message_gas_payment(msg_leaf_index)?;
-
-                payment >= min_payment
-            }
+            GasPaymentEnforcementPolicy::Minimum {
+                payment: min_payment,
+            } => current_payment >= min_payment,
         };
 
-        Ok(meets_requirement)
+        Ok((meets_requirement, current_payment))
     }
 
-    // TODO: make this public and use it in submitters
     fn get_message_gas_payment(&self, msg_leaf_index: u32) -> Result<U256, DbError> {
         self.db.retrieve_gas_payment_for_leaf(msg_leaf_index)
     }

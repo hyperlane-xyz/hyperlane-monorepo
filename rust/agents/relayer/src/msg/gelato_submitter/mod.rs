@@ -17,8 +17,8 @@ use crate::msg::gelato_submitter::fwd_req_op::{
     ForwardRequestOp, ForwardRequestOpArgs, ForwardRequestOptions,
 };
 
-use super::SubmitMessageArgs;
 use super::gas_payment_enforcer::GasPaymentEnforcer;
+use super::SubmitMessageArgs;
 
 mod fwd_req_op;
 

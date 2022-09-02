@@ -1,6 +1,9 @@
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
-import { ConnectionType } from '../../../src/config/agent';
+import {
+  ConnectionType,
+  GasPaymentEnforcementPolicyType,
+} from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 import { helloworldMatchingList } from '../../utils';
 
@@ -62,6 +65,9 @@ export const abacus: AgentConfig<MainnetChains> = {
     default: {
       signedCheckpointPollingInterval: 5,
       blacklist: releaseCandidateHelloworldMatchingList,
+      gasPaymentEnforcementPolicy: {
+        type: GasPaymentEnforcementPolicyType.None,
+      },
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,
@@ -87,6 +93,9 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
     default: {
       signedCheckpointPollingInterval: 5,
       whitelist: releaseCandidateHelloworldMatchingList,
+      gasPaymentEnforcementPolicy: {
+        type: GasPaymentEnforcementPolicyType.None,
+      },
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],

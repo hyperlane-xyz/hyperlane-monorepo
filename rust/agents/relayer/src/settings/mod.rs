@@ -12,7 +12,7 @@ pub enum GasPaymentEnforcementPolicy {
     /// No requirement - all messages are processed regardless of gas payment
     None,
     /// Messages that have paid a minimum amount will be processed
-    Minimum(U256),
+    Minimum { payment: U256 },
 }
 
 decl_settings!(Relayer {
@@ -21,7 +21,7 @@ decl_settings!(Relayer {
     /// The multisig checkpoint syncer configuration
     multisigcheckpointsyncer: abacus_base::MultisigCheckpointSyncerConf,
     /// The gas payment enforcement policy configuration
-    gaspaymentenforcement: GasPaymentEnforcementPolicy,
+    gaspaymentenforcementpolicy: GasPaymentEnforcementPolicy,
     /// This is optional. If no whitelist is provided ALL messages will be considered on the
     /// whitelist.
     whitelist: Option<String>,

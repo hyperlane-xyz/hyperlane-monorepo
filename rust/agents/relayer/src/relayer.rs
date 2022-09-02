@@ -17,7 +17,7 @@ use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
 use crate::msg::SubmitMessageArgs;
 use crate::settings::matching_list::MatchingList;
-use crate::settings::{RelayerSettings, GasPaymentEnforcementPolicy};
+use crate::settings::{GasPaymentEnforcementPolicy, RelayerSettings};
 use crate::{checkpoint_fetcher::CheckpointFetcher, msg::serial_submitter::SerialSubmitterMetrics};
 
 /// A relayer agent
@@ -71,7 +71,7 @@ impl BaseAgent for Relayer {
                 .unwrap_or(5),
             multisig_checkpoint_syncer,
             core,
-            gas_payment_enforcement_policy: settings.gaspaymentenforcement,
+            gas_payment_enforcement_policy: settings.gaspaymentenforcementpolicy,
             whitelist,
             blacklist,
         })

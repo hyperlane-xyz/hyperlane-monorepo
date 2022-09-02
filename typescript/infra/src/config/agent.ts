@@ -95,10 +95,25 @@ interface MatchingListElement {
   destinationAddress?: '*' | string | string[];
 }
 
+export enum GasPaymentEnforcementPolicyType {
+  None = 'none',
+  Minimum = 'minimum',
+}
+
+export type GasPaymentEnforcementPolicy =
+  | {
+      type: GasPaymentEnforcementPolicyType.None;
+    }
+  | {
+      type: GasPaymentEnforcementPolicyType.Minimum;
+      payment: string | number;
+    };
+
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
   // The polling interval to check for new signed checkpoints in seconds
   signedCheckpointPollingInterval: number;
+  gasPaymentEnforcementPolicy: GasPaymentEnforcementPolicy;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
 }
@@ -419,6 +434,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
         threshold: this.validatorSet.threshold,
         checkpointSyncers,
       },
+      gasPaymentEnforcementPolicy: baseConfig.gasPaymentEnforcementPolicy,
     };
     if (baseConfig.whitelist) {
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
