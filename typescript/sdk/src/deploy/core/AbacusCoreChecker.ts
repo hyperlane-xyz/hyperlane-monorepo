@@ -108,8 +108,12 @@ export class AbacusCoreChecker<
     validatorManager: MultisigValidatorManager,
   ): Promise<void> {
     const config = this.configMap[remote];
+
     const validatorManagerConfig = config.validatorManager;
-    const expectedValidators = validatorManagerConfig.validators;
+    const expectedValidators =
+      local !== remote && config.remove
+        ? []
+        : validatorManagerConfig.validators;
     const actualValidators = await validatorManager.validators();
 
     const expectedSet = new Set<string>(
