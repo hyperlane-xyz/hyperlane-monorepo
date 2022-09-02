@@ -6,10 +6,15 @@ import { ethers } from 'ethers';
 import { ChainConnection, ChainName, chainMetadata } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
-export class SignerMultiSend {
+export abstract class MultiSend {
+  abstract sendTransactions(calls: types.CallData[]): Promise<void>;
+}
+
+export class SignerMultiSend extends MultiSend {
   readonly connection: ChainConnection;
 
   constructor(connection: ChainConnection) {
+    super();
     this.connection = connection;
   }
 
@@ -23,14 +28,21 @@ export class SignerMultiSend {
   }
 }
 
-export class ManualMultiSend {
+export class ManualMultiSend extends MultiSend {
+  readonly chain: ChainName;
+
+  constructor(chain: ChainName) {
+    super();
+    this.chain = chain;
+  }
+
   async sendTransactions(calls: types.CallData[]) {
-    console.log('Please submit the following manually:');
+    console.log(`Please submit the following manually to ${this.chain}:`);
     console.log(calls);
   }
 }
 
-export class SafeMultiSend {
+export class SafeMultiSend extends MultiSend {
   readonly connection: ChainConnection;
   readonly chain: ChainName;
   readonly safeAddress: string;
@@ -40,6 +52,7 @@ export class SafeMultiSend {
     chain: ChainName,
     safeAddress: string,
   ) {
+    super();
     this.connection = connection;
     this.chain = chain;
     this.safeAddress = safeAddress;

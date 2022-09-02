@@ -1,10 +1,11 @@
 import { LedgerSigner } from '@ethersproject/hardware-wallets';
 // Due to TS funkiness, this needs to be imported in order for this
 // code to build, but needs to be removed in order for the code to run.
-// import '@ethersproject/hardware-wallets/thirdparty';
+import '@ethersproject/hardware-wallets/thirdparty';
 import Safe from '@gnosis.pm/safe-core-sdk';
 import EthersAdapter from '@gnosis.pm/safe-ethers-lib';
 import { ethers } from 'ethers';
+import { prompts } from 'prompts';
 
 import {
   AbacusCoreChecker,
@@ -21,7 +22,12 @@ import {
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
-import { ManualMultiSend, SafeMultiSend, SignerMultiSend } from './multisend';
+import {
+  ManualMultiSend,
+  MultiSend,
+  SafeMultiSend,
+  SignerMultiSend,
+} from './multisend';
 
 enum SubmissionType {
   MANUAL = 'MANUAL',
@@ -56,7 +62,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
     for (const chain of Object.keys(this.calls) as Chain[]) {
-      this.signAndSubmitCalls(chain);
+      await this.signAndSubmitCalls(chain);
     }
   }
 
@@ -82,42 +88,54 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
       calls.filter((call) => call.submissionType == submissionType);
     const extractCalls = (calls: AnnotatedCallData[]) =>
       calls.map((c) => c.call);
+
     const summarizeCalls = async (
       submissionType: SubmissionType,
       calls: AnnotatedCallData[],
-    ) => {
+    ): Promise<boolean> => {
       if (calls.length > 0) {
         console.log(
           `> ${calls.length} calls will be submitted via ${submissionType}`,
         );
         calls.map((c) => console.log(`> > ${c.description}`));
-        // prompt here
+        const response = await prompts.confirm({
+          type: 'confirm',
+          name: 'value',
+          message: 'Can you confirm?',
+          initial: false,
+        });
+        return response as unknown as boolean;
+      }
+      return false;
+    };
+
+    const sendCalls = async (
+      submissionType: SubmissionType,
+      multiSend: MultiSend,
+    ) => {
+      const calls = filterCalls(submissionType);
+      if (calls.length > 0) {
+        const confirmed = await summarizeCalls(submissionType, calls);
+        if (confirmed) {
+          console.log(`Submitting calls on ${chain} via ${submissionType}`);
+          await multiSend.sendTransactions(extractCalls(calls));
+        } else {
+          console.log(
+            `Skipping submission of calls on ${chain} via ${submissionType}`,
+          );
+        }
       }
     };
 
     const connection = this.getConnection(chain);
 
-    const signerCalls = filterCalls(SubmissionType.SIGNER);
-    if (signerCalls.length > 0) {
-      const signerMultiSend = new SignerMultiSend(connection);
-      summarizeCalls(SubmissionType.SIGNER, signerCalls);
-      await signerMultiSend.sendTransactions(extractCalls(signerCalls));
-    }
-
-    const safeCalls = filterCalls(SubmissionType.SAFE);
-    if (safeCalls.length > 0) {
-      const owner = this.checker.configMap[chain!].owner!;
-      const safeMultiSend = new SafeMultiSend(connection, chain, owner);
-      summarizeCalls(SubmissionType.SAFE, safeCalls);
-      await safeMultiSend.sendTransactions(extractCalls(safeCalls));
-    }
-
-    const manualCalls = filterCalls(SubmissionType.MANUAL);
-    if (manualCalls.length > 0) {
-      const manualMultiSend = new ManualMultiSend();
-      summarizeCalls(SubmissionType.MANUAL, manualCalls);
-      await manualMultiSend.sendTransactions(extractCalls(manualCalls));
-    }
+    await sendCalls(SubmissionType.SIGNER, new SignerMultiSend(connection));
+    const owner = this.checker.configMap[chain!].owner!;
+    await sendCalls(
+      SubmissionType.SAFE,
+      new SafeMultiSend(connection, chain, owner),
+    );
+    await sendCalls(SubmissionType.MANUAL, new ManualMultiSend(chain));
   }
 
   protected pushCall(chain: Chain, call: AnnotatedCallData) {
