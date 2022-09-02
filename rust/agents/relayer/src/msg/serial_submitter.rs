@@ -239,7 +239,7 @@ impl SerialSubmitter {
         }
 
         // Go ahead and attempt processing of message to destination chain.
-        debug!(msg=?msg, "Ready to process message");
+        debug!(gas_payment=?gas_payment, msg=?msg, "Ready to process message");
         // TODO: consider differentiating types of processing errors, and pushing to the front of the
         // run queue for intermittent types of errors that can occur even if a message's processing isn't
         // reverting, e.g. timeouts or txs being dropped from the mempool. To avoid consistently retrying

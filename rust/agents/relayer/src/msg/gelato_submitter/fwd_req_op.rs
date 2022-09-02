@@ -135,6 +135,7 @@ where
         let fwd_req_result = self.send_forward_request_call().await?;
         tracing::info!(
             msg=?self.0.message,
+            gas_payment=?gas_payment,
             task_id=fwd_req_result.task_id,
             "Sent forward request",
         );
