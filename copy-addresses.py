@@ -28,7 +28,7 @@ def address_url(network, address):
     return url(network + ':' + address[:6] + '...', explorers[network] + '/address/' + address)
 
 def any_table(addresses, key):
-    header_label = h(2, key)
+    header_label = h(3, key)
     headers = ['Network', 'Address', 'Explorer']
     rows = []
     for [network, struct] in addresses.items():
@@ -57,7 +57,7 @@ def inboxes_table(addresses):
 
 def print_environment(env):
     addresses = readJson('typescript/sdk/src/consts/environments/' + env + '.json')
-    print(h(1, env))
+    print(h(2, env))
     print('\n')
     print(any_table(addresses, 'outbox'))
     print('\n')
@@ -68,5 +68,7 @@ def print_environment(env):
     print(any_table(addresses, 'abacusConnectionManager'))
     print('\n')
 
+print('---\ndescription: Abacus core contract addresses\n---\n');
+print(h(1, 'Contract addresses') + '\n');
 print_environment('mainnet')
 print_environment('testnet2')
