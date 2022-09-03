@@ -5,7 +5,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::abi::Token;
+use ethers::abi::AbiEncode;
 use ethers::prelude::*;
 use eyre::Result;
 
@@ -14,9 +14,13 @@ use abacus_core::{
     InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
 };
 
-use crate::contracts::inbox_validator_manager::InboxValidatorManager as EthereumInboxValidatorManagerInternal;
+use crate::contracts::inbox_validator_manager::{
+    InboxValidatorManager as EthereumInboxValidatorManagerInternal, ProcessCall,
+};
 use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
+
+pub use crate::contracts::inbox_validator_manager::INBOXVALIDATORMANAGER_ABI;
 
 impl<M> Display for EthereumInboxValidatorManagerInternal<M>
 where
@@ -125,36 +129,28 @@ where
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
         message: &AbacusMessage,
         proof: &Proof,
-    ) -> Result<Bytes, AbiError> {
-        self.contract.encode(
-            "process",
-            [
-                Token::Address(self.inbox_address),
-                Token::FixedBytes(
-                    multisig_signed_checkpoint
-                        .checkpoint
-                        .root
-                        .to_fixed_bytes()
-                        .into(),
-                ),
-                Token::Uint(multisig_signed_checkpoint.checkpoint.index.into()),
-                Token::Array(
-                    multisig_signed_checkpoint
-                        .signatures
-                        .iter()
-                        .map(|s| Token::Bytes(s.to_vec()))
-                        .collect(),
-                ),
-                Token::Bytes(message.to_vec()),
-                Token::FixedArray(
-                    proof.path[0..32]
-                        .iter()
-                        .map(|e| Token::FixedBytes(e.to_vec()))
-                        .collect(),
-                ),
-                Token::Uint(proof.index.into()),
-            ],
-        )
+    ) -> Vec<u8> {
+        let mut sol_proof: [[u8; 32]; 32] = Default::default();
+        sol_proof
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
+
+        let process_call = ProcessCall {
+            inbox: self.inbox_address,
+            root: multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
+            index: multisig_signed_checkpoint.checkpoint.index.into(),
+            signatures: multisig_signed_checkpoint
+                .signatures
+                .iter()
+                .map(|s| s.to_vec().into())
+                .collect(),
+            message: message.to_vec().into(),
+            proof: sol_proof,
+            leaf_index: proof.index.into(),
+        };
+
+        process_call.encode()
     }
 
     fn contract_address(&self) -> abacus_core::Address {

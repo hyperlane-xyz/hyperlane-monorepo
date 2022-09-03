@@ -93,7 +93,7 @@ impl BaseAgent for Relayer {
             tasks.push(self.run_inbox(
                 inbox_contracts.clone(),
                 signed_checkpoint_receiver.clone(),
-                self.core.settings.inboxes[inbox_name].gelato_conf.as_ref(),
+                self.core.settings.inboxes[inbox_name].gelato.as_ref(),
                 signer,
             ));
         }
@@ -174,7 +174,7 @@ impl Relayer {
         &self,
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
-        gelato_conf: Option<&GelatoConf>,
+        gelato: Option<&GelatoConf>,
         signer: Signers,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.outbox().outbox();
@@ -185,8 +185,8 @@ impl Relayer {
             inbox_contracts.inbox.chain_name(),
         );
         let (msg_send, msg_receive) = mpsc::unbounded_channel();
-        let submit_fut = match gelato_conf {
-            Some(cfg) if cfg.enabled => self
+        let submit_fut = match gelato {
+            Some(cfg) if cfg.enabled.parse::<bool>().unwrap() => self
                 .make_gelato_submitter_for_inbox(msg_receive, inbox_contracts.clone(), signer)
                 .spawn(),
             _ => {

@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use ethers::{prelude::AbiError, types::Bytes};
 use eyre::Result;
 
 use crate::{
@@ -28,7 +27,7 @@ pub trait InboxValidatorManager: Send + Sync + Debug {
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
         message: &AbacusMessage,
         proof: &Proof,
-    ) -> Result<Bytes, AbiError>;
+    ) -> Vec<u8>;
 
     /// The on-chain address of the inbox validator manager contract.
     fn contract_address(&self) -> Address;
