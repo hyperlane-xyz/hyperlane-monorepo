@@ -111,6 +111,11 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     chain: LocalChain,
     config: CoreConfig,
   ): Promise<CoreContracts<Chain, LocalChain>> {
+    if (config.remove) {
+      // skip deploying to chains configured to be removed
+      return undefined as any;
+    }
+
     const dc = this.multiProvider.getChainConnection(chain);
     const provider = dc.provider!;
     const startingBlockNumber = await provider.getBlockNumber();
