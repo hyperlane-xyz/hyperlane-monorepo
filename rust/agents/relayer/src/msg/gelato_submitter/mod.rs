@@ -57,7 +57,6 @@ impl GelatoSubmitter {
         inbox_contracts: InboxContracts,
         abacus_db: AbacusDB,
         gelato_sponsor_signer: Signers,
-        http_client: reqwest::Client,
         metrics: GelatoSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> Self {
@@ -72,7 +71,7 @@ impl GelatoSubmitter {
             db: abacus_db,
             gelato_sponsor_address: gelato_sponsor_signer.address(),
             gelato_sponsor_signer,
-            http_client,
+            http_client: reqwest::Client::new(),
             metrics,
             message_processed_sender,
             message_processed_receiver,

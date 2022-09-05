@@ -170,7 +170,6 @@ impl Relayer {
             inbox_contracts,
             self.outbox().db(),
             signer,
-            reqwest::Client::new(),
             GelatoSubmitterMetrics::new(
                 &self.core.metrics,
                 self.outbox().outbox().chain_name(),
