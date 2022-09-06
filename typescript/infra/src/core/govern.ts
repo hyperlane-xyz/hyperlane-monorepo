@@ -1,6 +1,3 @@
-// Due to TS funkiness, this needs to be imported in order for this
-// code to build, but needs to be removed in order for the code to run.
-// import '@ethersproject/hardware-wallets/thirdparty';
 import { prompts } from 'prompts';
 
 import {
@@ -60,13 +57,13 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
     for (const chain of Object.keys(this.calls) as Chain[]) {
-      await this.signAndSubmitCalls(chain);
+      await this.sendCalls(chain);
     }
   }
 
-  protected async signAndSubmitCalls(chain: Chain) {
+  protected async sendCalls(chain: Chain) {
     const calls = this.calls[chain];
-    console.log(`Found ${calls.length} transactions for ${chain}`);
+    console.log(`\nFound ${calls.length} transactions for ${chain}`);
     const filterCalls = (submissionType: SubmissionType) =>
       calls.filter((call) => call.submissionType == submissionType);
     const summarizeCalls = async (
@@ -89,7 +86,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
       return false;
     };
 
-    const sendCalls = async (
+    const sendCallsForType = async (
       submissionType: SubmissionType,
       multiSend: MultiSend,
     ) => {
@@ -109,13 +106,16 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
 
     const connection = this.checker.multiProvider.getChainConnection(chain);
 
-    await sendCalls(SubmissionType.SIGNER, new SignerMultiSend(connection));
+    await sendCallsForType(
+      SubmissionType.SIGNER,
+      new SignerMultiSend(connection),
+    );
     const owner = this.checker.configMap[chain!].owner!;
-    await sendCalls(
+    await sendCallsForType(
       SubmissionType.SAFE,
       new SafeMultiSend(connection, chain, owner),
     );
-    await sendCalls(SubmissionType.MANUAL, new ManualMultiSend(chain));
+    await sendCallsForType(SubmissionType.MANUAL, new ManualMultiSend(chain));
   }
 
   protected pushCall(chain: Chain, call: AnnotatedCallData) {

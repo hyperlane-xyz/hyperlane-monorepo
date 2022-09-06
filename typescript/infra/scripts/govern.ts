@@ -23,12 +23,8 @@ async function check() {
     config.core,
   );
   await coreChecker.check();
-  // One threshold violation per VM per chain
-  // One validator violation per VM per chain (add zk and zp)
-  await coreChecker.expectViolations(
-    [CoreViolationType.ValidatorManager],
-    [2 * 7 * 7],
-  );
+  // One validator violation per chain (test add validator)
+  coreChecker.expectViolations([CoreViolationType.ValidatorManager], [1 * 7]);
 
   const governor = new AbacusCoreGovernor(coreChecker);
   await governor.govern();
