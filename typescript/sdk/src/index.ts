@@ -98,8 +98,11 @@ export {
   CoreViolationType,
   ValidatorManagerConfig,
   ValidatorManagerViolation,
-  ValidatorViolation,
-  ValidatorViolationType,
+  EnrolledInboxesViolation,
+  AbacusConnectionManagerViolation,
+  AbacusConnectionManagerViolationType,
+  EnrolledValidatorsViolation,
+  ValidatorManagerViolationType,
 } from './deploy/core/types';
 export { AbacusDeployer } from './deploy/AbacusDeployer';
 export { UpgradeBeaconViolation } from './deploy/proxy';
@@ -124,5 +127,4 @@ export {
   mulBigAndFixed,
 } from './utils/number';
 export { objMap, objMapEntries, promiseObjAll, pick } from './utils/objects';
-export { setDifference } from './utils/sets';
 export { delay } from './utils/time';

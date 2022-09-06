@@ -1,26 +1,31 @@
 import { LedgerSigner } from '@ethersproject/hardware-wallets';
 // Due to TS funkiness, this needs to be imported in order for this
 // code to build, but needs to be removed in order for the code to run.
-import '@ethersproject/hardware-wallets/thirdparty';
+// import '@ethersproject/hardware-wallets/thirdparty';
 import Safe from '@gnosis.pm/safe-core-sdk';
 import EthersAdapter from '@gnosis.pm/safe-ethers-lib';
 import { ethers } from 'ethers';
 import { prompts } from 'prompts';
 
 import {
+  AbacusConnectionManagerViolation,
+  AbacusConnectionManagerViolationType,
   AbacusCoreChecker,
   ChainConnection,
   ChainMap,
   ChainName,
+  ChainNameToDomainId,
   CoreViolationType,
+  EnrolledInboxesViolation,
+  EnrolledValidatorsViolation,
   OwnerViolation,
-  ValidatorViolation,
-  ValidatorViolationType,
+  ValidatorManagerViolation,
+  ValidatorManagerViolationType,
   ViolationType,
   chainMetadata,
   objMap,
 } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
+import { types, utils } from '@abacus-network/utils';
 
 import {
   ManualMultiSend,
@@ -35,8 +40,7 @@ enum SubmissionType {
   SAFE = 'SAFE',
 }
 
-type AnnotatedCallData = {
-  call: types.CallData;
+type AnnotatedCallData = types.CallData & {
   submissionType?: SubmissionType;
   description: string;
 };
@@ -86,9 +90,6 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     console.log(`Found ${calls.length} transactions for ${chain}`);
     const filterCalls = (submissionType: SubmissionType) =>
       calls.filter((call) => call.submissionType == submissionType);
-    const extractCalls = (calls: AnnotatedCallData[]) =>
-      calls.map((c) => c.call);
-
     const summarizeCalls = async (
       submissionType: SubmissionType,
       calls: AnnotatedCallData[],
@@ -118,7 +119,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
         const confirmed = await summarizeCalls(submissionType, calls);
         if (confirmed) {
           console.log(`Submitting calls on ${chain} via ${submissionType}`);
-          await multiSend.sendTransactions(extractCalls(calls));
+          await multiSend.sendTransactions(calls);
         } else {
           console.log(
             `Skipping submission of calls on ${chain} via ${submissionType}`,
@@ -145,12 +146,20 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
   protected async mapViolationsToCalls() {
     for (const violation of this.checker.violations) {
       switch (violation.type) {
-        case CoreViolationType.Validator: {
-          await this.handleValidatorViolation(violation as ValidatorViolation);
+        case CoreViolationType.ValidatorManager: {
+          this.handleValidatorManagerViolation(
+            violation as ValidatorManagerViolation,
+          );
           break;
         }
         case ViolationType.Owner: {
-          await this.handleOwnerViolation(violation as OwnerViolation);
+          this.handleOwnerViolation(violation as OwnerViolation);
+          break;
+        }
+        case CoreViolationType.AbacusConnectionManager: {
+          this.handleAbacusConnectionManagerViolation(
+            violation as AbacusConnectionManagerViolation,
+          );
           break;
         }
         default:
@@ -180,7 +189,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
   ): Promise<SubmissionType> {
     // 1. Check if the call will succeed with the default signer.
     try {
-      await connection.estimateGas(call.call);
+      await connection.estimateGas(call);
       return SubmissionType.SIGNER;
     } catch (_) {} // eslint-disable-line no-empty
 
@@ -190,7 +199,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
       const safeAddress = this.checker.configMap[chain!].owner;
       if (!safeAddress) throw new Error(`Safe address not found for ${chain}`);
       await connection.provider.estimateGas({
-        ...call.call,
+        ...call,
         from: safeAddress,
       });
 
@@ -219,57 +228,116 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     return SubmissionType.MANUAL;
   }
 
-  async handleValidatorViolation(violation: ValidatorViolation) {
-    const validatorManager = violation.data.validatorManager;
-    const chain = violation.chain as Chain;
-    switch (violation.data.type) {
-      case ValidatorViolationType.EnrollValidator: {
-        const call = await validatorManager.populateTransaction.enrollValidator(
-          violation.expected,
-        );
-        this.pushCall(chain, {
-          call: call as types.CallData,
-          description: `Enroll ${violation.expected} on ${chain}`,
-        });
-        break;
-      }
-      case ValidatorViolationType.UnenrollValidator: {
-        const call =
-          await validatorManager.populateTransaction.unenrollValidator(
-            violation.actual,
-          );
-        this.pushCall(chain, {
-          call: call as types.CallData,
-          description: `Unenroll ${violation.actual} on ${chain}`,
-        });
-        break;
-      }
-      case ValidatorViolationType.Threshold: {
-        const call = await validatorManager.populateTransaction.setThreshold(
-          violation.expected,
-        );
-        this.pushCall(chain, {
-          call: call as types.CallData,
-          description: `Set threshold to ${violation.expected} on ${chain}`,
+  // pushes calls which reconcile actual and expected sets on chain
+  protected pushSetReconcilationCalls<T>(reconcile: {
+    chain: ChainName;
+    actual: Set<T>;
+    expected: Set<T>;
+    add: (elem: T) => AnnotatedCallData;
+    remove: (elem: T) => AnnotatedCallData;
+  }) {
+    // add expected - actual elements
+    utils
+      .difference(reconcile.expected, reconcile.actual)
+      .forEach((elem) =>
+        this.pushCall(reconcile.chain as Chain, reconcile.add(elem)),
+      );
+
+    // remote actual - expected elements
+    utils
+      .difference(reconcile.actual, reconcile.expected)
+      .forEach((elem) =>
+        this.pushCall(reconcile.chain as Chain, reconcile.remove(elem)),
+      );
+  }
+
+  handleAbacusConnectionManagerViolation(
+    violation: AbacusConnectionManagerViolation,
+  ) {
+    const abacusConnectionManager = violation.contract;
+    switch (violation.abacusConnectionManagerType) {
+      case AbacusConnectionManagerViolationType.EnrolledInboxes: {
+        const typedViolation = violation as EnrolledInboxesViolation;
+        const remoteId = ChainNameToDomainId[typedViolation.remote];
+        this.pushSetReconcilationCalls({
+          ...typedViolation,
+          add: (inbox) => ({
+            to: abacusConnectionManager.address,
+            data: abacusConnectionManager.interface.encodeFunctionData(
+              'enrollInbox',
+              [remoteId, inbox],
+            ),
+            description: `Enroll ${typedViolation.remote} Inbox ${inbox} on ${typedViolation.chain}`,
+          }),
+          remove: (inbox) => ({
+            to: abacusConnectionManager.address,
+            data: abacusConnectionManager.interface.encodeFunctionData(
+              'unenrollInbox',
+              [inbox],
+            ),
+            description: `Unenroll ${typedViolation.remote} Inbox ${inbox} on ${typedViolation.chain}`,
+          }),
         });
         break;
       }
       default:
         throw new Error(
-          `Unsupported validator violation type ${violation.data.type}`,
+          `Unsupported abacus connection manager violation type ${violation.abacusConnectionManagerType}`,
         );
     }
   }
 
-  async handleOwnerViolation(violation: OwnerViolation) {
-    const call =
-      await violation.data.contract.populateTransaction.transferOwnership(
-        violation.expected,
-      );
-    const chain = violation.chain as Chain;
-    this.pushCall(chain, {
-      call: call as types.CallData,
-      description: `Set owner of ${violation.data.contract.address} to ${violation.expected} on ${chain}`,
+  handleValidatorManagerViolation(violation: ValidatorManagerViolation) {
+    const validatorManager = violation.contract;
+    switch (violation.validatorManagerType) {
+      case ValidatorManagerViolationType.EnrolledValidators: {
+        const descriptionBase = `as ${violation.remote} validator on ${violation.chain}`;
+        this.pushSetReconcilationCalls({
+          ...(violation as EnrolledValidatorsViolation),
+          add: (validator) => ({
+            to: validatorManager.address,
+            data: validatorManager.interface.encodeFunctionData(
+              'enrollValidator',
+              [validator],
+            ),
+            description: `Enroll ${validator} ${descriptionBase}`,
+          }),
+          remove: (validator) => ({
+            to: validatorManager.address,
+            data: validatorManager.interface.encodeFunctionData(
+              'unenrollValidator',
+              [validator],
+            ),
+            description: `Unenroll ${validator} ${descriptionBase}`,
+          }),
+        });
+        break;
+      }
+      case ValidatorManagerViolationType.Threshold: {
+        this.pushCall(violation.chain as Chain, {
+          to: validatorManager.address,
+          data: validatorManager.interface.encodeFunctionData('setThreshold', [
+            violation.expected,
+          ]),
+          description: `Set threshold to ${violation.expected} for ${violation.remote} on ${violation.chain}`,
+        });
+        break;
+      }
+      default:
+        throw new Error(
+          `Unsupported validator manager violation type ${violation.validatorManagerType}`,
+        );
+    }
+  }
+
+  handleOwnerViolation(violation: OwnerViolation) {
+    this.pushCall(violation.chain as Chain, {
+      to: violation.contract.address,
+      data: violation.contract.interface.encodeFunctionData(
+        'transferOwnership',
+        [violation.expected],
+      ),
+      description: `Transfer ownership of ${violation.contract.address} to ${violation.expected}`,
     });
   }
 }

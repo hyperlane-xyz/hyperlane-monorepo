@@ -74,9 +74,7 @@ export abstract class AbacusAppChecker<
             type: ViolationType.Owner,
             actual,
             expected: owner,
-            data: {
-              contract,
-            },
+            contract,
           };
           this.addViolation(violation);
         }
