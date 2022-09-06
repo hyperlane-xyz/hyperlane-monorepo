@@ -11,13 +11,13 @@ use tokio::time::{sleep, Duration, Instant};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use crate::msg::gelato_submitter::fwd_req_op::{
-    ForwardRequestOp, ForwardRequestOpArgs, ForwardRequestOptions,
+use crate::msg::gelato_submitter::sponsored_call_op::{
+    SponsoredCallOp, SponsoredCallOpArgs, SponsoredCallOptions,
 };
 
 use super::SubmitMessageArgs;
 
-mod fwd_req_op;
+mod sponsored_call_op;
 
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
@@ -39,9 +39,9 @@ pub(crate) struct GelatoSubmitter {
     http_client: reqwest::Client,
     /// Prometheus metrics.
     metrics: GelatoSubmitterMetrics,
-    /// Channel used by ForwardRequestOps to send that their message has been successfully processed.
+    /// Channel used by SponsoredCallOps to send that their message has been successfully processed.
     message_processed_sender: UnboundedSender<SubmitMessageArgs>,
-    /// Channel to receive from ForwardRequestOps that a message has been successfully processed.
+    /// Channel to receive from SponsoredCallOps that a message has been successfully processed.
     message_processed_receiver: UnboundedReceiver<SubmitMessageArgs>,
 }
 
@@ -103,11 +103,11 @@ impl GelatoSubmitter {
             }
         }
 
-        // Spawn a ForwardRequestOp for each received message.
+        // Spawn a SponsoredCallOp for each received message.
         for msg in received_messages.into_iter() {
             tracing::info!(msg=?msg, "Spawning forward request op for message");
-            let mut op = ForwardRequestOp::new(ForwardRequestOpArgs {
-                opts: ForwardRequestOptions::default(),
+            let mut op = SponsoredCallOp::new(SponsoredCallOpArgs {
+                opts: SponsoredCallOptions::default(),
                 http: self.http_client.clone(),
                 message: msg,
                 inbox_contracts: self.inbox_contracts.clone(),
@@ -122,7 +122,7 @@ impl GelatoSubmitter {
             tokio::spawn(async move { op.run().await });
         }
 
-        // Pull any messages that have been successfully processed by ForwardRequestOps
+        // Pull any messages that have been successfully processed by SponsoredCallOps
         loop {
             match self.message_processed_receiver.try_recv() {
                 Ok(msg) => {

@@ -9,7 +9,7 @@ use tracing::instrument;
 pub const NATIVE_FEE_TOKEN_ADDRESS: ethers::types::Address = Address::repeat_byte(0xEE);
 
 #[derive(Debug, Clone)]
-pub struct ForwardRequestArgs {
+pub struct SponsoredCallArgs {
     pub chain_id: Chain,
     pub target: Address,
     pub data: Bytes,
@@ -17,20 +17,20 @@ pub struct ForwardRequestArgs {
 }
 
 #[derive(Debug, Clone)]
-pub struct ForwardRequestCall {
+pub struct SponsoredCallCall {
     pub http: reqwest::Client,
-    pub args: ForwardRequestArgs,
+    pub args: SponsoredCallArgs,
     pub sponsor_api_key: String,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct ForwardRequestCallResult {
+pub struct SponsoredCallCallResult {
     pub task_id: String,
 }
 
-impl ForwardRequestCall {
+impl SponsoredCallCall {
     #[instrument]
-    pub async fn run(self) -> Result<ForwardRequestCallResult, GelatoError> {
+    pub async fn run(self) -> Result<SponsoredCallCallResult, GelatoError> {
         let url = format!("{}/relays/v2/sponsored-call", RELAY_URL,);
         let http_args = HTTPArgs {
             args: self.args.clone(),
@@ -38,13 +38,13 @@ impl ForwardRequestCall {
         };
         let res = self.http.post(url).json(&http_args).send().await?;
         let result: HTTPResult = res.json().await?;
-        Ok(ForwardRequestCallResult::from(result))
+        Ok(SponsoredCallCallResult::from(result))
     }
 }
 
 #[derive(Debug)]
 struct HTTPArgs {
-    args: ForwardRequestArgs,
+    args: SponsoredCallArgs,
     sponsor_api_key: String,
 }
 
@@ -60,7 +60,7 @@ struct HTTPResult {
 // fields with inline modifications below.
 //
 // In total, we have to make the following logical changes from the default serde serialization:
-//     *  add a new top-level dict field 'typeId', with const literal value 'ForwardRequest'.
+//     *  add a new top-level dict field 'typeId', with const literal value 'SponsoredCall'.
 //     *  hoist the two struct members (`args` and `signature`) up to the top-level dict (equiv. to
 //        `#[serde(flatten)]`).
 //     *  make sure the integers for the fields `gas` and `maxfee` are enclosed within quotes,
@@ -73,8 +73,8 @@ impl Serialize for HTTPArgs {
     where
         S: Serializer,
     {
-        let mut state = serializer.serialize_struct("ForwardRequestHTTPArgs", 14)?;
-        state.serialize_field("typeId", "ForwardRequest")?;
+        let mut state = serializer.serialize_struct("SponsoredCallHTTPArgs", 14)?;
+        state.serialize_field("typeId", "SponsoredCall")?;
         state.serialize_field("chainId", &(u32::from(self.args.chain_id)))?;
         state.serialize_field("target", &self.args.target)?;
         state.serialize_field("data", &self.args.data)?;
@@ -86,9 +86,9 @@ impl Serialize for HTTPArgs {
     }
 }
 
-impl From<HTTPResult> for ForwardRequestCallResult {
-    fn from(http: HTTPResult) -> ForwardRequestCallResult {
-        ForwardRequestCallResult {
+impl From<HTTPResult> for SponsoredCallCallResult {
+    fn from(http: HTTPResult) -> SponsoredCallCallResult {
+        SponsoredCallCallResult {
             task_id: http.task_id,
         }
     }

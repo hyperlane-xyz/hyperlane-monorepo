@@ -6,7 +6,7 @@ use ethers::{signers::Signer, types::H160};
 use eyre::Result;
 use gelato::{
     chains::Chain,
-    fwd_req_call::{ForwardRequestArgs, ForwardRequestCall, ForwardRequestCallResult},
+    sponsored_call::{SponsoredCallArgs, SponsoredCallCall, SponsoredCallCallResult},
     task_status_call::{TaskState, TaskStatusCall, TaskStatusCallArgs},
 };
 use tokio::{
@@ -20,8 +20,8 @@ use crate::msg::SubmitMessageArgs;
 const SPONSOR_API_KEY: &str = "foobar";
 
 #[derive(Debug, Clone)]
-pub struct ForwardRequestOpArgs<S> {
-    pub opts: ForwardRequestOptions,
+pub struct SponsoredCallOpArgs<S> {
+    pub opts: SponsoredCallOptions,
     pub http: reqwest::Client,
 
     pub message: SubmitMessageArgs,
@@ -37,22 +37,22 @@ pub struct ForwardRequestOpArgs<S> {
 }
 
 #[derive(Debug, Clone)]
-pub struct ForwardRequestOp<S>(ForwardRequestOpArgs<S>);
+pub struct SponsoredCallOp<S>(SponsoredCallOpArgs<S>);
 
-impl<S> Deref for ForwardRequestOp<S> {
-    type Target = ForwardRequestOpArgs<S>;
+impl<S> Deref for SponsoredCallOp<S> {
+    type Target = SponsoredCallOpArgs<S>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<S> ForwardRequestOp<S>
+impl<S> SponsoredCallOp<S>
 where
     S: Signer,
     S::Error: 'static,
 {
-    pub fn new(args: ForwardRequestOpArgs<S>) -> Self {
+    pub fn new(args: SponsoredCallOpArgs<S>) -> Self {
         Self(args)
     }
 
@@ -132,7 +132,7 @@ where
                 return Ok(MessageStatus::Processed);
             }
 
-            // Get the status of the ForwardRequest task from Gelato for debugging.
+            // Get the status of the SponsoredCall task from Gelato for debugging.
             // If the task was cancelled for some reason by Gelato, stop waiting.
 
             let task_status_call = TaskStatusCall {
@@ -162,11 +162,11 @@ where
     // Once gas payments are enforced, we will likely fetch the gas payment from
     // the DB here. This is why forward request args are created and signed for each
     // forward request call.
-    async fn send_forward_request_call(&self) -> Result<ForwardRequestCallResult> {
+    async fn send_forward_request_call(&self) -> Result<SponsoredCallCallResult> {
         let args = self.create_forward_request_args();
         // let signature = self.0.sponsor_signer.sign_typed_data(&args).await?;
 
-        let fwd_req_call = ForwardRequestCall {
+        let fwd_req_call = SponsoredCallCall {
             args,
             http: self.0.http.clone(),
             sponsor_api_key: SPONSOR_API_KEY.into(),
@@ -175,13 +175,13 @@ where
         Ok(fwd_req_call.run().await?)
     }
 
-    fn create_forward_request_args(&self) -> ForwardRequestArgs {
+    fn create_forward_request_args(&self) -> SponsoredCallArgs {
         let calldata = self.0.inbox_contracts.validator_manager.process_calldata(
             &self.0.message.checkpoint,
             &self.0.message.committed_message.message,
             &self.0.message.proof,
         );
-        ForwardRequestArgs {
+        SponsoredCallArgs {
             chain_id: self.0.destination_chain,
             target: self
                 .inbox_contracts
@@ -208,12 +208,12 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct ForwardRequestOptions {
+pub struct SponsoredCallOptions {
     pub poll_interval: Duration,
     pub retry_submit_interval: Duration,
 }
 
-impl Default for ForwardRequestOptions {
+impl Default for SponsoredCallOptions {
     fn default() -> Self {
         Self {
             poll_interval: Duration::from_secs(60),
