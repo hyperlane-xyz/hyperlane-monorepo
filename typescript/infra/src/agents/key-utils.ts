@@ -5,7 +5,7 @@ import { AgentConfig } from '../config';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd } from '../utils/utils';
 
-import { AgentKey, ReadOnlyAgentKey } from './agent';
+import { AgentKey } from './agent';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { KEY_ROLE_ENUM } from './roles';
@@ -15,21 +15,14 @@ interface KeyAsAddress {
   address: string;
 }
 
-export function getReadonlyKey(
-  identifier: string,
-  address: string,
-): ReadOnlyAgentKey {
-  return ReadOnlyAgentKey.fromSerializedAddress(identifier, address);
-}
-
 export function getKey<Chain extends ChainName>(
   agentConfig: AgentConfig<Chain>,
   role: KEY_ROLE_ENUM,
   chainName?: Chain,
   index?: number,
 ): AgentKey {
+  // The deployer is always GCP-based
   if (agentConfig.aws && role !== KEY_ROLE_ENUM.Deployer) {
-    // The deployer is always GCP-based
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
     return new AgentGCPKey(
@@ -47,17 +40,10 @@ export function getValidatorKeys(
 ): Array<AgentKey> {
   // For each chainName, create validatorCount keys
   return agentConfig.contextChainNames.flatMap((chainName) =>
-    agentConfig.validatorSets[chainName].validators.map((validator, index) => {
-      if (validator.readonly) {
-        if (validator.identifier) {
-          return getReadonlyKey(validator.identifier, validator.address);
-        } else {
-          throw new Error('Readonly validator keys must specify an identifier');
-        }
-      } else {
-        return getKey(agentConfig, KEY_ROLE_ENUM.Validator, chainName, index);
-      }
-    }),
+    [...Array(agentConfig.validatorSets[chainName].validators.length)].map(
+      (_, index) =>
+        getKey(agentConfig, KEY_ROLE_ENUM.Validator, chainName, index),
+    ),
   );
 }
 
