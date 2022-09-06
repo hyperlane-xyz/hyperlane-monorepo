@@ -1,17 +1,12 @@
-import { LedgerSigner } from '@ethersproject/hardware-wallets';
 // Due to TS funkiness, this needs to be imported in order for this
 // code to build, but needs to be removed in order for the code to run.
 // import '@ethersproject/hardware-wallets/thirdparty';
-import Safe from '@gnosis.pm/safe-core-sdk';
-import EthersAdapter from '@gnosis.pm/safe-ethers-lib';
-import { ethers } from 'ethers';
 import { prompts } from 'prompts';
 
 import {
   AbacusConnectionManagerViolation,
   AbacusConnectionManagerViolationType,
   AbacusCoreChecker,
-  ChainConnection,
   ChainMap,
   ChainName,
   ChainNameToDomainId,
@@ -22,10 +17,11 @@ import {
   ValidatorManagerViolation,
   ValidatorManagerViolationType,
   ViolationType,
-  chainMetadata,
   objMap,
 } from '@abacus-network/sdk';
 import { types, utils } from '@abacus-network/utils';
+
+import { canProposeSafeTransactions } from '../utils/safe';
 
 import {
   ManualMultiSend,
@@ -48,12 +44,10 @@ type AnnotatedCallData = types.CallData & {
 export class AbacusCoreGovernor<Chain extends ChainName> {
   readonly checker: AbacusCoreChecker<Chain>;
   private calls: ChainMap<Chain, AnnotatedCallData[]>;
-  readonly ledger: boolean;
 
-  constructor(checker: AbacusCoreChecker<Chain>, ledger = false) {
+  constructor(checker: AbacusCoreChecker<Chain>) {
     this.checker = checker;
     this.calls = objMap(this.checker.app.contractsMap, () => []);
-    this.ledger = ledger;
   }
 
   async govern() {
@@ -67,21 +61,6 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     // and submission methods look correct before submitting.
     for (const chain of Object.keys(this.calls) as Chain[]) {
       await this.signAndSubmitCalls(chain);
-    }
-  }
-
-  protected getConnection(chain: Chain) {
-    const connection = this.checker.multiProvider.getChainConnection(chain);
-    if (this.ledger) {
-      const path = "m/44'/60'/2'/0/0";
-      return new ChainConnection({
-        signer: new LedgerSigner(connection.provider, 'hid', path),
-        provider: connection.provider,
-        overrides: connection.overrides,
-        confirmations: connection.confirmations,
-      });
-    } else {
-      return connection;
     }
   }
 
@@ -128,7 +107,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
       }
     };
 
-    const connection = this.getConnection(chain);
+    const connection = this.checker.multiProvider.getChainConnection(chain);
 
     await sendCalls(SubmissionType.SIGNER, new SignerMultiSend(connection));
     const owner = this.checker.configMap[chain!].owner!;
@@ -170,13 +149,8 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
 
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls) as Chain[]) {
-      const connection = this.getConnection(chain);
       for (const call of this.calls[chain]) {
-        const submissionType = await this.inferCallSubmissionType(
-          chain,
-          connection,
-          call,
-        );
+        const submissionType = await this.inferCallSubmissionType(chain, call);
         call.submissionType = submissionType;
       }
     }
@@ -184,9 +158,9 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
 
   protected async inferCallSubmissionType(
     chain: Chain,
-    connection: ChainConnection,
     call: AnnotatedCallData,
   ): Promise<SubmissionType> {
+    const connection = this.checker.multiProvider.getChainConnection(chain);
     // 1. Check if the call will succeed with the default signer.
     try {
       await connection.estimateGas(call);
@@ -195,7 +169,8 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
 
     try {
       // 2. Check if the call will succeed via Gnosis Safe.
-      // 2a. Estimate gas as the owner, which we infer to be a Safe.
+
+      // 2a. Check if calling from the owner will succeed.
       const safeAddress = this.checker.configMap[chain!].owner;
       if (!safeAddress) throw new Error(`Safe address not found for ${chain}`);
       await connection.provider.estimateGas({
@@ -203,25 +178,22 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
         from: safeAddress,
       });
 
-      // 2b. Confirm that the signer is a Safe owner.
+      // 2b. Confirm that the signer is a Safe owner or delegate.
+      // This should implicitly check whether or not the owner is a gnosis
+      // safe.
       const signer = connection.signer;
       if (!signer) throw new Error(`no signer found`);
       const signerAddress = await signer.getAddress();
-      const ethAdapter = new EthersAdapter({ ethers, signer });
-      const safe = await Safe.create({ ethAdapter, safeAddress });
-      const owners = await safe.getOwners();
-      if (!owners.includes(signerAddress)) {
+      const proposer = await canProposeSafeTransactions(
+        signerAddress,
+        chain,
+        connection,
+        safeAddress,
+      );
+      if (!proposer)
         throw new Error(
-          `${signerAddress} is not an owner for Safe ${safeAddress}`,
+          `${signerAddress} is not an owner or delegate for Safe ${safeAddress}`,
         );
-      }
-
-      // 2c. Confirm that we have a corresponding transaction service URL
-      const txServiceUrl = chainMetadata[chain].gnosisSafeTransactionServiceUrl;
-      if (!txServiceUrl) {
-        throw new Error(`No Safe tx service for ${chain}`);
-      }
-
       return SubmissionType.SAFE;
     } catch (_) {} // eslint-disable-line no-empty
 
@@ -259,6 +231,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
       case AbacusConnectionManagerViolationType.EnrolledInboxes: {
         const typedViolation = violation as EnrolledInboxesViolation;
         const remoteId = ChainNameToDomainId[typedViolation.remote];
+        const baseDescription = `as ${typedViolation.remote} Inbox on ${typedViolation.chain}`;
         this.pushSetReconcilationCalls({
           ...typedViolation,
           add: (inbox) => ({
@@ -267,7 +240,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
               'enrollInbox',
               [remoteId, inbox],
             ),
-            description: `Enroll ${typedViolation.remote} Inbox ${inbox} on ${typedViolation.chain}`,
+            description: `Enroll ${inbox} ${baseDescription}`,
           }),
           remove: (inbox) => ({
             to: abacusConnectionManager.address,
@@ -275,7 +248,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
               'unenrollInbox',
               [inbox],
             ),
-            description: `Unenroll ${typedViolation.remote} Inbox ${inbox} on ${typedViolation.chain}`,
+            description: `Unenroll ${inbox} ${baseDescription}`,
           }),
         });
         break;
@@ -291,7 +264,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     const validatorManager = violation.contract;
     switch (violation.validatorManagerType) {
       case ValidatorManagerViolationType.EnrolledValidators: {
-        const descriptionBase = `as ${violation.remote} validator on ${violation.chain}`;
+        const baseDescription = `as ${violation.remote} validator on ${violation.chain}`;
         this.pushSetReconcilationCalls({
           ...(violation as EnrolledValidatorsViolation),
           add: (validator) => ({
@@ -300,7 +273,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
               'enrollValidator',
               [validator],
             ),
-            description: `Enroll ${validator} ${descriptionBase}`,
+            description: `Enroll ${validator} ${baseDescription}`,
           }),
           remove: (validator) => ({
             to: validatorManager.address,
@@ -308,7 +281,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
               'unenrollValidator',
               [validator],
             ),
-            description: `Unenroll ${validator} ${descriptionBase}`,
+            description: `Unenroll ${validator} ${baseDescription}`,
           }),
         });
         break;

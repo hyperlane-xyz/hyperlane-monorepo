@@ -1,10 +1,7 @@
-import Safe from '@gnosis.pm/safe-core-sdk';
-import EthersAdapter from '@gnosis.pm/safe-ethers-lib';
-import SafeServiceClient from '@gnosis.pm/safe-service-client';
-import { ethers } from 'ethers';
-
-import { ChainConnection, ChainName, chainMetadata } from '@abacus-network/sdk';
+import { ChainConnection, ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
+
+import { getSafe, getSafeService } from '../utils/safe';
 
 export abstract class MultiSend {
   abstract sendTransactions(calls: types.CallData[]): Promise<void>;
@@ -57,29 +54,20 @@ export class SafeMultiSend extends MultiSend {
   }
 
   async sendTransactions(calls: types.CallData[]) {
-    const signer = this.connection.signer;
-    if (!signer) throw new Error(`no signer found for ${this.chain}`);
-    const ethAdapter = new EthersAdapter({ ethers, signer });
-    const txServiceUrl =
-      chainMetadata[this.chain].gnosisSafeTransactionServiceUrl;
-    if (!txServiceUrl)
-      throw new Error(`must provide tx service url for ${this.chain}`);
-    const safeService = new SafeServiceClient({ txServiceUrl, ethAdapter });
-    const safeSdk = await Safe.create({
-      ethAdapter,
-      safeAddress: this.safeAddress,
-    });
+    const safeSdk = await getSafe(this.connection, this.safeAddress);
     const transactions = calls.map((call) => {
       return { to: call.to, data: call.data.toString(), value: '0' };
     });
     const safeTransaction = await safeSdk.createTransaction(transactions);
     const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
     const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
+
+    const safeService = getSafeService(this.chain, this.connection);
     await safeService.proposeTransaction({
       safeAddress: this.safeAddress,
       safeTransactionData: safeTransaction.data,
       safeTxHash,
-      senderAddress: await signer!.getAddress(),
+      senderAddress: await this.connection.signer?.getAddress()!,
       senderSignature: senderSignature.data,
     });
   }

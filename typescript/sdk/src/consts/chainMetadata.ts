@@ -33,6 +33,8 @@ export interface RpcPagination {
 export const celo: ChainMetadata = {
   id: 0x63656c6f, // b'celo' interpreted as an int
   finalityBlocks: 0,
+  gnosisSafeTransactionServiceUrl:
+    'https://transaction-service.gnosis-safe-staging.celo-networks-dev.org',
 };
 
 export const ethereum: ChainMetadata = {
