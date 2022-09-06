@@ -2,18 +2,12 @@ use std::{ops::Deref, sync::Arc, time::Duration};
 
 use abacus_base::InboxContracts;
 use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
-use ethers::{
-    signers::Signer,
-    types::{H160, U256},
-};
+use ethers::{signers::Signer, types::H160};
 use eyre::Result;
 use gelato::{
     chains::Chain,
-    fwd_req_call::{
-        ForwardRequestArgs, ForwardRequestCall, ForwardRequestCallResult, PaymentType,
-        NATIVE_FEE_TOKEN_ADDRESS,
-    },
-    task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs},
+    fwd_req_call::{ForwardRequestArgs, ForwardRequestCall, ForwardRequestCallResult},
+    task_status_call::{TaskState, TaskStatusCall, TaskStatusCallArgs},
 };
 use tokio::{
     sync::mpsc::UnboundedSender,
@@ -23,18 +17,7 @@ use tracing::instrument;
 
 use crate::msg::SubmitMessageArgs;
 
-/// The max fee to use for Gelato ForwardRequests.
-/// Gelato isn't charging fees on testnet. For now, use this hardcoded value
-/// of 1e18, or 1.0 ether.
-/// TODO: revisit before running on mainnet and when we consider interchain
-/// gas payments.
-const DEFAULT_MAX_FEE: u64 = 10u64.pow(18);
-
-/// The default gas limit to use for Gelato ForwardRequests, arbitrarily chose
-/// to be 5M.
-/// TODO: once Gelato fully deploys their new version, simply omit the gas
-/// limit so that Gelato does the estimation for us.
-const DEFAULT_GAS_LIMIT: u64 = 5000000;
+const SPONSOR_API_KEY: &str = "foobar";
 
 #[derive(Debug, Clone)]
 pub struct ForwardRequestOpArgs<S> {
@@ -152,32 +135,26 @@ where
             // Get the status of the ForwardRequest task from Gelato for debugging.
             // If the task was cancelled for some reason by Gelato, stop waiting.
 
-            let status_call = TaskStatusCall {
+            let task_status_call = TaskStatusCall {
                 http: Arc::new(self.0.http.clone()),
                 args: TaskStatusCallArgs {
                     task_id: task_id.clone(),
                 },
             };
-            let status_result = status_call.run().await?;
+            let task_status_result = task_status_call.run().await?;
+            let task_state = task_status_result.task_state();
 
-            if let [tx_status] = &status_result.data[..] {
-                tracing::info!(
-                    task_id=task_id,
-                    tx_status=?tx_status,
-                    "Polled forward request status",
-                );
+            tracing::info!(
+                task_id=task_id,
+                task_state=?task_state,
+                task_status_result=?task_status_result,
+                "Polled forward request status",
+            );
 
-                // The only terminal state status is if the task was cancelled, which happens after
-                // Gelato has known about the task for ~20 minutes and could not execute it.
-                if let TaskStatus::Cancelled = tx_status.task_state {
-                    return Ok(MessageStatus::None);
-                }
-            } else {
-                tracing::warn!(
-                    task_id=task_id,
-                    status_result_data=?status_result.data,
-                    "Unexpected forward request status data",
-                );
+            // The only terminal state status is if the task was cancelled, which happens after
+            // Gelato has known about the task for ~20 minutes and could not execute it.
+            if let TaskState::Cancelled = task_state {
+                return Ok(MessageStatus::None);
             }
         }
     }
@@ -187,12 +164,12 @@ where
     // forward request call.
     async fn send_forward_request_call(&self) -> Result<ForwardRequestCallResult> {
         let args = self.create_forward_request_args();
-        let signature = self.0.sponsor_signer.sign_typed_data(&args).await?;
+        // let signature = self.0.sponsor_signer.sign_typed_data(&args).await?;
 
         let fwd_req_call = ForwardRequestCall {
             args,
             http: self.0.http.clone(),
-            signature,
+            sponsor_api_key: SPONSOR_API_KEY.into(),
         };
 
         Ok(fwd_req_call.run().await?)
@@ -212,19 +189,7 @@ where
                 .contract_address()
                 .into(),
             data: calldata.into(),
-            fee_token: NATIVE_FEE_TOKEN_ADDRESS,
-            payment_type: PaymentType::AsyncGasTank,
-            max_fee: DEFAULT_MAX_FEE.into(),
-            gas: DEFAULT_GAS_LIMIT.into(),
-            // At the moment, there's a bug with Gelato where environments that don't charge
-            // fees (i.e. testnet) require the sponsor chain ID to be the same as the chain
-            // in which the tx will be sent to.
-            // This will be fixed in an upcoming release they're doing.
-            sponsor_chain_id: self.0.destination_chain,
-            nonce: U256::zero(),
-            enforce_sponsor_nonce: false,
-            enforce_sponsor_nonce_ordering: false,
-            sponsor: self.0.sponsor_address,
+            gas_limit: None,
         }
     }
 
