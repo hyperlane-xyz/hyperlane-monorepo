@@ -50,7 +50,7 @@ export class S3Validator extends BaseValidator {
     this.s3Bucket = new S3Wrapper(s3Bucket);
   }
 
-  async compare(other: S3Validator, count = 20): Promise<CheckpointMetric[]> {
+  async compare(other: S3Validator): Promise<CheckpointMetric[]> {
     const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
       LATEST_KEY,
     );
@@ -84,9 +84,7 @@ export class S3Validator extends BaseValidator {
       };
     }
 
-    const stop = Math.max(maxIndex - count, 0);
-
-    for (; checkpointIndex > stop; checkpointIndex--) {
+    for (; checkpointIndex > 0; checkpointIndex--) {
       const expected = await other.getCheckpointReceipt(checkpointIndex);
       const actual = await this.getCheckpointReceipt(checkpointIndex);
 
@@ -120,7 +118,7 @@ export class S3Validator extends BaseValidator {
       checkpointMetrics[checkpointIndex] = metric;
     }
 
-    return checkpointMetrics.slice(-1 * count);
+    return checkpointMetrics;
   }
 
   private async getCheckpointReceipt(
