@@ -1,5 +1,6 @@
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
+import { ConnectionType } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 import {
   MATCHING_LIST_ALL_WILDCARDS,
@@ -30,6 +31,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   validatorSets: validators,
+  connectionType: ConnectionType.Http,
   validator: {
     default: {
       interval: 5,
@@ -84,6 +86,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: ['alfajores', 'kovan'],
   validatorSets: validators,
+  connectionType: ConnectionType.Http,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
@@ -102,14 +105,19 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-33b82dc',
+    tag: 'sha-2d9f729',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
+  gelato: {
+    enabledChains: ['alfajores', 'mumbai', 'kovan'],
+    useForDisabledOriginChains: true,
+  },
   validatorSets: validators,
+  connectionType: ConnectionType.Http,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,

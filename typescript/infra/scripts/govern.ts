@@ -11,6 +11,7 @@ import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 async function check() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
+
   const multiProvider = await config.getMultiProvider();
 
   // environments union doesn't work well with typescript
@@ -23,11 +24,15 @@ async function check() {
   );
   await coreChecker.check();
   // 16 ownable contracts per chain.
-  await coreChecker.expectViolations([ViolationType.Owner], [7 * 16]);
+  coreChecker.expectViolations([ViolationType.Owner], [3 * 16]);
 
   const governor = new AbacusCoreGovernor(coreChecker);
+
   await governor.govern();
-  governor.logCalls();
+
+  await governor.logCalls();
+  // await governor.estimateCallsLedger();
+  // await governor.sendCallsLedger();
 }
 
 check().then(console.log).catch(console.error);

@@ -1,5 +1,6 @@
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
+import { ConnectionType } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 import { helloworldMatchingList } from '../../utils';
 
@@ -27,6 +28,7 @@ export const abacus: AgentConfig<MainnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   validatorSets: validators,
+  connectionType: ConnectionType.Http,
   validator: {
     default: {
       interval: 5,
@@ -81,6 +83,7 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   validatorSets: validators,
+  connectionType: ConnectionType.Http,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,

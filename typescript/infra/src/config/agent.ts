@@ -178,12 +178,27 @@ export interface DockerConfig {
   tag: string;
 }
 
+export interface GelatoConfig<Chain extends ChainName> {
+  // List of chains in which using Gelato is enabled for
+  enabledChains: Chain[];
+  // If true, Gelato will still be used for messages whose
+  // origin chain is *not* supported by Gelato. If false,
+  // Gelato will not be used for any messages from a disabled
+  // origin chain, even if the destination chain is enabled.
+  // Because Gelato doesn't charge on testnets, this is likely
+  // to be true for testnet environments where the chain in which gas
+  // is paid on (the origin) doesn't need to be supported by Gelato.
+  useForDisabledOriginChains: boolean;
+}
+
 export interface AgentConfig<Chain extends ChainName> {
   environment: string;
   namespace: string;
   runEnv: string;
   context: Contexts;
   docker: DockerConfig;
+  quorumProvider?: boolean;
+  connectionType: ConnectionType;
   index?: IndexingConfig;
   aws?: AwsConfig;
   // Names of all chains in the environment
@@ -191,6 +206,7 @@ export interface AgentConfig<Chain extends ChainName> {
   // Names of chains this context cares about
   contextChainNames: Chain[];
   validatorSets: ChainValidatorSets<Chain>;
+  gelato?: GelatoConfig<Chain>;
   validator?: ChainValidatorConfigs<Chain>;
   relayer?: ChainRelayerConfigs<Chain>;
   // Roles to manage keys for
@@ -202,13 +218,19 @@ export type RustSigner = {
   type: string; // TODO
 };
 
+export enum ConnectionType {
+  Http = 'http',
+  Ws = 'ws',
+  HttpQuorum = 'httpQuorum',
+}
+
 export type RustConnection =
   | {
-      type: 'http';
+      type: ConnectionType.Http;
       url: string;
     }
-  | { type: 'ws'; url: string }
-  | { type: 'httpQuorum'; urls: string };
+  | { type: ConnectionType.Ws; url: string }
+  | { type: ConnectionType.HttpQuorum; urls: string };
 
 export type RustContractBlock<T> = {
   addresses: T;

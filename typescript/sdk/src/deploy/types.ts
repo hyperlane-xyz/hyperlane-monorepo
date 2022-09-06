@@ -1,5 +1,7 @@
 import { Contract } from 'ethers';
 
+import { Ownable } from '@abacus-network/core';
+
 import type { ChainMap, ChainName, IChainConnection } from '../types';
 
 export interface CheckerViolation {
@@ -7,7 +9,7 @@ export interface CheckerViolation {
   type: string;
   expected: any;
   actual: any;
-  data?: any;
+  contract?: Contract;
 }
 
 export type EnvironmentConfig<Chain extends ChainName> = ChainMap<
@@ -21,7 +23,5 @@ export enum ViolationType {
 
 export interface OwnerViolation extends CheckerViolation {
   type: ViolationType.Owner;
-  data: {
-    contract: Contract;
-  };
+  contract: Ownable;
 }
