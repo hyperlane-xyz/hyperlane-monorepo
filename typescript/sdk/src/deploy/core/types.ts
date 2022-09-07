@@ -53,6 +53,7 @@ export interface ValidatorManagerViolation extends CheckerViolation {
   type: CoreViolationType.ValidatorManager;
   contract: MultisigValidatorManager;
   validatorManagerType: ValidatorManagerViolationType;
+  remote: ChainName;
 }
 
 export interface EnrolledValidatorsViolation extends ValidatorManagerViolation {
