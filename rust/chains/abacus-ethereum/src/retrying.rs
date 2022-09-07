@@ -199,8 +199,11 @@ impl JsonRpcClient for RetryingProvider<Http> {
 }
 
 #[async_trait]
-impl JsonRpcClient for RetryingProvider<QuorumProvider<Http>> {
-    type Error = RetryingProviderError<QuorumProvider<Http>>;
+impl<C> JsonRpcClient for RetryingProvider<QuorumProvider<C>>
+where
+    C: JsonRpcClient + 'static,
+{
+    type Error = RetryingProviderError<QuorumProvider<C>>;
 
     #[instrument(level = "error", skip_all, fields(method = %method))]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>

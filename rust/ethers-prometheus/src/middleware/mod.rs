@@ -23,6 +23,7 @@ pub use error::PrometheusMiddlewareError;
 
 use crate::contracts::erc_20::Erc20;
 use crate::u256_as_scaled_f64;
+pub use crate::ChainInfo;
 
 mod error;
 
@@ -69,16 +70,6 @@ pub struct ContractInfo {
     pub name: Option<String>,
     /// Mapping from function selectors to human readable names.
     pub functions: HashMap<Selector, String>,
-}
-
-/// Some basic information about a chain.
-#[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
-pub struct ChainInfo {
-    /// A human-friendly name for the chain. This should be a short string like
-    /// "kovan".
-    pub name: Option<String>,
 }
 
 /// Expected label names for the `block_height` metric.

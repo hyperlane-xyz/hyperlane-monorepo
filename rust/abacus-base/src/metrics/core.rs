@@ -12,8 +12,10 @@ use prometheus::{
 };
 use tokio::task::JoinHandle;
 
+use ethers_prometheus::json_rpc_client::JsonRpcClientMetrics;
 use ethers_prometheus::middleware::MiddlewareMetrics;
 
+use crate::metrics::json_rpc_client::create_json_rpc_client_metrics;
 use crate::metrics::provider::create_provider_metrics;
 
 use super::NAMESPACE;
@@ -50,6 +52,10 @@ pub struct CoreMetrics {
 
     outbox_state: IntGaugeVec,
     latest_checkpoint: IntGaugeVec,
+
+    /// Set of metrics that tightly wrap the JsonRpcClient for use with the
+    /// quorum provider.
+    json_rpc_client_metrics: OnceCell<JsonRpcClientMetrics>,
 
     /// Set of provider-specific metrics. These only need to get created once.
     provider_metrics: OnceCell<MiddlewareMetrics>,
@@ -191,6 +197,7 @@ impl CoreMetrics {
             outbox_state,
             latest_checkpoint,
 
+            json_rpc_client_metrics: OnceCell::new(),
             provider_metrics: OnceCell::new(),
         })
     }
@@ -200,6 +207,16 @@ impl CoreMetrics {
         self.provider_metrics
             .get_or_init(|| {
                 create_provider_metrics(self).expect("Failed to create provider metrics!")
+            })
+            .clone()
+    }
+
+    /// Create the json rpc provider metrics attached to this core metrics
+    /// instance.
+    pub fn json_rpc_client_metrics(&self) -> JsonRpcClientMetrics {
+        self.json_rpc_client_metrics
+            .get_or_init(|| {
+                create_json_rpc_client_metrics(self).expect("Failed to create rpc client metrics!")
             })
             .clone()
     }

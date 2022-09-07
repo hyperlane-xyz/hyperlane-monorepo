@@ -121,6 +121,7 @@ impl ChainSetup<OutboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
                         Some((metrics.provider_metrics(), self.metrics_conf())),
                     )
                     .await?,
@@ -154,6 +155,7 @@ impl ChainSetup<OutboxAddresses> {
                                     .into(),
                             },
                             signer,
+                            Some(|| metrics.json_rpc_client_metrics()),
                             Some((metrics.provider_metrics(), self.metrics_conf())),
                         )
                         .await?,
@@ -215,6 +217,7 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
                         Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await?,
@@ -246,6 +249,7 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
                         Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await?,
