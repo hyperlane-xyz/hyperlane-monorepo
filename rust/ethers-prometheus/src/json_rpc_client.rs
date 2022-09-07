@@ -28,7 +28,7 @@ pub struct NodeInfo {
 #[derive(Clone, Builder)]
 pub struct JsonRpcClientMetrics {
     /// Total number of requests made to this client.
-    /// - `node`: node this is connecting to, e.g. `alchemy.com`,
+    /// - `provider_node`: node this is connecting to, e.g. `alchemy.com`,
     ///   `quicknode.pro`, or `localhost:8545`.
     /// - `chain`: chain name (or chain id if the name is unknown) of the chain
     ///   the request was made on.
@@ -38,7 +38,7 @@ pub struct JsonRpcClientMetrics {
 
     /// Total number of requests made which resulted in an error from the inner
     /// client.
-    /// - `node`: node this is connecting to, e.g. `alchemy.com`,
+    /// - `provider_node`: node this is connecting to, e.g. `alchemy.com`,
     ///   `quicknode.pro`, or `localhost:8545`.
     /// - `chain`: chain name (or chain id if the name is unknown) of the chain
     ///   the request was made on.
@@ -47,7 +47,7 @@ pub struct JsonRpcClientMetrics {
     request_failure_count: Option<IntCounterVec>,
 
     /// Total number of seconds spent making requests.
-    /// - `node`: node this is connecting to, e.g. `alchemy.com`,
+    /// - `provider_node`: node this is connecting to, e.g. `alchemy.com`,
     ///   `quicknode.pro`, or `localhost:8545`.
     /// - `chain`: chain name (or chain id if the name is unknown) of the chain
     ///   the request was made on.
@@ -57,18 +57,18 @@ pub struct JsonRpcClientMetrics {
 }
 
 /// Expected label names for the metric.
-pub const REQUEST_COUNT_LABELS: &[&str] = &["node", "chain", "method"];
+pub const REQUEST_COUNT_LABELS: &[&str] = &["provider_node", "chain", "method"];
 /// Help string for the metric.
 pub const REQUEST_COUNT_HELP: &str = "Total number of requests made to this client";
 
 /// Expected label names for the metric.
-pub const REQUEST_FAILURE_COUNT_LABELS: &[&str] = &["node", "chain", "method"];
+pub const REQUEST_FAILURE_COUNT_LABELS: &[&str] = &["provider_node", "chain", "method"];
 /// Help string for the metric.
 pub const REQUEST_FAILURE_COUNT_HELP: &str =
     "Total number of requests made which resulted in an error from the inner client";
 
 /// Expected label names for the metric.
-pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] = &["node", "chain", "method"];
+pub const REQUEST_DURATION_SECONDS_LABELS: &[&str] = &["provider_node", "chain", "method"];
 /// Help string for the metric.
 pub const REQUEST_DURATION_SECONDS_HELP: &str = "Total number of seconds spent making requests";
 
@@ -150,7 +150,7 @@ where
         R: DeserializeOwned,
     {
         let labels = hashmap! {
-            "node" => self.config.node_host(),
+            "provider_node" => self.config.node_host(),
             "chain" => self.config.chain_name(),
             "method" => method
         };
