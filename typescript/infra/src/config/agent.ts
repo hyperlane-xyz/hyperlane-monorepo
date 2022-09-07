@@ -242,13 +242,13 @@ export type RustContractBlock<T> = {
 };
 
 export type OutboxAddresses = {
-  outbox: types.Address;
+  outbox?: types.Address;
   interchainGasPaymaster?: types.Address;
 };
 
 export type InboxAddresses = {
-  inbox: types.Address;
-  validatorManager: types.Address;
+  inbox?: types.Address;
+  validatorManager?: types.Address;
 };
 
 export type RustConfig<Chain extends ChainName> = {

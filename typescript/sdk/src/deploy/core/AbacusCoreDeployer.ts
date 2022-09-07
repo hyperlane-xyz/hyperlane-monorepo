@@ -156,7 +156,11 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       }
     });
 
-    const remotes = this.multiProvider.remoteChains(chain);
+    const configChains = Object.keys(this.configMap) as Chain[];
+    const remotes = this.multiProvider
+      .remoteChains(chain)
+      .filter((_) => configChains.includes(_));
+
     const inboxes: Partial<Record<Chain, InboxContracts>> =
       this.deployedContracts[chain]?.inboxes ?? ({} as any);
 
