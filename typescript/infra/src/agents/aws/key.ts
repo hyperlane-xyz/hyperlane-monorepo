@@ -22,7 +22,8 @@ import { ChainName } from '@abacus-network/sdk';
 
 import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
 import { getEthereumAddress, sleep } from '../../utils/utils';
-import { AgentKey, keyIdentifier } from '../agent';
+import { keyIdentifier } from '../agent';
+import { CloudAgentKey } from '../keys';
 import { KEY_ROLE_ENUM } from '../roles';
 
 interface UnfetchedKey {
@@ -36,7 +37,7 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentAwsKey extends AgentKey {
+export class AgentAwsKey extends CloudAgentKey {
   private client: KMSClient | undefined;
   private region: string;
   public remoteKey: RemoteKey = { fetched: false };

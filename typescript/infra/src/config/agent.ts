@@ -74,7 +74,6 @@ interface ValidatorSet {
 interface Validator {
   address: string;
   checkpointSyncer: CheckpointSyncerConfig;
-  identifier?: string;
   readonly?: boolean;
 }
 
@@ -301,13 +300,16 @@ export class ChainAgentConfig<Chain extends ChainName> {
       this.chainName,
     );
 
+    // Filter out readonly validator keys, as we do not need to run
+    // validators for these.
     return Promise.all(
-      this.validatorSet.validators.map(async (val, i) => {
-        let validator: KeyConfig = {
-          type: KeyType.Hex,
-        };
-        if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
-          if (!val.readonly) {
+      this.validatorSet.validators
+        .filter((val) => !val.readonly)
+        .map(async (val, i) => {
+          let validator: KeyConfig = {
+            type: KeyType.Hex,
+          };
+          if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
             const awsUser = new ValidatorAgentAwsUser(
               this.agentConfig.environment,
               this.agentConfig.context,
@@ -323,19 +325,18 @@ export class ChainAgentConfig<Chain extends ChainName> {
               const key = await awsUser.createKeyIfNotExists(this.agentConfig);
               validator = key.keyConfig;
             }
+          } else {
+            console.warn(
+              `Validator ${val.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
+            );
           }
-        } else {
-          console.warn(
-            `Validator ${val.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
-          );
-        }
 
-        return {
-          ...baseConfig,
-          checkpointSyncer: val.checkpointSyncer,
-          validator,
-        };
-      }),
+          return {
+            ...baseConfig,
+            checkpointSyncer: val.checkpointSyncer,
+            validator,
+          };
+        }),
     );
   }
 
