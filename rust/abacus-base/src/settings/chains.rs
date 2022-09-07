@@ -8,7 +8,9 @@ use abacus_ethereum::{
     InboxBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
     MakeableWithProvider, OutboxBuilder,
 };
-use ethers_prometheus::{ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo};
+use ethers_prometheus::middleware::{
+    ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
+};
 
 use crate::{
     CoreMetrics, InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes,
@@ -35,7 +37,8 @@ impl Default for ChainConf {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GelatoConf {
-    /// Whether to use the Gelato Relay service for transactions submitted to the chain.
+    /// Whether to use the Gelato Relay service for transactions submitted to
+    /// the chain.
     pub enabled: String,
 }
 
@@ -80,8 +83,8 @@ pub struct ChainSetup<T> {
     /// Set this key to disable the inbox. Does nothing for outboxes.
     #[serde(default)]
     pub disabled: Option<String>,
-    /// Configure chain-specific metrics information. This will automatically add all contract
-    /// addresses but will not override any set explicitly.
+    /// Configure chain-specific metrics information. This will automatically
+    /// add all contract addresses but will not override any set explicitly.
     /// Use `metrics_conf()` to get the metrics.
     #[serde(default)]
     pub metrics_conf: PrometheusMiddlewareConf,
@@ -160,7 +163,8 @@ impl ChainSetup<OutboxAddresses> {
         }
     }
 
-    /// Get a clone of the metrics conf with correctly configured contract information.
+    /// Get a clone of the metrics conf with correctly configured contract
+    /// information.
     pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
 
@@ -250,7 +254,8 @@ impl ChainSetup<InboxAddresses> {
         }
     }
 
-    /// Get a clone of the metrics conf with correctly configured contract information.
+    /// Get a clone of the metrics conf with correctly configured contract
+    /// information.
     pub fn metrics_conf(
         &self,
         agent_name: &str,

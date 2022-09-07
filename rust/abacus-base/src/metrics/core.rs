@@ -12,7 +12,7 @@ use prometheus::{
 };
 use tokio::task::JoinHandle;
 
-use ethers_prometheus::MiddlewareMetrics;
+use ethers_prometheus::middleware::MiddlewareMetrics;
 
 use crate::metrics::provider::create_provider_metrics;
 

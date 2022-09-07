@@ -5,18 +5,10 @@
 
 use ethers::prelude::U256;
 
-pub use middleware::*;
-
 mod contracts;
-mod middleware;
 
-/// Uniform way to name the chain.
-fn chain_name(chain: &Option<ChainInfo>) -> &str {
-    chain
-        .as_ref()
-        .and_then(|c| c.name.as_deref())
-        .unwrap_or("unknown")
-}
+pub mod json_rpc_client;
+pub mod middleware;
 
 /// Convert a u256 scaled integer value into the corresponding f64 value.
 fn u256_as_scaled_f64(value: U256, decimals: u8) -> f64 {

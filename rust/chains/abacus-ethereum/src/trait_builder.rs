@@ -6,10 +6,12 @@ use ethers::prelude::{
     Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
     SignerMiddleware, WeightedProvider, Ws,
 };
+use reqwest::{Client, Url};
 
 use abacus_core::{ContractLocator, Signers};
-use ethers_prometheus::{PrometheusMiddleware, PrometheusMiddlewareConf, MiddlewareMetrics};
-use reqwest::{Client, Url};
+use ethers_prometheus::middleware::{
+    MiddlewareMetrics, PrometheusMiddleware, PrometheusMiddlewareConf,
+};
 
 use crate::{Connection, RetryingProvider};
 

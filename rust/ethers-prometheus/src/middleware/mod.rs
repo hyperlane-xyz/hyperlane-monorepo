@@ -1,3 +1,6 @@
+//! A middleware layer which collects metrics about operations made with a
+//! provider.
+
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
@@ -19,7 +22,7 @@ use tokio::time::MissedTickBehavior;
 pub use error::PrometheusMiddlewareError;
 
 use crate::contracts::erc_20::Erc20;
-use crate::{chain_name, u256_as_scaled_f64};
+use crate::u256_as_scaled_f64;
 
 mod error;
 
@@ -207,7 +210,7 @@ pub struct MiddlewareMetrics {
 }
 
 /// An ethers-rs middleware that instruments calls with prometheus metrics. To
-/// make this is flexible as possible, the metric vecs need to be created and
+/// make this as flexible as possible, the metric vecs need to be created and
 /// named externally, they should follow the naming convention here and must
 /// include the described labels.
 pub struct PrometheusMiddleware<M> {
@@ -559,4 +562,12 @@ impl<M: Middleware> Debug for PrometheusMiddleware<M> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "PrometheusMiddleware({:?})", self.inner)
     }
+}
+
+/// Uniform way to name the chain.
+fn chain_name(chain: &Option<ChainInfo>) -> &str {
+    chain
+        .as_ref()
+        .and_then(|c| c.name.as_deref())
+        .unwrap_or("unknown")
 }

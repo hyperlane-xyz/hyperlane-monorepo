@@ -1,6 +1,6 @@
 use eyre::Result;
 
-use ethers_prometheus::*;
+use ethers_prometheus::middleware::*;
 
 use crate::{CoreMetrics, NETWORK_HISTOGRAM_BUCKETS};
 
