@@ -33,7 +33,7 @@ export class ManualMultiSend extends MultiSend {
 
   async sendTransactions(calls: types.CallData[]) {
     console.log(`Please submit the following manually to ${this.chain}:`);
-    console.log(calls);
+    console.log(JSON.stringify(calls));
   }
 }
 

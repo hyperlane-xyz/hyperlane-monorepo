@@ -167,35 +167,32 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
       return SubmissionType.SIGNER;
     } catch (_) {} // eslint-disable-line no-empty
 
-    try {
-      // 2. Check if the call will succeed via Gnosis Safe.
+    // 2. Check if the call will succeed via Gnosis Safe.
+    const safeAddress = this.checker.configMap[chain!].owner;
+    if (!safeAddress) throw new Error(`Owner address not found for ${chain}`);
+    // 2a. Confirm that the signer is a Safe owner or delegate.
+    // This should implicitly check whether or not the owner is a gnosis
+    // safe.
+    const signer = connection.signer;
+    if (!signer) throw new Error(`no signer found`);
+    const signerAddress = await signer.getAddress();
+    const proposer = await canProposeSafeTransactions(
+      signerAddress,
+      chain,
+      connection,
+      safeAddress,
+    );
 
-      // 2a. Check if calling from the owner will succeed.
-      const safeAddress = this.checker.configMap[chain!].owner;
-      if (!safeAddress) throw new Error(`Safe address not found for ${chain}`);
-      await connection.provider.estimateGas({
-        ...call,
-        from: safeAddress,
-      });
-
-      // 2b. Confirm that the signer is a Safe owner or delegate.
-      // This should implicitly check whether or not the owner is a gnosis
-      // safe.
-      const signer = connection.signer;
-      if (!signer) throw new Error(`no signer found`);
-      const signerAddress = await signer.getAddress();
-      const proposer = await canProposeSafeTransactions(
-        signerAddress,
-        chain,
-        connection,
-        safeAddress,
-      );
-      if (!proposer)
-        throw new Error(
-          `${signerAddress} is not an owner or delegate for Safe ${safeAddress}`,
-        );
-      return SubmissionType.SAFE;
-    } catch (_) {} // eslint-disable-line no-empty
+    // 2b. Check if calling from the owner will succeed.
+    if (proposer) {
+      try {
+        await connection.provider.estimateGas({
+          ...call,
+          from: safeAddress,
+        });
+        return SubmissionType.SAFE;
+      } catch (_) {} // eslint-disable-line no-empty
+    }
 
     return SubmissionType.MANUAL;
   }
