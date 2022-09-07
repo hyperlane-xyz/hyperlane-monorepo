@@ -1,7 +1,7 @@
 use crate::err::GelatoError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::{info, instrument};
+use tracing::instrument;
 
 const RELAY_URL: &str = "https://relay.gelato.digital";
 
@@ -26,9 +26,7 @@ impl TaskStatusCall {
     #[instrument]
     pub async fn run(&self) -> Result<TaskStatusCallResult, GelatoError> {
         let url = format!("{}/tasks/GelatoMetaBox/{}", RELAY_URL, self.args.task_id);
-        info!(?url);
         let res = self.http.get(url).send().await?;
-        info!(?res);
         let result: TaskStatusCallResult = res.json().await?;
         Ok(result)
     }
@@ -83,12 +81,16 @@ pub enum Check {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CheckInfo {
+    // See `created_at` to understand why we rename this field
+    // rather than using `#[serde(rename_all = "camelCase")].
+    #[serde(rename = "taskState")]
     pub task_state: TaskStatus,
     pub message: String,
-    pub payload: Payload,
+    pub payload: Option<Payload>,
     pub chain: Option<String>,
+    // Sadly, this is not serialized in camelCase by Gelato's API, and is
+    // named `created_at`.
     pub created_at: Option<String>,
 }
 

@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 prometheus = "0.13"
-ethers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-08-19-01" }
+ethers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-09-07-01" }
 derive_builder = "0.11"
 async-trait = { version = "0.1", default-features = false }
 futures = "0.3"

@@ -111,6 +111,11 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     chain: LocalChain,
     config: CoreConfig,
   ): Promise<CoreContracts<Chain, LocalChain>> {
+    if (config.remove) {
+      // skip deploying to chains configured to be removed
+      return undefined as any;
+    }
+
     const dc = this.multiProvider.getChainConnection(chain);
     const provider = dc.provider!;
     const startingBlockNumber = await provider.getBlockNumber();
@@ -141,27 +146,44 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       config.validatorManager,
       upgradeBeaconController.address,
     );
-    await abacusConnectionManager.setOutbox(
-      outbox.outbox.address,
-      dc.overrides,
-    );
+    await super.runIfOwner(chain, abacusConnectionManager, async () => {
+      const current = await abacusConnectionManager.outbox();
+      if (current !== outbox.outbox.address) {
+        await abacusConnectionManager.setOutbox(
+          outbox.outbox.address,
+          dc.overrides,
+        );
+      }
+    });
 
     const remotes = this.multiProvider.remoteChains(chain);
-    const inboxes: Partial<Record<Chain, InboxContracts>> = {};
+    const inboxes: Partial<Record<Chain, InboxContracts>> =
+      this.deployedContracts[chain]?.inboxes ?? ({} as any);
+
     let prev: Chain | undefined;
     for (const remote of remotes) {
-      inboxes[remote] = await this.deployInbox(
-        chain,
-        remote,
-        this.configMap[remote].validatorManager,
-        upgradeBeaconController.address,
-        inboxes[prev]?.inbox,
-      );
-      await abacusConnectionManager.enrollInbox(
-        chainMetadata[remote].id,
-        inboxes[remote]!.inbox.address,
-        dc.overrides,
-      );
+      if (!inboxes[remote]) {
+        inboxes[remote] = await this.deployInbox(
+          chain,
+          remote,
+          this.configMap[remote].validatorManager,
+          upgradeBeaconController.address,
+          inboxes[prev]?.inbox,
+        );
+      }
+
+      await super.runIfOwner(chain, abacusConnectionManager, async () => {
+        const isEnrolled = await abacusConnectionManager.isInbox(
+          inboxes[remote]!.inbox.address,
+        );
+        if (!isEnrolled) {
+          await abacusConnectionManager.enrollInbox(
+            chainMetadata[remote].id,
+            inboxes[remote]!.inbox.address,
+            dc.overrides,
+          );
+        }
+      });
       prev = remote;
     }
 

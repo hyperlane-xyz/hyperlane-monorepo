@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use ethers::{prelude::AbiError, types::Bytes};
 use std::sync::Arc;
 
 use abacus_core::{
@@ -76,7 +75,7 @@ impl InboxValidatorManager for InboxValidatorManagerVariants {
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
         message: &AbacusMessage,
         proof: &Proof,
-    ) -> Result<Bytes, AbiError> {
+    ) -> Vec<u8> {
         match self {
             InboxValidatorManagerVariants::Ethereum(validator_manager) => {
                 validator_manager.process_calldata(multisig_signed_checkpoint, message, proof)

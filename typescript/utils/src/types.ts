@@ -26,7 +26,7 @@ export type Checkpoint = {
 
 export type CallData = {
   to: Address;
-  data: ethers.utils.BytesLike;
+  data: string;
 };
 
 export enum AbacusState {

@@ -46,9 +46,17 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
+        let core = settings
+            .as_ref()
+            .try_into_abacus_core(Self::AGENT_NAME, true)
+            .await?;
+
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
-            .try_into_multisig_checkpoint_syncer()?;
+            .try_into_multisig_checkpoint_syncer(
+                core.outbox.outbox().chain_name(),
+                core.metrics.validator_checkpoint_index(),
+            )?;
 
         let whitelist = parse_matching_list(&settings.whitelist);
         let blacklist = parse_matching_list(&settings.blacklist);
@@ -60,10 +68,7 @@ impl BaseAgent for Relayer {
                 .parse()
                 .unwrap_or(5),
             multisig_checkpoint_syncer,
-            core: settings
-                .as_ref()
-                .try_into_abacus_core(Self::AGENT_NAME, true)
-                .await?,
+            core,
             whitelist,
             blacklist,
         })
@@ -88,7 +93,7 @@ impl BaseAgent for Relayer {
             tasks.push(self.run_inbox(
                 inbox_contracts.clone(),
                 signed_checkpoint_receiver.clone(),
-                self.core.settings.inboxes[inbox_name].gelato_conf.as_ref(),
+                self.core.settings.inboxes[inbox_name].gelato.as_ref(),
                 signer,
             ));
         }
@@ -140,7 +145,8 @@ impl Relayer {
         checkpoint_fetcher.spawn()
     }
 
-    /// Helper to construct a new GelatoSubmitter instance for submission to a particular inbox.
+    /// Helper to construct a new GelatoSubmitter instance for submission to a
+    /// particular inbox.
     fn make_gelato_submitter_for_inbox(
         &self,
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
@@ -168,7 +174,7 @@ impl Relayer {
         &self,
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
-        gelato_conf: Option<&GelatoConf>,
+        gelato: Option<&GelatoConf>,
         signer: Signers,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.outbox().outbox();
@@ -179,8 +185,8 @@ impl Relayer {
             inbox_contracts.inbox.chain_name(),
         );
         let (msg_send, msg_receive) = mpsc::unbounded_channel();
-        let submit_fut = match gelato_conf {
-            Some(cfg) if cfg.enabled => self
+        let submit_fut = match gelato {
+            Some(cfg) if cfg.enabled.parse::<bool>().unwrap() => self
                 .make_gelato_submitter_for_inbox(msg_receive, inbox_contracts.clone(), signer)
                 .spawn(),
             _ => {

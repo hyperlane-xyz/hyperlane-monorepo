@@ -71,17 +71,29 @@ describe('core', async () => {
     });
 
     afterEach(async () => {
-      sinon.reset();
+      sinon.restore();
     });
 
     it('persists partial failure', async () => {
       expect(deployer.deployedContracts).to.have.keys(['test1', 'test2']);
     });
 
-    it('can be resumed from partial failure', async () => {
-      sinon.reset(); // restore normal deployer behavior and test3 will be deployed
+    it('can be resumed from partial (chain) failure', async () => {
+      sinon.restore(); // restore normal deployer behavior and test3 will be deployed
       const result = await deployer.deploy();
       expect(result).to.have.keys(['test1', 'test2', 'test3']);
+      expect(result.test3).to.have.keys(Object.keys(result.test2));
+    });
+
+    it('can be resumed from partial contracts', async () => {
+      sinon.restore(); // restore normal deployer behavior
+
+      delete deployer.deployedContracts.test2!.abacusConnectionManager;
+      delete deployer.deployedContracts.test2!.outbox;
+
+      const result = await deployer.deploy();
+      expect(result.test2).to.have.keys(Object.keys(result.test1));
+      expect(result.test3).to.have.keys(Object.keys(result.test1));
     });
   });
 
