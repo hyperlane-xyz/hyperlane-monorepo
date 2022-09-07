@@ -9,7 +9,7 @@ use abacus_base::{
     chains::GelatoConf, run_all, AbacusAgentCore, Agent, BaseAgent, CachingInterchainGasPaymaster,
     ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
 };
-use abacus_core::{AbacusCommon, AbacusContract, MultisigSignedCheckpoint, Signers};
+use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers};
 
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
@@ -151,15 +151,14 @@ impl Relayer {
         &self,
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
-        signer: Signers,
+        gelato_sponsor_api_key: String,
     ) -> GelatoSubmitter {
         let inbox_chain_name = inbox_contracts.inbox.chain_name().to_owned();
         GelatoSubmitter::new(
             message_receiver,
-            self.outbox().local_domain(),
             inbox_contracts,
             self.outbox().db(),
-            signer,
+            gelato_sponsor_api_key,
             reqwest::Client::new(),
             GelatoSubmitterMetrics::new(
                 &self.core.metrics,
@@ -187,7 +186,7 @@ impl Relayer {
         let (msg_send, msg_receive) = mpsc::unbounded_channel();
         let submit_fut = match gelato {
             Some(cfg) if cfg.enabled.parse::<bool>().unwrap() => self
-                .make_gelato_submitter_for_inbox(msg_receive, inbox_contracts.clone(), signer)
+                .make_gelato_submitter_for_inbox(msg_receive, inbox_contracts.clone(), cfg.sponsor_api_key.clone())
                 .spawn(),
             _ => {
                 let serial_submitter = SerialSubmitter::new(

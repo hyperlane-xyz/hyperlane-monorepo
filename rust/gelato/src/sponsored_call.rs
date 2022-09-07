@@ -17,10 +17,10 @@ pub struct SponsoredCallArgs {
 }
 
 #[derive(Debug, Clone)]
-pub struct SponsoredCallCall {
+pub struct SponsoredCallCall<'a> {
     pub http: reqwest::Client,
-    pub args: SponsoredCallArgs,
-    pub sponsor_api_key: String,
+    pub args: &'a SponsoredCallArgs,
+    pub sponsor_api_key: &'a str,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -28,12 +28,12 @@ pub struct SponsoredCallCallResult {
     pub task_id: String,
 }
 
-impl SponsoredCallCall {
+impl<'a> SponsoredCallCall<'a> {
     #[instrument]
     pub async fn run(self) -> Result<SponsoredCallCallResult, GelatoError> {
         let url = format!("{}/relays/v2/sponsored-call", RELAY_URL,);
         let http_args = HTTPArgs {
-            args: self.args.clone(),
+            args: self.args,
             sponsor_api_key: self.sponsor_api_key,
         };
         let res = self.http.post(url).json(&http_args).send().await?;
@@ -43,9 +43,9 @@ impl SponsoredCallCall {
 }
 
 #[derive(Debug)]
-struct HTTPArgs {
-    args: SponsoredCallArgs,
-    sponsor_api_key: String,
+struct HTTPArgs<'a> {
+    args: &'a SponsoredCallArgs,
+    sponsor_api_key: &'a str,
 }
 
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq)]
@@ -68,7 +68,7 @@ struct HTTPResult {
 //     *  ensure all hex-string-type fields are prefixed with '0x', rather than a string of
 //        ([0-9][a-f])+, which is expected server-side.
 //     *  rewrite all field names to camelCase (equiv. to `#[serde(rename_all = "camelCase")]`).
-impl Serialize for HTTPArgs {
+impl<'a> Serialize for HTTPArgs<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -78,7 +78,7 @@ impl Serialize for HTTPArgs {
         state.serialize_field("chainId", &(u32::from(self.args.chain_id)))?;
         state.serialize_field("target", &self.args.target)?;
         state.serialize_field("data", &self.args.data)?;
-        state.serialize_field("sponsorApiKey", &self.sponsor_api_key)?;
+        state.serialize_field("sponsorApiKey", self.sponsor_api_key)?;
         if let Some(gas_limit) = &self.args.gas_limit {
             state.serialize_field("gasLimit", &gas_limit.to_string())?;
         }

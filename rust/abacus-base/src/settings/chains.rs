@@ -37,6 +37,8 @@ impl Default for ChainConf {
 pub struct GelatoConf {
     /// Whether to use the Gelato Relay service for transactions submitted to the chain.
     pub enabled: String,
+    /// The sponsor API key for submitting sponsored calls
+    pub sponsor_api_key: String,
 }
 
 /// Addresses for outbox chain contracts

@@ -2,7 +2,6 @@ use std::{ops::Deref, sync::Arc, time::Duration};
 
 use abacus_base::InboxContracts;
 use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
-use ethers::{signers::Signer, types::H160};
 use eyre::Result;
 use gelato::{
     chains::Chain,
@@ -17,19 +16,14 @@ use tracing::instrument;
 
 use crate::msg::SubmitMessageArgs;
 
-const SPONSOR_API_KEY: &str = "foobar";
-
 #[derive(Debug, Clone)]
-pub struct SponsoredCallOpArgs<S> {
+pub struct SponsoredCallOpArgs {
     pub opts: SponsoredCallOptions,
     pub http: reqwest::Client,
 
     pub message: SubmitMessageArgs,
     pub inbox_contracts: InboxContracts,
-    pub sponsor_signer: S,
-    pub sponsor_address: H160,
-    // Currently unused due to a bug in Gelato's testnet relayer that is currently being upgraded.
-    pub sponsor_chain: Chain,
+    pub sponsor_api_key: String,
     pub destination_chain: Chain,
 
     /// A channel to send the message over upon the message being successfully processed.
@@ -37,22 +31,18 @@ pub struct SponsoredCallOpArgs<S> {
 }
 
 #[derive(Debug, Clone)]
-pub struct SponsoredCallOp<S>(SponsoredCallOpArgs<S>);
+pub struct SponsoredCallOp(SponsoredCallOpArgs);
 
-impl<S> Deref for SponsoredCallOp<S> {
-    type Target = SponsoredCallOpArgs<S>;
+impl Deref for SponsoredCallOp {
+    type Target = SponsoredCallOpArgs;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<S> SponsoredCallOp<S>
-where
-    S: Signer,
-    S::Error: 'static,
-{
-    pub fn new(args: SponsoredCallOpArgs<S>) -> Self {
+impl SponsoredCallOp {
+    pub fn new(args: SponsoredCallOpArgs) -> Self {
         Self(args)
     }
 
@@ -164,12 +154,11 @@ where
     // forward request call.
     async fn send_forward_request_call(&self) -> Result<SponsoredCallCallResult> {
         let args = self.create_forward_request_args();
-        // let signature = self.0.sponsor_signer.sign_typed_data(&args).await?;
 
         let fwd_req_call = SponsoredCallCall {
-            args,
+            args: &args,
             http: self.0.http.clone(),
-            sponsor_api_key: SPONSOR_API_KEY.into(),
+            sponsor_api_key: &self.sponsor_api_key,
         };
 
         Ok(fwd_req_call.run().await?)

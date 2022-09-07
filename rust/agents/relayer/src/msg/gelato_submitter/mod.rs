@@ -1,8 +1,6 @@
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::AbacusCommon;
-use abacus_core::{db::AbacusDB, Signers};
-use ethers::signers::Signer;
-use ethers::types::Address;
+use abacus_core::db::AbacusDB;
 use eyre::{bail, Result};
 use gelato::chains::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
@@ -25,14 +23,10 @@ pub(crate) struct GelatoSubmitter {
     message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// Inbox / InboxValidatorManager on the destination chain.
     inbox_contracts: InboxContracts,
-    /// The outbox chain in the format expected by the Gelato crate.
-    outbox_gelato_chain: Chain,
     /// The inbox chain in the format expected by the Gelato crate.
     inbox_gelato_chain: Chain,
     /// The signer of the Gelato sponsor, used for EIP-712 meta-transaction signatures.
-    gelato_sponsor_signer: Signers,
-    /// The address of the Gelato sponsor.
-    gelato_sponsor_address: Address,
+    gelato_sponsor_api_key: String,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
@@ -48,10 +42,9 @@ pub(crate) struct GelatoSubmitter {
 impl GelatoSubmitter {
     pub fn new(
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-        outbox_domain: u32,
         inbox_contracts: InboxContracts,
         abacus_db: AbacusDB,
-        gelato_sponsor_signer: Signers,
+        gelato_sponsor_api_key: String,
         http_client: reqwest::Client,
         metrics: GelatoSubmitterMetrics,
     ) -> Self {
@@ -59,13 +52,11 @@ impl GelatoSubmitter {
             mpsc::unbounded_channel::<SubmitMessageArgs>();
         Self {
             message_receiver,
-            outbox_gelato_chain: abacus_domain_to_gelato_chain(outbox_domain).unwrap(),
             inbox_gelato_chain: abacus_domain_to_gelato_chain(inbox_contracts.inbox.local_domain())
                 .unwrap(),
             inbox_contracts,
             db: abacus_db,
-            gelato_sponsor_address: gelato_sponsor_signer.address(),
-            gelato_sponsor_signer,
+            gelato_sponsor_api_key,
             http_client,
             metrics,
             message_processed_sender,
@@ -111,9 +102,7 @@ impl GelatoSubmitter {
                 http: self.http_client.clone(),
                 message: msg,
                 inbox_contracts: self.inbox_contracts.clone(),
-                sponsor_signer: self.gelato_sponsor_signer.clone(),
-                sponsor_address: self.gelato_sponsor_address,
-                sponsor_chain: self.outbox_gelato_chain,
+                sponsor_api_key: self.gelato_sponsor_api_key.clone(),
                 destination_chain: self.inbox_gelato_chain,
                 message_processed_sender: self.message_processed_sender.clone(),
             });
