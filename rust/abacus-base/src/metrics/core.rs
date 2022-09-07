@@ -12,7 +12,7 @@ use prometheus::{
 };
 use tokio::task::JoinHandle;
 
-use ethers_prometheus::ProviderMetrics;
+use ethers_prometheus::MiddlewareMetrics;
 
 use crate::metrics::provider::create_provider_metrics;
 
@@ -52,7 +52,7 @@ pub struct CoreMetrics {
     latest_checkpoint: IntGaugeVec,
 
     /// Set of provider-specific metrics. These only need to get created once.
-    provider_metrics: OnceCell<ProviderMetrics>,
+    provider_metrics: OnceCell<MiddlewareMetrics>,
 }
 
 impl CoreMetrics {
@@ -196,7 +196,7 @@ impl CoreMetrics {
     }
 
     /// Create the provider metrics attached to this core metrics instance.
-    pub fn provider_metrics(&self) -> ProviderMetrics {
+    pub fn provider_metrics(&self) -> MiddlewareMetrics {
         self.provider_metrics
             .get_or_init(|| {
                 create_provider_metrics(self).expect("Failed to create provider metrics!")

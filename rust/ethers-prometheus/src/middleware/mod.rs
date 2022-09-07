@@ -137,7 +137,7 @@ pub const WALLET_BALANCE_HELP: &str = "Current balance of eth and other tokens i
 
 /// Container for all the relevant middleware metrics.
 #[derive(Clone, Builder)]
-pub struct ProviderMetrics {
+pub struct MiddlewareMetrics {
     /// Tracks the current block height of the chain.
     /// - `chain`: the chain name (or ID if the name is unknown) of the chain
     ///   the block number refers to.
@@ -212,7 +212,7 @@ pub struct ProviderMetrics {
 /// include the described labels.
 pub struct PrometheusMiddleware<M> {
     inner: Arc<M>,
-    metrics: ProviderMetrics,
+    metrics: MiddlewareMetrics,
     conf: Arc<RwLock<PrometheusMiddlewareConf>>,
 }
 
@@ -375,7 +375,7 @@ impl<M> PrometheusMiddleware<M> {
     /// - `metrics`: Metrics objects we will report to.
     /// - `tokens`: Tokens to watch the balances of.
     /// - `wallets`: Wallets to watch the balances of.
-    pub fn new(inner: M, metrics: ProviderMetrics, conf: PrometheusMiddlewareConf) -> Self {
+    pub fn new(inner: M, metrics: MiddlewareMetrics, conf: PrometheusMiddlewareConf) -> Self {
         Self {
             inner: Arc::new(inner),
             metrics,

@@ -8,7 +8,7 @@ use ethers::prelude::{
 };
 
 use abacus_core::{ContractLocator, Signers};
-use ethers_prometheus::{PrometheusMiddleware, PrometheusMiddlewareConf, ProviderMetrics};
+use ethers_prometheus::{PrometheusMiddleware, PrometheusMiddlewareConf, MiddlewareMetrics};
 use reqwest::{Client, Url};
 
 use crate::{Connection, RetryingProvider};
@@ -31,7 +31,7 @@ pub trait MakeableWithProvider {
         conn: Connection,
         locator: &ContractLocator,
         signer: Option<Signers>,
-        metrics: Option<(ProviderMetrics, PrometheusMiddlewareConf)>,
+        metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> eyre::Result<Self::Output> {
         Ok(match conn {
             Connection::HttpQuorum { urls } => {
@@ -68,7 +68,7 @@ pub trait MakeableWithProvider {
         client: P,
         locator: &ContractLocator,
         signer: Option<Signers>,
-        metrics: Option<(ProviderMetrics, PrometheusMiddlewareConf)>,
+        metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> eyre::Result<Self::Output>
     where
         P: JsonRpcClient + 'static,
