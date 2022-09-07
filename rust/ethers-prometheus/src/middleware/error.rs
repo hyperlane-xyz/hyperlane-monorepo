@@ -1,9 +1,10 @@
-use crate::FromErr;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
-/// For now this is just a thin wrapper around the underlying error type. Might want to extend this
-/// later.
+use ethers::prelude::FromErr;
+
+/// For now this is just a thin wrapper around the underlying error type. Might
+/// want to extend this later.
 pub struct PrometheusMiddlewareError<E>(E);
 
 impl<E: Debug> Debug for PrometheusMiddlewareError<E> {
