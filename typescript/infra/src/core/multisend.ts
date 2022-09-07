@@ -63,11 +63,12 @@ export class SafeMultiSend extends MultiSend {
     const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
 
     const safeService = getSafeService(this.chain, this.connection);
+    if (!this.connection.signer) throw new Error('missing signer');
     await safeService.proposeTransaction({
       safeAddress: this.safeAddress,
       safeTransactionData: safeTransaction.data,
       safeTxHash,
-      senderAddress: await this.connection.signer?.getAddress()!,
+      senderAddress: await this.connection.signer.getAddress()!,
       senderSignature: senderSignature.data,
     });
   }
