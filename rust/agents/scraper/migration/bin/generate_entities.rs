@@ -31,7 +31,7 @@ impl PostgresDockerContainer {
                 "postgres:14",
             ])
             .stdout(Stdio::inherit())
-            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
             .status()
             .await;
         if let Ok(status) = status {
@@ -70,7 +70,7 @@ async fn main() -> Result<(), DbErr> {
         Command::new("cargo")
             .args(["install", "sea-orm-cli"])
             .stdout(Stdio::inherit())
-            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
             .status(),
     );
 
