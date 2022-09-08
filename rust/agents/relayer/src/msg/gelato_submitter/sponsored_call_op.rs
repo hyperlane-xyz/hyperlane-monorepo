@@ -5,7 +5,7 @@ use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, Message
 use eyre::Result;
 use gelato::{
     sponsored_call::{SponsoredCallArgs, SponsoredCallCall, SponsoredCallCallResult},
-    task_status_call::{TaskState, TaskStatusCall, TaskStatusCallArgs},
+    task_status::{TaskState, TaskStatusCall, TaskStatusCallArgs},
     types::Chain,
 };
 use tokio::{
