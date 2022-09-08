@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use abacus_base::chains::TransactionSubmitterType;
 use async_trait::async_trait;
 use eyre::Result;
 use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
@@ -93,7 +94,8 @@ impl BaseAgent for Relayer {
             tasks.push(self.run_inbox(
                 inbox_contracts.clone(),
                 signed_checkpoint_receiver.clone(),
-                self.core.settings.inboxes[inbox_name].gelato.as_ref(),
+                self.core.settings.inboxes[inbox_name].txsubmitter,
+                self.core.settings.gelato.as_ref(),
                 signer,
             ));
         }
@@ -173,26 +175,33 @@ impl Relayer {
         &self,
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
-        gelato: Option<&GelatoConf>,
+        tx_submitter: TransactionSubmitterType,
+        gelato_config: Option<&GelatoConf>,
         signer: Signers,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.outbox().outbox();
         let outbox_name = outbox.chain_name();
+        let inbox_name = inbox_contracts.inbox.chain_name();
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
             outbox_name,
             inbox_contracts.inbox.chain_name(),
         );
         let (msg_send, msg_receive) = mpsc::unbounded_channel();
-        let submit_fut = match gelato {
-            Some(cfg) if cfg.enabled.parse::<bool>().unwrap() => self
-                .make_gelato_submitter_for_inbox(
+
+        let submit_fut = match tx_submitter {
+            TransactionSubmitterType::Gelato => {
+                let gelato_config = gelato_config.expect(
+                    &format!("Expected GelatoConf for inbox {} using Gelato", inbox_name)
+                );
+                self.make_gelato_submitter_for_inbox(
                     msg_receive,
                     inbox_contracts.clone(),
-                    cfg.sponsorapikey.clone(),
+                    gelato_config.sponsorapikey.clone(),
                 )
-                .spawn(),
-            _ => {
+                .spawn()
+            },
+            TransactionSubmitterType::Signer => {
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
                     inbox_contracts.clone(),
@@ -206,6 +215,7 @@ impl Relayer {
                 serial_submitter.spawn()
             }
         };
+
         let message_processor = MessageProcessor::new(
             outbox,
             self.outbox().db(),

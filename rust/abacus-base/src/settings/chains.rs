@@ -31,12 +31,23 @@ impl Default for ChainConf {
     }
 }
 
+/// Ways in which transactions can be submitted to a blockchain.
+#[derive(Copy, Clone, Debug, Default, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum TransactionSubmitterType {
+    /// Use the configured signer to sign and submit transactions in the "default" manner.
+    #[default]
+    Signer,
+    /// Submit transactions via the Gelato relay.
+    Gelato,
+}
+
 /// Configuration for using the Gelato Relay to interact with some chain.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GelatoConf {
-    /// Whether to use the Gelato Relay service for transactions submitted to the chain.
-    pub enabled: String,
+    // /// Whether to use the Gelato Relay service for transactions submitted to the chain.
+    // pub enabled: String,
     /// The sponsor API key for submitting sponsored calls
     pub sponsorapikey: String,
 }
@@ -77,8 +88,8 @@ pub struct ChainSetup<T> {
     /// The chain connection details
     #[serde(flatten)]
     pub chain: ChainConf,
-    /// Gelato configuration for this chain (Gelato unused if None)
-    pub gelato: Option<GelatoConf>,
+    /// How transactions to this chain are submitted.
+    pub txsubmitter: TransactionSubmitterType,
     /// Set this key to disable the inbox. Does nothing for outboxes.
     #[serde(default)]
     pub disabled: Option<String>,

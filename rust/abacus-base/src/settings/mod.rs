@@ -99,6 +99,8 @@ use crate::{
     InboxValidatorManagers, InterchainGasPaymasterIndexers, OutboxIndexers,
 };
 
+use self::chains::GelatoConf;
+
 /// Chain configuration
 pub mod chains;
 
@@ -230,6 +232,8 @@ pub struct Settings {
     pub tracing: TracingConfig,
     /// Transaction signers
     pub signers: HashMap<String, SignerConf>,
+    /// Gelato config
+    pub gelato: Option<GelatoConf>,
 }
 
 impl Settings {
@@ -243,6 +247,7 @@ impl Settings {
             inboxes: self.inboxes.clone(),
             tracing: self.tracing.clone(),
             signers: self.signers.clone(),
+            gelato: self.gelato.clone(),
         }
     }
 }

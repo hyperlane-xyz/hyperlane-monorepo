@@ -23,11 +23,13 @@ async function deploy() {
   // whose keys / users are not chain-specific) will be attempted multiple times.
   // While this function still has these side effects, the workaround is to just
   // run the create-keys script first.
-  await Promise.all(
-    agentConfig.contextChainNames.map((name: any) =>
-      runAgentHelmCommand(HelmCommand.InstallOrUpgrade, agentConfig, name),
-    ),
-  );
+  // await Promise.all(
+  //   agentConfig.contextChainNames.map((name: any) =>
+  //     runAgentHelmCommand(HelmCommand.InstallOrUpgrade, agentConfig, name),
+  //   ),
+  // );
+
+  runAgentHelmCommand(HelmCommand.InstallOrUpgrade, agentConfig, 'alfajores');
 }
 
 deploy().then(console.log).catch(console.error);

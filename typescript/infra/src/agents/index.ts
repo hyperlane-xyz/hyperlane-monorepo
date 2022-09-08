@@ -20,6 +20,8 @@ async function helmValuesForChain<Chain extends ChainName>(
   agentConfig: AgentConfig<Chain>,
 ) {
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
+  const gelatoApiKeyRequired =
+    await chainAgentConfig.ensureGelatoApiKeySecretExistsIfRequired();
 
   return {
     image: {
@@ -35,16 +37,15 @@ async function helmValuesForChain<Chain extends ChainName>(
         connectionType: agentConfig.connectionType,
       },
       aws: !!agentConfig.aws,
+      gelatoApiKeyRequired,
       inboxChains: agentConfig.environmentChainNames
         .filter((name) => name !== chainName)
         .map((remoteChainName) => {
           return {
             name: remoteChainName,
             disabled: !agentConfig.contextChainNames.includes(remoteChainName),
-            gelato: {
-              enabled:
-                agentConfig.gelato?.enabledChains?.includes(remoteChainName),
-            },
+            txsubmitter:
+              chainAgentConfig.transactionSubmitterType(remoteChainName),
             connection: {
               type: agentConfig.connectionType,
             },
@@ -312,7 +313,7 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
       agentConfig,
     )} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
       agentConfig.namespace
-    } ${values.join(' ')} ${extraPipe}`,
+    } --debug --dry-run ${values.join(' ')} ${extraPipe}`,
     {},
     false,
     true,
