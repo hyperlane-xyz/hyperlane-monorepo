@@ -69,7 +69,7 @@ export abstract class AbacusDeployer<
     const configChains = Object.keys(this.configMap) as Chain[];
     const targetChains = this.multiProvider.intersect(
       configChains,
-      true,
+      false,
     ).intersection;
 
     this.logger(`Start deploy to ${targetChains}`);
