@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use abacus_base::chains::TransactionSubmitterType;
+use abacus_base::chains::TransactionSubmissionType;
 use async_trait::async_trait;
 use eyre::Result;
 use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
@@ -94,7 +94,7 @@ impl BaseAgent for Relayer {
             tasks.push(self.run_inbox(
                 inbox_contracts.clone(),
                 signed_checkpoint_receiver.clone(),
-                self.core.settings.inboxes[inbox_name].txsubmitter,
+                self.core.settings.inboxes[inbox_name].txsubmission,
                 self.core.settings.gelato.as_ref(),
                 signer,
             ));
@@ -175,7 +175,7 @@ impl Relayer {
         &self,
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
-        tx_submitter: TransactionSubmitterType,
+        tx_submission: TransactionSubmissionType,
         gelato_config: Option<&GelatoConf>,
         signer: Signers,
     ) -> Instrumented<JoinHandle<Result<()>>> {
@@ -189,19 +189,20 @@ impl Relayer {
         );
         let (msg_send, msg_receive) = mpsc::unbounded_channel();
 
-        let submit_fut = match tx_submitter {
-            TransactionSubmitterType::Gelato => {
-                let gelato_config = gelato_config.expect(
-                    &format!("Expected GelatoConf for inbox {} using Gelato", inbox_name)
-                );
+        let submit_fut = match tx_submission {
+            TransactionSubmissionType::Gelato => {
+                let gelato_config = gelato_config.expect(&format!(
+                    "Expected GelatoConf for inbox {} using Gelato",
+                    inbox_name
+                ));
                 self.make_gelato_submitter_for_inbox(
                     msg_receive,
                     inbox_contracts.clone(),
                     gelato_config.sponsorapikey.clone(),
                 )
                 .spawn()
-            },
-            TransactionSubmitterType::Signer => {
+            }
+            TransactionSubmissionType::Signer => {
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
                     inbox_contracts.clone(),

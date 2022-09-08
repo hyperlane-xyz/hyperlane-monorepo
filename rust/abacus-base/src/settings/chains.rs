@@ -34,7 +34,7 @@ impl Default for ChainConf {
 /// Ways in which transactions can be submitted to a blockchain.
 #[derive(Copy, Clone, Debug, Default, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum TransactionSubmitterType {
+pub enum TransactionSubmissionType {
     /// Use the configured signer to sign and submit transactions in the "default" manner.
     #[default]
     Signer,
@@ -89,7 +89,7 @@ pub struct ChainSetup<T> {
     #[serde(flatten)]
     pub chain: ChainConf,
     /// How transactions to this chain are submitted.
-    pub txsubmitter: TransactionSubmitterType,
+    pub txsubmission: TransactionSubmissionType,
     /// Set this key to disable the inbox. Does nothing for outboxes.
     #[serde(default)]
     pub disabled: Option<String>,

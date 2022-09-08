@@ -184,7 +184,7 @@ export interface GelatoConfig<Chain extends ChainName> {
   enabledChains: Chain[];
 }
 
-export enum TransactionSubmitterType {
+export enum TransactionSubmissionType {
   Signer = 'signer',
   Gelato = 'gelato',
 }
@@ -456,20 +456,12 @@ export class ChainAgentConfig<Chain extends ChainName> {
     return true;
   }
 
-  transactionSubmitterType(chain: Chain): TransactionSubmitterType {
+  transactionSubmissionType(chain: Chain): TransactionSubmissionType {
     if (this.agentConfig.gelato?.enabledChains.includes(chain)) {
-      return TransactionSubmitterType.Gelato;
+      return TransactionSubmissionType.Gelato;
     }
 
-    return TransactionSubmitterType.Signer;
-
-    // // Check to see if the Gelato API key exists in GCP secret manager - throw if it doesn't
-    // const secretName = `${this.agentConfig.runEnv}-gelato-api-key`;
-    // const secretExists = await gcpSecretExists(secretName);
-    // if (!secretExists) {
-    //   throw Error(`Expected Gelato API Key GCP Secret named '${secretName}' to exist, have you created it?`);
-    // }
-    // return TransactionSubmitterType.Gelato;
+    return TransactionSubmissionType.Signer;
   }
 
   get validatorSet(): ValidatorSet {

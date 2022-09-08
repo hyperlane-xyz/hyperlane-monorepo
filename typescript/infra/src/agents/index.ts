@@ -45,7 +45,7 @@ async function helmValuesForChain<Chain extends ChainName>(
             name: remoteChainName,
             disabled: !agentConfig.contextChainNames.includes(remoteChainName),
             txsubmitter:
-              chainAgentConfig.transactionSubmitterType(remoteChainName),
+              chainAgentConfig.transactionSubmissionType(remoteChainName),
             connection: {
               type: agentConfig.connectionType,
             },
