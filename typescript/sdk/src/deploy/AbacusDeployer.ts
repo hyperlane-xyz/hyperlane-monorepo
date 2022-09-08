@@ -67,9 +67,11 @@ export abstract class AbacusDeployer<
       },
     );
     const configChains = Object.keys(this.configMap) as Chain[];
-    const targetChains = this.multiProvider
-      .chains()
-      .filter((chain) => configChains.includes(chain));
+    const targetChains = this.multiProvider.intersect(
+      configChains,
+      true,
+    ).intersection;
+
     this.logger(`Start deploy to ${targetChains}`);
     for (const chain of targetChains) {
       const chainConnection = this.multiProvider.getChainConnection(chain);
