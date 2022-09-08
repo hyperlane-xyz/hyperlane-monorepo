@@ -21,11 +21,6 @@ async function helmValuesForChain<Chain extends ChainName>(
 ) {
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
 
-  const gelatoSupportedOnOutboxChain = agentConfig.gelato
-    ?.useForDisabledOriginChains
-    ? true
-    : agentConfig.gelato?.enabledChains.includes(chainName) ?? false;
-
   return {
     image: {
       repository: agentConfig.docker.repo,
@@ -48,9 +43,7 @@ async function helmValuesForChain<Chain extends ChainName>(
             disabled: !agentConfig.contextChainNames.includes(remoteChainName),
             gelato: {
               enabled:
-                gelatoSupportedOnOutboxChain &&
-                (agentConfig.gelato?.enabledChains?.includes(remoteChainName) ??
-                  false),
+                agentConfig.gelato?.enabledChains?.includes(remoteChainName),
             },
             connection: {
               type: agentConfig.connectionType,

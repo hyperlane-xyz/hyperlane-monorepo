@@ -181,14 +181,6 @@ export interface DockerConfig {
 export interface GelatoConfig<Chain extends ChainName> {
   // List of chains in which using Gelato is enabled for
   enabledChains: Chain[];
-  // If true, Gelato will still be used for messages whose
-  // origin chain is *not* supported by Gelato. If false,
-  // Gelato will not be used for any messages from a disabled
-  // origin chain, even if the destination chain is enabled.
-  // Because Gelato doesn't charge on testnets, this is likely
-  // to be true for testnet environments where the chain in which gas
-  // is paid on (the origin) doesn't need to be supported by Gelato.
-  useForDisabledOriginChains: boolean;
 }
 
 export interface AgentConfig<Chain extends ChainName> {
