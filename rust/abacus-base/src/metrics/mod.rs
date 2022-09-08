@@ -6,4 +6,5 @@ pub const NAMESPACE: &str = "abacus";
 mod core;
 pub use self::core::*;
 
+mod json_rpc_client;
 mod provider;

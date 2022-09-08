@@ -74,6 +74,7 @@ interface ValidatorSet {
 interface Validator {
   address: string;
   checkpointSyncer: CheckpointSyncerConfig;
+  readonly?: boolean;
 }
 
 // Validator sets for each chain
@@ -303,40 +304,43 @@ export class ChainAgentConfig<Chain extends ChainName> {
       this.chainName,
     );
 
+    // Filter out readonly validator keys, as we do not need to run
+    // validators for these.
     return Promise.all(
-      this.validatorSet.validators.map(async (val, i) => {
-        let validator: KeyConfig = {
-          type: KeyType.Hex,
-        };
+      this.validatorSet.validators
+        .filter((val) => !val.readonly)
+        .map(async (val, i) => {
+          let validator: KeyConfig = {
+            type: KeyType.Hex,
+          };
+          if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
+            const awsUser = new ValidatorAgentAwsUser(
+              this.agentConfig.environment,
+              this.agentConfig.context,
+              this.chainName,
+              i,
+              val.checkpointSyncer.region,
+              val.checkpointSyncer.bucket,
+            );
+            await awsUser.createIfNotExists();
+            await awsUser.createBucketIfNotExists();
 
-        if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
-          const awsUser = new ValidatorAgentAwsUser(
-            this.agentConfig.environment,
-            this.agentConfig.context,
-            this.chainName,
-            i,
-            val.checkpointSyncer.region,
-            val.checkpointSyncer.bucket,
-          );
-          await awsUser.createIfNotExists();
-          await awsUser.createBucketIfNotExists();
-
-          if (this.awsKeys) {
-            const key = await awsUser.createKeyIfNotExists(this.agentConfig);
-            validator = key.keyConfig;
+            if (this.awsKeys) {
+              const key = await awsUser.createKeyIfNotExists(this.agentConfig);
+              validator = key.keyConfig;
+            }
+          } else {
+            console.warn(
+              `Validator ${val.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
+            );
           }
-        } else {
-          console.warn(
-            `Validator ${val.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
-          );
-        }
 
-        return {
-          ...baseConfig,
-          checkpointSyncer: val.checkpointSyncer,
-          validator,
-        };
-      }),
+          return {
+            ...baseConfig,
+            checkpointSyncer: val.checkpointSyncer,
+            validator,
+          };
+        }),
     );
   }
 
