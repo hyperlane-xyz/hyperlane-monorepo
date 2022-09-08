@@ -194,8 +194,7 @@ class ContextFunder {
       ),
     );
 
-    // TODO: Why do we need to cast here?
-    const context = keys[0].context as Contexts;
+    const context = keys[0].context;
     // Ensure all keys have the same context, just to be safe
     for (const key of keys) {
       if (key.context !== context) {
