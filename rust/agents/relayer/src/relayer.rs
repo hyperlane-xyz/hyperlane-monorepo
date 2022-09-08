@@ -191,10 +191,10 @@ impl Relayer {
 
         let submit_fut = match tx_submission {
             TransactionSubmissionType::Gelato => {
-                let gelato_config = gelato_config.expect(&format!(
-                    "Expected GelatoConf for inbox {} using Gelato",
-                    inbox_name
-                ));
+                let gelato_config = gelato_config.unwrap_or_else(|| {
+                    panic!("Expected GelatoConf for inbox {} using Gelato", inbox_name)
+                });
+
                 self.make_gelato_submitter_for_inbox(
                     msg_receive,
                     inbox_contracts.clone(),

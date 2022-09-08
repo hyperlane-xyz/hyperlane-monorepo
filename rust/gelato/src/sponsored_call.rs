@@ -66,8 +66,6 @@ impl From<HTTPResult> for SponsoredCallCallResult {
     }
 }
 
-// TODO(webbhorn): Include tests near boundary of large int overflows, e.g. is nonce representation
-// as u128 for serialization purposes correct given ethers::types::U256 representation in OpArgs?
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
