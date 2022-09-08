@@ -87,6 +87,7 @@ pub struct ChainSetup<T> {
     #[serde(flatten)]
     pub chain: ChainConf,
     /// How transactions to this chain are submitted.
+    #[serde(default)]
     pub txsubmission: TransactionSubmissionType,
     /// Set this key to disable the inbox. Does nothing for outboxes.
     #[serde(default)]
