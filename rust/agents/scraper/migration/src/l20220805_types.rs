@@ -1,9 +1,11 @@
 use sea_orm_migration::prelude::*;
 
+/// Hashes are to be stored as lowercase hex chars without a 0x prefix
 #[allow(non_upper_case_globals)]
-pub const Hash: ColumnType = ColumnType::Binary(BlobSize::Blob(Some(256 / 8)));
+pub const Hash: ColumnType = ColumnType::String(Some(64));
+/// Addresses are to be stored as lowercase hex chars without a 0x prefix
 #[allow(non_upper_case_globals)]
-pub const Address: ColumnType = ColumnType::Binary(BlobSize::Blob(Some(256 / 8)));
+pub const Address: ColumnType = ColumnType::String(Some(64));
 
 /// 256-bit integer as base-10 digits: ceil(log_10(2^256))
 const SIGNIFICANT_DIGITS_IN_256_BIT_INTEGER: u32 = 78;
