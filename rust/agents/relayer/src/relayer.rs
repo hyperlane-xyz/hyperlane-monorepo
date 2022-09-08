@@ -153,14 +153,14 @@ impl Relayer {
         &self,
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
-        gelato_sponsor_api_key: String,
+        gelato_config: GelatoConf,
     ) -> GelatoSubmitter {
         let inbox_chain_name = inbox_contracts.inbox.chain_name().to_owned();
         GelatoSubmitter::new(
             message_receiver,
             inbox_contracts,
             self.outbox().db(),
-            gelato_sponsor_api_key,
+            gelato_config,
             reqwest::Client::new(),
             GelatoSubmitterMetrics::new(
                 &self.core.metrics,
@@ -198,7 +198,7 @@ impl Relayer {
                 self.make_gelato_submitter_for_inbox(
                     msg_receive,
                     inbox_contracts.clone(),
-                    gelato_config.sponsorapikey.clone(),
+                    gelato_config.clone(),
                 )
                 .spawn()
             }

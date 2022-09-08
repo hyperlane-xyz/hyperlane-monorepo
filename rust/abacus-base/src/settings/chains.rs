@@ -46,8 +46,6 @@ pub enum TransactionSubmissionType {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GelatoConf {
-    // /// Whether to use the Gelato Relay service for transactions submitted to the chain.
-    // pub enabled: String,
     /// The sponsor API key for submitting sponsored calls
     pub sponsorapikey: String,
 }

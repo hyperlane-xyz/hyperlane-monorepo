@@ -1,3 +1,4 @@
+use abacus_base::chains::GelatoConf;
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::db::AbacusDB;
 use abacus_core::AbacusCommon;
@@ -19,14 +20,14 @@ mod sponsored_call_op;
 
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
+    /// The Gelato config.
+    gelato_config: GelatoConf,
     /// Source of messages to submit.
     message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// Inbox / InboxValidatorManager on the destination chain.
     inbox_contracts: InboxContracts,
     /// The inbox chain in the format expected by the Gelato crate.
     inbox_gelato_chain: Chain,
-    /// The signer of the Gelato sponsor, used for EIP-712 meta-transaction signatures.
-    gelato_sponsor_api_key: String,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
@@ -44,7 +45,7 @@ impl GelatoSubmitter {
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         abacus_db: AbacusDB,
-        gelato_sponsor_api_key: String,
+        gelato_config: GelatoConf,
         http_client: reqwest::Client,
         metrics: GelatoSubmitterMetrics,
     ) -> Self {
@@ -56,7 +57,7 @@ impl GelatoSubmitter {
                 .unwrap(),
             inbox_contracts,
             db: abacus_db,
-            gelato_sponsor_api_key,
+            gelato_config,
             http_client,
             metrics,
             message_processed_sender,
@@ -102,7 +103,7 @@ impl GelatoSubmitter {
                 http: self.http_client.clone(),
                 message: msg,
                 inbox_contracts: self.inbox_contracts.clone(),
-                sponsor_api_key: self.gelato_sponsor_api_key.clone(),
+                sponsor_api_key: self.gelato_config.sponsorapikey.clone(),
                 destination_chain: self.inbox_gelato_chain,
                 message_processed_sender: self.message_processed_sender.clone(),
             });
