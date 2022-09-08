@@ -14,7 +14,7 @@
 
 //     use crate::{
 //         chains::Chain,
-//         fwd_req_call::{SponsoredCallArgs, PaymentType},
+//         sponsored_call_call::{SponsoredCallArgs, PaymentType},
 //     };
 
 //     pub const CHAIN_ID: Chain = Chain::Goerli;
@@ -32,7 +32,7 @@
 //     pub const ENFORCE_SPONSOR_NONCE_ORDERING: bool = true;
 
 //     // An actual SponsoredCallArgs struct built from the above data.
-//     pub fn new_fwd_req_args() -> SponsoredCallArgs {
+//     pub fn new_sponsored_call_args() -> SponsoredCallArgs {
 //         SponsoredCallArgs {
 //             chain_id: CHAIN_ID,
 //             target: TARGET_CONTRACT.parse().unwrap(),
@@ -42,7 +42,7 @@
 //     }
 
 //     // Expected EIP-712 data for SponsoredCall messages built with the above data, i.e. those
-//     // returned by `new_fwd_req_args()`.  Signing implementation tested in the `fwd_req_sig`
+//     // returned by `new_sponsored_call_args()`.  Signing implementation tested in the `sponsored_call_sig`
 //     // module.
 //     pub const EXPECTED_DOMAIN_SEPARATOR: &str =
 //         "5b86c8e692a12ffedb26520fb1cc801f537517ee74d7730a1d806daf2b0c2688";
@@ -53,7 +53,7 @@
 
 //     // An EIP-712 signature over `EXPECTED_EIP712_ENCODED_PAYLOAD` from a LocalWallet
 //     // whose private key is `WALLET_KEY` should result in the EIP-712 signature
-//     // `EXPECTED_EIP712_SIGNATURE`. Implementation is tested in `fwd_req_sig` module.
+//     // `EXPECTED_EIP712_SIGNATURE`. Implementation is tested in `sponsored_call_sig` module.
 //     pub const WALLET_KEY: &str = "969e81320ae43e23660804b78647bd4de6a12b82e3b06873f11ddbe164ebf58b";
 //     pub const EXPECTED_EIP712_SIGNATURE: &str =
 //         "a0e6d94b1608d4d8888f72c9e1335def0d187e41dca0ffe9fcd9b4bf96c1c59a27447248fef6a70e53646c0a156656f642ff361f3ab14b9db5f446f3681538b91c";
@@ -61,7 +61,7 @@
 //     // When sending a Gelato SponsoredCall built from the above
 //     // contents with the above signature to the Gelato Gateway server, the HTTP request is expected
 //     // to contain the following JSON contents in its body.
-//     // Implementation of the special serialization rules is tested in `fwd_req_call` module.
+//     // Implementation of the special serialization rules is tested in `sponsored_call_call` module.
 //     pub const EXPECTED_JSON_REQUEST_CONTENT: &str = concat!(
 //         "{",
 //         r#""typeId":"SponsoredCall","#,

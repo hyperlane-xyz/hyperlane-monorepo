@@ -1,19 +1,21 @@
-use crate::chains::Chain;
-use crate::err::GelatoError;
-use crate::RELAY_URL;
+use crate::types::Chain;
+use crate::{types::serialize_as_decimal_str, RELAY_URL};
 use ethers::types::{Address, Bytes, U256};
-use serde::ser::SerializeStruct;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-pub const NATIVE_FEE_TOKEN_ADDRESS: ethers::types::Address = Address::repeat_byte(0xEE);
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SponsoredCallArgs {
     pub chain_id: Chain,
     pub target: Address,
     pub data: Bytes,
+
+    // U256 by default serializes as a 0x-prefixed hexadecimal string.
+    // Gelato's API expects the gasLimit to be a decimal string.
+    #[serde(serialize_with = "serialize_as_decimal_str")]
     pub gas_limit: Option<U256>,
+    pub retries: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -30,8 +32,8 @@ pub struct SponsoredCallCallResult {
 
 impl<'a> SponsoredCallCall<'a> {
     #[instrument]
-    pub async fn run(self) -> Result<SponsoredCallCallResult, GelatoError> {
-        let url = format!("{}/relays/v2/sponsored-call", RELAY_URL,);
+    pub async fn run(self) -> Result<SponsoredCallCallResult, reqwest::Error> {
+        let url = format!("{}/relays/v2/sponsored-call", RELAY_URL);
         let http_args = HTTPArgs {
             args: self.args,
             sponsor_api_key: self.sponsor_api_key,
@@ -42,8 +44,10 @@ impl<'a> SponsoredCallCall<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct HTTPArgs<'a> {
+    #[serde(flatten)]
     args: &'a SponsoredCallArgs,
     sponsor_api_key: &'a str,
 }
@@ -60,31 +64,32 @@ struct HTTPResult {
 // fields with inline modifications below.
 //
 // In total, we have to make the following logical changes from the default serde serialization:
-//     *  add a new top-level dict field 'typeId', with const literal value 'SponsoredCall'.
 //     *  hoist the two struct members (`args` and `signature`) up to the top-level dict (equiv. to
 //        `#[serde(flatten)]`).
-//     *  make sure the integers for the fields `gas` and `maxfee` are enclosed within quotes,
-//        since Gelato-server-side, they will be interpreted as ~bignums.
+//     *  make sure the integers for the field `gas` is a decimal string with quotes,
+//        since Gelato-server-side, it's expected to be BigNumberish.
 //     *  ensure all hex-string-type fields are prefixed with '0x', rather than a string of
 //        ([0-9][a-f])+, which is expected server-side.
 //     *  rewrite all field names to camelCase (equiv. to `#[serde(rename_all = "camelCase")]`).
-impl<'a> Serialize for HTTPArgs<'a> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("SponsoredCallHTTPArgs", 14)?;
-        state.serialize_field("typeId", "SponsoredCall")?;
-        state.serialize_field("chainId", &(u32::from(self.args.chain_id)))?;
-        state.serialize_field("target", &self.args.target)?;
-        state.serialize_field("data", &self.args.data)?;
-        state.serialize_field("sponsorApiKey", self.sponsor_api_key)?;
-        if let Some(gas_limit) = &self.args.gas_limit {
-            state.serialize_field("gasLimit", &gas_limit.to_string())?;
-        }
-        state.end()
-    }
-}
+// impl<'a> Serialize for HTTPArgs<'a> {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         let mut state = serializer.serialize_struct("SponsoredCallHTTPArgs", 14)?;
+//         state.serialize_field("chainId", &(u32::from(self.args.chain_id)))?;
+//         state.serialize_field("target", &self.args.target)?;
+//         state.serialize_field("data", &self.args.data)?;
+//         state.serialize_field("sponsorApiKey", self.sponsor_api_key)?;
+//         if let Some(gas_limit) = &self.args.gas_limit {
+//             state.serialize_field("gasLimit", &gas_limit.to_string())?;
+//         }
+//         if let Some(retries) = &self.args.retries {
+//             state.serialize_field("retries", &retries)?;
+//         }
+//         state.end()
+//     }
+// }
 
 impl From<HTTPResult> for SponsoredCallCallResult {
     fn from(http: HTTPResult) -> SponsoredCallCallResult {
@@ -106,12 +111,14 @@ pub enum PaymentType {
 // as u128 for serialization purposes correct given ethers::types::U256 representation in OpArgs?
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
     // use crate::test_data;
 
     // #[tokio::test]
     // async fn sdk_demo_data_request() {
-    //     let args = test_data::sdk_demo_data::new_fwd_req_args();
+    //     let args = test_data::sdk_demo_data::new_sponsored_call_args();
     //     let sponsor_api_key = "foo".into();
     //     let http_args = HTTPArgs { args, sponsor_api_key };
     //     assert_eq!(
@@ -121,7 +128,59 @@ mod tests {
     // }
 
     #[test]
-    fn sdk_demo_data_json_reply_parses() {
+    fn test_http_args_serialization() {
+        let sponsor_api_key = "foobar";
+
+        let mut args = SponsoredCallArgs {
+            chain_id: Chain::Alfajores,
+            target: Address::from_str("dead00000000000000000000000000000000beef").unwrap(),
+            data: Bytes::from_str("aabbccdd").unwrap(),
+            gas_limit: None,
+            retries: None,
+        };
+
+        // When gas_limit and retries are None, ensure `null` is used
+        assert_eq!(
+            serde_json::to_string(&HTTPArgs {
+                args: &args,
+                sponsor_api_key,
+            })
+            .unwrap(),
+            concat!(
+                "{",
+                r#""chainId":44787,"#,
+                r#""target":"0xdead00000000000000000000000000000000beef","#,
+                r#""data":"0xaabbccdd","#,
+                r#""gasLimit":null,"#,
+                r#""retries":null,"#,
+                r#""sponsorApiKey":"foobar""#,
+                r#"}"#
+            ),
+        );
+
+        args.gas_limit = Some(U256::from_dec_str("420000").unwrap());
+        args.retries = Some(5);
+        assert_eq!(
+            serde_json::to_string(&HTTPArgs {
+                args: &args,
+                sponsor_api_key,
+            })
+            .unwrap(),
+            concat!(
+                "{",
+                r#""chainId":44787,"#,
+                r#""target":"0xdead00000000000000000000000000000000beef","#,
+                r#""data":"0xaabbccdd","#,
+                r#""gasLimit":"420000","#,
+                r#""retries":5,"#,
+                r#""sponsorApiKey":"foobar""#,
+                r#"}"#
+            ),
+        );
+    }
+
+    #[test]
+    fn test_http_result_deserialization() {
         let reply_json =
             r#"{"taskId": "0x053d975549b9298bb7672b20d3f7c0960df00d065e6f68c29abd8550b31cdbc2"}"#;
         let parsed: HTTPResult = serde_json::from_str(&reply_json).unwrap();

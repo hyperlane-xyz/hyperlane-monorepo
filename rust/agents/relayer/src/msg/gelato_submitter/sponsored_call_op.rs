@@ -4,9 +4,9 @@ use abacus_base::InboxContracts;
 use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
 use eyre::Result;
 use gelato::{
-    chains::Chain,
     sponsored_call::{SponsoredCallArgs, SponsoredCallCall, SponsoredCallCallResult},
     task_status_call::{TaskState, TaskStatusCall, TaskStatusCallArgs},
+    types::Chain,
 };
 use tokio::{
     sync::mpsc::UnboundedSender,
@@ -15,6 +15,9 @@ use tokio::{
 use tracing::instrument;
 
 use crate::msg::SubmitMessageArgs;
+
+// The number of seconds after a tick to sleep before attempting the next tick.
+const TICK_SLEEP_DURATION_SECONDS: u64 = 30;
 
 #[derive(Debug, Clone)]
 pub struct SponsoredCallOpArgs {
@@ -64,35 +67,37 @@ impl SponsoredCallOp {
                 Err(err) => {
                     tracing::warn!(
                         err=?err,
-                        "Error occurred in fwd_req_op tick",
+                        "Error occurred in sponsored_call_op tick",
                     );
                 }
                 _ => {}
             }
 
             self.0.message.num_retries += 1;
-            sleep(Duration::from_secs(5)).await;
+            sleep(Duration::from_secs(TICK_SLEEP_DURATION_SECONDS)).await;
         }
     }
 
+    /// One tick will submit a sponsored call to Gelato and wait for a terminal state
+    /// or timeout.
     async fn tick(&self) -> Result<MessageStatus> {
         // Before doing anything, first check if the message has already been processed.
         if let Ok(MessageStatus::Processed) = self.message_status().await {
             return Ok(MessageStatus::Processed);
         }
 
-        // Send the forward request.
-        let fwd_req_result = self.send_forward_request_call().await?;
+        // Send the sponsored call.
+        let sponsored_call_result = self.send_forward_request_call().await?;
         tracing::info!(
             msg=?self.0.message,
-            task_id=fwd_req_result.task_id,
-            "Sent forward request",
+            task_id=sponsored_call_result.task_id,
+            "Sent sponsored call",
         );
 
         // Wait for a terminal state, timing out according to the retry_submit_interval.
         match timeout(
             self.0.opts.retry_submit_interval,
-            self.poll_for_terminal_state(fwd_req_result.task_id.clone()),
+            self.poll_for_terminal_state(sponsored_call_result.task_id.clone()),
         )
         .await
         {
@@ -103,7 +108,7 @@ impl SponsoredCallOp {
             // If a timeout occurred, don't bubble up an error, instead just log
             // and set ourselves up for the next tick.
             Err(err) => {
-                tracing::debug!(err=?err, "Forward request timed out, reattempting");
+                tracing::info!(err=?err, "Sponsored call timed out, reattempting");
                 Ok(MessageStatus::None)
             }
         }
@@ -138,7 +143,7 @@ impl SponsoredCallOp {
                 task_id=task_id,
                 task_state=?task_state,
                 task_status_result=?task_status_result,
-                "Polled forward request status",
+                "Polled sponsored call status",
             );
 
             // The only terminal state status is if the task was cancelled, which happens after
@@ -150,18 +155,18 @@ impl SponsoredCallOp {
     }
 
     // Once gas payments are enforced, we will likely fetch the gas payment from
-    // the DB here. This is why forward request args are created and signed for each
-    // forward request call.
+    // the DB here. This is why sponsored call args are created and signed for each
+    // sponsored call call.
     async fn send_forward_request_call(&self) -> Result<SponsoredCallCallResult> {
         let args = self.create_forward_request_args();
 
-        let fwd_req_call = SponsoredCallCall {
+        let sponsored_call_call = SponsoredCallCall {
             args: &args,
             http: self.0.http.clone(),
             sponsor_api_key: &self.sponsor_api_key,
         };
 
-        Ok(fwd_req_call.run().await?)
+        Ok(sponsored_call_call.run().await?)
     }
 
     fn create_forward_request_args(&self) -> SponsoredCallArgs {
@@ -178,7 +183,8 @@ impl SponsoredCallOp {
                 .contract_address()
                 .into(),
             data: calldata.into(),
-            gas_limit: None,
+            gas_limit: None, // Gelato will handle gas estimation
+            retries: None,   // Use Gelato's default of 5 retries, each ~5 seconds apart
         }
     }
 
@@ -205,8 +211,8 @@ pub struct SponsoredCallOptions {
 impl Default for SponsoredCallOptions {
     fn default() -> Self {
         Self {
-            poll_interval: Duration::from_secs(60),
-            retry_submit_interval: Duration::from_secs(20 * 60),
+            poll_interval: Duration::from_secs(10),
+            retry_submit_interval: Duration::from_secs(60),
         }
     }
 }

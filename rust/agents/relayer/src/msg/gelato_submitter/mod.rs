@@ -1,8 +1,8 @@
 use abacus_base::{CoreMetrics, InboxContracts};
-use abacus_core::AbacusCommon;
 use abacus_core::db::AbacusDB;
+use abacus_core::AbacusCommon;
 use eyre::{bail, Result};
-use gelato::chains::Chain;
+use gelato::types::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::time::{sleep, Duration, Instant};
@@ -96,7 +96,7 @@ impl GelatoSubmitter {
 
         // Spawn a SponsoredCallOp for each received message.
         for msg in received_messages.into_iter() {
-            tracing::info!(msg=?msg, "Spawning forward request op for message");
+            tracing::info!(msg=?msg, "Spawning sponsored call op for message");
             let mut op = SponsoredCallOp::new(SponsoredCallOpArgs {
                 opts: SponsoredCallOptions::default(),
                 http: self.http_client.clone(),
@@ -191,10 +191,10 @@ fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
         3000 => Chain::Kovan,
 
         1886350457 => Chain::Polygon,
-        80001 => Chain::PolygonMumbai,
+        80001 => Chain::Mumbai,
 
         1635148152 => Chain::Avalanche,
-        43113 => Chain::AvalancheFuji,
+        43113 => Chain::Fuji,
 
         6386274 => Chain::Arbitrum,
         421611 => Chain::ArbitrumRinkeby,

@@ -1,7 +1,8 @@
-use crate::{err::GelatoError, RELAY_URL};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::instrument;
+
+use crate::RELAY_URL;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize)]
 pub enum TaskState {
@@ -66,7 +67,7 @@ pub struct TaskStatusCall {
 
 impl TaskStatusCall {
     #[instrument]
-    pub async fn run(&self) -> Result<TaskStatusCallResult, GelatoError> {
+    pub async fn run(&self) -> Result<TaskStatusCallResult, reqwest::Error> {
         let url = format!("{}/tasks/status/{}", RELAY_URL, self.args.task_id);
         let res = self.http.get(url).send().await?;
         let result: TaskStatusCallResult = res.json().await?;
