@@ -1,4 +1,4 @@
-use std::{ops::Deref, sync::Arc, time::Duration};
+use std::{ops::Deref, time::Duration};
 
 use abacus_base::InboxContracts;
 use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
@@ -87,7 +87,7 @@ impl SponsoredCallOp {
         }
 
         // Send the sponsored call.
-        let sponsored_call_result = self.send_forward_request_call().await?;
+        let sponsored_call_result = self.send_sponsored_call_call().await?;
         tracing::info!(
             msg=?self.0.message,
             task_id=sponsored_call_result.task_id,
@@ -131,7 +131,7 @@ impl SponsoredCallOp {
             // If the task was cancelled for some reason by Gelato, stop waiting.
 
             let task_status_call = TaskStatusCall {
-                http: Arc::new(self.0.http.clone()),
+                http: self.0.http.clone(),
                 args: TaskStatusCallArgs {
                     task_id: task_id.clone(),
                 },
@@ -147,7 +147,8 @@ impl SponsoredCallOp {
             );
 
             // The only terminal state status is if the task was cancelled, which happens after
-            // Gelato has known about the task for ~20 minutes and could not execute it.
+            // Gelato has reached the max # of retries for a task. Currently, the default is
+            // after about 30 seconds.
             if let TaskState::Cancelled = task_state {
                 return Ok(MessageStatus::None);
             }
@@ -157,8 +158,8 @@ impl SponsoredCallOp {
     // Once gas payments are enforced, we will likely fetch the gas payment from
     // the DB here. This is why sponsored call args are created and signed for each
     // sponsored call call.
-    async fn send_forward_request_call(&self) -> Result<SponsoredCallCallResult> {
-        let args = self.create_forward_request_args();
+    async fn send_sponsored_call_call(&self) -> Result<SponsoredCallCallResult> {
+        let args = self.create_sponsored_call_args();
 
         let sponsored_call_call = SponsoredCallCall {
             args: &args,
@@ -169,7 +170,7 @@ impl SponsoredCallOp {
         Ok(sponsored_call_call.run().await?)
     }
 
-    fn create_forward_request_args(&self) -> SponsoredCallArgs {
+    fn create_sponsored_call_args(&self) -> SponsoredCallArgs {
         let calldata = self.0.inbox_contracts.validator_manager.process_calldata(
             &self.0.message.checkpoint,
             &self.0.message.committed_message.message,
@@ -211,7 +212,7 @@ pub struct SponsoredCallOptions {
 impl Default for SponsoredCallOptions {
     fn default() -> Self {
         Self {
-            poll_interval: Duration::from_secs(10),
+            poll_interval: Duration::from_secs(20),
             retry_submit_interval: Duration::from_secs(60),
         }
     }

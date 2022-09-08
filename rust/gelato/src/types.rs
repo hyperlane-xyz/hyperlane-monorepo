@@ -1,5 +1,5 @@
-// Ideally we would avoid duplicating ethers::types::Chain, but we have enough need to justify
-// a separate, more complete type conversion setup.
+// Ideally we would avoid duplicating ethers::types::Chain, but ethers::types::Chain doesn't
+// include all chains we support.
 use ethers::types::U256;
 use serde::{Serialize, Serializer};
 use serde_repr::Serialize_repr;

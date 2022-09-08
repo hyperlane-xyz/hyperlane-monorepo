@@ -44,8 +44,9 @@ async function helmValuesForChain<Chain extends ChainName>(
           return {
             name: remoteChainName,
             disabled: !agentConfig.contextChainNames.includes(remoteChainName),
-            txsubmitter:
-              chainAgentConfig.transactionSubmissionType(remoteChainName),
+            txsubmission: {
+              type: chainAgentConfig.transactionSubmissionType(remoteChainName),
+            },
             connection: {
               type: agentConfig.connectionType,
             },
@@ -313,7 +314,7 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
       agentConfig,
     )} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
       agentConfig.namespace
-    } --debug --dry-run ${values.join(' ')} ${extraPipe}`,
+    } ${values.join(' ')} ${extraPipe}`,
     {},
     false,
     true,

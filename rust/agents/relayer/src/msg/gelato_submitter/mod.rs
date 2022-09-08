@@ -107,7 +107,7 @@ impl GelatoSubmitter {
                 destination_chain: self.inbox_gelato_chain,
                 message_processed_sender: self.message_processed_sender.clone(),
             });
-            self.metrics.active_forward_request_ops_gauge.add(1);
+            self.metrics.active_sponsored_call_ops_gauge.add(1);
 
             tokio::spawn(async move { op.run().await });
         }
@@ -139,7 +139,7 @@ impl GelatoSubmitter {
         tracing::info!(msg=?msg, "Recording message as successfully processed");
         self.db.mark_leaf_as_processed(msg.leaf_index)?;
 
-        self.metrics.active_forward_request_ops_gauge.sub(1);
+        self.metrics.active_sponsored_call_ops_gauge.sub(1);
         self.metrics
             .queue_duration_hist
             .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
@@ -158,7 +158,7 @@ pub(crate) struct GelatoSubmitterMetrics {
     queue_duration_hist: Histogram,
     processed_gauge: IntGauge,
     messages_processed_count: IntCounter,
-    active_forward_request_ops_gauge: IntGauge,
+    active_sponsored_call_ops_gauge: IntGauge,
     /// Private state used to update actual metrics each tick.
     highest_submitted_leaf_index: u32,
 }
@@ -177,9 +177,11 @@ impl GelatoSubmitterMetrics {
                 outbox_chain,
                 inbox_chain,
             ]),
-            active_forward_request_ops_gauge: metrics
-                .submitter_queue_length()
-                .with_label_values(&[outbox_chain, inbox_chain, "active_forward_request_ops"]),
+            active_sponsored_call_ops_gauge: metrics.submitter_queue_length().with_label_values(&[
+                outbox_chain,
+                inbox_chain,
+                "active_sponsored_call_ops",
+            ]),
             highest_submitted_leaf_index: 0,
         }
     }

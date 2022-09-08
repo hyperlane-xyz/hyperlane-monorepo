@@ -58,53 +58,12 @@ struct HTTPResult {
     pub task_id: String,
 }
 
-// We could try to get equivalent serde serialization for this type via the typical attributes,
-// like #[serde(rename_all...)], #[serde(flatten)], etc, but altogether there are enough changes
-// piled on top of one another that it seems more readable to just explicitly rewrite the relevant
-// fields with inline modifications below.
-//
-// In total, we have to make the following logical changes from the default serde serialization:
-//     *  hoist the two struct members (`args` and `signature`) up to the top-level dict (equiv. to
-//        `#[serde(flatten)]`).
-//     *  make sure the integers for the field `gas` is a decimal string with quotes,
-//        since Gelato-server-side, it's expected to be BigNumberish.
-//     *  ensure all hex-string-type fields are prefixed with '0x', rather than a string of
-//        ([0-9][a-f])+, which is expected server-side.
-//     *  rewrite all field names to camelCase (equiv. to `#[serde(rename_all = "camelCase")]`).
-// impl<'a> Serialize for HTTPArgs<'a> {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: Serializer,
-//     {
-//         let mut state = serializer.serialize_struct("SponsoredCallHTTPArgs", 14)?;
-//         state.serialize_field("chainId", &(u32::from(self.args.chain_id)))?;
-//         state.serialize_field("target", &self.args.target)?;
-//         state.serialize_field("data", &self.args.data)?;
-//         state.serialize_field("sponsorApiKey", self.sponsor_api_key)?;
-//         if let Some(gas_limit) = &self.args.gas_limit {
-//             state.serialize_field("gasLimit", &gas_limit.to_string())?;
-//         }
-//         if let Some(retries) = &self.args.retries {
-//             state.serialize_field("retries", &retries)?;
-//         }
-//         state.end()
-//     }
-// }
-
 impl From<HTTPResult> for SponsoredCallCallResult {
     fn from(http: HTTPResult) -> SponsoredCallCallResult {
         SponsoredCallCallResult {
             task_id: http.task_id,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum PaymentType {
-    Sync = 0,
-    AsyncGasTank = 1,
-    SyncGasTank = 2,
-    SyncPullFee = 3,
 }
 
 // TODO(webbhorn): Include tests near boundary of large int overflows, e.g. is nonce representation
@@ -114,18 +73,6 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    // use crate::test_data;
-
-    // #[tokio::test]
-    // async fn sdk_demo_data_request() {
-    //     let args = test_data::sdk_demo_data::new_sponsored_call_args();
-    //     let sponsor_api_key = "foo".into();
-    //     let http_args = HTTPArgs { args, sponsor_api_key };
-    //     assert_eq!(
-    //         serde_json::to_string(&http_args).unwrap(),
-    //         test_data::sdk_demo_data::EXPECTED_JSON_REQUEST_CONTENT
-    //     );
-    // }
 
     #[test]
     fn test_http_args_serialization() {
@@ -158,6 +105,7 @@ mod tests {
             ),
         );
 
+        // When the gas limit is specified, ensure it's serialized as a decimal *string*
         args.gas_limit = Some(U256::from_dec_str("420000").unwrap());
         args.retries = Some(5);
         assert_eq!(
