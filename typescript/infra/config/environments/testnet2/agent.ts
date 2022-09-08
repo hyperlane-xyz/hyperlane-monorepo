@@ -105,7 +105,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-2d9f729',
+    tag: 'sha-02bb2d8',
   },
   aws: {
     region: 'us-east-1',
@@ -117,7 +117,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
     useForDisabledOriginChains: true,
   },
   validatorSets: validators,
-  connectionType: ConnectionType.Http,
+  connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
