@@ -89,7 +89,8 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xB6a4129c305056d80fFfea96DdbDCf1F58BC8240"
+      "outbox": "0xB6a4129c305056d80fFfea96DdbDCf1F58BC8240",
+      "interchainGasPaymaster": "0x76D20943b68985dF999C5bb13d6E7AdF3CFc276F"
     },
     "domain": "1634872690",
     "name": "arbitrumrinkeby",
