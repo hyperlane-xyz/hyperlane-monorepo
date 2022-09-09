@@ -95,6 +95,7 @@ domain_and_chain! {
     0x61722d72 <=> "arbitrumrinkeby",
     0x6f702d6b <=> "optimismkovan",
     0x61752d74 <=> "auroratestnet",
+    0x6d6f2d61 <=> "moonbasealpha",
 }
 
 #[cfg(test)]
