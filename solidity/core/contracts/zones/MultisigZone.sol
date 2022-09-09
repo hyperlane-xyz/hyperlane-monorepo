@@ -151,19 +151,12 @@ contract MultisigZone is IMultisigZone, Ownable {
         bytes calldata _message
     ) public returns (bool) {
         uint32 _origin = _message.origin();
-        uint8 _numSignatures = _signatures.signatureCount();
         uint256 _threshold = threshold[_origin];
-        // If there are fewer signatures provided than the required quorum threshold,
-        // this is not a quorum.
-        if (_numSignatures < _threshold) {
-            return false;
-        }
-        bytes32 _digest = _signedDigest(_root, _index, _origin);
         uint256 _validatorSignatureCount = _countValidatorSignatures(
+            _root,
+            _index,
             _signatures,
-            _origin,
-            _numSignatures,
-            _digest
+            _origin
         );
         return _validatorSignatureCount >= _threshold && _threshold > 0;
     }
@@ -192,18 +185,20 @@ contract MultisigZone is IMultisigZone, Ownable {
     // ============ Internal Functions ============
 
     function _countValidatorSignatures(
+        bytes32 _root,
+        uint256 _index,
         bytes calldata _signatures,
-        uint32 _origin,
-        uint8 _numSignatures,
-        bytes32 _digest
-    ) internal view returns (uint256) {
+        uint32 _origin
+    ) internal returns (uint256) {
         EnumerableSet.AddressSet storage _validatorSet = validatorSets[_origin];
+        bytes32 _digest = _signedDigest(_root, _index, _origin);
         // To identify duplicates, the signers recovered from _signatures
         // must be sorted in ascending order. previousSigner is used to
         // enforce ordering.
         address _previousSigner = address(0);
         uint256 _validatorSignatureCount = 0;
-        for (uint8 i = 0; i < _numSignatures; i++) {
+        uint8 _signatureCount = _signatures.signatureCount();
+        for (uint8 i = 0; i < _signatureCount; i++) {
             bytes calldata _signature = _signatures.signatureAt(i);
             address _signer = ECDSA.recover(_digest, _signature);
             // Revert if the signer violates the required sort order.
