@@ -130,5 +130,8 @@
     "level": "debug",
     "fmt": "json"
   },
+  "index": {
+    "from": "2309252"
+  },
   "db": "db_path"
 }
