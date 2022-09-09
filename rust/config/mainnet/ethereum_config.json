@@ -89,7 +89,8 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3"
+      "outbox": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3",
+      "interchainGasPaymaster": "0x17E216fBb22dF4ef8A6640ae9Cb147C92710ac84"
     },
     "domain": "6648936",
     "name": "ethereum",
