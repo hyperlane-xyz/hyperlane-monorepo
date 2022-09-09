@@ -149,11 +149,10 @@ contract MultisigZone is IMultisigZone, Ownable {
         uint256 _index,
         bytes calldata _signatures,
         bytes calldata _message
-    ) public view returns (bool) {
+    ) public returns (bool) {
         uint32 _origin = _message.origin();
         uint8 _numSignatures = _signatures.signatureCount();
         uint256 _threshold = threshold[_origin];
-        require(_threshold > 0);
         // If there are fewer signatures provided than the required quorum threshold,
         // this is not a quorum.
         if (_numSignatures < _threshold) {
@@ -166,7 +165,7 @@ contract MultisigZone is IMultisigZone, Ownable {
             _numSignatures,
             _digest
         );
-        return _validatorSignatureCount >= _threshold;
+        return _validatorSignatureCount >= _threshold && _threshold > 0;
     }
 
     /**
@@ -214,9 +213,7 @@ contract MultisigZone is IMultisigZone, Ownable {
                 _validatorSignatureCount++;
             }
             _previousSigner = _signer;
-            // TODO: I guess this function can't be view only?
-            // Unless we think we can/should emit this in the Mailbox..
-            // emit CheckpointSignature(_root, _index, _origin, _signature);
+            emit CheckpointSignature(_root, _index, _origin, _signature);
         }
         return _validatorSignatureCount;
     }

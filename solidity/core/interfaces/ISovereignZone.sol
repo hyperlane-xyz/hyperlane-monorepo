@@ -16,5 +16,5 @@ interface ISovereignZone {
         uint256 _index,
         bytes calldata _sovereignData,
         bytes calldata _message
-    ) external view returns (bool);
+    ) external returns (bool);
 }
