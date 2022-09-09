@@ -245,7 +245,7 @@ export abstract class AbacusDeployer<
     this.logger(`Duplicate Proxy on ${chain}`);
     return this.deployProxy(
       chain,
-      proxy.contract,
+      proxy.contract.attach(proxy.addresses.implementation) as C,
       proxy.addresses.beacon,
       initArgs,
     );
