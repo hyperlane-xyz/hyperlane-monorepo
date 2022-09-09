@@ -7,6 +7,7 @@ import {MerkleLib} from "./libs/Merkle.sol";
 import {Message} from "./libs/Message.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
 import {ISovereignRecipient} from "../interfaces/ISovereignRecipient.sol";
+import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {ISovereignZone} from "../interfaces/ISovereignZone.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
 
@@ -84,6 +85,7 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
 
     function initialize(address _defaultZone) external initializer {
         __ReentrancyGuard_init();
+        // TODO: setDefaultSovereignZone, check for isContract.
         defaultZone = ISovereignZone(_defaultZone);
     }
 
@@ -161,31 +163,36 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
             messages[_messageHash] == MessageStatus.None,
             "!MessageStatus.None"
         );
-        // calculate the expected root based on the proof
-        bytes32 _calculatedRoot = MerkleLib.branchRoot(
-            _messageHash,
-            _proof,
-            _leafIndex
-        );
-        // verify the merkle proof
-        require(_calculatedRoot == _root, "!proof");
-
-        // For backwards compatibility, use a default zone if not specified by the recipient.
-        ISovereignZone _zone;
-        try ISovereignRecipient(_message.recipientAddress()).zone() returns (
-            ISovereignZone _val
-        ) {
-            _zone = _val;
-        } catch {
-            _zone = defaultZone;
+        {
+            // calculate the expected root based on the proof
+            bytes32 _calculatedRoot = MerkleLib.branchRoot(
+                _messageHash,
+                _proof,
+                _leafIndex
+            );
+            // verify the merkle proof
+            require(_calculatedRoot == _root, "!proof");
         }
 
-        require(_zone.accept(_root, _index, _sovereignData, _message));
+        {
+            ISovereignRecipient _recipient = ISovereignRecipient(
+                _message.recipientAddress()
+            );
+            // For backwards compatibility, use a default zone if not specified by the recipient.
+            ISovereignZone _zone;
+            try _recipient.zone() returns (ISovereignZone _val) {
+                _zone = _val;
+            } catch {
+                _zone = defaultZone;
+            }
 
-        _process(_message, _messageHash);
-        // TODO: Temporarily commented out due to stack issues.
-        //uint32 _origin = _process(_message, _messageHash);
-        // emit Process(_messageHash, _root, _proof, _origin, _originMailbox);
+            require(_zone.accept(_root, _index, _sovereignData, _message));
+        }
+
+        {
+            uint32 _origin = _process(_message, _messageHash);
+            emit Process(_messageHash, _root, _proof, _origin, _originMailbox);
+        }
     }
 
     // ============ Internal Functions ============
@@ -207,7 +214,7 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
         messages[_messageHash] = MessageStatus.Processed;
 
         uint32 _origin = _message.origin();
-        ISovereignRecipient(_message.recipientAddress()).handle(
+        IMessageRecipient(_message.recipientAddress()).handle(
             _origin,
             _message.sender(),
             _message.body()

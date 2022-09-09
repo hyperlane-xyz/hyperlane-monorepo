@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import { ContractReceipt } from 'ethers';
 import { ethers } from 'hardhat';
 
-import { TestOutbox, TestRecipient__factory } from '@abacus-network/core';
+import { TestMailbox, TestRecipient__factory } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
@@ -21,8 +21,8 @@ const message = '0xdeadbeef';
 
 describe('TestCoreDeployer', async () => {
   let abacus: TestCoreApp,
-    localOutbox: TestOutbox,
-    remoteOutbox: TestOutbox,
+    localOutbox: TestMailbox,
+    remoteOutbox: TestMailbox,
     dispatchReceipt: ContractReceipt;
 
   beforeEach(async () => {
@@ -33,7 +33,7 @@ describe('TestCoreDeployer', async () => {
     abacus = await deployer.deployApp();
 
     const recipient = await new TestRecipient__factory(signer).deploy();
-    localOutbox = abacus.getContracts(localChain).outbox.contract;
+    localOutbox = abacus.getContracts(localChain).mailbox.contract;
 
     const dispatchResponse = localOutbox.dispatch(
       remoteDomain,
@@ -44,7 +44,7 @@ describe('TestCoreDeployer', async () => {
     dispatchReceipt = await abacus.multiProvider
       .getChainConnection(localChain)
       .handleTx(dispatchResponse);
-    remoteOutbox = abacus.getContracts(remoteChain).outbox.contract;
+    remoteOutbox = abacus.getContracts(remoteChain).mailbox.contract;
     await expect(
       remoteOutbox.dispatch(
         localDomain,

@@ -1,5 +1,7 @@
-import type { ProcessEvent } from '@abacus-network/core/dist/contracts/Inbox';
-import type { DispatchEvent } from '@abacus-network/core/dist/contracts/Outbox';
+import type {
+  DispatchEvent,
+  ProcessEvent,
+} from '@abacus-network/core/dist/contracts/Mailbox';
 
 import { Annotated } from '../events';
 

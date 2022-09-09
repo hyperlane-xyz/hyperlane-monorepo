@@ -51,12 +51,7 @@ export {
   CoreContractsMap,
   DispatchedMessage,
 } from './core/AbacusCore';
-export {
-  CoreContracts,
-  coreFactories,
-  InboxContracts,
-  OutboxContracts,
-} from './core/contracts';
+export { CoreContracts, coreFactories } from './core/contracts';
 export {
   AbacusLifecyleEvent,
   AnnotatedDispatch,
@@ -70,12 +65,7 @@ export {
   resolveId,
   resolveNetworks,
 } from './core/message';
-export {
-  TestCoreApp,
-  TestCoreContracts,
-  TestInboxContracts,
-  TestOutboxContracts,
-} from './core/TestCoreApp';
+export { TestCoreApp, TestCoreContracts } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 
 export { InterchainGasCalculator, ParsedMessage } from './gas/calculator';
@@ -96,13 +86,8 @@ export { AbacusCoreChecker } from './deploy/core/AbacusCoreChecker';
 export {
   CoreConfig,
   CoreViolationType,
-  ValidatorManagerConfig,
-  ValidatorManagerViolation,
-  EnrolledInboxesViolation,
-  AbacusConnectionManagerViolation,
   AbacusConnectionManagerViolationType,
   EnrolledValidatorsViolation,
-  ValidatorManagerViolationType,
 } from './deploy/core/types';
 export { AbacusDeployer } from './deploy/AbacusDeployer';
 export { UpgradeBeaconViolation } from './deploy/proxy';

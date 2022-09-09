@@ -242,7 +242,7 @@ describe('InterchainGasCalculator', () => {
       let thresholdStub: sinon.SinonStub | undefined;
       getContractsStub.callsFake((chain) => {
         // Get the "real" return value of getContracts.
-        const contracts: CoreContracts<TestChainNames, TestChainNames> =
+        const contracts: CoreContracts =
           getContractsStub.wrappedMethod.bind(core)(chain);
 
         // Ethers contracts are frozen using Object.freeze, so we make a copy

@@ -1,15 +1,15 @@
 import { ethers } from 'ethers';
 
-import { TestInbox, TestOutbox } from '@abacus-network/core';
+import { TestMailbox } from '@abacus-network/core';
 import { types, utils } from '@abacus-network/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { DomainIdToChainName } from '../domains';
 import { ProxiedContract } from '../proxy';
-import { ChainMap, ChainName, Remotes, TestChainNames } from '../types';
+import { ChainName, TestChainNames } from '../types';
 
 import { AbacusCore } from './AbacusCore';
-import { CoreContracts, InboxContracts, OutboxContracts } from './contracts';
+import { CoreContracts } from './contracts';
 
 type MockProxyAddresses = {
   kind: 'MOCK';
@@ -17,20 +17,9 @@ type MockProxyAddresses = {
   implementation: string;
 };
 
-export type TestOutboxContracts = OutboxContracts & {
-  outbox: ProxiedContract<TestOutbox, MockProxyAddresses>;
+export type TestCoreContracts<Local extends TestChainNames> = CoreContracts & {
+  mailbox: ProxiedContract<TestMailbox, MockProxyAddresses>;
 };
-export type TestInboxContracts = InboxContracts & {
-  inbox: ProxiedContract<TestInbox, MockProxyAddresses>;
-};
-
-export type TestCoreContracts<Local extends TestChainNames> = CoreContracts<
-  TestChainNames,
-  Local
-> &
-  TestOutboxContracts & {
-    inboxes: ChainMap<Remotes<TestChainNames, Local>, TestInboxContracts>;
-  };
 
 export class TestCoreApp<
   TestChain extends TestChainNames = TestChainNames,
@@ -61,7 +50,7 @@ export class TestCoreApp<
   ): Promise<Map<ChainName, any>> {
     const responses = new Map<ChainName, any>();
     const contracts = this.getContracts(origin);
-    const outbox: TestOutbox = contracts.outbox.contract;
+    const outbox: TestMailbox = contracts.mailbox.contract;
 
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
@@ -72,9 +61,9 @@ export class TestCoreApp<
         throw new Error('Dispatched message to local domain');
       }
       const destinationChain = DomainIdToChainName[destination];
-      const inbox: TestInbox =
+      const inbox: TestMailbox =
         // @ts-ignore
-        this.getContracts(destinationChain).inboxes[origin].inbox.contract;
+        this.getContracts(destinationChain).mailbox.contract;
       const status = await inbox.messages(
         utils.messageHash(
           dispatch.args.message,

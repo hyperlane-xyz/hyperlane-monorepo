@@ -1,6 +1,6 @@
 import { BigNumber, utils as ethersUtils, providers } from 'ethers';
 
-import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
+import { Mailbox, Mailbox__factory } from '@abacus-network/core';
 import { types, utils } from '@abacus-network/utils';
 
 import { ChainNameToDomainId, DomainIdToChainName } from '../domains';
@@ -67,8 +67,8 @@ export type EventCache = {
 export class AbacusMessage {
   readonly dispatch: AnnotatedDispatch;
   readonly message: types.ParsedMessage;
-  readonly outbox: Outbox;
-  readonly inbox: Inbox;
+  readonly outbox: Mailbox;
+  readonly inbox: Mailbox;
 
   readonly multiProvider: MultiProvider;
   readonly core: AbacusCore;
@@ -85,13 +85,11 @@ export class AbacusMessage {
     this.dispatch = dispatch;
 
     const messageNetworks = resolveNetworks(this.message);
-    const mailboxes = core.getMailboxPair(
-      messageNetworks.origin as never, // TODO: Fix never type that results from Exclude<T, T>
-      messageNetworks.destination,
-    );
 
-    this.outbox = mailboxes.originOutbox;
-    this.inbox = mailboxes.destinationInbox;
+    this.outbox = core.getContracts(messageNetworks.origin).mailbox.contract;
+    this.inbox = core.getContracts(
+      messageNetworks.destination,
+    ).mailbox.contract;
     this.cache = {};
   }
 
@@ -117,7 +115,7 @@ export class AbacusMessage {
     receipt: providers.TransactionReceipt,
   ): AbacusMessage[] {
     const messages: AbacusMessage[] = [];
-    const outbox = new Outbox__factory().interface;
+    const outbox = new Mailbox__factory().interface;
     const chain = resolveDomain(nameOrDomain);
     const provider = multiProvider.getChainConnection(chain).provider!;
 

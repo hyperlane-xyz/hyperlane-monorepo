@@ -21,7 +21,6 @@ export type RouterFactories<RouterContract extends Router = Router> =
   };
 
 export type ConnectionClientConfig = {
-  abacusConnectionManager: types.Address;
   interchainGasPaymaster: types.Address;
 };
 

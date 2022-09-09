@@ -1,25 +1,21 @@
 import { ethers } from 'ethers';
 
-import { TestInbox__factory, TestOutbox__factory } from '@abacus-network/core';
+import { TestMailbox, TestMailbox__factory } from '@abacus-network/core';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { AbacusCoreDeployer } from '../deploy/core/AbacusCoreDeployer';
-import { CoreConfig, ValidatorManagerConfig } from '../deploy/core/types';
+import { CoreConfig } from '../deploy/core/types';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ProxiedContract } from '../proxy';
-import { ChainMap, Remotes, TestChainNames } from '../types';
+import { BeaconProxyAddresses, ProxiedContract, ProxyKind } from '../proxy';
+import { ChainMap, TestChainNames } from '../types';
 
-import {
-  TestCoreApp,
-  TestInboxContracts,
-  TestOutboxContracts,
-} from './TestCoreApp';
+import { TestCoreApp } from './TestCoreApp';
 import { coreFactories } from './contracts';
 
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ValidatorManager
-const testValidatorManagerConfig: CoreConfig = {
+const testMultisigZoneConfig: CoreConfig = {
   validatorManager: {
     validators: [nonZeroAddress],
     threshold: 1,
@@ -28,17 +24,8 @@ const testValidatorManagerConfig: CoreConfig = {
 
 const testCoreFactories = {
   ...coreFactories,
-  inbox: new TestInbox__factory(),
-  outbox: new TestOutbox__factory(),
+  mailbox: new TestMailbox__factory(),
 };
-
-function mockProxy(contract: ethers.Contract) {
-  return new ProxiedContract(contract, {
-    kind: 'MOCK',
-    proxy: contract.address,
-    implementation: contract.address,
-  });
-}
 
 export class TestCoreDeployer<
   TestChain extends TestChainNames = TestChainNames,
@@ -50,57 +37,27 @@ export class TestCoreDeployer<
     const configs =
       configMap ??
       ({
-        test1: testValidatorManagerConfig,
-        test2: testValidatorManagerConfig,
-        test3: testValidatorManagerConfig,
+        test1: testMultisigZoneConfig,
+        test2: testMultisigZoneConfig,
+        test3: testMultisigZoneConfig,
       } as ChainMap<TestChain, CoreConfig>); // cast so param can be optional
 
     super(multiProvider, configs, testCoreFactories);
   }
 
   // skip proxying
-  async deployOutbox<LocalChain extends TestChain>(
+  async deployMailbox<LocalChain extends TestChain>(
     chain: LocalChain,
-    config: ValidatorManagerConfig,
-  ): Promise<TestOutboxContracts> {
+  ): Promise<ProxiedContract<TestMailbox, BeaconProxyAddresses>> {
     const localDomain = chainMetadata[chain].id;
-    const outboxContract = await this.deployContract(chain, 'outbox', [
-      localDomain,
-    ]);
-    const outboxValidatorManager = await this.deployContract(
-      chain,
-      'outboxValidatorManager',
-      [localDomain, config.validators, config.threshold],
-    );
-    // validator manager must be contract
-    await outboxContract.initialize(outboxValidatorManager.address);
-    return {
-      outbox: mockProxy(outboxContract),
-      outboxValidatorManager,
-    } as TestOutboxContracts;
-  }
-
-  // skip proxying
-  async deployInbox<LocalChain extends TestChain>(
-    local: LocalChain,
-    remote: Remotes<TestChain, LocalChain>,
-    config: ValidatorManagerConfig,
-  ): Promise<TestInboxContracts> {
-    const localDomain = chainMetadata[local].id;
-    const remoteDomain = chainMetadata[remote].id;
-    const inboxContract = await this.deployContract(local, 'inbox', [
-      localDomain,
-    ]);
-    const inboxValidatorManager = await this.deployContract(
-      local,
-      'inboxValidatorManager',
-      [remoteDomain, config.validators, config.threshold],
-    );
-    await inboxContract.initialize(remoteDomain, inboxValidatorManager.address);
-    return {
-      inbox: mockProxy(inboxContract),
-      inboxValidatorManager,
-    } as TestInboxContracts;
+    const mailbox = await this.deployContract(chain, 'mailbox', [localDomain]);
+    // await outboxContract.initialize(outboxValidatorManager.address);
+    return new ProxiedContract(mailbox, {
+      kind: ProxyKind.UpgradeBeacon,
+      proxy: mailbox.address,
+      implementation: mailbox.address,
+      beacon: mailbox.address,
+    }) as ProxiedContract<TestMailbox, BeaconProxyAddresses>;
   }
 
   async deployApp(): Promise<TestCoreApp<TestChain>> {

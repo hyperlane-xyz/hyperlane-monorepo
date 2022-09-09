@@ -38,6 +38,7 @@ export abstract class AbacusRouterDeployer<
       objMap(contractsMap, async (local, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(local);
         // set abacus connection manager if not already set
+        /*
         if (
           (await contracts.router.abacusConnectionManager()) ===
           ethers.constants.AddressZero
@@ -49,6 +50,7 @@ export abstract class AbacusRouterDeployer<
             ),
           );
         }
+        */
         // set interchain gas paymaster if not already set (and configured)
         const interchainGasPaymaster =
           this.configMap[local].interchainGasPaymaster;

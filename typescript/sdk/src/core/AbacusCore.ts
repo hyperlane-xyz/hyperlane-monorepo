@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
+import { Mailbox, Mailbox__factory } from '@abacus-network/core';
 import { types, utils } from '@abacus-network/utils';
 
 import { AbacusApp } from '../AbacusApp';
@@ -10,7 +10,7 @@ import { DomainIdToChainName } from '../domains';
 import { ChainConnection } from '../providers/ChainConnection';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router';
-import { ChainMap, ChainName, Remotes } from '../types';
+import { ChainMap, ChainName } from '../types';
 import { objMap, pick } from '../utils/objects';
 
 import { CoreContracts, coreFactories } from './contracts';
@@ -22,7 +22,7 @@ export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
 >;
 
 export type CoreContractsMap<Chain extends ChainName> = {
-  [local in Chain]: CoreContracts<Chain, local>;
+  [local in Chain]: CoreContracts;
 };
 
 export type DispatchedMessage = {
@@ -32,7 +32,7 @@ export type DispatchedMessage = {
 };
 
 export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
-  CoreContracts<Chain, Chain>,
+  CoreContracts,
   Chain
 > {
   constructor(
@@ -72,14 +72,13 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
   }
 
   // override type to be derived from chain key
-  getContracts<Local extends Chain>(chain: Local): CoreContracts<Chain, Local> {
-    return super.getContracts(chain) as CoreContracts<Chain, Local>;
+  getContracts<Local extends Chain>(chain: Local): CoreContracts {
+    return super.getContracts(chain);
   }
 
   getConnectionClientConfig(chain: Chain): ConnectionClientConfig {
     const contracts = this.getContracts(chain);
     return {
-      abacusConnectionManager: contracts.abacusConnectionManager.address,
       interchainGasPaymaster: contracts.interchainGasPaymaster.address,
     };
   }
@@ -102,66 +101,42 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     });
   }
 
-  // TODO: deprecate
-  extendWithConnectionManagers<T>(
-    config: ChainMap<Chain, T>,
-  ): ChainMap<Chain, T & { abacusConnectionManager: string }> {
-    return objMap(config, (chain, config) => ({
-      ...config,
-      abacusConnectionManager:
-        this.getContracts(chain).abacusConnectionManager.address,
-    }));
-  }
-
-  getMailboxPair<Local extends Chain>(
-    origin: Remotes<Chain, Local>,
-    destination: Local,
-  ): { originOutbox: Outbox; destinationInbox: Inbox } {
-    const originOutbox = this.getContracts(origin).outbox.contract;
-    const destinationInbox =
-      this.getContracts(destination).inboxes[origin].inbox.contract;
-    return { originOutbox, destinationInbox };
-  }
-
   protected getDestination(message: DispatchedMessage): {
-    inbox: Inbox;
+    mailbox: Mailbox;
     chainConnection: ChainConnection;
   } {
-    const sourceChain = DomainIdToChainName[message.parsed.origin] as Chain;
     const destinationChain = DomainIdToChainName[
       message.parsed.destination
     ] as Chain;
-    const { destinationInbox } = this.getMailboxPair(
-      sourceChain as Exclude<Chain, typeof destinationChain>,
-      destinationChain,
-    );
+    const mailbox = this.getContracts(destinationChain).mailbox.contract;
     const chainConnection =
       this.multiProvider.getChainConnection(destinationChain);
-    return { inbox: destinationInbox, chainConnection };
+    return { mailbox, chainConnection };
   }
 
   protected waitForProcessReceipt(
     message: DispatchedMessage,
   ): Promise<ethers.ContractReceipt> {
     const hash = utils.messageHash(message.message, message.leafIndex);
-    const { inbox, chainConnection } = this.getDestination(message);
-    const filter = inbox.filters.Process(hash);
+    const { mailbox, chainConnection } = this.getDestination(message);
+    const filter = mailbox.filters.Process(hash);
 
     return new Promise<ethers.ContractReceipt>((resolve, reject) => {
-      inbox.once(filter, (emittedHash, event) => {
+      mailbox.once(filter, (emittedHash, event) => {
         if (hash !== emittedHash) {
           reject(`Expected message hash ${hash} but got ${emittedHash}`);
         }
+        // @ts-ignore
         resolve(chainConnection.handleTx(event.getTransaction()));
       });
     });
   }
 
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
-    const outbox = Outbox__factory.createInterface();
+    const mailbox = Mailbox__factory.createInterface();
     const describedLogs = sourceTx.logs.map((log) => {
       try {
-        return outbox.parseLog(log);
+        return mailbox.parseLog(log);
       } catch (e) {
         return undefined;
       }

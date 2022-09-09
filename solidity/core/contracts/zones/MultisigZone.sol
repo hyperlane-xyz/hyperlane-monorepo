@@ -159,8 +159,8 @@ contract MultisigZone is IMultisigZone, Ownable {
         if (_numSignatures < _threshold) {
             return false;
         }
-        bytes32 _digest = signedDigest(_root, _index, _origin);
-        uint256 _validatorSignatureCount = countValidatorSignatures(
+        bytes32 _digest = _signedDigest(_root, _index, _origin);
+        uint256 _validatorSignatureCount = _countValidatorSignatures(
             _signatures,
             _origin,
             _numSignatures,
@@ -169,7 +169,30 @@ contract MultisigZone is IMultisigZone, Ownable {
         return _validatorSignatureCount >= _threshold;
     }
 
-    function countValidatorSignatures(
+    /**
+     * @notice Returns if `_validator` is enrolled in the validator set.
+     * @param _validator The address of the validator.
+     * @return TRUE iff `_validator` is enrolled in the validator set.
+     */
+    function isValidator(uint32 _domain, address _validator)
+        public
+        view
+        returns (bool)
+    {
+        return validatorSets[_domain].contains(_validator);
+    }
+
+    /**
+     * @notice Returns the number of validators enrolled in the validator set.
+     * @return The number of validators enrolled in the validator set.
+     */
+    function validatorCount(uint32 _domain) public view returns (uint256) {
+        return validatorSets[_domain].length();
+    }
+
+    // ============ Internal Functions ============
+
+    function _countValidatorSignatures(
         bytes calldata _signatures,
         uint32 _origin,
         uint8 _numSignatures,
@@ -198,29 +221,7 @@ contract MultisigZone is IMultisigZone, Ownable {
         return _validatorSignatureCount;
     }
 
-    /**
-     * @notice Returns if `_validator` is enrolled in the validator set.
-     * @param _validator The address of the validator.
-     * @return TRUE iff `_validator` is enrolled in the validator set.
-     */
-    function isValidator(uint32 _domain, address _validator)
-        public
-        view
-        returns (bool)
-    {
-        return validatorSets[_domain].contains(_validator);
-    }
-
-    /**
-     * @notice Returns the number of validators enrolled in the validator set.
-     * @return The number of validators enrolled in the validator set.
-     */
-    function validatorCount(uint32 _domain) public view returns (uint256) {
-        return validatorSets[_domain].length();
-    }
-
-    // ============ Internal Functions ============
-    function signedDigest(
+    function _signedDigest(
         bytes32 _root,
         uint256 _index,
         uint32 _origin
@@ -230,26 +231,6 @@ contract MultisigZone is IMultisigZone, Ownable {
             ECDSA.toEthSignedMessageHash(
                 keccak256(abi.encodePacked(_domainHash, _root, _index))
             );
-    }
-
-    /**
-     * @notice Recovers the signer from a signature of a checkpoint.
-     * @param _root The checkpoint's merkle root.
-     * @param _index The checkpoint's index.
-     * @param _signature Signature on the the checkpoint.
-     * @return The signer of the checkpoint signature.
-     **/
-    function _recoverCheckpointSigner(
-        bytes32 _root,
-        uint256 _index,
-        uint32 _origin,
-        bytes calldata _signature
-    ) internal pure returns (address) {
-        bytes32 _domainHash = keccak256(abi.encodePacked(_origin, "ABACUS"));
-        bytes32 _digest = keccak256(
-            abi.encodePacked(_domainHash, _root, _index)
-        );
-        return ECDSA.recover(ECDSA.toEthSignedMessageHash(_digest), _signature);
     }
 
     /**

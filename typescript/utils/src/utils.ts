@@ -71,10 +71,15 @@ export function parseMessage(message: string): ParsedMessage {
   return { origin, sender, destination, recipient, body };
 }
 
-export function messageHash(message: HexString, leafIndex: number): string {
+export function messageHash(
+  message: HexString,
+  leafIndex: number,
+  originMailbox: string,
+  version: number,
+): string {
   return ethers.utils.solidityKeccak256(
-    ['bytes', 'uint256'],
-    [message, leafIndex],
+    ['bytes', 'uint256', 'bytes32', 'uint8'],
+    [message, leafIndex, originMailbox, version],
   );
 }
 

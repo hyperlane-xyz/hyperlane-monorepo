@@ -10,7 +10,6 @@ import { RouterConfig } from '../../deploy/router/types';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
 import { ChainMap, ChainName } from '../../types';
-import { objMap, promiseObjAll } from '../../utils/objects';
 
 export const fullEnvTestConfigs = {
   test1: chainConnectionConfigs.test1,
@@ -63,6 +62,7 @@ export class EnvSubsetDeployer<
   }
 
   // Consider moving this up to AbacusRouterDeployer
+  /*
   async initRouter(
     contractsMap: ChainMap<Chain, RouterContracts>,
   ): Promise<void> {
@@ -78,12 +78,13 @@ export class EnvSubsetDeployer<
       }),
     );
   }
+  */
 
   async deploy(): Promise<ChainMap<Chain, RouterContracts>> {
     const contractsMap = (await AbacusDeployer.prototype.deploy.apply(
       this,
     )) as Record<Chain, RouterContracts>;
-    await this.initRouter(contractsMap);
+    // await this.initRouter(contractsMap);
     await this.enrollRemoteRouters(contractsMap);
     return contractsMap;
   }
