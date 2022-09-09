@@ -11,7 +11,10 @@
         "type": "http",
         "url": ""
       },
-      "addresses": {}
+      "addresses": {
+        "inbox": "0xBE3541E3D391751Ae73cC0A52F48CCe45120f74B",
+        "validatorManager": "0xdE1a1f41871ebD2D1B8ddac6BAC3a2F4898a1747"
+      }
     },
     "kovan": {
       "domain": "3000",
