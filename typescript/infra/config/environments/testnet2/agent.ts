@@ -23,7 +23,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-33b82dc',
+    tag: 'sha-1027312',
   },
   aws: {
     region: 'us-east-1',
@@ -78,7 +78,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   context: Contexts.Flowcarbon,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-33b82dc',
+    tag: 'sha-1027312',
   },
   aws: {
     region: 'us-east-1',
@@ -105,7 +105,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-2d9f729',
+    tag: 'sha-f19110f',
   },
   aws: {
     region: 'us-east-1',
@@ -116,7 +116,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
     enabledChains: ['alfajores', 'mumbai', 'kovan'],
   },
   validatorSets: validators,
-  connectionType: ConnectionType.Http,
+  connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,

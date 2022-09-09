@@ -8,7 +8,9 @@ use abacus_ethereum::{
     InboxBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
     MakeableWithProvider, OutboxBuilder,
 };
-use ethers_prometheus::{ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo};
+use ethers_prometheus::middleware::{
+    ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
+};
 
 use crate::{
     CoreMetrics, InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes,
@@ -92,8 +94,8 @@ pub struct ChainSetup<T> {
     /// Set this key to disable the inbox. Does nothing for outboxes.
     #[serde(default)]
     pub disabled: Option<String>,
-    /// Configure chain-specific metrics information. This will automatically add all contract
-    /// addresses but will not override any set explicitly.
+    /// Configure chain-specific metrics information. This will automatically
+    /// add all contract addresses but will not override any set explicitly.
     /// Use `metrics_conf()` to get the metrics.
     #[serde(default)]
     pub metrics_conf: PrometheusMiddlewareConf,
@@ -130,6 +132,7 @@ impl ChainSetup<OutboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
                         Some((metrics.provider_metrics(), self.metrics_conf())),
                     )
                     .await?,
@@ -163,6 +166,7 @@ impl ChainSetup<OutboxAddresses> {
                                     .into(),
                             },
                             signer,
+                            Some(|| metrics.json_rpc_client_metrics()),
                             Some((metrics.provider_metrics(), self.metrics_conf())),
                         )
                         .await?,
@@ -172,7 +176,8 @@ impl ChainSetup<OutboxAddresses> {
         }
     }
 
-    /// Get a clone of the metrics conf with correctly configured contract information.
+    /// Get a clone of the metrics conf with correctly configured contract
+    /// information.
     pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
 
@@ -223,6 +228,7 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
                         Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await?,
@@ -254,6 +260,7 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
                         Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await?,
@@ -262,7 +269,8 @@ impl ChainSetup<InboxAddresses> {
         }
     }
 
-    /// Get a clone of the metrics conf with correctly configured contract information.
+    /// Get a clone of the metrics conf with correctly configured contract
+    /// information.
     pub fn metrics_conf(
         &self,
         agent_name: &str,

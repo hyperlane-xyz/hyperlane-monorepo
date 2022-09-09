@@ -11,8 +11,11 @@ import {
 import { error, log } from '@abacus-network/utils';
 
 import { Contexts } from '../../config/contexts';
-import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
-import { getAllKeys } from '../../src/agents/key-utils';
+import { getAllCloudAgentKeys } from '../../src/agents/key-utils';
+import {
+  BaseCloudAgentKey,
+  ReadOnlyCloudAgentKey,
+} from '../../src/agents/keys';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
 import { submitMetrics } from '../../src/utils/metrics';
@@ -164,7 +167,7 @@ class ContextFunder {
 
   constructor(
     public readonly multiProvider: MultiProvider<any>,
-    public readonly keys: AgentKey[],
+    public readonly keys: BaseCloudAgentKey[],
     public readonly context: Contexts,
     public readonly rolesToFund: KEY_ROLE_ENUM[],
   ) {
@@ -184,14 +187,15 @@ class ContextFunder {
       path,
     });
     const idsAndAddresses = readJSONAtPath(path);
-    const keys: AgentKey[] = idsAndAddresses.map((idAndAddress: any) =>
-      ReadOnlyAgentKey.fromSerializedAddress(
+    const keys: BaseCloudAgentKey[] = idsAndAddresses.map((idAndAddress: any) =>
+      ReadOnlyCloudAgentKey.fromSerializedAddress(
         idAndAddress.identifier,
         idAndAddress.address,
       ),
     );
 
-    const context = keys[0].context;
+    // TODO: Why do we need to cast here?
+    const context = keys[0].context as Contexts;
     // Ensure all keys have the same context, just to be safe
     for (const key of keys) {
       if (key.context !== context) {
@@ -217,7 +221,7 @@ class ContextFunder {
     return new ContextFunder(multiProvider, keys, context, rolesToFund);
   }
 
-  // The keys here are not ReadOnlyAgentKeys, instead they are AgentGCPKey or AgentAWSKeys,
+  // The keys here are not ReadOnlyCloudAgentKeys, instead they are AgentGCPKey or AgentAWSKeys,
   // which require credentials to fetch. If you want to avoid requiring credentials, use
   // fromSerializedAddressFile instead.
   static async fromContext(
@@ -226,12 +230,9 @@ class ContextFunder {
     rolesToFund: KEY_ROLE_ENUM[],
   ) {
     const agentConfig = await getAgentConfig(context);
-    return new ContextFunder(
-      multiProvider,
-      getAllKeys(agentConfig),
-      context,
-      rolesToFund,
-    );
+    const keys = getAllCloudAgentKeys(agentConfig);
+    await Promise.all(keys.map((key) => key.fetch()));
+    return new ContextFunder(multiProvider, keys, context, rolesToFund);
   }
 
   // Funds all the roles in this.rolesToFund
@@ -290,16 +291,13 @@ class ContextFunder {
   }
 
   private async attemptToFundKey(
-    key: AgentKey,
+    key: BaseCloudAgentKey,
     chain: ChainName,
   ): Promise<boolean> {
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const desiredBalance = desiredBalancePerChain[chain];
 
     let failureOccurred = false;
-
-    // Some types of keys must be fetched
-    await key.fetch();
 
     try {
       await this.fundKeyIfRequired(chainConnection, chain, key, desiredBalance);
@@ -321,7 +319,7 @@ class ContextFunder {
   private async fundKeyIfRequired(
     chainConnection: ChainConnection,
     chain: ChainName,
-    key: AgentKey,
+    key: BaseCloudAgentKey,
     desiredBalance: string,
   ) {
     const currentBalance = await chainConnection.provider.getBalance(
@@ -410,14 +408,12 @@ class ContextFunder {
   }
 }
 
-function getKeyInfo(key: AgentKey) {
+function getKeyInfo(key: BaseCloudAgentKey) {
   return {
     context: key.context,
     address: key.address,
-    identifier: key.identifier,
     originChain: key.chainName,
     role: key.role,
-    index: key.index,
   };
 }
 
