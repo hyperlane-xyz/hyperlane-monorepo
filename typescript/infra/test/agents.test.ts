@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 
 import { Contexts } from '../config/contexts';
-import { ReadOnlyAgentKey } from '../src/agents/agent';
 import { AgentAwsKey } from '../src/agents/aws';
 import { AgentGCPKey } from '../src/agents/gcp';
+import { ReadOnlyCloudAgentKey } from '../src/agents/keys';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 
-describe('ReadOnlyAgentKey', () => {
+describe('ReadOnlyCloudAgentKey', () => {
   describe('fromSerializedAddress', () => {
     it('correctly parses identifiers', () => {
       const addressZero = '0x0000000000000000000000000000000000000000';
@@ -42,7 +42,7 @@ describe('ReadOnlyAgentKey', () => {
       for (const testKey of testKeys) {
         const identifier = testKey.identifier;
 
-        const readOnly = ReadOnlyAgentKey.fromSerializedAddress(
+        const readOnly = ReadOnlyCloudAgentKey.fromSerializedAddress(
           identifier,
           addressZero,
         );

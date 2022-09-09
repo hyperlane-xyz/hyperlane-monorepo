@@ -14,8 +14,8 @@ import {
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
 import { getCurrentKubernetesContext } from '../src/agents';
-import { AgentKey } from '../src/agents/agent';
-import { getKey } from '../src/agents/key-utils';
+import { getCloudAgentKey } from '../src/agents/key-utils';
+import { CloudAgentKey } from '../src/agents/keys';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
 import { fetchProvider } from '../src/config/chain';
@@ -98,10 +98,10 @@ async function getKeyForRole<Chain extends ChainName>(
   chain: Chain,
   role: KEY_ROLE_ENUM,
   index?: number,
-): Promise<AgentKey> {
+): Promise<CloudAgentKey> {
   const coreConfig = getCoreEnvironmentConfig(environment);
   const agentConfig = await getAgentConfig(context, coreConfig);
-  return getKey(agentConfig, role, chain, index);
+  return getCloudAgentKey(agentConfig, role, chain, index);
 }
 
 export async function getMultiProviderForRole<Chain extends ChainName>(

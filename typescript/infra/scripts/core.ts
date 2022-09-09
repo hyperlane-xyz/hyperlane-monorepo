@@ -1,4 +1,7 @@
 import {
+  ChainMap,
+  Chains,
+  ContractVerificationInput,
   buildContracts,
   coreFactories,
   serializeContracts,
@@ -13,8 +16,25 @@ import {
   getCoreRustDirectory,
   getCoreVerificationDirectory,
   getEnvironment,
-  getEnvironmentDirectory,
 } from './utils';
+
+function mergeVerificationInputs<ChainName extends Chains>(
+  existingInputsMap: ChainMap<ChainName, ContractVerificationInput[]>,
+  newInputsMap: ChainMap<ChainName, ContractVerificationInput[]>,
+): ChainMap<ChainName, ContractVerificationInput[]> {
+  const allChains = new Set<ChainName>();
+  Object.keys(existingInputsMap).forEach((_) => allChains.add(_ as ChainName));
+  Object.keys(newInputsMap).forEach((_) => allChains.add(_ as ChainName));
+
+  // @ts-ignore
+  const ret: ChainMap<ChainName, ContractVerificationInput[]> = {};
+  for (const chain of allChains) {
+    const existingInputs = existingInputsMap[chain] || [];
+    const newInputs = newInputsMap[chain] || [];
+    ret[chain] = [...existingInputs, ...newInputs];
+  }
+  return ret;
+}
 
 async function main() {
   const environment = await getEnvironment();
@@ -22,45 +42,47 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
   const deployer = new AbacusCoreInfraDeployer(multiProvider, config.core);
 
-  let partial_contracts = {};
-  try {
+  let previousContracts = {};
+  previousAddressParsing: try {
+    if (environment === 'test') {
+      break previousAddressParsing;
+    }
     const addresses = readJSON(
-      getEnvironmentDirectory(environment),
-      'partial_core_addresses.json',
+      getCoreContractsSdkFilepath(),
+      `${environment}.json`,
     );
-    partial_contracts = buildContracts(addresses, coreFactories);
+    previousContracts = buildContracts(addresses, coreFactories);
   } catch (e) {
     console.info('Could not load partial core addresses, file may not exist');
   }
+
   try {
-    const contracts = await deployer.deploy(partial_contracts);
-    writeJSON(
-      getCoreContractsSdkFilepath(),
-      `${environment}.json`,
-      serializeContracts(contracts),
-    );
-    writeJSON(
-      getCoreVerificationDirectory(environment),
-      'verification.json',
-      deployer.verificationInputs,
-    );
-    deployer.writeRustConfigs(
-      environment,
-      getCoreRustDirectory(environment),
-      contracts,
-    );
+    await deployer.deploy(previousContracts);
   } catch (e) {
+    console.error(`Encountered error during deploy`);
     console.error(e);
-    // persist partial deployment
-    writeJSON(
-      getEnvironmentDirectory(environment),
-      'partial_core_addresses.json',
-      {
-        ...serializeContracts(deployer.deployedContracts),
-        ...serializeContracts(partial_contracts),
-      },
-    );
   }
+
+  // Persist artifacts, irrespective of deploy success
+  writeJSON(
+    getCoreContractsSdkFilepath(),
+    `${environment}.json`,
+    serializeContracts(deployer.deployedContracts),
+  );
+  const existingVerificationInputs = readJSON(
+    getCoreVerificationDirectory(environment),
+    'verification.json',
+  );
+  writeJSON(
+    getCoreVerificationDirectory(environment),
+    'verification.json',
+    mergeVerificationInputs(
+      existingVerificationInputs,
+      deployer.verificationInputs,
+    ),
+  );
+
+  deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
 }
 
 main().then(console.log).catch(console.error);

@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -6,10 +7,16 @@ use ethers::prelude::{
     Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
     SignerMiddleware, WeightedProvider, Ws,
 };
+use reqwest::{Client, Url};
 
 use abacus_core::{ContractLocator, Signers};
-use ethers_prometheus::{PrometheusMiddleware, PrometheusMiddlewareConf, ProviderMetrics};
-use reqwest::{Client, Url};
+use ethers_prometheus::json_rpc_client::{
+    JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, NodeInfo, PrometheusJsonRpcClient,
+    PrometheusJsonRpcClientConfig,
+};
+use ethers_prometheus::middleware::{
+    MiddlewareMetrics, PrometheusMiddleware, PrometheusMiddlewareConf,
+};
 
 use crate::{Connection, RetryingProvider};
 
@@ -31,19 +38,27 @@ pub trait MakeableWithProvider {
         conn: Connection,
         locator: &ContractLocator,
         signer: Option<Signers>,
-        metrics: Option<(ProviderMetrics, PrometheusMiddlewareConf)>,
+        rpc_metrics: Option<impl FnOnce() -> JsonRpcClientMetrics + Send>,
+        middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> eyre::Result<Self::Output> {
         Ok(match conn {
             Connection::HttpQuorum { urls } => {
+                let rpc_metrics = rpc_metrics.map(|f| f());
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
                 for url in urls.split(',') {
                     let http_provider: Http = url.parse()?;
-                    let weighted_provider = WeightedProvider::new(http_provider);
+                    let metrics_provider = self.wrap_rpc_with_metrics(
+                        http_provider,
+                        Url::parse(url)?,
+                        &rpc_metrics,
+                        &middleware_metrics,
+                    );
+                    let weighted_provider = WeightedProvider::new(metrics_provider);
                     builder = builder.add_provider(weighted_provider);
                 }
                 let quorum_provider = builder.build();
                 let retrying = RetryingProvider::new(quorum_provider, Some(3), Some(1000));
-                self.wrap_with_metrics(retrying, locator, signer, metrics)
+                self.wrap_with_metrics(retrying, locator, signer, middleware_metrics)
                     .await?
             }
             Connection::Http { url } => {
@@ -51,14 +66,51 @@ pub trait MakeableWithProvider {
                 let http_provider = Http::new_with_client(url.parse::<Url>()?, client);
                 let retrying_http_provider: RetryingProvider<Http> =
                     RetryingProvider::new(http_provider, None, None);
-                self.wrap_with_metrics(retrying_http_provider, locator, signer, metrics)
+                self.wrap_with_metrics(retrying_http_provider, locator, signer, middleware_metrics)
                     .await?
             }
             Connection::Ws { url } => {
                 let ws = Ws::connect(url).await?;
-                self.wrap_with_metrics(ws, locator, signer, metrics).await?
+                self.wrap_with_metrics(ws, locator, signer, middleware_metrics)
+                    .await?
             }
         })
+    }
+
+    /// Wrap a JsonRpcClient with metrics for use with a quorum provider.
+    fn wrap_rpc_with_metrics<C>(
+        &self,
+        client: C,
+        url: Url,
+        rpc_metrics: &Option<JsonRpcClientMetrics>,
+        middleware_metrics: &Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
+    ) -> PrometheusJsonRpcClient<C> {
+        PrometheusJsonRpcClient::new(
+            client,
+            rpc_metrics
+                .clone()
+                .unwrap_or_else(|| JsonRpcClientMetricsBuilder::default().build().unwrap()),
+            PrometheusJsonRpcClientConfig {
+                node: Some(NodeInfo {
+                    host: {
+                        let mut s = String::new();
+                        if let Some(host) = url.host_str() {
+                            s.push_str(host);
+                            if let Some(port) = url.port() {
+                                write!(&mut s, ":{port}").unwrap();
+                            }
+                            Some(s)
+                        } else {
+                            None
+                        }
+                    },
+                }),
+                // steal the chain info from the middleware conf
+                chain: middleware_metrics
+                    .as_ref()
+                    .and_then(|(_, v)| v.chain.clone()),
+            },
+        )
     }
 
     /// Wrap the provider creation with metrics if provided; this is the second
@@ -68,7 +120,7 @@ pub trait MakeableWithProvider {
         client: P,
         locator: &ContractLocator,
         signer: Option<Signers>,
-        metrics: Option<(ProviderMetrics, PrometheusMiddlewareConf)>,
+        metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> eyre::Result<Self::Output>
     where
         P: JsonRpcClient + 'static,

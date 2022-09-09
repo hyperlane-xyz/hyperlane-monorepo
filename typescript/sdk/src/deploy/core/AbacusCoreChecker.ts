@@ -128,6 +128,7 @@ export class AbacusCoreChecker<
         validatorManagerType: ValidatorManagerViolationType.EnrolledValidators,
         contract: validatorManager,
         chain: local,
+        remote,
         actual: actualSet,
         expected: expectedSet,
       };
@@ -145,6 +146,7 @@ export class AbacusCoreChecker<
         validatorManagerType: ValidatorManagerViolationType.Threshold,
         contract: validatorManager,
         chain: local,
+        remote,
         actual: actualThreshold,
         expected: expectedThreshold,
       };
