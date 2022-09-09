@@ -75,8 +75,9 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   arbitrumrinkeby: '0.1',
   bsc: '0.01',
   bsctestnet: '1',
+  goerli: '0.1',
+  moonbasealpha: '1',
   // unused
-  goerli: '0',
   auroratestnet: '0',
   test1: '0',
   test2: '0',
