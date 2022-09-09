@@ -1,6 +1,9 @@
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
-import { ConnectionType } from '../../../src/config/agent';
+import {
+  ConnectionType,
+  GasPaymentEnforcementPolicyType,
+} from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 import {
   MATCHING_LIST_ALL_WILDCARDS,
@@ -64,8 +67,10 @@ export const abacus: AgentConfig<TestnetChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       blacklist: releaseCandidateHelloworldMatchingList,
+      gasPaymentEnforcementPolicy: {
+        type: GasPaymentEnforcementPolicyType.None,
+      },
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,
@@ -90,9 +95,11 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       // Blacklist everything for now
       blacklist: MATCHING_LIST_ALL_WILDCARDS,
+      gasPaymentEnforcementPolicy: {
+        type: GasPaymentEnforcementPolicyType.None,
+      },
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer],
@@ -121,9 +128,11 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       // Only process messages between the release candidate helloworld routers
       whitelist: releaseCandidateHelloworldMatchingList,
+      gasPaymentEnforcementPolicy: {
+        type: GasPaymentEnforcementPolicyType.None,
+      },
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],

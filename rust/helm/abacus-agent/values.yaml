@@ -114,7 +114,6 @@ abacus:
         # aws:
     config:
       signedCheckpointPollingInterval:
-      maxProcessingRetries:
       multisigCheckpointSyncer:
         threshold:
         checkpointSyncers:
