@@ -18,24 +18,6 @@ import {
   getEnvironment,
 } from './utils';
 
-function mergeVerificationInputs<ChainName extends Chains>(
-  existingInputsMap: ChainMap<ChainName, ContractVerificationInput[]>,
-  newInputsMap: ChainMap<ChainName, ContractVerificationInput[]>,
-): ChainMap<ChainName, ContractVerificationInput[]> {
-  const allChains = new Set<ChainName>();
-  Object.keys(existingInputsMap).forEach((_) => allChains.add(_ as ChainName));
-  Object.keys(newInputsMap).forEach((_) => allChains.add(_ as ChainName));
-
-  // @ts-ignore
-  const ret: ChainMap<ChainName, ContractVerificationInput[]> = {};
-  for (const chain of allChains) {
-    const existingInputs = existingInputsMap[chain] || [];
-    const newInputs = newInputsMap[chain] || [];
-    ret[chain] = [...existingInputs, ...newInputs];
-  }
-  return ret;
-}
-
 async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment) as any;
@@ -76,10 +58,7 @@ async function main() {
   writeJSON(
     getCoreVerificationDirectory(environment),
     'verification.json',
-    mergeVerificationInputs(
-      existingVerificationInputs,
-      deployer.verificationInputs,
-    ),
+    deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
   );
 
   deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
