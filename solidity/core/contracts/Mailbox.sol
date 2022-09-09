@@ -186,7 +186,10 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
                 _zone = defaultZone;
             }
 
-            require(_zone.accept(_root, _index, _sovereignData, _message));
+            require(
+                _zone.accept(_root, _index, _sovereignData, _message),
+                "!zone"
+            );
         }
 
         {

@@ -2,7 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { utils } from '@abacus-network/utils';
+import { types, utils } from '@abacus-network/utils';
 
 import {
   BadRecipient1__factory,
@@ -10,8 +10,8 @@ import {
   BadRecipient3__factory,
   BadRecipient5__factory,
   BadRecipient6__factory,
-  Mailbox,
-  Mailbox__factory,
+  TestMailbox,
+  TestMailbox__factory,
   TestRecipient__factory,
   TestZone,
   TestZone__factory,
@@ -21,10 +21,10 @@ import { MerkleProof, dispatchMessageAndReturnProof } from './lib/mailboxes';
 
 const localDomain = 1000;
 const destDomain = 2000;
-const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
+// const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
 describe('Mailbox', async () => {
-  let mailbox: Mailbox, zone: TestZone, signer: SignerWithAddress;
+  let mailbox: TestMailbox, zone: TestZone, signer: SignerWithAddress;
 
   before(async () => {});
 
@@ -32,7 +32,7 @@ describe('Mailbox', async () => {
     [signer] = await ethers.getSigners();
     const zoneFactory = new TestZone__factory(signer);
     zone = await zoneFactory.deploy();
-    const mailboxFactory = new Mailbox__factory(signer);
+    const mailboxFactory = new TestMailbox__factory(signer);
     mailbox = await mailboxFactory.deploy(localDomain);
     await mailbox.initialize(zone.address);
   });
@@ -55,14 +55,14 @@ describe('Mailbox', async () => {
         localDomain,
         signer.address,
         destDomain,
-        recipient.address,
+        utils.addressToBytes32(recipient.address),
         message,
       );
       const leafIndex = await mailbox.tree();
       const hash = utils.messageHash(
         abacusMessage,
         leafIndex.toNumber(),
-        mailbox.address,
+        utils.addressToBytes32(mailbox.address),
         await mailbox.VERSION(),
       );
 
@@ -127,12 +127,13 @@ describe('Mailbox', async () => {
       BadRecipient5__factory,
       BadRecipient6__factory,
     ];
-    let proof: MerkleProof, recipient: string, destMailbox: Mailbox;
+    let proof: MerkleProof, recipient: string, destMailbox: TestMailbox;
+
     beforeEach(async () => {
       await zone.setAccept(true);
       const recipientF = new TestRecipient__factory(signer);
       recipient = utils.addressToBytes32((await recipientF.deploy()).address);
-      const mailboxFactory = new Mailbox__factory(signer);
+      const mailboxFactory = new TestMailbox__factory(signer);
       destMailbox = await mailboxFactory.deploy(destDomain);
       await destMailbox.initialize(zone.address);
       proof = await dispatchMessageAndReturnProof(
@@ -146,10 +147,10 @@ describe('Mailbox', async () => {
     it('processes a message', async () => {
       await expect(
         destMailbox.process(
-          mailbox.address,
+          utils.addressToBytes32(mailbox.address),
           proof.root,
           proof.index,
-          '',
+          '0x00',
           proof.message,
           proof.proof,
           proof.index,
@@ -169,10 +170,10 @@ describe('Mailbox', async () => {
       // Try to process message again
       await expect(
         destMailbox.process(
-          mailbox.address,
+          utils.addressToBytes32(mailbox.address),
           proof.root,
           proof.index,
-          '',
+          '0x00',
           proof.message,
           proof.proof,
           proof.index,
@@ -188,10 +189,10 @@ describe('Mailbox', async () => {
 
       expect(
         destMailbox.process(
-          mailbox.address,
+          utils.addressToBytes32(mailbox.address),
           proof.root,
           proof.index,
-          '',
+          '0x00',
           proof.message,
           newProof,
           proof.index,
@@ -206,15 +207,15 @@ describe('Mailbox', async () => {
       await zone.setAccept(false);
       await expect(
         destMailbox.process(
-          mailbox.address,
+          utils.addressToBytes32(mailbox.address),
           proof.root,
           proof.index,
-          '',
+          '0x00',
           proof.message,
           proof.proof,
           proof.index,
         ),
-      ).to.be.revertedWith('!mailbox');
+      ).to.be.revertedWith('!zone');
     });
 
     for (let i = 0; i < badRecipientFactories.length; i++) {
@@ -233,10 +234,10 @@ describe('Mailbox', async () => {
 
         await expect(
           destMailbox.process(
-            mailbox.address,
+            utils.addressToBytes32(mailbox.address),
             badProof.root,
             badProof.index,
-            '',
+            '0x00',
             badProof.message,
             badProof.proof,
             badProof.index,
@@ -255,10 +256,10 @@ describe('Mailbox', async () => {
 
       await expect(
         destMailbox.process(
-          mailbox.address,
+          utils.addressToBytes32(mailbox.address),
           badProof.root,
           badProof.index,
-          '',
+          '0x00',
           badProof.message,
           badProof.proof,
           badProof.index,
@@ -275,10 +276,10 @@ describe('Mailbox', async () => {
       );
       await expect(
         destMailbox.process(
-          mailbox.address,
+          utils.addressToBytes32(mailbox.address),
           badProof.root,
           badProof.index,
-          '',
+          '0x00',
           badProof.message,
           badProof.proof,
           badProof.index,

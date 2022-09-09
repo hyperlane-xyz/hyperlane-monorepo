@@ -3,11 +3,11 @@ import { ethers } from 'ethers';
 
 import { utils } from '@abacus-network/utils';
 
-import { TestOutbox } from '../../types';
-import { DispatchEvent } from '../../types/contracts/Outbox';
+import { TestMailbox } from '../../types';
+import { DispatchEvent } from '../../types/contracts/Mailbox';
 
 export const dispatchMessage = async (
-  outbox: TestOutbox,
+  outbox: TestMailbox,
   destination: number,
   recipient: string,
   messageStr: string,
@@ -24,7 +24,7 @@ export const dispatchMessage = async (
 };
 
 export const dispatchMessageAndReturnProof = async (
-  outbox: TestOutbox,
+  outbox: TestMailbox,
   destination: number,
   recipient: string,
   messageStr: string,
@@ -36,7 +36,12 @@ export const dispatchMessageAndReturnProof = async (
     messageStr,
   );
   const index = leafIndex.toNumber();
-  const messageHash = utils.messageHash(message, index);
+  const messageHash = utils.messageHash(
+    message,
+    index,
+    utils.addressToBytes32(outbox.address),
+    await outbox.VERSION(),
+  );
   const root = await outbox.root();
   const proof = await outbox.proof();
   return {
