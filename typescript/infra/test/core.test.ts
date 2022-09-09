@@ -49,7 +49,7 @@ describe('core', async () => {
     const base = './test/outputs/core';
     writeJSON(base, 'contracts.json', serializeContracts(contracts));
     writeJSON(base, 'verification.json', deployer.verificationInputs);
-    deployer.writeRustConfigs(environment, path.join(base, 'rust'), contracts);
+    deployer.writeRustConfigs(environment, path.join(base, 'rust'));
   });
 
   it('transfers ownership', async () => {

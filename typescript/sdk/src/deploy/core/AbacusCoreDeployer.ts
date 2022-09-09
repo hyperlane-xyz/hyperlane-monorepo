@@ -149,14 +149,20 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     await super.runIfOwner(chain, abacusConnectionManager, async () => {
       const current = await abacusConnectionManager.outbox();
       if (current !== outbox.outbox.address) {
-        await abacusConnectionManager.setOutbox(
+        const outboxTx = await abacusConnectionManager.setOutbox(
           outbox.outbox.address,
           dc.overrides,
         );
+
+        await dc.handleTx(outboxTx);
       }
     });
 
-    const remotes = this.multiProvider.remoteChains(chain);
+    const configChains = Object.keys(this.configMap) as Chain[];
+    const remotes = this.multiProvider
+      .intersect(configChains, false)
+      .multiProvider.remoteChains(chain);
+
     const inboxes: Partial<Record<Chain, InboxContracts>> =
       this.deployedContracts[chain]?.inboxes ?? ({} as any);
 
@@ -177,11 +183,12 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
           inboxes[remote]!.inbox.address,
         );
         if (!isEnrolled) {
-          await abacusConnectionManager.enrollInbox(
+          const enrollTx = await abacusConnectionManager.enrollInbox(
             chainMetadata[remote].id,
             inboxes[remote]!.inbox.address,
             dc.overrides,
           );
+          await dc.handleTx(enrollTx);
         }
       });
       prev = remote;
