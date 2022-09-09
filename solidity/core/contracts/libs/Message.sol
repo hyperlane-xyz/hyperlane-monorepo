@@ -45,78 +45,63 @@ library Message {
      * @param _leafIndex Index of the message in the tree
      * @return Leaf (hash) of formatted message
      */
-    function leaf(bytes calldata _message, uint256 _leafIndex)
+    function hash(
+        bytes calldata _message,
+        uint256 _leafIndex,
+        bytes32 _originMailbox,
+        uint8 _version
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(_message, _leafIndex, _originMailbox, _version)
+            );
+    }
+
+    function origin(bytes calldata _message) internal pure returns (uint32) {
+        return uint32(bytes4(_message[0:4]));
+    }
+
+    function sender(bytes calldata _message) internal pure returns (bytes32) {
+        return bytes32(_message[4:36]);
+    }
+
+    function senderAddress(bytes calldata _message)
+        internal
+        pure
+        returns (address)
+    {
+        return sender(_message).bytes32ToAddress();
+    }
+
+    function destination(bytes calldata _message)
+        internal
+        pure
+        returns (uint32)
+    {
+        return uint32(bytes4(_message[36:40]));
+    }
+
+    function recipient(bytes calldata _message)
         internal
         pure
         returns (bytes32)
     {
-        return keccak256(abi.encodePacked(_message, _leafIndex));
+        return bytes32(_message[40:72]);
     }
 
-    /**
-     * @notice Decode raw message bytes into structured message fields.
-     * @dev Efficiently slices calldata into structured message fields.
-     * @param _message Raw bytes of message contents.
-     * @return origin Domain of home chain
-     * @return sender Address of sender as bytes32
-     * @return destination Domain of destination chain
-     * @return recipient Address of recipient on destination chain as bytes32
-     * @return body Raw bytes of message body
-     */
-    function destructure(bytes calldata _message)
+    function recipientAddress(bytes calldata _message)
         internal
         pure
-        returns (
-            uint32 origin,
-            bytes32 sender,
-            uint32 destination,
-            bytes32 recipient,
-            bytes calldata body
-        )
+        returns (address)
     {
-        return (
-            uint32(bytes4(_message[0:4])),
-            bytes32(_message[4:36]),
-            uint32(bytes4(_message[36:40])),
-            bytes32(_message[40:72]),
-            bytes(_message[72:])
-        );
+        return recipient(_message).bytes32ToAddress();
     }
 
-    /**
-     * @notice Decode raw message bytes into structured message fields.
-     * @dev Efficiently slices calldata into structured message fields.
-     * @param _message Raw bytes of message contents.
-     * @return origin Domain of home chain
-     * @return sender Address of sender as address (bytes20)
-     * @return destination Domain of destination chain
-     * @return recipient Address of recipient on destination chain as address (bytes20)
-     * @return body Raw bytes of message body
-     */
-    function destructureAddresses(bytes calldata _message)
+    function body(bytes calldata _message)
         internal
         pure
-        returns (
-            uint32,
-            address,
-            uint32,
-            address,
-            bytes calldata
-        )
+        returns (bytes calldata)
     {
-        (
-            uint32 _origin,
-            bytes32 _sender,
-            uint32 destination,
-            bytes32 _recipient,
-            bytes calldata body
-        ) = destructure(_message);
-        return (
-            _origin,
-            _sender.bytes32ToAddress(),
-            destination,
-            _recipient.bytes32ToAddress(),
-            body
-        );
+        return bytes(_message[72:]);
     }
 }

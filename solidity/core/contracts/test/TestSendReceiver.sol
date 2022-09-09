@@ -5,7 +5,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 
 import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
-import {IOutbox} from "../../interfaces/IOutbox.sol";
+import {IMailbox} from "../../interfaces/IMailbox.sol";
 
 contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
@@ -13,7 +13,7 @@ contract TestSendReceiver is IMessageRecipient {
     event Handled(bytes32 blockHash);
 
     function dispatchToSelf(
-        IOutbox _outbox,
+        IMailbox _outbox,
         IInterchainGasPaymaster _paymaster,
         uint32 _destinationDomain,
         bytes calldata _messageBody

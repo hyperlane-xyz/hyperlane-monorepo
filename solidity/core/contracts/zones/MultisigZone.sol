@@ -1,54 +1,57 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {Versioned} from "../upgrade/Versioned.sol";
-
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 // ============ Internal Imports ============
-import {IMultisigValidatorManager} from "../../interfaces/IMultisigValidatorManager.sol";
+import {IMultisigZone} from "../../interfaces/IMultisigZone.sol";
+import {Message} from "../libs/Message.sol";
+import {EcdsaSignatureList} from "../libs/EcdsaSignatureList.sol";
 
 /**
- * @title MultisigValidatorManager
+ * @title MultisigZone
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
  * reach a quorum.
  */
-abstract contract MultisigValidatorManager is
-    IMultisigValidatorManager,
-    Ownable,
-    Versioned
-{
+contract MultisigZone is IMultisigZone, Ownable {
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
+    using Message for bytes;
+    using EcdsaSignatureList for bytes;
 
-    // ============ Immutables ============
-
-    // The domain of the validator set's outbox chain.
-    uint32 public immutable domain;
-
-    // The domain hash of the validator set's outbox chain.
-    bytes32 public immutable domainHash;
+    // ============ Constants ============
+    ZoneType public constant zoneType = ZoneType.MULTISIG;
 
     // ============ Mutable Storage ============
 
     // The minimum threshold of validator signatures to constitute a quorum.
-    uint256 public threshold;
+    mapping(uint32 => uint256) public threshold;
 
     // The set of validators.
-    EnumerableSet.AddressSet private validatorSet;
+    mapping(uint32 => EnumerableSet.AddressSet) private validatorSets;
 
     // ============ Events ============
+    event CheckpointSignature(
+        bytes32 root,
+        uint256 index,
+        uint32 domain,
+        bytes signature
+    );
 
     /**
      * @notice Emitted when a validator is enrolled in the validator set.
      * @param validator The address of the validator.
      * @param validatorCount The new number of enrolled validators in the validator set.
      */
-    event ValidatorEnrolled(address indexed validator, uint256 validatorCount);
+    event ValidatorEnrolled(
+        uint32 indexed domain,
+        address indexed validator,
+        uint256 validatorCount
+    );
 
     /**
      * @notice Emitted when a validator is unenrolled from the validator set.
@@ -56,6 +59,7 @@ abstract contract MultisigValidatorManager is
      * @param validatorCount The new number of enrolled validators in the validator set.
      */
     event ValidatorUnenrolled(
+        uint32 indexed domain,
         address indexed validator,
         uint256 validatorCount
     );
@@ -64,34 +68,14 @@ abstract contract MultisigValidatorManager is
      * @notice Emitted when the quorum threshold is set.
      * @param threshold The new quorum threshold.
      */
-    event ThresholdSet(uint256 threshold);
+    event ThresholdSet(uint32 indexed domain, uint256 threshold);
 
     // ============ Constructor ============
 
     /**
-     * @dev Reverts if `_validators` has any duplicates.
-     * @param _domain The domain of the outbox the validator set is for.
-     * @param _validators The set of validator addresses.
-     * @param _threshold The quorum threshold. Must be greater than or equal
-     * to the length of `_validators`.
      */
-    constructor(
-        uint32 _domain,
-        address[] memory _validators,
-        uint256 _threshold
-    ) Ownable() {
-        // Set immutables.
-        domain = _domain;
-        domainHash = _domainHash(_domain);
-
-        // Enroll validators. Reverts if there are any duplicates.
-        uint256 _numValidators = _validators.length;
-        for (uint256 i = 0; i < _numValidators; i++) {
-            _enrollValidator(_validators[i]);
-        }
-
-        _setThreshold(_threshold);
-    }
+    // solhint-disable-next-line no-empty-blocks
+    constructor() Ownable() {}
 
     // ============ External Functions ============
 
@@ -100,8 +84,11 @@ abstract contract MultisigValidatorManager is
      * @dev Reverts if `_validator` is already in the validator set.
      * @param _validator The validator to add to the validator set.
      */
-    function enrollValidator(address _validator) external onlyOwner {
-        _enrollValidator(_validator);
+    function enrollValidator(uint32 _domain, address _validator)
+        external
+        onlyOwner
+    {
+        _enrollValidator(_domain, _validator);
     }
 
     /**
@@ -109,16 +96,22 @@ abstract contract MultisigValidatorManager is
      * @dev Reverts if `_validator` is not in the validator set.
      * @param _validator The validator to remove from the validator set.
      */
-    function unenrollValidator(address _validator) external onlyOwner {
-        _unenrollValidator(_validator);
+    function unenrollValidator(uint32 _domain, address _validator)
+        external
+        onlyOwner
+    {
+        _unenrollValidator(_domain, _validator);
     }
 
     /**
      * @notice Sets the quorum threshold.
      * @param _threshold The new quorum threshold.
      */
-    function setThreshold(uint256 _threshold) external onlyOwner {
-        _setThreshold(_threshold);
+    function setThreshold(uint32 _domain, uint256 _threshold)
+        external
+        onlyOwner
+    {
+        _setThreshold(_domain, _threshold);
     }
 
     /**
@@ -126,11 +119,16 @@ abstract contract MultisigValidatorManager is
      * @dev There are no ordering guarantees due to the semantics of EnumerableSet.AddressSet.
      * @return The addresses of the validator set.
      */
-    function validators() external view returns (address[] memory) {
-        uint256 _numValidators = validatorSet.length();
+    function validators(uint32 _domain)
+        external
+        view
+        returns (address[] memory)
+    {
+        EnumerableSet.AddressSet storage _validatorSet = validatorSets[_domain];
+        uint256 _numValidators = _validatorSet.length();
         address[] memory _validators = new address[](_numValidators);
         for (uint256 i = 0; i < _numValidators; i++) {
-            _validators[i] = validatorSet.at(i);
+            _validators[i] = _validatorSet.at(i);
         }
         return _validators;
     }
@@ -145,42 +143,59 @@ abstract contract MultisigValidatorManager is
      * @dev Does not revert if a signature's signer is not in the validator set.
      * @param _root The merkle root of the checkpoint.
      * @param _index The index of the checkpoint.
-     * @param _signatures Signatures over the checkpoint to be checked for a validator
-     * quorum. Must be sorted in ascending order by signer address.
-     * @return TRUE iff `_signatures` constitute a quorum of validator signatures over
-     * the checkpoint.
      */
-    function isQuorum(
+    function accept(
         bytes32 _root,
         uint256 _index,
-        bytes[] calldata _signatures
+        bytes calldata _signatures,
+        bytes calldata _message
     ) public view returns (bool) {
-        uint256 _numSignatures = _signatures.length;
+        uint32 _origin = _message.origin();
+        uint8 _numSignatures = _signatures.signatureCount();
+        uint256 _threshold = threshold[_origin];
+        require(_threshold > 0);
         // If there are fewer signatures provided than the required quorum threshold,
         // this is not a quorum.
-        if (_numSignatures < threshold) {
+        if (_numSignatures < _threshold) {
             return false;
         }
+        bytes32 _digest = signedDigest(_root, _index, _origin);
+        uint256 _validatorSignatureCount = countValidatorSignatures(
+            _signatures,
+            _origin,
+            _numSignatures,
+            _digest
+        );
+        return _validatorSignatureCount >= _threshold;
+    }
+
+    function countValidatorSignatures(
+        bytes calldata _signatures,
+        uint32 _origin,
+        uint8 _numSignatures,
+        bytes32 _digest
+    ) internal view returns (uint256) {
+        EnumerableSet.AddressSet storage _validatorSet = validatorSets[_origin];
         // To identify duplicates, the signers recovered from _signatures
         // must be sorted in ascending order. previousSigner is used to
         // enforce ordering.
         address _previousSigner = address(0);
         uint256 _validatorSignatureCount = 0;
-        for (uint256 i = 0; i < _numSignatures; i++) {
-            address _signer = _recoverCheckpointSigner(
-                _root,
-                _index,
-                _signatures[i]
-            );
+        for (uint8 i = 0; i < _numSignatures; i++) {
+            bytes calldata _signature = _signatures.signatureAt(i);
+            address _signer = ECDSA.recover(_digest, _signature);
             // Revert if the signer violates the required sort order.
             require(_previousSigner < _signer, "!sorted signers");
             // If the signer is a validator, increment _validatorSignatureCount.
-            if (isValidator(_signer)) {
+            if (_validatorSet.contains(_signer)) {
                 _validatorSignatureCount++;
             }
             _previousSigner = _signer;
+            // TODO: I guess this function can't be view only?
+            // Unless we think we can/should emit this in the Mailbox..
+            // emit CheckpointSignature(_root, _index, _origin, _signature);
         }
-        return _validatorSignatureCount >= threshold;
+        return _validatorSignatureCount;
     }
 
     /**
@@ -188,19 +203,34 @@ abstract contract MultisigValidatorManager is
      * @param _validator The address of the validator.
      * @return TRUE iff `_validator` is enrolled in the validator set.
      */
-    function isValidator(address _validator) public view returns (bool) {
-        return validatorSet.contains(_validator);
+    function isValidator(uint32 _domain, address _validator)
+        public
+        view
+        returns (bool)
+    {
+        return validatorSets[_domain].contains(_validator);
     }
 
     /**
      * @notice Returns the number of validators enrolled in the validator set.
      * @return The number of validators enrolled in the validator set.
      */
-    function validatorCount() public view returns (uint256) {
-        return validatorSet.length();
+    function validatorCount(uint32 _domain) public view returns (uint256) {
+        return validatorSets[_domain].length();
     }
 
     // ============ Internal Functions ============
+    function signedDigest(
+        bytes32 _root,
+        uint256 _index,
+        uint32 _origin
+    ) internal pure returns (bytes32) {
+        bytes32 _domainHash = keccak256(abi.encodePacked(_origin, "ABACUS"));
+        return
+            ECDSA.toEthSignedMessageHash(
+                keccak256(abi.encodePacked(_domainHash, _root, _index))
+            );
+    }
 
     /**
      * @notice Recovers the signer from a signature of a checkpoint.
@@ -212,10 +242,12 @@ abstract contract MultisigValidatorManager is
     function _recoverCheckpointSigner(
         bytes32 _root,
         uint256 _index,
+        uint32 _origin,
         bytes calldata _signature
-    ) internal view returns (address) {
+    ) internal pure returns (address) {
+        bytes32 _domainHash = keccak256(abi.encodePacked(_origin, "ABACUS"));
         bytes32 _digest = keccak256(
-            abi.encodePacked(domainHash, _root, _index)
+            abi.encodePacked(_domainHash, _root, _index)
         );
         return ECDSA.recover(ECDSA.toEthSignedMessageHash(_digest), _signature);
     }
@@ -225,10 +257,10 @@ abstract contract MultisigValidatorManager is
      * @dev Reverts if `_validator` is already in the validator set.
      * @param _validator The validator to add to the validator set.
      */
-    function _enrollValidator(address _validator) internal {
+    function _enrollValidator(uint32 _domain, address _validator) internal {
         require(_validator != address(0), "zero address");
-        require(validatorSet.add(_validator), "already enrolled");
-        emit ValidatorEnrolled(_validator, validatorCount());
+        require(validatorSets[_domain].add(_validator), "already enrolled");
+        emit ValidatorEnrolled(_domain, _validator, validatorCount(_domain));
     }
 
     /**
@@ -238,34 +270,26 @@ abstract contract MultisigValidatorManager is
      * @dev Reverts if `_validator` is not in the validator set.
      * @param _validator The validator to remove from the validator set.
      */
-    function _unenrollValidator(address _validator) internal {
-        require(validatorSet.remove(_validator), "!enrolled");
-        uint256 _numValidators = validatorCount();
-        require(_numValidators >= threshold, "violates quorum threshold");
-        emit ValidatorUnenrolled(_validator, _numValidators);
+    function _unenrollValidator(uint32 _domain, address _validator) internal {
+        require(validatorSets[_domain].remove(_validator), "!enrolled");
+        uint256 _numValidators = validatorCount(_domain);
+        require(
+            _numValidators >= threshold[_domain],
+            "violates quorum threshold"
+        );
+        emit ValidatorUnenrolled(_domain, _validator, _numValidators);
     }
 
     /**
      * @notice Sets the quorum threshold.
      * @param _threshold The new quorum threshold.
      */
-    function _setThreshold(uint256 _threshold) internal {
-        require(_threshold > 0 && _threshold <= validatorCount(), "!range");
-        threshold = _threshold;
-        emit ThresholdSet(_threshold);
-    }
-
-    /**
-     * @notice Hash of `_domain` concatenated with "ABACUS" and deployment version.
-     * @dev Domain hash is salted with deployment version to prevent validator signature replay.
-     * @param _domain The domain to hash.
-     */
-    function _domainHash(uint32 _domain) internal pure returns (bytes32) {
-        if (VERSION > 0) {
-            return keccak256(abi.encodePacked(_domain, "ABACUS", VERSION));
-        } else {
-            // for backwards compatibility with initial deployment (VERSION == 0)
-            return keccak256(abi.encodePacked(_domain, "ABACUS"));
-        }
+    function _setThreshold(uint32 _domain, uint256 _threshold) internal {
+        require(
+            _threshold > 0 && _threshold <= validatorCount(_domain),
+            "!range"
+        );
+        threshold[_domain] = _threshold;
+        emit ThresholdSet(_domain, _threshold);
     }
 }
