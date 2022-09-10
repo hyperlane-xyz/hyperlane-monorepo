@@ -207,7 +207,7 @@ fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
         6648936 => Chain::Ethereum,
         1634872690 => Chain::Rinkeby,
         3000 => Chain::Kovan,
-        5 => Chain::Goerli
+        5 => Chain::Goerli,
 
         1886350457 => Chain::Polygon,
         80001 => Chain::PolygonMumbai,
@@ -227,7 +227,7 @@ fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
         1667591279 => Chain::Celo,
         1000 => Chain::Alfajores,
 
-        1836002657 => Chain::MoonbaseAlpha
+        1836002657 => Chain::MoonbaseAlpha,
 
 
         _ => bail!("Unknown domain {}", domain),
