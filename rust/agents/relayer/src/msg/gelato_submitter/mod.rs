@@ -229,7 +229,6 @@ fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
 
         1836002657 => Chain::MoonbaseAlpha,
 
-
         _ => bail!("Unknown domain {}", domain),
     })
 }
