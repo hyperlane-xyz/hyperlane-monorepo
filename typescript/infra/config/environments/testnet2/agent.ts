@@ -26,7 +26,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-1027312',
+    tag: 'sha-f19110f',
   },
   aws: {
     region: 'us-east-1',
@@ -83,7 +83,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   context: Contexts.Flowcarbon,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-1027312',
+    tag: 'sha-f19110f',
   },
   aws: {
     region: 'us-east-1',
@@ -91,7 +91,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: ['alfajores', 'kovan'],
   validatorSets: validators,
-  connectionType: ConnectionType.Http,
+  connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
