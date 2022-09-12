@@ -17,6 +17,7 @@ export const prodConfigs = {
   bsctestnet: chainConnectionConfigs.bsctestnet,
 };
 
+/* eslint-disable no-console */
 async function main() {
   console.info('Getting signer');
   const signer = new Wallet('pkey');
