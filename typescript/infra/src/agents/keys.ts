@@ -5,6 +5,7 @@ import { ChainName } from '@abacus-network/sdk';
 import { Contexts } from '../../config/contexts';
 import { assertChain, assertContext, assertRole } from '../utils/utils';
 
+import { parseKeyIdentifier } from './agent';
 import { KEY_ROLE_ENUM } from './roles';
 
 // Base class to represent keys used to run Abacus agents.
@@ -100,45 +101,17 @@ export class ReadOnlyCloudAgentKey extends BaseCloudAgentKey {
     identifier: string,
     address: string,
   ): ReadOnlyCloudAgentKey {
-    const regex =
-      /(alias\/)?([a-zA-Z0-9]+)-([a-zA-Z0-9]+)-key-([a-zA-Z0-9]+)-?([a-zA-Z0-9]+)?-?([0-9]+)?/g;
-    const matches = regex.exec(identifier);
-    if (!matches) {
-      throw Error('Invalid identifier');
-    }
-    const context = assertContext(matches[2]);
-    const environment = matches[3];
+    const { environment, context, role, chainName, index } =
+      parseKeyIdentifier(identifier);
 
-    // If matches[5] is undefined, this key doesn't have a chainName, and matches[4]
-    // is the role name.
-    if (matches[5] === undefined) {
-      return new ReadOnlyCloudAgentKey(
-        environment,
-        context,
-        assertRole(matches[4]),
-        identifier,
-        address,
-      );
-    } else if (matches[6] === undefined) {
-      // If matches[6] is undefined, this key doesn't have an index.
-      return new ReadOnlyCloudAgentKey(
-        environment,
-        context,
-        assertRole(matches[5]),
-        identifier,
-        address,
-        assertChain(matches[4]),
-      );
-    } else {
-      return new ReadOnlyCloudAgentKey(
-        environment,
-        context,
-        assertRole(matches[5]),
-        identifier,
-        address,
-        assertChain(matches[4]),
-        parseInt(matches[6]),
-      );
-    }
+    return new ReadOnlyCloudAgentKey(
+      environment,
+      assertContext(context),
+      assertRole(role),
+      identifier,
+      address,
+      chainName ? assertChain(chainName) : undefined,
+      index,
+    );
   }
 }

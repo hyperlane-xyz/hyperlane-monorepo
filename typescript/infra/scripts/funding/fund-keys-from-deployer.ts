@@ -3,6 +3,7 @@ import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
+  AllChains,
   ChainConnection,
   ChainName,
   CompleteChainMap,
@@ -11,6 +12,7 @@ import {
 import { error, log } from '@abacus-network/utils';
 
 import { Contexts } from '../../config/contexts';
+import { parseKeyIdentifier } from '../../src/agents/agent';
 import { getAllCloudAgentKeys } from '../../src/agents/key-utils';
 import {
   BaseCloudAgentKey,
@@ -187,12 +189,23 @@ class ContextFunder {
       path,
     });
     const idsAndAddresses = readJSONAtPath(path);
-    const keys: BaseCloudAgentKey[] = idsAndAddresses.map((idAndAddress: any) =>
-      ReadOnlyCloudAgentKey.fromSerializedAddress(
-        idAndAddress.identifier,
-        idAndAddress.address,
-      ),
-    );
+    const keys: BaseCloudAgentKey[] = idsAndAddresses
+      .filter((idAndAddress: any) => {
+        const parsed = parseKeyIdentifier(idAndAddress.identifier);
+        // Filter out any invalid chain names. This can happen if we're running an old
+        // version of this script but the list of identifiers (expected to be stored in GCP secrets)
+        // references newer chains.
+        return (
+          parsed.chainName === undefined ||
+          AllChains.includes(parsed.chainName as ChainName)
+        );
+      })
+      .map((idAndAddress: any) =>
+        ReadOnlyCloudAgentKey.fromSerializedAddress(
+          idAndAddress.identifier,
+          idAndAddress.address,
+        ),
+      );
 
     // TODO: Why do we need to cast here?
     const context = keys[0].context as Contexts;

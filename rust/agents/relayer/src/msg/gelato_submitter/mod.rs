@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use abacus_base::chains::GelatoConf;
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::db::AbacusDB;
@@ -14,6 +16,7 @@ use crate::msg::gelato_submitter::sponsored_call_op::{
     SponsoredCallOp, SponsoredCallOpArgs, SponsoredCallOptions,
 };
 
+use super::gas_payment_enforcer::GasPaymentEnforcer;
 use super::SubmitMessageArgs;
 
 mod sponsored_call_op;
@@ -38,6 +41,8 @@ pub(crate) struct GelatoSubmitter {
     message_processed_sender: UnboundedSender<SubmitMessageArgs>,
     /// Channel to receive from SponsoredCallOps that a message has been successfully processed.
     message_processed_receiver: UnboundedReceiver<SubmitMessageArgs>,
+    /// Used to determine if messages have made sufficient gas payments.
+    gas_payment_enforcer: Arc<GasPaymentEnforcer>,
 }
 
 impl GelatoSubmitter {
@@ -46,8 +51,8 @@ impl GelatoSubmitter {
         inbox_contracts: InboxContracts,
         abacus_db: AbacusDB,
         gelato_config: GelatoConf,
-        http_client: reqwest::Client,
         metrics: GelatoSubmitterMetrics,
+        gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> Self {
         let (message_processed_sender, message_processed_receiver) =
             mpsc::unbounded_channel::<SubmitMessageArgs>();
@@ -58,10 +63,11 @@ impl GelatoSubmitter {
             inbox_contracts,
             db: abacus_db,
             gelato_config,
-            http_client,
+            http_client: reqwest::Client::new(),
             metrics,
             message_processed_sender,
             message_processed_receiver,
+            gas_payment_enforcer,
         }
     }
 
@@ -106,6 +112,7 @@ impl GelatoSubmitter {
                 sponsor_api_key: self.gelato_config.sponsorapikey.clone(),
                 destination_chain: self.inbox_gelato_chain,
                 message_processed_sender: self.message_processed_sender.clone(),
+                gas_payment_enforcer: self.gas_payment_enforcer.clone(),
             });
             self.metrics.active_sponsored_call_ops_gauge.add(1);
 

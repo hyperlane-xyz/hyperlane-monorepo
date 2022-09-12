@@ -250,4 +250,23 @@ export abstract class AbacusDeployer<
       initArgs,
     );
   }
+
+  mergeWithExistingVerificationInputs(
+    existingInputsMap: ChainMap<Chain, ContractVerificationInput[]>,
+  ): ChainMap<Chain, ContractVerificationInput[]> {
+    const allChains = new Set<Chain>();
+    Object.keys(existingInputsMap).forEach((_) => allChains.add(_ as Chain));
+    Object.keys(this.verificationInputs).forEach((_) =>
+      allChains.add(_ as Chain),
+    );
+
+    // @ts-ignore
+    const ret: ChainMap<Chain, ContractVerificationInput[]> = {};
+    for (const chain of allChains) {
+      const existingInputs = existingInputsMap[chain] || [];
+      const newInputs = this.verificationInputs[chain] || [];
+      ret[chain] = [...existingInputs, ...newInputs];
+    }
+    return ret;
+  }
 }

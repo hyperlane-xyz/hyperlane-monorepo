@@ -1,4 +1,4 @@
-use std::{ops::Deref, time::Duration};
+use std::{ops::Deref, sync::Arc, time::Duration};
 
 use abacus_base::InboxContracts;
 use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
@@ -14,10 +14,14 @@ use tokio::{
 };
 use tracing::instrument;
 
-use crate::msg::SubmitMessageArgs;
+use crate::msg::{gas_payment_enforcer::GasPaymentEnforcer, SubmitMessageArgs};
 
 // The number of seconds after a tick to sleep before attempting the next tick.
 const TICK_SLEEP_DURATION_SECONDS: u64 = 30;
+
+/// The period to sleep after observing the message's gas payment
+/// as insufficient, in secs.
+const INSUFFICIENT_GAS_PAYMENT_SLEEP_PERIOD_SECS: u64 = 15;
 
 #[derive(Debug, Clone)]
 pub struct SponsoredCallOpArgs {
@@ -28,6 +32,8 @@ pub struct SponsoredCallOpArgs {
     pub inbox_contracts: InboxContracts,
     pub sponsor_api_key: String,
     pub destination_chain: Chain,
+
+    pub gas_payment_enforcer: Arc<GasPaymentEnforcer>,
 
     /// A channel to send the message over upon the message being successfully processed.
     pub message_processed_sender: UnboundedSender<SubmitMessageArgs>,
@@ -84,6 +90,20 @@ impl SponsoredCallOp {
         // Before doing anything, first check if the message has already been processed.
         if let Ok(MessageStatus::Processed) = self.message_status().await {
             return Ok(MessageStatus::Processed);
+        }
+
+        // If the gas payment requirement hasn't been met, sleep briefly and wait for the next tick.
+        let (meets_gas_requirement, gas_payment) = self
+            .gas_payment_enforcer
+            .message_meets_gas_payment_requirement(self.0.message.leaf_index)?;
+
+        if !meets_gas_requirement {
+            tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
+            sleep(Duration::from_secs(
+                INSUFFICIENT_GAS_PAYMENT_SLEEP_PERIOD_SECS,
+            ))
+            .await;
+            return Ok(MessageStatus::None);
         }
 
         // Send the sponsored call.

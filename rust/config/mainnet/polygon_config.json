@@ -89,7 +89,8 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0x8249cD1275855F2BB20eE71f0B9fA3c9155E5FaB"
+      "outbox": "0x8249cD1275855F2BB20eE71f0B9fA3c9155E5FaB",
+      "interchainGasPaymaster": "0x60B8d195f1b2EcaC26d54b95C69E6399cFD64b53"
     },
     "domain": "1886350457",
     "name": "polygon",
