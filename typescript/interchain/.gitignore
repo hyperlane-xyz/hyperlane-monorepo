@@ -4,8 +4,6 @@ coverage/
 coverage.json
 dist/
 node_modules/
-src/types/
-src/deploy/output
-test/outputs/
+types/
 *.swp
 .yarn/install-state.gz
