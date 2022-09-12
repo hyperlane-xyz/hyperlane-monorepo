@@ -89,7 +89,8 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xe042D1fbDf59828dd16b9649Ede7abFc856F7a6c"
+      "outbox": "0xe042D1fbDf59828dd16b9649Ede7abFc856F7a6c",
+      "interchainGasPaymaster": "0xCDeb368Db32ecCefaf7018e152DA9120565cb572"
     },
     "domain": "1667591279",
     "name": "celo",

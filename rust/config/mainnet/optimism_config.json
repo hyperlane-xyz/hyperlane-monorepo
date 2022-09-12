@@ -89,7 +89,8 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0x0be2Ae2f6D02a3e0e00ECB57D3E1fCbb7f8F38F4"
+      "outbox": "0x0be2Ae2f6D02a3e0e00ECB57D3E1fCbb7f8F38F4",
+      "interchainGasPaymaster": "0xc5D6aCaafBCcEC6D7fD7d92F4509befce641c563"
     },
     "domain": "28528",
     "name": "optimism",

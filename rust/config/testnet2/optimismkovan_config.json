@@ -89,7 +89,8 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0x981f5C4070bC048186CDE1CcB61Ea5c969194b54"
+      "outbox": "0x981f5C4070bC048186CDE1CcB61Ea5c969194b54",
+      "interchainGasPaymaster": "0xD7D2B0f61B834D98772e938Fa64425587C0f3481"
     },
     "domain": "1869622635",
     "name": "optimismkovan",

@@ -89,7 +89,8 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xE199902fb97726e3D924bF6606382af11a954c85"
+      "outbox": "0xE199902fb97726e3D924bF6606382af11a954c85",
+      "interchainGasPaymaster": "0x74234D5EEb6229fD75fF5370fab7D9819295F0D5"
     },
     "domain": "3000",
     "name": "kovan",

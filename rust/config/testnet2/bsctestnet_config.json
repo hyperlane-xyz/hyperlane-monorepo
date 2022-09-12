@@ -89,7 +89,8 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xE023239c8dfc172FF008D8087E7442d3eBEd9350"
+      "outbox": "0xE023239c8dfc172FF008D8087E7442d3eBEd9350",
+      "interchainGasPaymaster": "0x155b1F1801030Ea4dF038107d3cc1b4bA496916e"
     },
     "domain": "1651715444",
     "name": "bsctestnet",
