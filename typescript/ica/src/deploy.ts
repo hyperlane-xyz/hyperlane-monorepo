@@ -10,6 +10,7 @@ import {
 import {
   InterchainAccountContracts,
   InterchainAccountFactories,
+  interchainAccountFactories,
 } from './contracts';
 
 export type InterchainAccountConfig = RouterConfig;
@@ -27,7 +28,7 @@ export class InterchainAccountDeployer<
     configMap: ChainMap<Chain, InterchainAccountConfig>,
     protected core: AbacusCore<Chain>,
   ) {
-    super(multiProvider, configMap, InterchainAccountFactories, {});
+    super(multiProvider, configMap, interchainAccountFactories, {});
   }
 
   // Custom contract deployment logic can go here
