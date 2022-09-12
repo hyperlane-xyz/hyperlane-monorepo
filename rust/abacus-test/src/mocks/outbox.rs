@@ -56,16 +56,16 @@ impl std::fmt::Debug for MockOutboxContract {
 
 #[async_trait]
 impl Outbox for MockOutboxContract {
-    async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
-        self._dispatch(message)
-    }
-
     async fn state(&self) -> Result<OutboxState, ChainCommunicationError> {
         self._state()
     }
 
     async fn count(&self) -> Result<u32, ChainCommunicationError> {
         self._count()
+    }
+
+    async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
+        self._dispatch(message)
     }
 
     async fn cache_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
@@ -85,6 +85,10 @@ impl Outbox for MockOutboxContract {
         maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
         self._latest_checkpoint(maybe_lag)
+    }
+
+    fn checkpoint(&mut self) {
+        MockOutboxContract::checkpoint(self)
     }
 }
 

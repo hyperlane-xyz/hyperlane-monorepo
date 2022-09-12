@@ -54,6 +54,10 @@ impl Inbox for MockInboxContract {
     fn contract_address(&self) -> Address {
         self._contract_address()
     }
+
+    fn checkpoint(&mut self) {
+        MockInboxContract::checkpoint(self)
+    }
 }
 
 impl AbacusContract for MockInboxContract {
