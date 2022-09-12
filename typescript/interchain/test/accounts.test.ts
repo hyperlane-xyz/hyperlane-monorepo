@@ -59,14 +59,15 @@ describe('InterchainAccountRouter', async () => {
   it('forwards calls from interchain account', async () => {
     const recipientF = new TestRecipient__factory(signer);
     const recipient = await recipientF.deploy();
-    const data = recipient.interface.encodeFunctionData('foo', ['0x12']);
+    const fooData = '0x12';
+    const data = recipient.interface.encodeFunctionData('foo', [fooData]);
     const icaAddress = await remote.getInterchainAccount(
       localDomain,
       signer.address,
     );
     await local.dispatch(remoteDomain, [{ to: recipient.address, data }]);
     await coreApp.processMessages();
-    expect(await recipient.lastData()).to.eql('0x12');
+    expect(await recipient.lastData()).to.eql(fooData);
     expect(await recipient.lastSender()).to.eql(icaAddress);
   });
 });
