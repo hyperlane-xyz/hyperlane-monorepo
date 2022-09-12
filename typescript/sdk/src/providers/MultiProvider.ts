@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { Signer, ethers } from 'ethers';
 
 import { ChainMap, ChainName, IChainConnection, Remotes } from '../types';
 import { MultiGeneric } from '../utils/MultiGeneric';
@@ -125,6 +125,15 @@ export class MultiProvider<
       ...intersectionChainMap,
     });
     return { intersection, multiProvider };
+  }
+
+  rotateSigner(newSigner: Signer) {
+    this.forEach((chain, dc) => {
+      this.setChainConnection(chain, {
+        ...dc,
+        signer: newSigner.connect(dc.provider),
+      });
+    });
   }
 
   // This doesn't work on hardhat providers so we skip for now

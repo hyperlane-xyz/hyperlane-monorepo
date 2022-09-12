@@ -69,20 +69,34 @@ export abstract class AbacusRouterDeployer<
   async enrollRemoteRouters(
     contractsMap: ChainMap<Chain, Contracts>,
   ): Promise<void> {
-    this.logger(`Enrolling deployed routers with each other...`);
+    this.logger(
+      `Enrolling deployed routers with each other (if not already)...`,
+    );
     // Make all routers aware of each other.
+    const deployedChains = Object.keys(contractsMap);
     await promiseObjAll(
       objMap(contractsMap, async (local, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(local);
-        for (const remote of this.multiProvider.remoteChains(local)) {
-          this.logger(`Enroll ${remote}'s router on ${local}`);
-          await chainConnection.handleTx(
-            contracts.router.enrollRemoteRouter(
-              chainMetadata[remote].id,
-              utils.addressToBytes32(contractsMap[remote].router.address),
-              chainConnection.overrides,
-            ),
+        // only enroll chains which are deployed
+        const enrollChains = this.multiProvider
+          .remoteChains(local)
+          .filter((c) => deployedChains.includes(c));
+        for (const remote of enrollChains) {
+          const remoteDomain = chainMetadata[remote].id;
+          const current = await contracts.router.routers(remoteDomain);
+          const expected = utils.addressToBytes32(
+            contractsMap[remote].router.address,
           );
+          if (current !== expected) {
+            this.logger(`Enroll ${remote}'s router on ${local}`);
+            await chainConnection.handleTx(
+              contracts.router.enrollRemoteRouter(
+                chainMetadata[remote].id,
+                expected,
+                chainConnection.overrides,
+              ),
+            );
+          }
         }
       }),
     );
