@@ -67,9 +67,11 @@ export abstract class AbacusDeployer<
       },
     );
     const configChains = Object.keys(this.configMap) as Chain[];
-    const targetChains = this.multiProvider
-      .chains()
-      .filter((chain) => configChains.includes(chain));
+    const targetChains = this.multiProvider.intersect(
+      configChains,
+      false,
+    ).intersection;
+
     this.logger(`Start deploy to ${targetChains}`);
     for (const chain of targetChains) {
       const chainConnection = this.multiProvider.getChainConnection(chain);
@@ -243,9 +245,28 @@ export abstract class AbacusDeployer<
     this.logger(`Duplicate Proxy on ${chain}`);
     return this.deployProxy(
       chain,
-      proxy.contract,
+      proxy.contract.attach(proxy.addresses.implementation) as C,
       proxy.addresses.beacon,
       initArgs,
     );
+  }
+
+  mergeWithExistingVerificationInputs(
+    existingInputsMap: ChainMap<Chain, ContractVerificationInput[]>,
+  ): ChainMap<Chain, ContractVerificationInput[]> {
+    const allChains = new Set<Chain>();
+    Object.keys(existingInputsMap).forEach((_) => allChains.add(_ as Chain));
+    Object.keys(this.verificationInputs).forEach((_) =>
+      allChains.add(_ as Chain),
+    );
+
+    // @ts-ignore
+    const ret: ChainMap<Chain, ContractVerificationInput[]> = {};
+    for (const chain of allChains) {
+      const existingInputs = existingInputsMap[chain] || [];
+      const newInputs = this.verificationInputs[chain] || [];
+      ret[chain] = [...existingInputs, ...newInputs];
+    }
+    return ret;
   }
 }

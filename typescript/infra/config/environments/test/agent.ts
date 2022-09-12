@@ -1,6 +1,9 @@
 import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
-import { ConnectionType } from '../../../src/config/agent';
+import {
+  ConnectionType,
+  GasPaymentEnforcementPolicyType,
+} from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 
 import { TestChains, chainNames } from './chains';
@@ -28,7 +31,9 @@ export const abacus: AgentConfig<TestChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
+      gasPaymentEnforcementPolicy: {
+        type: GasPaymentEnforcementPolicyType.None,
+      },
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,
