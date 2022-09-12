@@ -127,7 +127,7 @@ export class MultiProvider<
     return { intersection, multiProvider };
   }
 
-  rotateSigner(newSigner: Signer) {
+  rotateSigner(newSigner: Signer): void {
     this.forEach((chain, dc) => {
       this.setChainConnection(chain, {
         ...dc,
