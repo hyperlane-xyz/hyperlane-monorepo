@@ -22,7 +22,7 @@ export type CoreConfig = {
 export enum CoreViolationType {
   ValidatorManager = 'ValidatorManager',
   Mailbox = 'Mailbox',
-  AbacusConnectionManager = 'AbacusConnectionManager',
+  ConnectionManager = 'ConnectionManager',
 }
 
 export enum ValidatorManagerViolationType {
@@ -30,7 +30,7 @@ export enum ValidatorManagerViolationType {
   Threshold = 'Threshold',
 }
 
-export enum AbacusConnectionManagerViolationType {
+export enum ConnectionManagerViolationType {
   EnrolledInboxes = 'EnrolledInboxes',
 }
 
@@ -68,14 +68,13 @@ export interface ThresholdViolation extends ValidatorManagerViolation {
   expected: number;
 }
 
-export interface AbacusConnectionManagerViolation extends CheckerViolation {
-  type: CoreViolationType.AbacusConnectionManager;
+export interface ConnectionManagerViolation extends CheckerViolation {
+  type: CoreViolationType.ConnectionManager;
   contract: AbacusConnectionManager;
-  abacusConnectionManagerType: AbacusConnectionManagerViolationType;
+  connectionManagerType: ConnectionManagerViolationType;
 }
 
-export interface EnrolledInboxesViolation
-  extends AbacusConnectionManagerViolation {
+export interface EnrolledInboxesViolation extends ConnectionManagerViolation {
   remote: ChainName;
   actual: Set<types.Address>;
   expected: Set<types.Address>;

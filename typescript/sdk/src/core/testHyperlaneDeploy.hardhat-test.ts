@@ -20,7 +20,7 @@ const remoteDomain = chainMetadata[remoteChain].id;
 const message = '0xdeadbeef';
 
 describe('TestCoreDeployer', async () => {
-  let abacus: TestCoreApp,
+  let testCoreApp: TestCoreApp,
     localOutbox: TestOutbox,
     remoteOutbox: TestOutbox,
     dispatchReceipt: ContractReceipt;
@@ -30,10 +30,10 @@ describe('TestCoreDeployer', async () => {
 
     const multiProvider = getTestMultiProvider(signer);
     const deployer = new TestCoreDeployer(multiProvider);
-    abacus = await deployer.deployApp();
+    testCoreApp = await deployer.deployApp();
 
     const recipient = await new TestRecipient__factory(signer).deploy();
-    localOutbox = abacus.getContracts(localChain).outbox.contract;
+    localOutbox = testCoreApp.getContracts(localChain).outbox.contract;
 
     const dispatchResponse = localOutbox.dispatch(
       remoteDomain,
@@ -41,10 +41,10 @@ describe('TestCoreDeployer', async () => {
       message,
     );
     await expect(dispatchResponse).to.emit(localOutbox, 'Dispatch');
-    dispatchReceipt = await abacus.multiProvider
+    dispatchReceipt = await testCoreApp.multiProvider
       .getChainConnection(localChain)
       .handleTx(dispatchResponse);
-    remoteOutbox = abacus.getContracts(remoteChain).outbox.contract;
+    remoteOutbox = testCoreApp.getContracts(remoteChain).outbox.contract;
     await expect(
       remoteOutbox.dispatch(
         localDomain,
@@ -55,27 +55,31 @@ describe('TestCoreDeployer', async () => {
   });
 
   it('processes outbound messages for a single domain', async () => {
-    const responses = await abacus.processOutboundMessages(localChain);
+    const responses = await testCoreApp.processOutboundMessages(localChain);
     expect(responses.get(remoteChain)!.length).to.equal(1);
   });
 
   it('processes outbound messages for two domains', async () => {
-    const localResponses = await abacus.processOutboundMessages(localChain);
+    const localResponses = await testCoreApp.processOutboundMessages(
+      localChain,
+    );
     expect(localResponses.get(remoteChain)!.length).to.equal(1);
-    const remoteResponses = await abacus.processOutboundMessages(remoteChain);
+    const remoteResponses = await testCoreApp.processOutboundMessages(
+      remoteChain,
+    );
     expect(remoteResponses.get(localChain)!.length).to.equal(1);
   });
 
   it('processes all messages', async () => {
-    const responses = await abacus.processMessages();
+    const responses = await testCoreApp.processMessages();
     expect(responses.get(localChain)!.get(remoteChain)!.length).to.equal(1);
     expect(responses.get(remoteChain)!.get(localChain)!.length).to.equal(1);
   });
 
   it('waits on message processing receipts', async () => {
     const [receipts] = await Promise.all([
-      abacus.waitForMessageProcessing(dispatchReceipt),
-      abacus.processOutboundMessages(localChain),
+      testCoreApp.waitForMessageProcessing(dispatchReceipt),
+      testCoreApp.processOutboundMessages(localChain),
     ]);
     expect(receipts).to.have.length(1);
   });

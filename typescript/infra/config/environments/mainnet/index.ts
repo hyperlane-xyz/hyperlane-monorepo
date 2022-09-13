@@ -18,7 +18,7 @@ export const environment: CoreEnvironmentConfig<MainnetChains> = {
   environment: environmentName,
   transactionConfigs: mainnetConfigs,
   getMultiProvider: (
-    context: Contexts = Contexts.Abacus,
+    context: Contexts = Contexts.Hyperlane,
     role: KEY_ROLE_ENUM = KEY_ROLE_ENUM.Deployer,
   ) => getMultiProviderForRole(mainnetConfigs, environmentName, context, role),
   agents,

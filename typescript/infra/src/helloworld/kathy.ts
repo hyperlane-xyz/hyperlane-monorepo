@@ -43,9 +43,11 @@ export async function runHelloworldKathyHelmCommand<Chain extends ChainName>(
 }
 
 function getHelmReleaseName(context: Contexts): string {
-  // For backward compatibility, keep the abacus context release name as
+  // For backward compatibility, keep the hyperlane context release name as
   // 'helloworld-kathy', and add `-${context}` as a suffix for any other contexts
-  return `helloworld-kathy${context === Contexts.Abacus ? '' : `-${context}`}`;
+  return `helloworld-kathy${
+    context === Contexts.Hyperlane ? '' : `-${context}`
+  }`;
 }
 
 function getHelloworldKathyHelmValues<Chain extends ChainName>(

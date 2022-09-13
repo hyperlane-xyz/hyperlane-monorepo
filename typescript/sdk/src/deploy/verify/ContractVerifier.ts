@@ -41,7 +41,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     protected readonly compilerOptions: CompilerOptions,
   ) {
     super(verificationInputs);
-    this.logger = debug('abacus:ContractVerifier');
+    this.logger = debug('hyperlane:ContractVerifier');
   }
 
   verify(): Promise<PromiseSettledResult<void>[]> {

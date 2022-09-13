@@ -1,9 +1,9 @@
 import { IMessageRecipient__factory } from '@hyperlane-xyz/helloworld/dist/src/types';
 import {
-  AbacusCore,
   ChainName,
   DispatchedMessage,
   DomainIdToChainName,
+  HyperlaneCore,
   MultiProvider,
   chainConnectionConfigs,
 } from '@hyperlane-xyz/sdk';
@@ -42,7 +42,7 @@ async function main() {
   // to run this script
   const multiProvider = new MultiProvider(chainConnectionConfigs);
 
-  const core = AbacusCore.fromEnvironment(environment, multiProvider);
+  const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
 
   const originProvider = multiProvider.getChainProvider(argv.originChain);
   const dispatchReceipt = await originProvider.getTransactionReceipt(
@@ -62,7 +62,7 @@ async function main() {
 }
 
 async function checkMessage(
-  core: AbacusCore<any>,
+  core: HyperlaneCore<any>,
   multiProvider: MultiProvider<any>,
   message: DispatchedMessage,
 ) {

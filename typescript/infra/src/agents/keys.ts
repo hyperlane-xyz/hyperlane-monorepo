@@ -8,7 +8,7 @@ import { assertChain, assertContext, assertRole } from '../utils/utils';
 import { parseKeyIdentifier } from './agent';
 import { KEY_ROLE_ENUM } from './roles';
 
-// Base class to represent keys used to run Abacus agents.
+// Base class to represent keys used to run Hyperlane agents.
 export abstract class BaseAgentKey {
   constructor(
     public readonly environment: string,
@@ -32,7 +32,7 @@ export class ReadOnlyAgentKey extends BaseAgentKey {
   }
 }
 
-// Base class to represent cloud-hosted keys used to run Abacus agents.
+// Base class to represent cloud-hosted keys used to run Hyperlane agents.
 export abstract class BaseCloudAgentKey extends BaseAgentKey {
   abstract get context(): Contexts;
   abstract get identifier(): string;

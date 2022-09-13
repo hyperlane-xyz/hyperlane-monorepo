@@ -1,15 +1,15 @@
 import { prompts } from 'prompts';
 
 import {
-  AbacusConnectionManagerViolation,
-  AbacusConnectionManagerViolationType,
-  AbacusCoreChecker,
   ChainMap,
   ChainName,
   ChainNameToDomainId,
+  ConnectionManagerViolation,
+  ConnectionManagerViolationType,
   CoreViolationType,
   EnrolledInboxesViolation,
   EnrolledValidatorsViolation,
+  HyperlaneCoreChecker,
   OwnerViolation,
   ValidatorManagerViolation,
   ValidatorManagerViolationType,
@@ -38,11 +38,11 @@ type AnnotatedCallData = types.CallData & {
   description: string;
 };
 
-export class AbacusCoreGovernor<Chain extends ChainName> {
-  readonly checker: AbacusCoreChecker<Chain>;
+export class HyperlaneCoreGovernor<Chain extends ChainName> {
+  readonly checker: HyperlaneCoreChecker<Chain>;
   private calls: ChainMap<Chain, AnnotatedCallData[]>;
 
-  constructor(checker: AbacusCoreChecker<Chain>) {
+  constructor(checker: HyperlaneCoreChecker<Chain>) {
     this.checker = checker;
     this.calls = objMap(this.checker.app.contractsMap, () => []);
   }
@@ -135,9 +135,9 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
           this.handleOwnerViolation(violation as OwnerViolation);
           break;
         }
-        case CoreViolationType.AbacusConnectionManager: {
-          this.handleAbacusConnectionManagerViolation(
-            violation as AbacusConnectionManagerViolation,
+        case CoreViolationType.ConnectionManager: {
+          this.handleHyperlaneConnectionManagerViolation(
+            violation as ConnectionManagerViolation,
           );
           break;
         }
@@ -220,28 +220,28 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
       );
   }
 
-  handleAbacusConnectionManagerViolation(
-    violation: AbacusConnectionManagerViolation,
+  handleHyperlaneConnectionManagerViolation(
+    violation: ConnectionManagerViolation,
   ) {
-    const abacusConnectionManager = violation.contract;
-    switch (violation.abacusConnectionManagerType) {
-      case AbacusConnectionManagerViolationType.EnrolledInboxes: {
+    const connectionManager = violation.contract;
+    switch (violation.connectionManagerType) {
+      case ConnectionManagerViolationType.EnrolledInboxes: {
         const typedViolation = violation as EnrolledInboxesViolation;
         const remoteId = ChainNameToDomainId[typedViolation.remote];
         const baseDescription = `as ${typedViolation.remote} Inbox on ${typedViolation.chain}`;
         this.pushSetReconcilationCalls({
           ...typedViolation,
           add: (inbox) => ({
-            to: abacusConnectionManager.address,
-            data: abacusConnectionManager.interface.encodeFunctionData(
+            to: connectionManager.address,
+            data: connectionManager.interface.encodeFunctionData(
               'enrollInbox',
               [remoteId, inbox],
             ),
             description: `Enroll ${inbox} ${baseDescription}`,
           }),
           remove: (inbox) => ({
-            to: abacusConnectionManager.address,
-            data: abacusConnectionManager.interface.encodeFunctionData(
+            to: connectionManager.address,
+            data: connectionManager.interface.encodeFunctionData(
               'unenrollInbox',
               [inbox],
             ),
@@ -252,7 +252,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
       }
       default:
         throw new Error(
-          `Unsupported abacus connection manager violation type ${violation.abacusConnectionManagerType}`,
+          `Unsupported connection manager violation type ${violation.connectionManagerType}`,
         );
     }
   }

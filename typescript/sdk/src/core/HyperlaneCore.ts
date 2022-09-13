@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { Inbox, Outbox, Outbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
-import { AbacusApp } from '../AbacusApp';
+import { HyperlaneApp } from '../HyperlaneApp';
 import { environments } from '../consts/environments';
 import { buildContracts } from '../contracts';
 import { DomainIdToChainName } from '../domains';
@@ -31,10 +31,9 @@ export type DispatchedMessage = {
   parsed: types.ParsedMessage;
 };
 
-export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
-  CoreContracts<Chain, Chain>,
-  Chain
-> {
+export class HyperlaneCore<
+  Chain extends ChainName = ChainName,
+> extends HyperlaneApp<CoreContracts<Chain, Chain>, Chain> {
   constructor(
     contractsMap: CoreContractsMap<Chain>,
     multiProvider: MultiProvider<Chain>,
@@ -68,7 +67,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
       coreFactories,
     ) as CoreContractsMap<IntersectionChain>;
 
-    return new AbacusCore(contractsMap, intersectionProvider);
+    return new HyperlaneCore(contractsMap, intersectionProvider);
   }
 
   // override type to be derived from chain key
@@ -79,7 +78,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
   getConnectionClientConfig(chain: Chain): ConnectionClientConfig {
     const contracts = this.getContracts(chain);
     return {
-      abacusConnectionManager: contracts.abacusConnectionManager.address,
+      connectionManager: contracts.connectionManager.address,
       interchainGasPaymaster: contracts.interchainGasPaymaster.address,
     };
   }
@@ -105,11 +104,10 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
   // TODO: deprecate
   extendWithConnectionManagers<T>(
     config: ChainMap<Chain, T>,
-  ): ChainMap<Chain, T & { abacusConnectionManager: string }> {
+  ): ChainMap<Chain, T & { connectionManager: string }> {
     return objMap(config, (chain, config) => ({
       ...config,
-      abacusConnectionManager:
-        this.getContracts(chain).abacusConnectionManager.address,
+      connectionManager: this.getContracts(chain).connectionManager.address,
     }));
   }
 

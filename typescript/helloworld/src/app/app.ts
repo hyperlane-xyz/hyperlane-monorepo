@@ -1,11 +1,11 @@
 import { BigNumber, ethers } from 'ethers';
 
 import {
-  AbacusApp,
-  AbacusCore,
   ChainMap,
   ChainName,
   ChainNameToDomainId,
+  HyperlaneApp,
+  HyperlaneCore,
   MultiProvider,
   Remotes,
 } from '@hyperlane-xyz/sdk';
@@ -20,9 +20,9 @@ type Counts = {
 
 export class HelloWorldApp<
   Chain extends ChainName = ChainName,
-> extends AbacusApp<HelloWorldContracts, Chain> {
+> extends HyperlaneApp<HelloWorldContracts, Chain> {
   constructor(
-    public readonly core: AbacusCore<Chain>,
+    public readonly core: HyperlaneCore<Chain>,
     contractsMap: ChainMap<Chain, HelloWorldContracts>,
     multiProvider: MultiProvider<Chain>,
   ) {

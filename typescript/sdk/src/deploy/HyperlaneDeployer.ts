@@ -9,8 +9,8 @@ import {
 import type { types } from '@hyperlane-xyz/utils';
 
 import {
-  AbacusContracts,
-  AbacusFactories,
+  HyperlaneContracts,
+  HyperlaneFactories,
   connectContracts,
   serializeContracts,
 } from '../contracts';
@@ -26,11 +26,11 @@ export interface DeployerOptions {
   logger?: Debugger;
 }
 
-export abstract class AbacusDeployer<
+export abstract class HyperlaneDeployer<
   Chain extends ChainName,
   Config,
-  Contracts extends AbacusContracts,
-  Factories extends AbacusFactories,
+  Contracts extends HyperlaneContracts,
+  Factories extends HyperlaneFactories,
 > {
   public deployedContracts: Partial<Record<Chain, Partial<Contracts>>> = {};
 
@@ -44,7 +44,7 @@ export abstract class AbacusDeployer<
     protected readonly options?: DeployerOptions,
   ) {
     this.verificationInputs = objMap(configMap, () => []);
-    this.logger = options?.logger || debug('abacus:AppDeployer');
+    this.logger = options?.logger || debug('hyperlane:AppDeployer');
   }
 
   abstract deployContracts(chain: Chain, config: Config): Promise<Contracts>;

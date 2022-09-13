@@ -8,16 +8,16 @@ import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
 import { ChainMap, ChainName } from '../../types';
 import { objMap, promiseObjAll } from '../../utils/objects';
-import { AbacusDeployer, DeployerOptions } from '../AbacusDeployer';
+import { DeployerOptions, HyperlaneDeployer } from '../HyperlaneDeployer';
 
 import { RouterConfig } from './types';
 
-export abstract class AbacusRouterDeployer<
+export abstract class HyperlaneRouterDeployer<
   Chain extends ChainName,
   Config extends RouterConfig,
   Contracts extends RouterContracts,
   Factories extends RouterFactories,
-> extends AbacusDeployer<Chain, Config, Contracts, Factories> {
+> extends HyperlaneDeployer<Chain, Config, Contracts, Factories> {
   constructor(
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, Config>,
@@ -25,7 +25,7 @@ export abstract class AbacusRouterDeployer<
     options?: DeployerOptions,
   ) {
     super(multiProvider, configMap, factories, {
-      logger: debug('abacus:RouterDeployer'),
+      logger: debug('hyperlane:RouterDeployer'),
       ...options,
     });
   }
@@ -37,15 +37,16 @@ export abstract class AbacusRouterDeployer<
     await promiseObjAll(
       objMap(contractsMap, async (local, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(local);
-        // set abacus connection manager if not already set
+        // set hyperlane connection manager if not already set
         if (
+          // TODO rename ACM methods in router contract
           (await contracts.router.abacusConnectionManager()) ===
           ethers.constants.AddressZero
         ) {
           this.logger(`Set abacus connection manager on ${local}`);
           await chainConnection.handleTx(
             contracts.router.setAbacusConnectionManager(
-              this.configMap[local].abacusConnectionManager,
+              this.configMap[local].connectionManager,
             ),
           );
         }

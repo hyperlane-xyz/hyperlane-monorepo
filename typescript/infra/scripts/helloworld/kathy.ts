@@ -4,9 +4,9 @@ import { format } from 'util';
 
 import { HelloWorldApp } from '@hyperlane-xyz/helloworld';
 import {
-  AbacusCore,
   ChainName,
   DispatchedMessage,
+  HyperlaneCore,
   InterchainGasCalculator,
 } from '@hyperlane-xyz/sdk';
 import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
@@ -24,6 +24,7 @@ import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from '../utils';
 import { getApp } from './utils';
 
 const metricsRegister = new Registry();
+// TODO rename counter names
 const messagesSendCount = new Counter({
   name: 'abacus_kathy_messages',
   help: 'Count of messages sent; records successes and failures by status label',
@@ -390,7 +391,7 @@ async function sendMessage(
 }
 
 async function messageIsProcessed(
-  core: AbacusCore<any>,
+  core: HyperlaneCore<any>,
   origin: ChainName,
   destination: ChainName,
   message: DispatchedMessage,

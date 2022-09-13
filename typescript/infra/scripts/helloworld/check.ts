@@ -15,7 +15,7 @@ async function main() {
     coreConfig,
     context,
     KEY_ROLE_ENUM.Deployer,
-    Contexts.Abacus, // Owner should always be from the abacus context
+    Contexts.Hyperlane, // Owner should always be from the hyperlane context
   );
   const configMap = await getConfiguration(environment, multiProvider);
   const checker = new HelloWorldChecker(multiProvider, app, configMap);

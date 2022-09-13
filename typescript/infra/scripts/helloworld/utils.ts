@@ -4,9 +4,9 @@ import {
   helloWorldFactories,
 } from '@hyperlane-xyz/helloworld';
 import {
-  AbacusCore,
   ChainMap,
   ChainName,
+  HyperlaneCore,
   MultiProvider,
   RouterConfig,
   buildContracts,
@@ -36,7 +36,7 @@ export async function getConfiguration<Chain extends ChainName>(
 
   // Currently can't be typed as per https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/594/files#diff-40a12589668de942078f498e0ab0fda512e1eb7397189d6d286b590ae87c45d1R31
   // @ts-ignore
-  const core: AbacusCore<Chain> = AbacusCore.fromEnvironment(
+  const core: HyperlaneCore<Chain> = HyperlaneCore.fromEnvironment(
     environment,
     multiProvider as any,
   );
@@ -59,10 +59,10 @@ export async function getApp<Chain extends ChainName>(
     keyContext,
     keyRole,
   );
-  const core = AbacusCore.fromEnvironment(
+  const core = HyperlaneCore.fromEnvironment(
     coreConfig.environment,
     multiProvider as any,
-  ) as AbacusCore<any>;
+  ) as HyperlaneCore<any>;
   return new HelloWorldApp(core, contracts, multiProvider);
 }
 

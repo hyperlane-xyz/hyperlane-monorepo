@@ -1,7 +1,7 @@
 import { Wallet } from 'ethers';
 
 import {
-  AbacusCore,
+  HyperlaneCore,
   MultiProvider,
   getChainToOwnerMap,
   objMap,
@@ -23,7 +23,7 @@ async function main() {
   }));
   const multiProvider = new MultiProvider(chainProviders);
 
-  const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
+  const core = HyperlaneCore.fromEnvironment('testnet2', multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(prodConfigs, signer.address),
   );

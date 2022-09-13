@@ -3,11 +3,11 @@ import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
 import { Contexts } from '../../contexts';
 
 import { MainnetChains, environment } from './chains';
-import abacusAddresses from './helloworld/abacus/addresses.json';
+import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
 
-export const abacus: HelloWorldConfig<MainnetChains> = {
-  addresses: abacusAddresses,
+export const hyperlane: HelloWorldConfig<MainnetChains> = {
+  addresses: hyperlaneAddresses,
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
@@ -44,6 +44,6 @@ export const releaseCandidate: HelloWorldConfig<MainnetChains> = {
 };
 
 export const helloWorld = {
-  [Contexts.Abacus]: abacus,
+  [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
 };
