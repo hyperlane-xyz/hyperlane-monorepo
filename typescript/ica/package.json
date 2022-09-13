@@ -1,7 +1,7 @@
 {
-  "name": "@abacus-network/interchain",
-  "description": "A basic skeleton of an Abacus app",
-  "version": "0.5.0",
+  "name": "@abacus-network/interchain-accounts",
+  "description": "A router middleware for interchain accounts",
+  "version": "0.1.0",
   "dependencies": {
     "@abacus-network/app": "^0.4.1",
     "@abacus-network/sdk": "^0.4.1",

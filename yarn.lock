@@ -143,9 +143,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/interchain@workspace:typescript/interchain":
+"@abacus-network/interchain-accounts@workspace:typescript/ica":
   version: 0.0.0-use.local
-  resolution: "@abacus-network/interchain@workspace:typescript/interchain"
+  resolution: "@abacus-network/interchain-accounts@workspace:typescript/ica"
   dependencies:
     "@abacus-network/app": ^0.4.1
     "@abacus-network/sdk": ^0.4.1
