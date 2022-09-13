@@ -14,7 +14,7 @@ use tokio::{
 };
 use tracing::instrument;
 
-use crate::msg::{gas_payment_enforcer::GasPaymentEnforcer, SubmitMessageArgs};
+use crate::msg::{gas_payment::{MonolithGasPaymentEnforcer, GasPaymentEnforcer}, SubmitMessageArgs};
 
 // The number of seconds after a tick to sleep before attempting the next tick.
 const TICK_SLEEP_DURATION_SECONDS: u64 = 30;
@@ -33,7 +33,7 @@ pub struct SponsoredCallOpArgs {
     pub sponsor_api_key: String,
     pub destination_chain: Chain,
 
-    pub gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+    pub gas_payment_enforcer: Arc<MonolithGasPaymentEnforcer>,
 
     /// A channel to send the message over upon the message being successfully processed.
     pub message_processed_sender: UnboundedSender<SubmitMessageArgs>,
@@ -95,7 +95,8 @@ impl SponsoredCallOp {
         // If the gas payment requirement hasn't been met, sleep briefly and wait for the next tick.
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(self.0.message.leaf_index)?;
+            .message_meets_gas_payment_requirement(self.0.message.leaf_index)
+            .await?;
 
         if !meets_gas_requirement {
             tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");

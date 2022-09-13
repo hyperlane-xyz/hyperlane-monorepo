@@ -12,7 +12,7 @@ use abacus_base::{
 };
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers};
 
-use crate::msg::gas_payment_enforcer::GasPaymentEnforcer;
+use crate::msg::gas_payment::MonolithGasPaymentEnforcer;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
@@ -87,7 +87,7 @@ impl BaseAgent for Relayer {
 
         let mut tasks = Vec::with_capacity(inboxes.len() + 3);
 
-        let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
+        let gas_payment_enforcer = Arc::new(MonolithGasPaymentEnforcer::new(
             self.gas_payment_enforcement_policy.clone(),
             self.outbox().db(),
         ));
@@ -163,7 +163,7 @@ impl Relayer {
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         gelato_config: GelatoConf,
-        gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+        gas_payment_enforcer: Arc<MonolithGasPaymentEnforcer>,
     ) -> GelatoSubmitter {
         let inbox_chain_name = inbox_contracts.inbox.chain_name().to_owned();
         GelatoSubmitter::new(
@@ -188,7 +188,7 @@ impl Relayer {
         tx_submission: TransactionSubmissionType,
         gelato_config: Option<&GelatoConf>,
         signer: Signers,
-        gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+        gas_payment_enforcer: Arc<MonolithGasPaymentEnforcer>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.outbox().outbox();
         let outbox_name = outbox.chain_name();

@@ -16,7 +16,7 @@ use crate::msg::gelato_submitter::sponsored_call_op::{
     SponsoredCallOp, SponsoredCallOpArgs, SponsoredCallOptions,
 };
 
-use super::gas_payment_enforcer::GasPaymentEnforcer;
+use super::gas_payment::MonolithGasPaymentEnforcer;
 use super::SubmitMessageArgs;
 
 mod sponsored_call_op;
@@ -42,7 +42,7 @@ pub(crate) struct GelatoSubmitter {
     /// Channel to receive from SponsoredCallOps that a message has been successfully processed.
     message_processed_receiver: UnboundedReceiver<SubmitMessageArgs>,
     /// Used to determine if messages have made sufficient gas payments.
-    gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+    gas_payment_enforcer: Arc<MonolithGasPaymentEnforcer>,
 }
 
 impl GelatoSubmitter {
@@ -52,7 +52,7 @@ impl GelatoSubmitter {
         abacus_db: AbacusDB,
         gelato_config: GelatoConf,
         metrics: GelatoSubmitterMetrics,
-        gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+        gas_payment_enforcer: Arc<MonolithGasPaymentEnforcer>,
     ) -> Self {
         let (message_processed_sender, message_processed_receiver) =
             mpsc::unbounded_channel::<SubmitMessageArgs>();
