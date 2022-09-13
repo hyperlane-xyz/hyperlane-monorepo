@@ -89,7 +89,8 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xc507A7c848b59469cC44A3653F8a582aa8BeC71E"
+      "outbox": "0xc507A7c848b59469cC44A3653F8a582aa8BeC71E",
+      "interchainGasPaymaster": "0x4834a491f78BBF48e983F9Ce0E20D1E4DbE013D8"
     },
     "domain": "43113",
     "name": "fuji",
