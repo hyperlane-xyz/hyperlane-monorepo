@@ -12,6 +12,7 @@ pub trait GasPaymentEnforcer {
     async fn message_meets_gas_payment_requirement(
         &self,
         msg_leaf_index: u32,
+        tx_gas_limit: U256,
     ) -> Result<(bool, U256), DbError>;
 
     /// Returns the total gas payment made for a message.
@@ -36,6 +37,7 @@ impl GasPaymentEnforcer for MonolithGasPaymentEnforcer {
     async fn message_meets_gas_payment_requirement(
         &self,
         msg_leaf_index: u32,
+        _tx_gas_limit: U256,
     ) -> Result<(bool, U256), DbError> {
         let current_payment = self.get_message_gas_payment(msg_leaf_index)?;
 

@@ -2,6 +2,7 @@ use std::{ops::Deref, sync::Arc, time::Duration};
 
 use abacus_base::InboxContracts;
 use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
+use ethers::types::U256;
 use eyre::Result;
 use gelato::{
     sponsored_call::{SponsoredCallArgs, SponsoredCallCall, SponsoredCallCallResult},
@@ -95,7 +96,10 @@ impl SponsoredCallOp {
         // If the gas payment requirement hasn't been met, sleep briefly and wait for the next tick.
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(self.0.message.leaf_index)
+            .message_meets_gas_payment_requirement(
+                self.0.message.leaf_index,
+                U256::zero(),
+            )
             .await?;
 
         if !meets_gas_requirement {

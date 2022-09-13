@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1", features = ["rt", "macros"] }
+coingecko = { git = "https://github.com/abacus-network/coingecko-rs", branch = "pro-api-key" }
 config = "0.13"
 color-eyre = { version = "0.6", optional = true }
 serde = {version = "1.0", features = ["derive"]}

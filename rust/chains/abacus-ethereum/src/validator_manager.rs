@@ -124,6 +124,13 @@ where
         Ok(receipt.into())
     }
 
+    // fn process_contract_call(
+    //     &self,
+    //     multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+    //     message: &AbacusMessage,
+    //     proof: &Proof,
+    // ) -> 
+
     fn process_calldata(
         &self,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
