@@ -57,7 +57,7 @@ contract InterchainAccountRouter is Router {
 
     function _salt(uint32 _origin, address _sender)
         internal
-        view
+        pure
         returns (bytes32)
     {
         return bytes32(abi.encodePacked(_origin, _sender));
