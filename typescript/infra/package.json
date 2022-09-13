@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/infra",
   "description": "Infrastructure utilities for the Hyperlane Network",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "dependencies": {
     "@abacus-network/celo-ethers-provider": "^0.1.0",
     "@aws-sdk/client-iam": "^3.74.0",
@@ -12,9 +12,9 @@
     "@gnosis.pm/safe-core-sdk": "^2.3.2",
     "@gnosis.pm/safe-ethers-lib": "^1.4.0",
     "@gnosis.pm/safe-service-client": "^1.2.0",
-    "@hyperlane-xyz/helloworld": "0.5.0",
-    "@hyperlane-xyz/sdk": "0.4.1",
-    "@hyperlane-xyz/utils": "0.4.1",
+    "@hyperlane-xyz/helloworld": "0.5.0-beta0",
+    "@hyperlane-xyz/sdk": "0.5.0-beta0",
+    "@hyperlane-xyz/utils": "0.5.0-beta0",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "asn1.js": "5.4.1",
     "aws-kms-ethers-signer": "^0.1.3",
@@ -39,6 +39,7 @@
     "ts-node": "^10.8.0",
     "typescript": "^4.7.2"
   },
+  "private": true,
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [
     "Hyperlane",
