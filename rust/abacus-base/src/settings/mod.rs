@@ -440,7 +440,7 @@ impl Settings {
         )?);
 
         let db = DB::from_path(&self.db)?;
-        let outbox = self.try_caching_outbox(db.clone(), &metrics).await?.into();
+        let outbox = self.try_caching_outbox(db.clone(), &metrics).await?;
         let interchain_gas_paymaster = self
             .try_caching_interchain_gas_paymaster(db.clone(), &metrics)
             .await?;

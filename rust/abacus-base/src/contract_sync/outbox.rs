@@ -16,7 +16,7 @@ const MESSAGES_LABEL: &str = "messages";
 
 impl<I> ContractSync<I>
 where
-    I: OutboxIndexer + 'static,
+    I: OutboxIndexer + Clone + 'static,
 {
     /// Sync outbox messages
     pub fn sync_outbox_messages(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {

@@ -9,10 +9,7 @@ use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
 use abacus_core::db::DB;
-use abacus_core::{
-    Inbox, InboxValidatorManager, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Outbox,
-    OutboxIndexer,
-};
+use abacus_core::InboxValidatorManager;
 
 use crate::{
     cancel_task,
