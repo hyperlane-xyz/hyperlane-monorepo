@@ -2,14 +2,14 @@ import { BigNumber, ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
-import { HelloWorldApp } from '@abacus-network/helloworld';
+import { HelloWorldApp } from '@hyperlane-xyz/helloworld';
 import {
   AbacusCore,
   ChainName,
   DispatchedMessage,
   InterchainGasCalculator,
-} from '@abacus-network/sdk';
-import { debug, error, log, utils, warn } from '@abacus-network/utils';
+} from '@hyperlane-xyz/sdk';
+import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
 
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { startMetricsServer } from '../../src/utils/metrics';

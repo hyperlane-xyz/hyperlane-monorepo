@@ -6,7 +6,7 @@ import {
   buildContracts,
   getChainToOwnerMap,
   objMap,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { HelloWorldApp } from '../app/app';
 import { HelloWorldContracts, helloWorldFactories } from '../app/contracts';

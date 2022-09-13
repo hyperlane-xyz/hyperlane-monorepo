@@ -1,7 +1,7 @@
+import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
 import { ethers } from 'ethers';
 
-import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
-import { ChainName, RetryJsonRpcProvider } from '@abacus-network/sdk';
+import { ChainName, RetryJsonRpcProvider } from '@hyperlane-xyz/sdk';
 
 import { getSecretRpcEndpoint } from '../agents';
 

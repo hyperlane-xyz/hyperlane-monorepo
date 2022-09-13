@@ -1,6 +1,6 @@
-## Abacus Solidity
+## Hyperlane Solidity
 
-On-chain implementations of Abacus in Solidity.
+On-chain implementations of Hyperlane in Solidity.
 
 ### Setup
 

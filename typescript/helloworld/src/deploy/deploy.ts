@@ -4,7 +4,7 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import {
   HelloWorldContracts,

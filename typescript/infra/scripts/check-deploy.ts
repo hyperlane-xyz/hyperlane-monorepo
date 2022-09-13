@@ -1,4 +1,4 @@
-import { AbacusCore, AbacusCoreChecker } from '@abacus-network/sdk';
+import { AbacusCore, AbacusCoreChecker } from '@hyperlane-xyz/sdk';
 
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 

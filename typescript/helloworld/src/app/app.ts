@@ -8,8 +8,8 @@ import {
   ChainNameToDomainId,
   MultiProvider,
   Remotes,
-} from '@abacus-network/sdk';
-import { debug } from '@abacus-network/utils';
+} from '@hyperlane-xyz/sdk';
+import { debug } from '@hyperlane-xyz/utils';
 
 import { HelloWorldContracts } from './contracts';
 
@@ -39,7 +39,7 @@ export class HelloWorldApp<
     const toDomain = ChainNameToDomainId[to];
     const chainConnection = this.multiProvider.getChainConnection(from);
 
-    // apply gas buffer due to https://github.com/abacus-network/abacus-monorepo/issues/634
+    // apply gas buffer due to https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/634
     const estimated = await sender.estimateGas.sendHelloWorld(
       toDomain,
       message,

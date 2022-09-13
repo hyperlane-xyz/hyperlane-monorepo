@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 
-import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
-import { types, utils } from '@abacus-network/utils';
+import { Inbox, Outbox, Outbox__factory } from '@hyperlane-xyz/core';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { AbacusApp } from '../AbacusApp';
 import { environments } from '../consts/environments';

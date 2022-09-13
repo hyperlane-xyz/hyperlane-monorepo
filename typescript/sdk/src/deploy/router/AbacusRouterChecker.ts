@@ -1,5 +1,5 @@
-import { Ownable } from '@abacus-network/core';
-import { utils } from '@abacus-network/utils';
+import { Ownable } from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { AbacusApp } from '../../AbacusApp';
 import { chainMetadata } from '../../consts/chainMetadata';

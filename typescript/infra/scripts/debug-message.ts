@@ -1,4 +1,4 @@
-import { IMessageRecipient__factory } from '@abacus-network/helloworld/dist/src/types';
+import { IMessageRecipient__factory } from '@hyperlane-xyz/helloworld/dist/src/types';
 import {
   AbacusCore,
   ChainName,
@@ -6,8 +6,8 @@ import {
   DomainIdToChainName,
   MultiProvider,
   chainConnectionConfigs,
-} from '@abacus-network/sdk';
-import { utils } from '@abacus-network/utils';
+} from '@hyperlane-xyz/sdk';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { assertChain } from '../src/utils/utils';
 

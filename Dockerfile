@@ -1,6 +1,6 @@
 FROM node:16-alpine
 
-WORKDIR /abacus-monorepo
+WORKDIR /hyperlane-monorepo
 
 RUN apk add --update --no-cache git g++ make py3-pip
 

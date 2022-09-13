@@ -1,7 +1,7 @@
 import { debug } from 'debug';
 import { ethers } from 'ethers';
 
-import { utils } from '@abacus-network/utils';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
 import { MultiProvider } from '../../providers/MultiProvider';

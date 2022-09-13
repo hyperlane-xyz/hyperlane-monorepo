@@ -5,8 +5,8 @@ import {
   Ownable,
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
-} from '@abacus-network/core';
-import type { types } from '@abacus-network/utils';
+} from '@hyperlane-xyz/core';
+import type { types } from '@hyperlane-xyz/utils';
 
 import {
   AbacusContracts,

@@ -4,8 +4,8 @@ import { expect } from 'chai';
 import { ContractReceipt } from 'ethers';
 import { ethers } from 'hardhat';
 
-import { TestOutbox, TestRecipient__factory } from '@abacus-network/core';
-import { utils } from '@abacus-network/utils';
+import { TestOutbox, TestRecipient__factory } from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { getTestMultiProvider } from '../deploy/utils';

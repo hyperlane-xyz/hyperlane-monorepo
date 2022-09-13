@@ -1,9 +1,9 @@
 import { ethers } from 'ethers';
 import yargs from 'yargs';
 
-import { AllChains, ChainNameToDomainId } from '@abacus-network/sdk';
+import { AllChains, ChainNameToDomainId } from '@hyperlane-xyz/sdk';
 
-// import { utils } from '@abacus-network/utils';
+// import { utils } from '@hyperlane-xyz/utils';
 import { S3Validator } from '../src/agents/aws/validator';
 
 function getArgs() {

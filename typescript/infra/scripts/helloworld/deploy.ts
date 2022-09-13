@@ -4,13 +4,13 @@ import {
   HelloWorldContracts,
   HelloWorldDeployer,
   helloWorldFactories,
-} from '@abacus-network/helloworld';
+} from '@hyperlane-xyz/helloworld';
 import {
   AbacusCore,
   ChainMap,
   buildContracts,
   serializeContracts,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';

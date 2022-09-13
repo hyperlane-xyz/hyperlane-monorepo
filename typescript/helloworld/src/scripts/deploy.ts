@@ -6,7 +6,7 @@ import {
   getChainToOwnerMap,
   objMap,
   serializeContracts,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { prodConfigs } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';

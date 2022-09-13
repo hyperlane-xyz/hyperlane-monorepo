@@ -1,6 +1,5 @@
-import { ethers } from 'ethers';
-
 import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
+import { ethers } from 'ethers';
 
 import { ChainMap, ChainName, IChainConnection } from '../types';
 

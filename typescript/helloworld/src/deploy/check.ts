@@ -1,4 +1,4 @@
-import { AbacusRouterChecker, ChainName } from '@abacus-network/sdk';
+import { AbacusRouterChecker, ChainName } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldApp } from '../app/app';
 import { HelloWorldContracts } from '../app/contracts';

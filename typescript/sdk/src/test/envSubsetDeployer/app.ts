@@ -1,4 +1,4 @@
-import { TestRouter__factory } from '@abacus-network/app';
+import { TestRouter__factory } from '@hyperlane-xyz/app';
 
 import { AbacusApp } from '../../AbacusApp';
 import { chainConnectionConfigs } from '../../consts/chainConnectionConfigs';

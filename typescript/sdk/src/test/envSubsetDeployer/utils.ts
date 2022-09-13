@@ -1,7 +1,7 @@
+import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
 import { Wallet } from 'ethers';
 
-import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
-import { utils } from '@abacus-network/utils';
+import { utils } from '@hyperlane-xyz/utils';
 
 export const ALFAJORES_FORNO = 'https://alfajores-forno.celo-testnet.org';
 export const CELO_DERIVATION_PATH = "m/44'/52752'/0'/0/0";

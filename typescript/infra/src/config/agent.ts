@@ -1,5 +1,5 @@
-import { ChainMap, ChainName, RemoteChainMap } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
+import { ChainMap, ChainName, RemoteChainMap } from '@hyperlane-xyz/sdk';
+import { types } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import {

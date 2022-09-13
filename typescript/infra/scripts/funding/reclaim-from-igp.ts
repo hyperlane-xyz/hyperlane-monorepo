@@ -1,6 +1,6 @@
 import { BigNumber } from 'ethers';
 
-import { AbacusCore, objMap, promiseObjAll } from '@abacus-network/sdk';
+import { AbacusCore, objMap, promiseObjAll } from '@hyperlane-xyz/sdk';
 
 import { getEnvironment, getEnvironmentConfig } from '../utils';
 

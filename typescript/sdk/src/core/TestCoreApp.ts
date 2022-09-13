@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 
-import { TestInbox, TestOutbox } from '@abacus-network/core';
-import { types, utils } from '@abacus-network/utils';
+import { TestInbox, TestOutbox } from '@hyperlane-xyz/core';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { DomainIdToChainName } from '../domains';

@@ -5,7 +5,7 @@ import {
   CompilerOptions,
   CompleteChainMap,
   ContractVerifier,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { fetchGCPSecret } from '../src/utils/gcloud';
 import { execCmd, readJSON } from '../src/utils/utils';

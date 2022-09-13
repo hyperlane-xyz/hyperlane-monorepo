@@ -8,8 +8,8 @@ import {
   ChainName,
   CompleteChainMap,
   MultiProvider,
-} from '@abacus-network/sdk';
-import { error, log } from '@abacus-network/utils';
+} from '@hyperlane-xyz/sdk';
+import { error, log } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { parseKeyIdentifier } from '../../src/agents/agent';

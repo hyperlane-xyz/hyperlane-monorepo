@@ -4,7 +4,7 @@ import {
   CoreConfig,
   EnvironmentConfig,
   MultiProvider,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';

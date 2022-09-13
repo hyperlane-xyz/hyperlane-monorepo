@@ -13,7 +13,7 @@ import {
   Outbox__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
-} from '@abacus-network/core';
+} from '@hyperlane-xyz/core';
 
 import { BeaconProxyAddresses, ProxiedContract } from '../proxy';
 import { ChainName, RemoteChainMap } from '../types';

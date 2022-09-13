@@ -2,7 +2,7 @@ import {
   AbacusCore,
   AbacusCoreChecker,
   CoreViolationType,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { AbacusCoreGovernor } from '../src/core/govern';
 

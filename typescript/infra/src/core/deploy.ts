@@ -3,7 +3,7 @@ import {
   ChainName,
   chainMetadata,
   objMap,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { DeployEnvironment, RustConfig } from '../config';
 import { ConnectionType } from '../config/agent';

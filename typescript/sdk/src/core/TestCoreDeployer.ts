@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { TestInbox__factory, TestOutbox__factory } from '@abacus-network/core';
+import { TestInbox__factory, TestOutbox__factory } from '@hyperlane-xyz/core';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { AbacusCoreDeployer } from '../deploy/core/AbacusCoreDeployer';

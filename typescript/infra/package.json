@@ -1,12 +1,9 @@
 {
-  "name": "@abacus-network/infra",
-  "description": "Infrastructure utilities for the Abacus Network",
+  "name": "@hyperlane-xyz/infra",
+  "description": "Infrastructure utilities for the Hyperlane Network",
   "version": "0.4.1",
   "dependencies": {
     "@abacus-network/celo-ethers-provider": "^0.1.0",
-    "@abacus-network/helloworld": "0.5.0",
-    "@abacus-network/sdk": "0.4.1",
-    "@abacus-network/utils": "0.4.1",
     "@aws-sdk/client-iam": "^3.74.0",
     "@aws-sdk/client-kms": "3.48.0",
     "@aws-sdk/client-s3": "^3.74.0",
@@ -15,6 +12,9 @@
     "@gnosis.pm/safe-core-sdk": "^2.3.2",
     "@gnosis.pm/safe-ethers-lib": "^1.4.0",
     "@gnosis.pm/safe-service-client": "^1.2.0",
+    "@hyperlane-xyz/helloworld": "0.5.0",
+    "@hyperlane-xyz/sdk": "0.4.1",
+    "@hyperlane-xyz/utils": "0.4.1",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "asn1.js": "5.4.1",
     "aws-kms-ethers-signer": "^0.1.3",
@@ -39,18 +39,18 @@
     "ts-node": "^10.8.0",
     "typescript": "^4.7.2"
   },
-  "homepage": "https://www.useabacus.network",
+  "homepage": "https://www.hyperlane.xyz",
   "keywords": [
-    "Abacus",
+    "Hyperlane",
     "Typescript",
     "Infrastructure"
   ],
   "license": "Apache-2.0",
   "main": "dist/index.js",
   "prepublish": "yarn build",
-  "repository": "https://github.com/abacus-network/abacus-monorepo",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
-    "abacus": "ts-node scripts/core.ts -e test",
+    "hyperlane": "ts-node scripts/core.ts -e test",
     "build": "tsc",
     "clean": "rm -rf ./dist ./cache",
     "check": "tsc --noEmit",

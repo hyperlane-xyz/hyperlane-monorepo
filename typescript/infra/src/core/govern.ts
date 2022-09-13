@@ -15,8 +15,8 @@ import {
   ValidatorManagerViolationType,
   ViolationType,
   objMap,
-} from '@abacus-network/sdk';
-import { types, utils } from '@abacus-network/utils';
+} from '@hyperlane-xyz/sdk';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { canProposeSafeTransactions } from '../utils/safe';
 

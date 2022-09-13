@@ -1,5 +1,5 @@
-import { MultisigValidatorManager } from '@abacus-network/core';
-import { utils } from '@abacus-network/utils';
+import { MultisigValidatorManager } from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
 import { AbacusCore } from '../../core/AbacusCore';

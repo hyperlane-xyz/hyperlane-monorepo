@@ -5,7 +5,7 @@ import '@ethersproject/hardware-wallets/thirdparty';
 import { SafeDelegateConfig } from '@gnosis.pm/safe-service-client';
 import yargs from 'yargs';
 
-import { AllChains } from '@abacus-network/sdk';
+import { AllChains } from '@hyperlane-xyz/sdk';
 
 import { getSafeDelegates, getSafeService } from '../src/utils/safe';
 

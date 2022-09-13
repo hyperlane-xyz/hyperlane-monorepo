@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { ChainName } from '@abacus-network/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { assertChain, assertContext, assertRole } from '../utils/utils';

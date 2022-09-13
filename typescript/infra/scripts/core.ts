@@ -2,7 +2,7 @@ import {
   buildContracts,
   coreFactories,
   serializeContracts,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { AbacusCoreInfraDeployer } from '../src/core/deploy';
 import { readJSON, writeJSON } from '../src/utils/utils';

@@ -1,4 +1,4 @@
-import { HelloWorldChecker } from '@abacus-network/helloworld';
+import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';

@@ -1,8 +1,8 @@
 import debug from 'debug';
 import { ethers } from 'ethers';
 
-import { Inbox, Ownable } from '@abacus-network/core';
-import type { types } from '@abacus-network/utils';
+import { Inbox, Ownable } from '@hyperlane-xyz/core';
+import type { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
 import { AbacusCore, CoreContractsMap } from '../../core/AbacusCore';

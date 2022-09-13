@@ -15,7 +15,7 @@ import {
   getTestMultiProvider,
   objMap,
   serializeContracts,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { environment as testConfig } from '../config/environments/test';
 import { TestChains } from '../config/environments/test/chains';

@@ -12,7 +12,7 @@ import {
   getChainToOwnerMap,
   getTestMultiProvider,
   testChainConnectionConfigs,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';

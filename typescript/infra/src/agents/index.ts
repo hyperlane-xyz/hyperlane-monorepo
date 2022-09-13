@@ -1,5 +1,5 @@
-import { ChainName } from '@abacus-network/sdk';
-import { utils } from '@abacus-network/utils';
+import { ChainName } from '@hyperlane-xyz/sdk';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { AgentConfig, DeployEnvironment } from '../config';

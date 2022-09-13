@@ -1,6 +1,6 @@
 {
-  "name": "@abacus-network/utils",
-  "description": "General utilities for the Abacus network",
+  "name": "@hyperlane-xyz/utils",
+  "description": "General utilities for the Hyperlane network",
   "version": "0.4.1",
   "dependencies": {
     "ethers": "^5.6.8"
@@ -10,16 +10,16 @@
     "prettier": "^2.4.1",
     "typescript": "^4.7.2"
   },
-  "homepage": "https://www.useabacus.network",
+  "homepage": "https://www.hyperlane.xyz",
   "keywords": [
-    "Abacus",
+    "Hyperlane",
     "SDK",
     "Typescript"
   ],
   "license": "Apache-2.0",
   "main": "dist/index.js",
   "prepublish": "yarn build",
-  "repository": "https://github.com/abacus-network/abacus-monorepo",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf ./dist",
