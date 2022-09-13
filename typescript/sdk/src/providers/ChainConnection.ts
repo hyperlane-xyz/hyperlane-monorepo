@@ -64,7 +64,11 @@ export class ChainConnection {
     if (!txFrom) {
       txFrom = await this.getAddress();
     }
-    return this.provider.estimateGas({ ...tx, from: txFrom });
+    return this.provider.estimateGas({
+      ...tx,
+      from: txFrom,
+      ...this.overrides,
+    });
   }
 
   async sendTransaction(
@@ -72,7 +76,11 @@ export class ChainConnection {
   ): Promise<ethers.ContractReceipt> {
     if (!this.signer) throw new Error('no signer found');
     const from = await this.signer.getAddress();
-    const response = await this.signer.sendTransaction({ ...tx, from });
+    const response = await this.signer.sendTransaction({
+      ...tx,
+      from,
+      ...this.overrides,
+    });
     this.logger(`sent tx ${response.hash}`);
     return this.handleTx(response);
   }
