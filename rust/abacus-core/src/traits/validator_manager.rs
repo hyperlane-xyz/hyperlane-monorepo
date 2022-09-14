@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use ethers::types::U256;
 use eyre::Result;
 
 use crate::{
@@ -8,6 +9,11 @@ use crate::{
     traits::{ChainCommunicationError, TxOutcome},
     AbacusMessage, Address, MultisigSignedCheckpoint,
 };
+
+pub struct TxCostEstimate {
+    pub gas_limit: U256,
+    pub gas_price: U256,
+}
 
 /// Interface for an InboxValidatorManager
 #[async_trait]
@@ -19,6 +25,14 @@ pub trait InboxValidatorManager: Send + Sync + Debug {
         message: &AbacusMessage,
         proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError>;
+
+    /// Foo
+    async fn process_estimate_costs(
+        &self,
+        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
+    ) -> Result<TxCostEstimate>;
 
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint

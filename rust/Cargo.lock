@@ -834,7 +834,7 @@ dependencies = [
 [[package]]
 name = "coingecko"
 version = "1.0.1"
-source = "git+https://github.com/abacus-network/coingecko-rs?branch=pro-api-key#466128965b44e716455fa6b66243ab328e213072"
+source = "git+https://github.com/abacus-network/coingecko-rs?tag=2022-09-14-01#c212f2559864b12be5d8ab69aac4953cf2592ef3"
 dependencies = [
  "chrono",
  "reqwest",

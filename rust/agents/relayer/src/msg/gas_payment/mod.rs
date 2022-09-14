@@ -1,6 +1,10 @@
-use abacus_core::db::{AbacusDB, DbError};
+use abacus_core::{
+    db::{AbacusDB, DbError},
+    CommittedMessage, TxCostEstimate,
+};
 use async_trait::async_trait;
 use ethers::types::U256;
+use eyre::Result;
 
 use crate::settings::GasPaymentEnforcementPolicy;
 
@@ -11,9 +15,9 @@ pub trait GasPaymentEnforcer {
     /// Returns (gas payment requirement met, current payment according to the DB).
     async fn message_meets_gas_payment_requirement(
         &self,
-        msg_leaf_index: u32,
-        tx_gas_limit: U256,
-    ) -> Result<(bool, U256), DbError>;
+        message: &CommittedMessage,
+        tx_cost_estimate: &TxCostEstimate,
+    ) -> Result<(bool, U256)>;
 
     /// Returns the total gas payment made for a message.
     fn get_message_gas_payment(&self, msg_leaf_index: u32) -> Result<U256, DbError>;
@@ -36,10 +40,10 @@ impl GasPaymentEnforcer for MonolithGasPaymentEnforcer {
     /// Returns (gas payment requirement met, current payment according to the DB)
     async fn message_meets_gas_payment_requirement(
         &self,
-        msg_leaf_index: u32,
-        _tx_gas_limit: U256,
-    ) -> Result<(bool, U256), DbError> {
-        let current_payment = self.get_message_gas_payment(msg_leaf_index)?;
+        message: &CommittedMessage,
+        _tx_cost_estimate: &TxCostEstimate,
+    ) -> Result<(bool, U256)> {
+        let current_payment = self.get_message_gas_payment(message.leaf_index)?;
 
         let meets_requirement = match self.policy {
             GasPaymentEnforcementPolicy::None => true,

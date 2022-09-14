@@ -1,7 +1,9 @@
 use std::{ops::Deref, sync::Arc, time::Duration};
 
 use abacus_base::InboxContracts;
-use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
+use abacus_core::{
+    ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus, TxCostEstimate,
+};
 use ethers::types::U256;
 use eyre::Result;
 use gelato::{
@@ -15,7 +17,10 @@ use tokio::{
 };
 use tracing::instrument;
 
-use crate::msg::{gas_payment::{MonolithGasPaymentEnforcer, GasPaymentEnforcer}, SubmitMessageArgs};
+use crate::msg::{
+    gas_payment::{GasPaymentEnforcer, MonolithGasPaymentEnforcer},
+    SubmitMessageArgs,
+};
 
 // The number of seconds after a tick to sleep before attempting the next tick.
 const TICK_SLEEP_DURATION_SECONDS: u64 = 30;
@@ -97,8 +102,11 @@ impl SponsoredCallOp {
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
             .message_meets_gas_payment_requirement(
-                self.0.message.leaf_index,
-                U256::zero(),
+                &self.0.message.committed_message,
+                &TxCostEstimate {
+                    gas_limit: U256::one(),
+                    gas_price: U256::one(),
+                },
             )
             .await?;
 

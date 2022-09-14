@@ -4,6 +4,7 @@
 use std::fmt::Display;
 use std::sync::Arc;
 
+use abacus_core::TxCostEstimate;
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::*;
@@ -124,12 +125,40 @@ where
         Ok(receipt.into())
     }
 
-    // fn process_contract_call(
-    //     &self,
-    //     multisig_signed_checkpoint: &MultisigSignedCheckpoint,
-    //     message: &AbacusMessage,
-    //     proof: &Proof,
-    // ) -> 
+    async fn process_estimate_costs(
+        &self,
+        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
+    ) -> Result<TxCostEstimate> {
+        let mut sol_proof: [[u8; 32]; 32] = Default::default();
+        sol_proof
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
+
+        let tx = self.contract.process(
+            self.inbox_address,
+            multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
+            multisig_signed_checkpoint.checkpoint.index.into(),
+            multisig_signed_checkpoint
+                .signatures
+                .iter()
+                .map(|s| s.to_vec().into())
+                .collect(),
+            message.to_vec().into(),
+            sol_proof,
+            proof.index.into(),
+        );
+        let gas_limit = tx.estimate_gas().await?.saturating_add(U256::from(100000));
+
+        let gas_price = self.provider.get_gas_price().await?;
+
+        Ok(TxCostEstimate {
+            gas_limit,
+            gas_price,
+        })
+    }
 
     fn process_calldata(
         &self,

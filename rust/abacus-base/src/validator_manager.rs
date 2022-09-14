@@ -3,8 +3,9 @@ use std::sync::Arc;
 
 use abacus_core::{
     accumulator::merkle::Proof, AbacusMessage, Address, ChainCommunicationError,
-    InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
+    InboxValidatorManager, MultisigSignedCheckpoint, TxCostEstimate, TxOutcome,
 };
+use eyre::Result;
 
 #[derive(Debug, Clone)]
 /// Arc wrapper for InboxValidatorManagerVariants enum
@@ -64,6 +65,31 @@ impl InboxValidatorManager for InboxValidatorManagerVariants {
             InboxValidatorManagerVariants::Other(validator_manager) => {
                 validator_manager
                     .process(multisig_signed_checkpoint, message, proof)
+                    .await
+            }
+        }
+    }
+
+    async fn process_estimate_costs(
+        &self,
+        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
+    ) -> Result<TxCostEstimate> {
+        match self {
+            InboxValidatorManagerVariants::Ethereum(validator_manager) => {
+                validator_manager
+                    .process_estimate_costs(multisig_signed_checkpoint, message, proof)
+                    .await
+            }
+            InboxValidatorManagerVariants::Mock(mock_validator_manager) => {
+                mock_validator_manager
+                    .process_estimate_costs(multisig_signed_checkpoint, message, proof)
+                    .await
+            }
+            InboxValidatorManagerVariants::Other(validator_manager) => {
+                validator_manager
+                    .process_estimate_costs(multisig_signed_checkpoint, message, proof)
                     .await
             }
         }

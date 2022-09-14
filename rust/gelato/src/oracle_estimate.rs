@@ -53,14 +53,13 @@ pub struct OracleEstimateCallResult {
 impl OracleEstimateCall {
     #[instrument]
     pub async fn run(self) -> Result<OracleEstimateCallResult, reqwest::Error> {
-        let url = format!("{}/oracles/{}/estimate", RELAY_URL, u32::from(self.args.chain_id));
+        let url = format!(
+            "{}/oracles/{}/estimate",
+            RELAY_URL,
+            u32::from(self.args.chain_id)
+        );
         println!("beforeee");
-        let res = self
-            .http
-            .get(url)
-            .query(&self.args)
-            .send()
-            .await?;
+        let res = self.http.get(url).query(&self.args).send().await?;
         let result: OracleEstimateCallResult = res.json().await?;
         Ok(result)
     }

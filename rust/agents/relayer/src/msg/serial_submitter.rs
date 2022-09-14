@@ -8,6 +8,7 @@ use abacus_core::AbacusContract;
 use abacus_core::Inbox;
 use abacus_core::InboxValidatorManager;
 use abacus_core::MessageStatus;
+use abacus_core::TxCostEstimate;
 use ethers::types::U256;
 use eyre::{bail, Result};
 use prometheus::{Histogram, IntCounter, IntGauge};
@@ -235,7 +236,13 @@ impl SerialSubmitter {
         // If the gas payment requirement hasn't been met, move to the next tick.
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(msg.leaf_index, U256::zero())
+            .message_meets_gas_payment_requirement(
+                &msg.committed_message,
+                &TxCostEstimate {
+                    gas_limit: U256::one(),
+                    gas_price: U256::one(),
+                },
+            )
             .await?;
         if !meets_gas_requirement {
             tracing::info!(msg_leaf_index=msg.leaf_index, gas_payment=?gas_payment, "Gas payment requirement not met yet");
