@@ -62,6 +62,12 @@ export const abacus: AgentConfig<TestnetChains> = {
       optimismkovan: {
         reorgPeriod: 0,
       },
+      goerli: {
+        reorgPeriod: 7,
+      },
+      moonbasealpha: {
+        reorgPeriod: 0,
+      },
     },
   },
   relayer: {
