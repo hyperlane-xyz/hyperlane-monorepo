@@ -20,9 +20,7 @@ use tracing::debug;
 use tracing::instrument;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use crate::msg::gas_payment::GasPaymentEnforcer;
-
-use super::gas_payment::MonolithGasPaymentEnforcer;
+use super::gas_payment::GasPaymentEnforcer;
 use super::SubmitMessageArgs;
 
 /// SerialSubmitter accepts undelivered messages over a channel from a MessageProcessor.  It is
@@ -131,7 +129,7 @@ pub(crate) struct SerialSubmitter {
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
     /// Used to determine if messages have made sufficient gas payments.
-    gas_payment_enforcer: Arc<MonolithGasPaymentEnforcer>,
+    gas_payment_enforcer: Arc<GasPaymentEnforcer>,
 }
 
 impl SerialSubmitter {
@@ -140,7 +138,7 @@ impl SerialSubmitter {
         inbox_contracts: InboxContracts,
         db: AbacusDB,
         metrics: SerialSubmitterMetrics,
-        gas_payment_enforcer: Arc<MonolithGasPaymentEnforcer>,
+        gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> Self {
         Self {
             rx,

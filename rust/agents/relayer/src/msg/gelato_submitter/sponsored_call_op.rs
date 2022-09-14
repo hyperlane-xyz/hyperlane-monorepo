@@ -1,10 +1,7 @@
 use std::{ops::Deref, sync::Arc, time::Duration};
 
 use abacus_base::InboxContracts;
-use abacus_core::{
-    ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus, TxCostEstimate,
-};
-use ethers::types::U256;
+use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
 use eyre::Result;
 use gelato::{
     sponsored_call::{SponsoredCallArgs, SponsoredCallCall, SponsoredCallCallResult},
@@ -17,10 +14,7 @@ use tokio::{
 };
 use tracing::instrument;
 
-use crate::msg::{
-    gas_payment::{GasPaymentEnforcer, MonolithGasPaymentEnforcer},
-    SubmitMessageArgs,
-};
+use crate::msg::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
 // The number of seconds after a tick to sleep before attempting the next tick.
 const TICK_SLEEP_DURATION_SECONDS: u64 = 30;
@@ -39,7 +33,7 @@ pub struct SponsoredCallOpArgs {
     pub sponsor_api_key: String,
     pub destination_chain: Chain,
 
-    pub gas_payment_enforcer: Arc<MonolithGasPaymentEnforcer>,
+    pub gas_payment_enforcer: Arc<GasPaymentEnforcer>,
 
     /// A channel to send the message over upon the message being successfully processed.
     pub message_processed_sender: UnboundedSender<SubmitMessageArgs>,
@@ -98,15 +92,23 @@ impl SponsoredCallOp {
             return Ok(MessageStatus::Processed);
         }
 
+        let tx_estimated_cost = self
+            .0
+            .inbox_contracts
+            .validator_manager
+            .process_estimate_costs(
+                &self.0.message.checkpoint,
+                &self.0.message.committed_message.message,
+                &self.0.message.proof,
+            )
+            .await?;
+
         // If the gas payment requirement hasn't been met, sleep briefly and wait for the next tick.
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
             .message_meets_gas_payment_requirement(
                 &self.0.message.committed_message,
-                &TxCostEstimate {
-                    gas_limit: U256::one(),
-                    gas_price: U256::one(),
-                },
+                &tx_estimated_cost,
             )
             .await?;
 

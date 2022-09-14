@@ -3,20 +3,62 @@ use std::{
     time::{Duration, Instant},
 };
 
-use abacus_core::{
-    db::{AbacusDB, DbError},
-    CommittedMessage, TxCostEstimate,
-};
+use abacus_core::{CommittedMessage, TxCostEstimate};
 use async_trait::async_trait;
 use coingecko::CoinGeckoClient;
 use ethers::types::U256;
 use eyre::{bail, eyre, Result};
 use tokio::sync::RwLock;
 
-use super::GasPaymentEnforcer;
+use super::GasPaymentPolicy;
+
+#[derive(Debug)]
+pub struct GasPaymentPolicyNone {}
+
+impl GasPaymentPolicyNone {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+#[async_trait]
+impl GasPaymentPolicy for GasPaymentPolicyNone {
+    /// Returns (gas payment requirement met, current payment according to the DB)
+    async fn message_meets_gas_payment_requirement(
+        &self,
+        _message: &CommittedMessage,
+        _current_payment: &U256,
+        _tx_cost_estimate: &TxCostEstimate,
+    ) -> Result<bool> {
+        Ok(true)
+    }
+}
+
+#[derive(Debug)]
+pub struct GasPaymentPolicyMinimum {
+    minimum_payment: U256,
+}
+
+impl GasPaymentPolicyMinimum {
+    pub fn new(minimum_payment: U256) -> Self {
+        Self { minimum_payment }
+    }
+}
+
+#[async_trait]
+impl GasPaymentPolicy for GasPaymentPolicyMinimum {
+    /// Returns (gas payment requirement met, current payment according to the DB)
+    async fn message_meets_gas_payment_requirement(
+        &self,
+        _message: &CommittedMessage,
+        current_payment: &U256,
+        _tx_cost_estimate: &TxCostEstimate,
+    ) -> Result<bool> {
+        Ok(*current_payment >= self.minimum_payment)
+    }
+}
 
 const CACHE_TTL_SECONDS: u64 = 60;
-
 // 1 / 100th of a cent
 const FIXED_POINT_PRECISION: usize = 1000;
 
@@ -73,14 +115,33 @@ fn abacus_domain_to_native_token_coingecko_id(domain: u32) -> Result<&'static st
 struct CoinGeckoCachingPriceGetter {
     coingecko: CoinGeckoClient,
     // Keyed by coingecko id
-    usd_prices: RwLock<HashMap<&'static str, CachedValue<f64>>>,
+    cached_usd_prices: RwLock<HashMap<&'static str, CachedValue<f64>>>,
+}
+
+impl std::fmt::Debug for CoinGeckoCachingPriceGetter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CoinGeckoCachingPriceGetter {{ .. }}",)
+    }
 }
 
 impl CoinGeckoCachingPriceGetter {
-    async fn get_cached_usd_price(&self, coingecko_id: &'static str) -> Option<f64> {
-        let usd_prices = self.usd_prices.read().await;
+    pub fn new(coingecko_api_key: Option<String>) -> Self {
+        let coingecko = if let Some(api_key) = coingecko_api_key {
+            CoinGeckoClient::new_with_key("https://pro-api.coingecko.com/api/v3".into(), api_key)
+        } else {
+            CoinGeckoClient::new("https://api.coingecko.com/api/v3".into())
+        };
 
-        if let Some(cached_value) = usd_prices.get(coingecko_id) {
+        Self {
+            coingecko,
+            cached_usd_prices: RwLock::default(),
+        }
+    }
+
+    async fn get_cached_usd_price(&self, coingecko_id: &'static str) -> Option<f64> {
+        let cached_usd_prices = self.cached_usd_prices.read().await;
+
+        if let Some(cached_value) = cached_usd_prices.get(coingecko_id) {
             if cached_value.created_at.elapsed() > Duration::from_secs(CACHE_TTL_SECONDS) {
                 return Some(cached_value.value);
             }
@@ -90,8 +151,8 @@ impl CoinGeckoCachingPriceGetter {
     }
 
     async fn set_cached_usd_price(&self, coingecko_id: &'static str, usd_price: f64) {
-        let mut usd_prices = self.usd_prices.write().await;
-        usd_prices.insert(coingecko_id, usd_price.into());
+        let mut cached_usd_prices = self.cached_usd_prices.write().await;
+        cached_usd_prices.insert(coingecko_id, usd_price.into());
     }
 
     async fn get_usd_price(&self, coingecko_id: &'static str) -> Result<f64> {
@@ -119,16 +180,15 @@ impl CoinGeckoCachingPriceGetter {
     }
 }
 
-pub struct GelatoGasPaymentEnforcer {
-    db: AbacusDB,
+#[derive(Debug)]
+pub struct GasPaymentPolicyMeetsEstimatedCost {
     coingecko_price_getter: CoinGeckoCachingPriceGetter,
 }
 
-impl GelatoGasPaymentEnforcer {
-    pub fn new(db: AbacusDB) -> Self {
+impl GasPaymentPolicyMeetsEstimatedCost {
+    pub fn new(coingecko_api_key: Option<String>) -> Self {
         Self {
-            db,
-            coingecko_price_getter: CoinGeckoCachingPriceGetter::default(),
+            coingecko_price_getter: CoinGeckoCachingPriceGetter::new(coingecko_api_key),
         }
     }
 
@@ -180,15 +240,14 @@ impl GelatoGasPaymentEnforcer {
 }
 
 #[async_trait]
-impl GasPaymentEnforcer for GelatoGasPaymentEnforcer {
+impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
     /// Returns (gas payment requirement met, current payment according to the DB)
     async fn message_meets_gas_payment_requirement(
         &self,
         message: &CommittedMessage,
+        current_payment: &U256,
         tx_cost_estimate: &TxCostEstimate,
-    ) -> Result<(bool, U256)> {
-        let current_payment = self.get_message_gas_payment(message.leaf_index)?;
-
+    ) -> Result<bool> {
         // Estimated cost of the process tx, quoted in destination native tokens
         let destination_token_tx_cost = tx_cost_estimate.gas_limit * tx_cost_estimate.gas_price;
         // Convert the destination token tx cost into origin tokens
@@ -200,11 +259,19 @@ impl GasPaymentEnforcer for GelatoGasPaymentEnforcer {
             )
             .await?;
 
-        Ok((origin_token_tx_cost >= current_payment, current_payment))
-    }
+        let meets_requirement = origin_token_tx_cost >= *current_payment;
+        if !meets_requirement {
+            tracing::info!(
+                message_leaf_index=?message.leaf_index,
+                tx_cost_estimate=?tx_cost_estimate,
+                destination_token_tx_cost=?destination_token_tx_cost,
+                origin_token_tx_cost=?origin_token_tx_cost,
+                current_payment=?current_payment,
+                "Gas payment requirement not met",
+            );
+        }
 
-    fn get_message_gas_payment(&self, msg_leaf_index: u32) -> Result<U256, DbError> {
-        self.db.retrieve_gas_payment_for_leaf(msg_leaf_index)
+        Ok(meets_requirement)
     }
 }
 

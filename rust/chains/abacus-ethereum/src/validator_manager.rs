@@ -8,7 +8,8 @@ use abacus_core::TxCostEstimate;
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::*;
-use eyre::Result;
+use ethers_contract::builders::ContractCall;
+use eyre::{eyre, Result};
 
 use abacus_core::{
     accumulator::merkle::Proof, AbacusMessage, ChainCommunicationError, ContractLocator, Encode,
@@ -100,28 +101,10 @@ where
         message: &AbacusMessage,
         proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        let mut sol_proof: [[u8; 32]; 32] = Default::default();
-        sol_proof
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
-
-        let tx = self.contract.process(
-            self.inbox_address,
-            multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
-            multisig_signed_checkpoint.checkpoint.index.into(),
-            multisig_signed_checkpoint
-                .signatures
-                .iter()
-                .map(|s| s.to_vec().into())
-                .collect(),
-            message.to_vec().into(),
-            sol_proof,
-            proof.index.into(),
-        );
-        let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
-        let gassed = tx.gas(gas);
-        let receipt = report_tx(gassed).await?;
+        let contract_call = self
+            .process_contract_call(multisig_signed_checkpoint, message, proof)
+            .await?;
+        let receipt = report_tx(contract_call).await?;
         Ok(receipt.into())
     }
 
@@ -131,27 +114,14 @@ where
         message: &AbacusMessage,
         proof: &Proof,
     ) -> Result<TxCostEstimate> {
-        let mut sol_proof: [[u8; 32]; 32] = Default::default();
-        sol_proof
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
+        let contract_call = self
+            .process_contract_call(multisig_signed_checkpoint, message, proof)
+            .await?;
 
-        let tx = self.contract.process(
-            self.inbox_address,
-            multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
-            multisig_signed_checkpoint.checkpoint.index.into(),
-            multisig_signed_checkpoint
-                .signatures
-                .iter()
-                .map(|s| s.to_vec().into())
-                .collect(),
-            message.to_vec().into(),
-            sol_proof,
-            proof.index.into(),
-        );
-        let gas_limit = tx.estimate_gas().await?.saturating_add(U256::from(100000));
-
+        let gas_limit = contract_call
+            .tx
+            .gas_price()
+            .ok_or_else(|| eyre!("Expected gas price for process contract call"))?;
         let gas_price = self.provider.get_gas_price().await?;
 
         Ok(TxCostEstimate {
@@ -191,5 +161,41 @@ where
 
     fn contract_address(&self) -> abacus_core::Address {
         self.contract.address().into()
+    }
+}
+
+impl<M> EthereumInboxValidatorManager<M>
+where
+    M: Middleware + 'static,
+{
+    /// Returns a ContractCall that processes the provided message.
+    /// Gas estimation occurs here.
+    async fn process_contract_call(
+        &self,
+        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
+    ) -> Result<ContractCall<M, ()>, ChainCommunicationError> {
+        let mut sol_proof: [[u8; 32]; 32] = Default::default();
+        sol_proof
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
+
+        let tx = self.contract.process(
+            self.inbox_address,
+            multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
+            multisig_signed_checkpoint.checkpoint.index.into(),
+            multisig_signed_checkpoint
+                .signatures
+                .iter()
+                .map(|s| s.to_vec().into())
+                .collect(),
+            message.to_vec().into(),
+            sol_proof,
+            proof.index.into(),
+        );
+        let gas_limit = tx.estimate_gas().await?.saturating_add(U256::from(100000));
+        Ok(tx.gas(gas_limit))
     }
 }

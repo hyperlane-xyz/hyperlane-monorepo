@@ -8,49 +8,57 @@ use eyre::Result;
 
 use crate::settings::GasPaymentEnforcementPolicy;
 
-mod gelato;
+use self::policies::{
+    GasPaymentPolicyMeetsEstimatedCost, GasPaymentPolicyMinimum, GasPaymentPolicyNone,
+};
+
+mod policies;
 
 #[async_trait]
-pub trait GasPaymentEnforcer {
-    /// Returns (gas payment requirement met, current payment according to the DB).
+pub trait GasPaymentPolicy: std::fmt::Debug + Send + Sync {
     async fn message_meets_gas_payment_requirement(
         &self,
         message: &CommittedMessage,
+        current_payment: &U256,
         tx_cost_estimate: &TxCostEstimate,
-    ) -> Result<(bool, U256)>;
-
-    /// Returns the total gas payment made for a message.
-    fn get_message_gas_payment(&self, msg_leaf_index: u32) -> Result<U256, DbError>;
+    ) -> Result<bool>;
 }
 
 #[derive(Debug)]
-pub struct MonolithGasPaymentEnforcer {
-    policy: GasPaymentEnforcementPolicy,
+pub struct GasPaymentEnforcer {
+    policy: Box<dyn GasPaymentPolicy>,
     db: AbacusDB,
 }
 
-impl MonolithGasPaymentEnforcer {
-    pub fn new(policy: GasPaymentEnforcementPolicy, db: AbacusDB) -> Self {
+impl GasPaymentEnforcer {
+    pub fn new(policy_config: GasPaymentEnforcementPolicy, db: AbacusDB) -> Self {
+        let policy: Box<dyn GasPaymentPolicy> = match policy_config {
+            GasPaymentEnforcementPolicy::None => Box::new(GasPaymentPolicyNone::new()),
+            GasPaymentEnforcementPolicy::Minimum { payment } => {
+                Box::new(GasPaymentPolicyMinimum::new(payment))
+            }
+            GasPaymentEnforcementPolicy::MeetsEstimatedCost { coingeckoapikey } => {
+                Box::new(GasPaymentPolicyMeetsEstimatedCost::new(coingeckoapikey))
+            }
+        };
+
         Self { policy, db }
     }
 }
 
-#[async_trait]
-impl GasPaymentEnforcer for MonolithGasPaymentEnforcer {
+impl GasPaymentEnforcer {
     /// Returns (gas payment requirement met, current payment according to the DB)
-    async fn message_meets_gas_payment_requirement(
+    pub async fn message_meets_gas_payment_requirement(
         &self,
         message: &CommittedMessage,
-        _tx_cost_estimate: &TxCostEstimate,
+        tx_cost_estimate: &TxCostEstimate,
     ) -> Result<(bool, U256)> {
         let current_payment = self.get_message_gas_payment(message.leaf_index)?;
 
-        let meets_requirement = match self.policy {
-            GasPaymentEnforcementPolicy::None => true,
-            GasPaymentEnforcementPolicy::Minimum {
-                payment: min_payment,
-            } => current_payment >= min_payment,
-        };
+        let meets_requirement = self
+            .policy
+            .message_meets_gas_payment_requirement(message, &current_payment, tx_cost_estimate)
+            .await?;
 
         Ok((meets_requirement, current_payment))
     }

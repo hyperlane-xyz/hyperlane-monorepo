@@ -10,8 +10,12 @@ use crate::{
     AbacusMessage, Address, MultisigSignedCheckpoint,
 };
 
+/// Foo
+#[derive(Debug)]
 pub struct TxCostEstimate {
+    /// Foo
     pub gas_limit: U256,
+    /// FOo
     pub gas_price: U256,
 }
 
