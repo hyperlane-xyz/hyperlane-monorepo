@@ -58,6 +58,7 @@ version = "0.1.0"
 dependencies = [
  "abacus-base",
  "async-trait",
+ "auto_impl 1.0.1",
  "bytes",
  "color-eyre",
  "config",

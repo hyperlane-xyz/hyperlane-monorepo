@@ -9,30 +9,31 @@ use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
 use abacus_core::db::DB;
+use abacus_core::InboxValidatorManager;
 
 use crate::{
     cancel_task,
     metrics::CoreMetrics,
     settings::{IndexSettings, Settings},
-    CachingInbox, CachingInterchainGasPaymaster, CachingOutbox, InboxValidatorManagers,
+    CachingInbox, CachingInterchainGasPaymaster, CachingOutbox,
 };
 
 /// Contracts relating to an inbox chain
 #[derive(Clone, Debug)]
 pub struct InboxContracts {
     /// A boxed Inbox
-    pub inbox: Arc<CachingInbox>,
+    pub inbox: CachingInbox,
     /// A boxed InboxValidatorManager
-    pub validator_manager: Arc<InboxValidatorManagers>,
+    pub validator_manager: Arc<dyn InboxValidatorManager>,
 }
 
 /// Properties shared across all abacus agents
 #[derive(Debug)]
 pub struct AbacusAgentCore {
     /// A boxed Outbox
-    pub outbox: Arc<CachingOutbox>,
+    pub outbox: CachingOutbox,
     /// A boxed InterchainGasPaymaster
-    pub interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
+    pub interchain_gas_paymaster: Option<CachingInterchainGasPaymaster>,
     /// A map of boxed Inbox contracts
     pub inboxes: HashMap<String, InboxContracts>,
     /// A persistent KV Store (currently implemented as rocksdb)
@@ -75,45 +76,48 @@ pub trait Agent: BaseAgent {
     fn metrics(&self) -> Arc<CoreMetrics>;
 
     /// Return a handle to the DB
-    fn db(&self) -> DB;
+    fn db(&self) -> &DB;
 
     /// Return a reference to an Outbox contract
-    fn outbox(&self) -> Arc<CachingOutbox>;
+    fn outbox(&self) -> &CachingOutbox;
 
     /// Return a reference to an InterchainGasPaymaster contract
-    fn interchain_gas_paymaster(&self) -> Option<Arc<CachingInterchainGasPaymaster>>;
+    fn interchain_gas_paymaster(&self) -> Option<&CachingInterchainGasPaymaster>;
 
     /// Get a reference to the inboxes map
     fn inboxes(&self) -> &HashMap<String, InboxContracts>;
 
     /// Get a reference to an inbox's contracts by its name
-    fn inbox_by_name(&self, name: &str) -> Option<InboxContracts>;
+    fn inbox_by_name(&self, name: &str) -> Option<&InboxContracts>;
 }
 
 #[async_trait]
-impl<B: BaseAgent + AsRef<AbacusAgentCore>> Agent for B {
+impl<B> Agent for B
+where
+    B: BaseAgent + AsRef<AbacusAgentCore>,
+{
     fn metrics(&self) -> Arc<CoreMetrics> {
         self.as_ref().metrics.clone()
     }
 
-    fn db(&self) -> DB {
-        self.as_ref().db.clone()
+    fn db(&self) -> &DB {
+        &self.as_ref().db
     }
 
-    fn outbox(&self) -> Arc<CachingOutbox> {
-        self.as_ref().outbox.clone()
+    fn outbox(&self) -> &CachingOutbox {
+        &self.as_ref().outbox
     }
 
-    fn interchain_gas_paymaster(&self) -> Option<Arc<CachingInterchainGasPaymaster>> {
-        self.as_ref().interchain_gas_paymaster.clone()
+    fn interchain_gas_paymaster(&self) -> Option<&CachingInterchainGasPaymaster> {
+        self.as_ref().interchain_gas_paymaster.as_ref()
     }
 
     fn inboxes(&self) -> &HashMap<String, InboxContracts> {
         &self.as_ref().inboxes
     }
 
-    fn inbox_by_name(&self, name: &str) -> Option<InboxContracts> {
-        self.inboxes().get(name).map(Clone::clone)
+    fn inbox_by_name(&self, name: &str) -> Option<&InboxContracts> {
+        self.inboxes().get(name)
     }
 }
 
