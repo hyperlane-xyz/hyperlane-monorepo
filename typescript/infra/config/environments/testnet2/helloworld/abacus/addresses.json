@@ -19,5 +19,11 @@
   },
   "optimismkovan": {
     "router": "0xFd8771A559b941B95b66323c890B6fA21f409563"
+  },
+  "goerli": {
+    "router": "0x19Be55D859368e02d7b9C00803Eb677BDC1359Bd"
+  },
+  "moonbasealpha": {
+    "router": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD"
   }
 }
