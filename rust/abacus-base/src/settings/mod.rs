@@ -260,7 +260,12 @@ impl Settings {
         metrics: &CoreMetrics,
     ) -> Result<HashMap<String, InboxContracts>, Report> {
         let mut result = HashMap::new();
-        for (k, v) in self.inboxes.iter().filter(|(_, v)| v.disabled.is_none()) {
+        for (k, v) in self.inboxes.iter().filter(|(_, v)| {
+            !v.disabled
+                .as_ref()
+                .and_then(|d| d.parse::<bool>().ok())
+                .unwrap_or(false)
+        }) {
             if k != &v.name {
                 bail!(
                     "Inbox key does not match inbox name:\n key: {}  name: {}",
@@ -391,6 +396,11 @@ impl Settings {
         match &self.outbox.chain {
             ChainConf::Ethereum(conn) => Ok(InterchainGasPaymasterIndexers::Ethereum(
                 InterchainGasPaymasterIndexerBuilder {
+                    outbox_address: self
+                        .outbox
+                        .addresses
+                        .outbox
+                        .parse::<ethers::types::Address>()?,
                     from_height: self.index.from(),
                     chunk_size: self.index.chunk_size(),
                     finality_blocks: self.outbox.finality_blocks(),

@@ -1,7 +1,7 @@
 import {
   AbacusCore,
   AbacusCoreChecker,
-  ViolationType,
+  CoreViolationType,
 } from '@abacus-network/sdk';
 
 import { AbacusCoreGovernor } from '../src/core/govern';
@@ -11,6 +11,7 @@ import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 async function check() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
+
   const multiProvider = await config.getMultiProvider();
 
   // environments union doesn't work well with typescript
@@ -22,12 +23,11 @@ async function check() {
     config.core,
   );
   await coreChecker.check();
-  // 16 ownable contracts per chain.
-  await coreChecker.expectViolations([ViolationType.Owner], [7 * 16]);
+  // One validator violation per chain (test add validator)
+  coreChecker.expectViolations([CoreViolationType.ValidatorManager], [1 * 7]);
 
   const governor = new AbacusCoreGovernor(coreChecker);
   await governor.govern();
-  governor.logCalls();
 }
 
 check().then(console.log).catch(console.error);

@@ -108,13 +108,16 @@ where
                 // Index the chunk_size, capping at the tip.
                 let to = min(tip, from + chunk_size);
 
-                let mut sorted_messages = indexer.fetch_sorted_messages(from, to).await?;
+                // Still search the full-size chunk size to possibly catch events that nodes have dropped "close to the tip"
+                let full_chunk_from = to.checked_sub(chunk_size).unwrap_or_default();
+
+                let mut sorted_messages = indexer.fetch_sorted_messages(full_chunk_from, to).await?;
 
                 info!(
-                    from = from,
+                    from = full_chunk_from,
                     to = to,
                     message_count = sorted_messages.len(),
-                    "[Messages]: indexed block heights {from}...{to}"
+                    "[Messages]: indexed block range"
                 );
 
                 // Get the latest known leaf index. All messages whose indices are <= this index
@@ -128,7 +131,7 @@ where
                 }
 
                 debug!(
-                    from = from,
+                    from = full_chunk_from,
                     to = to,
                     message_count = sorted_messages.len(),
                     "[Messages]: filtered any messages already indexed"
@@ -164,8 +167,8 @@ where
                         }
 
                         // Update the latest valid start block.
-                        db.store_latest_valid_message_range_start_block(from)?;
-                        last_valid_range_start_block = from;
+                        db.store_latest_valid_message_range_start_block(full_chunk_from)?;
+                        last_valid_range_start_block = full_chunk_from;
 
                         // Move forward to the next height
                         from = to + 1;
@@ -283,7 +286,7 @@ mod test {
                 mock_indexer
                     .expect__fetch_sorted_messages()
                     .times(1)
-                    .with(eq(100), eq(110))
+                    .with(eq(91), eq(110))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![m0_clone]));
 
@@ -297,7 +300,7 @@ mod test {
                 mock_indexer
                     .expect__fetch_sorted_messages()
                     .times(1)
-                    .with(eq(111), eq(120))
+                    .with(eq(101), eq(120))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![m1_clone]));
 
@@ -310,7 +313,7 @@ mod test {
                 mock_indexer
                     .expect__fetch_sorted_messages()
                     .times(1)
-                    .with(eq(121), eq(130))
+                    .with(eq(111), eq(130))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
@@ -323,9 +326,15 @@ mod test {
                 mock_indexer
                     .expect__fetch_sorted_messages()
                     .times(1)
-                    .with(eq(131), eq(140))
+                    .with(eq(121), eq(140))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
+
+                mock_indexer
+                    .expect__get_finalized_block_number()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(|| Ok(140));
 
                 // m1 --> m5 seen as an invalid continuation
                 let m5_clone = m5.clone();
@@ -337,7 +346,7 @@ mod test {
                 mock_indexer
                     .expect__fetch_sorted_messages()
                     .times(1)
-                    .with(eq(141), eq(150))
+                    .with(eq(131), eq(150))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![m5_clone]));
 
@@ -354,7 +363,7 @@ mod test {
                 mock_indexer
                     .expect__fetch_sorted_messages()
                     .times(1)
-                    .with(eq(111), eq(130))
+                    .with(eq(101), eq(120))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![m1_clone, m2_clone]));
 
@@ -370,7 +379,7 @@ mod test {
                 mock_indexer
                     .expect__fetch_sorted_messages()
                     .times(1)
-                    .with(eq(131), eq(150))
+                    .with(eq(121), eq(140))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![m3_clone, m5_clone]));
 
@@ -384,7 +393,7 @@ mod test {
                 mock_indexer
                     .expect__fetch_sorted_messages()
                     .times(1)
-                    .with(eq(131), eq(150))
+                    .with(eq(121), eq(140))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![m3, m4, m5]));
 
@@ -397,7 +406,7 @@ mod test {
                 mock_indexer
                     .expect__fetch_sorted_messages()
                     .times(1)
-                    .with(eq(151), eq(170))
+                    .with(eq(141), eq(160))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
@@ -406,18 +415,18 @@ mod test {
                     .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(|| Ok(190));
+                    .return_once(|| Ok(180));
                 mock_indexer
                     .expect__fetch_sorted_messages()
                     .times(1)
-                    .with(eq(171), eq(190))
+                    .with(eq(161), eq(180))
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
                 // Stay at the same tip, so no other fetch_sorted_messages calls are made
                 mock_indexer
                     .expect__get_finalized_block_number()
-                    .returning(|| Ok(190));
+                    .returning(|| Ok(180));
             }
 
             let abacus_db = AbacusDB::new("outbox_1", db);

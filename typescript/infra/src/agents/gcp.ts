@@ -1,4 +1,4 @@
-import { Wallet } from 'ethers';
+import { Wallet, ethers } from 'ethers';
 
 import { ChainName } from '@abacus-network/sdk';
 
@@ -6,7 +6,8 @@ import { Contexts } from '../../config/contexts';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd, include } from '../utils/utils';
 
-import { AgentKey, isValidatorKey, keyIdentifier } from './agent';
+import { isValidatorKey, keyIdentifier } from './agent';
+import { CloudAgentKey } from './keys';
 import { KEY_ROLE_ENUM } from './roles';
 
 // This is the type for how the keys are persisted in GCP
@@ -32,7 +33,7 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentGCPKey extends AgentKey {
+export class AgentGCPKey extends CloudAgentKey {
   constructor(
     environment: string,
     context: Contexts,
@@ -109,6 +110,15 @@ export class AgentGCPKey extends AgentKey {
 
   async delete() {
     await execCmd(`gcloud secrets delete ${this.identifier} --quiet`);
+  }
+
+  async getSigner(
+    provider?: ethers.providers.Provider,
+  ): Promise<ethers.Signer> {
+    if (!this.remoteKey.fetched) {
+      await this.fetch();
+    }
+    return new Wallet(this.privateKey, provider);
   }
 
   private requireFetched() {

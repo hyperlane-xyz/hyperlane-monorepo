@@ -10,23 +10,30 @@ use crate::err::GelatoError;
 
 // This list is currently trimmed to the *intersection* of
 // {chains used by Abacus in any environment} and {chains included in ethers::types::Chain}.
-// Notably missing is Celo/Alfajores.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Chain {
-    Mainnet = 1,
+    Ethereum = 1,
     Rinkeby = 4,
     Goerli = 5,
     Kovan = 42,
+
     Polygon = 137,
     PolygonMumbai = 80001,
+
     Avalanche = 43114,
     AvalancheFuji = 43113,
+
     Arbitrum = 42161,
-    ArbitrumTestnet = 421611,
+    ArbitrumRinkeby = 421611,
+
     Optimism = 10,
     OptimismKovan = 69,
+
     BinanceSmartChain = 56,
     BinanceSmartChainTestnet = 97,
+
+    Celo = 42220,
+    Alfajores = 44787,
 }
 
 impl fmt::Display for Chain {
@@ -39,7 +46,9 @@ impl FromStr for Chain {
     type Err = GelatoError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "mainnet" => Ok(Chain::Mainnet),
+            // TODO: confirm the unusual chain name strings used by Gelato,
+            // e.g. mainnet for Ethereum and arbitrumtestnet for Arbitrum Rinkeby.
+            "mainnet" => Ok(Chain::Ethereum),
             "rinkeby" => Ok(Chain::Rinkeby),
             "goerli" => Ok(Chain::Goerli),
             "kovan" => Ok(Chain::Kovan),
@@ -48,7 +57,7 @@ impl FromStr for Chain {
             "avalanche" => Ok(Chain::Avalanche),
             "avalanchefuji" => Ok(Chain::AvalancheFuji),
             "arbitrum" => Ok(Chain::Arbitrum),
-            "arbitrumtestnet" => Ok(Chain::ArbitrumTestnet),
+            "arbitrumtestnet" => Ok(Chain::ArbitrumRinkeby),
             "optimism" => Ok(Chain::Optimism),
             "optimismkovan" => Ok(Chain::OptimismKovan),
             "bsc" => Ok(Chain::BinanceSmartChain),
@@ -60,22 +69,7 @@ impl FromStr for Chain {
 
 impl From<Chain> for u32 {
     fn from(chain: Chain) -> Self {
-        match chain {
-            Chain::Mainnet => 1,
-            Chain::Rinkeby => 4,
-            Chain::Goerli => 5,
-            Chain::Kovan => 42,
-            Chain::Polygon => 137,
-            Chain::PolygonMumbai => 80001,
-            Chain::Avalanche => 43114,
-            Chain::AvalancheFuji => 43113,
-            Chain::Arbitrum => 42161,
-            Chain::ArbitrumTestnet => 421611,
-            Chain::Optimism => 10,
-            Chain::OptimismKovan => 69,
-            Chain::BinanceSmartChain => 56,
-            Chain::BinanceSmartChainTestnet => 97,
-        }
+        chain as u32
     }
 }
 
@@ -96,10 +90,13 @@ impl Chain {
     // for Gelato-suppored chains, until a better / dynamic approach
     // becomes available.
     //
-    // See `getRelayForwarderAddrss()` in the SDK file
-    // https://github.com/gelatodigital/relay-sdk/blob/master/src/constants/index.ts.
+    // See `getRelayForwarderAddress()` in the SDK file
+    // https://github.com/gelatodigital/relay-sdk/blob/8a9b9b2d0ef92ea9a3d6d64a230d9467a4b4da6d/src/constants/index.ts#L87.
     pub fn relay_fwd_addr(&self) -> Result<Address, GelatoError> {
         match self {
+            Chain::Ethereum => Ok(Address::from_str(
+                "5ca448e53e77499222741DcB6B3c959Fa829dAf2",
+            )?),
             Chain::Rinkeby => Ok(Address::from_str(
                 "9B79b798563e538cc326D03696B3Be38b971D282",
             )?),
@@ -109,15 +106,26 @@ impl Chain {
             Chain::Kovan => Ok(Address::from_str(
                 "4F36f93F58d36DcbC1E60b9bdBE213482285C482",
             )?),
+
             Chain::Polygon => Ok(Address::from_str(
                 "c2336e796F77E4E57b6630b6dEdb01f5EE82383e",
             )?),
             Chain::PolygonMumbai => Ok(Address::from_str(
                 "3428E19A01E40333D5D51465A08476b8F61B86f3",
             )?),
+
             Chain::BinanceSmartChain => Ok(Address::from_str(
-                "247A1306b6122ba28862b19a95004899db91f1b5",
+                "eeea839E2435873adA11d5dD4CAE6032742C0445",
             )?),
+
+            Chain::Alfajores => Ok(Address::from_str(
+                "c2336e796F77E4E57b6630b6dEdb01f5EE82383e",
+            )?),
+
+            Chain::Avalanche => Ok(Address::from_str(
+                "3456E168d2D7271847808463D6D383D079Bd5Eaa",
+            )?),
+
             _ => Err(GelatoError::UnknownRelayForwardAddress(*self)),
         }
     }
@@ -129,8 +137,8 @@ mod tests {
     #[test]
     fn names() {
         // FromStr provides both 'from_str' and a str.parse() implementation.
-        assert_eq!(Chain::from_str("MAINNET").unwrap(), Chain::Mainnet);
-        assert_eq!("MAINNET".parse::<Chain>().unwrap(), Chain::Mainnet);
+        assert_eq!(Chain::from_str("MAINNET").unwrap(), Chain::Ethereum);
+        assert_eq!("MAINNET".parse::<Chain>().unwrap(), Chain::Ethereum);
         // Conversions are case insensitive.
         assert_eq!(
             "polyGoNMuMBai".parse::<Chain>().unwrap(),
@@ -139,13 +147,36 @@ mod tests {
         // Error for unknown names.
         assert!("notChain".parse::<Chain>().is_err());
     }
+
+    #[test]
+    fn u32_from_chain() {
+        assert_eq!(u32::from(Chain::Ethereum), 1);
+        assert_eq!(u32::from(Chain::Celo), 42220);
+    }
+
     #[test]
     fn contracts() {
-        assert!(!Chain::Mainnet.relay_fwd_addr().is_ok());
+        assert!(Chain::Ethereum.relay_fwd_addr().is_ok());
         assert!(Chain::Rinkeby.relay_fwd_addr().is_ok());
         assert!(Chain::Goerli.relay_fwd_addr().is_ok());
         assert!(Chain::Kovan.relay_fwd_addr().is_ok());
+
         assert!(Chain::Polygon.relay_fwd_addr().is_ok());
         assert!(Chain::PolygonMumbai.relay_fwd_addr().is_ok());
+
+        assert!(Chain::BinanceSmartChain.relay_fwd_addr().is_ok());
+        assert!(!Chain::BinanceSmartChainTestnet.relay_fwd_addr().is_ok());
+
+        assert!(!Chain::Celo.relay_fwd_addr().is_ok());
+        assert!(Chain::Alfajores.relay_fwd_addr().is_ok());
+
+        assert!(Chain::Avalanche.relay_fwd_addr().is_ok());
+        assert!(!Chain::AvalancheFuji.relay_fwd_addr().is_ok());
+
+        assert!(!Chain::Optimism.relay_fwd_addr().is_ok());
+        assert!(!Chain::OptimismKovan.relay_fwd_addr().is_ok());
+
+        assert!(!Chain::Arbitrum.relay_fwd_addr().is_ok());
+        assert!(!Chain::ArbitrumRinkeby.relay_fwd_addr().is_ok());
     }
 }

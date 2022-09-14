@@ -8,7 +8,7 @@ import {
   AbacusCore,
   ChainName,
   ChainNameToDomainId,
-  getMultiProviderFromConfigAndSigner,
+  getTestMultiProvider,
 } from '@abacus-network/sdk';
 
 import { getCoreEnvironmentConfig } from './scripts/utils';
@@ -63,9 +63,9 @@ task('kathy', 'Dispatches random abacus messages')
       const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
       const config = getCoreEnvironmentConfig(environment);
       const [signer] = await hre.ethers.getSigners();
-      const multiProvider = getMultiProviderFromConfigAndSigner(
-        config.transactionConfigs,
+      const multiProvider = getTestMultiProvider(
         signer,
+        config.transactionConfigs,
       );
       const core = AbacusCore.fromEnvironment(environment, multiProvider);
 

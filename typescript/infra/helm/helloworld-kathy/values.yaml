@@ -3,12 +3,17 @@ image:
   tag:
 abacus:
   runEnv: testnet2
+  context: abacus
   # Only used for fetching secrets, so all chains should be included regardless of being skipped
   chains: []
-chainsToSkip: []
+  aws: true
+  chainsToSkip: []
+  cycleOnce: false
 cronjob:
   schedule: "0 * * * *"
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
 externalSecrets:
   clusterSecretStore:
+nameOverride: ""
+fullnameOverride: ""

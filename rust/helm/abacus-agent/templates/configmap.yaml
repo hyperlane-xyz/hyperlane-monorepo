@@ -15,12 +15,7 @@ data:
   ABC_BASE_OUTBOX_CONNECTION_TYPE: {{ .Values.abacus.outboxChain.connectionType }}
   {{- end }}
   {{- range .Values.abacus.inboxChains }}
-  {{- if .address }}
-  ABC_BASE_INBOXES_{{ .name | upper }}_ADDRESS: {{ .address }}
-  {{- end }}
-  {{- if .disabled }}
-  ABC_BASE_INBOXES_{{ .name | upper }}_DISABLED: "true"
-  {{- end }}
+{{- include "abacus-agent.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "INBOXES_%s_" (.name | upper)) "format" "config_map") | indent 2 }}
   {{- end }}
   {{- if .Values.abacus.tracing.uri }}
   ABC_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.abacus.tracing.uri }}

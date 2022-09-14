@@ -3,6 +3,8 @@ import {
   CreateAliasCommand,
   CreateKeyCommand,
   DeleteAliasCommand,
+  DescribeKeyCommand,
+  DescribeKeyCommandOutput,
   GetPublicKeyCommand,
   KMSClient,
   KeySpec,
@@ -13,12 +15,15 @@ import {
   PutKeyPolicyCommand,
   UpdateAliasCommand,
 } from '@aws-sdk/client-kms';
+import { KmsEthersSigner } from 'aws-kms-ethers-signer';
+import { ethers } from 'ethers';
 
 import { ChainName } from '@abacus-network/sdk';
 
 import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
 import { getEthereumAddress, sleep } from '../../utils/utils';
-import { AgentKey, keyIdentifier } from '../agent';
+import { keyIdentifier } from '../agent';
+import { CloudAgentKey } from '../keys';
 import { KEY_ROLE_ENUM } from '../roles';
 
 interface UnfetchedKey {
@@ -32,7 +37,7 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentAwsKey extends AgentKey {
+export class AgentAwsKey extends CloudAgentKey {
   private client: KMSClient | undefined;
   private region: string;
   public remoteKey: RemoteKey = { fetched: false };
@@ -130,7 +135,7 @@ export class AgentAwsKey extends AgentKey {
           Principal: {
             AWS: userArn,
           },
-          Action: ['kms:GetPublicKey', 'kms:Sign'],
+          Action: ['kms:GetPublicKey', 'kms:Sign', 'kms:DescribeKey'],
           Resource: '*',
         },
       ],
@@ -146,9 +151,15 @@ export class AgentAwsKey extends AgentKey {
 
   // Gets the Key's ID if it exists, undefined otherwise
   async getId() {
-    const aliases = await this.getAliases();
-    const match = aliases.find((_) => _.AliasName === this.identifier);
-    return match?.TargetKeyId;
+    try {
+      const keyDescription = await this.describeKey();
+      return keyDescription.KeyMetadata?.KeyId;
+    } catch (err: any) {
+      if (err.name === 'NotFoundException') {
+        return undefined;
+      }
+      throw err;
+    }
   }
 
   create() {
@@ -174,7 +185,6 @@ export class AgentAwsKey extends AgentKey {
     const client = await this.getClient();
 
     // Get the key IDs
-    // TODO handle cases when there are > 100 keys
     const aliases = await this.getAliases();
     const canonicalMatch = aliases.find((_) => _.AliasName === canonicalAlias);
     const newMatch = aliases.find((_) => _.AliasName === newAlias);
@@ -211,9 +221,25 @@ export class AgentAwsKey extends AgentKey {
     await client.send(new DeleteAliasCommand({ AliasName: newAlias }));
 
     // Address should have changed now
-    // TODO should this be awaited? fetch is async
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    this.fetch();
+    await this.fetch();
+  }
+
+  async getSigner(
+    provider?: ethers.providers.Provider,
+  ): Promise<ethers.Signer> {
+    const keyId = await this.getId();
+    if (!keyId) {
+      throw Error('Key ID not defined');
+    }
+    return new KmsEthersSigner(
+      {
+        keyId,
+        kmsClientConfig: {
+          region: this.region,
+        },
+      },
+      provider,
+    );
   }
 
   private requireFetched() {
@@ -277,6 +303,15 @@ export class AgentAwsKey extends AgentKey {
     );
 
     return getEthereumAddress(Buffer.from(publicKeyResponse.PublicKey!));
+  }
+
+  private async describeKey(): Promise<DescribeKeyCommandOutput> {
+    const client = await this.getClient();
+    return client.send(
+      new DescribeKeyCommand({
+        KeyId: this.identifier,
+      }),
+    );
   }
 
   private async getAliases(): Promise<AliasListEntry[]> {

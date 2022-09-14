@@ -5,15 +5,30 @@ use std::sync::Arc;
 /// Struct encapsulating prometheus metrics used by the ContractSync.
 #[derive(Debug, Clone)]
 pub struct ContractSyncMetrics {
-    /// Most recently indexed block height (label values differentiate checkpoints
-    /// vs. messages)
+    /// Most recently indexed block height.
+    ///
+    /// Labels:
+    /// - `data_type`: the data the indexer is recording. E.g. `messages` or `gas_payments`.
+    /// - `chain`: Chain the indexer is collecting data from.
     pub indexed_height: IntGaugeVec,
-    /// Events stored into DB (label values differentiate checkpoints vs. messages)
+
+    /// Events stored into AbacusDB (label values differentiate checkpoints vs.
+    /// messages)
+    ///
+    /// Labels:
+    /// - `data_type`: the data the indexer is recording. E.g. `messages` or `gas_payments`.
+    /// - `chain`: Chain the indexer is collecting data from.
     pub stored_events: IntGaugeVec,
+
     /// Unique occasions when agent missed an event (label values
     /// differentiate checkpoints vs. messages)
+    ///
+    /// Labels:
+    /// - `data_type`: the data the indexer is recording. E.g. `messages` or `gas_payments`.
+    /// - `chain`: Chain the indexer is collecting data from.
     pub missed_events: IntCounterVec,
-    /// A gauge for tracking the latest message leafs that are being indexed
+
+    /// See `last_known_message_leaf_index` in CoreMetrics.
     pub message_leaf_index: IntGaugeVec,
 }
 

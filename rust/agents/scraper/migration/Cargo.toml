@@ -1,0 +1,39 @@
+[package]
+name = "migration"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "migration"
+path = "src/lib.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }
+sea-orm-migration = { version = "0.9", features = ["runtime-tokio-native-tls", "sqlx-postgres"] }
+serde = { version = "1.0", features = ["derive"] }
+abacus-core = { path = "../../../abacus-core" }
+
+# bin-only deps
+tracing-subscriber = { version = "0.3" }
+tracing = { version = "0.1" }
+
+[dependencies.sea-orm]
+features = ["macros"]
+# determined by sea-orm-migration
+version = "*"
+
+[[bin]]
+name = "init-db"
+path = "bin/init_db.rs"
+
+[[bin]]
+name = "recreate-db"
+path = "bin/recreate_db.rs"
+
+[[bin]]
+name = "generate-entities"
+path = "bin/generate_entities.rs"
+
+[features]
+default = []

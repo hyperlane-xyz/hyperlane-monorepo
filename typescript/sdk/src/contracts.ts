@@ -4,7 +4,7 @@ import type { types } from '@abacus-network/utils';
 
 import { ProxiedContract, ProxyAddresses, isProxyAddresses } from './proxy';
 import { Connection } from './types';
-import { objMap } from './utils';
+import { objMap } from './utils/objects';
 
 export type AbacusFactories = {
   [key: string]: ethers.ContractFactory;

@@ -49,7 +49,8 @@ impl From<&'_ Address> for ethers::types::H160 {
     }
 }
 
-/// Quick single-use macro to prevent typing domain and chain twice and risking inconsistencies.
+/// Quick single-use macro to prevent typing domain and chain twice and risking
+/// inconsistencies.
 macro_rules! domain_and_chain {
     {$($domain:literal <=> $chain:literal,)*} => {
         /// Get the chain name from a domain id. Returns `None` if the `domain` is unknown.
@@ -119,7 +120,7 @@ mod tests {
     /// them anymore, we don't fail the test. (E.g. agents cannot
     /// currently parse the older files in `config/dev/` or
     /// `config/testnet`.
-    const BLACKLISTED_DIRS: [&str; 5] = [
+    const BLACKLISTED_DIRS: &[&str] = &[
         // Ignore only-local names of fake chains used by
         // e.g. test suites.
         "test/test1_config.json",

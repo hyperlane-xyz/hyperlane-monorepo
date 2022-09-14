@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use abacus_core::{
-    accumulator::merkle::Proof, AbacusMessage, ChainCommunicationError, InboxValidatorManager,
-    MultisigSignedCheckpoint, TxOutcome,
+    accumulator::merkle::Proof, AbacusMessage, Address, ChainCommunicationError,
+    InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
 };
 
 #[derive(Debug, Clone)]
@@ -65,6 +65,40 @@ impl InboxValidatorManager for InboxValidatorManagerVariants {
                 validator_manager
                     .process(multisig_signed_checkpoint, message, proof)
                     .await
+            }
+        }
+    }
+
+    /// Get calldata for a process tx
+    fn process_calldata(
+        &self,
+        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
+    ) -> Vec<u8> {
+        match self {
+            InboxValidatorManagerVariants::Ethereum(validator_manager) => {
+                validator_manager.process_calldata(multisig_signed_checkpoint, message, proof)
+            }
+            InboxValidatorManagerVariants::Mock(mock_validator_manager) => {
+                mock_validator_manager.process_calldata(multisig_signed_checkpoint, message, proof)
+            }
+            InboxValidatorManagerVariants::Other(validator_manager) => {
+                validator_manager.process_calldata(multisig_signed_checkpoint, message, proof)
+            }
+        }
+    }
+
+    fn contract_address(&self) -> Address {
+        match self {
+            InboxValidatorManagerVariants::Ethereum(validator_manager) => {
+                validator_manager.contract_address()
+            }
+            InboxValidatorManagerVariants::Mock(validator_manager) => {
+                validator_manager.contract_address()
+            }
+            InboxValidatorManagerVariants::Other(validator_manager) => {
+                validator_manager.contract_address()
             }
         }
     }

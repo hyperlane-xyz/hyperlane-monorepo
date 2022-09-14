@@ -10,7 +10,9 @@ export type ChainMetadata = {
   paginate?: RpcPagination;
   // The CoinGecko API expects, in some cases, IDs that do not match
   // ChainNames.
-  coinGeckoId?: string;
+  gasCurrencyCoinGeckoId?: string;
+  // URL of the gnosis safe transaction service.
+  gnosisSafeTransactionServiceUrl?: string;
 };
 
 /**
@@ -31,27 +33,37 @@ export interface RpcPagination {
 export const celo: ChainMetadata = {
   id: 0x63656c6f, // b'celo' interpreted as an int
   finalityBlocks: 0,
+  gnosisSafeTransactionServiceUrl:
+    'https://transaction-service.gnosis-safe-staging.celo-networks-dev.org',
 };
 
 export const ethereum: ChainMetadata = {
   id: 0x657468, // b'eth' interpreted as an int
   finalityBlocks: 20,
+  gnosisSafeTransactionServiceUrl: 'https://safe-transaction.gnosis.io',
 };
 
 export const arbitrum: ChainMetadata = {
   id: 0x617262, // b'arb' interpreted as an int
   finalityBlocks: 0,
+  gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
+  gnosisSafeTransactionServiceUrl:
+    'https://safe-transaction.arbitrum.gnosis.io/',
 };
 
 export const optimism: ChainMetadata = {
   id: 0x6f70, // b'op' interpreted as an int
   finalityBlocks: 0,
+  gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
+  gnosisSafeTransactionServiceUrl:
+    'https://safe-transaction.optimism.gnosis.io/',
 };
 
 export const bsc: ChainMetadata = {
   id: 0x627363, // b'bsc' interpreted as an int
   finalityBlocks: 15,
-  coinGeckoId: 'binancecoin',
+  gasCurrencyCoinGeckoId: 'binancecoin',
+  gnosisSafeTransactionServiceUrl: 'https://safe-transaction.bsc.gnosis.io/',
 };
 
 export const avalanche: ChainMetadata = {
@@ -62,7 +74,9 @@ export const avalanche: ChainMetadata = {
     blocks: 100000,
     from: 6765067,
   },
-  coinGeckoId: 'avalanche-2',
+  gasCurrencyCoinGeckoId: 'avalanche-2',
+  gnosisSafeTransactionServiceUrl:
+    'https://safe-transaction.avalanche.gnosis.io/',
 };
 
 export const polygon: ChainMetadata = {
@@ -73,7 +87,9 @@ export const polygon: ChainMetadata = {
     blocks: 10000,
     from: 19657100,
   },
-  coinGeckoId: 'matic-network',
+  gasCurrencyCoinGeckoId: 'matic-network',
+  gnosisSafeTransactionServiceUrl:
+    'https://safe-transaction.polygon.gnosis.io/',
 };
 
 /**

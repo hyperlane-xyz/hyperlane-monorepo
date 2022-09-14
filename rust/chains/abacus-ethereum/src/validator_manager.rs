@@ -1,24 +1,26 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use ethers::abi::AbiEncode;
 use ethers::prelude::*;
 use eyre::Result;
 
 use abacus_core::{
-    accumulator::merkle::Proof, AbacusAbi, AbacusMessage, ChainCommunicationError, ContractLocator,
-    Encode, InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
+    accumulator::merkle::Proof, AbacusMessage, ChainCommunicationError, ContractLocator, Encode,
+    InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
 };
 
 use crate::contracts::inbox_validator_manager::{
-    InboxValidatorManager as EthereumInboxValidatorManagerInternal, INBOXVALIDATORMANAGER_ABI,
+    InboxValidatorManager as EthereumInboxValidatorManagerInternal, ProcessCall,
 };
 use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
+
+pub use crate::contracts::inbox_validator_manager::INBOXVALIDATORMANAGER_ABI;
 
 impl<M> Display for EthereumInboxValidatorManagerInternal<M>
 where
@@ -121,12 +123,37 @@ where
         let receipt = report_tx(gassed).await?;
         Ok(receipt.into())
     }
-}
 
-pub struct EthereumInboxValidatorManagerAbi;
+    fn process_calldata(
+        &self,
+        multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
+    ) -> Vec<u8> {
+        let mut sol_proof: [[u8; 32]; 32] = Default::default();
+        sol_proof
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
 
-impl AbacusAbi for EthereumInboxValidatorManagerAbi {
-    fn fn_map() -> HashMap<Selector, &'static str> {
-        super::extract_fn_map(&INBOXVALIDATORMANAGER_ABI)
+        let process_call = ProcessCall {
+            inbox: self.inbox_address,
+            root: multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
+            index: multisig_signed_checkpoint.checkpoint.index.into(),
+            signatures: multisig_signed_checkpoint
+                .signatures
+                .iter()
+                .map(|s| s.to_vec().into())
+                .collect(),
+            message: message.to_vec().into(),
+            proof: sol_proof,
+            leaf_index: proof.index.into(),
+        };
+
+        process_call.encode()
+    }
+
+    fn contract_address(&self) -> abacus_core::Address {
+        self.contract.address().into()
     }
 }

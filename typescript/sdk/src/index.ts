@@ -1,6 +1,9 @@
 export { AllChains, Chains } from './consts/chains';
 export { chainMetadata } from './consts/chainMetadata';
-export { chainConnectionConfigs } from './consts/chainConnectionConfigs';
+export {
+  chainConnectionConfigs,
+  testChainConnectionConfigs,
+} from './consts/chainConnectionConfigs';
 export { environments as coreEnvironments } from './consts/environments';
 
 export {
@@ -43,7 +46,11 @@ export { ChainConnection } from './providers/ChainConnection';
 export { MultiProvider } from './providers/MultiProvider';
 export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
 
-export { AbacusCore, CoreContractsMap } from './core/AbacusCore';
+export {
+  AbacusCore,
+  CoreContractsMap,
+  DispatchedMessage,
+} from './core/AbacusCore';
 export {
   CoreContracts,
   coreFactories,
@@ -91,15 +98,18 @@ export {
   CoreViolationType,
   ValidatorManagerConfig,
   ValidatorManagerViolation,
-  ValidatorViolation,
-  ValidatorViolationType,
+  EnrolledInboxesViolation,
+  AbacusConnectionManagerViolation,
+  AbacusConnectionManagerViolationType,
+  EnrolledValidatorsViolation,
+  ValidatorManagerViolationType,
 } from './deploy/core/types';
 export { AbacusDeployer } from './deploy/AbacusDeployer';
 export { UpgradeBeaconViolation } from './deploy/proxy';
 export { AbacusRouterDeployer } from './deploy/router/AbacusRouterDeployer';
 export { AbacusRouterChecker } from './deploy/router/AbacusRouterChecker';
 export { RouterConfig } from './deploy/router/types';
-export { getMultiProviderFromConfigAndSigner } from './deploy/utils';
+export { getTestMultiProvider, getChainToOwnerMap } from './deploy/utils';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
 export {
   ContractVerificationInput,
@@ -108,5 +118,13 @@ export {
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
 
-export { objMap, objMapEntries, promiseObjAll } from './utils';
-export * as utils from './utils';
+export { canonizeId, evmId } from './utils/ids';
+export { MultiGeneric } from './utils/MultiGeneric';
+export {
+  bigToFixed,
+  convertDecimalValue,
+  fixedToBig,
+  mulBigAndFixed,
+} from './utils/number';
+export { objMap, objMapEntries, promiseObjAll, pick } from './utils/objects';
+export { delay } from './utils/time';

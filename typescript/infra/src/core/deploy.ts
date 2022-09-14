@@ -6,6 +6,7 @@ import {
 } from '@abacus-network/sdk';
 
 import { DeployEnvironment, RustConfig } from '../config';
+import { ConnectionType } from '../config/agent';
 import { writeJSON } from '../utils/utils';
 
 export class AbacusCoreInfraDeployer<
@@ -20,26 +21,25 @@ export class AbacusCoreInfraDeployer<
       const contracts = contractsMap[chain];
 
       const outboxMetadata = chainMetadata[chain];
-      const outbox = {
-        addresses: {
-          outbox: contracts.outbox.address,
-          interchainGasPaymaster: contracts.interchainGasPaymaster.address,
-        },
-        domain: outboxMetadata.id.toString(),
-        name: chain,
-        rpcStyle: 'ethereum',
-        finalityBlocks: outboxMetadata.finalityBlocks.toString(),
-        connection: {
-          type: 'http',
-          url: '',
-        },
-      };
 
       const rustConfig: RustConfig<Chain> = {
         environment,
         signers: {},
         inboxes: {},
-        outbox,
+        outbox: {
+          addresses: {
+            outbox: contracts.outbox.address,
+            interchainGasPaymaster: contracts.interchainGasPaymaster.address,
+          },
+          domain: outboxMetadata.id.toString(),
+          name: chain,
+          rpcStyle: 'ethereum',
+          finalityBlocks: outboxMetadata.finalityBlocks.toString(),
+          connection: {
+            type: ConnectionType.Http,
+            url: '',
+          },
+        },
         tracing: {
           level: 'debug',
           fmt: 'json',
@@ -67,14 +67,14 @@ export class AbacusCoreInfraDeployer<
           rpcStyle: 'ethereum',
           finalityBlocks: metadata.finalityBlocks.toString(),
           connection: {
-            type: 'http',
+            type: ConnectionType.Http,
             url: '',
           },
           addresses: {
             inbox: inboxContracts.inbox.address,
             validatorManager: inboxContracts.inboxValidatorManager.address,
           },
-        };
+        } as const;
 
         rustConfig.inboxes[remote] = inbox;
       });

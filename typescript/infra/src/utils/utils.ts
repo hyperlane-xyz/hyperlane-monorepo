@@ -206,37 +206,38 @@ export function assertContext(contextStr: string): Contexts {
   );
 }
 
-export function median(a: number[]): number {
-  a = [...a]; // clone
-  a.sort((a, b) => a - b);
-  if (a.length <= 0) {
-    return 0;
-  } else if (a.length % 2 == 0) {
-    return (a[a.length / 2] + a[a.length / 2 - 1]) / 2;
-  } else {
-    return a[(a.length - 1) / 2];
+/**
+ * Converts a matrix to 1d array ordered by diagonals. This is useful if you
+ * want to make sure that the order operations are performed in are ordered but
+ * not repeating the same values from the inner or outer array in sequence.
+ *
+ * @warn Requires a square matrix.
+ *
+ * // 0,0 1,0 2,0 3,0
+ * //
+ * // 0,1 1,1 2,1 3,1
+ * //
+ * // 0,2 1,2 2,2 3,2
+ * //
+ * // 0,3 1,3 2,3 3,3
+ *
+ * becomes
+ *
+ * 0,0; 1,0; 0,1; 2,0; 1,1; 0,2; 3,0; 2,1; 1,2; 0,3; 3,1; 2,2; 1,3; 3,2; 2,3; 3,3
+ *
+ * Adapted from
+ * https://www.geeksforgeeks.org/zigzag-or-diagonal-traversal-of-matrix/
+ */
+export function diagonalize<T>(array: Array<Array<T>>): Array<T> {
+  const diagonalized: T[] = [];
+  for (let line = 1; line <= array.length * 2; ++line) {
+    const start_col = Math.max(0, line - array.length);
+    const count = Math.min(line, array.length - start_col, array.length);
+    for (let j = 0; j < count; ++j) {
+      const k = Math.min(array.length, line) - j - 1;
+      const l = start_col + j;
+      diagonalized.push(array[k][l]);
+    }
   }
-}
-
-export function mean(a: number[]): number {
-  return a.reduce((acc, i) => acc + i, 0) / a.length;
-}
-
-export function stdDev(a: number[]): number {
-  const xbar = mean(a);
-  return Math.sqrt(
-    a.map((x) => Math.pow(x - xbar, 2)).reduce((acc, i) => acc + i, 0) /
-      a.length,
-  );
-}
-
-export function streamToString(stream: NodeJS.ReadableStream): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: string[] = [];
-    stream
-      .setEncoding('utf8')
-      .on('data', (chunk) => chunks.push(chunk))
-      .on('error', (err) => reject(err))
-      .on('end', () => resolve(String.prototype.concat(...chunks)));
-  });
+  return diagonalized;
 }

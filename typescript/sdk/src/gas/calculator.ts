@@ -163,7 +163,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * a message.
    * @param origin The name of the origin chain.
    * @param destination The name of the destination chain.
-   * @param destinationHandleGas The amount of gas the recipient `handle` function
+   * @param handleGas The amount of gas the recipient `handle` function
    * is estimated to use.
    * @returns An estimated amount of origin chain tokens to cover gas costs of the
    * message on the destination chain.
@@ -184,12 +184,13 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * denominated in the native token of the origin chain. The gas used by the message's
    * recipient handler function is estimated in an eth_estimateGas call to the
    * destination chain, and is then used to calculate the payment using
+   * Currently made private as it does not work properly for Arbitrum.
    * {@link estimatePaymentForHandleGasAmount}.
    * @param message The parsed message to estimate payment for.
    * @returns An estimated amount of origin chain tokens to cover gas costs of the
    * message on the destination chain.
    */
-  async estimatePaymentForMessage<Destination extends Chain>(
+  protected async estimatePaymentForMessage<Destination extends Chain>(
     message: ParsedMessage<Chain, Destination>,
   ): Promise<BigNumber> {
     const handleGas = await this.estimateGasForHandle(message);
@@ -225,7 +226,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     const PRECISION = 1000;
 
     return convertDecimalValue(
-      value.mul(exchangeRate * PRECISION).div(PRECISION),
+      value.mul(Math.round(exchangeRate * PRECISION)).div(PRECISION),
       this.tokenDecimals(fromChain),
       this.tokenDecimals(toChain),
     );
@@ -289,7 +290,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
       from: destinationInbox.address,
       data: handlerInterface.encodeFunctionData('handle', [
         chainMetadata[message.origin].id,
-        message.sender,
+        utils.addressToBytes32(message.sender),
         message.body,
       ]),
     });

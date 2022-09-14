@@ -1,25 +1,55 @@
+import { AllChains } from '../consts/chains';
 import { ChainMap, ChainName, Remotes } from '../types';
 
 export class MultiGeneric<Chain extends ChainName, Value> {
-  constructor(protected readonly chainMap: ChainMap<Chain, Value>) {}
+  constructor(public readonly chainMap: ChainMap<Chain, Value>) {}
 
-  protected get(chain: Chain) {
-    return this.chainMap[chain];
+  /**
+   * Get value for a chain
+   * @throws if chain is invalid or has not been set
+   */
+  protected get(chain: Chain): Value {
+    if (!chain || !AllChains.includes(chain)) {
+      throw new Error(`Invalid chain ${chain}`);
+    }
+    const value = this.chainMap[chain] ?? null;
+    if (!value) {
+      throw new Error(`No chain value found for ${chain}`);
+    }
+    return value;
   }
 
-  protected set(chain: Chain, value: Value) {
+  /**
+   * Get value for a chain
+   * @returns value or null if chain value has not been set
+   */
+  protected tryGet(chain: Chain): Value | null {
+    if (!chain || !AllChains.includes(chain)) {
+      return null;
+    }
+    return this.chainMap[chain] ?? null;
+  }
+
+  /**
+   * Set value for a chain
+   * @throws if chain is invalid or has not been set
+   */
+  protected set(chain: Chain, value: Value): Value {
     this.chainMap[chain] = value;
+    return value;
   }
 
-  chains = () => Object.keys(this.chainMap) as Chain[];
+  chains(): Chain[] {
+    return Object.keys(this.chainMap) as Chain[];
+  }
 
-  apply(fn: (n: Chain, dc: Value) => void) {
+  forEach(fn: (n: Chain, dc: Value) => void): void {
     for (const chain of this.chains()) {
       fn(chain, this.chainMap[chain]);
     }
   }
 
-  map<Output>(fn: (n: Chain, dc: Value) => Output) {
+  map<Output>(fn: (n: Chain, dc: Value) => Output): Record<Chain, Output> {
     const entries: [Chain, Output][] = [];
     const chains = this.chains();
     for (const chain of chains) {
@@ -28,17 +58,26 @@ export class MultiGeneric<Chain extends ChainName, Value> {
     return Object.fromEntries(entries) as Record<Chain, Output>;
   }
 
-  remoteChains = <LocalChain extends Chain>(name: LocalChain) =>
-    this.chains().filter((key) => key !== name) as Remotes<Chain, LocalChain>[];
+  remoteChains<LocalChain extends Chain>(
+    name: LocalChain,
+  ): Remotes<Chain, LocalChain>[] {
+    return this.chains().filter((key) => key !== name) as Remotes<
+      Chain,
+      LocalChain
+    >[];
+  }
 
-  extendWithChain = <New extends Remotes<ChainName, Chain>>(
+  extendWithChain<New extends Remotes<ChainName, Chain>>(
     chain: New,
     value: Value,
-  ) =>
-    new MultiGeneric<New & Chain, Value>({
+  ): MultiGeneric<New & Chain, Value> {
+    return new MultiGeneric<New & Chain, Value>({
       ...this.chainMap,
       [chain]: value,
     });
+  }
 
-  knownChain = (chain: ChainName) => chain in this.chainMap;
+  knownChain(chain: ChainName): boolean {
+    return chain in this.chainMap;
+  }
 }

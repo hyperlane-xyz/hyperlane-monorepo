@@ -9,7 +9,7 @@
 
 use eyre::Result;
 
-use abacus_base::Agent;
+use abacus_base::{Agent, BaseAgent};
 
 use crate::relayer::Relayer;
 
@@ -38,7 +38,9 @@ async fn _main() -> Result<()> {
 
     let _ = agent.metrics().run_http_server();
 
-    agent.run().await??;
+    let all_fut_tasks = agent.run().await;
+    all_fut_tasks.await??;
+
     Ok(())
 }
 

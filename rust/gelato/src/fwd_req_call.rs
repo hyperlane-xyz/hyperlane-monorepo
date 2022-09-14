@@ -3,11 +3,11 @@ use crate::err::GelatoError;
 use ethers::types::{Address, Bytes, Signature, U256};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
-use std::sync::Arc;
-use tracing::info;
 use tracing::instrument;
 
-const GATEWAY_URL: &str = "https://gateway.api.gelato.digital";
+const GATEWAY_URL: &str = "https://relay.gelato.digital";
+
+pub const NATIVE_FEE_TOKEN_ADDRESS: ethers::types::Address = Address::repeat_byte(0xEE);
 
 #[derive(Debug, Clone)]
 pub struct ForwardRequestArgs {
@@ -27,9 +27,9 @@ pub struct ForwardRequestArgs {
 
 #[derive(Debug, Clone)]
 pub struct ForwardRequestCall {
-    pub http: Arc<reqwest::Client>,
+    pub http: reqwest::Client,
     pub args: ForwardRequestArgs,
-    pub sig: Signature,
+    pub signature: Signature,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -47,11 +47,10 @@ impl ForwardRequestCall {
         );
         let http_args = HTTPArgs {
             args: self.args.clone(),
-            sig: self.sig,
+            signature: self.signature,
         };
-        info!(?url, ?http_args);
         let res = self.http.post(url).json(&http_args).send().await?;
-        let result: HTTPResult = res.json().await.unwrap();
+        let result: HTTPResult = res.json().await?;
         Ok(ForwardRequestCallResult::from(result))
     }
 }
@@ -59,7 +58,7 @@ impl ForwardRequestCall {
 #[derive(Debug)]
 struct HTTPArgs {
     args: ForwardRequestArgs,
-    sig: Signature,
+    signature: Signature,
 }
 
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq)]
@@ -68,14 +67,14 @@ struct HTTPResult {
     pub task_id: String,
 }
 
-// We could try to get equivalent serde serializaztion for this type via the typical attributes,
+// We could try to get equivalent serde serialization for this type via the typical attributes,
 // like #[serde(rename_all...)], #[serde(flatten)], etc, but altogether there are enough changes
 // piled on top of one another that it seems more readable to just explicitly rewrite the relevant
 // fields with inline modifications below.
 //
 // In total, we have to make the following logical changes from the default serde serialization:
 //     *  add a new top-level dict field 'typeId', with const literal value 'ForwardRequest'.
-//     *  hoist the two struct members (`args` and `sig`) up to the top-level dict (equiv. to
+//     *  hoist the two struct members (`args` and `signature`) up to the top-level dict (equiv. to
 //        `#[serde(flatten)]`).
 //     *  make sure the integers for the fields `gas` and `maxfee` are enclosed within quotes,
 //        since Gelato-server-side, they will be interpreted as ~bignums.
@@ -106,7 +105,7 @@ impl Serialize for HTTPArgs {
             "enforceSponsorNonceOrdering",
             &self.args.enforce_sponsor_nonce_ordering,
         )?;
-        state.serialize_field("sponsorSignature", &format!("0x{}", self.sig))?;
+        state.serialize_field("sponsorSignature", &format!("0x{}", self.signature))?;
         state.end()
     }
 }
@@ -141,8 +140,8 @@ mod tests {
         let wallet = test_data::sdk_demo_data::WALLET_KEY
             .parse::<LocalWallet>()
             .unwrap();
-        let sig = wallet.sign_typed_data(&args).await.unwrap();
-        let http_args = HTTPArgs { args: args, sig };
+        let signature = wallet.sign_typed_data(&args).await.unwrap();
+        let http_args = HTTPArgs { args, signature };
         assert_eq!(
             serde_json::to_string(&http_args).unwrap(),
             test_data::sdk_demo_data::EXPECTED_JSON_REQUEST_CONTENT

@@ -55,4 +55,33 @@ export class ChainConnection {
     );
     return response.wait(this.confirmations);
   }
+
+  async estimateGas(
+    tx: ethers.PopulatedTransaction,
+    from?: string,
+  ): Promise<ethers.BigNumber> {
+    let txFrom = from;
+    if (!txFrom) {
+      txFrom = await this.getAddress();
+    }
+    return this.provider.estimateGas({
+      ...tx,
+      from: txFrom,
+      ...this.overrides,
+    });
+  }
+
+  async sendTransaction(
+    tx: ethers.PopulatedTransaction,
+  ): Promise<ethers.ContractReceipt> {
+    if (!this.signer) throw new Error('no signer found');
+    const from = await this.signer.getAddress();
+    const response = await this.signer.sendTransaction({
+      ...tx,
+      from,
+      ...this.overrides,
+    });
+    this.logger(`sent tx ${response.hash}`);
+    return this.handleTx(response);
+  }
 }

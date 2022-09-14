@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {Version0} from "./Version0.sol";
+import {Versioned} from "./upgrade/Versioned.sol";
 import {Mailbox} from "./Mailbox.sol";
 import {MerkleLib} from "./libs/Merkle.sol";
 import {Message} from "./libs/Message.sol";
@@ -20,7 +20,7 @@ import {IOutbox} from "../interfaces/IOutbox.sol";
  * Accepts submissions of fraudulent signatures
  * by the Validator and slashes the Validator in this case.
  */
-contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
+contract Outbox is IOutbox, Versioned, MerkleTreeManager, Mailbox {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -86,7 +86,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
 
     // ============ Initializer ============
 
-    function initialize(address _validatorManager) public initializer {
+    function initialize(address _validatorManager) external initializer {
         __Mailbox_initialize(_validatorManager);
         state = States.Active;
     }
@@ -118,7 +118,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
         bytes calldata _messageBody
     ) external override notFailed returns (uint256) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
-        // The leaf has not been inserted yet at this point1
+        // The leaf has not been inserted yet at this point
         uint256 _leafIndex = count();
         // format the message into packed bytes
         bytes memory _message = Message.formatMessage(

@@ -140,9 +140,12 @@ fn main() -> ExitCode {
     };
 
     let relayer_env = hashmap! {
-        "ABC_BASE_OUTBOX_CONNECTION_URL" => "http://localhost:8545",
+        "ABC_BASE_OUTBOX_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        "ABC_BASE_OUTBOX_CONNECTION_TYPE" => "httpQuorum",
         "ABC_BASE_INBOXES_TEST2_CONNECTION_URL" => "http://localhost:8545",
+        "ABC_BASE_INBOXES_TEST2_CONNECTION_TYPE" => "http",
         "ABC_BASE_INBOXES_TEST3_CONNECTION_URL" => "http://localhost:8545",
+        "ABC_BASE_INBOXES_TEST3_CONNECTION_TYPE" => "http",
         "BASE_CONFIG" => "test1_config.json",
         "RUN_ENV" => "test",
         "ABC_BASE_METRICS" => "9092",
@@ -164,9 +167,12 @@ fn main() -> ExitCode {
     };
 
     let validator_env = hashmap! {
-        "ABC_BASE_OUTBOX_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "ABC_BASE_INBOXES_TEST2_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "ABC_BASE_INBOXES_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
+        "ABC_BASE_OUTBOX_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        "ABC_BASE_OUTBOX_CONNECTION_TYPE" => "httpQuorum",
+        "ABC_BASE_INBOXES_TEST2_CONNECTION_URL" => "http://localhost:8545",
+        "ABC_BASE_INBOXES_TEST2_CONNECTION_TYPE" => "http",
+        "ABC_BASE_INBOXES_TEST3_CONNECTION_URL" => "http://localhost:8545",
+        "ABC_BASE_INBOXES_TEST3_CONNECTION_TYPE" => "http",
         "BASE_CONFIG" => "test1_config.json",
         "RUN_ENV" => "test",
         "ABC_BASE_METRICS" => "9091",
@@ -455,6 +461,22 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
     assert_eq!(
         num_expected_messages_processed,
         msg_processed_count.into_iter().sum::<u32>()
+    );
+
+    let gas_payment_events_count = ureq::get("http://127.0.0.1:9092/metrics")
+        .call()
+        .unwrap()
+        .into_string()
+        .unwrap()
+        .lines()
+        .filter(|l| l.starts_with("abacus_contract_sync_stored_events"))
+        .filter(|l| l.contains(r#"data_type="gas_payments""#))
+        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .next()
+        .unwrap();
+    assert!(
+        gas_payment_events_count >= num_expected_messages_processed,
+        "Synced gas payment event count is less than the number of messages"
     );
 }
 

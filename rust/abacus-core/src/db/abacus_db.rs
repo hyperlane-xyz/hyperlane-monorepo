@@ -6,7 +6,7 @@ use crate::{
 use ethers::core::types::{H256, U256};
 use eyre::Result;
 use tokio::time::sleep;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace};
 
 use std::future::Future;
 use std::time::Duration;
@@ -243,7 +243,7 @@ impl AbacusDB {
         let meta = &gas_payment_with_meta.meta;
         // If the gas payment has already been processed, do nothing
         if self.retrieve_gas_payment_meta_processed(meta)? {
-            warn!(gas_payment_with_meta=?gas_payment_with_meta, "Attempted to process an already-processed gas payment");
+            trace!(gas_payment_with_meta=?gas_payment_with_meta, "Attempted to process an already-processed gas payment");
             return Ok(());
         }
         // Set the gas payment as processed

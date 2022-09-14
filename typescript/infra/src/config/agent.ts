@@ -74,6 +74,7 @@ interface ValidatorSet {
 interface Validator {
   address: string;
   checkpointSyncer: CheckpointSyncerConfig;
+  readonly?: boolean;
 }
 
 // Validator sets for each chain
@@ -86,9 +87,9 @@ export type ChainValidatorSets<Chain extends ChainName> = ChainMap<
 // =====     Relayer Agent     =====
 // =================================
 
-type Whitelist = WhitelistElement[];
+export type MatchingList = MatchingListElement[];
 
-interface WhitelistElement {
+interface MatchingListElement {
   sourceDomain?: '*' | string | string[] | number | number[];
   sourceAddress?: '*' | string | string[];
   destinationDomain?: '*' | string | string[] | number | number[];
@@ -101,7 +102,8 @@ interface BaseRelayerConfig {
   signedCheckpointPollingInterval: number;
   // The maxinmum number of times a processor will try to process a message
   maxProcessingRetries: number;
-  whitelist?: Whitelist;
+  whitelist?: MatchingList;
+  blacklist?: MatchingList;
 }
 
 // Per-chain relayer agent configs
@@ -111,9 +113,11 @@ type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
 >;
 
 // Full relayer agent config for a single chain
-interface RelayerConfig extends Omit<BaseRelayerConfig, 'whitelist'> {
+interface RelayerConfig
+  extends Omit<BaseRelayerConfig, 'whitelist' | 'blacklist'> {
   multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
   whitelist?: string;
+  blacklist?: string;
 }
 
 // ===================================
@@ -139,32 +143,6 @@ interface ValidatorConfig extends BaseValidatorConfig {
   checkpointSyncer: CheckpointSyncerConfig;
   validator: KeyConfig;
 }
-
-// ===============================
-// =====     Kathy Agent     =====
-// ===============================
-
-interface ChatGenConfig {
-  type: 'static';
-  message: string;
-  recipient: string;
-}
-
-// Full kathy agent config for a single chain
-interface KathyConfig {
-  // The message interval (in seconds)
-  interval: number;
-  // Configuration for kathy's chat
-  chat: ChatGenConfig;
-  // Whether kathy is enabled
-  enabled: boolean;
-}
-
-// Per-chain kathy agent configs
-type ChainKathyConfigs<Chain extends ChainName> = ChainOverridableConfig<
-  Chain,
-  KathyConfig
->;
 
 // Eventually consumed by Rust, which expects camelCase values
 export enum KeyType {
@@ -201,12 +179,27 @@ export interface DockerConfig {
   tag: string;
 }
 
+export interface GelatoConfig<Chain extends ChainName> {
+  // List of chains in which using Gelato is enabled for
+  enabledChains: Chain[];
+  // If true, Gelato will still be used for messages whose
+  // origin chain is *not* supported by Gelato. If false,
+  // Gelato will not be used for any messages from a disabled
+  // origin chain, even if the destination chain is enabled.
+  // Because Gelato doesn't charge on testnets, this is likely
+  // to be true for testnet environments where the chain in which gas
+  // is paid on (the origin) doesn't need to be supported by Gelato.
+  useForDisabledOriginChains: boolean;
+}
+
 export interface AgentConfig<Chain extends ChainName> {
   environment: string;
   namespace: string;
   runEnv: string;
   context: Contexts;
   docker: DockerConfig;
+  quorumProvider?: boolean;
+  connectionType: ConnectionType;
   index?: IndexingConfig;
   aws?: AwsConfig;
   // Names of all chains in the environment
@@ -214,9 +207,9 @@ export interface AgentConfig<Chain extends ChainName> {
   // Names of chains this context cares about
   contextChainNames: Chain[];
   validatorSets: ChainValidatorSets<Chain>;
+  gelato?: GelatoConfig<Chain>;
   validator?: ChainValidatorConfigs<Chain>;
   relayer?: ChainRelayerConfigs<Chain>;
-  kathy?: ChainKathyConfigs<Chain>;
   // Roles to manage keys for
   rolesWithKeys: KEY_ROLE_ENUM[];
 }
@@ -226,21 +219,32 @@ export type RustSigner = {
   type: string; // TODO
 };
 
-export type RustConnection = {
-  type: string; // TODO
-  url: string;
-};
+export enum ConnectionType {
+  Http = 'http',
+  Ws = 'ws',
+  HttpQuorum = 'httpQuorum',
+}
+
+export type RustConnection =
+  | {
+      type: ConnectionType.Http;
+      url: string;
+    }
+  | { type: ConnectionType.Ws; url: string }
+  | { type: ConnectionType.HttpQuorum; urls: string };
 
 export type RustContractBlock<T> = {
   addresses: T;
   domain: string;
   name: ChainName;
-  rpcStyle: string; // TODO
+  rpcStyle: 'ethereum';
   connection: RustConnection;
+  finalityBlocks: string;
 };
 
 export type OutboxAddresses = {
   outbox: types.Address;
+  interchainGasPaymaster?: types.Address;
 };
 
 export type InboxAddresses = {
@@ -296,40 +300,43 @@ export class ChainAgentConfig<Chain extends ChainName> {
       this.chainName,
     );
 
+    // Filter out readonly validator keys, as we do not need to run
+    // validators for these.
     return Promise.all(
-      this.validatorSet.validators.map(async (val, i) => {
-        let validator: KeyConfig = {
-          type: KeyType.Hex,
-        };
+      this.validatorSet.validators
+        .filter((val) => !val.readonly)
+        .map(async (val, i) => {
+          let validator: KeyConfig = {
+            type: KeyType.Hex,
+          };
+          if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
+            const awsUser = new ValidatorAgentAwsUser(
+              this.agentConfig.environment,
+              this.agentConfig.context,
+              this.chainName,
+              i,
+              val.checkpointSyncer.region,
+              val.checkpointSyncer.bucket,
+            );
+            await awsUser.createIfNotExists();
+            await awsUser.createBucketIfNotExists();
 
-        if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
-          const awsUser = new ValidatorAgentAwsUser(
-            this.agentConfig.environment,
-            this.agentConfig.context,
-            this.chainName,
-            i,
-            val.checkpointSyncer.region,
-            val.checkpointSyncer.bucket,
-          );
-          await awsUser.createIfNotExists();
-          await awsUser.createBucketIfNotExists();
-
-          if (this.awsKeys) {
-            const key = await awsUser.createKeyIfNotExists(this.agentConfig);
-            validator = key.keyConfig;
+            if (this.awsKeys) {
+              const key = await awsUser.createKeyIfNotExists(this.agentConfig);
+              validator = key.keyConfig;
+            }
+          } else {
+            console.warn(
+              `Validator ${val.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
+            );
           }
-        } else {
-          console.warn(
-            `Validator ${val.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
-          );
-        }
 
-        return {
-          ...baseConfig,
-          checkpointSyncer: val.checkpointSyncer,
-          validator,
-        };
-      }),
+          return {
+            ...baseConfig,
+            checkpointSyncer: val.checkpointSyncer,
+            validator,
+          };
+        }),
     );
   }
 
@@ -356,9 +363,9 @@ export class ChainAgentConfig<Chain extends ChainName> {
       const awsUser = new AgentAwsUser(
         this.agentConfig.environment,
         this.agentConfig.context,
-        this.chainName,
         KEY_ROLE_ENUM.Relayer,
         awsRegion,
+        this.chainName,
       );
       await awsUser.createIfNotExists();
       // If we're using AWS keys, ensure the key is created and the user can use it
@@ -381,9 +388,9 @@ export class ChainAgentConfig<Chain extends ChainName> {
     const awsUser = new AgentAwsUser(
       this.agentConfig.environment,
       this.agentConfig.context,
-      this.chainName,
       KEY_ROLE_ENUM.Relayer,
       this.agentConfig.aws!.region,
+      this.chainName,
     );
     await awsUser.createIfNotExists();
     const key = await awsUser.createKeyIfNotExists(this.agentConfig);
@@ -411,7 +418,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
       {},
     );
 
-    const obj: RelayerConfig = {
+    const relayerConfig: RelayerConfig = {
       signedCheckpointPollingInterval:
         baseConfig.signedCheckpointPollingInterval,
       maxProcessingRetries: baseConfig.maxProcessingRetries,
@@ -421,61 +428,17 @@ export class ChainAgentConfig<Chain extends ChainName> {
       },
     };
     if (baseConfig.whitelist) {
-      obj.whitelist = JSON.stringify(baseConfig.whitelist);
+      relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
+    }
+    if (baseConfig.blacklist) {
+      relayerConfig.blacklist = JSON.stringify(baseConfig.blacklist);
     }
 
-    return obj;
+    return relayerConfig;
   }
 
   get relayerEnabled(): boolean {
     return this.agentConfig.relayer !== undefined;
-  }
-
-  // Gets signer info, creating them if necessary
-  async kathySigners() {
-    if (!this.kathyEnabled) {
-      return [];
-    }
-
-    let keyConfig;
-
-    if (this.awsKeys) {
-      const awsUser = new AgentAwsUser(
-        this.agentConfig.environment,
-        this.agentConfig.context,
-        this.chainName,
-        KEY_ROLE_ENUM.Kathy,
-        this.agentConfig.aws!.region,
-      );
-      await awsUser.createIfNotExists();
-      const key = await awsUser.createKeyIfNotExists(this.agentConfig);
-      keyConfig = key.keyConfig;
-    } else {
-      keyConfig = this.keyConfig(KEY_ROLE_ENUM.Kathy);
-    }
-
-    return [
-      {
-        name: this.chainName,
-        keyConfig,
-      },
-    ];
-  }
-
-  get kathyRequiresAwsCredentials() {
-    return this.awsKeys;
-  }
-
-  get kathyConfig(): KathyConfig | undefined {
-    if (!this.agentConfig.kathy) {
-      return undefined;
-    }
-    return getChainOverriddenConfig(this.agentConfig.kathy, this.chainName);
-  }
-
-  get kathyEnabled() {
-    const kathyConfig = this.kathyConfig;
-    return kathyConfig !== undefined && kathyConfig.enabled;
   }
 
   get validatorSet(): ValidatorSet {
