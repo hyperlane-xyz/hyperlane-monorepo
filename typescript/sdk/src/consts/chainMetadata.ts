@@ -160,6 +160,11 @@ export const auroratestnet: ChainMetadata = {
   finalityBlocks: 1,
 };
 
+export const moonbasealpha: ChainMetadata = {
+  id: 0x6d6f2d61, // b'mo-a' interpreted as an int
+  finalityBlocks: 1,
+};
+
 export const chainMetadata = {
   arbitrum,
   bsc,
@@ -177,5 +182,6 @@ export const chainMetadata = {
   arbitrumrinkeby,
   optimismkovan,
   auroratestnet,
+  moonbasealpha,
   ...testChains,
 } as Record<ChainName, ChainMetadata>;

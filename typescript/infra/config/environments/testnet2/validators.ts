@@ -274,4 +274,62 @@ export const validators: ChainValidatorSets<TestnetChains> = {
       },
     ],
   },
+  goerli: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x89687c99ffb56f329915f80a858a45fccc2b7402',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('goerli', 0),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0xca25781e7c0067a71d09b991bd7b37ab1168c76c',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('goerli', 1),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0xcbf6cde516f43a7b5346f48319b016b0e05cb7af',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('goerli', 2),
+          region: s3BucketRegion,
+        },
+      },
+    ],
+  },
+  moonbasealpha: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x0cc08084a0a7cc61102e800204851627732f8aa4',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('moonbasealpha', 0),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0xd151f6ca08e632eb7abd5afcb49c47d6a9b67a54',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('moonbasealpha', 1),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x8d41c4cb699a408f9b5c69156eaa12ce76346b16',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('moonbasealpha', 2),
+          region: s3BucketRegion,
+        },
+      },
+    ],
+  },
 };

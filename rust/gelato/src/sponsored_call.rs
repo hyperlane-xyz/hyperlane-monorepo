@@ -15,24 +15,25 @@ pub struct SponsoredCallArgs {
     // Gelato's API expects the gasLimit to be a decimal string.
     #[serde(serialize_with = "serialize_as_decimal_str")]
     pub gas_limit: Option<U256>,
+    /// If None is provided, the Gelato API will use a default of 5.
     pub retries: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
-pub struct SponsoredCallCall<'a> {
+pub struct SponsoredCallApiCall<'a> {
     pub http: reqwest::Client,
     pub args: &'a SponsoredCallArgs,
     pub sponsor_api_key: &'a str,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct SponsoredCallCallResult {
+pub struct SponsoredCallApiCallResult {
     pub task_id: String,
 }
 
-impl<'a> SponsoredCallCall<'a> {
+impl<'a> SponsoredCallApiCall<'a> {
     #[instrument]
-    pub async fn run(self) -> Result<SponsoredCallCallResult, reqwest::Error> {
+    pub async fn run(self) -> Result<SponsoredCallApiCallResult, reqwest::Error> {
         let url = format!("{}/relays/v2/sponsored-call", RELAY_URL);
         let http_args = HTTPArgs {
             args: self.args,
@@ -40,7 +41,7 @@ impl<'a> SponsoredCallCall<'a> {
         };
         let res = self.http.post(url).json(&http_args).send().await?;
         let result: HTTPResult = res.json().await?;
-        Ok(SponsoredCallCallResult::from(result))
+        Ok(SponsoredCallApiCallResult::from(result))
     }
 }
 
@@ -58,9 +59,9 @@ struct HTTPResult {
     pub task_id: String,
 }
 
-impl From<HTTPResult> for SponsoredCallCallResult {
-    fn from(http: HTTPResult) -> SponsoredCallCallResult {
-        SponsoredCallCallResult {
+impl From<HTTPResult> for SponsoredCallApiCallResult {
+    fn from(http: HTTPResult) -> SponsoredCallApiCallResult {
+        SponsoredCallApiCallResult {
             task_id: http.task_id,
         }
     }

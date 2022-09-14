@@ -77,8 +77,9 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   arbitrumrinkeby: '0.1',
   bsc: '0.01',
   bsctestnet: '1',
+  goerli: '0.1',
+  moonbasealpha: '1',
   // unused
-  goerli: '0',
   auroratestnet: '0',
   test1: '0',
   test2: '0',
@@ -307,7 +308,14 @@ class ContextFunder {
     key: BaseCloudAgentKey,
     chain: ChainName,
   ): Promise<boolean> {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const chainConnection = this.multiProvider.tryGetChainConnection(chain);
+    if (!chainConnection) {
+      error('Cannot get chain connection', {
+        chain,
+      });
+      // Consider this an error, but don't throw and prevent all future funding attempts
+      return true;
+    }
     const desiredBalance = desiredBalancePerChain[chain];
 
     let failureOccurred = false;
