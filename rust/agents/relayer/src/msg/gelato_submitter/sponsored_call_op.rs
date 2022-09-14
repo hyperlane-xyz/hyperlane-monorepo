@@ -4,8 +4,8 @@ use abacus_base::InboxContracts;
 use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
 use eyre::Result;
 use gelato::{
-    sponsored_call::{SponsoredCallArgs, SponsoredCallCall, SponsoredCallCallResult},
-    task_status::{TaskState, TaskStatusCall, TaskStatusCallArgs},
+    sponsored_call::{SponsoredCallApiCall, SponsoredCallApiCallResult, SponsoredCallArgs},
+    task_status::{TaskState, TaskStatusApiCall, TaskStatusApiCallArgs},
     types::Chain,
 };
 use tokio::{
@@ -150,13 +150,13 @@ impl SponsoredCallOp {
             // Get the status of the SponsoredCall task from Gelato for debugging.
             // If the task was cancelled for some reason by Gelato, stop waiting.
 
-            let task_status_call = TaskStatusCall {
+            let task_status_api_call = TaskStatusApiCall {
                 http: self.0.http.clone(),
-                args: TaskStatusCallArgs {
+                args: TaskStatusApiCallArgs {
                     task_id: task_id.clone(),
                 },
             };
-            let task_status_result = task_status_call.run().await?;
+            let task_status_result = task_status_api_call.run().await?;
             let task_state = task_status_result.task_state();
 
             tracing::info!(
@@ -178,16 +178,16 @@ impl SponsoredCallOp {
     // Once gas payments are enforced, we will likely fetch the gas payment from
     // the DB here. This is why sponsored call args are created and signed for each
     // sponsored call call.
-    async fn send_sponsored_call_call(&self) -> Result<SponsoredCallCallResult> {
+    async fn send_sponsored_call_call(&self) -> Result<SponsoredCallApiCallResult> {
         let args = self.create_sponsored_call_args();
 
-        let sponsored_call_call = SponsoredCallCall {
+        let sponsored_call_api_call = SponsoredCallApiCall {
             args: &args,
             http: self.0.http.clone(),
             sponsor_api_key: &self.sponsor_api_key,
         };
 
-        Ok(sponsored_call_call.run().await?)
+        Ok(sponsored_call_api_call.run().await?)
     }
 
     fn create_sponsored_call_args(&self) -> SponsoredCallArgs {

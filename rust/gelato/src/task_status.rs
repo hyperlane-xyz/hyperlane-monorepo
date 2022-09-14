@@ -36,20 +36,20 @@ pub struct TaskStatus {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TaskStatusCallArgs {
+pub struct TaskStatusApiCallArgs {
     pub task_id: String,
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TaskStatusCallResult {
+pub struct TaskStatusApiCallResult {
     /// Typically present when a task cannot be found (also gives 404 HTTP status)
     pub message: Option<String>,
     /// Present when a task is found
     pub task: Option<TaskStatus>,
 }
 
-impl TaskStatusCallResult {
+impl TaskStatusApiCallResult {
     pub fn task_state(&self) -> TaskState {
         if let Some(task) = &self.task {
             return task.task_state;
@@ -59,17 +59,17 @@ impl TaskStatusCallResult {
 }
 
 #[derive(Debug)]
-pub struct TaskStatusCall {
+pub struct TaskStatusApiCall {
     pub http: reqwest::Client,
-    pub args: TaskStatusCallArgs,
+    pub args: TaskStatusApiCallArgs,
 }
 
-impl TaskStatusCall {
+impl TaskStatusApiCall {
     #[instrument]
-    pub async fn run(&self) -> Result<TaskStatusCallResult, reqwest::Error> {
+    pub async fn run(&self) -> Result<TaskStatusApiCallResult, reqwest::Error> {
         let url = format!("{}/tasks/status/{}", RELAY_URL, self.args.task_id);
         let res = self.http.get(url).send().await?;
-        let result: TaskStatusCallResult = res.json().await?;
+        let result: TaskStatusApiCallResult = res.json().await?;
         Ok(result)
     }
 }
