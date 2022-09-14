@@ -1,11 +1,11 @@
 use eyre::Result;
 
-use ethers_prometheus::*;
+use ethers_prometheus::middleware::*;
 
 use crate::{CoreMetrics, NETWORK_HISTOGRAM_BUCKETS};
 
-pub(crate) fn create_provider_metrics(metrics: &CoreMetrics) -> Result<ProviderMetrics> {
-    Ok(ProviderMetricsBuilder::default()
+pub(crate) fn create_provider_metrics(metrics: &CoreMetrics) -> Result<MiddlewareMetrics> {
+    Ok(MiddlewareMetricsBuilder::default()
         .block_height(metrics.new_int_gauge(
             "block_height",
             BLOCK_HEIGHT_HELP,

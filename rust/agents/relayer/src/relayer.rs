@@ -11,12 +11,13 @@ use abacus_base::{
 };
 use abacus_core::{AbacusCommon, AbacusContract, MultisigSignedCheckpoint, Signers};
 
+use crate::msg::gas_payment_enforcer::GasPaymentEnforcer;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
 use crate::msg::SubmitMessageArgs;
 use crate::settings::matching_list::MatchingList;
-use crate::settings::RelayerSettings;
+use crate::settings::{GasPaymentEnforcementPolicy, RelayerSettings};
 use crate::{checkpoint_fetcher::CheckpointFetcher, msg::serial_submitter::SerialSubmitterMetrics};
 
 /// A relayer agent
@@ -25,6 +26,7 @@ pub struct Relayer {
     signed_checkpoint_polling_interval: u64,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
+    gas_payment_enforcement_policy: GasPaymentEnforcementPolicy,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
 }
@@ -69,6 +71,7 @@ impl BaseAgent for Relayer {
                 .unwrap_or(5),
             multisig_checkpoint_syncer,
             core,
+            gas_payment_enforcement_policy: settings.gaspaymentenforcementpolicy,
             whitelist,
             blacklist,
         })
@@ -83,6 +86,11 @@ impl BaseAgent for Relayer {
 
         let mut tasks = Vec::with_capacity(inboxes.len() + 3);
 
+        let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
+            self.gas_payment_enforcement_policy.clone(),
+            self.outbox().db().clone(),
+        ));
+
         for (inbox_name, inbox_contracts) in inboxes {
             let signer = self
                 .core
@@ -95,6 +103,7 @@ impl BaseAgent for Relayer {
                 signed_checkpoint_receiver.clone(),
                 self.core.settings.inboxes[inbox_name].gelato.as_ref(),
                 signer,
+                gas_payment_enforcer.clone(),
             ));
         }
 
@@ -104,7 +113,7 @@ impl BaseAgent for Relayer {
         tasks.push(self.run_outbox_sync(sync_metrics.clone()));
 
         if let Some(paymaster) = self.interchain_gas_paymaster() {
-            tasks.push(self.run_interchain_gas_paymaster_sync(paymaster, sync_metrics));
+            tasks.push(self.run_interchain_gas_paymaster_sync(paymaster.clone(), sync_metrics));
         } else {
             info!("Interchain Gas Paymaster not provided, not running sync");
         }
@@ -125,7 +134,7 @@ impl Relayer {
 
     fn run_interchain_gas_paymaster_sync(
         &self,
-        paymaster: Arc<CachingInterchainGasPaymaster>,
+        paymaster: CachingInterchainGasPaymaster,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         paymaster.sync(self.as_ref().indexer.clone(), sync_metrics)
@@ -152,20 +161,21 @@ impl Relayer {
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         signer: Signers,
+        gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> GelatoSubmitter {
         let inbox_chain_name = inbox_contracts.inbox.chain_name().to_owned();
         GelatoSubmitter::new(
             message_receiver,
             self.outbox().local_domain(),
             inbox_contracts,
-            self.outbox().db(),
+            self.outbox().db().clone(),
             signer,
-            reqwest::Client::new(),
             GelatoSubmitterMetrics::new(
                 &self.core.metrics,
                 self.outbox().outbox().chain_name(),
                 &inbox_chain_name,
             ),
+            gas_payment_enforcer,
         )
     }
 
@@ -176,6 +186,7 @@ impl Relayer {
         signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
         gelato: Option<&GelatoConf>,
         signer: Signers,
+        gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.outbox().outbox();
         let outbox_name = outbox.chain_name();
@@ -187,25 +198,31 @@ impl Relayer {
         let (msg_send, msg_receive) = mpsc::unbounded_channel();
         let submit_fut = match gelato {
             Some(cfg) if cfg.enabled.parse::<bool>().unwrap() => self
-                .make_gelato_submitter_for_inbox(msg_receive, inbox_contracts.clone(), signer)
+                .make_gelato_submitter_for_inbox(
+                    msg_receive,
+                    inbox_contracts.clone(),
+                    signer,
+                    gas_payment_enforcer,
+                )
                 .spawn(),
             _ => {
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
                     inbox_contracts.clone(),
-                    self.outbox().db(),
+                    self.outbox().db().clone(),
                     SerialSubmitterMetrics::new(
                         &self.core.metrics,
                         outbox_name,
                         inbox_contracts.inbox.chain_name(),
                     ),
+                    gas_payment_enforcer,
                 );
                 serial_submitter.spawn()
             }
         };
         let message_processor = MessageProcessor::new(
-            outbox,
-            self.outbox().db(),
+            outbox.clone(),
+            self.outbox().db().clone(),
             inbox_contracts,
             self.whitelist.clone(),
             self.blacklist.clone(),

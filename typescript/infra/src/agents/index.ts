@@ -3,7 +3,11 @@ import { utils } from '@abacus-network/utils';
 
 import { Contexts } from '../../config/contexts';
 import { AgentConfig, DeployEnvironment } from '../config';
-import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
+import {
+  ChainAgentConfig,
+  CheckpointSyncerType,
+  ConnectionType,
+} from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
@@ -26,6 +30,27 @@ async function helmValuesForChain<Chain extends ChainName>(
     ? true
     : agentConfig.gelato?.enabledChains.includes(chainName) ?? false;
 
+  // By default, if a context only enables a subset of chains, the
+  // connection url (or urls, when HttpQuorum is used) are not fetched
+  // from GCP secret manager. For Http/Ws, the `url` param is expected,
+  // which is set by default to "" in the agent json configs. For HttpQuorum,
+  // no default is present in those configs, so we make sure to pass in urls
+  // as "" to avoid startup configuration issues.
+  let baseConnectionConfig: Record<string, string> = {
+    type: agentConfig.connectionType,
+  };
+  if (baseConnectionConfig.type == ConnectionType.HttpQuorum) {
+    baseConnectionConfig = {
+      ...baseConnectionConfig,
+      urls: '',
+    };
+  } else {
+    baseConnectionConfig = {
+      ...baseConnectionConfig,
+      url: '',
+    };
+  }
+
   return {
     image: {
       repository: agentConfig.docker.repo,
@@ -37,7 +62,7 @@ async function helmValuesForChain<Chain extends ChainName>(
       baseConfig: `${chainName}_config.json`,
       outboxChain: {
         name: chainName,
-        connectionType: agentConfig.connectionType,
+        connection: baseConnectionConfig,
       },
       aws: !!agentConfig.aws,
       inboxChains: agentConfig.environmentChainNames
@@ -52,9 +77,7 @@ async function helmValuesForChain<Chain extends ChainName>(
                 (agentConfig.gelato?.enabledChains?.includes(remoteChainName) ??
                   false),
             },
-            connection: {
-              type: agentConfig.connectionType,
-            },
+            connection: baseConnectionConfig,
           };
         }),
       validator: {

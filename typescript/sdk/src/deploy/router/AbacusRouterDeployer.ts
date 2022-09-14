@@ -111,9 +111,17 @@ export abstract class AbacusRouterDeployer<
         const chainConnection = this.multiProvider.getChainConnection(chain);
         const owner = this.configMap[chain].owner;
         this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
-        await chainConnection.handleTx(
-          contracts.router.transferOwnership(owner, chainConnection.overrides),
-        );
+        const currentOwner = await contracts.router.owner();
+        if (owner != currentOwner) {
+          await super.runIfOwner(chain, contracts.router, async () => {
+            await chainConnection.handleTx(
+              contracts.router.transferOwnership(
+                owner,
+                chainConnection.overrides,
+              ),
+            );
+          });
+        }
       }),
     );
   }

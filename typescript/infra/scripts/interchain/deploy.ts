@@ -5,7 +5,7 @@ import {
   InterchainAccountContracts,
   InterchainAccountDeployer,
   interchainAccountFactories,
-} from '@abacus-network/interchain';
+} from '@abacus-network/interchain-accounts';
 import {
   AbacusCore,
   ChainMap,

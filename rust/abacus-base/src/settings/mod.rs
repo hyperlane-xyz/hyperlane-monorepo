@@ -17,21 +17,22 @@
 //!
 //! Agents read settings from the config files and/or env.
 //!
-//! Config files are loaded from `rust/config/default` unless specified otherwise,
-//! i.e.  via $RUN_ENV and $BASE_CONFIG (see the definition of `decl_settings` in
-//! `rust/abacus-base/src/macros.rs`).
+//! Config files are loaded from `rust/config/default` unless specified
+//! otherwise, i.e.  via $RUN_ENV and $BASE_CONFIG (see the definition of
+//! `decl_settings` in `rust/abacus-base/src/macros.rs`).
 //!
 //! #### N.B.: Environment variable names correspond 1:1 with cfg file's JSON object hierarchy.
 //!
-//! In particular, note that any environment variables whose names are prefixed with:
+//! In particular, note that any environment variables whose names are prefixed
+//! with:
 //!
-//! *  `ABC_BASE`
+//! * `ABC_BASE`
 //!
-//! *  `ABC_[agentname]`, where `[agentmame]` is agent-specific, e.g. `ABC_VALIDATOR` or
-//!    `ABC_RELAYER`.
+//! * `ABC_[agentname]`, where `[agentmame]` is agent-specific, e.g.
+//!   `ABC_VALIDATOR` or `ABC_RELAYER`.
 //!
-//! will be read as an override to be applied against the hierarchical structure of
-//! the configuration provided by the json config file at
+//! will be read as an override to be applied against the hierarchical structure
+//! of the configuration provided by the json config file at
 //! `./config/$RUN_ENV/$BASE_CONFIG`.
 //!
 //! For example, if the config file `example_config.json` is:
@@ -50,10 +51,12 @@
 //! }
 //! ```
 //!
-//! and an environment variable is supplied which defines `ABC_BASE_INBOXES_TEST3_DOMAIN=1`, then
-//! the `decl_settings` macro in `rust/abacus-base/src/macros.rs` will directly override the
-//! 'domain' field found in the json config to be `1`, since the fields in the environment variable
-//! name describe the path traversal to arrive at this field in the JSON config object.
+//! and an environment variable is supplied which defines
+//! `ABC_BASE_INBOXES_TEST3_DOMAIN=1`, then the `decl_settings` macro in
+//! `rust/abacus-base/src/macros.rs` will directly override the 'domain' field
+//! found in the json config to be `1`, since the fields in the environment
+//! variable name describe the path traversal to arrive at this field in the
+//! JSON config object.
 //!
 //! ### Configuration value precedence
 //!
@@ -86,7 +89,8 @@ use tracing::instrument;
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
-    AbacusContract, ContractLocator, Signers,
+    AbacusContract, ContractLocator, InboxValidatorManager, InterchainGasPaymasterIndexer,
+    OutboxIndexer, Signers,
 };
 use abacus_ethereum::{
     InterchainGasPaymasterIndexerBuilder, MakeableWithProvider, OutboxIndexerBuilder,
@@ -94,10 +98,7 @@ use abacus_ethereum::{
 pub use chains::{ChainConf, ChainSetup, InboxAddresses, OutboxAddresses};
 
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
-use crate::{
-    AbacusAgentCore, CachingInbox, CachingOutbox, CoreMetrics, InboxContracts,
-    InboxValidatorManagers, InterchainGasPaymasterIndexers, OutboxIndexers,
-};
+use crate::{AbacusAgentCore, CachingInbox, CachingOutbox, CoreMetrics, InboxContracts};
 
 /// Chain configuration
 pub mod chains;
@@ -166,7 +167,8 @@ impl SignerConf {
 pub struct IndexSettings {
     /// The height at which to start indexing the Outbox contract
     pub from: Option<String>,
-    /// The number of blocks to query at once at which to start indexing the Outbox contract
+    /// The number of blocks to query at once at which to start indexing the
+    /// Outbox contract
     pub chunk: Option<String>,
 }
 
@@ -233,7 +235,8 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// Private to preserve linearity of AgentCore::from_settings -- creating an agent consumes the settings.
+    /// Private to preserve linearity of AgentCore::from_settings -- creating an
+    /// agent consumes the settings.
     fn clone(&self) -> Self {
         Self {
             db: self.db.clone(),
@@ -258,7 +261,7 @@ impl Settings {
         &self,
         db: DB,
         metrics: &CoreMetrics,
-    ) -> Result<HashMap<String, InboxContracts>, Report> {
+    ) -> eyre::Result<HashMap<String, InboxContracts>> {
         let mut result = HashMap::new();
         for (k, v) in self.inboxes.iter().filter(|(_, v)| {
             !v.disabled
@@ -278,8 +281,8 @@ impl Settings {
             result.insert(
                 v.name.clone(),
                 InboxContracts {
-                    inbox: Arc::new(caching_inbox),
-                    validator_manager: Arc::new(validator_manager),
+                    inbox: caching_inbox,
+                    validator_manager: validator_manager.into(),
                 },
             );
         }
@@ -292,11 +295,11 @@ impl Settings {
         chain_setup: &ChainSetup<InboxAddresses>,
         db: DB,
         metrics: &CoreMetrics,
-    ) -> Result<CachingInbox, Report> {
+    ) -> eyre::Result<CachingInbox> {
         let signer = self.get_signer(&chain_setup.name).await;
         let inbox = chain_setup.try_into_inbox(signer, metrics).await?;
         let abacus_db = AbacusDB::new(inbox.chain_name(), db);
-        Ok(CachingInbox::new(inbox, abacus_db))
+        Ok(CachingInbox::new(inbox.into(), abacus_db))
     }
 
     /// Try to get an InboxValidatorManager
@@ -304,7 +307,7 @@ impl Settings {
         &self,
         chain_setup: &ChainSetup<InboxAddresses>,
         metrics: &CoreMetrics,
-    ) -> Result<InboxValidatorManagers, Report> {
+    ) -> eyre::Result<Box<dyn InboxValidatorManager>> {
         let signer = self.get_signer(&chain_setup.name).await;
 
         chain_setup
@@ -317,12 +320,12 @@ impl Settings {
         &self,
         db: DB,
         metrics: &CoreMetrics,
-    ) -> Result<CachingOutbox, Report> {
+    ) -> eyre::Result<CachingOutbox> {
         let signer = self.get_signer(&self.outbox.name).await;
         let outbox = self.outbox.try_into_outbox(signer, metrics).await?;
-        let indexer = Arc::new(self.try_outbox_indexer(metrics).await?);
+        let indexer = self.try_outbox_indexer(metrics).await?;
         let abacus_db = AbacusDB::new(outbox.chain_name(), db);
-        Ok(CachingOutbox::new(outbox, abacus_db, indexer))
+        Ok(CachingOutbox::new(outbox.into(), abacus_db, indexer.into()))
     }
 
     /// Try to get a CachingInterchainGasPaymaster
@@ -330,7 +333,7 @@ impl Settings {
         &self,
         db: DB,
         metrics: &CoreMetrics,
-    ) -> Result<Option<CachingInterchainGasPaymaster>, Report> {
+    ) -> eyre::Result<Option<CachingInterchainGasPaymaster>> {
         let signer = self.get_signer(&self.outbox.name).await;
         match self
             .outbox
@@ -338,10 +341,12 @@ impl Settings {
             .await?
         {
             Some(paymaster) => {
-                let indexer = Arc::new(self.try_interchain_gas_paymaster_indexer(metrics).await?);
+                let indexer = self.try_interchain_gas_paymaster_indexer(metrics).await?;
                 let abacus_db = AbacusDB::new(paymaster.chain_name(), db);
                 Ok(Some(CachingInterchainGasPaymaster::new(
-                    paymaster, abacus_db, indexer,
+                    paymaster.into(),
+                    abacus_db,
+                    indexer.into(),
                 )))
             }
             None => Ok(None),
@@ -352,33 +357,30 @@ impl Settings {
     pub async fn try_outbox_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<OutboxIndexers, Report> {
-        let signer = self.get_signer(&self.outbox.name).await;
-        let metrics = Some((metrics.provider_metrics(), self.outbox.metrics_conf()));
+    ) -> eyre::Result<Box<dyn OutboxIndexer>> {
         match &self.outbox.chain {
-            ChainConf::Ethereum(conn) => Ok(OutboxIndexers::Ethereum(
-                OutboxIndexerBuilder {
-                    from_height: self.index.from(),
-                    chunk_size: self.index.chunk_size(),
-                    finality_blocks: self.outbox.finality_blocks(),
-                }
-                .make_with_connection(
-                    conn.clone(),
-                    &ContractLocator {
-                        chain_name: self.outbox.name.clone(),
-                        domain: self.outbox.domain.parse().expect("invalid uint"),
-                        address: self
-                            .outbox
-                            .addresses
-                            .outbox
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    metrics,
-                )
-                .await?,
-            )),
+            ChainConf::Ethereum(conn) => Ok(OutboxIndexerBuilder {
+                from_height: self.index.from(),
+                chunk_size: self.index.chunk_size(),
+                finality_blocks: self.outbox.finality_blocks(),
+            }
+            .make_with_connection(
+                conn.clone(),
+                &ContractLocator {
+                    chain_name: self.outbox.name.clone(),
+                    domain: self.outbox.domain.parse().expect("invalid uint"),
+                    address: self
+                        .outbox
+                        .addresses
+                        .outbox
+                        .parse::<ethers::types::Address>()?
+                        .into(),
+                },
+                self.get_signer(&self.outbox.name).await,
+                Some(|| metrics.json_rpc_client_metrics()),
+                Some((metrics.provider_metrics(), self.outbox.metrics_conf())),
+            )
+            .await?),
         }
     }
 
@@ -389,41 +391,37 @@ impl Settings {
     pub async fn try_interchain_gas_paymaster_indexer(
         &self,
         metrics: &CoreMetrics,
-    ) -> Result<InterchainGasPaymasterIndexers, Report> {
-        let signer = self.get_signer(&self.outbox.name).await;
-        let metrics = Some((metrics.provider_metrics(), self.outbox.metrics_conf()));
-
+    ) -> eyre::Result<Box<dyn InterchainGasPaymasterIndexer>> {
         match &self.outbox.chain {
-            ChainConf::Ethereum(conn) => Ok(InterchainGasPaymasterIndexers::Ethereum(
-                InterchainGasPaymasterIndexerBuilder {
-                    outbox_address: self
+            ChainConf::Ethereum(conn) => Ok(InterchainGasPaymasterIndexerBuilder {
+                outbox_address: self
+                    .outbox
+                    .addresses
+                    .outbox
+                    .parse::<ethers::types::Address>()?,
+                from_height: self.index.from(),
+                chunk_size: self.index.chunk_size(),
+                finality_blocks: self.outbox.finality_blocks(),
+            }
+            .make_with_connection(
+                conn.clone(),
+                &ContractLocator {
+                    chain_name: self.outbox.name.clone(),
+                    domain: self.outbox.domain.parse().expect("invalid uint"),
+                    address: self
                         .outbox
                         .addresses
-                        .outbox
-                        .parse::<ethers::types::Address>()?,
-                    from_height: self.index.from(),
-                    chunk_size: self.index.chunk_size(),
-                    finality_blocks: self.outbox.finality_blocks(),
-                }
-                .make_with_connection(
-                    conn.clone(),
-                    &ContractLocator {
-                        chain_name: self.outbox.name.clone(),
-                        domain: self.outbox.domain.parse().expect("invalid uint"),
-                        address: self
-                            .outbox
-                            .addresses
-                            .interchain_gas_paymaster
-                            .as_ref()
-                            .expect("interchain_gas_paymaster not provided")
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    metrics,
-                )
-                .await?,
-            )),
+                        .interchain_gas_paymaster
+                        .as_ref()
+                        .expect("interchain_gas_paymaster not provided")
+                        .parse::<ethers::types::Address>()?
+                        .into(),
+                },
+                self.get_signer(&self.outbox.name).await,
+                Some(|| metrics.json_rpc_client_metrics()),
+                Some((metrics.provider_metrics(), self.outbox.metrics_conf())),
+            )
+            .await?),
         }
     }
 
@@ -432,7 +430,7 @@ impl Settings {
         &self,
         name: &str,
         parse_inboxes: bool,
-    ) -> Result<AbacusAgentCore, Report> {
+    ) -> eyre::Result<AbacusAgentCore> {
         let metrics = Arc::new(CoreMetrics::new(
             name,
             self.metrics
@@ -442,11 +440,10 @@ impl Settings {
         )?);
 
         let db = DB::from_path(&self.db)?;
-        let outbox = Arc::new(self.try_caching_outbox(db.clone(), &metrics).await?);
+        let outbox = self.try_caching_outbox(db.clone(), &metrics).await?;
         let interchain_gas_paymaster = self
             .try_caching_interchain_gas_paymaster(db.clone(), &metrics)
-            .await?
-            .map(Arc::new);
+            .await?;
 
         let inbox_contracts = if parse_inboxes {
             self.try_inbox_contracts(db.clone(), &metrics).await?

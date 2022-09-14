@@ -11,8 +11,8 @@ data:
   ABC_BASE_DB: {{ .Values.abacus.dbPath }}
   ABC_BASE_TRACING_FMT: {{ .Values.abacus.tracing.format }}
   ABC_BASE_TRACING_LEVEL: {{ .Values.abacus.tracing.level }}
-  {{- if .Values.abacus.outboxChain.connectionType }}
-  ABC_BASE_OUTBOX_CONNECTION_TYPE: {{ .Values.abacus.outboxChain.connectionType }}
+  {{- if .Values.abacus.outboxChain.connection.type }}
+  ABC_BASE_OUTBOX_CONNECTION_TYPE: {{ .Values.abacus.outboxChain.connection.type }}
   {{- end }}
   {{- range .Values.abacus.inboxChains }}
 {{- include "abacus-agent.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "INBOXES_%s_" (.name | upper)) "format" "config_map") | indent 2 }}

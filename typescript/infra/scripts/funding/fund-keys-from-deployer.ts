@@ -3,6 +3,7 @@ import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
+  AllChains,
   ChainConnection,
   ChainName,
   CompleteChainMap,
@@ -11,6 +12,7 @@ import {
 import { error, log } from '@abacus-network/utils';
 
 import { Contexts } from '../../config/contexts';
+import { parseKeyIdentifier } from '../../src/agents/agent';
 import { getAllCloudAgentKeys } from '../../src/agents/key-utils';
 import {
   BaseCloudAgentKey,
@@ -75,8 +77,9 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   arbitrumrinkeby: '0.1',
   bsc: '0.01',
   bsctestnet: '1',
+  goerli: '0.1',
+  moonbasealpha: '1',
   // unused
-  goerli: '0',
   auroratestnet: '0',
   test1: '0',
   test2: '0',
@@ -187,12 +190,23 @@ class ContextFunder {
       path,
     });
     const idsAndAddresses = readJSONAtPath(path);
-    const keys: BaseCloudAgentKey[] = idsAndAddresses.map((idAndAddress: any) =>
-      ReadOnlyCloudAgentKey.fromSerializedAddress(
-        idAndAddress.identifier,
-        idAndAddress.address,
-      ),
-    );
+    const keys: BaseCloudAgentKey[] = idsAndAddresses
+      .filter((idAndAddress: any) => {
+        const parsed = parseKeyIdentifier(idAndAddress.identifier);
+        // Filter out any invalid chain names. This can happen if we're running an old
+        // version of this script but the list of identifiers (expected to be stored in GCP secrets)
+        // references newer chains.
+        return (
+          parsed.chainName === undefined ||
+          AllChains.includes(parsed.chainName as ChainName)
+        );
+      })
+      .map((idAndAddress: any) =>
+        ReadOnlyCloudAgentKey.fromSerializedAddress(
+          idAndAddress.identifier,
+          idAndAddress.address,
+        ),
+      );
 
     // TODO: Why do we need to cast here?
     const context = keys[0].context as Contexts;
@@ -294,7 +308,14 @@ class ContextFunder {
     key: BaseCloudAgentKey,
     chain: ChainName,
   ): Promise<boolean> {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const chainConnection = this.multiProvider.tryGetChainConnection(chain);
+    if (!chainConnection) {
+      error('Cannot get chain connection', {
+        chain,
+      });
+      // Consider this an error, but don't throw and prevent all future funding attempts
+      return true;
+    }
     const desiredBalance = desiredBalancePerChain[chain];
 
     let failureOccurred = false;

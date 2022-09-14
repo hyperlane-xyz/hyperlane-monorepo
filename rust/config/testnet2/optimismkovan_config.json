@@ -85,11 +85,40 @@
         "inbox": "0xBA3f3A84F149842529993bc38A7b4cF8131c17c2",
         "validatorManager": "0x890eB21B76DCB165A1807cBE279f883716eA47D4"
       }
+    },
+    "goerli": {
+      "domain": "5",
+      "name": "goerli",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "7",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x58483b754Abb1E8947BE63d6b95DF75b8249543A",
+        "validatorManager": "0xcf5BaaF976C80a66Fa7839715C45788f60041A33"
+      }
+    },
+    "moonbasealpha": {
+      "domain": "1836002657",
+      "name": "moonbasealpha",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x05Ea36Caee7d92C173334C9D97DcD39ABdCB2b69",
+        "validatorManager": "0x5d56B8a669F50193b54319442c6EEE5edD662381"
+      }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0x981f5C4070bC048186CDE1CcB61Ea5c969194b54"
+      "outbox": "0x981f5C4070bC048186CDE1CcB61Ea5c969194b54",
+      "interchainGasPaymaster": "0xD7D2B0f61B834D98772e938Fa64425587C0f3481"
     },
     "domain": "1869622635",
     "name": "optimismkovan",

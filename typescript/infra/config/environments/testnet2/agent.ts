@@ -1,6 +1,9 @@
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
-import { ConnectionType } from '../../../src/config/agent';
+import {
+  ConnectionType,
+  GasPaymentEnforcementPolicyType,
+} from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 import {
   MATCHING_LIST_ALL_WILDCARDS,
@@ -23,7 +26,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-33b82dc',
+    tag: 'sha-f463c1a',
   },
   aws: {
     region: 'us-east-1',
@@ -59,13 +62,21 @@ export const abacus: AgentConfig<TestnetChains> = {
       optimismkovan: {
         reorgPeriod: 0,
       },
+      goerli: {
+        reorgPeriod: 7,
+      },
+      moonbasealpha: {
+        reorgPeriod: 0,
+      },
     },
   },
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       blacklist: releaseCandidateHelloworldMatchingList,
+      gasPaymentEnforcementPolicy: {
+        type: GasPaymentEnforcementPolicyType.None,
+      },
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,
@@ -78,7 +89,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   context: Contexts.Flowcarbon,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-33b82dc',
+    tag: 'sha-a067a62',
   },
   aws: {
     region: 'us-east-1',
@@ -86,13 +97,15 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: ['alfajores', 'kovan'],
   validatorSets: validators,
-  connectionType: ConnectionType.Http,
+  connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       // Blacklist everything for now
       blacklist: MATCHING_LIST_ALL_WILDCARDS,
+      gasPaymentEnforcementPolicy: {
+        type: GasPaymentEnforcementPolicyType.None,
+      },
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer],
@@ -105,7 +118,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-2d9f729',
+    tag: 'sha-ecabe2b',
   },
   aws: {
     region: 'us-east-1',
@@ -117,13 +130,15 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
     useForDisabledOriginChains: true,
   },
   validatorSets: validators,
-  connectionType: ConnectionType.Http,
+  connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       // Only process messages between the release candidate helloworld routers
       whitelist: releaseCandidateHelloworldMatchingList,
+      gasPaymentEnforcementPolicy: {
+        type: GasPaymentEnforcementPolicyType.None,
+      },
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
