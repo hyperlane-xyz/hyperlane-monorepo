@@ -8,8 +8,6 @@ use abacus_core::AbacusContract;
 use abacus_core::Inbox;
 use abacus_core::InboxValidatorManager;
 use abacus_core::MessageStatus;
-use abacus_core::TxCostEstimate;
-use ethers::types::U256;
 use eyre::{bail, Result};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc;
@@ -18,6 +16,7 @@ use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use tracing::debug;
 use tracing::instrument;
+use tracing::warn;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use super::gas_payment::GasPaymentEnforcer;
@@ -212,6 +211,35 @@ impl SerialSubmitter {
             None => return Ok(()),
         };
 
+        match self.process_message(&msg).await {
+            Ok(MessageStatus::Processed) => {
+                info!(msg=?msg, msg_leaf_index=msg.leaf_index, "Message processed");
+                self.record_message_process_success(&msg)?;
+                return Ok(());
+            }
+            // We expect this branch to be hit when there is unexpected behavior -
+            // defined behavior like gas estimation failing will not hit this branch.
+            Err(err) => {
+                warn!(msg_leaf_index=msg.leaf_index, error=?err, "Error occurred when attempting to process message");
+            }
+            _ => {}
+        }
+
+        // The message was not processed, so increment the # of retries and add
+        // it back to the run_queue so it will be processed again at some point.
+        msg.num_retries += 1;
+        self.run_queue.push_back(msg);
+
+        Ok(())
+    }
+
+    /// Returns the message's status. If the message is processed, either by a transaction
+    /// in this fn or by a view call to the Inbox contract discovering the message has already
+    /// been processed, Ok(MessageStatus::Processed) is returned. If this message is unable to
+    /// be processed, either due to failed gas estimation or an insufficient gas payment,
+    /// Ok(MessageStatus::None) is returned.
+    #[instrument(skip(self), fields(msg_leaf_index=msg.leaf_index))]
+    async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<MessageStatus> {
         // If the message has already been processed according to message_status call on
         // inbox, e.g. due to another relayer having already processed, then mark it as
         // already-processed, and move on to the next tick.
@@ -222,67 +250,72 @@ impl SerialSubmitter {
             .message_status(msg.committed_message.to_leaf())
             .await?
         {
-            info!(
-                msg_leaf_index=msg.leaf_index,
-                msg=?msg,
-                "Message already processed",
-            );
-            self.record_message_process_success(&msg)?;
-            return Ok(());
+            info!("Message already processed");
+            return Ok(MessageStatus::Processed);
         }
+
+        // Estimate transaction costs for the process call. If there are issues, it's likely
+        // that gas estimation has failed because the message is reverting. This is defined behavior,
+        // so we just log the error and move onto the next tick.
+        let tx_cost_estimate = match self
+            .inbox_contracts
+            .validator_manager
+            .process_estimate_costs(&msg.checkpoint, &msg.committed_message.message, &msg.proof)
+            .await
+        {
+            Ok(tx_cost_estimate) => tx_cost_estimate,
+            Err(err) => {
+                info!(msg=?msg, error=?err, "Error estimating process costs");
+                return Ok(MessageStatus::None);
+            }
+        };
 
         // If the gas payment requirement hasn't been met, move to the next tick.
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(
-                &msg.committed_message,
-                &TxCostEstimate {
-                    gas_limit: U256::one(),
-                    gas_price: U256::one(),
-                },
-            )
+            .message_meets_gas_payment_requirement(&msg.committed_message, &tx_cost_estimate)
             .await?;
         if !meets_gas_requirement {
-            tracing::info!(msg_leaf_index=msg.leaf_index, gas_payment=?gas_payment, "Gas payment requirement not met yet");
-            return Ok(());
+            tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
+            return Ok(MessageStatus::None);
         }
 
         // Go ahead and attempt processing of message to destination chain.
         debug!(gas_payment=?gas_payment, msg=?msg, "Ready to process message");
+
         // TODO: consider differentiating types of processing errors, and pushing to the front of the
         // run queue for intermittent types of errors that can occur even if a message's processing isn't
         // reverting, e.g. timeouts or txs being dropped from the mempool. To avoid consistently retrying
         // only these messages, the number of retries could be considered.
-        match self.process_message(&msg).await {
-            Ok(()) => {
-                info!(msg=?msg, "Message processed");
-            }
-            Err(e) => {
-                info!(msg=?msg, leaf_index=msg.leaf_index, error=?e, "Message processing failed");
-                msg.num_retries += 1;
-                self.run_queue.push_back(msg);
-            }
-        }
 
-        Ok(())
-    }
-
-    // TODO(webbhorn): Move the process() call below into a function defined over SubmitMessageArgs
-    // or wrapped Schedulable(SubmitMessageArgs) so that we can fake submit in test.
-    // TODO(webbhorn): Instead of immediately marking as processed, move to a verification
-    // queue, which will wait for finality and indexing by the inbox indexer and then mark
-    // as processed (or eventually retry if no confirmation is ever seen).
-    async fn process_message(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
-        let result = self
+        // We use the estimated gas limit from the prior call to `process_estimate_costs` to
+        // avoid a second gas estimation.
+        match self
             .inbox_contracts
             .validator_manager
-            .process(&msg.checkpoint, &msg.committed_message.message, &msg.proof)
-            .await?;
-        self.record_message_process_success(msg)?;
-        info!(leaf_index=?msg.leaf_index, hash=?result.txid,
-            wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
-            "Message successfully processed");
-        Ok(())
+            .process(
+                &msg.checkpoint,
+                &msg.committed_message.message,
+                &msg.proof,
+                Some(tx_cost_estimate.gas_limit),
+            )
+            .await
+        {
+            // TODO(trevor): Instead of immediately marking as processed, move to a verification
+            // queue, which will wait for finality and indexing by the inbox indexer and then mark
+            // as processed (or eventually retry if no confirmation is ever seen).
+            Ok(outcome) if outcome.executed == true => {
+                info!(hash=?outcome.txid,
+                    wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
+                    "Message successfully processed by transaction");
+                Ok(MessageStatus::Processed)
+            }
+            Ok(outcome) => {
+                info!(hash=?outcome.txid, "Transaction attempting to process transaction reverted");
+                Ok(MessageStatus::None)
+            }
+            Err(e) => Err(e.into())
+        }
     }
 
     /// Record in AbacusDB and various metrics that this process has observed the successful

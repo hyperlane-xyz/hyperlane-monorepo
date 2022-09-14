@@ -28,6 +28,7 @@ pub trait InboxValidatorManager: Send + Sync + Debug {
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
         message: &AbacusMessage,
         proof: &Proof,
+        tx_gas_limit: Option<U256>,
     ) -> Result<TxOutcome, ChainCommunicationError>;
 
     /// Foo

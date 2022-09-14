@@ -219,24 +219,6 @@ impl GasPaymentPolicyMeetsEstimatedCost {
             )
         })
     }
-
-    // async fn estimate_gelato_payment(&self, destination_domain: u32, tx_gas_limit: U256) -> Result<U256> {
-    //     let destination_chain = abacus_domain_to_gelato_chain(destination_domain)?;
-
-    //     let call = OracleEstimateCall {
-    //         http: self.http.clone(),
-    //         args: OracleEstimateArgs {
-    //             chain_id: destination_chain,
-    //             payment_token: NATIVE_FEE_TOKEN_ADDRESS,
-    //             gas_limit: tx_gas_limit.as_u64(),
-    //             is_high_priority: false,
-    //             gas_limit_l1: None,
-    //         },
-    //     };
-    //     let result = call.run().await?;
-
-    //     return Ok(result.estimated_fee);
-    // }
 }
 
 #[async_trait]
@@ -267,7 +249,7 @@ impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
                 destination_token_tx_cost=?destination_token_tx_cost,
                 origin_token_tx_cost=?origin_token_tx_cost,
                 current_payment=?current_payment,
-                "Gas payment requirement not met",
+                "Estimated gas payment requirement not met",
             );
         }
 

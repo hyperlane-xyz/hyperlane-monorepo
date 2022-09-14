@@ -100,9 +100,10 @@ where
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
         message: &AbacusMessage,
         proof: &Proof,
+        tx_gas_limit: Option<U256>,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         let contract_call = self
-            .process_contract_call(multisig_signed_checkpoint, message, proof)
+            .process_contract_call(multisig_signed_checkpoint, message, proof, tx_gas_limit)
             .await?;
         let receipt = report_tx(contract_call).await?;
         Ok(receipt.into())
@@ -115,7 +116,7 @@ where
         proof: &Proof,
     ) -> Result<TxCostEstimate> {
         let contract_call = self
-            .process_contract_call(multisig_signed_checkpoint, message, proof)
+            .process_contract_call(multisig_signed_checkpoint, message, proof, None)
             .await?;
 
         let gas_limit = contract_call
@@ -169,12 +170,13 @@ where
     M: Middleware + 'static,
 {
     /// Returns a ContractCall that processes the provided message.
-    /// Gas estimation occurs here.
+    /// If the provided tx_gas_limit is None, gas estimation occurs.
     async fn process_contract_call(
         &self,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
         message: &AbacusMessage,
         proof: &Proof,
+        tx_gas_limit: Option<U256>,
     ) -> Result<ContractCall<M, ()>, ChainCommunicationError> {
         let mut sol_proof: [[u8; 32]; 32] = Default::default();
         sol_proof
@@ -195,7 +197,11 @@ where
             sol_proof,
             proof.index.into(),
         );
-        let gas_limit = tx.estimate_gas().await?.saturating_add(U256::from(100000));
+        let gas_limit = if let Some(gas_limit) = tx_gas_limit {
+            gas_limit
+        } else {
+            tx.estimate_gas().await?.saturating_add(U256::from(100000))
+        };
         Ok(tx.gas(gas_limit))
     }
 }

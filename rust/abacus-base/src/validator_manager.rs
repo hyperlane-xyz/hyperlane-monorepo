@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use ethers::types::U256;
 use std::sync::Arc;
 
 use abacus_core::{
@@ -50,21 +51,22 @@ impl InboxValidatorManager for InboxValidatorManagerVariants {
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
         message: &AbacusMessage,
         proof: &Proof,
+        tx_gas_limit: Option<U256>,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         match self {
             InboxValidatorManagerVariants::Ethereum(validator_manager) => {
                 validator_manager
-                    .process(multisig_signed_checkpoint, message, proof)
+                    .process(multisig_signed_checkpoint, message, proof, tx_gas_limit)
                     .await
             }
             InboxValidatorManagerVariants::Mock(mock_validator_manager) => {
                 mock_validator_manager
-                    .process(multisig_signed_checkpoint, message, proof)
+                    .process(multisig_signed_checkpoint, message, proof, tx_gas_limit)
                     .await
             }
             InboxValidatorManagerVariants::Other(validator_manager) => {
                 validator_manager
-                    .process(multisig_signed_checkpoint, message, proof)
+                    .process(multisig_signed_checkpoint, message, proof, tx_gas_limit)
                     .await
             }
         }
