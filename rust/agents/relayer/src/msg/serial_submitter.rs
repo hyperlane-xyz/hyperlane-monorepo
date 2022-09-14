@@ -314,7 +314,7 @@ impl SerialSubmitter {
                 info!(hash=?outcome.txid, "Transaction attempting to process transaction reverted");
                 Ok(MessageStatus::None)
             }
-            Err(e) => Err(e.into())
+            Err(e) => Err(e.into()),
         }
     }
 
