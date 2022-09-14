@@ -120,11 +120,20 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
     logger(`Checking ${input.address} (${input.name})...`);
 
+    // Skip non string constructor arguments for now
+    if (
+      !input.constructorArguments ||
+      typeof input.constructorArguments !== 'string'
+    ) {
+      return;
+    }
+
     const data = {
       sourceCode: this.flattenedSource,
       contractname: input.name,
       contractaddress: input.address,
       // TYPO IS ENFORCED BY API
+      // @ts-ignore
       constructorArguements: utils.strip0x(input.constructorArguments ?? ''),
       ...this.compilerOptions,
     };
