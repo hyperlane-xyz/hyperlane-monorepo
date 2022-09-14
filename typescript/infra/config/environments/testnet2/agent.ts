@@ -26,7 +26,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-f19110f',
+    tag: 'sha-f463c1a',
   },
   aws: {
     region: 'us-east-1',
@@ -62,6 +62,12 @@ export const abacus: AgentConfig<TestnetChains> = {
       optimismkovan: {
         reorgPeriod: 0,
       },
+      goerli: {
+        reorgPeriod: 7,
+      },
+      moonbasealpha: {
+        reorgPeriod: 0,
+      },
     },
   },
   relayer: {
@@ -83,7 +89,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   context: Contexts.Flowcarbon,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-f19110f',
+    tag: 'sha-a067a62',
   },
   aws: {
     region: 'us-east-1',
@@ -112,7 +118,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-f19110f',
+    tag: 'sha-ecabe2b',
   },
   aws: {
     region: 'us-east-1',

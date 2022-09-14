@@ -85,6 +85,34 @@
         "inbox": "0x9667EfF1556A9D092fdbeC09244CB99b677E9D1E",
         "validatorManager": "0x6916690816a1aE1F6D9163dA9e691124737B5f5b"
       }
+    },
+    "goerli": {
+      "domain": "5",
+      "name": "goerli",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "7",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x7FE7EA170cf08A25C2ff315814D96D93C311E692",
+        "validatorManager": "0x7d498740A4572f2B5c6b0A1Ba9d1d9DbE207e89E"
+      }
+    },
+    "moonbasealpha": {
+      "domain": "1836002657",
+      "name": "moonbasealpha",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x304cAb315c93B87AAdb2B826A791b2c1Bf749996",
+        "validatorManager": "0xD3d062a5dcBA85ae863618d4c264d2358300c283"
+      }
     }
   },
   "outbox": {
