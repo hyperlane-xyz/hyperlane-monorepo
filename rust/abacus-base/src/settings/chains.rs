@@ -291,3 +291,45 @@ impl ChainSetup<InboxAddresses> {
         cfg
     }
 }
+
+enum AbacusMainnetDomains {
+    Ethereum = 0x657468, // decimal 6648936
+
+    Polygon = 0x706f6c79, // decimal 1886350457
+
+    Avalanche = 0x61766178, // decimal 1635148152
+
+    Arbitrum = 0x617262, // decimal 6386274
+
+    Optimism = 0x6f70, // decimal 28528
+
+    BinanceSmartChain = 0x627363, // decimal 6452067
+
+    Celo = 0x63656c6f, // decimal 1667591279
+}
+
+enum AbacusTestnetDomains {
+    // Ethereum testnets
+    Goerli = 5,
+    Kovan = 3000,
+
+    // Polygon testnet
+    Mumbai = 80001,
+
+    // Avalanche testnet
+    Fuji = 43113,
+
+    // Arbitrum testnet
+    ArbitrumRinkeby = 0x61722d72, // decimal 1634872690
+
+    OptimismKovan = 0x6f702d6b, // decimal 1869622635
+
+    // BSC testnet
+    BinanceSmartChainTestnet = 0x62732d74, // decimal 1651715444
+
+    // Celo testnet
+    Alfajores = 1000,
+
+    // Moonbeam testnet
+    MoonbaseAlpha = 0x6d6f2d61, // decimal 1836002657
+}
