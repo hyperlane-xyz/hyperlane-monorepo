@@ -8,6 +8,7 @@ import {
   ValidatorAgentAwsUser,
 } from '../agents/aws';
 import { KEY_ROLE_ENUM } from '../agents/roles';
+import { gcpSecretExists } from '../utils/gcloud';
 
 import { DeployEnvironment } from './environment';
 
@@ -195,14 +196,11 @@ export interface DockerConfig {
 export interface GelatoConfig<Chain extends ChainName> {
   // List of chains in which using Gelato is enabled for
   enabledChains: Chain[];
-  // If true, Gelato will still be used for messages whose
-  // origin chain is *not* supported by Gelato. If false,
-  // Gelato will not be used for any messages from a disabled
-  // origin chain, even if the destination chain is enabled.
-  // Because Gelato doesn't charge on testnets, this is likely
-  // to be true for testnet environments where the chain in which gas
-  // is paid on (the origin) doesn't need to be supported by Gelato.
-  useForDisabledOriginChains: boolean;
+}
+
+export enum TransactionSubmissionType {
+  Signer = 'signer',
+  Gelato = 'gelato',
 }
 
 export interface AgentConfig<Chain extends ChainName> {
@@ -456,6 +454,35 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
   get relayerEnabled(): boolean {
     return this.agentConfig.relayer !== undefined;
+  }
+
+  // Returns if it's required, throws if it's required and isn't present.
+  async ensureGelatoApiKeySecretExistsIfRequired(): Promise<boolean> {
+    // No need to check anything if no chains require Gelato
+    if (
+      !this.agentConfig.gelato ||
+      this.agentConfig.gelato.enabledChains.length == 0
+    ) {
+      return false;
+    }
+
+    // Check to see if the Gelato API key exists in GCP secret manager - throw if it doesn't
+    const secretName = `${this.agentConfig.runEnv}-gelato-api-key`;
+    const secretExists = await gcpSecretExists(secretName);
+    if (!secretExists) {
+      throw Error(
+        `Expected Gelato API Key GCP Secret named ${secretName} to exist, have you created it?`,
+      );
+    }
+    return true;
+  }
+
+  transactionSubmissionType(chain: Chain): TransactionSubmissionType {
+    if (this.agentConfig.gelato?.enabledChains.includes(chain)) {
+      return TransactionSubmissionType.Gelato;
+    }
+
+    return TransactionSubmissionType.Signer;
   }
 
   get validatorSet(): ValidatorSet {
