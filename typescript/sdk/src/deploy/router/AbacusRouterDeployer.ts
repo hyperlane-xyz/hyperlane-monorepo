@@ -88,14 +88,16 @@ export abstract class AbacusRouterDeployer<
             contractsMap[remote].router.address,
           );
           if (current !== expected) {
-            this.logger(`Enroll ${remote}'s router on ${local}`);
-            await chainConnection.handleTx(
-              contracts.router.enrollRemoteRouter(
-                chainMetadata[remote].id,
-                expected,
-                chainConnection.overrides,
-              ),
-            );
+            await super.runIfOwner(local, contracts.router, async () => {
+              this.logger(`Enroll ${remote}'s router on ${local}`);
+              await chainConnection.handleTx(
+                contracts.router.enrollRemoteRouter(
+                  chainMetadata[remote].id,
+                  expected,
+                  chainConnection.overrides,
+                ),
+              );
+            });
           }
         }
       }),
