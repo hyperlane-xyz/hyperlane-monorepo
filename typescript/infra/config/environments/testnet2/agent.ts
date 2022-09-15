@@ -126,7 +126,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   gelato: {
-    enabledChains: ['alfajores', 'mumbai', 'kovan'],
+    enabledChains: ['alfajores', 'mumbai'],
   },
   validatorSets: validators,
   connectionType: ConnectionType.HttpQuorum,
