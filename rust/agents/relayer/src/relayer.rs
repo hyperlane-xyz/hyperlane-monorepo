@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use abacus_base::chains::TransactionSubmissionType;
 use async_trait::async_trait;
 use eyre::Result;
 use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
@@ -9,7 +10,7 @@ use abacus_base::{
     chains::GelatoConf, run_all, AbacusAgentCore, Agent, BaseAgent, CachingInterchainGasPaymaster,
     ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
 };
-use abacus_core::{AbacusCommon, AbacusContract, MultisigSignedCheckpoint, Signers};
+use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers};
 
 use crate::msg::gas_payment_enforcer::GasPaymentEnforcer;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
@@ -101,7 +102,8 @@ impl BaseAgent for Relayer {
             tasks.push(self.run_inbox(
                 inbox_contracts.clone(),
                 signed_checkpoint_receiver.clone(),
-                self.core.settings.inboxes[inbox_name].gelato.as_ref(),
+                self.core.settings.inboxes[inbox_name].txsubmission,
+                self.core.settings.gelato.as_ref(),
                 signer,
                 gas_payment_enforcer.clone(),
             ));
@@ -160,16 +162,15 @@ impl Relayer {
         &self,
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
-        signer: Signers,
+        gelato_config: GelatoConf,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> GelatoSubmitter {
         let inbox_chain_name = inbox_contracts.inbox.chain_name().to_owned();
         GelatoSubmitter::new(
             message_receiver,
-            self.outbox().local_domain(),
             inbox_contracts,
             self.outbox().db().clone(),
-            signer,
+            gelato_config,
             GelatoSubmitterMetrics::new(
                 &self.core.metrics,
                 self.outbox().outbox().chain_name(),
@@ -184,28 +185,36 @@ impl Relayer {
         &self,
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
-        gelato: Option<&GelatoConf>,
+        tx_submission: TransactionSubmissionType,
+        gelato_config: Option<&GelatoConf>,
         signer: Signers,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.outbox().outbox();
         let outbox_name = outbox.chain_name();
+        let inbox_name = inbox_contracts.inbox.chain_name();
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
             outbox_name,
             inbox_contracts.inbox.chain_name(),
         );
         let (msg_send, msg_receive) = mpsc::unbounded_channel();
-        let submit_fut = match gelato {
-            Some(cfg) if cfg.enabled.parse::<bool>().unwrap() => self
-                .make_gelato_submitter_for_inbox(
+
+        let submit_fut = match tx_submission {
+            TransactionSubmissionType::Gelato => {
+                let gelato_config = gelato_config.unwrap_or_else(|| {
+                    panic!("Expected GelatoConf for inbox {} using Gelato", inbox_name)
+                });
+
+                self.make_gelato_submitter_for_inbox(
                     msg_receive,
                     inbox_contracts.clone(),
-                    signer,
+                    gelato_config.clone(),
                     gas_payment_enforcer,
                 )
-                .spawn(),
-            _ => {
+                .spawn()
+            }
+            TransactionSubmissionType::Signer => {
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
                     inbox_contracts.clone(),
@@ -220,6 +229,7 @@ impl Relayer {
                 serial_submitter.spawn()
             }
         };
+
         let message_processor = MessageProcessor::new(
             outbox.clone(),
             self.outbox().db().clone(),

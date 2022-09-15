@@ -26,7 +26,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-f463c1a',
+    tag: 'sha-1c67fc9',
   },
   aws: {
     region: 'us-east-1',
@@ -118,7 +118,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-ecabe2b',
+    tag: 'sha-1c67fc9',
   },
   aws: {
     region: 'us-east-1',
@@ -126,8 +126,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   gelato: {
-    enabledChains: ['alfajores', 'mumbai', 'kovan'],
-    useForDisabledOriginChains: true,
+    enabledChains: ['alfajores', 'mumbai'],
   },
   validatorSets: validators,
   connectionType: ConnectionType.HttpQuorum,
