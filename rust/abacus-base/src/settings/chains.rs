@@ -369,12 +369,34 @@ impl TryFrom<u32> for AbacusTestnetDomain {
     }
 }
 
+/// Local test chains (i.e. typically local hardhat nodes)
+#[derive(FromPrimitive)]
+pub enum AbacusLocalTestChainDomain {
+    /// Test1 local chain
+    Test1 = 13371,
+    /// Test2 local chain
+    Test2 = 13372,
+    /// Test3 local chain
+    Test3 = 13373,
+}
+
+impl TryFrom<u32> for AbacusLocalTestChainDomain {
+    type Error = eyre::Error;
+
+    fn try_from(domain_id: u32) -> Result<Self, Self::Error> {
+        FromPrimitive::from_u32(domain_id)
+            .ok_or_else(|| eyre::eyre!("Unknown local test chain domain ID {}", domain_id))
+    }
+}
+
 /// All domains supported by Abacus.
 pub enum AbacusDomain {
     /// Mainnet domains.
-    Mainnets(AbacusMainnetDomain),
+    Mainnet(AbacusMainnetDomain),
     /// Testnet domains.
-    Testnets(AbacusTestnetDomain),
+    Testnet(AbacusTestnetDomain),
+    /// Local test domains (i.e. not public blockchains)
+    LocalTestChain(AbacusLocalTestChainDomain),
 }
 
 impl TryFrom<u32> for AbacusDomain {
@@ -382,9 +404,11 @@ impl TryFrom<u32> for AbacusDomain {
 
     fn try_from(domain_id: u32) -> Result<Self, Self::Error> {
         if let Ok(mainnet_domain) = AbacusMainnetDomain::try_from(domain_id) {
-            Ok(Self::Mainnets(mainnet_domain))
+            Ok(Self::Mainnet(mainnet_domain))
         } else if let Ok(testnet_domain) = AbacusTestnetDomain::try_from(domain_id) {
-            Ok(Self::Testnets(testnet_domain))
+            Ok(Self::Testnet(testnet_domain))
+        } else if let Ok(local_test_chain) = AbacusLocalTestChainDomain::try_from(domain_id) {
+            Ok(Self::LocalTestChain(local_test_chain))
         } else {
             Err(eyre::eyre!("Unknown domain ID {}", domain_id))
         }

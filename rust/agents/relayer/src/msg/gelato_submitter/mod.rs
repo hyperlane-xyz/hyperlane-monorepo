@@ -201,30 +201,32 @@ pub fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
     let abacus_domain = AbacusDomain::try_from(domain)?;
 
     Ok(match abacus_domain {
-        AbacusDomain::Mainnets(AbacusMainnetDomain::Ethereum) => Chain::Ethereum,
-        AbacusDomain::Testnets(AbacusTestnetDomain::Kovan) => Chain::Kovan,
-        AbacusDomain::Testnets(AbacusTestnetDomain::Goerli) => Chain::Goerli,
+        AbacusDomain::Mainnet(AbacusMainnetDomain::Ethereum) => Chain::Ethereum,
+        AbacusDomain::Testnet(AbacusTestnetDomain::Kovan) => Chain::Kovan,
+        AbacusDomain::Testnet(AbacusTestnetDomain::Goerli) => Chain::Goerli,
 
-        AbacusDomain::Mainnets(AbacusMainnetDomain::Polygon) => Chain::Polygon,
-        AbacusDomain::Testnets(AbacusTestnetDomain::Mumbai) => Chain::Mumbai,
+        AbacusDomain::Mainnet(AbacusMainnetDomain::Polygon) => Chain::Polygon,
+        AbacusDomain::Testnet(AbacusTestnetDomain::Mumbai) => Chain::Mumbai,
 
-        AbacusDomain::Mainnets(AbacusMainnetDomain::Avalanche) => Chain::Avalanche,
-        AbacusDomain::Testnets(AbacusTestnetDomain::Fuji) => Chain::Fuji,
+        AbacusDomain::Mainnet(AbacusMainnetDomain::Avalanche) => Chain::Avalanche,
+        AbacusDomain::Testnet(AbacusTestnetDomain::Fuji) => Chain::Fuji,
 
-        AbacusDomain::Mainnets(AbacusMainnetDomain::Arbitrum) => Chain::Arbitrum,
-        AbacusDomain::Testnets(AbacusTestnetDomain::ArbitrumRinkeby) => Chain::ArbitrumRinkeby,
+        AbacusDomain::Mainnet(AbacusMainnetDomain::Arbitrum) => Chain::Arbitrum,
+        AbacusDomain::Testnet(AbacusTestnetDomain::ArbitrumRinkeby) => Chain::ArbitrumRinkeby,
 
-        AbacusDomain::Mainnets(AbacusMainnetDomain::Optimism) => Chain::Optimism,
-        AbacusDomain::Testnets(AbacusTestnetDomain::OptimismKovan) => Chain::OptimismKovan,
+        AbacusDomain::Mainnet(AbacusMainnetDomain::Optimism) => Chain::Optimism,
+        AbacusDomain::Testnet(AbacusTestnetDomain::OptimismKovan) => Chain::OptimismKovan,
 
-        AbacusDomain::Mainnets(AbacusMainnetDomain::BinanceSmartChain) => Chain::BinanceSmartChain,
-        AbacusDomain::Testnets(AbacusTestnetDomain::BinanceSmartChainTestnet) => {
+        AbacusDomain::Mainnet(AbacusMainnetDomain::BinanceSmartChain) => Chain::BinanceSmartChain,
+        AbacusDomain::Testnet(AbacusTestnetDomain::BinanceSmartChainTestnet) => {
             Chain::BinanceSmartChainTestnet
         }
 
-        AbacusDomain::Mainnets(AbacusMainnetDomain::Celo) => Chain::Celo,
-        AbacusDomain::Testnets(AbacusTestnetDomain::Alfajores) => Chain::Alfajores,
+        AbacusDomain::Mainnet(AbacusMainnetDomain::Celo) => Chain::Celo,
+        AbacusDomain::Testnet(AbacusTestnetDomain::Alfajores) => Chain::Alfajores,
 
-        AbacusDomain::Testnets(AbacusTestnetDomain::MoonbaseAlpha) => Chain::MoonbaseAlpha,
+        AbacusDomain::Testnet(AbacusTestnetDomain::MoonbaseAlpha) => Chain::MoonbaseAlpha,
+
+        AbacusDomain::LocalTestChain(_) => bail!("Local test chains cannot be used with Gelato"),
     })
 }
