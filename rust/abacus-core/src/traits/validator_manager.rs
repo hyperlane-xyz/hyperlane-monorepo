@@ -11,12 +11,12 @@ use crate::{
     AbacusMessage, Address, MultisigSignedCheckpoint,
 };
 
-/// Foo
+/// A cost estimate for a transaction.
 #[derive(Debug)]
 pub struct TxCostEstimate {
-    /// Foo
+    /// The gas limit for the transaction.
     pub gas_limit: U256,
-    /// FOo
+    /// The gas price for the transaction.
     pub gas_price: U256,
 }
 
@@ -33,7 +33,7 @@ pub trait InboxValidatorManager: Send + Sync + Debug {
         tx_gas_limit: Option<U256>,
     ) -> Result<TxOutcome, ChainCommunicationError>;
 
-    /// Foo
+    /// Estimate transaction costs to process a message.
     async fn process_estimate_costs(
         &self,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,

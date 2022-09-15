@@ -10,53 +10,7 @@ use ethers::types::U256;
 use eyre::{bail, eyre, Result};
 use tokio::sync::RwLock;
 
-use super::GasPaymentPolicy;
-
-#[derive(Debug)]
-pub struct GasPaymentPolicyNone {}
-
-impl GasPaymentPolicyNone {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-#[async_trait]
-impl GasPaymentPolicy for GasPaymentPolicyNone {
-    /// Returns (gas payment requirement met, current payment according to the DB)
-    async fn message_meets_gas_payment_requirement(
-        &self,
-        _message: &CommittedMessage,
-        _current_payment: &U256,
-        _tx_cost_estimate: &TxCostEstimate,
-    ) -> Result<bool> {
-        Ok(true)
-    }
-}
-
-#[derive(Debug)]
-pub struct GasPaymentPolicyMinimum {
-    minimum_payment: U256,
-}
-
-impl GasPaymentPolicyMinimum {
-    pub fn new(minimum_payment: U256) -> Self {
-        Self { minimum_payment }
-    }
-}
-
-#[async_trait]
-impl GasPaymentPolicy for GasPaymentPolicyMinimum {
-    /// Returns (gas payment requirement met, current payment according to the DB)
-    async fn message_meets_gas_payment_requirement(
-        &self,
-        _message: &CommittedMessage,
-        current_payment: &U256,
-        _tx_cost_estimate: &TxCostEstimate,
-    ) -> Result<bool> {
-        Ok(*current_payment >= self.minimum_payment)
-    }
-}
+use crate::msg::gas_payment::GasPaymentPolicy;
 
 const CACHE_TTL_SECONDS: u64 = 60;
 // 1 / 100th of a cent
@@ -113,10 +67,12 @@ fn abacus_domain_to_native_token_coingecko_id(domain: u32) -> Result<&'static st
     })
 }
 
+/// Gets prices from CoinGecko quoted in USD, caching them with a TTL.
 #[derive(Default)]
 struct CoinGeckoCachingPriceGetter {
     coingecko: CoinGeckoClient,
-    // Keyed by coingecko id
+    cache_ttl: Duration,
+    // Keyed by CoinGecko API ID. RwLock to be thread-safe.
     cached_usd_prices: RwLock<HashMap<&'static str, CachedValue<f64>>>,
 }
 
@@ -127,7 +83,7 @@ impl std::fmt::Debug for CoinGeckoCachingPriceGetter {
 }
 
 impl CoinGeckoCachingPriceGetter {
-    pub fn new(coingecko_api_key: Option<String>) -> Self {
+    pub fn new(cache_ttl: Duration, coingecko_api_key: Option<String>) -> Self {
         let coingecko = if let Some(api_key) = coingecko_api_key {
             CoinGeckoClient::new_with_key("https://pro-api.coingecko.com/api/v3".into(), api_key)
         } else {
@@ -135,6 +91,7 @@ impl CoinGeckoCachingPriceGetter {
         };
 
         Self {
+            cache_ttl,
             coingecko,
             cached_usd_prices: RwLock::default(),
         }
@@ -144,7 +101,7 @@ impl CoinGeckoCachingPriceGetter {
         let cached_usd_prices = self.cached_usd_prices.read().await;
 
         if let Some(cached_value) = cached_usd_prices.get(coingecko_id) {
-            if cached_value.created_at.elapsed() > Duration::from_secs(CACHE_TTL_SECONDS) {
+            if cached_value.created_at.elapsed() <= self.cache_ttl {
                 return Some(cached_value.value);
             }
         }
@@ -170,10 +127,12 @@ impl CoinGeckoCachingPriceGetter {
         let usd_price = api_response
             .get(coingecko_id)
             .and_then(|p| p.usd)
-            .ok_or(eyre!(
-                "Unable to get USD price for {} from CoinGecko API response",
-                coingecko_id
-            ))?;
+            .ok_or_else(|| {
+                eyre!(
+                    "Unable to get USD price for {} from CoinGecko API response",
+                    coingecko_id
+                )
+            })?;
 
         self.set_cached_usd_price(coingecko_id, usd_price.into())
             .await;
@@ -190,7 +149,10 @@ pub struct GasPaymentPolicyMeetsEstimatedCost {
 impl GasPaymentPolicyMeetsEstimatedCost {
     pub fn new(coingecko_api_key: Option<String>) -> Self {
         Self {
-            coingecko_price_getter: CoinGeckoCachingPriceGetter::new(coingecko_api_key),
+            coingecko_price_getter: CoinGeckoCachingPriceGetter::new(
+                Duration::from_secs(CACHE_TTL_SECONDS),
+                coingecko_api_key,
+            ),
         }
     }
 
@@ -335,4 +297,14 @@ fn test_convert_tokens() {
         ),
         None,
     )
+}
+
+#[test]
+fn test_coingecko_caching_price_getter() {
+    // TODO...
+}
+
+#[test]
+fn test_gas_payment_policy_meets_estimated_cost() {
+    // TODO...
 }

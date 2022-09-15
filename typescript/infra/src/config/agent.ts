@@ -100,6 +100,7 @@ interface MatchingListElement {
 export enum GasPaymentEnforcementPolicyType {
   None = 'none',
   Minimum = 'minimum',
+  MeetsEstimatedCost = 'meetsEstimatedCost',
 }
 
 export type GasPaymentEnforcementPolicy =
@@ -109,6 +110,10 @@ export type GasPaymentEnforcementPolicy =
   | {
       type: GasPaymentEnforcementPolicyType.Minimum;
       payment: string | number;
+    }
+  | {
+      type: GasPaymentEnforcementPolicyType.MeetsEstimatedCost;
+      coingeckoApiKey: string;
     };
 
 // Incomplete basic relayer agent config
