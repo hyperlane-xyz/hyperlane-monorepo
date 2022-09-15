@@ -95,7 +95,9 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
         const confirmed = await summarizeCalls(submissionType, calls);
         if (confirmed) {
           console.log(`Submitting calls on ${chain} via ${submissionType}`);
-          await multiSend.sendTransactions(calls);
+          await multiSend.sendTransactions(
+            calls.map((call) => ({ to: call.to, data: call.data })),
+          );
         } else {
           console.log(
             `Skipping submission of calls on ${chain} via ${submissionType}`,
