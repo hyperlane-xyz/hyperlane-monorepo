@@ -8,17 +8,8 @@ use eyre::Result;
 use crate::{
     accumulator::merkle::Proof,
     traits::{ChainCommunicationError, TxOutcome},
-    AbacusMessage, Address, MultisigSignedCheckpoint,
+    AbacusMessage, Address, MultisigSignedCheckpoint, TxCostEstimate,
 };
-
-/// A cost estimate for a transaction.
-#[derive(Debug)]
-pub struct TxCostEstimate {
-    /// The gas limit for the transaction.
-    pub gas_limit: U256,
-    /// The gas price for the transaction.
-    pub gas_price: U256,
-}
 
 /// Interface for an InboxValidatorManager
 #[async_trait]
