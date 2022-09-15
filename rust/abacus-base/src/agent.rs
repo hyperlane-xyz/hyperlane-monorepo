@@ -34,7 +34,7 @@ pub struct AbacusAgentCore {
     pub outbox: CachingOutbox,
     /// A boxed InterchainGasPaymaster
     pub interchain_gas_paymaster: Option<CachingInterchainGasPaymaster>,
-    /// A map of boxed Inbox contracts
+    /// A map of Inbox contracts by name
     pub inboxes: HashMap<String, InboxContracts>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
