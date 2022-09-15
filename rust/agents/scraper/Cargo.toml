@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 async-trait = { version = "0.1", default-features = false }
+chrono = "0.4"
 color-eyre = { version = "0.6", optional = true }
 config = "0.13"
 ethers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-09-12-01" }
