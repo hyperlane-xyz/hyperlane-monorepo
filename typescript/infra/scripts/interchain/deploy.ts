@@ -43,49 +43,27 @@ async function main() {
     context,
   );
 
-  let partialContracts: ChainMap<any, InterchainAccountContracts>;
+  let contracts: ChainMap<any, InterchainAccountContracts> = {};
   try {
-    const addresses = readJSON(dir, 'partial_addresses.json');
-    partialContracts = buildContracts(
-      addresses,
-      interchainAccountFactories,
-    ) as any;
+    const addresses = readJSON(dir, 'addresses.json');
+    contracts = buildContracts(addresses, interchainAccountFactories) as any;
   } catch (e) {
-    partialContracts = {};
+    console.error(e);
   }
 
   // config gcp deployer key as owner
   const configMap = await getConfiguration(environment, multiProvider);
-  console.log(configMap);
-
-  const skip = Object.keys(partialContracts).concat('mumbai');
-  delete configMap['mumbai'];
-  // skip.forEach((chain) => );
 
   // create fresh signer
   const signer = Wallet.createRandom();
 
   // per-network deployment cost
-  const deploymentGas = 50_000_000; // larger than should be necessary
+  const deploymentGas = 3_000_000; // larger than should be necessary
 
   await promiseObjAll(
-    objMap(multiProvider.chainMap, async (chain, dc) => {
-      if (skip.includes(chain)) return;
-
-      const actual = await dc.provider.getBalance(signer.address);
-
-      // recover lost funds back to deployer key
-      // const deployer = await dc.signer!.getAddress();
-      // const value = actual.mul(75).div(100);
-      // console.log({chain, value});
-      // await signer.connect(dc.provider).sendTransaction({
-      //   to: deployer,
-      //   value
-      // });
-      // const after = await dc.provider.getBalance(signer.address);
-      // console.log({chain, after});
-
+    objMap(multiProvider.chainMap, async (_, dc) => {
       // fund signer on each network with gas * gasPrice
+      const actual = await dc.provider.getBalance(signer.address);
       const gasPrice = await dc.provider.getGasPrice();
       const desired = gasPrice.mul(deploymentGas);
       const value = desired.sub(actual);
@@ -108,21 +86,12 @@ async function main() {
   );
 
   try {
-    const contracts = await deployer.deploy(partialContracts);
-    writeJSON(dir, 'addresses.json', serializeContracts(contracts));
-    writeJSON(
-      dir,
-      'verification.json',
-      JSON.stringify(deployer.verificationInputs),
-    );
+    contracts = await deployer.deploy(contracts);
   } catch (e) {
     console.error(e);
-    writeJSON(
-      dir,
-      'partial_addresses.json',
-      serializeContracts(deployer.deployedContracts as any),
-    );
+    contracts = deployer.deployedContracts as any;
   }
+  writeJSON(dir, 'addresses.json', serializeContracts(contracts));
 }
 
 main()
