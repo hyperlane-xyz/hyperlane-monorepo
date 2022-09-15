@@ -19,10 +19,6 @@ use crate::msg::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 // The number of seconds after a tick to sleep before attempting the next tick.
 const TICK_SLEEP_DURATION_SECONDS: u64 = 30;
 
-/// The period to sleep after observing the message's gas payment
-/// as insufficient, in secs.
-const INSUFFICIENT_GAS_PAYMENT_SLEEP_PERIOD_SECS: u64 = 15;
-
 #[derive(Debug, Clone)]
 pub struct SponsoredCallOpArgs {
     pub opts: SponsoredCallOptions,
@@ -114,10 +110,6 @@ impl SponsoredCallOp {
 
         if !meets_gas_requirement {
             tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
-            sleep(Duration::from_secs(
-                INSUFFICIENT_GAS_PAYMENT_SLEEP_PERIOD_SECS,
-            ))
-            .await;
             return Ok(MessageStatus::None);
         }
 

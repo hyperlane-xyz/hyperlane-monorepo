@@ -217,12 +217,14 @@ impl SerialSubmitter {
                 self.record_message_process_success(&msg)?;
                 return Ok(());
             }
+            Ok(MessageStatus::None) => {
+                info!(msg=?msg, msg_leaf_index=msg.leaf_index, "Message not processed");
+            }
             // We expect this branch to be hit when there is unexpected behavior -
             // defined behavior like gas estimation failing will not hit this branch.
             Err(err) => {
-                warn!(msg_leaf_index=msg.leaf_index, error=?err, "Error occurred when attempting to process message");
+                warn!(msg=?msg, msg_leaf_index=msg.leaf_index, error=?err, "Error occurred when attempting to process message");
             }
-            _ => {}
         }
 
         // The message was not processed, so increment the # of retries and add
@@ -238,7 +240,7 @@ impl SerialSubmitter {
     /// been processed, Ok(MessageStatus::Processed) is returned. If this message is unable to
     /// be processed, either due to failed gas estimation or an insufficient gas payment,
     /// Ok(MessageStatus::None) is returned.
-    #[instrument(skip(self), fields(msg_leaf_index=msg.leaf_index))]
+    #[instrument(skip(self, msg), fields(msg_leaf_index=msg.leaf_index))]
     async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<MessageStatus> {
         // If the message has already been processed according to message_status call on
         // inbox, e.g. due to another relayer having already processed, then mark it as

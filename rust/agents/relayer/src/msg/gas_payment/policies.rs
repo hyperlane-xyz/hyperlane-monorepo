@@ -77,11 +77,11 @@ impl<T> From<T> for CachedValue<T> {
     }
 }
 
+// Mainnets only
 fn abacus_domain_to_native_token_coingecko_id(domain: u32) -> Result<&'static str> {
     Ok(match domain {
         // Ethereum
         6648936 => "ethereum",
-        // 1634872690 => Chain::Rinkeby,
         // 3000 => Chain::Kovan,
 
         // Polygon
@@ -94,7 +94,8 @@ fn abacus_domain_to_native_token_coingecko_id(domain: u32) -> Result<&'static st
 
         // Arbitrum - native token is Ethereum
         6386274 => "ethereum",
-        // 421611 => Chain::ArbitrumRinkeby,
+        // TODO rm this!!
+        1634872690 => "ethereum", //Chain::ArbitrumRinkeby,
 
         // Optimism - native token is Ethereum
         28528 => "ethereum",
@@ -106,7 +107,8 @@ fn abacus_domain_to_native_token_coingecko_id(domain: u32) -> Result<&'static st
 
         // Celo
         1667591279 => "celo",
-        // 1000 => Chain::Alfajores,
+        // TODO rm this!! Alfajores
+        1000 => "celo", //Chain::Alfajores
         _ => bail!("No CoinGecko ID found for domain {}", domain),
     })
 }
@@ -241,17 +243,16 @@ impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
             )
             .await?;
 
-        let meets_requirement = origin_token_tx_cost >= *current_payment;
-        if !meets_requirement {
-            tracing::info!(
-                message_leaf_index=?message.leaf_index,
-                tx_cost_estimate=?tx_cost_estimate,
-                destination_token_tx_cost=?destination_token_tx_cost,
-                origin_token_tx_cost=?origin_token_tx_cost,
-                current_payment=?current_payment,
-                "Estimated gas payment requirement not met",
-            );
-        }
+        let meets_requirement = *current_payment >= origin_token_tx_cost;
+        tracing::info!(
+            message_leaf_index=?message.leaf_index,
+            tx_cost_estimate=?tx_cost_estimate,
+            destination_token_tx_cost=?destination_token_tx_cost,
+            origin_token_tx_cost=?origin_token_tx_cost,
+            current_payment=?current_payment,
+            meets_requirement=?meets_requirement,
+            "Evaluated whether message gas payment meets estimated cost",
+        );
 
         Ok(meets_requirement)
     }

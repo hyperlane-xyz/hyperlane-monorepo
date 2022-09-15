@@ -121,12 +121,12 @@ where
 
         let gas_limit = contract_call
             .tx
-            .gas_price()
-            .ok_or_else(|| eyre!("Expected gas price for process contract call"))?;
+            .gas()
+            .ok_or_else(|| eyre!("Expected gas limit for process contract call"))?;
         let gas_price = self.provider.get_gas_price().await?;
 
         Ok(TxCostEstimate {
-            gas_limit,
+            gas_limit: *gas_limit,
             gas_price,
         })
     }

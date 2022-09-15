@@ -197,7 +197,6 @@ impl GelatoSubmitterMetrics {
 pub fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
     Ok(match domain {
         6648936 => Chain::Ethereum,
-        1634872690 => Chain::Rinkeby,
         3000 => Chain::Kovan,
         5 => Chain::Goerli,
 
@@ -208,7 +207,7 @@ pub fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
         43113 => Chain::Fuji,
 
         6386274 => Chain::Arbitrum,
-        421611 => Chain::ArbitrumRinkeby,
+        1634872690 => Chain::ArbitrumRinkeby,
 
         28528 => Chain::Optimism,
         1869622635 => Chain::OptimismKovan,
