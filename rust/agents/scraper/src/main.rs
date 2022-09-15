@@ -21,6 +21,7 @@ mod db;
 
 mod scraper;
 mod settings;
+mod date_time;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
