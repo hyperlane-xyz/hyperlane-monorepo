@@ -79,7 +79,7 @@ impl BaseAgent for Validator {
         let submit = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,
-            self.outbox(),
+            self.outbox().clone(),
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
             ValidatorSubmitterMetrics::new(&self.core.metrics, self.outbox().chain_name()),

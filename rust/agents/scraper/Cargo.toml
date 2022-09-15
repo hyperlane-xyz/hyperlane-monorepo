@@ -7,7 +7,7 @@ edition = "2021"
 async-trait = { version = "0.1", default-features = false }
 color-eyre = { version = "0.6", optional = true }
 config = "0.13"
-ethers = { git = "https://github.com/gakonst/ethers-rs", branch = "master" }
+ethers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-09-12-01" }
 eyre = "0.6"
 prometheus = "0.13"
 sea-orm = { version = "0.9", features = ["sqlx-postgres", "runtime-tokio-native-tls", "macros"] }

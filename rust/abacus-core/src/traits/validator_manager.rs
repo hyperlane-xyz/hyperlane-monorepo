@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use auto_impl::auto_impl;
 use eyre::Result;
 
 use crate::{
@@ -11,6 +12,7 @@ use crate::{
 
 /// Interface for an InboxValidatorManager
 #[async_trait]
+#[auto_impl(Box, Arc)]
 pub trait InboxValidatorManager: Send + Sync + Debug {
     /// Process a message with a proof against the provided signed checkpoint
     async fn process(

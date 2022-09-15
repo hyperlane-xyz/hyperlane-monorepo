@@ -5,7 +5,7 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@abacus-network/app@0.4.1, @abacus-network/app@workspace:solidity/app":
+"@abacus-network/app@0.4.1, @abacus-network/app@^0.4.1, @abacus-network/app@workspace:solidity/app":
   version: 0.0.0-use.local
   resolution: "@abacus-network/app@workspace:solidity/app"
   dependencies:
@@ -140,6 +140,42 @@ __metadata:
     ts-node: ^10.8.0
     typescript: ^4.7.2
     yargs: ^17.4.1
+  languageName: unknown
+  linkType: soft
+
+"@abacus-network/interchain-accounts@workspace:typescript/ica":
+  version: 0.0.0-use.local
+  resolution: "@abacus-network/interchain-accounts@workspace:typescript/ica"
+  dependencies:
+    "@abacus-network/app": ^0.4.1
+    "@abacus-network/sdk": ^0.4.1
+    "@abacus-network/utils": ^0.4.1
+    "@nomicfoundation/hardhat-chai-matchers": ^1.0.3
+    "@nomicfoundation/hardhat-toolbox": ^1.0.2
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@openzeppelin/contracts-upgradeable": ^4.6.0
+    "@trivago/prettier-plugin-sort-imports": ^3.2.0
+    "@typechain/ethers-v5": 10.0.0
+    "@typechain/hardhat": ^6.0.0
+    "@types/mocha": ^9.1.0
+    "@typescript-eslint/eslint-plugin": ^5.27.0
+    "@typescript-eslint/parser": ^5.27.0
+    chai: ^4.3.0
+    eslint: ^8.16.0
+    eslint-config-prettier: ^8.5.0
+    ethereum-waffle: ^3.4.4
+    ethers: ^5.6.8
+    hardhat: ^2.8.4
+    hardhat-gas-reporter: ^1.0.7
+    prettier: ^2.4.1
+    prettier-plugin-solidity: ^1.0.0-beta.5
+    solhint: ^3.3.2
+    solhint-plugin-prettier: ^0.0.5
+    solidity-coverage: ^0.7.14
+    ts-node: ^10.8.0
+    typechain: 8.0.0
+    typescript: ^4.7.2
   languageName: unknown
   linkType: soft
 
@@ -4088,6 +4124,52 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@nomicfoundation/hardhat-chai-matchers@npm:^1.0.3":
+  version: 1.0.3
+  resolution: "@nomicfoundation/hardhat-chai-matchers@npm:1.0.3"
+  dependencies:
+    "@ethersproject/abi": ^5.1.2
+    "@types/chai-as-promised": ^7.1.3
+    chai-as-promised: ^7.1.1
+    chalk: ^2.4.2
+    deep-eql: ^4.0.1
+    ordinal: ^1.0.3
+  peerDependencies:
+    "@nomiclabs/hardhat-ethers": ^2.0.0
+    chai: ^4.2.0
+    ethers: ^5.0.0
+    hardhat: ^2.9.4
+  checksum: bee445e7ed53d6ee00b85c5c76ca79b7cd1792487481803a29357803b09f92b626b6429a50522a8398c8010ad4fd1f0106c79416dc8c01aea644e7360ea9c203
+  languageName: node
+  linkType: hard
+
+"@nomicfoundation/hardhat-toolbox@npm:^1.0.2":
+  version: 1.0.2
+  resolution: "@nomicfoundation/hardhat-toolbox@npm:1.0.2"
+  peerDependencies:
+    "@ethersproject/abi": ^5.4.7
+    "@ethersproject/providers": ^5.4.7
+    "@nomicfoundation/hardhat-chai-matchers": ^1.0.0
+    "@nomicfoundation/hardhat-network-helpers": ^1.0.0
+    "@nomiclabs/hardhat-ethers": ^2.0.0
+    "@nomiclabs/hardhat-etherscan": ^3.0.0
+    "@typechain/ethers-v5": ^10.1.0
+    "@typechain/hardhat": ^6.1.2
+    "@types/chai": ^4.2.0
+    "@types/mocha": ^9.1.0
+    "@types/node": ">=12.0.0"
+    chai: ^4.2.0
+    ethers: ^5.4.7
+    hardhat: ^2.9.9
+    hardhat-gas-reporter: ^1.0.8
+    solidity-coverage: ^0.7.21
+    ts-node: ">=8.0.0"
+    typechain: ^8.1.0
+    typescript: ">=4.5.0"
+  checksum: d13b3e9f08d8be5f72a25872b6a9d3609fdb34f46b47dbf10963a6fb5003ac1cd0d0c107ef6d91807b864a8766d9e5092518f21db3116902ee5a8ae73fdcaaa2
+  languageName: node
+  linkType: hard
+
 "@nomiclabs/hardhat-ethers@npm:^2.0.5":
   version: 2.0.6
   resolution: "@nomiclabs/hardhat-ethers@npm:2.0.6"
@@ -4539,6 +4621,15 @@ __metadata:
   dependencies:
     "@types/node": "*"
   checksum: 7f66f2c7b7b9303b3205a57184261974b114495736b77853af5b18d857c0b33e82ce7146911e86e87a87837de8acae28986716fd381ac7c301fd6e8d8b6c811f
+  languageName: node
+  linkType: hard
+
+"@types/chai-as-promised@npm:^7.1.3":
+  version: 7.1.5
+  resolution: "@types/chai-as-promised@npm:7.1.5"
+  dependencies:
+    "@types/chai": "*"
+  checksum: 7c1345c6e32513d52d8e562ec173c23161648d6b792046525f18803a9932d7b3ad3dca8f0181e3c529ec42b106099f174e34edeb184d61dc93e32c98b5132fd4
   languageName: node
   linkType: hard
 
@@ -6855,6 +6946,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"chai-as-promised@npm:^7.1.1":
+  version: 7.1.1
+  resolution: "chai-as-promised@npm:7.1.1"
+  dependencies:
+    check-error: ^1.0.2
+  peerDependencies:
+    chai: ">= 2.1.2 < 5"
+  checksum: 7262868a5b51a12af4e432838ddf97a893109266a505808e1868ba63a12de7ee1166e9d43b5c501a190c377c1b11ecb9ff8e093c89f097ad96c397e8ec0f8d6a
+  languageName: node
+  linkType: hard
+
 "chai@npm:^4.3.0, chai@npm:^4.3.4, chai@npm:^4.3.6":
   version: 4.3.6
   resolution: "chai@npm:4.3.6"
@@ -7701,6 +7803,15 @@ __metadata:
   dependencies:
     type-detect: ^4.0.0
   checksum: 4f4c9fb79eb994fb6e81d4aa8b063adc40c00f831588aa65e20857d5d52f15fb23034a6576ecf886f7ff6222d5ae42e71e9b7d57113e0715b1df7ea1e812b125
+  languageName: node
+  linkType: hard
+
+"deep-eql@npm:^4.0.1":
+  version: 4.1.0
+  resolution: "deep-eql@npm:4.1.0"
+  dependencies:
+    type-detect: ^4.0.0
+  checksum: 2fccd527df9a70a92a1dfa8c771d139753625938e137b09fc946af8577d22360ef28d3c74f0e9c5aaa399bab20542d0899da1529c71db76f280a30147cd2a110
   languageName: node
   linkType: hard
 
@@ -13609,6 +13720,13 @@ __metadata:
     type-check: ^0.4.0
     word-wrap: ^1.2.3
   checksum: dbc6fa065604b24ea57d734261914e697bd73b69eff7f18e967e8912aa2a40a19a9f599a507fa805be6c13c24c4eae8c71306c239d517d42d4c041c942f508a0
+  languageName: node
+  linkType: hard
+
+"ordinal@npm:^1.0.3":
+  version: 1.0.3
+  resolution: "ordinal@npm:1.0.3"
+  checksum: 6761c5b7606b6c4b0c22b4097dab4fe7ffcddacc49238eedf9c0ced877f5d4e4ad3f4fd43fefa1cc3f167cc54c7149267441b2ae85b81ccf13f45cf4b7947164
   languageName: node
   linkType: hard
 

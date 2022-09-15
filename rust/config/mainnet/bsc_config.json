@@ -89,7 +89,8 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xc3F23848Ed2e04C0c6d41bd7804fa8f89F940B94"
+      "outbox": "0xc3F23848Ed2e04C0c6d41bd7804fa8f89F940B94",
+      "interchainGasPaymaster": "0x47bf94790241B1764fC41A35a8329A15569E121C"
     },
     "domain": "6452067",
     "name": "bsc",

@@ -154,15 +154,15 @@ where
             "chain" => self.config.chain_name(),
             "method" => method
         };
+        if let Some(counter) = &self.metrics.request_count {
+            counter.with(&labels).inc()
+        }
         let start = Instant::now();
         let res = self.inner.request(method, params).await;
         if let Some(counter) = &self.metrics.request_failure_count {
             if res.is_err() {
                 counter.with(&labels).inc()
             }
-        }
-        if let Some(counter) = &self.metrics.request_count {
-            counter.with(&labels).inc()
         }
         if let Some(counter) = &self.metrics.request_duration_seconds {
             counter

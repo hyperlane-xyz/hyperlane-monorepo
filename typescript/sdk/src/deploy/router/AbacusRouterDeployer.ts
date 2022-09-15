@@ -75,14 +75,27 @@ export abstract class AbacusRouterDeployer<
       objMap(contractsMap, async (local, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(local);
         for (const remote of this.multiProvider.remoteChains(local)) {
-          this.logger(`Enroll ${remote}'s router on ${local}`);
-          await chainConnection.handleTx(
-            contracts.router.enrollRemoteRouter(
-              chainMetadata[remote].id,
-              utils.addressToBytes32(contractsMap[remote].router.address),
-              chainConnection.overrides,
-            ),
+          const remoteRouterAddress = utils.addressToBytes32(
+            contractsMap[remote].router.address,
           );
+          const remoteDomainId = chainMetadata[remote].id;
+
+          const enrolledRouterForRemoteDomain = await contracts.router.routers(
+            remoteDomainId,
+          );
+
+          if (enrolledRouterForRemoteDomain !== remoteRouterAddress) {
+            await super.runIfOwner(local, contracts.router, async () => {
+              this.logger(`Enroll router for remote ${remote} on ${local}`);
+              await chainConnection.handleTx(
+                contracts.router.enrollRemoteRouter(
+                  remoteDomainId,
+                  remoteRouterAddress,
+                  chainConnection.overrides,
+                ),
+              );
+            });
+          }
         }
       }),
     );
@@ -97,9 +110,17 @@ export abstract class AbacusRouterDeployer<
         const chainConnection = this.multiProvider.getChainConnection(chain);
         const owner = this.configMap[chain].owner;
         this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
-        await chainConnection.handleTx(
-          contracts.router.transferOwnership(owner, chainConnection.overrides),
-        );
+        const currentOwner = await contracts.router.owner();
+        if (owner != currentOwner) {
+          await super.runIfOwner(chain, contracts.router, async () => {
+            await chainConnection.handleTx(
+              contracts.router.transferOwnership(
+                owner,
+                chainConnection.overrides,
+              ),
+            );
+          });
+        }
       }),
     );
   }

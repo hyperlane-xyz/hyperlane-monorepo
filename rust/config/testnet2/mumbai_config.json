@@ -85,11 +85,40 @@
         "inbox": "0xA9425D5cBcD2c83EB2a5BF453EAA18968db3ef77",
         "validatorManager": "0xF78deCe5Cf97e1bd61C202A5ba1af33b87454878"
       }
+    },
+    "goerli": {
+      "domain": "5",
+      "name": "goerli",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "7",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x666a24F62f7A97BA33c151776Eb3D9441a059eB8",
+        "validatorManager": "0xd785272D240B07719e417622cbd2cfA0E584d1bd"
+      }
+    },
+    "moonbasealpha": {
+      "domain": "1836002657",
+      "name": "moonbasealpha",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x0526E47C49742C15F8817ef8cf0d8FFc72139D4F",
+        "validatorManager": "0xfc8d0D2E15A36f1A3F3aE3Cb127B706c1f23Aadc"
+      }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xe17c37212d785760E8331D4A4395B17b34Ba8cDF"
+      "outbox": "0xe17c37212d785760E8331D4A4395B17b34Ba8cDF",
+      "interchainGasPaymaster": "0x9A27744C249A11f68B3B56f09D280599585DFBb8"
     },
     "domain": "80001",
     "name": "mumbai",
