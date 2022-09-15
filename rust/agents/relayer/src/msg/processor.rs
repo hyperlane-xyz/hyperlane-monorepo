@@ -9,7 +9,7 @@ use tokio::{
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
-use abacus_base::{CoreMetrics, InboxContracts, Outboxes};
+use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::{
     db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, MultisigSignedCheckpoint, Outbox,
 };
@@ -20,7 +20,7 @@ use super::SubmitMessageArgs;
 
 #[derive(Debug)]
 pub(crate) struct MessageProcessor {
-    outbox: Outboxes,
+    outbox: Arc<dyn Outbox>,
     db: AbacusDB,
     inbox_contracts: InboxContracts,
     whitelist: Arc<MatchingList>,
@@ -35,7 +35,7 @@ pub(crate) struct MessageProcessor {
 impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        outbox: Outboxes,
+        outbox: Arc<dyn Outbox>,
         db: AbacusDB,
         inbox_contracts: InboxContracts,
         whitelist: Arc<MatchingList>,
@@ -74,16 +74,18 @@ impl MessageProcessor {
 
     #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.chain_name(), local_domain=?self.inbox_contracts.inbox.local_domain()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
-        // Ensure that there is at least one valid, known checkpoint before starting work loop.
+        // Ensure that there is at least one valid, known checkpoint before starting
+        // work loop.
         loop {
             self.ckpt_rx.changed().await?;
             if self.ckpt_rx.borrow().clone().is_some() {
                 break;
             }
         }
-        // Forever, scan AbacusDB looking for new messages to send. When criteria are satisfied
-        // or the message is disqualified, push the message onto self.tx_msg and then continue
-        // the scan at the next outbox highest leaf index.
+        // Forever, scan AbacusDB looking for new messages to send. When criteria are
+        // satisfied or the message is disqualified, push the message onto
+        // self.tx_msg and then continue the scan at the next outbox highest
+        // leaf index.
         loop {
             self.tick().await?;
         }
@@ -123,12 +125,13 @@ impl MessageProcessor {
                 "Leaf in db without message idx: {}",
                 self.message_leaf_index
             );
-            // Not clear what the best thing to do here is, but there is seemingly an existing
-            // race wherein an indexer might non-atomically write leaf info to rocksdb across a
-            // few records, so we might see the leaf status above, but not the message contents
-            // here.  For now, optimistically yield and then re-enter the loop in hopes that
-            // the DB is now coherent.
-            // TODO(webbhorn): Why can't we yield here instead of sleep?
+            // Not clear what the best thing to do here is, but there is seemingly an
+            // existing race wherein an indexer might non-atomically write leaf
+            // info to rocksdb across a few records, so we might see the leaf
+            // status above, but not the message contents here.  For now,
+            // optimistically yield and then re-enter the loop in hopes that the
+            // DB is now coherent. TODO(webbhorn): Why can't we yield here
+            // instead of sleep?
             tokio::time::sleep(Duration::from_secs(1)).await;
             return Ok(());
         };
@@ -171,8 +174,9 @@ impl MessageProcessor {
             return Ok(());
         }
 
-        // If validator hasn't published checkpoint covering self.message_leaf_index yet, wait
-        // until it has, before forwarding the message to the submitter channel.
+        // If validator hasn't published checkpoint covering self.message_leaf_index
+        // yet, wait until it has, before forwarding the message to the
+        // submitter channel.
         let mut ckpt;
         loop {
             ckpt = self.ckpt_rx.borrow().clone();
@@ -188,7 +192,8 @@ impl MessageProcessor {
         let checkpoint = ckpt.unwrap();
         assert!(checkpoint.checkpoint.index >= self.message_leaf_index);
 
-        // Include proof against checkpoint for message in the args provided to the submitter.
+        // Include proof against checkpoint for message in the args provided to the
+        // submitter.
         if checkpoint.checkpoint.index >= self.prover_sync.count() {
             self.prover_sync
                 .update_to_checkpoint(&checkpoint.checkpoint)
@@ -226,7 +231,7 @@ impl MessageProcessor {
     }
 
     /// Spawn a task to update the outbox state gauge.
-    async fn metrics_loop(outbox_state_gauge: IntGauge, outbox: Outboxes) {
+    async fn metrics_loop(outbox_state_gauge: IntGauge, outbox: Arc<dyn Outbox>) {
         let mut interval = tokio::time::interval(Duration::from_secs(60));
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
         loop {

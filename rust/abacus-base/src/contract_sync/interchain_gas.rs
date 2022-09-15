@@ -1,10 +1,10 @@
-use abacus_core::InterchainGasPaymasterIndexer;
+use std::cmp::min;
+use std::time::Duration;
 
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
-use std::cmp::min;
-use std::time::Duration;
+use abacus_core::InterchainGasPaymasterIndexer;
 
 use crate::{contract_sync::schema::InterchainGasPaymasterContractSyncDB, ContractSync};
 
@@ -12,7 +12,7 @@ const GAS_PAYMENTS_LABEL: &str = "gas_payments";
 
 impl<I> ContractSync<I>
 where
-    I: InterchainGasPaymasterIndexer + 'static,
+    I: InterchainGasPaymasterIndexer + Clone + 'static,
 {
     /// Sync gas payments
     pub fn sync_gas_payments(&self) -> Instrumented<JoinHandle<eyre::Result<()>>> {

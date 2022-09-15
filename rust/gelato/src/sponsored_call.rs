@@ -13,9 +13,17 @@ pub struct SponsoredCallArgs {
 
     // U256 by default serializes as a 0x-prefixed hexadecimal string.
     // Gelato's API expects the gasLimit to be a decimal string.
-    #[serde(serialize_with = "serialize_as_decimal_str")]
+    /// Skip serializing if None - the Gelato API expects the parameter to either be
+    /// present as a string, or not at all.
+    #[serde(
+        serialize_with = "serialize_as_decimal_str",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub gas_limit: Option<U256>,
     /// If None is provided, the Gelato API will use a default of 5.
+    /// Skip serializing if None - the Gelato API expects the parameter to either be
+    /// present as a number, or not at all.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub retries: Option<u32>,
 }
 
@@ -85,7 +93,7 @@ mod tests {
             retries: None,
         };
 
-        // When gas_limit and retries are None, ensure `null` is used
+        // When gas_limit and retries are None, ensure they aren't serialized
         assert_eq!(
             serde_json::to_string(&HTTPArgs {
                 args: &args,
@@ -97,14 +105,13 @@ mod tests {
                 r#""chainId":44787,"#,
                 r#""target":"0xdead00000000000000000000000000000000beef","#,
                 r#""data":"0xaabbccdd","#,
-                r#""gasLimit":null,"#,
-                r#""retries":null,"#,
                 r#""sponsorApiKey":"foobar""#,
                 r#"}"#
             ),
         );
 
-        // When the gas limit is specified, ensure it's serialized as a decimal *string*
+        // When the gas limit is specified, ensure it's serialized as a decimal *string*,
+        // and the retries are a number
         args.gas_limit = Some(U256::from_dec_str("420000").unwrap());
         args.retries = Some(5);
         assert_eq!(

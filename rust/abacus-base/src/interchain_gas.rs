@@ -1,23 +1,23 @@
-use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusContract, InterchainGasPaymaster};
+use std::fmt::Debug;
+use std::sync::Arc;
 
-use abacus_ethereum::EthereumInterchainGasPaymaster;
-use async_trait::async_trait;
 use eyre::Result;
 use futures_util::future::select_all;
-use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
-use crate::{ContractSync, ContractSyncMetrics, IndexSettings, InterchainGasPaymasterIndexers};
+use abacus_core::db::AbacusDB;
+use abacus_core::{AbacusContract, InterchainGasPaymaster, InterchainGasPaymasterIndexer};
+
+use crate::{ContractSync, ContractSyncMetrics, IndexSettings};
 
 /// Caching InterchainGasPaymaster type
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CachingInterchainGasPaymaster {
-    paymaster: InterchainGasPaymasters,
+    paymaster: Arc<dyn InterchainGasPaymaster>,
     db: AbacusDB,
-    indexer: Arc<InterchainGasPaymasterIndexers>,
+    indexer: Arc<dyn InterchainGasPaymasterIndexer>,
 }
 
 impl std::fmt::Display for CachingInterchainGasPaymaster {
@@ -29,9 +29,9 @@ impl std::fmt::Display for CachingInterchainGasPaymaster {
 impl CachingInterchainGasPaymaster {
     /// Instantiate new CachingInterchainGasPaymaster
     pub fn new(
-        paymaster: InterchainGasPaymasters,
+        paymaster: Arc<dyn InterchainGasPaymaster>,
         db: AbacusDB,
-        indexer: Arc<InterchainGasPaymasterIndexers>,
+        indexer: Arc<dyn InterchainGasPaymasterIndexer>,
     ) -> Self {
         Self {
             paymaster,
@@ -41,17 +41,17 @@ impl CachingInterchainGasPaymaster {
     }
 
     /// Return handle on paymaster object
-    pub fn paymaster(&self) -> InterchainGasPaymasters {
-        self.paymaster.clone()
+    pub fn paymaster(&self) -> &Arc<dyn InterchainGasPaymaster> {
+        &self.paymaster
     }
 
     /// Return handle on AbacusDB
-    pub fn db(&self) -> AbacusDB {
-        self.db.clone()
+    pub fn db(&self) -> &AbacusDB {
+        &self.db
     }
 
-    /// Spawn a task that syncs the CachingInterchainGasPaymaster's db with the on-chain event
-    /// data
+    /// Spawn a task that syncs the CachingInterchainGasPaymaster's db with the
+    /// on-chain event data
     pub fn sync(
         &self,
         index_settings: IndexSettings,
@@ -80,68 +80,3 @@ impl CachingInterchainGasPaymaster {
         .instrument(span)
     }
 }
-
-#[derive(Debug, Clone)]
-/// Arc wrapper for InterchainGasPaymasterVariants enum
-pub struct InterchainGasPaymasters(Arc<InterchainGasPaymasterVariants>);
-
-impl From<InterchainGasPaymasterVariants> for InterchainGasPaymasters {
-    fn from(paymaster: InterchainGasPaymasterVariants) -> Self {
-        Self(Arc::new(paymaster))
-    }
-}
-
-impl std::ops::Deref for InterchainGasPaymasters {
-    type Target = Arc<InterchainGasPaymasterVariants>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for InterchainGasPaymasters {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-/// InterchainGasPaymaster type
-#[derive(Debug)]
-pub enum InterchainGasPaymasterVariants {
-    /// Ethereum InterchainGasPaymaster contract
-    Ethereum(Box<dyn InterchainGasPaymaster>),
-    /// Mock InterchainGasPaymaster contract
-    Mock(Box<dyn InterchainGasPaymaster>),
-    /// Other InterchainGasPaymaster variant
-    Other(Box<dyn InterchainGasPaymaster>),
-}
-
-impl InterchainGasPaymasterVariants {}
-
-impl<M> From<EthereumInterchainGasPaymaster<M>> for InterchainGasPaymasters
-where
-    M: ethers::providers::Middleware + 'static,
-{
-    fn from(paymaster: EthereumInterchainGasPaymaster<M>) -> Self {
-        InterchainGasPaymasterVariants::Ethereum(Box::new(paymaster)).into()
-    }
-}
-
-impl From<Box<dyn InterchainGasPaymaster>> for InterchainGasPaymasters {
-    fn from(paymaster: Box<dyn InterchainGasPaymaster>) -> Self {
-        InterchainGasPaymasterVariants::Other(paymaster).into()
-    }
-}
-
-impl AbacusContract for InterchainGasPaymasterVariants {
-    fn chain_name(&self) -> &str {
-        match self {
-            InterchainGasPaymasterVariants::Ethereum(paymaster) => paymaster.chain_name(),
-            InterchainGasPaymasterVariants::Mock(paymaster) => paymaster.chain_name(),
-            InterchainGasPaymasterVariants::Other(paymaster) => paymaster.chain_name(),
-        }
-    }
-}
-
-#[async_trait]
-impl InterchainGasPaymaster for InterchainGasPaymasterVariants {}
