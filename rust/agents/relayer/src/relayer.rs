@@ -89,7 +89,7 @@ impl BaseAgent for Relayer {
 
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
             self.gas_payment_enforcement_policy.clone(),
-            self.outbox().db(),
+            self.outbox().db().clone(),
         ));
 
         for (inbox_name, inbox_contracts) in inboxes {
@@ -115,7 +115,7 @@ impl BaseAgent for Relayer {
         tasks.push(self.run_outbox_sync(sync_metrics.clone()));
 
         if let Some(paymaster) = self.interchain_gas_paymaster() {
-            tasks.push(self.run_interchain_gas_paymaster_sync(paymaster, sync_metrics));
+            tasks.push(self.run_interchain_gas_paymaster_sync(paymaster.clone(), sync_metrics));
         } else {
             info!("Interchain Gas Paymaster not provided, not running sync");
         }
@@ -136,7 +136,7 @@ impl Relayer {
 
     fn run_interchain_gas_paymaster_sync(
         &self,
-        paymaster: Arc<CachingInterchainGasPaymaster>,
+        paymaster: CachingInterchainGasPaymaster,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         paymaster.sync(self.as_ref().indexer.clone(), sync_metrics)
@@ -169,7 +169,7 @@ impl Relayer {
         GelatoSubmitter::new(
             message_receiver,
             inbox_contracts,
-            self.outbox().db(),
+            self.outbox().db().clone(),
             gelato_config,
             GelatoSubmitterMetrics::new(
                 &self.core.metrics,
@@ -218,7 +218,7 @@ impl Relayer {
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
                     inbox_contracts.clone(),
-                    self.outbox().db(),
+                    self.outbox().db().clone(),
                     SerialSubmitterMetrics::new(
                         &self.core.metrics,
                         outbox_name,
@@ -231,8 +231,8 @@ impl Relayer {
         };
 
         let message_processor = MessageProcessor::new(
-            outbox,
-            self.outbox().db(),
+            outbox.clone(),
+            self.outbox().db().clone(),
             inbox_contracts,
             self.whitelist.clone(),
             self.blacklist.clone(),
