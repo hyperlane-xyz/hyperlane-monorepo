@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use abacus_base::chains::GelatoConf;
+use abacus_base::chains::{AbacusDomain, AbacusMainnetDomain, AbacusTestnetDomain, GelatoConf};
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::db::AbacusDB;
 use abacus_core::AbacusCommon;
@@ -194,32 +194,37 @@ impl GelatoSubmitterMetrics {
     }
 }
 
+// While this may be more ergonomic to be an Into / From impl,
+// it feels a bit awkward to have abacus-base (where AbacusDomain)
+// is implemented to be aware of the gelato crate or vice versa.
 pub fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
-    Ok(match domain {
-        6648936 => Chain::Ethereum,
-        3000 => Chain::Kovan,
-        5 => Chain::Goerli,
+    let abacus_domain = AbacusDomain::try_from(domain)?;
 
-        1886350457 => Chain::Polygon,
-        80001 => Chain::Mumbai,
+    Ok(match abacus_domain {
+        AbacusDomain::Mainnets(AbacusMainnetDomain::Ethereum) => Chain::Ethereum,
+        AbacusDomain::Testnets(AbacusTestnetDomain::Kovan) => Chain::Kovan,
+        AbacusDomain::Testnets(AbacusTestnetDomain::Goerli) => Chain::Goerli,
 
-        1635148152 => Chain::Avalanche,
-        43113 => Chain::Fuji,
+        AbacusDomain::Mainnets(AbacusMainnetDomain::Polygon) => Chain::Polygon,
+        AbacusDomain::Testnets(AbacusTestnetDomain::Mumbai) => Chain::Mumbai,
 
-        6386274 => Chain::Arbitrum,
-        1634872690 => Chain::ArbitrumRinkeby,
+        AbacusDomain::Mainnets(AbacusMainnetDomain::Avalanche) => Chain::Avalanche,
+        AbacusDomain::Testnets(AbacusTestnetDomain::Fuji) => Chain::Fuji,
 
-        28528 => Chain::Optimism,
-        1869622635 => Chain::OptimismKovan,
+        AbacusDomain::Mainnets(AbacusMainnetDomain::Arbitrum) => Chain::Arbitrum,
+        AbacusDomain::Testnets(AbacusTestnetDomain::ArbitrumRinkeby) => Chain::ArbitrumRinkeby,
 
-        6452067 => Chain::BinanceSmartChain,
-        1651715444 => Chain::BinanceSmartChainTestnet,
+        AbacusDomain::Mainnets(AbacusMainnetDomain::Optimism) => Chain::Optimism,
+        AbacusDomain::Testnets(AbacusTestnetDomain::OptimismKovan) => Chain::OptimismKovan,
 
-        1667591279 => Chain::Celo,
-        1000 => Chain::Alfajores,
+        AbacusDomain::Mainnets(AbacusMainnetDomain::BinanceSmartChain) => Chain::BinanceSmartChain,
+        AbacusDomain::Testnets(AbacusTestnetDomain::BinanceSmartChainTestnet) => {
+            Chain::BinanceSmartChainTestnet
+        }
 
-        1836002657 => Chain::MoonbaseAlpha,
+        AbacusDomain::Mainnets(AbacusMainnetDomain::Celo) => Chain::Celo,
+        AbacusDomain::Testnets(AbacusTestnetDomain::Alfajores) => Chain::Alfajores,
 
-        _ => bail!("Unknown domain {}", domain),
+        AbacusDomain::Testnets(AbacusTestnetDomain::MoonbaseAlpha) => Chain::MoonbaseAlpha,
     })
 }

@@ -3,11 +3,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+use abacus_base::chains::AbacusMainnetDomain;
 use abacus_core::{CommittedMessage, TxCostEstimate};
 use async_trait::async_trait;
 use coingecko::CoinGeckoClient;
 use ethers::types::U256;
-use eyre::{bail, eyre, Result};
+use eyre::{eyre, Result};
 use tokio::sync::RwLock;
 
 use crate::msg::gas_payment::GasPaymentPolicy;
@@ -31,39 +32,22 @@ impl<T> From<T> for CachedValue<T> {
     }
 }
 
-// Mainnets only
+/// Given a domain, gets the CoinGecko ID for the native token.
+/// If the domain isn't a mainnet (and therefore doesn't have a native
+/// token with a CoinGecko ID), an Err is returned.
 fn abacus_domain_to_native_token_coingecko_id(domain: u32) -> Result<&'static str> {
-    Ok(match domain {
-        // Ethereum
-        6648936 => "ethereum",
-        // 3000 => Chain::Kovan,
+    let mainnet_domain = AbacusMainnetDomain::try_from(domain)?;
 
-        // Polygon
-        1886350457 => "matic-network",
-        // 80001 => Chain::Mumbai,
-
-        // Avalanche
-        1635148152 => "avalanche-2",
-        // 43113 => Chain::Fuji,
-
-        // Arbitrum - native token is Ethereum
-        6386274 => "ethereum",
-        // TODO rm this!!
-        1634872690 => "ethereum", //Chain::ArbitrumRinkeby,
-
-        // Optimism - native token is Ethereum
-        28528 => "ethereum",
-        // 1869622635 => Chain::OptimismKovan,
-
-        // Binance Smart Chain
-        6452067 => "binancecoin",
-        // 1651715444 => Chain::BinanceSmartChainTestnet,
-
-        // Celo
-        1667591279 => "celo",
-        // TODO rm this!! Alfajores
-        1000 => "celo", //Chain::Alfajores
-        _ => bail!("No CoinGecko ID found for domain {}", domain),
+    Ok(match mainnet_domain {
+        AbacusMainnetDomain::Ethereum => "ethereum",
+        AbacusMainnetDomain::Polygon => "matic-network",
+        AbacusMainnetDomain::Avalanche => "avalanche-2",
+        // Arbitrum's native token is Ethereum
+        AbacusMainnetDomain::Arbitrum => "ethereum",
+        // Optimism's native token is Ethereum
+        AbacusMainnetDomain::Optimism => "ethereum",
+        AbacusMainnetDomain::BinanceSmartChain => "binancecoin",
+        AbacusMainnetDomain::Celo => "celo",
     })
 }
 

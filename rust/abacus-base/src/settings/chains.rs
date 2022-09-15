@@ -1,4 +1,8 @@
+use std::convert::TryFrom;
+
 use ethers::signers::Signer;
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 use serde::Deserialize;
 
 use abacus_core::{
@@ -292,44 +296,97 @@ impl ChainSetup<InboxAddresses> {
     }
 }
 
-enum AbacusMainnetDomains {
-    Ethereum = 0x657468, // decimal 6648936
+/// All mainnet domains supported by Abacus.
+#[derive(FromPrimitive)]
+pub enum AbacusMainnetDomain {
+    /// Ethereum domain ID, decimal ID 6648936
+    Ethereum = 0x657468,
 
-    Polygon = 0x706f6c79, // decimal 1886350457
+    /// Polygon domain ID, decimal ID 1886350457
+    Polygon = 0x706f6c79,
 
-    Avalanche = 0x61766178, // decimal 1635148152
+    /// Avalanche domain ID, decimal ID 1635148152
+    Avalanche = 0x61766178,
 
-    Arbitrum = 0x617262, // decimal 6386274
+    /// Arbitrum domain ID, decimal ID 6386274
+    Arbitrum = 0x617262,
 
-    Optimism = 0x6f70, // decimal 28528
+    /// Optimism domain ID, decimal ID 28528
+    Optimism = 0x6f70,
 
-    BinanceSmartChain = 0x627363, // decimal 6452067
+    /// BinanceSmartChain domain ID, decimal ID 6452067
+    BinanceSmartChain = 0x627363,
 
-    Celo = 0x63656c6f, // decimal 1667591279
+    /// Celo domain ID, decimal ID 1667591279
+    Celo = 0x63656c6f,
 }
 
-enum AbacusTestnetDomains {
-    // Ethereum testnets
+impl TryFrom<u32> for AbacusMainnetDomain {
+    type Error = eyre::Error;
+
+    fn try_from(domain_id: u32) -> Result<Self, Self::Error> {
+        FromPrimitive::from_u32(domain_id)
+            .ok_or_else(|| eyre::eyre!("Unknown mainnet domain ID {}", domain_id))
+    }
+}
+
+/// All testnet domains supported by Abacus.
+#[derive(FromPrimitive)]
+pub enum AbacusTestnetDomain {
+    /// Ethereum testnet Goerli domain ID
     Goerli = 5,
+    /// Ethereum testnet Kovan domain ID
     Kovan = 3000,
 
-    // Polygon testnet
+    /// Polygon testnet Mumbai domain ID
     Mumbai = 80001,
 
-    // Avalanche testnet
+    /// Avalanche testnet Fuji domain ID
     Fuji = 43113,
 
-    // Arbitrum testnet
-    ArbitrumRinkeby = 0x61722d72, // decimal 1634872690
+    /// Arbitrum testnet ArbitrumRinkeby domain ID, decimal ID 1634872690
+    ArbitrumRinkeby = 0x61722d72,
 
-    OptimismKovan = 0x6f702d6b, // decimal 1869622635
+    /// Optimism testnet OptimismKovan domain ID, decimal ID 1869622635
+    OptimismKovan = 0x6f702d6b,
 
-    // BSC testnet
+    /// BSC testnet, decimal ID 1651715444
     BinanceSmartChainTestnet = 0x62732d74, // decimal 1651715444
 
-    // Celo testnet
+    /// Celo testnet Alfajores domain ID
     Alfajores = 1000,
 
-    // Moonbeam testnet
-    MoonbaseAlpha = 0x6d6f2d61, // decimal 1836002657
+    /// Moonbeam testnet MoonbaseAlpha domain ID, decimal ID 1836002657
+    MoonbaseAlpha = 0x6d6f2d61,
+}
+
+impl TryFrom<u32> for AbacusTestnetDomain {
+    type Error = eyre::Error;
+
+    fn try_from(domain_id: u32) -> Result<Self, Self::Error> {
+        FromPrimitive::from_u32(domain_id)
+            .ok_or_else(|| eyre::eyre!("Unknown testnet domain ID {}", domain_id))
+    }
+}
+
+/// All domains supported by Abacus.
+pub enum AbacusDomain {
+    /// Mainnet domains.
+    Mainnets(AbacusMainnetDomain),
+    /// Testnet domains.
+    Testnets(AbacusTestnetDomain),
+}
+
+impl TryFrom<u32> for AbacusDomain {
+    type Error = eyre::Error;
+
+    fn try_from(domain_id: u32) -> Result<Self, Self::Error> {
+        if let Ok(mainnet_domain) = AbacusMainnetDomain::try_from(domain_id) {
+            Ok(Self::Mainnets(mainnet_domain))
+        } else if let Ok(testnet_domain) = AbacusTestnetDomain::try_from(domain_id) {
+            Ok(Self::Testnets(testnet_domain))
+        } else {
+            Err(eyre::eyre!("Unknown domain ID {}", domain_id))
+        }
+    }
 }
