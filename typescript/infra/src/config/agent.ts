@@ -113,7 +113,6 @@ export type GasPaymentEnforcementPolicy =
     }
   | {
       type: GasPaymentEnforcementPolicyType.MeetsEstimatedCost;
-      coingeckoApiKey: string;
     };
 
 // Incomplete basic relayer agent config
