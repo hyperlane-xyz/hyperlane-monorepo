@@ -16,7 +16,7 @@ const s3BucketName = <Chain extends ChainName>(
 
 export const validators: ChainValidatorSets<MainnetChains> = {
   celo: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x8784f09c2cfb70329b936a3b75eb61c41b467b65',
@@ -45,7 +45,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   ethereum: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x7c1d96c9e72c41b84d74095dc2e72b979e933904',
@@ -74,7 +74,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   avalanche: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x1353b91e2b256ca0a283504b02ae3c69374fb105',
@@ -103,7 +103,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   polygon: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0xff198cae21069d865b142f2b9e798d3b299b8df6',
@@ -132,7 +132,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   bsc: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x013d01a570b5cfa19032c5176488b5824e225a6b',
@@ -161,7 +161,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   arbitrum: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x6289f913acc64c2e6baaa2b5175c7db35f98f62d',
@@ -190,7 +190,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   optimism: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0xcf2dcc3462c84420965501c1dda3d62dde08941d',
