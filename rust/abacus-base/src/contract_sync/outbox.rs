@@ -5,9 +5,8 @@ use tokio::time::sleep;
 use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
-use abacus_core::{CommittedMessage, ListValidity, OutboxIndexer};
+use abacus_core::{name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer};
 
-use crate::chains::name_from_domain_id;
 use crate::{
     contract_sync::{last_message::OptLatestLeafIndex, schema::OutboxContractSyncDB},
     ContractSync,
@@ -161,7 +160,7 @@ where
                             let dst = CommittedMessage::try_from(raw_msg)
                                 .ok()
                                 .and_then(|msg| name_from_domain_id(msg.message.destination))
-                                .unwrap_or("unknown".into());
+                                .unwrap_or_else(|| "unknown".into());
                             message_leaf_index
                                 .with_label_values(&["dispatch", &chain_name, &dst])
                                 .set(max_leaf_index_of_batch as i64);

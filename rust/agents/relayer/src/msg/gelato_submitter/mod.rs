@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use abacus_base::chains::{AbacusDomain, AbacusMainnetDomain, AbacusTestnetDomain, GelatoConf};
+use abacus_base::chains::GelatoConf;
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::db::AbacusDB;
-use abacus_core::AbacusCommon;
+use abacus_core::{AbacusCommon, AbacusDomain, AbacusMainnetDomain, AbacusTestnetDomain};
 use eyre::{bail, Result};
 use gelato::types::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};

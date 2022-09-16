@@ -306,7 +306,9 @@ impl SerialSubmitter {
             // TODO(trevor): Instead of immediately marking as processed, move to a verification
             // queue, which will wait for finality and indexing by the inbox indexer and then mark
             // as processed (or eventually retry if no confirmation is ever seen).
-            Ok(outcome) if outcome.executed == true => {
+
+            // Only mark the message as processed if the transaction didn't revert.
+            Ok(outcome) if outcome.executed => {
                 info!(hash=?outcome.txid,
                     wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
                     "Message successfully processed by transaction");

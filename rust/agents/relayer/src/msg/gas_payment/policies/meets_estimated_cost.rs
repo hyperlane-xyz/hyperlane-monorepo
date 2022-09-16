@@ -3,8 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use abacus_base::chains::AbacusMainnetDomain;
-use abacus_core::{CommittedMessage, TxCostEstimate};
+use abacus_core::{AbacusMainnetDomain, CommittedMessage, TxCostEstimate};
 use async_trait::async_trait;
 use coingecko::CoinGeckoClient;
 use ethers::types::U256;
@@ -118,8 +117,7 @@ impl CoinGeckoCachingPriceGetter {
                 )
             })?;
 
-        self.set_cached_usd_price(coingecko_id, usd_price.into())
-            .await;
+        self.set_cached_usd_price(coingecko_id, usd_price).await;
 
         Ok(usd_price)
     }
