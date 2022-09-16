@@ -241,8 +241,8 @@ pub fn name_from_domain_id(domain_id: u32) -> Option<String> {
         .map(|domain| domain.to_string())
 }
 
-/// Gets the name of the chain from a domain id.
-/// Returns None if the domain ID is not recognized.
+/// Gets the domain ID of the chain its name.
+/// Returns None if the chain name is not recognized.
 pub fn domain_id_from_name(name: &'static str) -> Option<u32> {
     AbacusDomain::from_str(name)
         .ok()
