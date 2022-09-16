@@ -215,6 +215,88 @@ fn convert_tokens(amount: U256, from_price: f64, to_price: f64) -> Option<U256> 
         .and_then(|n| n.checked_div(to_price))
 }
 
+#[tokio::test]
+async fn test_gas_payment_policy_meets_estimated_cost() {
+    use abacus_core::AbacusMessage;
+    use ethers::types::H256;
+
+    // Using a fake message from Celo -> Polygon, based off
+    // hardcoded tx cost estimates and prices, assert that a payment
+    // that doesn't meet the expected costs returns false, and a payment
+    // that does returns true.
+
+    let celo_price = 5.5f64;
+    let polygon_price = 11.0f64;
+    let celo_domain_id = u32::from(AbacusMainnetDomain::Celo);
+    let polygon_domain_id = u32::from(AbacusMainnetDomain::Polygon);
+
+    // Take advantage of the coingecko_price_getter caching already-stored values
+    // by just writing to them directly.
+    // This is a little sketchy because if the cache TTL does elapse, an API
+    // request could be made. Because this TTL is 60 seconds, this isn't reasonable.
+    let policy = GasPaymentPolicyMeetsEstimatedCost::new(None);
+    {
+        let mut usd_prices = policy
+            .coingecko_price_getter
+            .cached_usd_prices
+            .write()
+            .await;
+        let celo_coingecko_id = abacus_domain_to_native_token_coingecko_id(celo_domain_id).unwrap();
+        let polygon_coingecko_id =
+            abacus_domain_to_native_token_coingecko_id(polygon_domain_id).unwrap();
+
+        usd_prices.insert(celo_coingecko_id, celo_price.into());
+        usd_prices.insert(polygon_coingecko_id, polygon_price.into());
+    }
+
+    let message = CommittedMessage {
+        leaf_index: 10u32,
+        message: AbacusMessage {
+            origin: celo_domain_id,
+            destination: polygon_domain_id,
+            sender: H256::zero(),
+            recipient: H256::zero(),
+            body: vec![],
+        },
+    };
+    let tx_cost_estimate = TxCostEstimate {
+        // 1M gas
+        gas_limit: U256::from(1000000u32),
+        // 15 gwei
+        gas_price: ethers::utils::parse_units("15", "gwei").unwrap(),
+    };
+
+    // Expected polygon fee: 1M * 15 gwei = 0.015 MATIC
+    // Converted into Celo, 0.015 MATIC * ($11 / $5.5) = 0.03 CELO
+    let required_celo_payment = ethers::utils::parse_ether("0.03").unwrap();
+
+    // Any less than 0.03 CELO as payment, return false.
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(
+                &message,
+                &(required_celo_payment - U256::one()),
+                &tx_cost_estimate,
+            )
+            .await
+            .unwrap(),
+        false,
+    );
+
+    // If the payment is at least 0.03 CELO, return true.
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(
+                &message,
+                &required_celo_payment,
+                &tx_cost_estimate,
+            )
+            .await
+            .unwrap(),
+        true,
+    );
+}
+
 #[test]
 fn test_convert_tokens() {
     // A lowish number
@@ -279,14 +361,4 @@ fn test_convert_tokens() {
         ),
         None,
     )
-}
-
-#[test]
-fn test_coingecko_caching_price_getter() {
-    // TODO...
-}
-
-#[test]
-fn test_gas_payment_policy_meets_estimated_cost() {
-    // TODO...
 }
