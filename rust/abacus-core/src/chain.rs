@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use eyre::Result;
-use num::FromPrimitive;
+use num_traits::FromPrimitive;
 use num_derive::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use strum::EnumString;
