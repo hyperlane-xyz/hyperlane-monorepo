@@ -5,13 +5,13 @@ use prometheus::IntGauge;
 use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
-    time::{Instant, MissedTickBehavior},
+    time::Instant,
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, MultisigSignedCheckpoint, Outbox,
+    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, MultisigSignedCheckpoint,
 };
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
@@ -20,7 +20,6 @@ use super::SubmitMessageArgs;
 
 #[derive(Debug)]
 pub(crate) struct MessageProcessor {
-    outbox: Arc<dyn Outbox>,
     db: AbacusDB,
     inbox_contracts: InboxContracts,
     whitelist: Arc<MatchingList>,
@@ -35,7 +34,6 @@ pub(crate) struct MessageProcessor {
 impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        outbox: Arc<dyn Outbox>,
         db: AbacusDB,
         inbox_contracts: InboxContracts,
         whitelist: Arc<MatchingList>,
@@ -45,7 +43,6 @@ impl MessageProcessor {
         ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
     ) -> Self {
         Self {
-            outbox,
             db: db.clone(),
             inbox_contracts,
             whitelist,
@@ -60,13 +57,8 @@ impl MessageProcessor {
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
-        let metrics_loop = tokio::spawn(Self::metrics_loop(
-            self.metrics.outbox_state_gauge.clone(),
-            self.outbox.clone(),
-        ));
         tokio::spawn(async move {
             let res = self.main_loop().await;
-            metrics_loop.abort();
             res
         })
         .instrument(span)
@@ -229,27 +221,11 @@ impl MessageProcessor {
         }
         Ok(())
     }
-
-    /// Spawn a task to update the outbox state gauge.
-    async fn metrics_loop(outbox_state_gauge: IntGauge, outbox: Arc<dyn Outbox>) {
-        let mut interval = tokio::time::interval(Duration::from_secs(60 * 10));
-        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        loop {
-            let state = outbox.state().await;
-            match &state {
-                Ok(state) => outbox_state_gauge.set(*state as u8 as i64),
-                Err(e) => warn!(error = %e, "Failed to get outbox state"),
-            };
-
-            interval.tick().await;
-        }
-    }
 }
 
 #[derive(Debug)]
 pub(crate) struct MessageProcessorMetrics {
     processor_loop_gauge: IntGauge,
-    outbox_state_gauge: IntGauge,
 }
 
 impl MessageProcessorMetrics {
@@ -260,7 +236,6 @@ impl MessageProcessorMetrics {
                 outbox_chain,
                 inbox_chain,
             ]),
-            outbox_state_gauge: metrics.outbox_state().with_label_values(&[outbox_chain]),
         }
     }
 }
