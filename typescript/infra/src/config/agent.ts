@@ -481,6 +481,24 @@ export class ChainAgentConfig<Chain extends ChainName> {
     return true;
   }
 
+  async ensureCoingeckoApiKeySecretExistsIfRequired() {
+    // The CoinGecko API Key is only needed when using the "MeetsEstimatedCost" policy.
+    if (
+      this.relayerConfig?.gasPaymentEnforcementPolicy.type !==
+      GasPaymentEnforcementPolicyType.MeetsEstimatedCost
+    ) {
+      return;
+    }
+    // Check to see if the Gelato API key exists in GCP secret manager - throw if it doesn't
+    const secretName = `${this.agentConfig.runEnv}-coingecko-api-key`;
+    const secretExists = await gcpSecretExists(secretName);
+    if (!secretExists) {
+      throw Error(
+        `Expected CoinGecko API Key GCP Secret named ${secretName} to exist, have you created it?`,
+      );
+    }
+  }
+
   transactionSubmissionType(chain: Chain): TransactionSubmissionType {
     if (this.agentConfig.gelato?.enabledChains.includes(chain)) {
       return TransactionSubmissionType.Gelato;
