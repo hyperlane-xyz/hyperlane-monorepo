@@ -49,63 +49,64 @@ impl From<&'_ Address> for ethers::types::H160 {
     }
 }
 
-/// Quick single-use macro to prevent typing domain and chain twice and risking
-/// inconsistencies.
-macro_rules! domain_and_chain {
-    {$($domain:literal <=> $chain:literal,)*} => {
-        /// Get the chain name from a domain id. Returns `None` if the `domain` is unknown.
-        pub fn chain_from_domain(domain: u32) -> Option<&'static str> {
-            match domain {
-                $( $domain => Some($chain), )*
-                _ => None
-            }
-        }
+// /// Quick single-use macro to prevent typing domain and chain twice and risking
+// /// inconsistencies.
+// macro_rules! domain_and_chain {
+//     {$($domain:literal <=> $chain:literal,)*} => {
+//         /// Get the chain name from a domain id. Returns `None` if the `domain` is unknown.
+//         pub fn chain_from_domain(domain: u32) -> Option<&'static str> {
+//             match domain {
+//                 $( $domain => Some($chain), )*
+//                 _ => None
+//             }
+//         }
 
-        /// Get the domain id from a chain name. Expects `chain` to be a lowercase str.
-        /// Returns `None` if the `chain` is unknown.
-        pub fn domain_from_chain(chain: &str) -> Option<u32> {
-            match chain {
-                $( $chain => Some($domain), )*
-                _ => None
-            }
-        }
-    }
-}
+//         /// Get the domain id from a chain name. Expects `chain` to be a lowercase str.
+//         /// Returns `None` if the `chain` is unknown.
+//         pub fn domain_from_chain(chain: &str) -> Option<u32> {
+//             match chain {
+//                 $( $chain => Some($domain), )*
+//                 _ => None
+//             }
+//         }
+//     }
+// }
 
-// The unit test in this file `tests::json_mappings_match_code_map`
-// tries to ensure some stability between the {chain} X {domain}
-// mapping below with the agent configuration file.
-domain_and_chain! {
-    0x63656c6f <=> "celo",
-    0x657468 <=> "ethereum",
-    0x61766178 <=> "avalanche",
-    0x706f6c79 <=> "polygon",
-    1000 <=> "alfajores",
-    43113 <=> "fuji",
-    5 <=> "goerli",
-    3000 <=> "kovan",
-    80001 <=> "mumbai",
-    6386274 <=> "arbitrum",
-    6452067 <=> "bsc",
-    28528 <=> "optimism",
-    13371 <=> "test1",
-    13372 <=> "test2",
-    13373 <=> "test3",
-    0x62732d74 <=> "bsctestnet",
-    0x61722d72 <=> "arbitrumrinkeby",
-    0x6f702d6b <=> "optimismkovan",
-    0x61752d74 <=> "auroratestnet",
-    0x6d6f2d61 <=> "moonbasealpha",
-}
+// // The unit test in this file `tests::json_mappings_match_code_map`
+// // tries to ensure some stability between the {chain} X {domain}
+// // mapping below with the agent configuration file.
+// domain_and_chain! {
+//     0x63656c6f <=> "celo",
+//     0x657468 <=> "ethereum",
+//     0x61766178 <=> "avalanche",
+//     0x706f6c79 <=> "polygon",
+//     1000 <=> "alfajores",
+//     43113 <=> "fuji",
+//     5 <=> "goerli",
+//     3000 <=> "kovan",
+//     80001 <=> "mumbai",
+//     6386274 <=> "arbitrum",
+//     6452067 <=> "bsc",
+//     28528 <=> "optimism",
+//     13371 <=> "test1",
+//     13372 <=> "test2",
+//     13373 <=> "test3",
+//     0x62732d74 <=> "bsctestnet",
+//     0x61722d72 <=> "arbitrumrinkeby",
+//     0x6f702d6b <=> "optimismkovan",
+//     0x61752d74 <=> "auroratestnet",
+//     0x6d6f2d61 <=> "moonbasealpha",
+// }
 
 #[cfg(test)]
 mod tests {
-    use abacus_base::Settings;
+    use abacus_base::{Settings, chains::AbacusDomain};
     use config::{Config, File, FileFormat};
     use num_traits::identities::Zero;
     use std::collections::BTreeSet;
     use std::fs::read_to_string;
     use std::path::Path;
+    use std::str::FromStr;
     use walkdir::WalkDir;
 
     /// Relative path to the `abacus-monorepo/rust/config/`
@@ -247,12 +248,13 @@ mod tests {
         // by the macro `domain_and_chain` is complete
         // and in agreement with our on-disk json-based
         // configuration data.
+
         for ChainCoordinate { name, domain } in inbox_coords.iter().chain(outbox_coords.iter()) {
             assert_eq!(
-                super::chain_from_domain(domain.to_owned()).unwrap(),
+                AbacusDomain::try_from(domain.to_owned()).unwrap().to_string(),
                 name.to_owned()
             );
-            assert_eq!(super::domain_from_chain(name).unwrap(), domain.to_owned());
+            assert_eq!(u32::from(AbacusDomain::from_str(name).unwrap()), domain.to_owned());
         }
     }
 }

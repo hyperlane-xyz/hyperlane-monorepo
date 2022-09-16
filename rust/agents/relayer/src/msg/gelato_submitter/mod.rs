@@ -194,7 +194,7 @@ impl GelatoSubmitterMetrics {
     }
 }
 
-// While this may be more ergonomic to be an Into / From impl,
+// While this may be more ergonomic as an Into / From impl,
 // it feels a bit awkward to have abacus-base (where AbacusDomain)
 // is implemented to be aware of the gelato crate or vice versa.
 pub fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {

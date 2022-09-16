@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, str::FromStr};
 
 use ethers::signers::Signer;
 use num_derive::FromPrimitive;
@@ -17,6 +17,7 @@ use abacus_ethereum::{
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
+use strum_macros::EnumString;
 
 use crate::CoreMetrics;
 
@@ -297,7 +298,8 @@ impl ChainSetup<InboxAddresses> {
 }
 
 /// All mainnet domains supported by Abacus.
-#[derive(FromPrimitive)]
+#[derive(FromPrimitive, EnumString, strum::Display, PartialEq, Debug)]
+#[strum(serialize_all = "lowercase")]
 pub enum AbacusMainnetDomain {
     /// Ethereum domain ID, decimal ID 6648936
     Ethereum = 0x657468,
@@ -315,10 +317,17 @@ pub enum AbacusMainnetDomain {
     Optimism = 0x6f70,
 
     /// BinanceSmartChain domain ID, decimal ID 6452067
+    #[strum(serialize = "bsc")]
     BinanceSmartChain = 0x627363,
 
     /// Celo domain ID, decimal ID 1667591279
     Celo = 0x63656c6f,
+}
+
+impl From<AbacusMainnetDomain> for u32 {
+    fn from(domain: AbacusMainnetDomain) -> Self {
+        domain as u32
+    }
 }
 
 impl TryFrom<u32> for AbacusMainnetDomain {
@@ -331,7 +340,8 @@ impl TryFrom<u32> for AbacusMainnetDomain {
 }
 
 /// All testnet domains supported by Abacus.
-#[derive(FromPrimitive)]
+#[derive(FromPrimitive, EnumString, strum::Display, PartialEq, Debug)]
+#[strum(serialize_all = "lowercase")]
 pub enum AbacusTestnetDomain {
     /// Ethereum testnet Goerli domain ID
     Goerli = 5,
@@ -351,6 +361,7 @@ pub enum AbacusTestnetDomain {
     OptimismKovan = 0x6f702d6b,
 
     /// BSC testnet, decimal ID 1651715444
+    #[strum(serialize = "bsctestnet")]
     BinanceSmartChainTestnet = 0x62732d74, // decimal 1651715444
 
     /// Celo testnet Alfajores domain ID
@@ -358,6 +369,12 @@ pub enum AbacusTestnetDomain {
 
     /// Moonbeam testnet MoonbaseAlpha domain ID, decimal ID 1836002657
     MoonbaseAlpha = 0x6d6f2d61,
+}
+
+impl From<AbacusTestnetDomain> for u32 {
+    fn from(domain: AbacusTestnetDomain) -> Self {
+        domain as u32
+    }
 }
 
 impl TryFrom<u32> for AbacusTestnetDomain {
@@ -370,7 +387,8 @@ impl TryFrom<u32> for AbacusTestnetDomain {
 }
 
 /// Local test chains (i.e. typically local hardhat nodes)
-#[derive(FromPrimitive)]
+#[derive(FromPrimitive, EnumString, strum::Display, PartialEq, Debug)]
+#[strum(serialize_all = "lowercase")]
 pub enum AbacusLocalTestChainDomain {
     /// Test1 local chain
     Test1 = 13371,
@@ -378,6 +396,12 @@ pub enum AbacusLocalTestChainDomain {
     Test2 = 13372,
     /// Test3 local chain
     Test3 = 13373,
+}
+
+impl From<AbacusLocalTestChainDomain> for u32 {
+    fn from(domain: AbacusLocalTestChainDomain) -> Self {
+        domain as u32
+    }
 }
 
 impl TryFrom<u32> for AbacusLocalTestChainDomain {
@@ -390,6 +414,7 @@ impl TryFrom<u32> for AbacusLocalTestChainDomain {
 }
 
 /// All domains supported by Abacus.
+#[derive(Debug, PartialEq)]
 pub enum AbacusDomain {
     /// Mainnet domains.
     Mainnet(AbacusMainnetDomain),
@@ -412,5 +437,180 @@ impl TryFrom<u32> for AbacusDomain {
         } else {
             Err(eyre::eyre!("Unknown domain ID {}", domain_id))
         }
+    }
+}
+
+impl From<AbacusDomain> for u32 {
+    fn from(domain: AbacusDomain) -> Self {
+        match domain {
+            AbacusDomain::Mainnet(mainnet_domain) => mainnet_domain.into(),
+            AbacusDomain::Testnet(testnet_domain) => testnet_domain.into(),
+            AbacusDomain::LocalTestChain(local_test_chain) => local_test_chain.into(),
+        }
+    }
+}
+
+impl ToString for AbacusDomain {
+    fn to_string(&self) -> String {
+        match self {
+            AbacusDomain::Mainnet(mainnet_domain) => mainnet_domain.to_string(),
+            AbacusDomain::Testnet(testnet_domain) => testnet_domain.to_string(),
+            AbacusDomain::LocalTestChain(local_test_chain) => local_test_chain.to_string(),
+        }
+    }
+}
+
+impl FromStr for AbacusDomain {
+    type Err = strum::ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(mainnet_domain) = AbacusMainnetDomain::from_str(s) {
+            Ok(Self::Mainnet(mainnet_domain))
+        } else if let Ok(testnet_domain) = AbacusTestnetDomain::from_str(s) {
+            Ok(Self::Testnet(testnet_domain))
+        } else if let Ok(local_test_chain) = AbacusLocalTestChainDomain::from_str(s) {
+            Ok(Self::LocalTestChain(local_test_chain))
+        } else {
+            Err(strum::ParseError::VariantNotFound)
+        }
+    }
+}
+
+/// Gets the name of the chain from a domain id.
+/// Returns None if the domain ID is not recognized.
+pub fn name_from_domain_id(domain_id: u32) -> Option<String> {
+    AbacusDomain::try_from(domain_id)
+        .ok()
+        .map(|domain| domain.to_string())
+}
+
+/// Gets the name of the chain from a domain id.
+/// Returns None if the domain ID is not recognized.
+pub fn domain_id_from_name(name: &'static str) -> Option<u32> {
+    AbacusDomain::from_str(name)
+        .ok()
+        .map(|domain| domain.into())
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use crate::chains::{AbacusMainnetDomain, AbacusTestnetDomain, AbacusLocalTestChainDomain, AbacusDomain, name_from_domain_id, domain_id_from_name};
+
+    #[test]
+    fn mainnet_domain_strings() {
+        assert_eq!(
+            AbacusMainnetDomain::from_str("ethereum").unwrap(),
+            AbacusMainnetDomain::Ethereum,
+        );
+        assert_eq!(
+            AbacusMainnetDomain::Ethereum.to_string(),
+            "ethereum".to_string(),
+        );
+
+        // One where serialization has changed
+        assert_eq!(
+            AbacusMainnetDomain::from_str("bsc").unwrap(),
+            AbacusMainnetDomain::BinanceSmartChain,
+        );
+        assert_eq!(
+            AbacusMainnetDomain::BinanceSmartChain.to_string(),
+            "bsc".to_string(),
+        );
+
+        // Invalid name
+        assert!(AbacusMainnetDomain::from_str("foo").is_err());
+    }
+
+    #[test]
+    fn testnet_domain_strings() {
+        assert_eq!(
+            AbacusTestnetDomain::from_str("arbitrumrinkeby").unwrap(),
+            AbacusTestnetDomain::ArbitrumRinkeby,
+        );
+        assert_eq!(
+            AbacusTestnetDomain::ArbitrumRinkeby.to_string(),
+            "arbitrumrinkeby".to_string(),
+        );
+
+        // One where serialization has changed
+        assert_eq!(
+            AbacusTestnetDomain::from_str("bsctestnet").unwrap(),
+            AbacusTestnetDomain::BinanceSmartChainTestnet,
+        );
+        assert_eq!(
+            AbacusTestnetDomain::BinanceSmartChainTestnet.to_string(),
+            "bsctestnet".to_string(),
+        );
+
+        // Invalid name
+        assert!(AbacusTestnetDomain::from_str("foo").is_err());
+    }
+
+    #[test]
+    fn local_test_chain_domain_strings() {
+        assert_eq!(
+            AbacusLocalTestChainDomain::from_str("test1").unwrap(),
+            AbacusLocalTestChainDomain::Test1,
+        );
+        assert_eq!(
+            AbacusLocalTestChainDomain::Test1.to_string(),
+            "test1".to_string(),
+        );
+
+        // Invalid name
+        assert!(AbacusLocalTestChainDomain::from_str("foo").is_err());
+    }
+
+    #[test]
+    fn domain_strings() {
+        assert_eq!(
+            AbacusDomain::from_str("ethereum").unwrap(),
+            AbacusDomain::Mainnet(AbacusMainnetDomain::Ethereum),
+        );
+        assert_eq!(
+            AbacusDomain::Mainnet(AbacusMainnetDomain::Ethereum).to_string(),
+            "ethereum".to_string(),
+        );
+    }
+
+    #[test]
+    fn domain_ids() {
+        assert_eq!(
+            AbacusDomain::try_from(0x657468u32).unwrap(),
+            AbacusDomain::Mainnet(AbacusMainnetDomain::Ethereum),
+        );
+
+        assert_eq!(
+            u32::from(AbacusDomain::Mainnet(AbacusMainnetDomain::Ethereum)),
+            0x657468u32,
+        );
+    }
+
+    #[test]
+    fn test_name_from_domain_id() {
+        assert_eq!(
+            name_from_domain_id(0x657468u32),
+            Some("ethereum".into()),
+        );
+
+        assert_eq!(
+            name_from_domain_id(0xf00u32),
+            None,
+        );
+    }
+
+    #[test]
+    fn test_domain_id_from_name() {
+        assert_eq!(
+            domain_id_from_name("ethereum"),
+            Some(0x657468u32),
+        );
+
+        assert_eq!(
+            domain_id_from_name("foo"),
+            None,
+        );
     }
 }
