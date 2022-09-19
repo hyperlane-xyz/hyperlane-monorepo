@@ -24,11 +24,8 @@ async function helmValuesForChain<Chain extends ChainName>(
   agentConfig: AgentConfig<Chain>,
 ) {
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
-
-  const gelatoSupportedOnOutboxChain = agentConfig.gelato
-    ?.useForDisabledOriginChains
-    ? true
-    : agentConfig.gelato?.enabledChains.includes(chainName) ?? false;
+  const gelatoApiKeyRequired =
+    await chainAgentConfig.ensureGelatoApiKeySecretExistsIfRequired();
 
   // By default, if a context only enables a subset of chains, the
   // connection url (or urls, when HttpQuorum is used) are not fetched
@@ -65,17 +62,15 @@ async function helmValuesForChain<Chain extends ChainName>(
         connection: baseConnectionConfig,
       },
       aws: !!agentConfig.aws,
+      gelatoApiKeyRequired,
       inboxChains: agentConfig.environmentChainNames
         .filter((name) => name !== chainName)
         .map((remoteChainName) => {
           return {
             name: remoteChainName,
             disabled: !agentConfig.contextChainNames.includes(remoteChainName),
-            gelato: {
-              enabled:
-                gelatoSupportedOnOutboxChain &&
-                (agentConfig.gelato?.enabledChains?.includes(remoteChainName) ??
-                  false),
+            txsubmission: {
+              type: chainAgentConfig.transactionSubmissionType(remoteChainName),
             },
             connection: baseConnectionConfig,
           };

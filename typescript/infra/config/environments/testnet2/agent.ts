@@ -26,7 +26,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-a067a62',
+    tag: 'sha-58984b5',
   },
   aws: {
     region: 'us-east-1',
@@ -62,6 +62,12 @@ export const abacus: AgentConfig<TestnetChains> = {
       optimismkovan: {
         reorgPeriod: 0,
       },
+      goerli: {
+        reorgPeriod: 7,
+      },
+      moonbasealpha: {
+        reorgPeriod: 0,
+      },
     },
   },
   relayer: {
@@ -83,7 +89,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   context: Contexts.Flowcarbon,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-a067a62',
+    tag: 'sha-58984b5',
   },
   aws: {
     region: 'us-east-1',
@@ -112,7 +118,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-ecabe2b',
+    tag: 'sha-58984b5',
   },
   aws: {
     region: 'us-east-1',
@@ -120,8 +126,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   gelato: {
-    enabledChains: ['alfajores', 'mumbai', 'kovan'],
-    useForDisabledOriginChains: true,
+    enabledChains: ['alfajores', 'mumbai'],
   },
   validatorSets: validators,
   connectionType: ConnectionType.HttpQuorum,

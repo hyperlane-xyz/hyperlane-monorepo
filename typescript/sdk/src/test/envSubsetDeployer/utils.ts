@@ -1,6 +1,6 @@
-import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
 import { Wallet } from 'ethers';
 
+import { StaticCeloJsonRpcProvider } from '@hyperlane-xyz/celo-ethers-provider';
 import { utils } from '@hyperlane-xyz/utils';
 
 export const ALFAJORES_FORNO = 'https://alfajores-forno.celo-testnet.org';

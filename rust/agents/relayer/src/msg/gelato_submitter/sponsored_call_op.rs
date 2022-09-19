@@ -2,18 +2,11 @@ use std::{ops::Deref, sync::Arc, time::Duration};
 
 use abacus_base::InboxContracts;
 use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
-use ethers::{
-    signers::Signer,
-    types::{H160, U256},
-};
 use eyre::Result;
 use gelato::{
-    chains::Chain,
-    fwd_req_call::{
-        ForwardRequestArgs, ForwardRequestCall, ForwardRequestCallResult, PaymentType,
-        NATIVE_FEE_TOKEN_ADDRESS,
-    },
-    task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs},
+    sponsored_call::{SponsoredCallApiCall, SponsoredCallApiCallResult, SponsoredCallArgs},
+    task_status::{TaskState, TaskStatusApiCall, TaskStatusApiCallArgs},
+    types::Chain,
 };
 use tokio::{
     sync::mpsc::UnboundedSender,
@@ -23,37 +16,21 @@ use tracing::instrument;
 
 use crate::msg::{gas_payment_enforcer::GasPaymentEnforcer, SubmitMessageArgs};
 
-/// The max fee to use for Gelato ForwardRequests.
-/// Gelato isn't charging fees on testnet. For now, use this hardcoded value
-/// of 1e18, or 1.0 ether.
-/// TODO: revisit before running on mainnet and when we consider interchain
-/// gas payments.
-const DEFAULT_MAX_FEE: u64 = 10u64.pow(18);
-
-/// The default gas limit to use for Gelato ForwardRequests, arbitrarily chose
-/// to be 5M.
-/// TODO: once Gelato fully deploys their new version, simply omit the gas
-/// limit so that Gelato does the estimation for us.
-const DEFAULT_GAS_LIMIT: u64 = 5000000;
-
-/// The period to sleep between ticks, in seconds.
-const TICK_SLEEP_PERIOD_SECS: u64 = 5;
+// The number of seconds after a tick to sleep before attempting the next tick.
+const TICK_SLEEP_DURATION_SECONDS: u64 = 30;
 
 /// The period to sleep after observing the message's gas payment
 /// as insufficient, in secs.
 const INSUFFICIENT_GAS_PAYMENT_SLEEP_PERIOD_SECS: u64 = 15;
 
 #[derive(Debug, Clone)]
-pub struct ForwardRequestOpArgs<S> {
-    pub opts: ForwardRequestOptions,
+pub struct SponsoredCallOpArgs {
+    pub opts: SponsoredCallOptions,
     pub http: reqwest::Client,
 
     pub message: SubmitMessageArgs,
     pub inbox_contracts: InboxContracts,
-    pub sponsor_signer: S,
-    pub sponsor_address: H160,
-    // Currently unused due to a bug in Gelato's testnet relayer that is currently being upgraded.
-    pub sponsor_chain: Chain,
+    pub sponsor_api_key: String,
     pub destination_chain: Chain,
 
     pub gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -63,22 +40,18 @@ pub struct ForwardRequestOpArgs<S> {
 }
 
 #[derive(Debug, Clone)]
-pub struct ForwardRequestOp<S>(ForwardRequestOpArgs<S>);
+pub struct SponsoredCallOp(SponsoredCallOpArgs);
 
-impl<S> Deref for ForwardRequestOp<S> {
-    type Target = ForwardRequestOpArgs<S>;
+impl Deref for SponsoredCallOp {
+    type Target = SponsoredCallOpArgs;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<S> ForwardRequestOp<S>
-where
-    S: Signer,
-    S::Error: 'static,
-{
-    pub fn new(args: ForwardRequestOpArgs<S>) -> Self {
+impl SponsoredCallOp {
+    pub fn new(args: SponsoredCallOpArgs) -> Self {
         Self(args)
     }
 
@@ -100,17 +73,19 @@ where
                 Err(err) => {
                     tracing::warn!(
                         err=?err,
-                        "Error occurred in fwd_req_op tick",
+                        "Error occurred in sponsored_call_op tick",
                     );
                 }
                 _ => {}
             }
 
             self.0.message.num_retries += 1;
-            sleep(Duration::from_secs(TICK_SLEEP_PERIOD_SECS)).await;
+            sleep(Duration::from_secs(TICK_SLEEP_DURATION_SECONDS)).await;
         }
     }
 
+    /// One tick will submit a sponsored call to Gelato and wait for a terminal state
+    /// or timeout.
     async fn tick(&self) -> Result<MessageStatus> {
         // Before doing anything, first check if the message has already been processed.
         if let Ok(MessageStatus::Processed) = self.message_status().await {
@@ -131,19 +106,18 @@ where
             return Ok(MessageStatus::None);
         }
 
-        // Send the forward request.
-        let fwd_req_result = self.send_forward_request_call().await?;
+        // Send the sponsored call.
+        let sponsored_call_result = self.send_sponsored_call_api_call().await?;
         tracing::info!(
             msg=?self.0.message,
-            gas_payment=?gas_payment,
-            task_id=fwd_req_result.task_id,
-            "Sent forward request",
+            task_id=sponsored_call_result.task_id,
+            "Sent sponsored call",
         );
 
         // Wait for a terminal state, timing out according to the retry_submit_interval.
         match timeout(
             self.0.opts.retry_submit_interval,
-            self.poll_for_terminal_state(fwd_req_result.task_id.clone()),
+            self.poll_for_terminal_state(sponsored_call_result.task_id.clone()),
         )
         .await
         {
@@ -154,7 +128,7 @@ where
             // If a timeout occurred, don't bubble up an error, instead just log
             // and set ourselves up for the next tick.
             Err(err) => {
-                tracing::debug!(err=?err, "Forward request timed out, reattempting");
+                tracing::info!(err=?err, "Sponsored call timed out, reattempting");
                 Ok(MessageStatus::None)
             }
         }
@@ -173,62 +147,56 @@ where
                 return Ok(MessageStatus::Processed);
             }
 
-            // Get the status of the ForwardRequest task from Gelato for debugging.
+            // Get the status of the SponsoredCall task from Gelato for debugging.
             // If the task was cancelled for some reason by Gelato, stop waiting.
 
-            let status_call = TaskStatusCall {
-                http: Arc::new(self.0.http.clone()),
-                args: TaskStatusCallArgs {
+            let task_status_api_call = TaskStatusApiCall {
+                http: self.0.http.clone(),
+                args: TaskStatusApiCallArgs {
                     task_id: task_id.clone(),
                 },
             };
-            let status_result = status_call.run().await?;
+            let task_status_result = task_status_api_call.run().await?;
+            let task_state = task_status_result.task_state();
 
-            if let [tx_status] = &status_result.data[..] {
-                tracing::info!(
-                    task_id=task_id,
-                    tx_status=?tx_status,
-                    "Polled forward request status",
-                );
+            tracing::info!(
+                task_id=task_id,
+                task_state=?task_state,
+                task_status_result=?task_status_result,
+                "Polled sponsored call status",
+            );
 
-                // The only terminal state status is if the task was cancelled, which happens after
-                // Gelato has known about the task for ~20 minutes and could not execute it.
-                if let TaskStatus::Cancelled = tx_status.task_state {
-                    return Ok(MessageStatus::None);
-                }
-            } else {
-                tracing::warn!(
-                    task_id=task_id,
-                    status_result_data=?status_result.data,
-                    "Unexpected forward request status data",
-                );
+            // The only terminal state status is if the task was cancelled, which happens after
+            // Gelato has reached the max # of retries for a task. Currently, the default is
+            // after about 30 seconds.
+            if let TaskState::Cancelled = task_state {
+                return Ok(MessageStatus::None);
             }
         }
     }
 
     // Once gas payments are enforced, we will likely fetch the gas payment from
-    // the DB here. This is why forward request args are created and signed for each
-    // forward request call.
-    async fn send_forward_request_call(&self) -> Result<ForwardRequestCallResult> {
-        let args = self.create_forward_request_args();
-        let signature = self.0.sponsor_signer.sign_typed_data(&args).await?;
+    // the DB here. This is why sponsored call args are created and signed for each
+    // sponsored call call.
+    async fn send_sponsored_call_api_call(&self) -> Result<SponsoredCallApiCallResult> {
+        let args = self.create_sponsored_call_args();
 
-        let fwd_req_call = ForwardRequestCall {
-            args,
+        let sponsored_call_api_call = SponsoredCallApiCall {
+            args: &args,
             http: self.0.http.clone(),
-            signature,
+            sponsor_api_key: &self.sponsor_api_key,
         };
 
-        Ok(fwd_req_call.run().await?)
+        Ok(sponsored_call_api_call.run().await?)
     }
 
-    fn create_forward_request_args(&self) -> ForwardRequestArgs {
+    fn create_sponsored_call_args(&self) -> SponsoredCallArgs {
         let calldata = self.0.inbox_contracts.validator_manager.process_calldata(
             &self.0.message.checkpoint,
             &self.0.message.committed_message.message,
             &self.0.message.proof,
         );
-        ForwardRequestArgs {
+        SponsoredCallArgs {
             chain_id: self.0.destination_chain,
             target: self
                 .inbox_contracts
@@ -236,19 +204,8 @@ where
                 .contract_address()
                 .into(),
             data: calldata.into(),
-            fee_token: NATIVE_FEE_TOKEN_ADDRESS,
-            payment_type: PaymentType::AsyncGasTank,
-            max_fee: DEFAULT_MAX_FEE.into(),
-            gas: DEFAULT_GAS_LIMIT.into(),
-            // At the moment, there's a bug with Gelato where environments that don't charge
-            // fees (i.e. testnet) require the sponsor chain ID to be the same as the chain
-            // in which the tx will be sent to.
-            // This will be fixed in an upcoming release they're doing.
-            sponsor_chain_id: self.0.destination_chain,
-            nonce: U256::zero(),
-            enforce_sponsor_nonce: false,
-            enforce_sponsor_nonce_ordering: false,
-            sponsor: self.0.sponsor_address,
+            gas_limit: None, // Gelato will handle gas estimation
+            retries: None,   // Use Gelato's default of 5 retries, each ~5 seconds apart
         }
     }
 
@@ -267,16 +224,16 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct ForwardRequestOptions {
+pub struct SponsoredCallOptions {
     pub poll_interval: Duration,
     pub retry_submit_interval: Duration,
 }
 
-impl Default for ForwardRequestOptions {
+impl Default for SponsoredCallOptions {
     fn default() -> Self {
         Self {
-            poll_interval: Duration::from_secs(60),
-            retry_submit_interval: Duration::from_secs(20 * 60),
+            poll_interval: Duration::from_secs(20),
+            retry_submit_interval: Duration::from_secs(60),
         }
     }
 }

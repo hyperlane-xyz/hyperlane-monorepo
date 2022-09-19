@@ -1,17 +1,20 @@
 use std::convert::TryFrom;
 use std::fmt::Debug;
 
+use async_trait::async_trait;
+use auto_impl::auto_impl;
+use ethers::core::types::H256;
+use eyre::Result;
+
 use crate::{
     traits::{ChainCommunicationError, TxOutcome},
     AbacusCommon, Checkpoint, CommittedMessage, Message, OutboxState, RawCommittedMessage,
 };
-use async_trait::async_trait;
-use ethers::core::types::H256;
-use eyre::Result;
 
 /// Interface for the Outbox chain contract. Allows abstraction over different
 /// chains
 #[async_trait]
+#[auto_impl(Box, Arc)]
 pub trait Outbox: AbacusCommon + Send + Sync + Debug {
     /// Fetch the current state.
     async fn state(&self) -> Result<OutboxState, ChainCommunicationError>;
@@ -40,6 +43,7 @@ pub trait Outbox: AbacusCommon + Send + Sync + Debug {
 
 /// Interface for retrieving event data emitted specifically by the outbox
 #[async_trait]
+#[auto_impl(Box, Arc)]
 pub trait OutboxEvents: Outbox + Send + Sync + Debug {
     /// Look up a message by its hash.
     /// This should fetch events from the chain API

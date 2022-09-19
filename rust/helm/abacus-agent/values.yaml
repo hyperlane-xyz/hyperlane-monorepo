@@ -56,6 +56,7 @@ abacus:
       type: # "http"
     # -- Connection string pointing to an RPC endpoint for the home chain
   aws: # true | false
+  gelatoApiKeyRequired: # true | false
 
   # -- Replica chain overrides, a sequence
   inboxChains:
