@@ -4,13 +4,13 @@ import {
   HelloWorldContracts,
   HelloWorldDeployer,
   helloWorldFactories,
-} from '@abacus-network/helloworld';
+} from '@hyperlane-xyz/helloworld';
 import {
-  AbacusCore,
   ChainMap,
+  HyperlaneCore,
   buildContracts,
   serializeContracts,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
@@ -28,13 +28,13 @@ async function main() {
   const environment = await getEnvironment();
   const context = await getContext();
   const coreConfig = getCoreEnvironmentConfig(environment);
-  // Always deploy from the abacus deployer
+  // Always deploy from the hyperlane deployer
   const multiProvider = await coreConfig.getMultiProvider(
     Contexts.Abacus,
     KEY_ROLE_ENUM.Deployer,
   );
   const configMap = await getConfiguration(environment, multiProvider);
-  const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
+  const core = HyperlaneCore.fromEnvironment(environment, multiProvider as any);
   const deployer = new HelloWorldDeployer(multiProvider, configMap, core);
   const dir = path.join(
     getEnvironmentDirectory(environment),

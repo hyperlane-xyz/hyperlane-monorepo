@@ -23,7 +23,7 @@
       "isProxy": true
     },
     {
-      "name": "AbacusConnectionManager",
+      "name": "connectionManager",
       "address": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
       "isProxy": false
     },
@@ -178,7 +178,7 @@
       "isProxy": true
     },
     {
-      "name": "AbacusConnectionManager",
+      "name": "connectionManager",
       "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
       "isProxy": false
     },
@@ -333,7 +333,7 @@
       "isProxy": true
     },
     {
-      "name": "AbacusConnectionManager",
+      "name": "connectionManager",
       "address": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "isProxy": false
     },
@@ -488,7 +488,7 @@
       "isProxy": true
     },
     {
-      "name": "AbacusConnectionManager",
+      "name": "connectionManager",
       "address": "0x1Ab68dC4f7b6cfcd00218D4b761b7F3b5a724555",
       "isProxy": false
     },
@@ -643,7 +643,7 @@
       "isProxy": true
     },
     {
-      "name": "AbacusConnectionManager",
+      "name": "connectionManager",
       "address": "0x19dc38aeae620380430C200a6E990D5Af5480117",
       "isProxy": false
     },
@@ -798,7 +798,7 @@
       "isProxy": true
     },
     {
-      "name": "AbacusConnectionManager",
+      "name": "connectionManager",
       "address": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "isProxy": false
     },
@@ -953,7 +953,7 @@
       "isProxy": true
     },
     {
-      "name": "AbacusConnectionManager",
+      "name": "connectionManager",
       "address": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
       "isProxy": false
     },

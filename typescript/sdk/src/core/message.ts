@@ -1,7 +1,7 @@
 import { BigNumber, utils as ethersUtils, providers } from 'ethers';
 
-import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
-import { types, utils } from '@abacus-network/utils';
+import { Inbox, Outbox, Outbox__factory } from '@hyperlane-xyz/core';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { ChainNameToDomainId, DomainIdToChainName } from '../domains';
 import { Annotated, findAnnotatedSingleEvent } from '../events';
@@ -9,7 +9,7 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName, NameOrDomain } from '../types';
 import { delay } from '../utils/time';
 
-import { AbacusCore } from './AbacusCore';
+import { HyperlaneCore } from './HyperlaneCore';
 import {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
@@ -37,7 +37,7 @@ export const resolveNetworks = (
   };
 };
 
-export type AbacusStatus = {
+export type HyperlaneStatus = {
   status: MessageStatus;
   events: AnnotatedLifecycleEvent[];
 };
@@ -59,24 +59,24 @@ export type EventCache = {
   process?: AnnotatedProcess;
 };
 
-// TODO: move AbacusMessage into AbacusCore app
+// TODO: move HyperlaneMessage into HyperlaneCore app
 
 /**
- * A deserialized Abacus message.
+ * A deserialized Hyperlane message.
  */
-export class AbacusMessage {
+export class HyperlaneMessage {
   readonly dispatch: AnnotatedDispatch;
   readonly message: types.ParsedMessage;
   readonly outbox: Outbox;
   readonly inbox: Inbox;
 
   readonly multiProvider: MultiProvider;
-  readonly core: AbacusCore;
+  readonly core: HyperlaneCore;
   protected cache: EventCache;
 
   constructor(
     multiProvider: MultiProvider,
-    core: AbacusCore,
+    core: HyperlaneCore,
     dispatch: AnnotatedDispatch,
   ) {
     this.multiProvider = multiProvider;
@@ -105,18 +105,18 @@ export class AbacusMessage {
   /**
    * Instantiate one or more messages from a receipt.
    *
-   * @param core the {@link AbacusCore} object to use
+   * @param core the {@link HyperlaneCore} object to use
    * @param nameOrDomain the domain on which the receipt was logged
    * @param receipt the receipt
-   * @returns an array of {@link AbacusMessage} objects
+   * @returns an array of {@link HyperlaneMessage} objects
    */
   static fromReceipt(
     multiProvider: MultiProvider,
-    core: AbacusCore,
+    core: HyperlaneCore,
     nameOrDomain: NameOrDomain,
     receipt: providers.TransactionReceipt,
-  ): AbacusMessage[] {
-    const messages: AbacusMessage[] = [];
+  ): HyperlaneMessage[] {
+    const messages: HyperlaneMessage[] = [];
     const outbox = new Outbox__factory().interface;
     const chain = resolveDomain(nameOrDomain);
     const provider = multiProvider.getChainConnection(chain).provider!;
@@ -140,7 +140,7 @@ export class AbacusMessage {
             true,
           );
           annotated.event.blockNumber = annotated.receipt.blockNumber;
-          const message = new AbacusMessage(multiProvider, core, annotated);
+          const message = new HyperlaneMessage(multiProvider, core, annotated);
           messages.push(message);
         }
       } catch (e) {
@@ -153,19 +153,19 @@ export class AbacusMessage {
   /**
    * Instantiate EXACTLY one message from a receipt.
    *
-   * @param core the {@link AbacusCore} object to use
+   * @param core the {@link HyperlaneCore} object to use
    * @param nameOrDomain the domain on which the receipt was logged
    * @param receipt the receipt
-   * @returns an array of {@link AbacusMessage} objects
+   * @returns an array of {@link HyperlaneMessage} objects
    * @throws if there is not EXACTLY 1 dispatch in the receipt
    */
   static singleFromReceipt(
     multiProvider: MultiProvider,
-    core: AbacusCore,
+    core: HyperlaneCore,
     nameOrDomain: NameOrDomain,
     receipt: providers.TransactionReceipt,
-  ): AbacusMessage {
-    const messages: AbacusMessage[] = AbacusMessage.fromReceipt(
+  ): HyperlaneMessage {
+    const messages: HyperlaneMessage[] = HyperlaneMessage.fromReceipt(
       multiProvider,
       core,
       nameOrDomain,
@@ -180,18 +180,18 @@ export class AbacusMessage {
   /**
    * Instantiate one or more messages from a tx hash.
    *
-   * @param core the {@link AbacusCore} object to use
+   * @param core the {@link HyperlaneCore} object to use
    * @param nameOrDomain the domain on which the receipt was logged
    * @param receipt the receipt
-   * @returns an array of {@link AbacusMessage} objects
+   * @returns an array of {@link HyperlaneMessage} objects
    * @throws if there is no receipt for the TX
    */
   static async fromTransactionHash(
     multiProvider: MultiProvider,
-    core: AbacusCore,
+    core: HyperlaneCore,
     nameOrDomain: NameOrDomain,
     transactionHash: string,
-  ): Promise<AbacusMessage[]> {
+  ): Promise<HyperlaneMessage[]> {
     const provider = multiProvider.getChainConnection(
       resolveDomain(nameOrDomain),
     ).provider!;
@@ -199,7 +199,7 @@ export class AbacusMessage {
     if (!receipt) {
       throw new Error(`No receipt for ${transactionHash} on ${nameOrDomain}`);
     }
-    return AbacusMessage.fromReceipt(
+    return HyperlaneMessage.fromReceipt(
       multiProvider,
       core,
       nameOrDomain,
@@ -210,19 +210,19 @@ export class AbacusMessage {
   /**
    * Instantiate EXACTLY one message from a transaction has.
    *
-   * @param core the {@link AbacusCore} object to use
+   * @param core the {@link HyperlaneCore} object to use
    * @param nameOrDomain the domain on which the receipt was logged
    * @param receipt the receipt
-   * @returns an array of {@link AbacusMessage} objects
+   * @returns an array of {@link HyperlaneMessage} objects
    * @throws if there is no receipt for the TX, or if not EXACTLY 1 dispatch in
    *         the receipt
    */
   static async singleFromTransactionHash(
     multiProvider: MultiProvider,
-    core: AbacusCore,
+    core: HyperlaneCore,
     nameOrDomain: NameOrDomain,
     transactionHash: string,
-  ): Promise<AbacusMessage> {
+  ): Promise<HyperlaneMessage> {
     const provider = multiProvider.getChainConnection(
       resolveDomain(nameOrDomain),
     ).provider!;
@@ -230,7 +230,7 @@ export class AbacusMessage {
     if (!receipt) {
       throw new Error(`No receipt for ${transactionHash} on ${nameOrDomain}`);
     }
-    return AbacusMessage.singleFromReceipt(
+    return HyperlaneMessage.singleFromReceipt(
       multiProvider,
       core,
       nameOrDomain,
@@ -272,7 +272,7 @@ export class AbacusMessage {
    *
    * @returns An array of {@link AnnotatedLifecycleEvent} objects
    */
-  async events(): Promise<AbacusStatus> {
+  async events(): Promise<HyperlaneStatus> {
     const events: AnnotatedLifecycleEvent[] = [this.dispatch];
     // attempt to get Inbox process
     const process = await this.getProcess();

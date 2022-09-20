@@ -1,4 +1,4 @@
-## Abacus Rust implementations
+## Hyperlane Rust implementations
 
 ### Setup
 
@@ -43,11 +43,11 @@ info: The currently active `rustc` version is `rustc 1.63.0 (4b91a6ea7 2022-08-0
 
 ### Architecture
 
-The on-chain portions of Abacus are written in Solidity. The rust portions are
+The on-chain portions of Hyperlane are written in Solidity. The rust portions are
 exclusively off-chain. Later, there may be on-chain rust for Near/Solana/
 Polkadot.
 
-Abacus will be managed by a number of small off-chain programs ("agents"). Each
+Hyperlane will be managed by a number of small off-chain programs ("agents"). Each
 of these will have a specific role. We want these roles to be simple, and
 easily described. Each of these agents will connect to a home chain and any
 number of replicas. They need to be configured with chain connection details
@@ -84,7 +84,7 @@ We use the tokio async runtime environment. Please see the docs
 
 ### Running Locally
 
-From within the `abacus-monorepo/rust` directory, run
+From within the `hyperlane-monorepo/rust` directory, run
 
 ```bash
 cargo run -r -p run-locally

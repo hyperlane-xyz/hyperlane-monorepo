@@ -1,36 +1,36 @@
 import { ethers } from 'ethers';
 
-import type { types } from '@abacus-network/utils';
+import type { types } from '@hyperlane-xyz/utils';
 
 import { ProxiedContract, ProxyAddresses, isProxyAddresses } from './proxy';
 import { Connection } from './types';
 import { objMap } from './utils/objects';
 
-export type AbacusFactories = {
+export type HyperlaneFactories = {
   [key: string]: ethers.ContractFactory;
 };
 
-export type AbacusContracts = {
+export type HyperlaneContracts = {
   [key: Exclude<string, 'address'>]:
     | ethers.Contract
     | ProxiedContract<any, any>
-    | AbacusContracts;
+    | HyperlaneContracts;
 };
 
-export type AbacusAddresses = {
-  [key: string]: types.Address | ProxyAddresses<any> | AbacusAddresses;
+export type HyperlaneAddresses = {
+  [key: string]: types.Address | ProxyAddresses<any> | HyperlaneAddresses;
 };
 
 export function serializeContracts(
-  contractOrObject: AbacusContracts,
+  contractOrObject: HyperlaneContracts,
   max_depth = 5,
-): AbacusAddresses {
+): HyperlaneAddresses {
   if (max_depth === 0) {
     throw new Error('serializeContracts tried to go too deep');
   }
   return objMap(
     contractOrObject,
-    (_, contract: any): string | ProxyAddresses<any> | AbacusAddresses => {
+    (_, contract: any): string | ProxyAddresses<any> | HyperlaneAddresses => {
       if (contract instanceof ProxiedContract) {
         return contract.addresses;
       } else if (contract.address) {
@@ -44,7 +44,7 @@ export function serializeContracts(
 
 function getFactory(
   key: string,
-  factories: AbacusFactories,
+  factories: HyperlaneFactories,
 ): ethers.ContractFactory {
   if (!(key in factories)) {
     throw new Error(`Factories entry missing for ${key}`);
@@ -53,10 +53,10 @@ function getFactory(
 }
 
 export function buildContracts(
-  addressOrObject: AbacusAddresses,
-  factories: AbacusFactories,
+  addressOrObject: HyperlaneAddresses,
+  factories: HyperlaneFactories,
   max_depth = 5,
-): AbacusContracts {
+): HyperlaneContracts {
   if (max_depth === 0) {
     throw new Error('buildContracts tried to go too deep');
   }
@@ -68,7 +68,7 @@ export function buildContracts(
       return getFactory(key, factories).attach(address);
     } else {
       return buildContracts(
-        address as AbacusAddresses,
+        address as HyperlaneAddresses,
         factories,
         max_depth - 1,
       );
@@ -76,7 +76,7 @@ export function buildContracts(
   });
 }
 
-export function connectContracts<Contracts extends AbacusContracts>(
+export function connectContracts<Contracts extends HyperlaneContracts>(
   contractOrObject: Contracts,
   connection: Connection,
   max_depth = 5,

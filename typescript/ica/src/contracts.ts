@@ -1,4 +1,4 @@
-import { RouterContracts, RouterFactories } from '@abacus-network/sdk';
+import { RouterContracts, RouterFactories } from '@hyperlane-xyz/sdk';
 
 import {
   InterchainAccountRouter,

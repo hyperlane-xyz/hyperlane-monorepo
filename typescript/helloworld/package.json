@@ -1,10 +1,10 @@
 {
-  "name": "@abacus-network/helloworld",
-  "description": "A basic skeleton of an Abacus app",
-  "version": "0.5.0",
+  "name": "@hyperlane-xyz/helloworld",
+  "description": "A basic skeleton of an Hyperlane app",
+  "version": "0.5.0-beta0",
   "dependencies": {
-    "@abacus-network/sdk": "^0.4.1",
-    "@abacus-network/utils": "^0.4.1",
+    "@hyperlane-xyz/sdk": "^0.5.0-beta0",
+    "@hyperlane-xyz/utils": "^0.5.0-beta0",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "ethers": "^5.6.8"
   },
@@ -36,9 +36,9 @@
     "/dist",
     "/contracts"
   ],
-  "homepage": "https://www.useabacus.network",
+  "homepage": "https://www.hyperlane.xyz",
   "keywords": [
-    "Abacus",
+    "Hyperlane",
     "HelloWorld",
     "Solidity",
     "Typescript"
@@ -48,7 +48,7 @@
   "packageManager": "yarn@3.2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/abacus-network/abacus-app-template"
+    "url": "https://github.com/hyperlane-xyz/hyperlane-app-template"
   },
   "scripts": {
     "build": "hardhat compile && tsc",

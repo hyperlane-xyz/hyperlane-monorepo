@@ -2,9 +2,9 @@ import {
   buildContracts,
   coreFactories,
   serializeContracts,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
-import { AbacusCoreInfraDeployer } from '../src/core/deploy';
+import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
 import { readJSON, writeJSON } from '../src/utils/utils';
 
 import {
@@ -19,7 +19,7 @@ async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment) as any;
   const multiProvider = await config.getMultiProvider();
-  const deployer = new AbacusCoreInfraDeployer(multiProvider, config.core);
+  const deployer = new HyperlaneCoreInfraDeployer(multiProvider, config.core);
 
   let previousContracts = {};
   previousAddressParsing: try {

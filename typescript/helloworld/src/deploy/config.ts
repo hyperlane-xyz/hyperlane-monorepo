@@ -1,4 +1,4 @@
-import { RouterConfig, chainConnectionConfigs } from '@abacus-network/sdk';
+import { RouterConfig, chainConnectionConfigs } from '@hyperlane-xyz/sdk';
 
 export type HelloWorldConfig = RouterConfig;
 

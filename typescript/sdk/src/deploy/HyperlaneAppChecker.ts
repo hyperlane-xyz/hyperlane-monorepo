@@ -1,8 +1,8 @@
-import { Ownable } from '@abacus-network/core';
-import { utils } from '@abacus-network/utils';
-import type { types } from '@abacus-network/utils';
+import { Ownable } from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
+import type { types } from '@hyperlane-xyz/utils';
 
-import { AbacusApp } from '../AbacusApp';
+import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
 import { BeaconProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
@@ -10,9 +10,9 @@ import { ChainMap, ChainName } from '../types';
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
 import { CheckerViolation, OwnerViolation, ViolationType } from './types';
 
-export abstract class AbacusAppChecker<
+export abstract class HyperlaneAppChecker<
   Chain extends ChainName,
-  App extends AbacusApp<any, Chain>,
+  App extends HyperlaneApp<any, Chain>,
   Config,
 > {
   readonly multiProvider: MultiProvider<Chain>;

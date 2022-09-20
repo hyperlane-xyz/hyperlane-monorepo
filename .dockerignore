@@ -1,7 +1,7 @@
 node_modules
 test_deploy.env
 
-typescript/abacus-deploy/.env
+typescript/hyperlane-deploy/.env
 **/.env
 **/tsconfig.tsbuildinfo
 **/tmp.*

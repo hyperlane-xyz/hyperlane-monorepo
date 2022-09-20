@@ -5,7 +5,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 
-import { ChainName } from '@abacus-network/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
 import { AgentConfig } from '../../config';
