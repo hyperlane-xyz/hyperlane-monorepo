@@ -3,7 +3,7 @@ use std::sync::Arc;
 use abacus_base::chains::GelatoConf;
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::db::AbacusDB;
-use abacus_core::AbacusCommon;
+use abacus_core::{AbacusCommon, AbacusDomain};
 use eyre::{bail, Result};
 use gelato::types::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
@@ -16,7 +16,7 @@ use crate::msg::gelato_submitter::sponsored_call_op::{
     SponsoredCallOp, SponsoredCallOpArgs, SponsoredCallOptions,
 };
 
-use super::gas_payment_enforcer::GasPaymentEnforcer;
+use super::gas_payment::GasPaymentEnforcer;
 use super::SubmitMessageArgs;
 
 mod sponsored_call_op;
@@ -58,8 +58,10 @@ impl GelatoSubmitter {
             mpsc::unbounded_channel::<SubmitMessageArgs>();
         Self {
             message_receiver,
-            inbox_gelato_chain: abacus_domain_to_gelato_chain(inbox_contracts.inbox.local_domain())
-                .unwrap(),
+            inbox_gelato_chain: abacus_domain_id_to_gelato_chain(
+                inbox_contracts.inbox.local_domain(),
+            )
+            .unwrap(),
             inbox_contracts,
             db: abacus_db,
             gelato_config,
@@ -194,33 +196,51 @@ impl GelatoSubmitterMetrics {
     }
 }
 
-fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
-    Ok(match domain {
-        6648936 => Chain::Ethereum,
-        1634872690 => Chain::Rinkeby,
-        3000 => Chain::Kovan,
-        5 => Chain::Goerli,
+// While this may be more ergonomic as an Into / From impl,
+// it feels a bit awkward to have abacus-base (where AbacusDomain)
+// is implemented to be aware of the gelato crate or vice versa.
+pub fn abacus_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
+    let abacus_domain = AbacusDomain::try_from(domain)?;
 
-        1886350457 => Chain::Polygon,
-        80001 => Chain::Mumbai,
+    Ok(match abacus_domain {
+        AbacusDomain::Ethereum => Chain::Ethereum,
+        AbacusDomain::Kovan => Chain::Kovan,
+        AbacusDomain::Goerli => Chain::Goerli,
 
-        1635148152 => Chain::Avalanche,
-        43113 => Chain::Fuji,
+        AbacusDomain::Polygon => Chain::Polygon,
+        AbacusDomain::Mumbai => Chain::Mumbai,
 
-        6386274 => Chain::Arbitrum,
-        421611 => Chain::ArbitrumRinkeby,
+        AbacusDomain::Avalanche => Chain::Avalanche,
+        AbacusDomain::Fuji => Chain::Fuji,
 
-        28528 => Chain::Optimism,
-        1869622635 => Chain::OptimismKovan,
+        AbacusDomain::Arbitrum => Chain::Arbitrum,
+        AbacusDomain::ArbitrumRinkeby => Chain::ArbitrumRinkeby,
 
-        6452067 => Chain::BinanceSmartChain,
-        1651715444 => Chain::BinanceSmartChainTestnet,
+        AbacusDomain::Optimism => Chain::Optimism,
+        AbacusDomain::OptimismKovan => Chain::OptimismKovan,
 
-        1667591279 => Chain::Celo,
-        1000 => Chain::Alfajores,
+        AbacusDomain::BinanceSmartChain => Chain::BinanceSmartChain,
+        AbacusDomain::BinanceSmartChainTestnet => Chain::BinanceSmartChainTestnet,
 
-        1836002657 => Chain::MoonbaseAlpha,
+        AbacusDomain::Celo => Chain::Celo,
+        AbacusDomain::Alfajores => Chain::Alfajores,
 
-        _ => bail!("Unknown domain {}", domain),
+        AbacusDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
+
+        _ => bail!("No Gelato Chain for domain {abacus_domain}"),
     })
+}
+
+#[test]
+fn test_abacus_domain_id_to_gelato_chain() {
+    use abacus_core::AbacusDomainType;
+    use strum::IntoEnumIterator;
+
+    // Iterate through all AbacusDomains, ensuring all mainnet and testnet domains
+    // are included in abacus_domain_id_to_gelato_chain.
+    for abacus_domain in AbacusDomain::iter() {
+        if let AbacusDomainType::Mainnet | AbacusDomainType::Testnet = abacus_domain.domain_type() {
+            assert!(abacus_domain_id_to_gelato_chain(u32::from(abacus_domain)).is_ok());
+        }
+    }
 }

@@ -1,8 +1,10 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use abacus_base::chains::TransactionSubmissionType;
 use async_trait::async_trait;
 use eyre::Result;
+use tokio::time::MissedTickBehavior;
 use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
@@ -12,7 +14,7 @@ use abacus_base::{
 };
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers};
 
-use crate::msg::gas_payment_enforcer::GasPaymentEnforcer;
+use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
@@ -120,6 +122,8 @@ impl BaseAgent for Relayer {
             info!("Interchain Gas Paymaster not provided, not running sync");
         }
 
+        tasks.push(self.run_outbox_metrics_loop());
+
         run_all(tasks)
     }
 }
@@ -154,6 +158,30 @@ impl Relayer {
             self.core.metrics.last_known_message_leaf_index(),
         );
         checkpoint_fetcher.spawn()
+    }
+
+    fn run_outbox_metrics_loop(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let outbox = self.outbox().outbox().clone();
+        let outbox_name = outbox.chain_name();
+        let outbox_state_gauge = self
+            .core
+            .metrics
+            .outbox_state()
+            .with_label_values(&[outbox_name]);
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(60 * 10));
+            interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+            loop {
+                let state = outbox.state().await;
+                match &state {
+                    Ok(state) => outbox_state_gauge.set(*state as u8 as i64),
+                    Err(e) => tracing::warn!(error = %e, "Failed to get outbox state"),
+                };
+
+                interval.tick().await;
+            }
+        })
+        .instrument(info_span!("outbox_metrics_loop"))
     }
 
     /// Helper to construct a new GelatoSubmitter instance for submission to a
@@ -231,7 +259,6 @@ impl Relayer {
         };
 
         let message_processor = MessageProcessor::new(
-            outbox.clone(),
             self.outbox().db().clone(),
             inbox_contracts,
             self.whitelist.clone(),
