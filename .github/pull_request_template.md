@@ -14,3 +14,7 @@ _Are there any minor or drive-by changes also included?_
 
 _Are these changes backward compatible?_
 _Are there any infrastructure implications, e.g. changes that would prohibit deploying older commits using this infra tooling?_
+
+### Testing
+
+_What kind of testing has these changes undergone?_
