@@ -3524,6 +3524,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "strum",
  "thiserror",
  "tokio",
  "tokio-test",

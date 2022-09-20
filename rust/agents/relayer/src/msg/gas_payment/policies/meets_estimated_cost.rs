@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use abacus_core::{AbacusMainnetDomain, CommittedMessage, TxCostEstimate};
+use abacus_core::{AbacusDomain, CommittedMessage, TxCostEstimate};
 use async_trait::async_trait;
 use coingecko::CoinGeckoClient;
 use ethers::types::U256;
@@ -34,19 +34,20 @@ impl<T> From<T> for CachedValue<T> {
 /// Given a domain, gets the CoinGecko ID for the native token.
 /// If the domain isn't a mainnet (and therefore doesn't have a native
 /// token with a CoinGecko ID), an Err is returned.
-fn abacus_domain_to_native_token_coingecko_id(domain: u32) -> Result<&'static str> {
-    let mainnet_domain = AbacusMainnetDomain::try_from(domain)?;
+fn abacus_domain_id_to_native_token_coingecko_id(domain_id: u32) -> Result<&'static str> {
+    let abacus_domain = AbacusDomain::try_from(domain_id)?;
 
-    Ok(match mainnet_domain {
-        AbacusMainnetDomain::Ethereum => "ethereum",
-        AbacusMainnetDomain::Polygon => "matic-network",
-        AbacusMainnetDomain::Avalanche => "avalanche-2",
+    Ok(match abacus_domain {
+        AbacusDomain::Ethereum => "ethereum",
+        AbacusDomain::Polygon => "matic-network",
+        AbacusDomain::Avalanche => "avalanche-2",
         // Arbitrum's native token is Ethereum
-        AbacusMainnetDomain::Arbitrum => "ethereum",
+        AbacusDomain::Arbitrum => "ethereum",
         // Optimism's native token is Ethereum
-        AbacusMainnetDomain::Optimism => "ethereum",
-        AbacusMainnetDomain::BinanceSmartChain => "binancecoin",
-        AbacusMainnetDomain::Celo => "celo",
+        AbacusDomain::Optimism => "ethereum",
+        AbacusDomain::BinanceSmartChain => "binancecoin",
+        AbacusDomain::Celo => "celo",
+        _ => eyre::bail!("No CoinGecko ID for domain {abacus_domain}"),
     })
 }
 
@@ -139,7 +140,7 @@ impl GasPaymentPolicyMeetsEstimatedCost {
     }
 
     async fn get_native_token_usd_price(&self, domain: u32) -> Result<f64> {
-        let coingecko_id = abacus_domain_to_native_token_coingecko_id(domain)?;
+        let coingecko_id = abacus_domain_id_to_native_token_coingecko_id(domain)?;
         self.coingecko_price_getter
             .get_usd_price(coingecko_id)
             .await
@@ -227,8 +228,8 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
 
     let celo_price = 5.5f64;
     let polygon_price = 11.0f64;
-    let celo_domain_id = u32::from(AbacusMainnetDomain::Celo);
-    let polygon_domain_id = u32::from(AbacusMainnetDomain::Polygon);
+    let celo_domain_id = u32::from(AbacusDomain::Celo);
+    let polygon_domain_id = u32::from(AbacusDomain::Polygon);
 
     // Take advantage of the coingecko_price_getter caching already-stored values
     // by just writing to them directly.
@@ -241,9 +242,10 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
             .cached_usd_prices
             .write()
             .await;
-        let celo_coingecko_id = abacus_domain_to_native_token_coingecko_id(celo_domain_id).unwrap();
+        let celo_coingecko_id =
+            abacus_domain_id_to_native_token_coingecko_id(celo_domain_id).unwrap();
         let polygon_coingecko_id =
-            abacus_domain_to_native_token_coingecko_id(polygon_domain_id).unwrap();
+            abacus_domain_id_to_native_token_coingecko_id(polygon_domain_id).unwrap();
 
         usd_prices.insert(celo_coingecko_id, celo_price.into());
         usd_prices.insert(polygon_coingecko_id, polygon_price.into());
@@ -361,4 +363,20 @@ fn test_convert_tokens() {
         ),
         None,
     )
+}
+
+#[test]
+fn test_abacus_domain_id_to_native_token_coingecko_id() {
+    use abacus_core::AbacusDomainType;
+    use strum::IntoEnumIterator;
+
+    // Iterate through all AbacusDomains, ensuring all mainnet domains
+    // are included in abacus_domain_id_to_native_token_coingecko_id.
+    for abacus_domain in AbacusDomain::iter() {
+        if let AbacusDomainType::Mainnet = abacus_domain.domain_type() {
+            assert!(
+                abacus_domain_id_to_native_token_coingecko_id(u32::from(abacus_domain)).is_ok()
+            );
+        }
+    }
 }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use abacus_base::chains::GelatoConf;
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusCommon, AbacusDomain, AbacusMainnetDomain, AbacusTestnetDomain};
+use abacus_core::{AbacusCommon, AbacusDomain};
 use eyre::{bail, Result};
 use gelato::types::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
@@ -58,8 +58,10 @@ impl GelatoSubmitter {
             mpsc::unbounded_channel::<SubmitMessageArgs>();
         Self {
             message_receiver,
-            inbox_gelato_chain: abacus_domain_to_gelato_chain(inbox_contracts.inbox.local_domain())
-                .unwrap(),
+            inbox_gelato_chain: abacus_domain_id_to_gelato_chain(
+                inbox_contracts.inbox.local_domain(),
+            )
+            .unwrap(),
             inbox_contracts,
             db: abacus_db,
             gelato_config,
@@ -197,36 +199,48 @@ impl GelatoSubmitterMetrics {
 // While this may be more ergonomic as an Into / From impl,
 // it feels a bit awkward to have abacus-base (where AbacusDomain)
 // is implemented to be aware of the gelato crate or vice versa.
-pub fn abacus_domain_to_gelato_chain(domain: u32) -> Result<Chain> {
+pub fn abacus_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
     let abacus_domain = AbacusDomain::try_from(domain)?;
 
     Ok(match abacus_domain {
-        AbacusDomain::Mainnet(AbacusMainnetDomain::Ethereum) => Chain::Ethereum,
-        AbacusDomain::Testnet(AbacusTestnetDomain::Kovan) => Chain::Kovan,
-        AbacusDomain::Testnet(AbacusTestnetDomain::Goerli) => Chain::Goerli,
+        AbacusDomain::Ethereum => Chain::Ethereum,
+        AbacusDomain::Kovan => Chain::Kovan,
+        AbacusDomain::Goerli => Chain::Goerli,
 
-        AbacusDomain::Mainnet(AbacusMainnetDomain::Polygon) => Chain::Polygon,
-        AbacusDomain::Testnet(AbacusTestnetDomain::Mumbai) => Chain::Mumbai,
+        AbacusDomain::Polygon => Chain::Polygon,
+        AbacusDomain::Mumbai => Chain::Mumbai,
 
-        AbacusDomain::Mainnet(AbacusMainnetDomain::Avalanche) => Chain::Avalanche,
-        AbacusDomain::Testnet(AbacusTestnetDomain::Fuji) => Chain::Fuji,
+        AbacusDomain::Avalanche => Chain::Avalanche,
+        AbacusDomain::Fuji => Chain::Fuji,
 
-        AbacusDomain::Mainnet(AbacusMainnetDomain::Arbitrum) => Chain::Arbitrum,
-        AbacusDomain::Testnet(AbacusTestnetDomain::ArbitrumRinkeby) => Chain::ArbitrumRinkeby,
+        AbacusDomain::Arbitrum => Chain::Arbitrum,
+        AbacusDomain::ArbitrumRinkeby => Chain::ArbitrumRinkeby,
 
-        AbacusDomain::Mainnet(AbacusMainnetDomain::Optimism) => Chain::Optimism,
-        AbacusDomain::Testnet(AbacusTestnetDomain::OptimismKovan) => Chain::OptimismKovan,
+        AbacusDomain::Optimism => Chain::Optimism,
+        AbacusDomain::OptimismKovan => Chain::OptimismKovan,
 
-        AbacusDomain::Mainnet(AbacusMainnetDomain::BinanceSmartChain) => Chain::BinanceSmartChain,
-        AbacusDomain::Testnet(AbacusTestnetDomain::BinanceSmartChainTestnet) => {
-            Chain::BinanceSmartChainTestnet
-        }
+        AbacusDomain::BinanceSmartChain => Chain::BinanceSmartChain,
+        AbacusDomain::BinanceSmartChainTestnet => Chain::BinanceSmartChainTestnet,
 
-        AbacusDomain::Mainnet(AbacusMainnetDomain::Celo) => Chain::Celo,
-        AbacusDomain::Testnet(AbacusTestnetDomain::Alfajores) => Chain::Alfajores,
+        AbacusDomain::Celo => Chain::Celo,
+        AbacusDomain::Alfajores => Chain::Alfajores,
 
-        AbacusDomain::Testnet(AbacusTestnetDomain::MoonbaseAlpha) => Chain::MoonbaseAlpha,
+        AbacusDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
 
-        AbacusDomain::LocalTestChain(_) => bail!("Local test chains cannot be used with Gelato"),
+        _ => bail!("No Gelato Chain for domain {abacus_domain}"),
     })
+}
+
+#[test]
+fn test_abacus_domain_id_to_gelato_chain() {
+    use abacus_core::AbacusDomainType;
+    use strum::IntoEnumIterator;
+
+    // Iterate through all AbacusDomains, ensuring all mainnet and testnet domains
+    // are included in abacus_domain_id_to_gelato_chain.
+    for abacus_domain in AbacusDomain::iter() {
+        if let AbacusDomainType::Mainnet | AbacusDomainType::Testnet = abacus_domain.domain_type() {
+            assert!(abacus_domain_id_to_gelato_chain(u32::from(abacus_domain)).is_ok());
+        }
+    }
 }

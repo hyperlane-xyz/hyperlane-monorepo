@@ -6,7 +6,7 @@ use eyre::Result;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
-use strum::EnumString;
+use strum::{EnumIter, EnumString};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Address(pub bytes::Bytes);
@@ -54,99 +54,53 @@ impl From<&'_ Address> for ethers::types::H160 {
     }
 }
 
-/// All mainnet domains supported by Abacus.
-#[derive(FromPrimitive, EnumString, strum::Display, PartialEq, Eq, Debug)]
+/// All domains supported by Abacus.
+#[derive(FromPrimitive, EnumString, strum::Display, EnumIter, PartialEq, Eq, Debug)]
 #[strum(serialize_all = "lowercase")]
-pub enum AbacusMainnetDomain {
-    /// Ethereum domain ID, decimal ID 6648936
+pub enum AbacusDomain {
+    /// Ethereum mainnet domain ID, decimal ID 6648936
     Ethereum = 0x657468,
-
-    /// Polygon domain ID, decimal ID 1886350457
-    Polygon = 0x706f6c79,
-
-    /// Avalanche domain ID, decimal ID 1635148152
-    Avalanche = 0x61766178,
-
-    /// Arbitrum domain ID, decimal ID 6386274
-    Arbitrum = 0x617262,
-
-    /// Optimism domain ID, decimal ID 28528
-    Optimism = 0x6f70,
-
-    /// BinanceSmartChain domain ID, decimal ID 6452067
-    #[strum(serialize = "bsc")]
-    BinanceSmartChain = 0x627363,
-
-    /// Celo domain ID, decimal ID 1667591279
-    Celo = 0x63656c6f,
-}
-
-impl From<AbacusMainnetDomain> for u32 {
-    fn from(domain: AbacusMainnetDomain) -> Self {
-        domain as u32
-    }
-}
-
-impl TryFrom<u32> for AbacusMainnetDomain {
-    type Error = eyre::Error;
-
-    fn try_from(domain_id: u32) -> Result<Self, Self::Error> {
-        FromPrimitive::from_u32(domain_id)
-            .ok_or_else(|| eyre::eyre!("Unknown mainnet domain ID {}", domain_id))
-    }
-}
-
-/// All testnet domains supported by Abacus.
-#[derive(FromPrimitive, EnumString, strum::Display, PartialEq, Eq, Debug)]
-#[strum(serialize_all = "lowercase")]
-pub enum AbacusTestnetDomain {
     /// Ethereum testnet Goerli domain ID
     Goerli = 5,
     /// Ethereum testnet Kovan domain ID
     Kovan = 3000,
 
+    /// Polygon mainnet domain ID, decimal ID 1886350457
+    Polygon = 0x706f6c79,
     /// Polygon testnet Mumbai domain ID
     Mumbai = 80001,
 
+    /// Avalanche mainnet domain ID, decimal ID 1635148152
+    Avalanche = 0x61766178,
     /// Avalanche testnet Fuji domain ID
     Fuji = 43113,
 
+    /// Arbitrum mainnet domain ID, decimal ID 6386274
+    Arbitrum = 0x617262,
     /// Arbitrum testnet ArbitrumRinkeby domain ID, decimal ID 1634872690
     ArbitrumRinkeby = 0x61722d72,
 
+    /// Optimism mainnet domain ID, decimal ID 28528
+    Optimism = 0x6f70,
     /// Optimism testnet OptimismKovan domain ID, decimal ID 1869622635
     OptimismKovan = 0x6f702d6b,
 
+    /// BSC mainnet domain ID, decimal ID 6452067
+    #[strum(serialize = "bsc")]
+    BinanceSmartChain = 0x627363,
     /// BSC testnet, decimal ID 1651715444
     #[strum(serialize = "bsctestnet")]
-    BinanceSmartChainTestnet = 0x62732d74, // decimal 1651715444
+    BinanceSmartChainTestnet = 0x62732d74,
 
+    /// Celo domain ID, decimal ID 1667591279
+    Celo = 0x63656c6f,
     /// Celo testnet Alfajores domain ID
     Alfajores = 1000,
 
     /// Moonbeam testnet MoonbaseAlpha domain ID, decimal ID 1836002657
     MoonbaseAlpha = 0x6d6f2d61,
-}
 
-impl From<AbacusTestnetDomain> for u32 {
-    fn from(domain: AbacusTestnetDomain) -> Self {
-        domain as u32
-    }
-}
-
-impl TryFrom<u32> for AbacusTestnetDomain {
-    type Error = eyre::Error;
-
-    fn try_from(domain_id: u32) -> Result<Self, Self::Error> {
-        FromPrimitive::from_u32(domain_id)
-            .ok_or_else(|| eyre::eyre!("Unknown testnet domain ID {}", domain_id))
-    }
-}
-
-/// Local test chains (i.e. typically local hardhat nodes)
-#[derive(FromPrimitive, EnumString, strum::Display, PartialEq, Eq, Debug)]
-#[strum(serialize_all = "lowercase")]
-pub enum AbacusLocalTestChainDomain {
+    // -- Local test chains --
     /// Test1 local chain
     Test1 = 13371,
     /// Test2 local chain
@@ -155,80 +109,61 @@ pub enum AbacusLocalTestChainDomain {
     Test3 = 13373,
 }
 
-impl From<AbacusLocalTestChainDomain> for u32 {
-    fn from(domain: AbacusLocalTestChainDomain) -> Self {
+impl From<AbacusDomain> for u32 {
+    fn from(domain: AbacusDomain) -> Self {
         domain as u32
     }
-}
-
-impl TryFrom<u32> for AbacusLocalTestChainDomain {
-    type Error = eyre::Error;
-
-    fn try_from(domain_id: u32) -> Result<Self, Self::Error> {
-        FromPrimitive::from_u32(domain_id)
-            .ok_or_else(|| eyre::eyre!("Unknown local test chain domain ID {}", domain_id))
-    }
-}
-
-/// All domains supported by Abacus.
-#[derive(Debug, PartialEq, Eq)]
-pub enum AbacusDomain {
-    /// Mainnet domains.
-    Mainnet(AbacusMainnetDomain),
-    /// Testnet domains.
-    Testnet(AbacusTestnetDomain),
-    /// Local test domains (i.e. not public blockchains)
-    LocalTestChain(AbacusLocalTestChainDomain),
 }
 
 impl TryFrom<u32> for AbacusDomain {
     type Error = eyre::Error;
 
     fn try_from(domain_id: u32) -> Result<Self, Self::Error> {
-        if let Ok(mainnet_domain) = AbacusMainnetDomain::try_from(domain_id) {
-            Ok(Self::Mainnet(mainnet_domain))
-        } else if let Ok(testnet_domain) = AbacusTestnetDomain::try_from(domain_id) {
-            Ok(Self::Testnet(testnet_domain))
-        } else if let Ok(local_test_chain) = AbacusLocalTestChainDomain::try_from(domain_id) {
-            Ok(Self::LocalTestChain(local_test_chain))
-        } else {
-            Err(eyre::eyre!("Unknown domain ID {}", domain_id))
-        }
+        FromPrimitive::from_u32(domain_id)
+            .ok_or_else(|| eyre::eyre!("Unknown domain ID {domain_id}"))
     }
 }
 
-impl From<AbacusDomain> for u32 {
-    fn from(domain: AbacusDomain) -> Self {
-        match domain {
-            AbacusDomain::Mainnet(mainnet_domain) => mainnet_domain.into(),
-            AbacusDomain::Testnet(testnet_domain) => testnet_domain.into(),
-            AbacusDomain::LocalTestChain(local_test_chain) => local_test_chain.into(),
-        }
-    }
+/// Types of Abacus domains.
+pub enum AbacusDomainType {
+    /// A mainnet.
+    Mainnet,
+    /// A testnet.
+    Testnet,
+    /// A local chain for testing (i.e. Hardhat node).
+    LocalTestChain,
 }
 
-impl ToString for AbacusDomain {
-    fn to_string(&self) -> String {
+impl AbacusDomain {
+    pub fn domain_type(&self) -> AbacusDomainType {
         match self {
-            AbacusDomain::Mainnet(mainnet_domain) => mainnet_domain.to_string(),
-            AbacusDomain::Testnet(testnet_domain) => testnet_domain.to_string(),
-            AbacusDomain::LocalTestChain(local_test_chain) => local_test_chain.to_string(),
-        }
-    }
-}
+            AbacusDomain::Ethereum => AbacusDomainType::Mainnet,
+            AbacusDomain::Goerli => AbacusDomainType::Testnet,
+            AbacusDomain::Kovan => AbacusDomainType::Testnet,
 
-impl FromStr for AbacusDomain {
-    type Err = strum::ParseError;
+            AbacusDomain::Polygon => AbacusDomainType::Mainnet,
+            AbacusDomain::Mumbai => AbacusDomainType::Testnet,
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Ok(mainnet_domain) = AbacusMainnetDomain::from_str(s) {
-            Ok(Self::Mainnet(mainnet_domain))
-        } else if let Ok(testnet_domain) = AbacusTestnetDomain::from_str(s) {
-            Ok(Self::Testnet(testnet_domain))
-        } else if let Ok(local_test_chain) = AbacusLocalTestChainDomain::from_str(s) {
-            Ok(Self::LocalTestChain(local_test_chain))
-        } else {
-            Err(strum::ParseError::VariantNotFound)
+            AbacusDomain::Avalanche => AbacusDomainType::Mainnet,
+            AbacusDomain::Fuji => AbacusDomainType::Testnet,
+
+            AbacusDomain::Arbitrum => AbacusDomainType::Mainnet,
+            AbacusDomain::ArbitrumRinkeby => AbacusDomainType::Testnet,
+
+            AbacusDomain::Optimism => AbacusDomainType::Mainnet,
+            AbacusDomain::OptimismKovan => AbacusDomainType::Testnet,
+
+            AbacusDomain::BinanceSmartChain => AbacusDomainType::Mainnet,
+            AbacusDomain::BinanceSmartChainTestnet => AbacusDomainType::Testnet,
+
+            AbacusDomain::Celo => AbacusDomainType::Mainnet,
+            AbacusDomain::Alfajores => AbacusDomainType::Testnet,
+
+            AbacusDomain::MoonbaseAlpha => AbacusDomainType::Testnet,
+
+            AbacusDomain::Test1 => AbacusDomainType::LocalTestChain,
+            AbacusDomain::Test2 => AbacusDomainType::LocalTestChain,
+            AbacusDomain::Test3 => AbacusDomainType::LocalTestChain,
         }
     }
 }
@@ -260,10 +195,7 @@ mod tests {
     use std::str::FromStr;
     use walkdir::WalkDir;
 
-    use crate::{
-        domain_id_from_name, name_from_domain_id, AbacusDomain, AbacusLocalTestChainDomain,
-        AbacusMainnetDomain, AbacusTestnetDomain,
-    };
+    use crate::{domain_id_from_name, name_from_domain_id, AbacusDomain};
 
     /// Relative path to the `abacus-monorepo/rust/config/`
     /// directory, which is where the agent's config files
@@ -420,93 +352,22 @@ mod tests {
     }
 
     #[test]
-    fn mainnet_domain_strings() {
-        assert_eq!(
-            AbacusMainnetDomain::from_str("ethereum").unwrap(),
-            AbacusMainnetDomain::Ethereum,
-        );
-        assert_eq!(
-            AbacusMainnetDomain::Ethereum.to_string(),
-            "ethereum".to_string(),
-        );
-
-        // One where serialization has changed
-        assert_eq!(
-            AbacusMainnetDomain::from_str("bsc").unwrap(),
-            AbacusMainnetDomain::BinanceSmartChain,
-        );
-        assert_eq!(
-            AbacusMainnetDomain::BinanceSmartChain.to_string(),
-            "bsc".to_string(),
-        );
-
-        // Invalid name
-        assert!(AbacusMainnetDomain::from_str("foo").is_err());
-    }
-
-    #[test]
-    fn testnet_domain_strings() {
-        assert_eq!(
-            AbacusTestnetDomain::from_str("arbitrumrinkeby").unwrap(),
-            AbacusTestnetDomain::ArbitrumRinkeby,
-        );
-        assert_eq!(
-            AbacusTestnetDomain::ArbitrumRinkeby.to_string(),
-            "arbitrumrinkeby".to_string(),
-        );
-
-        // One where serialization has changed
-        assert_eq!(
-            AbacusTestnetDomain::from_str("bsctestnet").unwrap(),
-            AbacusTestnetDomain::BinanceSmartChainTestnet,
-        );
-        assert_eq!(
-            AbacusTestnetDomain::BinanceSmartChainTestnet.to_string(),
-            "bsctestnet".to_string(),
-        );
-
-        // Invalid name
-        assert!(AbacusTestnetDomain::from_str("foo").is_err());
-    }
-
-    #[test]
-    fn local_test_chain_domain_strings() {
-        assert_eq!(
-            AbacusLocalTestChainDomain::from_str("test1").unwrap(),
-            AbacusLocalTestChainDomain::Test1,
-        );
-        assert_eq!(
-            AbacusLocalTestChainDomain::Test1.to_string(),
-            "test1".to_string(),
-        );
-
-        // Invalid name
-        assert!(AbacusLocalTestChainDomain::from_str("foo").is_err());
-    }
-
-    #[test]
     fn domain_strings() {
         assert_eq!(
             AbacusDomain::from_str("ethereum").unwrap(),
-            AbacusDomain::Mainnet(AbacusMainnetDomain::Ethereum),
+            AbacusDomain::Ethereum,
         );
-        assert_eq!(
-            AbacusDomain::Mainnet(AbacusMainnetDomain::Ethereum).to_string(),
-            "ethereum".to_string(),
-        );
+        assert_eq!(AbacusDomain::Ethereum.to_string(), "ethereum".to_string(),);
     }
 
     #[test]
     fn domain_ids() {
         assert_eq!(
             AbacusDomain::try_from(0x657468u32).unwrap(),
-            AbacusDomain::Mainnet(AbacusMainnetDomain::Ethereum),
+            AbacusDomain::Ethereum,
         );
 
-        assert_eq!(
-            u32::from(AbacusDomain::Mainnet(AbacusMainnetDomain::Ethereum)),
-            0x657468u32,
-        );
+        assert_eq!(u32::from(AbacusDomain::Ethereum), 0x657468u32,);
     }
 
     #[test]
