@@ -65,7 +65,7 @@ pub struct InterchainGasPaymentWithMeta {
 }
 
 /// A cost estimate for a transaction.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TxCostEstimate {
     /// The gas limit for the transaction.
     pub gas_limit: U256,

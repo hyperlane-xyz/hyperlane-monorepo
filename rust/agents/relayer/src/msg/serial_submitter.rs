@@ -292,7 +292,7 @@ impl SerialSubmitter {
 
         // We use the estimated gas limit from the prior call to `process_estimate_costs` to
         // avoid a second gas estimation.
-        match self
+        let process_result = self
             .inbox_contracts
             .validator_manager
             .process(
@@ -301,8 +301,8 @@ impl SerialSubmitter {
                 &msg.proof,
                 Some(tx_cost_estimate.gas_limit),
             )
-            .await
-        {
+            .await;
+        match process_result {
             // TODO(trevor): Instead of immediately marking as processed, move to a verification
             // queue, which will wait for finality and indexing by the inbox indexer and then mark
             // as processed (or eventually retry if no confirmation is ever seen).

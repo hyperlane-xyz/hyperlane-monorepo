@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 use crate::msg::gas_payment::GasPaymentPolicy;
 
 const CACHE_TTL_SECONDS: u64 = 60;
-// 1 / 100th of a cent
+/// 1 / 100th of a cent
 const FIXED_POINT_PRECISION: usize = 1000;
 
 #[derive(Debug)]
@@ -55,7 +55,7 @@ fn abacus_domain_to_native_token_coingecko_id(domain: u32) -> Result<&'static st
 struct CoinGeckoCachingPriceGetter {
     coingecko: CoinGeckoClient,
     cache_ttl: Duration,
-    // Keyed by CoinGecko API ID. RwLock to be thread-safe.
+    /// Keyed by CoinGecko API ID. RwLock to be thread-safe.
     cached_usd_prices: RwLock<HashMap<&'static str, CachedValue<f64>>>,
 }
 

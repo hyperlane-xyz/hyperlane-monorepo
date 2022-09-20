@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use abacus_core::{
     db::{AbacusDB, DbError},
     CommittedMessage, TxCostEstimate,
@@ -15,7 +17,7 @@ use self::policies::{
 mod policies;
 
 #[async_trait]
-pub trait GasPaymentPolicy: std::fmt::Debug + Send + Sync {
+pub trait GasPaymentPolicy: Debug + Send + Sync {
     async fn message_meets_gas_payment_requirement(
         &self,
         message: &CommittedMessage,

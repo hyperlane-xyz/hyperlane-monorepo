@@ -6,7 +6,7 @@ use serde_repr::Serialize_repr;
 use std::fmt;
 
 // Each chain and chain ID supported by Abacus
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize_repr, std::hash::Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize_repr, Hash)]
 #[repr(u64)]
 pub enum Chain {
     Ethereum = 1,
