@@ -34,6 +34,9 @@ export const abacus: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   validatorSets: validators,
+  gelato: {
+    enabledChains: ['alfajores', 'mumbai', 'goerli'],
+  },
   connectionType: ConnectionType.Http,
   validator: {
     default: {
@@ -97,6 +100,9 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: ['alfajores', 'kovan'],
   validatorSets: validators,
+  gelato: {
+    enabledChains: ['alfajores'],
+  },
   connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {
@@ -125,10 +131,10 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  gelato: {
-    enabledChains: ['alfajores', 'mumbai'],
-  },
   validatorSets: validators,
+  gelato: {
+    enabledChains: ['alfajores', 'mumbai', 'goerli'],
+  },
   connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {
