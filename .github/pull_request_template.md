@@ -17,4 +17,4 @@ _Are there any infrastructure implications, e.g. changes that would prohibit dep
 
 ### Testing
 
-_What kind of testing has these changes undergone?_
+_What kind of testing have these changes undergone?_
