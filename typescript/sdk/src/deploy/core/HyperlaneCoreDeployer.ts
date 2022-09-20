@@ -198,7 +198,7 @@ export class HyperlaneCoreDeployer<
 
     return {
       upgradeBeaconController,
-      connectionManager: connectionManager,
+      connectionManager,
       interchainGasPaymaster,
       inboxes: inboxes as RemoteChainMap<Chain, LocalChain, InboxContracts>,
       ...outbox,
