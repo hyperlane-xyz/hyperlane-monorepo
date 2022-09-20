@@ -55,7 +55,7 @@ impl ValidatorSubmitter {
 
     /// Spawn a task to update the outbox state gauge.
     async fn metrics_loop(outbox_state_gauge: IntGauge, outbox: CachingOutbox) {
-        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        let mut interval = tokio::time::interval(Duration::from_secs(60 * 10));
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
         loop {
             let state = outbox.state().await;
