@@ -4,7 +4,7 @@ use abacus_core::{accumulator::merkle::Proof, CommittedMessage, MultisigSignedCh
 
 use tokio::time::Instant;
 
-pub mod gas_payment_enforcer;
+pub mod gas_payment;
 pub mod gelato_submitter;
 pub mod processor;
 pub mod serial_submitter;

@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1", features = ["rt", "macros"] }
+coingecko = { git = "https://github.com/hyperlane-xyz/coingecko-rs", tag = "2022-09-14-02" }
 config = "0.13"
 color-eyre = { version = "0.6", optional = true }
 serde = {version = "1.0", features = ["derive"]}
@@ -16,6 +17,7 @@ async-trait = { version = "0.1", default-features = false }
 futures-util = "0.3"
 eyre = "0.6"
 reqwest = { version = "0", features = ["json"]}
+strum = "0.24"
 tracing = "0.1"
 tracing-futures = "0.2"
 tracing-subscriber = "0.3"

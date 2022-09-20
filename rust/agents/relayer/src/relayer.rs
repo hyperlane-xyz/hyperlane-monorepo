@@ -14,7 +14,7 @@ use abacus_base::{
 };
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers};
 
-use crate::msg::gas_payment_enforcer::GasPaymentEnforcer;
+use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
