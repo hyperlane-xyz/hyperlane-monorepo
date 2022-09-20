@@ -5,15 +5,6 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@abacus-network/celo-ethers-provider@npm:^0.1.0":
-  version: 0.1.0
-  resolution: "@abacus-network/celo-ethers-provider@npm:0.1.0"
-  peerDependencies:
-    ethers: ^5
-  checksum: 06f440366bbd9ddf9962aa46c471be1fb587909c4da71a0d816497a5c0c8597e9b315d70fe9ae728ed51fc936097da50da2cd18f750861f3d602660b8ea1ecfd
-  languageName: node
-  linkType: hard
-
 "@aws-crypto/crc32@npm:2.0.0":
   version: 2.0.0
   resolution: "@aws-crypto/crc32@npm:2.0.0"
@@ -3788,7 +3779,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/infra@workspace:typescript/infra"
   dependencies:
-    "@abacus-network/celo-ethers-provider": ^0.1.0
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
@@ -3797,6 +3787,7 @@ __metadata:
     "@gnosis.pm/safe-core-sdk": ^2.3.2
     "@gnosis.pm/safe-ethers-lib": ^1.4.0
     "@gnosis.pm/safe-service-client": ^1.2.0
+    "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
     "@hyperlane-xyz/helloworld": 0.5.0-beta0
     "@hyperlane-xyz/sdk": 0.5.0-beta0
     "@hyperlane-xyz/utils": 0.5.0-beta0
