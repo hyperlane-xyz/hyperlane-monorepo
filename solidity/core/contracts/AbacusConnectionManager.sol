@@ -9,6 +9,7 @@ import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.s
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title AbacusConnectionManager
@@ -62,6 +63,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @param _outbox The address of the new local Outbox contract.
      */
     function setOutbox(address _outbox) external onlyOwner {
+        require(Address.isContract(_outbox), "outbox !contract");
         outbox = IOutbox(_outbox);
         emit OutboxSet(_outbox);
     }
@@ -72,6 +74,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @param _inbox the address of the Inbox
      */
     function enrollInbox(uint32 _domain, address _inbox) external onlyOwner {
+        require(Address.isContract(_inbox), "inbox !contract");
         require(!isInbox(_inbox), "already inbox");
         // add inbox and domain to two-way mapping
         inboxToDomain[_inbox] = _domain;
@@ -134,6 +137,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      */
     function _unenrollInbox(address _inbox) internal {
         uint32 _currentDomain = inboxToDomain[_inbox];
+        require(domainToInboxes[_currentDomain].remove(_inbox), "not enrolled");
         domainToInboxes[_currentDomain].remove(_inbox);
         inboxToDomain[_inbox] = 0;
         emit InboxUnenrolled(_currentDomain, _inbox);
