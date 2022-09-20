@@ -51,6 +51,7 @@
   "prepublish": "yarn build",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
+    "abacus": "ts-node scripts/core.ts -e test",
     "hyperlane": "ts-node scripts/core.ts -e test",
     "build": "tsc",
     "clean": "rm -rf ./dist ./cache",
