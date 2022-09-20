@@ -23,7 +23,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   environment,
   namespace: environment,
   runEnv: environment,
-  context: Contexts.Hyperlane,
+  context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: 'sha-7040e5c',
@@ -150,7 +150,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
 };
 
 export const agents = {
-  [Contexts.Hyperlane]: abacus,
+  [Contexts.Abacus]: abacus,
   [Contexts.Flowcarbon]: flowcarbon,
   [Contexts.ReleaseCandidate]: releaseCandidate,
 };

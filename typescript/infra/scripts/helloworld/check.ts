@@ -15,7 +15,7 @@ async function main() {
     coreConfig,
     context,
     KEY_ROLE_ENUM.Deployer,
-    Contexts.Hyperlane, // Owner should always be from the hyperlane context
+    Contexts.Abacus, // Owner should always be from the hyperlane context
   );
   const configMap = await getConfiguration(environment, multiProvider);
   const checker = new HelloWorldChecker(multiProvider, app, configMap);

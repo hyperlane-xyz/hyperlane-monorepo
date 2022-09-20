@@ -9,11 +9,11 @@ import { Contexts } from '../../contexts';
 import { TestChains, chainNames } from './chains';
 import { validators } from './validators';
 
-export const hyperlane: AgentConfig<TestChains> = {
+export const abacus: AgentConfig<TestChains> = {
   environment: 'test',
   namespace: 'test',
   runEnv: 'test',
-  context: Contexts.Hyperlane,
+  context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: '8852db3d88e87549269487da6da4ea5d67fdbfed',
@@ -40,5 +40,5 @@ export const hyperlane: AgentConfig<TestChains> = {
 };
 
 export const agents = {
-  [Contexts.Hyperlane]: hyperlane,
+  [Contexts.Abacus]: abacus,
 };

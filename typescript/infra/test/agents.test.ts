@@ -11,7 +11,7 @@ describe('ReadOnlyCloudAgentKey', () => {
     it('correctly parses identifiers', () => {
       const addressZero = '0x0000000000000000000000000000000000000000';
       const environment = 'test';
-      const context = Contexts.Hyperlane;
+      const context = Contexts.Abacus;
       const chainName = 'test1';
       // Enough to satisfy the constructor of AgentAwsKey
       const mockAgentConfig: any = {

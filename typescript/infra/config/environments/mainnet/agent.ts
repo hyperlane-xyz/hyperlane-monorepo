@@ -16,11 +16,11 @@ const releaseCandidateHelloworldMatchingList = helloworldMatchingList(
   Contexts.ReleaseCandidate,
 );
 
-export const hyperlane: AgentConfig<MainnetChains> = {
+export const abacus: AgentConfig<MainnetChains> = {
   environment,
   namespace: environment,
   runEnv: environment,
-  context: Contexts.Hyperlane,
+  context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: 'sha-7040e5c',
@@ -102,6 +102,6 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
 };
 
 export const agents = {
-  [Contexts.Hyperlane]: hyperlane,
+  [Contexts.Abacus]: abacus,
   [Contexts.ReleaseCandidate]: releaseCandidate,
 };
