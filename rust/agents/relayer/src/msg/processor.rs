@@ -57,10 +57,7 @@ impl MessageProcessor {
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
-        tokio::spawn(async move {
-            self.main_loop().await
-        })
-        .instrument(span)
+        tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 
     #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.chain_name(), local_domain=?self.inbox_contracts.inbox.local_domain()), level = "info")]
