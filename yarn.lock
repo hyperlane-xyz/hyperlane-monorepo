@@ -5,97 +5,12 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@abacus-network/app@npm:0.4.1, @abacus-network/app@npm:^0.4.1":
-  version: 0.4.1
-  resolution: "@abacus-network/app@npm:0.4.1"
-  dependencies:
-    "@abacus-network/core": 0.4.1
-    "@abacus-network/utils": 0.4.1
-    "@openzeppelin/contracts-upgradeable": ^4.5.0
-  checksum: bf1dc46b769bfef8ef2f1b568b5ea23f5c4148e68e3771d95510adb919b1ea030cff9080f9fc8a05889f973b1ff718b783414d8e5e86749e78f56799c38fe4df
-  languageName: node
-  linkType: hard
-
 "@abacus-network/celo-ethers-provider@npm:^0.1.0":
   version: 0.1.0
   resolution: "@abacus-network/celo-ethers-provider@npm:0.1.0"
   peerDependencies:
     ethers: ^5
   checksum: 06f440366bbd9ddf9962aa46c471be1fb587909c4da71a0d816497a5c0c8597e9b315d70fe9ae728ed51fc936097da50da2cd18f750861f3d602660b8ea1ecfd
-  languageName: node
-  linkType: hard
-
-"@abacus-network/core@npm:0.4.1":
-  version: 0.4.1
-  resolution: "@abacus-network/core@npm:0.4.1"
-  dependencies:
-    "@abacus-network/utils": 0.4.1
-    "@openzeppelin/contracts": ^4.6.0
-    "@openzeppelin/contracts-upgradeable": ^4.6.0
-    "@summa-tx/memview-sol": ^2.0.0
-  checksum: 5fdeb32eb33ad6a470b4b7f801ed419da2065cb6c6f155d651576cd66379663e3d1b35f9b9016d581b1ffd7aa038d7cdab8f8574bc259d801bc317753de41e1d
-  languageName: node
-  linkType: hard
-
-"@abacus-network/interchain-accounts@workspace:typescript/ica":
-  version: 0.0.0-use.local
-  resolution: "@abacus-network/interchain-accounts@workspace:typescript/ica"
-  dependencies:
-    "@abacus-network/app": ^0.4.1
-    "@abacus-network/sdk": ^0.4.1
-    "@abacus-network/utils": ^0.4.1
-    "@nomicfoundation/hardhat-chai-matchers": ^1.0.3
-    "@nomicfoundation/hardhat-toolbox": ^1.0.2
-    "@nomiclabs/hardhat-ethers": ^2.0.5
-    "@nomiclabs/hardhat-waffle": ^2.0.2
-    "@openzeppelin/contracts-upgradeable": ^4.6.0
-    "@trivago/prettier-plugin-sort-imports": ^3.2.0
-    "@typechain/ethers-v5": 10.0.0
-    "@typechain/hardhat": ^6.0.0
-    "@types/mocha": ^9.1.0
-    "@typescript-eslint/eslint-plugin": ^5.27.0
-    "@typescript-eslint/parser": ^5.27.0
-    chai: ^4.3.0
-    eslint: ^8.16.0
-    eslint-config-prettier: ^8.5.0
-    ethereum-waffle: ^3.4.4
-    ethers: ^5.6.8
-    hardhat: ^2.8.4
-    hardhat-gas-reporter: ^1.0.7
-    prettier: ^2.4.1
-    prettier-plugin-solidity: ^1.0.0-beta.5
-    solhint: ^3.3.2
-    solhint-plugin-prettier: ^0.0.5
-    solidity-coverage: ^0.7.14
-    ts-node: ^10.8.0
-    typechain: 8.0.0
-    typescript: ^4.7.2
-  languageName: unknown
-  linkType: soft
-
-"@abacus-network/sdk@npm:^0.4.1":
-  version: 0.4.1
-  resolution: "@abacus-network/sdk@npm:0.4.1"
-  dependencies:
-    "@abacus-network/app": 0.4.1
-    "@abacus-network/celo-ethers-provider": ^0.1.0
-    "@abacus-network/core": 0.4.1
-    "@abacus-network/utils": 0.4.1
-    "@types/debug": ^4.1.7
-    coingecko-api: ^1.0.10
-    cross-fetch: ^3.1.5
-    debug: ^4.3.4
-    ethers: ^5.6.8
-  checksum: d6f43d26666b07711ab82688b4b5d5b3de718019223b048b753dbf04ca38eed79bc3f634c9de66592babb86b1cfcf3250dc7065e3ae8bb3386a98ca7aed7258c
-  languageName: node
-  linkType: hard
-
-"@abacus-network/utils@npm:0.4.1, @abacus-network/utils@npm:^0.4.1":
-  version: 0.4.1
-  resolution: "@abacus-network/utils@npm:0.4.1"
-  dependencies:
-    ethers: ^5.6.8
-  checksum: dd69c911619412b138e12a1bfa1c52a57e56b40cdd416122cb98a4c04032295978b45cfecc47b8038af72d01eab9811245cfb6e3d50cd21ec11b263f426e6b1a
   languageName: node
   linkType: hard
 
@@ -3906,6 +3821,42 @@ __metadata:
     ts-node: ^10.8.0
     typescript: ^4.7.2
     yargs: ^17.4.1
+  languageName: unknown
+  linkType: soft
+
+"@hyperlane-xyz/interchain-accounts@workspace:typescript/ica":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/interchain-accounts@workspace:typescript/ica"
+  dependencies:
+    "@hyperlane-xyz/app": 0.5.0-beta0
+    "@hyperlane-xyz/sdk": 0.5.0-beta0
+    "@hyperlane-xyz/utils": 0.5.0-beta0
+    "@nomicfoundation/hardhat-chai-matchers": ^1.0.3
+    "@nomicfoundation/hardhat-toolbox": ^1.0.2
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@openzeppelin/contracts-upgradeable": ^4.6.0
+    "@trivago/prettier-plugin-sort-imports": ^3.2.0
+    "@typechain/ethers-v5": 10.0.0
+    "@typechain/hardhat": ^6.0.0
+    "@types/mocha": ^9.1.0
+    "@typescript-eslint/eslint-plugin": ^5.27.0
+    "@typescript-eslint/parser": ^5.27.0
+    chai: ^4.3.0
+    eslint: ^8.16.0
+    eslint-config-prettier: ^8.5.0
+    ethereum-waffle: ^3.4.4
+    ethers: ^5.6.8
+    hardhat: ^2.8.4
+    hardhat-gas-reporter: ^1.0.7
+    prettier: ^2.4.1
+    prettier-plugin-solidity: ^1.0.0-beta.5
+    solhint: ^3.3.2
+    solhint-plugin-prettier: ^0.0.5
+    solidity-coverage: ^0.7.14
+    ts-node: ^10.8.0
+    typechain: 8.0.0
+    typescript: ^4.7.2
   languageName: unknown
   linkType: soft
 

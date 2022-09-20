@@ -1,3 +1,7 @@
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { expect } from 'chai';
+import { ethers } from 'hardhat';
+
 import {
   ChainMap,
   ChainNameToDomainId,
@@ -9,10 +13,7 @@ import {
   getChainToOwnerMap,
   getTestMultiProvider,
   testChainConnectionConfigs,
-} from '@abacus-network/sdk';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { expect } from 'chai';
-import { ethers } from 'hardhat';
+} from '@hyperlane-xyz/sdk';
 
 import { InterchainAccountDeployer } from '../src/deploy';
 import { InterchainAccountRouter, TestRecipient__factory } from '../types';
