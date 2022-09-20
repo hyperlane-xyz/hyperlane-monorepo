@@ -30,7 +30,10 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
      * @param _router The address the message is coming from
      */
     modifier onlyRemoteRouter(uint32 _origin, bytes32 _router) {
-        require(_isRemoteRouter(_origin, _router), "!router");
+        require(
+            _isRemoteRouter(_origin, _router),
+            "No router enrolled for domain. Did you specify the right domain ID?"
+        );
         _;
     }
 
@@ -125,7 +128,10 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         returns (bytes32 _router)
     {
         _router = routers[_domain];
-        require(_router != bytes32(0), "!router");
+        require(
+            _router != bytes32(0),
+            "No router enrolled for domain. Did you specify the right domain ID?"
+        );
     }
 
     /**
