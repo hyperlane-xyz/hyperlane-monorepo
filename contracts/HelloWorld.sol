@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 // ============ External Imports ============
-import {Router} from "@abacus-network/app/contracts/Router.sol";
+import {Router} from "@hyperlane-xyz/app/contracts/Router.sol";
 
 /*
  * @title The Hello World App

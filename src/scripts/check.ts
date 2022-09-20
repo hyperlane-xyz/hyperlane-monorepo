@@ -1,12 +1,12 @@
 import {
-  AbacusCore,
   ChainMap,
   ChainName,
+  HyperlaneCore,
   MultiProvider,
   buildContracts,
   getChainToOwnerMap,
   objMap,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { HelloWorldApp } from '../app/app';
 import { HelloWorldContracts, helloWorldFactories } from '../app/contracts';
@@ -33,7 +33,7 @@ async function check() {
     helloWorldFactories,
   ) as ChainMap<ChainName, HelloWorldContracts>;
 
-  const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
+  const core = HyperlaneCore.fromEnvironment('testnet2', multiProvider);
   const app = new HelloWorldApp(core, contractsMap, multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(prodConfigs, ownerAddress),
