@@ -58,8 +58,7 @@ impl MessageProcessor {
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
         tokio::spawn(async move {
-            let res = self.main_loop().await;
-            res
+            self.main_loop().await
         })
         .instrument(span)
     }
