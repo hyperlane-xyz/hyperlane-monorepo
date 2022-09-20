@@ -13,7 +13,7 @@ import {
   Outbox__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
-} from '@abacus-network/core';
+} from '@hyperlane-xyz/core';
 
 import { BeaconProxyAddresses, ProxiedContract } from '../proxy';
 import { ChainName, RemoteChainMap } from '../types';
@@ -33,7 +33,7 @@ type ConnectionClientContracts = {
     InterchainGasPaymaster,
     BeaconProxyAddresses
   >;
-  abacusConnectionManager: AbacusConnectionManager;
+  connectionManager: AbacusConnectionManager;
 };
 
 export type CoreContracts<
@@ -56,7 +56,7 @@ const outboxFactories = {
 };
 
 export const coreFactories = {
-  abacusConnectionManager: new AbacusConnectionManager__factory(),
+  connectionManager: new AbacusConnectionManager__factory(),
   upgradeBeaconController: new UpgradeBeaconController__factory(),
   interchainGasPaymaster: new InterchainGasPaymaster__factory(),
   ...inboxFactories,

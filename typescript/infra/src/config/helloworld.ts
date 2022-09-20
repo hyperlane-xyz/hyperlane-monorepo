@@ -1,4 +1,4 @@
-import { ChainMap, ChainName } from '@abacus-network/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import { DockerConfig } from './agent';
 

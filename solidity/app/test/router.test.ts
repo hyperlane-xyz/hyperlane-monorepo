@@ -14,8 +14,8 @@ import {
   TestInbox,
   TestInbox__factory,
   TestMultisigValidatorManager__factory,
-} from '@abacus-network/core';
-import { utils } from '@abacus-network/utils';
+} from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { TestRouter, TestRouter__factory } from '../types';
 

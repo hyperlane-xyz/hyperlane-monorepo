@@ -10,7 +10,7 @@ import {
   getChainToOwnerMap,
   getTestMultiProvider,
   testChainConnectionConfigs,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { HelloWorldApp } from '../app/app';
 import { HelloWorldContracts } from '../app/contracts';

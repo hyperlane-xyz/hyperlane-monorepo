@@ -19,7 +19,7 @@ export class ChainConnection {
     this.confirmations = dc.confirmations ?? 0;
     this.blockExplorerUrl = dc.blockExplorerUrl ?? 'UNKNOWN_EXPLORER';
     this.apiPrefix = dc.apiPrefix ?? 'api.';
-    this.logger = debug('abacus:ChainConnection');
+    this.logger = debug('hyperlane:ChainConnection');
   }
 
   getConnection = (): ethers.providers.Provider | ethers.Signer =>

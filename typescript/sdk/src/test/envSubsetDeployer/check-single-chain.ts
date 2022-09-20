@@ -1,5 +1,5 @@
 import { buildContracts } from '../../contracts';
-import { AbacusCore } from '../../core/AbacusCore';
+import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { getChainToOwnerMap } from '../../deploy/utils';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts } from '../../router';
@@ -39,7 +39,7 @@ async function check() {
     envSubsetFactories,
   ) as ChainMap<ChainName, RouterContracts>;
   const app = new EnvSubsetApp(contractsMap, multiProvider);
-  const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
+  const core = HyperlaneCore.fromEnvironment('testnet2', multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(alfajoresChainConfig, ownerAddress),
   );

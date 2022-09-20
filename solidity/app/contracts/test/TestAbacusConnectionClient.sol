@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
-import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
+import {IOutbox} from "@hyperlane-xyz/core/interfaces/IOutbox.sol";
 
 import "../AbacusConnectionClient.sol";
 

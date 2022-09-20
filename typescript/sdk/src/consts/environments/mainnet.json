@@ -1,7 +1,7 @@
 {
   "avalanche": {
     "upgradeBeaconController": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
-    "abacusConnectionManager": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+    "connectionManager": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0xed9a722c543883FB7e07E78F3879762DE09eA7D5",
@@ -74,7 +74,7 @@
   },
   "bsc": {
     "upgradeBeaconController": "0x149db7afD694722747035d5AEC7007ccb6F8f112",
-    "abacusConnectionManager": "0x19dc38aeae620380430C200a6E990D5Af5480117",
+    "connectionManager": "0x19dc38aeae620380430C200a6E990D5Af5480117",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x47bf94790241B1764fC41A35a8329A15569E121C",
@@ -147,7 +147,7 @@
   },
   "polygon": {
     "upgradeBeaconController": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
-    "abacusConnectionManager": "0x1Ab68dC4f7b6cfcd00218D4b761b7F3b5a724555",
+    "connectionManager": "0x1Ab68dC4f7b6cfcd00218D4b761b7F3b5a724555",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x60B8d195f1b2EcaC26d54b95C69E6399cFD64b53",
@@ -220,7 +220,7 @@
   },
   "celo": {
     "upgradeBeaconController": "0x48083C69f5a42c6B69ABbAd48AE195BD36770ee2",
-    "abacusConnectionManager": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
+    "connectionManager": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0xCDeb368Db32ecCefaf7018e152DA9120565cb572",
@@ -293,7 +293,7 @@
   },
   "arbitrum": {
     "upgradeBeaconController": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
-    "abacusConnectionManager": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+    "connectionManager": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x376aD181E8cd45eAd5403F78d5A871D08c3c4D77",
@@ -366,7 +366,7 @@
   },
   "optimism": {
     "upgradeBeaconController": "0x15ab173bDB6832f9b64276bA128659b0eD77730B",
-    "abacusConnectionManager": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
+    "connectionManager": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0xc5D6aCaafBCcEC6D7fD7d92F4509befce641c563",
@@ -439,7 +439,7 @@
   },
   "ethereum": {
     "upgradeBeaconController": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-    "abacusConnectionManager": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
+    "connectionManager": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x17E216fBb22dF4ef8A6640ae9Cb147C92710ac84",

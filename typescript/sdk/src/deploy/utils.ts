@@ -1,6 +1,6 @@
 import { Signer, providers } from 'ethers';
 
-import { types } from '@abacus-network/utils';
+import { types } from '@hyperlane-xyz/utils';
 
 import { testChainConnectionConfigs } from '../consts/chainConnectionConfigs';
 import { MultiProvider } from '../providers/MultiProvider';

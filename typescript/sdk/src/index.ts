@@ -20,12 +20,12 @@ export {
 
 export { ChainNameToDomainId, DomainIdToChainName } from './domains';
 
-export { AbacusApp } from './AbacusApp';
+export { HyperlaneApp } from './HyperlaneApp';
 
 export {
-  AbacusAddresses,
-  AbacusContracts,
-  AbacusFactories,
+  HyperlaneAddresses,
+  HyperlaneContracts,
+  HyperlaneFactories,
   buildContracts,
   connectContracts,
   serializeContracts,
@@ -47,10 +47,10 @@ export { MultiProvider } from './providers/MultiProvider';
 export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
 
 export {
-  AbacusCore,
+  HyperlaneCore,
   CoreContractsMap,
   DispatchedMessage,
-} from './core/AbacusCore';
+} from './core/HyperlaneCore';
 export {
   CoreContracts,
   coreFactories,
@@ -58,13 +58,13 @@ export {
   OutboxContracts,
 } from './core/contracts';
 export {
-  AbacusLifecyleEvent,
+  HyperlaneLifecyleEvent,
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
 } from './core/events';
 export {
-  AbacusMessage,
-  AbacusStatus,
+  HyperlaneMessage,
+  HyperlaneStatus,
   MessageStatus,
   resolveDomain,
   resolveId,
@@ -84,30 +84,30 @@ export {
   TokenPriceGetter,
 } from './gas/token-prices';
 
-export { AbacusAppChecker } from './deploy/AbacusAppChecker';
+export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export {
   CheckerViolation,
   EnvironmentConfig,
   OwnerViolation,
   ViolationType,
 } from './deploy/types';
-export { AbacusCoreDeployer } from './deploy/core/AbacusCoreDeployer';
-export { AbacusCoreChecker } from './deploy/core/AbacusCoreChecker';
+export { HyperlaneCoreDeployer } from './deploy/core/HyperlaneCoreDeployer';
+export { HyperlaneCoreChecker } from './deploy/core/HyperlaneCoreChecker';
 export {
   CoreConfig,
   CoreViolationType,
   ValidatorManagerConfig,
   ValidatorManagerViolation,
   EnrolledInboxesViolation,
-  AbacusConnectionManagerViolation,
-  AbacusConnectionManagerViolationType,
+  ConnectionManagerViolation,
+  ConnectionManagerViolationType,
   EnrolledValidatorsViolation,
   ValidatorManagerViolationType,
 } from './deploy/core/types';
-export { AbacusDeployer } from './deploy/AbacusDeployer';
+export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export { UpgradeBeaconViolation } from './deploy/proxy';
-export { AbacusRouterDeployer } from './deploy/router/AbacusRouterDeployer';
-export { AbacusRouterChecker } from './deploy/router/AbacusRouterChecker';
+export { HyperlaneRouterDeployer } from './deploy/router/HyperlaneRouterDeployer';
+export { HyperlaneRouterChecker } from './deploy/router/HyperlaneRouterChecker';
 export { RouterConfig } from './deploy/router/types';
 export { getTestMultiProvider, getChainToOwnerMap } from './deploy/utils';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';

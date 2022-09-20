@@ -1,11 +1,11 @@
 {
-  "name": "@abacus-network/interchain-accounts",
+  "name": "@hyperlane-xyz/interchain-accounts",
   "description": "A router middleware for interchain accounts",
-  "version": "0.1.0",
+  "version": "0.5.0-beta0",
   "dependencies": {
-    "@abacus-network/app": "^0.4.1",
-    "@abacus-network/sdk": "^0.4.1",
-    "@abacus-network/utils": "^0.4.1",
+    "@hyperlane-xyz/app": "0.5.0-beta0",
+    "@hyperlane-xyz/sdk": "0.5.0-beta0",
+    "@hyperlane-xyz/utils": "0.5.0-beta0",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "ethers": "^5.6.8"
   },
@@ -39,9 +39,9 @@
     "/dist",
     "/contracts"
   ],
-  "homepage": "https://www.useabacus.network",
+  "homepage": "https://www.hyperlane-xyz",
   "keywords": [
-    "Abacus",
+    "Hyperlane",
     "Interchain Accounts",
     "Solidity",
     "Typescript"
@@ -51,7 +51,7 @@
   "packageManager": "yarn@3.2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/abacus-network/abacus-app-template"
+    "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"
   },
   "scripts": {
     "build": "hardhat compile && tsc",
@@ -59,8 +59,7 @@
     "coverage": "hardhat coverage",
     "lint": "eslint . --ext .ts",
     "prettier": "prettier --write ./contracts ./src",
-    "test": "hardhat test ./test/*.test.ts",
-    "sync": "ts-node scripts/sync-with-template-repo.ts"
+    "test": "hardhat test ./test/*.test.ts"
   },
   "types": "dist/src/index.d.ts"
 }

@@ -1,6 +1,6 @@
 {
-  "name": "@abacus-network/monorepo",
-  "description": "A yarn workspace of many core Abacus packages",
+  "name": "@hyperlane-xyz/monorepo",
+  "description": "A yarn workspace of core Hyperlane packages",
   "version": "0.0.0",
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^3.2.0",

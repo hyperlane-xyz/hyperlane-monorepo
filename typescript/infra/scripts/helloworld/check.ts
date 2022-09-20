@@ -1,4 +1,4 @@
-import { HelloWorldChecker } from '@abacus-network/helloworld';
+import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
@@ -15,7 +15,7 @@ async function main() {
     coreConfig,
     context,
     KEY_ROLE_ENUM.Deployer,
-    Contexts.Abacus, // Owner should always be from the abacus context
+    Contexts.Abacus, // Owner should always be from the hyperlane context
   );
   const configMap = await getConfiguration(environment, multiProvider);
   const checker = new HelloWorldChecker(multiProvider, app, configMap);
