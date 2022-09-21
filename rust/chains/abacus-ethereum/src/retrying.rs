@@ -190,7 +190,7 @@ impl JsonRpcClient for RetryingProvider<Http> {
                 }
             }
             Err(HttpClientError::SerdeJson { err, text }) => {
-                info!(attempt, next_backoff_ms, error = %err, "SerdeJson error in http provider");
+                info!(attempt, next_backoff_ms, error = %err, text = text,  "SerdeJson error in http provider");
                 HandleMethod::Retry(HttpClientError::SerdeJson { err, text })
             }
         })
