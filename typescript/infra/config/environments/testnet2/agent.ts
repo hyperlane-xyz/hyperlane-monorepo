@@ -92,7 +92,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   context: Contexts.Flowcarbon,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-7040e5c',
+    tag: 'sha-0d76398',
   },
   aws: {
     region: 'us-east-1',
