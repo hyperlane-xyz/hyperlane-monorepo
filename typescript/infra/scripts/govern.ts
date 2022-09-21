@@ -23,8 +23,13 @@ async function check() {
     config.core,
   );
   await coreChecker.check();
-  // One validator violation per chain (test add validator)
-  coreChecker.expectViolations([CoreViolationType.ValidatorManager], [1 * 7]);
+  // For each VM contract, on each chain:
+  //   1 threshold violation
+  //   1 enrolled validators violation
+  coreChecker.expectViolations(
+    [CoreViolationType.ValidatorManager],
+    [2 * 7 * 7],
+  );
 
   const governor = new HyperlaneCoreGovernor(coreChecker);
   await governor.govern();
