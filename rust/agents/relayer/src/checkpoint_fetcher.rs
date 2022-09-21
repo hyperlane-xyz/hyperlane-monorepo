@@ -3,11 +3,10 @@ use std::time::Duration;
 use eyre::Result;
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{sync::watch::Sender, task::JoinHandle, time::sleep};
-
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use abacus_base::{MultisigCheckpointSyncer, Outboxes};
-use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
+use abacus_base::MultisigCheckpointSyncer;
+use abacus_core::{MultisigSignedCheckpoint, Outbox};
 
 pub(crate) struct CheckpointFetcher {
     polling_interval: u64,
@@ -19,7 +18,7 @@ pub(crate) struct CheckpointFetcher {
 impl CheckpointFetcher {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        outbox: Outboxes,
+        outbox: &dyn Outbox,
         polling_interval: u64,
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
         signed_checkpoint_sender: Sender<Option<MultisigSignedCheckpoint>>,

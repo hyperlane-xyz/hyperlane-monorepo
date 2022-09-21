@@ -12,7 +12,7 @@ import {
   getChainToOwnerMap,
   getTestMultiProvider,
   testChainConnectionConfigs,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
@@ -72,7 +72,7 @@ describe('HelloWorld', async () => {
 
   it('handles a message', async () => {
     await local.sendHelloWorld(remoteDomain, 'World');
-    // Mock processing of the message by Abacus
+    // Mock processing of the message by Hyperlane
     await coreApp.processOutboundMessages(localChain);
     // The initial message has been dispatched.
     expect(await local.sent()).to.equal(1);

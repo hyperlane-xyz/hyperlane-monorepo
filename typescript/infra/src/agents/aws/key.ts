@@ -18,7 +18,7 @@ import {
 import { KmsEthersSigner } from 'aws-kms-ethers-signer';
 import { ethers } from 'ethers';
 
-import { ChainName } from '@abacus-network/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
 import { getEthereumAddress, sleep } from '../../utils/utils';

@@ -1,7 +1,7 @@
 import { ChainName } from '../types';
 
 /**
- * Enumeration of Abacus supported chains
+ * Enumeration of Hyperlane supported chains
  */
 export enum Chains { // must be string type to be used with Object.keys
   arbitrum = 'arbitrum',
@@ -20,6 +20,7 @@ export enum Chains { // must be string type to be used with Object.keys
   arbitrumrinkeby = 'arbitrumrinkeby',
   optimismkovan = 'optimismkovan',
   auroratestnet = 'auroratestnet',
+  moonbasealpha = 'moonbasealpha',
   test1 = 'test1',
   test2 = 'test2',
   test3 = 'test3',

@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import type { types } from '@abacus-network/utils';
+import type { types } from '@hyperlane-xyz/utils';
 
 import { BeaconProxyAddresses } from '../proxy';
 import { ChainName } from '../types';

@@ -1,20 +1,20 @@
-import { Ownable } from '@abacus-network/core';
-import { utils } from '@abacus-network/utils';
+import { Ownable } from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
-import { AbacusApp } from '../../AbacusApp';
+import { HyperlaneApp } from '../../HyperlaneApp';
 import { chainMetadata } from '../../consts/chainMetadata';
 import { RouterContracts } from '../../router';
 import { ChainName } from '../../types';
-import { AbacusAppChecker } from '../AbacusAppChecker';
+import { HyperlaneAppChecker } from '../HyperlaneAppChecker';
 
 import { RouterConfig } from './types';
 
-export class AbacusRouterChecker<
+export class HyperlaneRouterChecker<
   Chain extends ChainName,
-  App extends AbacusApp<Contracts, Chain>,
+  App extends HyperlaneApp<Contracts, Chain>,
   Config extends RouterConfig,
   Contracts extends RouterContracts,
-> extends AbacusAppChecker<Chain, App, Config> {
+> extends HyperlaneAppChecker<Chain, App, Config> {
   checkOwnership(chain: Chain): Promise<void> {
     const owner = this.configMap[chain].owner;
     const ownables = this.ownables(chain);

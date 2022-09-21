@@ -1,4 +1,4 @@
-import { chainConnectionConfigs } from '@abacus-network/sdk';
+import { chainConnectionConfigs } from '@hyperlane-xyz/sdk';
 
 export const testnetConfigs = {
   alfajores: chainConnectionConfigs.alfajores,
@@ -14,6 +14,8 @@ export const testnetConfigs = {
   bsctestnet: chainConnectionConfigs.bsctestnet,
   arbitrumrinkeby: chainConnectionConfigs.arbitrumrinkeby,
   optimismkovan: chainConnectionConfigs.optimismkovan,
+  goerli: chainConnectionConfigs.goerli,
+  moonbasealpha: chainConnectionConfigs.moonbasealpha,
 };
 
 export type TestnetChains = keyof typeof testnetConfigs;

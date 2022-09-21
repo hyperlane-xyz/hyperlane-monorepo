@@ -1,4 +1,4 @@
-import { ChainMap, CoreConfig } from '@abacus-network/sdk';
+import { ChainMap, CoreConfig } from '@hyperlane-xyz/sdk';
 
 import { TestnetChains } from './chains';
 
@@ -78,6 +78,26 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
         '0x85f8286a8ee13aecc227e99b75375826cdb512dd',
       ],
       threshold: 3,
+    },
+  },
+  goerli: {
+    validatorManager: {
+      validators: [
+        '0x89687c99ffb56f329915f80a858a45fccc2b7402',
+        '0xca25781e7c0067a71d09b991bd7b37ab1168c76c',
+        '0xcbf6cde516f43a7b5346f48319b016b0e05cb7af',
+      ],
+      threshold: 2,
+    },
+  },
+  moonbasealpha: {
+    validatorManager: {
+      validators: [
+        '0x0cc08084a0a7cc61102e800204851627732f8aa4',
+        '0xd151f6ca08e632eb7abd5afcb49c47d6a9b67a54',
+        '0x8d41c4cb699a408f9b5c69156eaa12ce76346b16',
+      ],
+      threshold: 2,
     },
   },
 };

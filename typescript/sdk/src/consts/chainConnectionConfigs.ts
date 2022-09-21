@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
+import { StaticCeloJsonRpcProvider } from '@hyperlane-xyz/celo-ethers-provider';
 
 import { ChainMap, ChainName, IChainConnection } from '../types';
 
@@ -97,6 +97,7 @@ export const goerli: IChainConnection = {
     5,
   ),
   confirmations: 1,
+  blockExplorerUrl: 'https://goerli.etherscan.io/',
 };
 
 export const kovan: IChainConnection = {
@@ -144,6 +145,15 @@ export const optimismkovan: IChainConnection = {
   blockExplorerUrl: 'https://kovan-optimistic.etherscan.io',
 };
 
+export const moonbasealpha: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://rpc.api.moonbase.moonbeam.network',
+    1287,
+  ),
+  confirmations: 1,
+  blockExplorerUrl: 'https://moonbase.moonscan.io/',
+};
+
 export const test1: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'http://localhost:8545',
@@ -185,6 +195,7 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   arbitrumrinkeby,
   optimism,
   optimismkovan,
+  moonbasealpha,
   test1,
   test2,
   test3,

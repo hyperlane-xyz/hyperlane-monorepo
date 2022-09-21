@@ -160,7 +160,7 @@ where
 impl JsonRpcClient for RetryingProvider<Http> {
     type Error = RetryingProviderError<Http>;
 
-    #[instrument(level = "error", skip_all, fields(method = %method))]
+    #[instrument(level = "error", skip_all, fields(method = %method, provider_host = %self.inner.url().host_str().unwrap_or("unknown")))]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
         T: Debug + Serialize + Send + Sync,
@@ -190,7 +190,7 @@ impl JsonRpcClient for RetryingProvider<Http> {
                 }
             }
             Err(HttpClientError::SerdeJson { err, text }) => {
-                info!(attempt, next_backoff_ms, error = %err, "SerdeJson error in http provider");
+                info!(attempt, next_backoff_ms, error = %err, text = text,  "SerdeJson error in http provider");
                 HandleMethod::Retry(HttpClientError::SerdeJson { err, text })
             }
         })

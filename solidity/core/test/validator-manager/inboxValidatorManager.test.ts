@@ -2,7 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { Validator, types, utils } from '@abacus-network/utils';
+import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
 import {
   Inbox,

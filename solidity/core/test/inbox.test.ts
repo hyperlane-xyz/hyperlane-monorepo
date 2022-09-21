@@ -3,7 +3,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { types, utils } from '@abacus-network/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import {
   BadRecipient1__factory,

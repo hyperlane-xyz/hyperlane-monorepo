@@ -15,7 +15,7 @@
       }
     }
   ],
-  "importOrder": ["^@abacus-network/(.*)$", "^../(.*)$", "^./(.*)$"],
+  "importOrder": ["^@hyperlane-xyz/(.*)$", "^../(.*)$", "^./(.*)$"],
   "importOrderSeparation": true,
   "importOrderSortSpecifiers": true
 }

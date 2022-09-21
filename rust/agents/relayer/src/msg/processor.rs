@@ -5,13 +5,13 @@ use prometheus::IntGauge;
 use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
-    time::{Instant, MissedTickBehavior},
+    time::Instant,
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
-use abacus_base::{CoreMetrics, InboxContracts, Outboxes};
+use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, MultisigSignedCheckpoint, Outbox,
+    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, MultisigSignedCheckpoint,
 };
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
@@ -20,7 +20,6 @@ use super::SubmitMessageArgs;
 
 #[derive(Debug)]
 pub(crate) struct MessageProcessor {
-    outbox: Outboxes,
     db: AbacusDB,
     inbox_contracts: InboxContracts,
     whitelist: Arc<MatchingList>,
@@ -35,7 +34,6 @@ pub(crate) struct MessageProcessor {
 impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        outbox: Outboxes,
         db: AbacusDB,
         inbox_contracts: InboxContracts,
         whitelist: Arc<MatchingList>,
@@ -45,7 +43,6 @@ impl MessageProcessor {
         ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
     ) -> Self {
         Self {
-            outbox,
             db: db.clone(),
             inbox_contracts,
             whitelist,
@@ -60,30 +57,23 @@ impl MessageProcessor {
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
-        let metrics_loop = tokio::spawn(Self::metrics_loop(
-            self.metrics.outbox_state_gauge.clone(),
-            self.outbox.clone(),
-        ));
-        tokio::spawn(async move {
-            let res = self.main_loop().await;
-            metrics_loop.abort();
-            res
-        })
-        .instrument(span)
+        tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 
     #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.chain_name(), local_domain=?self.inbox_contracts.inbox.local_domain()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
-        // Ensure that there is at least one valid, known checkpoint before starting work loop.
+        // Ensure that there is at least one valid, known checkpoint before starting
+        // work loop.
         loop {
             self.ckpt_rx.changed().await?;
             if self.ckpt_rx.borrow().clone().is_some() {
                 break;
             }
         }
-        // Forever, scan AbacusDB looking for new messages to send. When criteria are satisfied
-        // or the message is disqualified, push the message onto self.tx_msg and then continue
-        // the scan at the next outbox highest leaf index.
+        // Forever, scan AbacusDB looking for new messages to send. When criteria are
+        // satisfied or the message is disqualified, push the message onto
+        // self.tx_msg and then continue the scan at the next outbox highest
+        // leaf index.
         loop {
             self.tick().await?;
         }
@@ -123,12 +113,13 @@ impl MessageProcessor {
                 "Leaf in db without message idx: {}",
                 self.message_leaf_index
             );
-            // Not clear what the best thing to do here is, but there is seemingly an existing
-            // race wherein an indexer might non-atomically write leaf info to rocksdb across a
-            // few records, so we might see the leaf status above, but not the message contents
-            // here.  For now, optimistically yield and then re-enter the loop in hopes that
-            // the DB is now coherent.
-            // TODO(webbhorn): Why can't we yield here instead of sleep?
+            // Not clear what the best thing to do here is, but there is seemingly an
+            // existing race wherein an indexer might non-atomically write leaf
+            // info to rocksdb across a few records, so we might see the leaf
+            // status above, but not the message contents here.  For now,
+            // optimistically yield and then re-enter the loop in hopes that the
+            // DB is now coherent. TODO(webbhorn): Why can't we yield here
+            // instead of sleep?
             tokio::time::sleep(Duration::from_secs(1)).await;
             return Ok(());
         };
@@ -171,8 +162,9 @@ impl MessageProcessor {
             return Ok(());
         }
 
-        // If validator hasn't published checkpoint covering self.message_leaf_index yet, wait
-        // until it has, before forwarding the message to the submitter channel.
+        // If validator hasn't published checkpoint covering self.message_leaf_index
+        // yet, wait until it has, before forwarding the message to the
+        // submitter channel.
         let mut ckpt;
         loop {
             ckpt = self.ckpt_rx.borrow().clone();
@@ -188,7 +180,8 @@ impl MessageProcessor {
         let checkpoint = ckpt.unwrap();
         assert!(checkpoint.checkpoint.index >= self.message_leaf_index);
 
-        // Include proof against checkpoint for message in the args provided to the submitter.
+        // Include proof against checkpoint for message in the args provided to the
+        // submitter.
         if checkpoint.checkpoint.index >= self.prover_sync.count() {
             self.prover_sync
                 .update_to_checkpoint(&checkpoint.checkpoint)
@@ -224,27 +217,11 @@ impl MessageProcessor {
         }
         Ok(())
     }
-
-    /// Spawn a task to update the outbox state gauge.
-    async fn metrics_loop(outbox_state_gauge: IntGauge, outbox: Outboxes) {
-        let mut interval = tokio::time::interval(Duration::from_secs(60));
-        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        loop {
-            let state = outbox.state().await;
-            match &state {
-                Ok(state) => outbox_state_gauge.set(*state as u8 as i64),
-                Err(e) => warn!(error = %e, "Failed to get outbox state"),
-            };
-
-            interval.tick().await;
-        }
-    }
 }
 
 #[derive(Debug)]
 pub(crate) struct MessageProcessorMetrics {
     processor_loop_gauge: IntGauge,
-    outbox_state_gauge: IntGauge,
 }
 
 impl MessageProcessorMetrics {
@@ -255,7 +232,6 @@ impl MessageProcessorMetrics {
                 outbox_chain,
                 inbox_chain,
             ]),
-            outbox_state_gauge: metrics.outbox_state().with_label_values(&[outbox_chain]),
         }
     }
 }

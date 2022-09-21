@@ -1,6 +1,6 @@
 FROM node:16-alpine
 
-WORKDIR /abacus-monorepo
+WORKDIR /hyperlane-monorepo
 
 RUN apk add --update --no-cache git g++ make py3-pip
 
@@ -14,6 +14,7 @@ COPY .yarn/releases ./.yarn/releases
 COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
+COPY typescript/ica/package.json ./typescript/ica/
 COPY typescript/infra/package.json ./typescript/infra/
 COPY solidity/core/package.json ./solidity/core/
 COPY solidity/app/package.json ./solidity/app/

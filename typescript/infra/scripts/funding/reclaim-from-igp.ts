@@ -1,6 +1,6 @@
 import { BigNumber } from 'ethers';
 
-import { AbacusCore, objMap, promiseObjAll } from '@abacus-network/sdk';
+import { HyperlaneCore, objMap, promiseObjAll } from '@hyperlane-xyz/sdk';
 
 import { getEnvironment, getEnvironmentConfig } from '../utils';
 
@@ -11,7 +11,7 @@ async function main() {
   const environment = await getEnvironment();
   const coreConfig = await getEnvironmentConfig();
   const multiProvider = await coreConfig.getMultiProvider();
-  const core: AbacusCore<any> = AbacusCore.fromEnvironment(
+  const core: HyperlaneCore<any> = HyperlaneCore.fromEnvironment(
     environment,
     multiProvider,
   );

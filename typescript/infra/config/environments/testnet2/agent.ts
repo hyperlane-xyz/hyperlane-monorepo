@@ -26,7 +26,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-a067a62',
+    tag: 'sha-c2a948f',
   },
   aws: {
     region: 'us-east-1',
@@ -34,7 +34,10 @@ export const abacus: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   validatorSets: validators,
-  connectionType: ConnectionType.Http,
+  gelato: {
+    enabledChains: ['alfajores', 'mumbai', 'goerli'],
+  },
+  connectionType: ConnectionType.HttpQuorum,
   validator: {
     default: {
       interval: 5,
@@ -62,6 +65,12 @@ export const abacus: AgentConfig<TestnetChains> = {
       optimismkovan: {
         reorgPeriod: 0,
       },
+      goerli: {
+        reorgPeriod: 7,
+      },
+      moonbasealpha: {
+        reorgPeriod: 0,
+      },
     },
   },
   relayer: {
@@ -83,7 +92,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   context: Contexts.Flowcarbon,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-a067a62',
+    tag: 'sha-c2a948f',
   },
   aws: {
     region: 'us-east-1',
@@ -91,6 +100,9 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: ['alfajores', 'kovan'],
   validatorSets: validators,
+  gelato: {
+    enabledChains: ['alfajores'],
+  },
   connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {
@@ -112,18 +124,17 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-ecabe2b',
+    tag: 'sha-c2a948f',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  gelato: {
-    enabledChains: ['alfajores', 'mumbai', 'kovan'],
-    useForDisabledOriginChains: true,
-  },
   validatorSets: validators,
+  gelato: {
+    enabledChains: ['alfajores', 'mumbai', 'goerli'],
+  },
   connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {

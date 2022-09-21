@@ -1,4 +1,4 @@
-import { ChainMap, ChainName, chainMetadata } from '@abacus-network/sdk';
+import { ChainMap, ChainName, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../src/config';
 import { MatchingList } from '../src/config/agent';

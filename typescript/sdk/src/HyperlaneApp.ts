@@ -1,6 +1,6 @@
 import {
-  AbacusAddresses,
-  AbacusContracts,
+  HyperlaneAddresses,
+  HyperlaneContracts,
   connectContracts,
   serializeContracts,
 } from './contracts';
@@ -9,8 +9,8 @@ import { ChainMap, ChainName, Connection } from './types';
 import { MultiGeneric } from './utils/MultiGeneric';
 import { objMap } from './utils/objects';
 
-export class AbacusApp<
-  Contracts extends AbacusContracts,
+export class HyperlaneApp<
+  Contracts extends HyperlaneContracts,
   Chain extends ChainName = ChainName,
 > extends MultiGeneric<Chain, Contracts> {
   constructor(
@@ -30,7 +30,7 @@ export class AbacusApp<
     return this.get(chain);
   }
 
-  getAddresses(chain: Chain): AbacusAddresses {
+  getAddresses(chain: Chain): HyperlaneAddresses {
     return serializeContracts(this.get(chain));
   }
 
