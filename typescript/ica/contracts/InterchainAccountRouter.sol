@@ -4,8 +4,8 @@ pragma solidity ^0.8.13;
 import {OwnableMulticall, Call} from "./OwnableMulticall.sol";
 
 // ============ External Imports ============
-import {Router} from "@abacus-network/app/contracts/Router.sol";
-import {TypeCasts} from "@abacus-network/core/contracts/libs/TypeCasts.sol";
+import {Router} from "@hyperlane-xyz/app/contracts/Router.sol";
+import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 

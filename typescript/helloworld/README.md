@@ -1,6 +1,6 @@
-# Abacus 'Hello World' App Template
+# Hyperlane 'Hello World' App Template
 
-A basic Abacus application with a router contract that can dispatch messages.
+A basic Hyperlane application with a router contract that can dispatch messages.
 
 ## Setup
 
@@ -24,4 +24,4 @@ yarn lint
 
 ## Learn more
 
-For more information, see the [Abacus documentation](https://docs.useabacus.network/abacus-docs/developers/getting-started).
+For more information, see the [Hyperlane documentation](https://docs.hyperlane.xyz/hyperlane-docs/developers/getting-started).

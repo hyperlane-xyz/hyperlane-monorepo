@@ -4,7 +4,7 @@
 // See: https://github.com/ethers-io/ethers.js/discussions/3006
 import { ethers } from 'ethers';
 
-import { utils } from '@abacus-network/utils';
+import { utils } from '@hyperlane-xyz/utils';
 
 export type RetryOptions = {
   // Maximum number of times to make the RPC

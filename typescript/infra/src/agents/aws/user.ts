@@ -7,7 +7,7 @@ import {
   User,
 } from '@aws-sdk/client-iam';
 
-import { ChainName } from '@abacus-network/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
 import { AgentConfig } from '../../config';

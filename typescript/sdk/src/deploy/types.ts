@@ -1,6 +1,6 @@
 import { Contract } from 'ethers';
 
-import { Ownable } from '@abacus-network/core';
+import { Ownable } from '@hyperlane-xyz/core';
 
 import type { ChainMap, ChainName, IChainConnection } from '../types';
 

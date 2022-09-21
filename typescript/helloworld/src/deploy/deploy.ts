@@ -1,10 +1,10 @@
 import {
-  AbacusCore,
-  AbacusRouterDeployer,
   ChainMap,
   ChainName,
+  HyperlaneCore,
+  HyperlaneRouterDeployer,
   MultiProvider,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import {
   HelloWorldContracts,
@@ -16,7 +16,7 @@ import { HelloWorldConfig } from './config';
 
 export class HelloWorldDeployer<
   Chain extends ChainName,
-> extends AbacusRouterDeployer<
+> extends HyperlaneRouterDeployer<
   Chain,
   HelloWorldConfig,
   HelloWorldContracts,
@@ -25,7 +25,7 @@ export class HelloWorldDeployer<
   constructor(
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, HelloWorldConfig>,
-    protected core: AbacusCore<Chain>,
+    protected core: HyperlaneCore<Chain>,
   ) {
     super(multiProvider, configMap, helloWorldFactories, {});
   }
@@ -34,7 +34,7 @@ export class HelloWorldDeployer<
   // If no custom logic is needed, call deployContract for the router
   async deployContracts(chain: Chain, config: HelloWorldConfig) {
     const router = await this.deployContract(chain, 'router', [
-      config.abacusConnectionManager,
+      config.connectionManager,
       config.interchainGasPaymaster,
     ]);
     return {

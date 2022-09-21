@@ -26,7 +26,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-f463c1a',
+    tag: 'sha-7040e5c',
   },
   aws: {
     region: 'us-east-1',
@@ -34,6 +34,9 @@ export const abacus: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   validatorSets: validators,
+  gelato: {
+    enabledChains: ['alfajores', 'mumbai', 'goerli'],
+  },
   connectionType: ConnectionType.Http,
   validator: {
     default: {
@@ -89,7 +92,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   context: Contexts.Flowcarbon,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-a067a62',
+    tag: 'sha-7040e5c',
   },
   aws: {
     region: 'us-east-1',
@@ -97,6 +100,9 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: ['alfajores', 'kovan'],
   validatorSets: validators,
+  gelato: {
+    enabledChains: ['alfajores'],
+  },
   connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {
@@ -118,18 +124,17 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-ecabe2b',
+    tag: 'sha-7040e5c',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  gelato: {
-    enabledChains: ['alfajores', 'mumbai', 'kovan'],
-    useForDisabledOriginChains: true,
-  },
   validatorSets: validators,
+  gelato: {
+    enabledChains: ['alfajores', 'mumbai', 'goerli'],
+  },
   connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {

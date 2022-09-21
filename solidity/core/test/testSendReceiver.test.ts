@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { utils } from '@abacus-network/utils';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { TestSendReceiver__factory } from '../types';
 

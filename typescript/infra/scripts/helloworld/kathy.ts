@@ -2,14 +2,14 @@ import { BigNumber, ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
-import { HelloWorldApp } from '@abacus-network/helloworld';
+import { HelloWorldApp } from '@hyperlane-xyz/helloworld';
 import {
-  AbacusCore,
   ChainName,
   DispatchedMessage,
+  HyperlaneCore,
   InterchainGasCalculator,
-} from '@abacus-network/sdk';
-import { debug, error, log, utils, warn } from '@abacus-network/utils';
+} from '@hyperlane-xyz/sdk';
+import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
 
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { startMetricsServer } from '../../src/utils/metrics';
@@ -24,6 +24,7 @@ import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from '../utils';
 import { getApp } from './utils';
 
 const metricsRegister = new Registry();
+// TODO rename counter names
 const messagesSendCount = new Counter({
   name: 'abacus_kathy_messages',
   help: 'Count of messages sent; records successes and failures by status label',
@@ -390,7 +391,7 @@ async function sendMessage(
 }
 
 async function messageIsProcessed(
-  core: AbacusCore<any>,
+  core: HyperlaneCore<any>,
   origin: ChainName,
   destination: ChainName,
   message: DispatchedMessage,

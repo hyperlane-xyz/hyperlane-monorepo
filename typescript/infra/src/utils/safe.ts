@@ -3,7 +3,7 @@ import EthersAdapter from '@gnosis.pm/safe-ethers-lib';
 import SafeServiceClient from '@gnosis.pm/safe-service-client';
 import { ethers } from 'ethers';
 
-import { ChainConnection, ChainName, chainMetadata } from '@abacus-network/sdk';
+import { ChainConnection, ChainName, chainMetadata } from '@hyperlane-xyz/sdk';
 
 export function getSafeService(
   chain: ChainName,

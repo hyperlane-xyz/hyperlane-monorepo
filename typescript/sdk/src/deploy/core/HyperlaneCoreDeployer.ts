@@ -1,11 +1,11 @@
 import debug from 'debug';
 import { ethers } from 'ethers';
 
-import { Inbox, Ownable } from '@abacus-network/core';
-import type { types } from '@abacus-network/utils';
+import { Inbox, Ownable } from '@hyperlane-xyz/core';
+import type { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
-import { AbacusCore, CoreContractsMap } from '../../core/AbacusCore';
+import { CoreContractsMap, HyperlaneCore } from '../../core/HyperlaneCore';
 import {
   CoreContracts,
   InboxContracts,
@@ -17,11 +17,13 @@ import { MultiProvider } from '../../providers/MultiProvider';
 import { BeaconProxyAddresses, ProxiedContract } from '../../proxy';
 import { ChainMap, ChainName, RemoteChainMap, Remotes } from '../../types';
 import { objMap, promiseObjAll } from '../../utils/objects';
-import { AbacusDeployer } from '../AbacusDeployer';
+import { HyperlaneDeployer } from '../HyperlaneDeployer';
 
 import { CoreConfig, ValidatorManagerConfig } from './types';
 
-export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
+export class HyperlaneCoreDeployer<
+  Chain extends ChainName,
+> extends HyperlaneDeployer<
   Chain,
   CoreConfig,
   CoreContracts<Chain, Chain>,
@@ -35,7 +37,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     factoriesOverride = coreFactories,
   ) {
     super(multiProvider, configMap, factoriesOverride, {
-      logger: debug('abacus:CoreDeployer'),
+      logger: debug('hyperlane:CoreDeployer'),
     });
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
@@ -135,9 +137,9 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       [],
     );
 
-    const abacusConnectionManager = await this.deployContract(
+    const connectionManager = await this.deployContract(
       chain,
-      'abacusConnectionManager',
+      'connectionManager',
       [],
     );
 
@@ -146,10 +148,10 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       config.validatorManager,
       upgradeBeaconController.address,
     );
-    await super.runIfOwner(chain, abacusConnectionManager, async () => {
-      const current = await abacusConnectionManager.outbox();
+    await super.runIfOwner(chain, connectionManager, async () => {
+      const current = await connectionManager.outbox();
       if (current !== outbox.outbox.address) {
-        const outboxTx = await abacusConnectionManager.setOutbox(
+        const outboxTx = await connectionManager.setOutbox(
           outbox.outbox.address,
           dc.overrides,
         );
@@ -178,12 +180,12 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
         );
       }
 
-      await super.runIfOwner(chain, abacusConnectionManager, async () => {
-        const isEnrolled = await abacusConnectionManager.isInbox(
+      await super.runIfOwner(chain, connectionManager, async () => {
+        const isEnrolled = await connectionManager.isInbox(
           inboxes[remote]!.inbox.address,
         );
         if (!isEnrolled) {
-          const enrollTx = await abacusConnectionManager.enrollInbox(
+          const enrollTx = await connectionManager.enrollInbox(
             chainMetadata[remote].id,
             inboxes[remote]!.inbox.address,
             dc.overrides,
@@ -196,7 +198,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
 
     return {
       upgradeBeaconController,
-      abacusConnectionManager,
+      connectionManager,
       interchainGasPaymaster,
       inboxes: inboxes as RemoteChainMap<Chain, LocalChain, InboxContracts>,
       ...outbox,
@@ -204,13 +206,13 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
   }
 
   static async transferOwnership<CoreNetworks extends ChainName>(
-    core: AbacusCore<CoreNetworks>,
+    core: HyperlaneCore<CoreNetworks>,
     owners: ChainMap<CoreNetworks, types.Address>,
     multiProvider: MultiProvider<CoreNetworks>,
   ): Promise<ChainMap<CoreNetworks, ethers.ContractReceipt[]>> {
     return promiseObjAll(
       objMap(core.contractsMap, async (chain, coreContracts) =>
-        AbacusCoreDeployer.transferOwnershipOfChain(
+        HyperlaneCoreDeployer.transferOwnershipOfChain(
           coreContracts,
           owners[chain],
           multiProvider.getChainConnection(chain),
@@ -230,7 +232,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     const ownables: Ownable[] = [
       coreContracts.outbox.contract,
       coreContracts.outboxValidatorManager,
-      coreContracts.abacusConnectionManager,
+      coreContracts.connectionManager,
       coreContracts.upgradeBeaconController,
       ...Object.values<InboxContracts>(coreContracts.inboxes).flatMap(
         (inbox) => [inbox.inbox.contract, inbox.inboxValidatorManager],

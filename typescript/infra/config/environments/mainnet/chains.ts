@@ -2,7 +2,7 @@ import {
   ChainMap,
   IChainConnection,
   chainConnectionConfigs,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 export const mainnetConfigs: ChainMap<any, IChainConnection> = {
   bsc: {
