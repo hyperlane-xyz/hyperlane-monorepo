@@ -9,6 +9,9 @@ import {IMessageRecipient} from "@abacus-network/core/interfaces/IMessageRecipie
 import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
 
 abstract contract Router is AbacusConnectionClient, IMessageRecipient {
+    string constant NO_ROUTER_ENROLLED_REVERT_MESSAGE =
+        "No router enrolled for domain. Did you specify the right domain ID?";
+
     // ============ Mutable Storage ============
 
     mapping(uint32 => bytes32) public routers;
@@ -32,7 +35,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     modifier onlyRemoteRouter(uint32 _origin, bytes32 _router) {
         require(
             _isRemoteRouter(_origin, _router),
-            "No router enrolled for domain. Did you specify the right domain ID?"
+            NO_ROUTER_ENROLLED_REVERT_MESSAGE
         );
         _;
     }
@@ -128,10 +131,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         returns (bytes32 _router)
     {
         _router = routers[_domain];
-        require(
-            _router != bytes32(0),
-            "No router enrolled for domain. Did you specify the right domain ID?"
-        );
+        require(_router != bytes32(0), NO_ROUTER_ENROLLED_REVERT_MESSAGE);
     }
 
     /**
