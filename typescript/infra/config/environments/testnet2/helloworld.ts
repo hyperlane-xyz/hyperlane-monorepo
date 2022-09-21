@@ -10,8 +10,8 @@ export const abacus: HelloWorldConfig<TestnetChains> = {
   addresses: abacusAddresses,
   kathy: {
     docker: {
-      repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-1c67fc9',
+      repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
+      tag: 'sha-0d76398',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -29,8 +29,8 @@ export const releaseCandidate: HelloWorldConfig<TestnetChains> = {
   addresses: rcAddresses,
   kathy: {
     docker: {
-      repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-1c67fc9',
+      repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
+      tag: 'sha-0d76398',
     },
     chainsToSkip: [],
     runEnv: environment,
