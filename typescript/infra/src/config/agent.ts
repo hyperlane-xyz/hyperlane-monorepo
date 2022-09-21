@@ -1,5 +1,5 @@
-import { ChainMap, ChainName, RemoteChainMap } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
+import { ChainMap, ChainName, RemoteChainMap } from '@hyperlane-xyz/sdk';
+import { types } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import {
@@ -100,6 +100,7 @@ interface MatchingListElement {
 export enum GasPaymentEnforcementPolicyType {
   None = 'none',
   Minimum = 'minimum',
+  MeetsEstimatedCost = 'meetsEstimatedCost',
 }
 
 export type GasPaymentEnforcementPolicy =
@@ -109,6 +110,9 @@ export type GasPaymentEnforcementPolicy =
   | {
       type: GasPaymentEnforcementPolicyType.Minimum;
       payment: string | number;
+    }
+  | {
+      type: GasPaymentEnforcementPolicyType.MeetsEstimatedCost;
     };
 
 // Incomplete basic relayer agent config
@@ -475,6 +479,24 @@ export class ChainAgentConfig<Chain extends ChainName> {
       );
     }
     return true;
+  }
+
+  async ensureCoingeckoApiKeySecretExistsIfRequired() {
+    // The CoinGecko API Key is only needed when using the "MeetsEstimatedCost" policy.
+    if (
+      this.relayerConfig?.gasPaymentEnforcementPolicy.type !==
+      GasPaymentEnforcementPolicyType.MeetsEstimatedCost
+    ) {
+      return;
+    }
+    // Check to see if the Gelato API key exists in GCP secret manager - throw if it doesn't
+    const secretName = `${this.agentConfig.runEnv}-coingecko-api-key`;
+    const secretExists = await gcpSecretExists(secretName);
+    if (!secretExists) {
+      throw Error(
+        `Expected CoinGecko API Key GCP Secret named ${secretName} to exist, have you created it?`,
+      );
+    }
   }
 
   transactionSubmissionType(chain: Chain): TransactionSubmissionType {

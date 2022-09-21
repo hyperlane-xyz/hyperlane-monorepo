@@ -12,7 +12,13 @@ pub enum GasPaymentEnforcementPolicy {
     /// No requirement - all messages are processed regardless of gas payment
     None,
     /// Messages that have paid a minimum amount will be processed
-    Minimum { payment: U256 },
+    Minimum {
+        payment: U256,
+    },
+
+    MeetsEstimatedCost {
+        coingeckoapikey: Option<String>,
+    },
 }
 
 decl_settings!(Relayer {

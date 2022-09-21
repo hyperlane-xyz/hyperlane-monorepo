@@ -1,10 +1,9 @@
 use std::time;
 use std::time::UNIX_EPOCH;
 
+// use abacus_base::chain::domain_id_from_name;
 use sea_orm::prelude::DateTime;
 use sea_orm_migration::prelude::*;
-
-use abacus_core::domain_from_chain;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -68,7 +67,8 @@ impl MigrationTrait for Migration {
             };
 
             EntityTrait::insert(domain::ActiveModel {
-                id: Set(domain_from_chain(domain.0).expect("Unknown chain name")),
+                // id: Set(domain_id_from_name(domain.0).expect("Unknown chain name")),
+                id: Set(1u32),
                 time_created: Set(now),
                 time_updated: Set(now),
                 name: Set(domain.0.to_owned()),

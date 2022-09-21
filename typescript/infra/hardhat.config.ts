@@ -3,19 +3,19 @@ import '@nomiclabs/hardhat-waffle';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
-import { TestSendReceiver__factory } from '@abacus-network/core';
+import { TestSendReceiver__factory } from '@hyperlane-xyz/core';
 import {
-  AbacusCore,
   ChainName,
   ChainNameToDomainId,
+  HyperlaneCore,
   getTestMultiProvider,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { getCoreEnvironmentConfig } from './scripts/utils';
 import { sleep } from './src/utils/utils';
 
 const chainSummary = async <Chain extends ChainName>(
-  core: AbacusCore<Chain>,
+  core: HyperlaneCore<Chain>,
   chain: Chain,
 ) => {
   const coreContracts = core.getContracts(chain);
@@ -46,7 +46,7 @@ const chainSummary = async <Chain extends ChainName>(
   return summary;
 };
 
-task('kathy', 'Dispatches random abacus messages')
+task('kathy', 'Dispatches random hyperlane messages')
   .addParam(
     'rounds',
     'Number of message sending rounds to perform; defaults to having no limit',
@@ -67,7 +67,7 @@ task('kathy', 'Dispatches random abacus messages')
         signer,
         config.transactionConfigs,
       );
-      const core = AbacusCore.fromEnvironment(environment, multiProvider);
+      const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
 
       const randomElement = <T>(list: T[]) =>
         list[Math.floor(Math.random() * list.length)];

@@ -1,4 +1,4 @@
-import { ChainMap, CoreConfig } from '@abacus-network/sdk';
+import { ChainMap, CoreConfig } from '@hyperlane-xyz/sdk';
 
 import { TestnetChains } from './chains';
 

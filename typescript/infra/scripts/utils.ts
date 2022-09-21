@@ -9,7 +9,7 @@ import {
   MultiProvider,
   objMap,
   promiseObjAll,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';

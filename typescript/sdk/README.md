@@ -1,5 +1,5 @@
-# Abacus Application SDK
+# Hyperlane Application SDK
 
-The Abacus Application SDK help developers manage multichain Abacus applications. This requires a higher level API than dApp developers are familiar with which is namespaced by target chain.
+The Hyperlane Application SDK help developers manage multichain Hyperlane applications. This requires a higher level API than dApp developers are familiar with which is namespaced by target chain.
 
-You can find the docs at https://docs.useabacus.network/abacus-docs/developers/application-sdk
+You can find the docs at https://docs.hyperlane.xyz/hyperlane-docs/developers/application-sdk

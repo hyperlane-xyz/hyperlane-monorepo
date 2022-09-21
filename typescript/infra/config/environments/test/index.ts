@@ -1,6 +1,6 @@
 import { JsonRpcProvider } from '@ethersproject/providers';
 
-import { getTestMultiProvider } from '@abacus-network/sdk';
+import { getTestMultiProvider } from '@hyperlane-xyz/sdk';
 
 import { CoreEnvironmentConfig } from '../../../src/config';
 

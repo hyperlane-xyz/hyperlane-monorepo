@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { types, utils } from '@abacus-network/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { Checkpoint } from './types';
 

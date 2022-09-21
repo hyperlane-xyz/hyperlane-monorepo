@@ -1,4 +1,8 @@
-use std::{ops::Deref, sync::Arc, time::Duration};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Arc,
+    time::Duration,
+};
 
 use abacus_base::InboxContracts;
 use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
@@ -14,14 +18,10 @@ use tokio::{
 };
 use tracing::instrument;
 
-use crate::msg::{gas_payment_enforcer::GasPaymentEnforcer, SubmitMessageArgs};
+use crate::msg::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
 // The number of seconds after a tick to sleep before attempting the next tick.
 const TICK_SLEEP_DURATION_SECONDS: u64 = 30;
-
-/// The period to sleep after observing the message's gas payment
-/// as insufficient, in secs.
-const INSUFFICIENT_GAS_PAYMENT_SLEEP_PERIOD_SECS: u64 = 15;
 
 #[derive(Debug, Clone)]
 pub struct SponsoredCallOpArgs {
@@ -50,12 +50,18 @@ impl Deref for SponsoredCallOp {
     }
 }
 
+impl DerefMut for SponsoredCallOp {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl SponsoredCallOp {
     pub fn new(args: SponsoredCallOpArgs) -> Self {
         Self(args)
     }
 
-    #[instrument(skip(self), fields(msg_leaf_index=self.0.message.leaf_index))]
+    #[instrument(skip(self), fields(msg_leaf_index=self.message.leaf_index))]
     pub async fn run(&mut self) {
         loop {
             match self.tick().await {
@@ -79,7 +85,7 @@ impl SponsoredCallOp {
                 _ => {}
             }
 
-            self.0.message.num_retries += 1;
+            self.message.num_retries += 1;
             sleep(Duration::from_secs(TICK_SLEEP_DURATION_SECONDS)).await;
         }
     }
@@ -92,31 +98,41 @@ impl SponsoredCallOp {
             return Ok(MessageStatus::Processed);
         }
 
+        let tx_estimated_cost = self
+            .inbox_contracts
+            .validator_manager
+            .process_estimate_costs(
+                &self.message.checkpoint,
+                &self.message.committed_message.message,
+                &self.message.proof,
+            )
+            .await?;
+
         // If the gas payment requirement hasn't been met, sleep briefly and wait for the next tick.
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(self.0.message.leaf_index)?;
+            .message_meets_gas_payment_requirement(
+                &self.message.committed_message,
+                &tx_estimated_cost,
+            )
+            .await?;
 
         if !meets_gas_requirement {
             tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
-            sleep(Duration::from_secs(
-                INSUFFICIENT_GAS_PAYMENT_SLEEP_PERIOD_SECS,
-            ))
-            .await;
             return Ok(MessageStatus::None);
         }
 
         // Send the sponsored call.
         let sponsored_call_result = self.send_sponsored_call_api_call().await?;
         tracing::info!(
-            msg=?self.0.message,
+            msg=?self.message,
             task_id=sponsored_call_result.task_id,
             "Sent sponsored call",
         );
 
         // Wait for a terminal state, timing out according to the retry_submit_interval.
         match timeout(
-            self.0.opts.retry_submit_interval,
+            self.opts.retry_submit_interval,
             self.poll_for_terminal_state(sponsored_call_result.task_id.clone()),
         )
         .await
@@ -138,7 +154,7 @@ impl SponsoredCallOp {
     // by Gelato.
     async fn poll_for_terminal_state(&self, task_id: String) -> Result<MessageStatus> {
         loop {
-            sleep(self.0.opts.poll_interval).await;
+            sleep(self.opts.poll_interval).await;
 
             // Check if the message has been processed. Checking with the Inbox directly
             // is the best source of truth, and is the only way in which a message can be
@@ -151,7 +167,7 @@ impl SponsoredCallOp {
             // If the task was cancelled for some reason by Gelato, stop waiting.
 
             let task_status_api_call = TaskStatusApiCall {
-                http: self.0.http.clone(),
+                http: self.http.clone(),
                 args: TaskStatusApiCallArgs {
                     task_id: task_id.clone(),
                 },
@@ -183,7 +199,7 @@ impl SponsoredCallOp {
 
         let sponsored_call_api_call = SponsoredCallApiCall {
             args: &args,
-            http: self.0.http.clone(),
+            http: self.http.clone(),
             sponsor_api_key: &self.sponsor_api_key,
         };
 
@@ -191,13 +207,13 @@ impl SponsoredCallOp {
     }
 
     fn create_sponsored_call_args(&self) -> SponsoredCallArgs {
-        let calldata = self.0.inbox_contracts.validator_manager.process_calldata(
-            &self.0.message.checkpoint,
-            &self.0.message.committed_message.message,
-            &self.0.message.proof,
+        let calldata = self.inbox_contracts.validator_manager.process_calldata(
+            &self.message.checkpoint,
+            &self.message.committed_message.message,
+            &self.message.proof,
         );
         SponsoredCallArgs {
-            chain_id: self.0.destination_chain,
+            chain_id: self.destination_chain,
             target: self
                 .inbox_contracts
                 .validator_manager

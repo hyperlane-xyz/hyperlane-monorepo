@@ -2,7 +2,7 @@ import fetch from 'cross-fetch';
 import { Debugger, debug } from 'debug';
 import { ethers } from 'ethers';
 
-import { utils } from '@abacus-network/utils';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
@@ -41,7 +41,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     protected readonly compilerOptions: CompilerOptions,
   ) {
     super(verificationInputs);
-    this.logger = debug('abacus:ContractVerifier');
+    this.logger = debug('hyperlane:ContractVerifier');
   }
 
   verify(): Promise<PromiseSettledResult<void>[]> {

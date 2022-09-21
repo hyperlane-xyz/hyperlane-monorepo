@@ -1,7 +1,7 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 
-import { utils } from '@abacus-network/utils';
+import { utils } from '@hyperlane-xyz/utils';
 
 export const S3_BUCKET_REGEX =
   /^(?:https?:\/\/)?(.*)\.s3\.(.*)\.amazonaws.com\/?$/;

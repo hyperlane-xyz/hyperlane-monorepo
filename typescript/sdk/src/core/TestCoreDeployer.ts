@@ -1,9 +1,9 @@
 import { ethers } from 'ethers';
 
-import { TestInbox__factory, TestOutbox__factory } from '@abacus-network/core';
+import { TestInbox__factory, TestOutbox__factory } from '@hyperlane-xyz/core';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { AbacusCoreDeployer } from '../deploy/core/AbacusCoreDeployer';
+import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
 import { CoreConfig, ValidatorManagerConfig } from '../deploy/core/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ProxiedContract } from '../proxy';
@@ -42,7 +42,7 @@ function mockProxy(contract: ethers.Contract) {
 
 export class TestCoreDeployer<
   TestChain extends TestChainNames = TestChainNames,
-> extends AbacusCoreDeployer<TestChain> {
+> extends HyperlaneCoreDeployer<TestChain> {
   constructor(
     public readonly multiProvider: MultiProvider<TestChain>,
     configMap?: ChainMap<TestChain, CoreConfig>,

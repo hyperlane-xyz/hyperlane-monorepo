@@ -5,29 +5,29 @@ import path from 'path';
 import sinon from 'sinon';
 
 import {
-  AbacusCore,
-  AbacusCoreChecker,
-  AbacusCoreDeployer,
   ChainMap,
   CoreConfig,
   CoreContractsMap,
+  HyperlaneCore,
+  HyperlaneCoreChecker,
+  HyperlaneCoreDeployer,
   MultiProvider,
   getTestMultiProvider,
   objMap,
   serializeContracts,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { environment as testConfig } from '../config/environments/test';
 import { TestChains } from '../config/environments/test/chains';
-import { AbacusCoreInfraDeployer } from '../src/core/deploy';
+import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
 import { writeJSON } from '../src/utils/utils';
 
 describe('core', async () => {
   const environment = 'test';
 
   let multiProvider: MultiProvider<TestChains>;
-  let deployer: AbacusCoreInfraDeployer<TestChains>;
-  let core: AbacusCore<TestChains>;
+  let deployer: HyperlaneCoreInfraDeployer<TestChains>;
+  let core: HyperlaneCore<TestChains>;
   let contracts: CoreContractsMap<TestChains>;
   let coreConfig: ChainMap<TestChains, CoreConfig>;
 
@@ -37,7 +37,7 @@ describe('core', async () => {
     // This is kind of awkward and really these tests shouldn't live here
     multiProvider = getTestMultiProvider(signer, testConfig.transactionConfigs);
     coreConfig = testConfig.core;
-    deployer = new AbacusCoreInfraDeployer(multiProvider, coreConfig);
+    deployer = new HyperlaneCoreInfraDeployer(multiProvider, coreConfig);
     owners = objMap(testConfig.transactionConfigs, () => owner.address);
   });
 
@@ -53,8 +53,8 @@ describe('core', async () => {
   });
 
   it('transfers ownership', async () => {
-    core = new AbacusCore(contracts, multiProvider);
-    await AbacusCoreDeployer.transferOwnership(core, owners, multiProvider);
+    core = new HyperlaneCore(contracts, multiProvider);
+    await HyperlaneCoreDeployer.transferOwnership(core, owners, multiProvider);
   });
 
   describe('failure modes', async () => {
@@ -88,7 +88,7 @@ describe('core', async () => {
     it('can be resumed from partial contracts', async () => {
       sinon.restore(); // restore normal deployer behavior
 
-      delete deployer.deployedContracts.test2!.abacusConnectionManager;
+      delete deployer.deployedContracts.test2!.connectionManager;
       delete deployer.deployedContracts.test2!.outbox;
 
       const result = await deployer.deploy();
@@ -102,7 +102,7 @@ describe('core', async () => {
       ...config,
       owner: owners[chain],
     }));
-    const checker = new AbacusCoreChecker(multiProvider, core, joinedConfig);
+    const checker = new HyperlaneCoreChecker(multiProvider, core, joinedConfig);
     await checker.check();
   });
 });

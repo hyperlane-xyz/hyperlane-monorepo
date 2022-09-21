@@ -1,9 +1,9 @@
 {
-  "name": "@abacus-network/core",
-  "description": "Core solidity contracts for Abacus",
-  "version": "0.4.1",
+  "name": "@hyperlane-xyz/core",
+  "description": "Core solidity contracts for Hyperlane",
+  "version": "0.5.0-beta0",
   "dependencies": {
-    "@abacus-network/utils": "0.4.1",
+    "@hyperlane-xyz/utils": "0.5.0-beta0",
     "@openzeppelin/contracts": "^4.6.0",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "@summa-tx/memview-sol": "^2.0.0"
@@ -35,14 +35,14 @@
     "/contracts",
     "/interfaces"
   ],
-  "homepage": "https://www.useabacus.network",
+  "homepage": "https://www.hyperlane.xyz",
   "keywords": [
-    "Abacus",
+    "Hyperlane",
     "Solidity"
   ],
   "license": "Apache-2.0",
   "main": "dist/index.js",
-  "repository": "https://github.com/abacus-network/abacus-monorepo",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "build": "hardhat compile && tsc",
     "clean": "hardhat clean && rm -rf ./dist ./cache",
