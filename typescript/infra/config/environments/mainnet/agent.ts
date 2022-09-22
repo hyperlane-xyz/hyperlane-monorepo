@@ -98,7 +98,7 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
       'optimism',
     ],
   },
-  connectionType: ConnectionType.Http,
+  connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
