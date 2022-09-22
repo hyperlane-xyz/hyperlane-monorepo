@@ -98,7 +98,10 @@ impl SponsoredCallOp {
             return Ok(MessageStatus::Processed);
         }
 
-        let tx_estimated_cost = self
+        // Estimate transaction costs for the process call. If there are issues, it's likely
+        // that gas estimation has failed because the message is reverting. This is defined behavior,
+        // so we just log the error and move onto the next tick.
+        let tx_cost_estimate = match self
             .inbox_contracts
             .validator_manager
             .process_estimate_costs(
@@ -106,14 +109,21 @@ impl SponsoredCallOp {
                 &self.message.committed_message.message,
                 &self.message.proof,
             )
-            .await?;
+            .await
+        {
+            Ok(tx_cost_estimate) => tx_cost_estimate,
+            Err(err) => {
+                tracing::info!(error=?err, "Error estimating process costs");
+                return Ok(MessageStatus::None);
+            }
+        };
 
         // If the gas payment requirement hasn't been met, sleep briefly and wait for the next tick.
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
             .message_meets_gas_payment_requirement(
                 &self.message.committed_message,
-                &tx_estimated_cost,
+                &tx_cost_estimate,
             )
             .await?;
 
