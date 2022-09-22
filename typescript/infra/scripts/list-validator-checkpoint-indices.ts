@@ -15,11 +15,12 @@ async function main() {
 
   const agentConfig = await getContextAgentConfig(config, 'abacus');
 
+  const validators = Object.entries(agentConfig.validatorSets).flatMap(
+    ([chain, set]) => set.validators.map((validator) => ({ chain, validator })),
+  );
   const indices = await concurrentMap(
     4,
-    Object.entries(agentConfig.validatorSets).flatMap(([chain, set]) =>
-      set.validators.map((validator) => ({ chain, validator })),
-    ),
+    validators,
     async ({ chain, validator }) => {
       const s3Validator = new S3Validator(
         validator.address,
