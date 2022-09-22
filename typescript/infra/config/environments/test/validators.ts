@@ -42,7 +42,7 @@ export const validators: ChainValidatorSets<TestChains> = {
     validators: [
       {
         address: '0x90f79bf6eb2c4f870365e785982e1f101e93b906',
-        name: 'local-validator-' + 'test3',
+        name: 'local-validator-test3',
         checkpointSyncer: {
           type: CheckpointSyncerType.LocalStorage,
           path: localStoragePath('test3'),
