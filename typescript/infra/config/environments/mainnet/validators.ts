@@ -42,6 +42,24 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0xd8B404ad70A1682aaF457d4918F7b506035262D3',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-mainnet-zkv-celo-signatures',
+          region: 'eu-west-2',
+        },
+      },
+      {
+        address: '0x1ba04e4df7DF9D736543cC9A8D6f61278EA140ec',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-validator-signatures-zplabs-celo',
+          region: 'eu-central-1',
+        },
+      },
     ],
   },
   ethereum: {
@@ -69,6 +87,24 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('ethereum', 2),
           region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x1946782598328C6D5e1CD1076d37Feab680ad9D2',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-mainnet-zkv-ethereum-signatures',
+          region: 'eu-west-2',
+        },
+      },
+      {
+        address: '0xaDF418C044e857C174e70B3a1df7454B55ee258F',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-validator-signatures-zplabs-eth',
+          region: 'eu-central-1',
         },
       },
     ],
@@ -100,6 +136,24 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0x1E1086F3E6F2F5762AF54B8167cdE934186cbAf9',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-mainnet-zkv-avalanche-signatures',
+          region: 'eu-west-2',
+        },
+      },
+      {
+        address: '0xd0b24bb03d2c244c3B1cA78c21A793c9e6ff4d87',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-validator-signatures-zplabs-avax',
+          region: 'eu-central-1',
+        },
+      },
     ],
   },
   polygon: {
@@ -127,6 +181,24 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('polygon', 2),
           region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x8669a883652DBf8c47DECbC4ec8b137E54A5bEAF',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-mainnet-zkv-avalanche-signatures',
+          region: 'eu-west-2',
+        },
+      },
+      {
+        address: '0x4c055065DdD22DC874B3494Eb81FcDC1cDe9F57e',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-validator-signatures-zplabs-pgon',
+          region: 'eu-central-1',
         },
       },
     ],
@@ -158,6 +230,24 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0x24f9004c3e02C8c354881685B221cAd8FaF4d9B0',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-mainnet-zkv-bsc-signatures',
+          region: 'eu-west-2',
+        },
+      },
+      {
+        address: '0x7e303daC8b6b24cac10b6f032e0eF373A1D80299',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-validator-signatures-zplabs-bsc',
+          region: 'eu-central-1',
+        },
+      },
     ],
   },
   arbitrum: {
@@ -187,6 +277,24 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
+      {
+        address: '0xFF20DFeEE355Ef5a6d3C6dEe25AAB697ad3915a4',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-mainnet-zkv-arbitrum-signatures',
+          region: 'eu-west-2',
+        },
+      },
+      {
+        address: '0xb2e9B58B63c8676E583c2C0050bD46cecd8Ac8F3',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-validator-signatures-zplabs-arbitrum',
+          region: 'eu-central-1',
+        },
+      },
     ],
   },
   optimism: {
@@ -214,6 +322,24 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('optimism', 2),
           region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x8669a883652DBf8c47DECbC4ec8b137E54A5bEAF',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-mainnet-zkv-optimism-signatures',
+          region: 'eu-west-2',
+        },
+      },
+      {
+        address: '0x9D8a7F26B62fC4e481Be0F0736683d2822A8c354',
+        readonly: true,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-validator-signatures-zplabs-optimism',
+          region: 'eu-central-1',
         },
       },
     ],
