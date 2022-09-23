@@ -114,7 +114,7 @@ impl ValidatorSubmitter {
             if current_index < latest_checkpoint.index {
                 let signed_checkpoint = latest_checkpoint.sign_with(self.signer.as_ref()).await?;
 
-                info!(signature = ?signed_checkpoint, signer=?self.signer, "Signed new latest checkpoint");
+                info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed new latest checkpoint");
                 current_index = latest_checkpoint.index;
 
                 self.checkpoint_syncer
