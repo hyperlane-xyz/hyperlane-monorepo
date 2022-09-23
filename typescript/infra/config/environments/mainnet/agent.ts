@@ -31,7 +31,7 @@ export const abacus: AgentConfig<MainnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   validatorSets: validators,
-  connectionType: ConnectionType.Http,
+  connectionType: ConnectionType.HttpQuorum,
   validator: {
     default: {
       interval: 5,
