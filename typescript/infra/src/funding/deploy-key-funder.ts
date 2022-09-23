@@ -36,6 +36,7 @@ function getKeyFunderHelmValues<Chain extends ChainName>(
       chains: agentConfig.contextChainNames,
       contextFundingFrom: keyFunderConfig.contextFundingFrom,
       contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
+      connectionType: keyFunderConfig.connectionType,
     },
     image: {
       repository: keyFunderConfig.docker.repo,
