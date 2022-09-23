@@ -82,7 +82,7 @@ impl ValidatorSubmitter {
         // https://github.com/abacus-network/abacus-monorepo/issues/575 for
         // more details.
         while self.outbox.count().await? == 0 {
-            info!("waiting for non-zero outbox size");
+            info!("Waiting for non-zero outbox size");
             sleep(Duration::from_secs(self.interval)).await;
         }
 
@@ -105,10 +105,16 @@ impl ValidatorSubmitter {
                 .latest_checkpoint_observed
                 .set(latest_checkpoint.index as i64);
 
+            info!(
+                latest_signed_checkpoint_index=?current_index,
+                latest_known_checkpoint_index=?latest_checkpoint.index,
+                "Polled latest checkpoint"
+            );
+
             if current_index < latest_checkpoint.index {
                 let signed_checkpoint = latest_checkpoint.sign_with(self.signer.as_ref()).await?;
 
-                info!(signature = ?signed_checkpoint, signer=?self.signer, "Sign latest checkpoint");
+                info!(signature = ?signed_checkpoint, signer=?self.signer, "Signed new latest checkpoint");
                 current_index = latest_checkpoint.index;
 
                 self.checkpoint_syncer
