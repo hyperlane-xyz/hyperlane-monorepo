@@ -1,15 +1,15 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Router} from "@abacus-network/app/contracts/Router.sol";
+import {Router} from "@hyperlane-xyz/app/contracts/Router.sol";
 
-import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 
 /**
- * @title Abacus Token that extends the ERC721 token standard to enable native interchain transfers.
+ * @title Hyperlane Token that extends the ERC721 token standard to enable native interchain transfers.
  * @author Abacus Works
  */
-contract AbcERC721 is Router, ERC721Upgradeable {
+contract HypERC721 is Router, ERC721EnumerableUpgradeable {
     /**
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
      * @param destination The identifier of the destination chain.
@@ -35,19 +35,27 @@ contract AbcERC721 is Router, ERC721Upgradeable {
     );
 
     /**
-     * @notice Initializes the Abacus router, ERC721 metadata, and mints initial supply to deployer.
-     * @param _xAppConnectionManager The address of the XAppConnectionManager contract.
+     * @notice Initializes the Hyperlane router, ERC721 metadata, and mints initial supply to deployer.
+     * @param _abacusConnectionManager The address of the connection manager contract.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
      * @param _mintAmount The amount of NFTs to mint to `msg.sender`.
      * @param _name The name of the token.
      * @param _symbol The symbol of the token.
      */
     function initialize(
-        address _xAppConnectionManager,
+        address _abacusConnectionManager,
+        address _interchainGasPaymaster,
         uint256 _mintAmount,
         string memory _name,
         string memory _symbol
     ) external initializer {
-        __Router_initialize(_xAppConnectionManager);
+        // Set ownable to sender
+        _transferOwnership(msg.sender);
+        // Set ACM contract address
+        _setAbacusConnectionManager(_abacusConnectionManager);
+        // Set IGP contract address
+        _setInterchainGasPaymaster(_interchainGasPaymaster);
+
         __ERC721_init(_name, _symbol);
         for (uint256 i = 0; i < _mintAmount; i++) {
             _mint(msg.sender, i);
@@ -69,7 +77,7 @@ contract AbcERC721 is Router, ERC721Upgradeable {
         uint256 _tokenId
     ) external payable {
         _burn(_tokenId);
-        _dispatchWithGasAndCheckpoint(
+        _dispatchWithGas(
             _destination,
             abi.encode(_recipient, _tokenId),
             msg.value

@@ -1,16 +1,16 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Router} from "@abacus-network/app/contracts/Router.sol";
+import {Router} from "@hyperlane-xyz/app/contracts/Router.sol";
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 /**
- * @title Abacus Token that extends the ERC20 token standard to enable native interchain transfers.
+ * @title Hyperlane Token that extends the ERC20 token standard to enable native interchain transfers.
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract AbcERC20 is Router, ERC20Upgradeable {
+contract HypERC20 is Router, ERC20Upgradeable {
     /**
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
      * @param destination The identifier of the destination chain.
@@ -36,19 +36,27 @@ contract AbcERC20 is Router, ERC20Upgradeable {
     );
 
     /**
-     * @notice Initializes the Abacus router, ERC20 metadata, and mints initial supply to deployer.
-     * @param _xAppConnectionManager The address of the XAppConnectionManager contract.
+     * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
+     * @param _abacusConnectionManager The address of the connection manager contract.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
      * @param _totalSupply The initial supply of the token.
      * @param _name The name of the token.
      * @param _symbol The symbol of the token.
      */
     function initialize(
-        address _xAppConnectionManager,
+        address _abacusConnectionManager,
+        address _interchainGasPaymaster,
         uint256 _totalSupply,
         string memory _name,
         string memory _symbol
     ) external initializer {
-        __Router_initialize(_xAppConnectionManager);
+        // Set ownable to sender
+        _transferOwnership(msg.sender);
+        // Set ACM contract address
+        _setAbacusConnectionManager(_abacusConnectionManager);
+        // Set IGP contract address
+        _setInterchainGasPaymaster(_interchainGasPaymaster);
+
         __ERC20_init(_name, _symbol);
         _mint(msg.sender, _totalSupply);
     }
@@ -68,7 +76,7 @@ contract AbcERC20 is Router, ERC20Upgradeable {
         uint256 _amount
     ) external payable {
         _burn(msg.sender, _amount);
-        _dispatchWithGasAndCheckpoint(
+        _dispatchWithGas(
             _destination,
             abi.encode(_recipient, _amount),
             msg.value
