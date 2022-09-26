@@ -18,7 +18,7 @@ use crate::CheckpointSyncer;
 /// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
 /// out of the box, so S3 requests must be wrapped with a timeout.
 /// See https://github.com/rusoto/rusoto/issues/1795.
-const S3_REQUEST_TIMEOUT_SECONDS: u32 = 30;
+const S3_REQUEST_TIMEOUT_SECONDS: u64 = 30;
 
 #[derive(Clone)]
 /// Type for reading/writing to S3
@@ -65,7 +65,7 @@ impl S3Storage {
             ..Default::default()
         };
         timeout(
-            Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS.into()),
+            Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS),
             self.authenticated_client().put_object(req),
         )
         .await??;
@@ -80,7 +80,7 @@ impl S3Storage {
             ..Default::default()
         };
         let get_object_result = timeout(
-            Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS.into()),
+            Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS),
             self.anonymous_client().get_object(req),
         )
         .await?;
