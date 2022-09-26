@@ -2,10 +2,9 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist/",
-    "rootDir": "./",
-    "noImplicitAny": false,
+    "rootDir": "./"
   },
-  "exclude": ["./node_modules/", "./dist/", "./src/types/hardhat.d.ts"],
-  "include": ["./src/", "./test", "./scripts"],
+  "exclude": ["./node_modules/", "./dist/", "./types/hardhat.d.ts"],
+  "include": ["./src/", "./test", "./scripts", "index.ts"],
   "files": ["hardhat.config.ts"]
 }
