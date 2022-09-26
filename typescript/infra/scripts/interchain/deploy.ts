@@ -5,15 +5,15 @@ import {
   InterchainAccountContracts,
   InterchainAccountDeployer,
   interchainAccountFactories,
-} from '@abacus-network/interchain-accounts';
+} from '@hyperlane-xyz/interchain-accounts';
 import {
-  AbacusCore,
   ChainMap,
+  HyperlaneCore,
   buildContracts,
   objMap,
   promiseObjAll,
   serializeContracts,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
@@ -37,7 +37,7 @@ async function main() {
     Contexts.Abacus,
     KEY_ROLE_ENUM.Deployer,
   );
-  const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
+  const core = HyperlaneCore.fromEnvironment(environment, multiProvider as any);
 
   const dir = path.join(
     getEnvironmentDirectory(environment),
