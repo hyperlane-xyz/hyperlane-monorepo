@@ -127,7 +127,6 @@ impl ValidatorSubmitter {
                 info!(
                     latest_signed_checkpoint_index=?current_index,
                     latest_known_checkpoint_index=?latest_checkpoint.index,
-                    latest_known_checkpoint_root=?latest_checkpoint.root,
                     "Latest checkpoint infos"
                 );
             }
