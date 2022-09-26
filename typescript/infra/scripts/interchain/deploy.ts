@@ -26,6 +26,8 @@ import {
   getEnvironmentDirectory,
 } from '../utils';
 
+// similar to hello world deploy script but uses freshly funded account for consistent addresses across chains
+// should eventually be deduped
 async function main() {
   const environment = await getEnvironment();
   const context = await getContext();
