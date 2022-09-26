@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, time::Duration};
 
 use abacus_core::SignedCheckpoint;
 use async_trait::async_trait;
@@ -11,8 +11,14 @@ use rusoto_core::{
     HttpClient, Region, RusotoError,
 };
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
+use tokio::time::timeout;
 
 use crate::CheckpointSyncer;
+
+/// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
+/// out of the box, so S3 requests must be wrapped with a timeout.
+/// See https://github.com/rusoto/rusoto/issues/1795.
+const S3_REQUEST_TIMEOUT_SECONDS: u32 = 30;
 
 #[derive(Clone)]
 /// Type for reading/writing to S3
@@ -58,7 +64,11 @@ impl S3Storage {
             content_type: Some("application/json".to_owned()),
             ..Default::default()
         };
-        self.authenticated_client().put_object(req).await?;
+        timeout(
+            Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS.into()),
+            self.authenticated_client().put_object(req),
+        )
+        .await??;
         Ok(())
     }
 
@@ -69,7 +79,13 @@ impl S3Storage {
             bucket: self.bucket.clone(),
             ..Default::default()
         };
-        match self.anonymous_client().get_object(req).await {
+        let get_object_result = timeout(
+            Duration::from_secs(S3_REQUEST_TIMEOUT_SECONDS.into()),
+            self.anonymous_client().get_object(req),
+        )
+        .await?;
+
+        match get_object_result {
             Ok(res) => match res.body {
                 Some(body) => Ok(Some(body.map_ok(|b| b.to_vec()).try_concat().await?)),
                 None => Ok(None),
