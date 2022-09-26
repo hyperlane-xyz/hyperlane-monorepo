@@ -1,6 +1,6 @@
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
-import { DockerConfig } from './agent';
+import { ConnectionType, DockerConfig } from './agent';
 
 export enum HelloWorldKathyRunMode {
   // Sends messages between all pairwise chains
@@ -27,6 +27,9 @@ export interface HelloWorldKathyConfig<Chain extends ChainName> {
   messageSendTimeout: number;
   /** How long kathy should wait before giving up on waiting for the message to be received (milliseconds). */
   messageReceiptTimeout: number;
+
+  // Whether to use a single HTTP provider or a quorum of HTTP providers
+  connectionType: ConnectionType.Http | ConnectionType.HttpQuorum;
 }
 
 export interface HelloWorldConfig<Chain extends ChainName> {

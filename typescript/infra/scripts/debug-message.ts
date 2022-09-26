@@ -128,7 +128,7 @@ async function checkMessage(
   );
 
   try {
-    await recipient.callStatic.handle(
+    await recipient.estimateGas.handle(
       message.parsed.origin,
       message.parsed.sender,
       message.parsed.body,
@@ -138,10 +138,12 @@ async function checkMessage(
       'Calling recipient `handle` function from the inbox does not revert',
     );
   } catch (err: any) {
-    console.error(
-      `Error calling recipient \`handle\` function from the inbox`,
-      err,
-    );
+    console.error(`Error calling recipient \`handle\` function from the inbox`);
+    if (err.reason) {
+      console.error('Reason: ', err.reason);
+    } else {
+      console.error(err);
+    }
   }
 }
 

@@ -90,7 +90,11 @@ The helloworld-kathy container
 {{- end }}
 {{- if .Values.abacus.cycleOnce }}
   - --cycle-once
-  {{- end }}
+{{- end }}
+{{- if .Values.abacus.connectionType }}
+  - --connection-type
+  - {{ .Values.abacus.connectionType }}
+{{- end }}
   envFrom:
   - secretRef:
       name: {{ include "abacus.fullname" . }}-secret
