@@ -202,12 +202,12 @@ export const validators: ChainValidatorSets<MainnetChains> = {
         },
       },
       {
-        address: '0x8669a883652DBf8c47DECbC4ec8b137E54A5bEAF',
+        address: '0x5201867Fc19c7104cA18B37d07C60bBfe8164197',
         readonly: true,
         name: 'ZKV-avalanche',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
-          bucket: 'abacus-mainnet-zkv-avalanche-signatures',
+          bucket: 'abacus-mainnet-zkv-polygon-signatures',
           region: 'eu-west-2',
         },
       },
