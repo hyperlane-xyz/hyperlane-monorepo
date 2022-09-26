@@ -1,6 +1,7 @@
 import { getMultiProviderForRole } from '../../../scripts/utils';
 import { KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { CoreEnvironmentConfig } from '../../../src/config';
+import { ConnectionType } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 
 import { agents } from './agent';
@@ -20,7 +21,16 @@ export const environment: CoreEnvironmentConfig<TestnetChains> = {
   getMultiProvider: (
     context: Contexts = Contexts.Abacus,
     role: KEY_ROLE_ENUM = KEY_ROLE_ENUM.Deployer,
-  ) => getMultiProviderForRole(testnetConfigs, environmentName, context, role),
+    connectionType?: ConnectionType,
+  ) =>
+    getMultiProviderForRole(
+      testnetConfigs,
+      environmentName,
+      context,
+      role,
+      undefined,
+      connectionType,
+    ),
   agents,
   core,
   infra: infrastructure,
