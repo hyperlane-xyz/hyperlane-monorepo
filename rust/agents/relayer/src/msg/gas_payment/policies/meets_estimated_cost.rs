@@ -8,10 +8,11 @@ use async_trait::async_trait;
 use coingecko::CoinGeckoClient;
 use ethers::types::U256;
 use eyre::{eyre, Result};
-use tokio::sync::RwLock;
+use tokio::{sync::RwLock, time::timeout};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
+const COINGECKO_API_HTTP_TIMEOUT_SECONDS: u64 = 30;
 const CACHE_TTL_SECONDS: u64 = 60;
 /// 1 / 100th of a cent
 const FIXED_POINT_PRECISION: usize = 1000;
@@ -98,17 +99,16 @@ impl CoinGeckoCachingPriceGetter {
         cached_usd_prices.insert(coingecko_id, usd_price.into());
     }
 
-    async fn get_usd_price(&self, coingecko_id: &'static str) -> Result<f64> {
-        if let Some(usd_price) = self.get_cached_usd_price(coingecko_id).await {
-            return Ok(usd_price);
-        }
-
-        // Returns a HashMap keyed by coingecko IDs
-        let api_response = self
-            .coingecko
-            .price(&[coingecko_id], &["usd"], false, false, false, false)
-            .await?;
-        let usd_price = api_response
+    async fn get_coingecko_usd_price(&self, coingecko_id: &'static str) -> Result<f64> {
+        // Make the API request with a timeout, which can't be configured in the library we're using.
+        // Returns a HashMap keyed by coingecko IDs.
+        let api_response = timeout(
+            Duration::from_secs(COINGECKO_API_HTTP_TIMEOUT_SECONDS),
+            self.coingecko
+                .price(&[coingecko_id], &["usd"], false, false, false, false),
+        )
+        .await??;
+        api_response
             .get(coingecko_id)
             .and_then(|p| p.usd)
             .ok_or_else(|| {
@@ -116,8 +116,15 @@ impl CoinGeckoCachingPriceGetter {
                     "Unable to get USD price for {} from CoinGecko API response",
                     coingecko_id
                 )
-            })?;
+            })
+    }
 
+    async fn get_usd_price(&self, coingecko_id: &'static str) -> Result<f64> {
+        if let Some(usd_price) = self.get_cached_usd_price(coingecko_id).await {
+            return Ok(usd_price);
+        }
+
+        let usd_price = self.get_coingecko_usd_price(coingecko_id).await?;
         self.set_cached_usd_price(coingecko_id, usd_price).await;
 
         Ok(usd_price)

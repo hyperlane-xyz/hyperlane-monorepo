@@ -17,6 +17,7 @@ import {
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../../src/config';
+import { ConnectionType } from '../../src/config/agent';
 import { HelloWorldConfig } from '../../src/config/helloworld';
 
 export async function getConfiguration<Chain extends ChainName>(
@@ -49,6 +50,7 @@ export async function getApp<Chain extends ChainName>(
   context: Contexts,
   keyRole: KEY_ROLE_ENUM,
   keyContext: Contexts = context,
+  connectionType: ConnectionType = ConnectionType.Http,
 ) {
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
   const contracts = buildContracts(
@@ -58,6 +60,7 @@ export async function getApp<Chain extends ChainName>(
   const multiProvider: MultiProvider<any> = await coreConfig.getMultiProvider(
     keyContext,
     keyRole,
+    connectionType,
   );
   const core = HyperlaneCore.fromEnvironment(
     coreConfig.environment,

@@ -3,7 +3,6 @@ import yargs from 'yargs';
 
 import { AllChains, ChainNameToDomainId } from '@hyperlane-xyz/sdk';
 
-// import { utils } from '@hyperlane-xyz/utils';
 import { S3Validator } from '../src/agents/aws/validator';
 
 function getArgs() {
@@ -14,10 +13,10 @@ function getArgs() {
     .describe('address', 'address of the validator to inspect')
     .demandOption('address')
     .string('address')
-    .describe('prospective', 'S3 bucket of the prospective validator')
+    .describe('prospective', 'S3 bucket URL of the prospective validator')
     .demandOption('prospective')
     .string('prospective')
-    .describe('control', 'S3 bucket of the the known (control) validator')
+    .describe('control', 'S3 bucket URL of the the known (control) validator')
     .demandOption('control')
     .string('control').argv;
 }

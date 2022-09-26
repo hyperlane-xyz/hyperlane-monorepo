@@ -40,11 +40,11 @@ impl CheckpointSyncerConf {
                 LocalStorage::new(path, latest_index_gauge),
             )),
             CheckpointSyncerConf::S3 { bucket, region } => {
-                Ok(CheckpointSyncers::S3(S3Storage::new(
+                Ok(CheckpointSyncers::S3(Box::new(S3Storage::new(
                     bucket,
                     region.parse().expect("invalid s3 region"),
                     latest_index_gauge,
-                )))
+                ))))
             }
         }
     }
@@ -88,8 +88,9 @@ impl MultisigCheckpointSyncerConf {
 pub enum CheckpointSyncers {
     /// A local checkpoint syncer
     Local(LocalStorage),
-    /// A checkpoint syncer on s3
-    S3(S3Storage),
+    /// A checkpoint syncer on S3.
+    /// Boxed due to large size difference between variants.
+    S3(Box<S3Storage>),
 }
 
 #[async_trait]
