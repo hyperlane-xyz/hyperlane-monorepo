@@ -42,6 +42,7 @@ export async function fetchProvider(
   if (quorum) {
     return new ethers.providers.FallbackProvider(
       (rpc as string[]).map((url) => providerBuilder(url, chainName, false)), // disable retry for quorum
+      1,
     );
   } else {
     return providerBuilder(rpc, chainName);
