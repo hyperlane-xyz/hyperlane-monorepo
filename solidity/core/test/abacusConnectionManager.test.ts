@@ -5,12 +5,10 @@ import { ethers } from 'hardhat';
 import {
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
-  MultisigValidatorManager,
   Outbox,
   Outbox__factory,
   TestInbox,
   TestInbox__factory,
-  TestMultisigValidatorManager__factory,
 } from '../types';
 
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
@@ -19,7 +17,6 @@ const remoteDomain = 2000;
 
 describe('AbacusConnectionManager', async () => {
   let connectionManager: AbacusConnectionManager,
-    validatorManager: MultisigValidatorManager,
     enrolledInbox: TestInbox,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
@@ -34,16 +31,9 @@ describe('AbacusConnectionManager', async () => {
 
     const inboxFactory = new TestInbox__factory(signer);
     enrolledInbox = await inboxFactory.deploy(localDomain);
-
-    const validatorManagerFactory = new TestMultisigValidatorManager__factory(
-      signer,
-    );
-    validatorManager = await validatorManagerFactory.deploy(
-      remoteDomain,
-      [signer.address],
-      1,
-    );
-    await enrolledInbox.initialize(remoteDomain, validatorManager.address);
+    // The ValidatorManager is unused in these tests *but* needs to be a
+    // contract.
+    await enrolledInbox.initialize(remoteDomain, outbox.address);
 
     const connectionManagerFactory = new AbacusConnectionManager__factory(
       signer,
@@ -90,19 +80,10 @@ describe('AbacusConnectionManager', async () => {
       .false;
   });
 
-  it('Owner can enroll multiple inboxes with different domain hashes', async () => {
+  it('Owner can enroll a inbox', async () => {
     const newRemoteDomain = 3000;
     const inboxFactory = new TestInbox__factory(signer);
     const newInbox = await inboxFactory.deploy(localDomain);
-    const validatorManagerFactory = new TestMultisigValidatorManager__factory(
-      signer,
-    );
-    const newValidatorManager = await validatorManagerFactory.deploy(
-      newRemoteDomain,
-      [signer.address],
-      1,
-    );
-    await newInbox.initialize(newRemoteDomain, newValidatorManager.address);
 
     // Assert new inbox not considered inbox before enrolled
     expect(await connectionManager.isInbox(newInbox.address)).to.be.false;
@@ -135,19 +116,43 @@ describe('AbacusConnectionManager', async () => {
     expect(await connectionManager.isInbox(enrolledInbox.address)).to.be.false;
   });
 
-  it('Owner cannot enroll multiple inboxes with same domain hash', async () => {
+  it('Owner can enroll multiple inboxes per domain', async () => {
+    const newRemoteDomain = 3000;
     const inboxFactory = new TestInbox__factory(signer);
-    const newInbox = await inboxFactory.deploy(localDomain);
-    await newInbox.initialize(remoteDomain, validatorManager.address);
-    await connectionManager.unenrollInbox(enrolledInbox.address);
+    const newInbox1 = await inboxFactory.deploy(localDomain);
+    const newInbox2 = await inboxFactory.deploy(localDomain);
+
+    // Assert new inbox not considered inbox before enrolled
+    expect(await connectionManager.isInbox(newInbox1.address)).to.be.false;
+    expect(await connectionManager.isInbox(newInbox2.address)).to.be.false;
+
     await expect(
-      connectionManager.enrollInbox(remoteDomain, newInbox.address),
-    ).to.be.revertedWith('domain hash previously enrolled');
+      connectionManager.enrollInbox(newRemoteDomain, newInbox1.address),
+    ).to.emit(connectionManager, 'InboxEnrolled');
+    await expect(
+      connectionManager.enrollInbox(newRemoteDomain, newInbox2.address),
+    ).to.emit(connectionManager, 'InboxEnrolled');
+
+    expect(await connectionManager.inboxToDomain(newInbox1.address)).to.equal(
+      newRemoteDomain,
+    );
+    expect(await connectionManager.inboxToDomain(newInbox2.address)).to.equal(
+      newRemoteDomain,
+    );
+
+    expect(await connectionManager.isInbox(newInbox1.address)).to.be.true;
+    expect(await connectionManager.isInbox(newInbox2.address)).to.be.true;
+
+    expect(await connectionManager.getInboxes(newRemoteDomain)).to.eql([
+      newInbox1.address,
+      newInbox2.address,
+    ]);
   });
 
   it('Owner cannot enroll an inbox twice', async () => {
+    const newRemoteDomain = 3000;
     await expect(
-      connectionManager.enrollInbox(remoteDomain, enrolledInbox.address),
+      connectionManager.enrollInbox(newRemoteDomain, enrolledInbox.address),
     ).to.be.revertedWith('already inbox');
   });
 });
