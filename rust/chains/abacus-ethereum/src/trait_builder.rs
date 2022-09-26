@@ -45,8 +45,10 @@ pub trait MakeableWithProvider {
             Connection::HttpQuorum { urls } => {
                 let rpc_metrics = rpc_metrics.map(|f| f());
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
+                let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
                 for url in urls.split(',') {
-                    let http_provider: Http = url.parse()?;
+                    let http_provider =
+                        Http::new_with_client(url.parse::<Url>()?, http_client.clone());
                     // Wrap the inner providers as RetryingProviders rather than the QuorumProvider.
                     // We've observed issues where the QuorumProvider will first get the latest block
                     // number and then submit an RPC at that block height, sometimes resulting in the
@@ -70,8 +72,8 @@ pub trait MakeableWithProvider {
                     .await?
             }
             Connection::Http { url } => {
-                let client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
-                let http_provider = Http::new_with_client(url.parse::<Url>()?, client);
+                let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
+                let http_provider = Http::new_with_client(url.parse::<Url>()?, http_client);
                 let retrying_http_provider: RetryingProvider<Http> =
                     RetryingProvider::new(http_provider, None, None);
                 self.wrap_with_metrics(retrying_http_provider, locator, signer, middleware_metrics)
