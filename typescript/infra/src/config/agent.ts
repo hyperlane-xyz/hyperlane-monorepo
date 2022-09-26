@@ -73,6 +73,7 @@ interface ValidatorSet {
 // A validator. This isn't agent-specific configuration, just information
 // on the validator that is enrolled in a validator set.
 interface Validator {
+  name: string;
   address: string;
   checkpointSyncer: CheckpointSyncerConfig;
   readonly?: boolean;
