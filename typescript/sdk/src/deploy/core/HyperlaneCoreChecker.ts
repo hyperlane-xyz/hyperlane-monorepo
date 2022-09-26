@@ -1,16 +1,16 @@
-import { MultisigValidatorManager } from '@abacus-network/core';
-import { utils } from '@abacus-network/utils';
+import { MultisigValidatorManager } from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
-import { AbacusCore } from '../../core/AbacusCore';
+import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { ChainNameToDomainId } from '../../domains';
 import { BeaconProxyAddresses } from '../../proxy';
 import { ChainName } from '../../types';
 import { objMap, promiseObjAll } from '../../utils/objects';
-import { AbacusAppChecker } from '../AbacusAppChecker';
+import { HyperlaneAppChecker } from '../HyperlaneAppChecker';
 
 import {
-  AbacusConnectionManagerViolationType,
+  ConnectionManagerViolationType,
   CoreConfig,
   CoreViolationType,
   EnrolledInboxesViolation,
@@ -22,9 +22,9 @@ import {
   ValidatorManagerViolationType,
 } from './types';
 
-export class AbacusCoreChecker<
+export class HyperlaneCoreChecker<
   Chain extends ChainName,
-> extends AbacusAppChecker<Chain, AbacusCore<Chain>, CoreConfig> {
+> extends HyperlaneAppChecker<Chain, HyperlaneCore<Chain>, CoreConfig> {
   async checkChain(chain: Chain): Promise<void> {
     const config = this.configMap[chain];
     // skip chains that are configured to be removed
@@ -36,7 +36,7 @@ export class AbacusCoreChecker<
     await this.checkProxiedContracts(chain);
     await this.checkOutbox(chain);
     await this.checkInboxes(chain);
-    await this.checkAbacusConnectionManager(chain);
+    await this.checkConnectionManager(chain);
     await this.checkValidatorManagers(chain);
     await this.checkInterchainGasPaymaster(chain);
   }
@@ -46,7 +46,7 @@ export class AbacusCoreChecker<
     if (config.owner) {
       const contracts = this.app.getContracts(chain);
       const ownables = [
-        contracts.abacusConnectionManager,
+        contracts.connectionManager,
         contracts.upgradeBeaconController,
         contracts.outbox.contract,
         contracts.outboxValidatorManager,
@@ -206,7 +206,7 @@ export class AbacusCoreChecker<
     );
   }
 
-  async checkAbacusConnectionManager(chain: Chain): Promise<void> {
+  async checkConnectionManager(chain: Chain): Promise<void> {
     const coreContracts = this.app.getContracts(chain);
     await promiseObjAll(
       objMap(coreContracts.inboxes, async (remote, inbox) => {
@@ -219,16 +219,16 @@ export class AbacusCoreChecker<
         // actual configured inboxes for remote on chain
         const remoteDomain = chainMetadata[remote].id;
         const enrolledInboxes = new Set(
-          await coreContracts.abacusConnectionManager.getInboxes(remoteDomain),
+          await coreContracts.connectionManager.getInboxes(remoteDomain),
         );
 
         if (!utils.setEquality(enrolledInboxes, expectedInboxes)) {
           const violation: EnrolledInboxesViolation = {
-            type: CoreViolationType.AbacusConnectionManager,
-            abacusConnectionManagerType:
-              AbacusConnectionManagerViolationType.EnrolledInboxes,
+            type: CoreViolationType.ConnectionManager,
+            connectionManagerType:
+              ConnectionManagerViolationType.EnrolledInboxes,
             remote,
-            contract: coreContracts.abacusConnectionManager,
+            contract: coreContracts.connectionManager,
             chain: chain,
             actual: enrolledInboxes,
             expected: expectedInboxes,
@@ -238,8 +238,8 @@ export class AbacusCoreChecker<
       }),
     );
 
-    // Outbox is set on abacusConnectionManager
-    const outbox = await coreContracts.abacusConnectionManager.outbox();
+    // Outbox is set on connectionManager
+    const outbox = await coreContracts.connectionManager.outbox();
     utils.assert(outbox === coreContracts.outbox.address);
   }
 

@@ -1,7 +1,7 @@
 {
   "test1": {
     "upgradeBeaconController": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-    "abacusConnectionManager": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "connectionManager": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
@@ -38,7 +38,7 @@
   },
   "test2": {
     "upgradeBeaconController": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
-    "abacusConnectionManager": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1",
+    "connectionManager": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x59b670e9fA9D0A427751Af201D676719a970857b",
@@ -75,7 +75,7 @@
   },
   "test3": {
     "upgradeBeaconController": "0x851356ae760d987E095750cCeb3bC6014560891C",
-    "abacusConnectionManager": "0x70e0bA845a1A0F2DA3359C97E0285013525FFC49",
+    "connectionManager": "0x70e0bA845a1A0F2DA3359C97E0285013525FFC49",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x998abeb3E57409262aE5b751f60747921B33613E",

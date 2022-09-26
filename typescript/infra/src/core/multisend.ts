@@ -1,5 +1,5 @@
-import { ChainConnection, ChainName } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
+import { ChainConnection, ChainName } from '@hyperlane-xyz/sdk';
+import { types } from '@hyperlane-xyz/utils';
 
 import { getSafe, getSafeService } from '../utils/safe';
 

@@ -9,7 +9,7 @@ import {
   MultiProvider,
   objMap,
   promiseObjAll,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
@@ -18,6 +18,7 @@ import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
+import { ConnectionType } from '../src/config/agent';
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames } from '../src/config/environment';
 import { assertContext } from '../src/utils/utils';
@@ -110,10 +111,11 @@ export async function getMultiProviderForRole<Chain extends ChainName>(
   context: Contexts,
   role: KEY_ROLE_ENUM,
   index?: number,
+  connectionType?: ConnectionType,
 ): Promise<MultiProvider<Chain>> {
   const connections = await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {
-      const provider = await fetchProvider(environment, chain);
+      const provider = await fetchProvider(environment, chain, connectionType);
       const key = await getKeyForRole(environment, context, chain, role, index);
       const signer = await key.getSigner(provider);
       return {

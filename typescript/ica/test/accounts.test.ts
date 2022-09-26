@@ -13,7 +13,7 @@ import {
   getChainToOwnerMap,
   getTestMultiProvider,
   testChainConnectionConfigs,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { InterchainAccountDeployer } from '../src/deploy';
 import { InterchainAccountRouter, TestRecipient__factory } from '../types';

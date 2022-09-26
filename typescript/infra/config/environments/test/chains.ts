@@ -1,4 +1,4 @@
-import { chainConnectionConfigs } from '@abacus-network/sdk';
+import { chainConnectionConfigs } from '@hyperlane-xyz/sdk';
 
 export const testConfigs = {
   test1: chainConnectionConfigs.test1,

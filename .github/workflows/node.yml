@@ -87,11 +87,11 @@ jobs:
           key: ${{ github.sha }}
 
       - name: sdk
-        run: yarn workspace @abacus-network/sdk run test
+        run: yarn workspace @hyperlane-xyz/sdk run test
       - name: infra
-        run: yarn workspace @abacus-network/infra run test
+        run: yarn workspace @hyperlane-xyz/infra run test
       - name: helloworld
-        run: yarn workspace @abacus-network/helloworld run test
+        run: yarn workspace @hyperlane-xyz/helloworld run test
 
   test-sol:
     env:
@@ -108,6 +108,6 @@ jobs:
           key: ${{ github.sha }}
 
       - name: core
-        run: yarn workspace @abacus-network/core run test
+        run: yarn workspace @hyperlane-xyz/core run test
       - name: app
-        run: yarn workspace @abacus-network/app run test
+        run: yarn workspace @hyperlane-xyz/app run test

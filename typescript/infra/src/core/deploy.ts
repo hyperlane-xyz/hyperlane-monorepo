@@ -1,17 +1,17 @@
 import {
-  AbacusCoreDeployer,
   ChainName,
+  HyperlaneCoreDeployer,
   chainMetadata,
   objMap,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { DeployEnvironment, RustConfig } from '../config';
 import { ConnectionType } from '../config/agent';
 import { writeJSON } from '../utils/utils';
 
-export class AbacusCoreInfraDeployer<
+export class HyperlaneCoreInfraDeployer<
   Chain extends ChainName,
-> extends AbacusCoreDeployer<Chain> {
+> extends HyperlaneCoreDeployer<Chain> {
   writeRustConfigs(environment: DeployEnvironment, directory: string) {
     const configChains = Object.keys(this.configMap);
     objMap(this.configMap, (chain) => {

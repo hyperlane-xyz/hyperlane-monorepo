@@ -1,4 +1,5 @@
 import { HelloWorldConfig } from '../../../src/config';
+import { ConnectionType } from '../../../src/config/agent';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
 import { Contexts } from '../../contexts';
 
@@ -10,8 +11,8 @@ export const abacus: HelloWorldConfig<MainnetChains> = {
   addresses: abacusAddresses,
   kathy: {
     docker: {
-      repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-8b8fdde',
+      repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
+      tag: 'sha-dcc84ea',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -22,6 +23,7 @@ export const abacus: HelloWorldConfig<MainnetChains> = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
+    connectionType: ConnectionType.Http,
   },
 };
 
@@ -29,8 +31,8 @@ export const releaseCandidate: HelloWorldConfig<MainnetChains> = {
   addresses: rcAddresses,
   kathy: {
     docker: {
-      repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-8b8fdde',
+      repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
+      tag: 'sha-dcc84ea',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -40,6 +42,7 @@ export const releaseCandidate: HelloWorldConfig<MainnetChains> = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
+    connectionType: ConnectionType.HttpQuorum,
   },
 };
 

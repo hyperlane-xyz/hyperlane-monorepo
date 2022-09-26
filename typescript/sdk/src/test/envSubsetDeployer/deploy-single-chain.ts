@@ -1,5 +1,5 @@
 import { serializeContracts } from '../../contracts';
-import { AbacusCore } from '../../core/AbacusCore';
+import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { getChainToOwnerMap } from '../../deploy/utils';
 import { MultiProvider } from '../../providers/MultiProvider';
 
@@ -18,7 +18,7 @@ async function main() {
     },
   });
 
-  const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
+  const core = HyperlaneCore.fromEnvironment('testnet2', multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(alfajoresChainConfig, signer.address),
   );

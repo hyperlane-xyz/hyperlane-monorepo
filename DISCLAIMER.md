@@ -1,4 +1,4 @@
-The Abacus Protocol is an open generalized interchain messaging protocol that is designed to enable developers to send arbitrary data from one blockchain to another (“Protocol”). Your use of the Protocol is entirely at your own risk.
+The Hyperlane Protocol is an open generalized interchain messaging protocol that is designed to enable developers to send arbitrary data from one blockchain to another (“Protocol”). Your use of the Protocol is entirely at your own risk.
 The Protocol is available on an “as is” basis without warranties of any kind, either express or implied, including, but not limited to, warranties of merchantability, title, fitness for a particular purpose and non-infringement.
 You assume all risks associated with using the Protocol, and digital assets and decentralized systems generally, including but not limited to, that:
 (a) digital assets are highly volatile; (b) using digital assets is inherently risky due to both features of such assets and the potential unauthorized acts of third parties; (c) you may not have ready access to assets;

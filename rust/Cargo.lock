@@ -70,11 +70,14 @@ dependencies = [
  "lazy_static",
  "maplit",
  "num",
+ "num-derive",
  "num-traits",
  "rocksdb",
  "serde",
  "serde_json",
  "sha3 0.9.1",
+ "strum",
+ "strum_macros",
  "thiserror",
  "tokio",
  "tracing",
@@ -830,6 +833,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2850f2f5a82cbf437dd5af4d49848fbdfc27c157c3d010345776f952765261c5"
 dependencies = [
  "os_str_bytes",
+]
+
+[[package]]
+name = "coingecko"
+version = "1.0.1"
+source = "git+https://github.com/hyperlane-xyz/coingecko-rs?tag=2022-09-14-02#63dfc9d6a8b92516209ee9dc01e154d11b63b0ab"
+dependencies = [
+ "chrono",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1916,6 +1931,7 @@ dependencies = [
  "rustc-hex",
  "serde",
  "serde_json",
+ "serde_repr",
  "thiserror",
  "tokio",
  "tracing",
@@ -2692,6 +2708,17 @@ checksum = "7ae39348c8bc5fbd7f40c727a9925f03517afd2ab27d46702108b6a7e5414c19"
 dependencies = [
  "num-traits",
  "serde",
+]
+
+[[package]]
+name = "num-derive"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "876a53fff98e03a936a674b29568b0e605f06b29372c2489ff4de23f1949743d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -3485,6 +3512,7 @@ dependencies = [
  "abacus-ethereum",
  "abacus-test",
  "async-trait",
+ "coingecko",
  "color-eyre",
  "config",
  "ethers",
@@ -3496,6 +3524,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "strum",
  "thiserror",
  "tokio",
  "tokio-test",
@@ -4167,6 +4196,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_repr"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fe39d9fbb0ebf5eb2c7cb7e2a47e4f462fad1379f1166b8ae49ad9eae89a7ca"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4662,6 +4702,7 @@ dependencies = [
  "mio",
  "num_cpus",
  "once_cell",
+ "parking_lot 0.12.1",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",

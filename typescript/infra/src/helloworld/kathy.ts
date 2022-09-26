@@ -1,4 +1,4 @@
-import { ChainName } from '@abacus-network/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { AgentAwsUser } from '../agents/aws';
@@ -75,6 +75,7 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
       messageReceiptTimeout: kathyConfig.messageReceiptTimeout,
       cycleOnce,
       fullCycleTime,
+      connectionType: kathyConfig.connectionType,
     },
     image: {
       repository: kathyConfig.docker.repo,

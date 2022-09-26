@@ -8,8 +8,8 @@ import {
   ChainName,
   CompleteChainMap,
   MultiProvider,
-} from '@abacus-network/sdk';
-import { error, log } from '@abacus-network/utils';
+} from '@hyperlane-xyz/sdk';
+import { error, log } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { parseKeyIdentifier } from '../../src/agents/agent';
@@ -19,6 +19,7 @@ import {
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
+import { ConnectionType } from '../../src/config/agent';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
@@ -110,6 +111,7 @@ async function main() {
       'f',
       'Files each containing JSON arrays of identifier and address objects for a single context. If not specified, key addresses are fetched from GCP/AWS and require sufficient credentials.',
     )
+
     .string('contexts-and-roles')
     .array('contexts-and-roles')
     .describe(
@@ -117,12 +119,25 @@ async function main() {
       'Array indicating contexts and the roles to fund for each context. Each element is expected as <context>=<role>,<role>,<role>...',
     )
     .coerce('contexts-and-roles', parseContextAndRolesMap)
-    .demandOption('contexts-and-roles').argv;
+    .demandOption('contexts-and-roles')
+
+    .string('connection-type')
+    .describe('connection-type', 'The provider connection type to use for RPCs')
+    .default('connection-type', ConnectionType.Http)
+    .choices('connection-type', [
+      ConnectionType.Http,
+      ConnectionType.HttpQuorum,
+    ])
+    .demandOption('connection-type').argv;
 
   const environment = assertEnvironment(argv.e as string);
   constMetricLabels.abacus_deployment = environment;
   const config = getCoreEnvironmentConfig(environment);
-  const multiProvider = await config.getMultiProvider();
+  const multiProvider = await config.getMultiProvider(
+    Contexts.Abacus, // Always fund from the abacus context
+    KEY_ROLE_ENUM.Deployer, // Always fund from the deployer
+    argv.connectionType,
+  );
 
   let contextFunders: ContextFunder[];
 

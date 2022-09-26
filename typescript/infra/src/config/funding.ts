@@ -1,7 +1,7 @@
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../agents/roles';
 
-import { DockerConfig } from './agent';
+import { ConnectionType, DockerConfig } from './agent';
 
 export interface ContextAndRoles {
   context: Contexts;
@@ -17,4 +17,5 @@ export interface KeyFunderConfig {
   contextFundingFrom: Contexts;
   contextsAndRolesToFund: ContextAndRolesMap;
   prometheusPushGateway: string;
+  connectionType: ConnectionType.Http | ConnectionType.HttpQuorum;
 }

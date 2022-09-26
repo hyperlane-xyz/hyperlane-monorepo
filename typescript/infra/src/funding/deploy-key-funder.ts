@@ -1,4 +1,4 @@
-import { ChainName } from '@abacus-network/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { AgentConfig, CoreEnvironmentConfig } from '../config';
 import { KeyFunderConfig } from '../config/funding';
@@ -36,6 +36,7 @@ function getKeyFunderHelmValues<Chain extends ChainName>(
       chains: agentConfig.contextChainNames,
       contextFundingFrom: keyFunderConfig.contextFundingFrom,
       contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
+      connectionType: keyFunderConfig.connectionType,
     },
     image: {
       repository: keyFunderConfig.docker.repo,

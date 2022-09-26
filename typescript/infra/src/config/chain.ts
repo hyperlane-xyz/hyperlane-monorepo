@@ -1,10 +1,11 @@
 import { ethers } from 'ethers';
 
-import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
-import { ChainName, RetryJsonRpcProvider } from '@abacus-network/sdk';
+import { StaticCeloJsonRpcProvider } from '@hyperlane-xyz/celo-ethers-provider';
+import { ChainName, RetryJsonRpcProvider } from '@hyperlane-xyz/sdk';
 
 import { getSecretRpcEndpoint } from '../agents';
 
+import { ConnectionType } from './agent';
 import { DeployEnvironment } from './environment';
 
 const CELO_CHAIN_NAMES = new Set(['alfajores', 'baklava', 'celo']);
@@ -28,8 +29,15 @@ const providerBuilder = (url: string, chainName: ChainName, retry = true) => {
 export async function fetchProvider(
   environment: DeployEnvironment,
   chainName: ChainName,
-  quorum = false,
+  connectionType: ConnectionType = ConnectionType.Http,
 ) {
+  if (
+    connectionType !== ConnectionType.Http &&
+    connectionType !== ConnectionType.HttpQuorum
+  ) {
+    throw Error(`Unsupported connectionType: ${connectionType}`);
+  }
+  const quorum = connectionType === ConnectionType.HttpQuorum;
   const rpc = await getSecretRpcEndpoint(environment, chainName, quorum);
   if (quorum) {
     return new ethers.providers.FallbackProvider(

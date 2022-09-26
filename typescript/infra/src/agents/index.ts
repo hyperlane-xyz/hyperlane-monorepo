@@ -1,5 +1,5 @@
-import { ChainName } from '@abacus-network/sdk';
-import { utils } from '@abacus-network/utils';
+import { ChainName } from '@hyperlane-xyz/sdk';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { AgentConfig, DeployEnvironment } from '../config';
@@ -24,11 +24,9 @@ async function helmValuesForChain<Chain extends ChainName>(
   agentConfig: AgentConfig<Chain>,
 ) {
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
-
-  const gelatoSupportedOnOutboxChain = agentConfig.gelato
-    ?.useForDisabledOriginChains
-    ? true
-    : agentConfig.gelato?.enabledChains.includes(chainName) ?? false;
+  const gelatoApiKeyRequired =
+    await chainAgentConfig.ensureGelatoApiKeySecretExistsIfRequired();
+  await chainAgentConfig.ensureCoingeckoApiKeySecretExistsIfRequired();
 
   // By default, if a context only enables a subset of chains, the
   // connection url (or urls, when HttpQuorum is used) are not fetched
@@ -65,17 +63,15 @@ async function helmValuesForChain<Chain extends ChainName>(
         connection: baseConnectionConfig,
       },
       aws: !!agentConfig.aws,
+      gelatoApiKeyRequired,
       inboxChains: agentConfig.environmentChainNames
         .filter((name) => name !== chainName)
         .map((remoteChainName) => {
           return {
             name: remoteChainName,
             disabled: !agentConfig.contextChainNames.includes(remoteChainName),
-            gelato: {
-              enabled:
-                gelatoSupportedOnOutboxChain &&
-                (agentConfig.gelato?.enabledChains?.includes(remoteChainName) ??
-                  false),
+            txsubmission: {
+              type: chainAgentConfig.transactionSubmissionType(remoteChainName),
             },
             connection: baseConnectionConfig,
           };

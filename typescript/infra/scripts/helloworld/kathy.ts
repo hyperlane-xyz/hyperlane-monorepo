@@ -2,16 +2,17 @@ import { BigNumber, ethers } from 'ethers';
 import { Counter, Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
-import { HelloWorldApp } from '@abacus-network/helloworld';
+import { HelloWorldApp } from '@hyperlane-xyz/helloworld';
 import {
-  AbacusCore,
   ChainName,
   DispatchedMessage,
+  HyperlaneCore,
   InterchainGasCalculator,
-} from '@abacus-network/sdk';
-import { debug, error, log, utils, warn } from '@abacus-network/utils';
+} from '@hyperlane-xyz/sdk';
+import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
 
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
+import { ConnectionType } from '../../src/config/agent';
 import { startMetricsServer } from '../../src/utils/metrics';
 import {
   assertChain,
@@ -24,6 +25,7 @@ import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from '../utils';
 import { getApp } from './utils';
 
 const metricsRegister = new Registry();
+// TODO rename counter names
 const messagesSendCount = new Counter({
   name: 'abacus_kathy_messages',
   help: 'Count of messages sent; records successes and failures by status label',
@@ -108,7 +110,16 @@ function getKathyArgs() {
     .demandOption('chains-to-skip')
     .coerce('chains-to-skip', (chainStrs: string[]) =>
       chainStrs.map((chainStr: string) => assertChain(chainStr)),
-    ).argv;
+    )
+
+    .string('connection-type')
+    .describe('connection-type', 'The provider connection type to use for RPCs')
+    .default('connection-type', ConnectionType.Http)
+    .choices('connection-type', [
+      ConnectionType.Http,
+      ConnectionType.HttpQuorum,
+    ])
+    .demandOption('connection-type').argv;
 }
 
 // Returns whether an error occurred
@@ -121,6 +132,7 @@ async function main(): Promise<boolean> {
     fullCycleTime,
     messageSendTimeout,
     messageReceiptTimeout,
+    connectionType,
   } = await getKathyArgs();
 
   let errorOccurred = false;
@@ -129,7 +141,13 @@ async function main(): Promise<boolean> {
   debug('Starting up', { environment });
 
   const coreConfig = getCoreEnvironmentConfig(environment);
-  const app = await getApp(coreConfig, context, KEY_ROLE_ENUM.Kathy);
+  const app = await getApp(
+    coreConfig,
+    context,
+    KEY_ROLE_ENUM.Kathy,
+    undefined,
+    connectionType,
+  );
   const gasCalculator = InterchainGasCalculator.fromEnvironment(
     environment,
     app.multiProvider as any,
@@ -390,7 +408,7 @@ async function sendMessage(
 }
 
 async function messageIsProcessed(
-  core: AbacusCore<any>,
+  core: HyperlaneCore<any>,
   origin: ChainName,
   destination: ChainName,
   message: DispatchedMessage,
