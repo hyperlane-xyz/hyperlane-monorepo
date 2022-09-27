@@ -3,16 +3,21 @@ import { ethers } from 'hardhat';
 
 import { utils } from '@hyperlane-xyz/utils';
 
-import { TestRecipient__factory } from '../types';
+import { TestRecipient, TestRecipient__factory } from '../types';
 
 const testData = ethers.utils.hexlify(ethers.utils.toUtf8Bytes('test'));
 describe('TestRecipient', () => {
-  it('handles a message', async () => {
-    const [signer] = await ethers.getSigners();
-    const signerAddress = await signer.getAddress();
-    const recipientFactory = new TestRecipient__factory(signer);
-    const recipient = await recipientFactory.deploy();
+  let recipient: TestRecipient;
+  let signerAddress: string;
 
+  before(async () => {
+    const [signer] = await ethers.getSigners();
+    signerAddress = await signer.getAddress();
+    const recipientFactory = new TestRecipient__factory(signer);
+    recipient = await recipientFactory.deploy();
+  });
+
+  it('handles a message', async () => {
     await expect(
       recipient.handle(0, utils.addressToBytes32(signerAddress), testData),
     ).to.emit(recipient, 'ReceivedMessage');
@@ -23,11 +28,6 @@ describe('TestRecipient', () => {
   });
 
   it('handles a call', async () => {
-    const [signer] = await ethers.getSigners();
-    const signerAddress = await signer.getAddress();
-    const recipientFactory = new TestRecipient__factory(signer);
-    const recipient = await recipientFactory.deploy();
-
     await expect(recipient.fooBar(1, 'test')).to.emit(
       recipient,
       'ReceivedCall',
