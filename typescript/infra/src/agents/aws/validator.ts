@@ -50,6 +50,16 @@ export class S3Validator extends BaseValidator {
     this.s3Bucket = new S3Wrapper(s3Bucket);
   }
 
+  async getLatestCheckpointIndex() {
+    const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
+      LATEST_KEY,
+    );
+
+    if (!latestCheckpointIndex) return -1;
+
+    return latestCheckpointIndex.data;
+  }
+
   async compare(other: S3Validator, count = 20): Promise<CheckpointMetric[]> {
     const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
       LATEST_KEY,

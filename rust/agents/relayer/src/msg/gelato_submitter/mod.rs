@@ -21,6 +21,8 @@ use super::SubmitMessageArgs;
 
 mod sponsored_call_op;
 
+const HTTP_CLIENT_REQUEST_SECONDS: u64 = 30;
+
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
     /// The Gelato config.
@@ -56,6 +58,10 @@ impl GelatoSubmitter {
     ) -> Self {
         let (message_processed_sender, message_processed_receiver) =
             mpsc::unbounded_channel::<SubmitMessageArgs>();
+        let http_client = reqwest::ClientBuilder::new()
+            .timeout(Duration::from_secs(HTTP_CLIENT_REQUEST_SECONDS))
+            .build()
+            .unwrap();
         Self {
             message_receiver,
             inbox_gelato_chain: abacus_domain_id_to_gelato_chain(
@@ -65,7 +71,7 @@ impl GelatoSubmitter {
             inbox_contracts,
             db: abacus_db,
             gelato_config,
-            http_client: reqwest::Client::new(),
+            http_client,
             metrics,
             message_processed_sender,
             message_processed_receiver,

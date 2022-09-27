@@ -47,7 +47,7 @@
     "Typescript"
   ],
   "license": "Apache-2.0",
-  "main": "dist/src/index.js",
+  "main": "dist/index.js",
   "packageManager": "yarn@3.2.0",
   "repository": {
     "type": "git",

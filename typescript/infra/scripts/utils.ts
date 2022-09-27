@@ -62,16 +62,20 @@ export async function getEnvironmentConfig() {
   return getCoreEnvironmentConfig(await getEnvironment());
 }
 
-export async function getContext(): Promise<Contexts> {
+export async function getContext(defaultContext?: string): Promise<Contexts> {
   const argv = await getArgs().argv;
-  return assertContext(argv.context!);
+  return assertContext(argv.context! || defaultContext!);
 }
 
 // Gets the agent config for the context that has been specified via yargs.
 export async function getContextAgentConfig<Chain extends ChainName>(
   coreEnvironmentConfig?: CoreEnvironmentConfig<Chain>,
+  defaultContext?: string,
 ) {
-  return getAgentConfig(await getContext(), coreEnvironmentConfig);
+  return getAgentConfig(
+    await getContext(defaultContext),
+    coreEnvironmentConfig,
+  );
 }
 
 // Gets the agent config of a specific context.
