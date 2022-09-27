@@ -1,8 +1,8 @@
 use std::time::{Duration, Instant};
 
 use eyre::Result;
-use sea_orm::ActiveValue;
 use sea_orm::prelude::*;
+use sea_orm::ActiveValue;
 use tokio::sync::RwLock;
 use tracing::log::warn;
 
@@ -11,6 +11,7 @@ use crate::db::cursor;
 
 const MAX_WRITE_BACK_FREQUENCY: Duration = Duration::from_secs(10);
 
+#[derive(Debug)]
 struct BlockCursorInner {
     /// Block height
     height: u64,
@@ -18,7 +19,8 @@ struct BlockCursorInner {
     last_saved_at: Instant,
 }
 
-struct BlockCursor {
+#[derive(Debug)]
+pub struct BlockCursor {
     db: DbConn,
     /// The abacus domain this block cursor is for.
     domain: u32,
@@ -26,7 +28,7 @@ struct BlockCursor {
 }
 
 impl BlockCursor {
-    async fn new(db: DbConn, domain: u32, default_height: u64) -> Result<Self> {
+    pub async fn new(db: DbConn, domain: u32, default_height: u64) -> Result<Self> {
         let height = cursor::Entity::find_by_id(domain as i32)
             .one(&db)
             .await?

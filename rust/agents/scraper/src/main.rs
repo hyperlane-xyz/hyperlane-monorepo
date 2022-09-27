@@ -16,12 +16,16 @@
 
 use eyre::Result;
 
+use abacus_base::BaseAgent;
+
+use crate::scraper::Scraper;
+
 #[allow(clippy::all)]
 mod db;
 
+mod date_time;
 mod scraper;
 mod settings;
-mod date_time;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
@@ -30,8 +34,15 @@ async fn main() -> Result<()> {
     #[cfg(not(feature = "oneline-errors"))]
     color_eyre::install()?;
 
-    let _settings = settings::ScraperSettings::new()?;
-    // let agent = Scraper::from_settings(settings).await?;
+    let settings = settings::ScraperSettings::new()?;
+    let tracing_config = settings.base.tracing.clone();
+    let agent = Scraper::from_settings(settings).await?;
+    tracing_config.start_tracing(agent.metrics())?;
+
+    let _ = agent.metrics().clone().run_http_server();
+
+    let all_fut_tasks = agent.run().await;
+    all_fut_tasks.await??;
 
     Ok(())
 }

@@ -5,7 +5,7 @@ use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use abacus_base::{run_all, AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers};
+use abacus_base::{run_all, AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers, CoreMetrics};
 use abacus_core::{AbacusContract, Signers};
 
 use crate::submit::ValidatorSubmitterMetrics;
@@ -51,6 +51,10 @@ impl BaseAgent for Validator {
     const AGENT_NAME: &'static str = "validator";
 
     type Settings = ValidatorSettings;
+
+    fn metrics(&self) -> &Arc<CoreMetrics> {
+        &self.core.metrics
+    }
 
     async fn from_settings(settings: Self::Settings) -> Result<Self>
     where

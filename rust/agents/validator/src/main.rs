@@ -29,7 +29,7 @@ async fn _main() -> Result<()> {
         .settings
         .tracing
         .start_tracing(&agent.metrics())?;
-    let _ = agent.metrics().run_http_server();
+    let _ = agent.metrics().clone().run_http_server();
 
     agent.run().await.await??;
     Ok(())

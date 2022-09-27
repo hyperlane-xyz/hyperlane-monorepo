@@ -56,6 +56,9 @@ pub trait BaseAgent: Send + Sync + Debug {
     /// The settings object for this agent
     type Settings: AsRef<Settings>;
 
+    /// Return a handle to the metrics registry
+    fn metrics(&self) -> &Arc<CoreMetrics>;
+
     /// Instantiate the agent from the standard settings object
     async fn from_settings(settings: Self::Settings) -> Result<Self>
     where
@@ -72,9 +75,6 @@ pub trait BaseAgent: Send + Sync + Debug {
 /// To use the default implementation you must `impl AsRef<AbacusAgentCore>`
 #[async_trait]
 pub trait Agent: BaseAgent {
-    /// Return a handle to the metrics registry
-    fn metrics(&self) -> Arc<CoreMetrics>;
-
     /// Return a handle to the DB
     fn db(&self) -> &DB;
 
@@ -96,10 +96,6 @@ impl<B> Agent for B
 where
     B: BaseAgent + AsRef<AbacusAgentCore>,
 {
-    fn metrics(&self) -> Arc<CoreMetrics> {
-        self.as_ref().metrics.clone()
-    }
-
     fn db(&self) -> &DB {
         &self.as_ref().db
     }

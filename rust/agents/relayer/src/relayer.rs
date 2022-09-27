@@ -10,7 +10,7 @@ use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::{
     chains::GelatoConf, run_all, AbacusAgentCore, Agent, BaseAgent, CachingInterchainGasPaymaster,
-    ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
+    ContractSyncMetrics, CoreMetrics, InboxContracts, MultisigCheckpointSyncer,
 };
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers};
 
@@ -46,6 +46,10 @@ impl BaseAgent for Relayer {
     const AGENT_NAME: &'static str = "relayer";
 
     type Settings = RelayerSettings;
+
+    fn metrics(&self) -> &Arc<CoreMetrics> {
+        &self.core.metrics
+    }
 
     async fn from_settings(settings: Self::Settings) -> Result<Self>
     where
@@ -113,7 +117,7 @@ impl BaseAgent for Relayer {
 
         tasks.push(self.run_checkpoint_fetcher(signed_checkpoint_sender));
 
-        let sync_metrics = ContractSyncMetrics::new(self.metrics());
+        let sync_metrics = ContractSyncMetrics::new(self.metrics().clone());
         tasks.push(self.run_outbox_sync(sync_metrics.clone()));
 
         if let Some(paymaster) = self.interchain_gas_paymaster() {
