@@ -65,7 +65,7 @@ spec:
               fieldRef:
                 fieldPath: metadata.name
           {{- if .Values.abacus.tracing.uri }}
-          - name: ABC_BASE_TRACING_JAEGER_NAME
+          - name: HYP_BASE_TRACING_JAEGER_NAME
             value: {{ include "abacus-agent.fullname" . }}-validator
           {{- end }}
         resources:
