@@ -105,9 +105,9 @@ macro_rules! decl_settings {
                 ///    env vars. `RUN_ENV/BASECONFIG`
                 /// 2. The file specified by the `RUN_ENV` env var and the
                 ///    agent's name. `RUN_ENV/AGENT-partial.json`
-                /// 3. Configuration env vars with the prefix `ABC_BASE` intended
+                /// 3. Configuration env vars with the prefix `HYP_BASE` intended
                 ///    to be shared by multiple agents in the same environment
-                /// 4. Configuration env vars with the prefix `ABC_AGENTNAME`
+                /// 4. Configuration env vars with the prefix `HYP_AGENTNAME`
                 ///    intended to be used by a specific agent.
                 ///
                 /// Specify a configuration directory with the `RUN_ENV` env
@@ -130,7 +130,7 @@ pub fn _new_settings<'de, T: Deserialize<'de>>(name: &str) -> Result<T, config::
     let fname = env::var("BASE_CONFIG").unwrap_or_else(|_| "base".into());
 
     // Derive additional prefix from agent name
-    let prefix = format!("ABC_{}", name).to_ascii_uppercase();
+    let prefix = format!("HYP_{}", name).to_ascii_uppercase();
 
     Config::builder()
         .add_source(File::with_name(&format!("./config/{}/{}", env, fname)))
@@ -139,7 +139,7 @@ pub fn _new_settings<'de, T: Deserialize<'de>>(name: &str) -> Result<T, config::
                 .required(false),
         )
         // Use a base configuration env variable prefix
-        .add_source(Environment::with_prefix("ABC_BASE").separator("_"))
+        .add_source(Environment::with_prefix("HYP_BASE").separator("_"))
         .add_source(Environment::with_prefix(&prefix).separator("_"))
         .build()?
         .try_deserialize()
