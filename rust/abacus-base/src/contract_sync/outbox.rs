@@ -7,11 +7,8 @@ use tracing::{instrument::Instrumented, Instrument};
 
 use abacus_core::{name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer};
 
-use crate::{
-    contract_sync::{schema::OutboxContractSyncDB},
-    ContractSync,
-};
 use crate::contract_sync::last_message::validate_message_continuity;
+use crate::{contract_sync::schema::OutboxContractSyncDB, ContractSync};
 
 const MESSAGES_LABEL: &str = "messages";
 
@@ -138,15 +135,6 @@ where
                     "[Messages]: filtered any messages already indexed"
                 );
 
-                // Continue if no messages found.
-                // We don't update last_valid_range_start_block because we cannot extrapolate
-                // if the range was correctly indexed if there are no messages to observe their
-                // indices.
-                if sorted_messages.is_empty() {
-                    from = to + 1;
-                    continue;
-                }
-
                 // Ensure the sorted messages are a valid continuation of last_leaf_index
                 match validate_message_continuity(last_leaf_index, &sorted_messages) {
                     ListValidity::Valid => {
@@ -154,7 +142,7 @@ where
                         let max_leaf_index_of_batch = db.store_messages(&sorted_messages)?;
 
                         // Report amount of messages stored into db
-                        stored_messages.inc_by(sorted_messages.len().try_into()?);
+                        stored_messages.inc_by(sorted_messages.len() as u64);
 
                         // Report latest leaf index to gauge by dst
                         for raw_msg in sorted_messages.iter() {
@@ -199,7 +187,13 @@ where
                             "[Messages]: Found gaps in the messages in range, re-indexing the same range.",
                         );
                     }
-                    ListValidity::Empty => unreachable!("Tried to validate empty list of messages"),
+                    ListValidity::Empty =>  {
+                        // Continue if no messages found.
+                        // We don't update last_valid_range_start_block because we cannot extrapolate
+                        // if the range was correctly indexed if there are no messages to observe their
+                        // indices.
+                        from = to + 1;
+                    }
                 };
             }
         })
