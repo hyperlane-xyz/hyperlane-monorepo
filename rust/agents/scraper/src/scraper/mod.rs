@@ -1,26 +1,18 @@
 use std::collections::HashMap;
-use std::ops::Deref;
-use std::str::FromStr;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::prelude::H256;
-use eyre::{eyre, Result};
+use eyre::Result;
 use sea_orm::{Database, DbConn};
-use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
-use tracing::{info_span, instrument, Instrument};
+use tracing::{info_span, Instrument};
 
 use abacus_base::{
-    run_all, BaseAgent, ChainSetup, ContractSync, ContractSyncMetrics, CoreMetrics, IndexSettings,
+    run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, IndexSettings,
     OutboxAddresses, Settings,
 };
-use abacus_core::{
-    AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, Message, Outbox,
-    OutboxIndexer, OutboxState, TxOutcome,
-};
+use abacus_core::{AbacusCommon, AbacusContract, Outbox, OutboxIndexer};
 
 use crate::scraper::block_cursor::BlockCursor;
 use crate::settings::ScraperSettings;
@@ -33,8 +25,8 @@ pub struct Scraper {
     metrics: Arc<CoreMetrics>,
     /// A map of outbox contracts by name.
     outboxes: HashMap<String, SqlOutboxScraper>,
-    // TODO
-    // inboxes: HashMap<String, SqlInboxScraper>,
+    inboxes: HashMap<String, ()>,
+    gas_paymasters: HashMap<String, ()>,
 }
 
 #[async_trait]
@@ -54,32 +46,16 @@ impl BaseAgent for Scraper {
         let metrics = core_settings.try_into_metrics(Self::AGENT_NAME)?;
 
         let db = Database::connect(&core_settings.db).await?;
-        let outbox_configs: HashMap<String, ChainSetup<OutboxAddresses>> = settings.outboxes;
-        let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
-
-        let mut outboxes = HashMap::new();
-        for (name, outbox_setup) in outbox_configs {
-            let signer = core_settings.get_signer(&name).await;
-            let outbox = core_settings
-                .outbox
-                .try_into_outbox(signer, &metrics)
-                .await?;
-            let indexer = core_settings
-                .try_outbox_indexer_from_config(&metrics, &outbox_setup)
-                .await?;
-            outboxes.insert(
-                name,
-                SqlOutboxScraper::new(
-                    db.clone(),
-                    outbox.into(),
-                    indexer.into(),
-                    core_settings.index.clone(),
-                    contract_sync_metrics.clone(),
-                )
-                .await?,
-            );
-        }
-        Ok(Self { metrics, outboxes })
+        let outboxes =
+            Self::load_outboxes(&db, &core_settings, settings.outboxes, &metrics).await?;
+        let inboxes = Self::load_inboxes(&db, &core_settings, &metrics).await?;
+        let gas_paymasters = Self::load_gas_paymasters(&db, &core_settings, &metrics).await?;
+        Ok(Self {
+            metrics,
+            outboxes,
+            inboxes,
+            gas_paymasters,
+        })
     }
 
     #[allow(clippy::async_yields_async)]
@@ -95,6 +71,56 @@ impl BaseAgent for Scraper {
             .collect();
 
         run_all(tasks)
+    }
+}
+
+impl Scraper {
+    async fn load_outboxes(
+        db: &DbConn,
+        core_settings: &Settings,
+        config: HashMap<String, ChainSetup<OutboxAddresses>>,
+        metrics: &Arc<CoreMetrics>,
+    ) -> Result<HashMap<String, SqlOutboxScraper>> {
+        let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
+        let mut outboxes = HashMap::new();
+        for (name, outbox_setup) in config {
+            let signer = core_settings.get_signer(&name).await;
+            let outbox = core_settings
+                .outbox
+                .try_into_outbox(signer, metrics)
+                .await?;
+            let indexer = core_settings
+                .try_outbox_indexer_from_config(metrics, &outbox_setup)
+                .await?;
+            outboxes.insert(
+                name,
+                SqlOutboxScraper::new(
+                    db.clone(),
+                    outbox.into(),
+                    indexer.into(),
+                    core_settings.index.clone(),
+                    contract_sync_metrics.clone(),
+                )
+                .await?,
+            );
+        }
+        Ok(outboxes)
+    }
+
+    async fn load_inboxes(
+        _db: &DbConn,
+        _core_settings: &Settings,
+        _metrics: &Arc<CoreMetrics>,
+    ) -> Result<HashMap<String, ()>> {
+        todo!()
+    }
+
+    async fn load_gas_paymasters(
+        _db: &DbConn,
+        _core_settings: &Settings,
+        _metrics: &Arc<CoreMetrics>,
+    ) -> Result<HashMap<String, ()>> {
+        todo!()
     }
 }
 
