@@ -8,7 +8,7 @@ contract TestRecipient is IMessageRecipient {
     bytes public lastData;
 
     address public lastCaller;
-    bytes public lastCalldata;
+    string public lastCallMessage;
 
     event ReceivedMessage(
         uint32 indexed origin,
@@ -16,7 +16,7 @@ contract TestRecipient is IMessageRecipient {
         string message
     );
 
-    event ReceivedCall(address indexed caller, string message);
+    event ReceivedCall(address indexed caller, uint256 amount, string message);
 
     function handle(
         uint32 _origin,
@@ -28,9 +28,9 @@ contract TestRecipient is IMessageRecipient {
         lastData = _data;
     }
 
-    function handleCall(bytes calldata _data) external {
-        emit ReceivedCall(msg.sender, string(_data));
+    function fooBar(uint256 amount, string calldata message) external {
+        emit ReceivedCall(msg.sender, amount, message);
         lastCaller = msg.sender;
-        lastCalldata = _data;
+        lastCallMessage = message;
     }
 }

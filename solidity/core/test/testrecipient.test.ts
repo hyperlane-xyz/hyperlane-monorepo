@@ -28,13 +28,12 @@ describe('TestRecipient', () => {
     const recipientFactory = new TestRecipient__factory(signer);
     const recipient = await recipientFactory.deploy();
 
-    await expect(
-      recipient.handleCall(
-        ethers.utils.hexlify(ethers.utils.toUtf8Bytes('test')),
-      ),
-    ).to.emit(recipient, 'ReceivedCall');
+    await expect(recipient.fooBar(1, 'test')).to.emit(
+      recipient,
+      'ReceivedCall',
+    );
 
     expect(await recipient.lastCaller()).to.eql(signerAddress);
-    expect(await recipient.lastCalldata()).to.eql(testData);
+    expect(await recipient.lastCallMessage()).to.eql('test');
   });
 });

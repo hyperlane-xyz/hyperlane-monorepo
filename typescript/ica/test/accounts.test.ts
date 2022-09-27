@@ -61,9 +61,7 @@ describe('InterchainAccountRouter', async () => {
     const recipientF = new TestRecipient__factory(signer);
     const recipient = await recipientF.deploy();
     const fooData = '0x12';
-    const data = recipient.interface.encodeFunctionData('handleCall', [
-      fooData,
-    ]);
+    const data = recipient.interface.encodeFunctionData('fooBar', [fooData]);
     const icaAddress = await remote.getInterchainAccount(
       localDomain,
       signer.address,
