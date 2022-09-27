@@ -153,7 +153,7 @@ where
                         let max_leaf_index_of_batch = db.store_messages(&sorted_messages)?;
 
                         // Report amount of messages stored into db
-                        stored_messages.add(sorted_messages.len().try_into()?);
+                        stored_messages.inc_by(sorted_messages.len().try_into()?);
 
                         // Report latest leaf index to gauge by dst
                         for raw_msg in sorted_messages.iter() {

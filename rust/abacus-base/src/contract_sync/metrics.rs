@@ -18,7 +18,7 @@ pub struct ContractSyncMetrics {
     /// Labels:
     /// - `data_type`: the data the indexer is recording. E.g. `messages` or `gas_payments`.
     /// - `chain`: Chain the indexer is collecting data from.
-    pub stored_events: IntGaugeVec,
+    pub stored_events: IntCounterVec,
 
     /// Unique occasions when agent missed an event (label values
     /// differentiate checkpoints vs. messages)
@@ -44,7 +44,7 @@ impl ContractSyncMetrics {
             .expect("failed to register block_height metric");
 
         let stored_events = metrics
-            .new_int_gauge(
+            .new_int_counter(
                 "contract_sync_stored_events",
                 "Number of events stored into db",
                 &["data_type", "chain"],

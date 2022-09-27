@@ -72,7 +72,7 @@ where
                     "[GasPayments]: indexed block range"
                 );
 
-                let mut new_payments_processed: i64 = 0;
+                let mut new_payments_processed: u64 = 0;
                 for gas_payment in gas_payments.iter() {
                     // Attempt to process the gas payment, incrementing new_payments_processed
                     // if it was processed for the first time.
@@ -81,7 +81,7 @@ where
                     }
                 }
 
-                stored_messages.add(new_payments_processed);
+                stored_messages.inc_by(new_payments_processed);
 
                 db.store_latest_indexed_gas_payment_block(to)?;
                 from = to + 1;
