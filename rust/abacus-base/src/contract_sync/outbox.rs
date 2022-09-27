@@ -8,9 +8,10 @@ use tracing::{instrument::Instrumented, Instrument};
 use abacus_core::{name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer};
 
 use crate::{
-    contract_sync::{last_message::OptLatestLeafIndex, schema::OutboxContractSyncDB},
+    contract_sync::{schema::OutboxContractSyncDB},
     ContractSync,
 };
+use crate::contract_sync::last_message::validate_message_continuity;
 
 const MESSAGES_LABEL: &str = "messages";
 
@@ -122,12 +123,12 @@ where
 
                 // Get the latest known leaf index. All messages whose indices are <= this index
                 // have been stored in the DB.
-                let last_leaf_index: OptLatestLeafIndex = db.retrieve_latest_leaf_index()?.into();
+                let last_leaf_index = db.retrieve_latest_leaf_index()?;
 
                 // Filter out any messages that have already been successfully indexed and stored.
                 // This is necessary if we're re-indexing blocks in hope of finding missing messages.
-                if let Some(min_index) = last_leaf_index.as_ref() {
-                    sorted_messages = sorted_messages.into_iter().filter(|m| m.leaf_index > *min_index).collect();
+                if let Some(min_index) = last_leaf_index {
+                    sorted_messages = sorted_messages.into_iter().filter(|m| m.leaf_index > min_index).collect();
                 }
 
                 debug!(
@@ -147,7 +148,7 @@ where
                 }
 
                 // Ensure the sorted messages are a valid continuation of last_leaf_index
-                match &last_leaf_index.valid_continuation(&sorted_messages) {
+                match validate_message_continuity(last_leaf_index, &sorted_messages) {
                     ListValidity::Valid => {
                         // Store messages
                         let max_leaf_index_of_batch = db.store_messages(&sorted_messages)?;
