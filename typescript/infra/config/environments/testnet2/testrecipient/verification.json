@@ -1,0 +1,74 @@
+{
+  "alfajores": [
+    {
+      "name": "TestRecipient",
+      "address": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "kovan": [
+    {
+      "name": "TestRecipient",
+      "address": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "fuji": [
+    {
+      "name": "TestRecipient",
+      "address": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "TestRecipient",
+      "address": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "TestRecipient",
+      "address": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "arbitrumrinkeby": [
+    {
+      "name": "TestRecipient",
+      "address": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "optimismkovan": [
+    {
+      "name": "TestRecipient",
+      "address": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "goerli": [
+    {
+      "name": "TestRecipient",
+      "address": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "moonbasealpha": [
+    {
+      "name": "TestRecipient",
+      "address": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ]
+}

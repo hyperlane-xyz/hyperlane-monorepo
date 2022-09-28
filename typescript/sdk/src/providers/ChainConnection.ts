@@ -18,7 +18,7 @@ export class ChainConnection {
     this.overrides = dc.overrides ?? {};
     this.confirmations = dc.confirmations ?? 0;
     this.blockExplorerUrl = dc.blockExplorerUrl ?? 'UNKNOWN_EXPLORER';
-    this.apiPrefix = dc.apiPrefix ?? 'api.';
+    this.apiPrefix = dc.apiPrefix ?? 'api-';
     this.logger = debug('hyperlane:ChainConnection');
   }
 

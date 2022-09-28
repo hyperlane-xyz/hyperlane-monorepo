@@ -1,0 +1,74 @@
+{
+  "alfajores": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0x57671BC25FD40904BE6CE71BF7C2822c1207BC95",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "kovan": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0x57671BC25FD40904BE6CE71BF7C2822c1207BC95",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "fuji": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0x57671BC25FD40904BE6CE71BF7C2822c1207BC95",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0x57671BC25FD40904BE6CE71BF7C2822c1207BC95",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0x57671BC25FD40904BE6CE71BF7C2822c1207BC95",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "arbitrumrinkeby": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0x57671BC25FD40904BE6CE71BF7C2822c1207BC95",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "optimismkovan": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0x57671BC25FD40904BE6CE71BF7C2822c1207BC95",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "goerli": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0x57671BC25FD40904BE6CE71BF7C2822c1207BC95",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "moonbasealpha": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0x57671BC25FD40904BE6CE71BF7C2822c1207BC95",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ]
+}

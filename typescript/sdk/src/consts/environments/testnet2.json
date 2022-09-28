@@ -638,7 +638,7 @@
   },
   "goerli": {
     "upgradeBeaconController": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
-    "connectionManager": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
+    "connectionManager": "0x01812D60958798695391dacF092BAc4a715B1718",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x44b764045BfDC68517e10e783E69B376cef196B2",
@@ -729,7 +729,7 @@
   },
   "moonbasealpha": {
     "upgradeBeaconController": "0x6E7b29CB2A7617405B4d30C6f84bBD51b4Bb4be8",
-    "connectionManager": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
+    "connectionManager": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",

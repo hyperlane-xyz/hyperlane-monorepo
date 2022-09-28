@@ -7,6 +7,8 @@ import {
   RouterConfig,
 } from '@hyperlane-xyz/sdk';
 
+import { InterchainAccountRouter__factory } from '../types';
+
 import {
   InterchainAccountContracts,
   InterchainAccountFactories,
@@ -34,10 +36,15 @@ export class InterchainAccountDeployer<
   // Custom contract deployment logic can go here
   // If no custom logic is needed, call deployContract for the router
   async deployContracts(chain: Chain, config: InterchainAccountConfig) {
-    const router = await this.deployContract(chain, 'router', [
-      config.connectionManager,
-      config.interchainGasPaymaster,
-    ]);
+    const initCalldata =
+      InterchainAccountRouter__factory.createInterface().encodeFunctionData(
+        'initialize',
+        [config.owner, config.connectionManager, config.interchainGasPaymaster],
+      );
+    const router = await this.deployContract(chain, 'router', [], {
+      create2Salt: 'asdasdsd',
+      initCalldata,
+    });
     return {
       router,
     };

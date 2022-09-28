@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import { format } from 'util';
 
 import { objMap, promiseObjAll } from '@hyperlane-xyz/sdk';
@@ -19,7 +20,8 @@ async function main() {
       'role',
       Object.keys(DeterministicKeyRoles).filter((x) => !(parseInt(x) >= 0)),
     )
-    .demandOption('role')
+    .string('address')
+    .describe('address', 'The address to fund')
     .number('gas-amount')
     .alias('g', 'gas-amount')
     .describe(
@@ -35,6 +37,10 @@ async function main() {
       chainStrs.map((chainStr: string) => assertChain(chainStr)),
     ).argv;
 
+  if (argv.address === undefined && argv.role === undefined) {
+    throw new Error('Have to specify either --role or --address');
+  }
+
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider(
@@ -42,22 +48,33 @@ async function main() {
     KEY_ROLE_ENUM.Deployer,
   );
 
-  const key = await getDeterministicKey(
-    environment,
-    // @ts-ignore
-    DeterministicKeyRoles[argv.role],
-  );
+  const address =
+    argv.address ||
+    (
+      await getDeterministicKey(
+        environment,
+        // @ts-ignore
+        DeterministicKeyRoles[argv.role],
+      )
+    ).address;
 
   await promiseObjAll(
-    objMap(multiProvider.chainMap, async (_, dc) => {
+    objMap(multiProvider.chainMap, async (chain, dc) => {
       // fund signer on each network with gas * gasPrice
-      const actual = await dc.provider.getBalance(key.address);
-      const gasPrice = await dc.provider.getGasPrice();
+      const actual = await dc.provider.getBalance(address);
+      const gasPrice = BigNumber.from(
+        await (dc.overrides.gasPrice ||
+          dc.overrides.maxFeePerGas ||
+          dc.provider.getGasPrice()),
+      );
       const desired = gasPrice.mul(argv.gasAmount!);
       const value = desired.sub(actual);
       if (value.gt(0)) {
+        console.log(
+          `Funding ${address} on chain '${chain}' with ${value} native tokens`,
+        );
         await dc.sendTransaction({
-          to: key.address,
+          to: address,
           value,
         });
       }

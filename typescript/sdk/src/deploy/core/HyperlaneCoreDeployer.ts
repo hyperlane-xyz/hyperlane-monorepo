@@ -185,6 +185,7 @@ export class HyperlaneCoreDeployer<
           inboxes[remote]!.inbox.address,
         );
         if (!isEnrolled) {
+          this.logger(`Enrolling inbox for remote '${remote}'`);
           const enrollTx = await connectionManager.enrollInbox(
             chainMetadata[remote].id,
             inboxes[remote]!.inbox.address,

@@ -1,0 +1,29 @@
+{
+  "alfajores": {
+    "TestRecipient": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf"
+  },
+  "kovan": {
+    "TestRecipient": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf"
+  },
+  "fuji": {
+    "TestRecipient": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf"
+  },
+  "mumbai": {
+    "TestRecipient": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf"
+  },
+  "bsctestnet": {
+    "TestRecipient": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf"
+  },
+  "arbitrumrinkeby": {
+    "TestRecipient": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf"
+  },
+  "optimismkovan": {
+    "TestRecipient": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf"
+  },
+  "goerli": {
+    "TestRecipient": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf"
+  },
+  "moonbasealpha": {
+    "TestRecipient": "0x9EfC2bD92F716b18890f3BbdB743523F0FD7D1Cf"
+  }
+}

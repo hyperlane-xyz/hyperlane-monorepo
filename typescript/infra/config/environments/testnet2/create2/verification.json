@@ -1,0 +1,32 @@
+{
+  "alfajores": [],
+  "kovan": [],
+  "fuji": [],
+  "mumbai": [],
+  "bsctestnet": [],
+  "arbitrumrinkeby": [],
+  "optimismkovan": [
+    {
+      "name": "Create2Factory",
+      "address": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "goerli": [
+    {
+      "name": "Create2Factory",
+      "address": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "moonbasealpha": [
+    {
+      "name": "Create2Factory",
+      "address": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ]
+}

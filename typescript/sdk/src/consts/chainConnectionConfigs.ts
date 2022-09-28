@@ -71,7 +71,7 @@ export const alfajores: IChainConnection = {
     44787,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://alfajores-blockscout.celo-testnet.org',
+  blockExplorerUrl: 'https://alfajores.celoscan.io',
 };
 
 export const auroratestnet: IChainConnection = {
