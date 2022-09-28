@@ -17,8 +17,8 @@ use abacus_base::{
 };
 use abacus_base::last_message::validate_message_continuity;
 use abacus_core::{
-    AbacusCommon, AbacusContract, CommittedMessage, ListValidity, name_from_domain_id, Outbox,
-    OutboxIndexer, RawCommittedMessage,
+    AbacusCommon, AbacusContract, CheckpointWithMeta, CommittedMessage, ListValidity,
+    name_from_domain_id, Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
 use crate::scraper::block_cursor::BlockCursor;
@@ -178,8 +178,8 @@ impl SqlOutboxScraper {
     pub async fn sync(self) -> Result<()> {
         use sea_orm::prelude::*;
 
-        let chain_name = self.outbox.chain_name().to_owned();
-        let labels = [MESSAGES_LABEL, &chain_name];
+        let chain_name = self.outbox.chain_name();
+        let labels = [MESSAGES_LABEL, chain_name];
         let indexed_height = self.metrics.indexed_height.with_label_values(&labels);
         let stored_messages = self.metrics.stored_events.with_label_values(&labels);
         let missed_messages = self.metrics.missed_events.with_label_values(&labels);
@@ -221,6 +221,7 @@ impl SqlOutboxScraper {
             );
 
             // Difference 2
+            // TODO: can we avoid querying this each time?
             let last_leaf_index = self.last_message_leaf_index().await?;
             if let Some(min_index) = last_leaf_index {
                 sorted_messages = sorted_messages
@@ -249,7 +250,7 @@ impl SqlOutboxScraper {
                             .and_then(|msg| name_from_domain_id(msg.message.destination))
                             .unwrap_or_else(|| "unknown".into());
                         message_leaf_index
-                            .with_label_values(&["dispatch", &chain_name, &dst])
+                            .with_label_values(&["dispatch", chain_name, &dst])
                             .set(max_leaf_index_of_batch as i64);
                     }
 
@@ -286,11 +287,35 @@ impl SqlOutboxScraper {
         }
     }
 
+    /// Get the highest message leaf index that is stored in the database.
     async fn last_message_leaf_index(&self) -> Result<Option<u32>> {
         todo!()
     }
 
+    /// Store messages from the outbox into the database. This automatically
+    /// fetches the relevant transaction and block data and stores them into the
+    /// database.
+    ///
+    /// Returns the highest message leaf index which was provided to this function.
     async fn store_messages(&self, messages: &[RawCommittedMessage]) -> Result<u32> {
+        todo!()
+    }
+
+    /// Store checkpoints from the outbox into the database. This automatically fetches relevant
+    /// transaction and block data and stores them into the database.
+    async fn store_checkpoints(&self, checkpoints: &[CheckpointWithMeta]) -> Result<()> {
+        todo!()
+    }
+
+    /// Store into the database relevant transactions. These are
+    /// blockchain-level transactions that contain events/messages.
+    async fn store_txs(&self, txs: &[()]) -> Result<()> {
+        todo!()
+    }
+
+    /// Store into the database relevant blocks. These are blocks for which we
+    /// have at least one relevent transaction.
+    async fn store_blocks(&self, blocks: &[()]) -> Result<()> {
         todo!()
     }
 }
