@@ -72,6 +72,7 @@ export const alfajores: IChainConnection = {
   ),
   confirmations: 1,
   blockExplorerUrl: 'https://alfajores.celoscan.io',
+  apiPrefix: 'api-',
 };
 
 export const auroratestnet: IChainConnection = {
@@ -89,6 +90,7 @@ export const fuji: IChainConnection = {
   ),
   confirmations: 3,
   blockExplorerUrl: 'https://testnet.snowtrace.io',
+  apiPrefix: 'api-',
 };
 
 export const goerli: IChainConnection = {
@@ -98,6 +100,7 @@ export const goerli: IChainConnection = {
   ),
   confirmations: 1,
   blockExplorerUrl: 'https://goerli.etherscan.io/',
+  apiPrefix: 'api-',
 };
 
 export const kovan: IChainConnection = {
@@ -107,6 +110,7 @@ export const kovan: IChainConnection = {
   ),
   confirmations: 1,
   blockExplorerUrl: 'https://kovan.etherscan.io',
+  apiPrefix: 'api-',
 };
 
 export const mumbai: IChainConnection = {
@@ -116,6 +120,7 @@ export const mumbai: IChainConnection = {
   ),
   confirmations: 30,
   blockExplorerUrl: 'https://mumbai.polygonscan.com',
+  apiPrefix: 'api-',
 };
 
 export const bsctestnet: IChainConnection = {
@@ -125,6 +130,7 @@ export const bsctestnet: IChainConnection = {
   ),
   confirmations: 1,
   blockExplorerUrl: 'https://testnet.bscscan.com',
+  apiPrefix: 'api-',
 };
 
 export const arbitrumrinkeby: IChainConnection = {
@@ -134,6 +140,7 @@ export const arbitrumrinkeby: IChainConnection = {
   ),
   confirmations: 1,
   blockExplorerUrl: 'https://testnet.arbiscan.io',
+  apiPrefix: 'api-',
 };
 
 export const optimismkovan: IChainConnection = {
@@ -143,6 +150,7 @@ export const optimismkovan: IChainConnection = {
   ),
   confirmations: 1,
   blockExplorerUrl: 'https://kovan-optimistic.etherscan.io',
+  apiPrefix: 'api-',
 };
 
 export const moonbasealpha: IChainConnection = {
@@ -152,6 +160,7 @@ export const moonbasealpha: IChainConnection = {
   ),
   confirmations: 1,
   blockExplorerUrl: 'https://moonbase.moonscan.io/',
+  apiPrefix: 'api-',
 };
 
 export const test1: IChainConnection = {

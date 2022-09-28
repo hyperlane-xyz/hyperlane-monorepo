@@ -165,6 +165,7 @@ export abstract class HyperlaneDeployer<
             factory.bytecode,
             salt,
             deployOpts.initCalldata,
+            chainConnection.overrides,
           )
         : await create2Factory.deploy(
             factory.bytecode,
@@ -180,7 +181,9 @@ export abstract class HyperlaneDeployer<
         constructorArguments: '',
       });
 
-      return factory.attach(contractAddr) as ReturnType<F['deploy']>;
+      return factory.attach(contractAddr).connect(signer) as ReturnType<
+        F['deploy']
+      >;
     } else {
       const contract = await factory
         .connect(signer)
