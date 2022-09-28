@@ -2,6 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
+import { TestRecipient__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainNameToDomainId,
@@ -16,7 +17,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { InterchainAccountDeployer } from '../src/deploy';
-import { InterchainAccountRouter, TestRecipient__factory } from '../types';
+import { InterchainAccountRouter } from '../types';
 
 describe('InterchainAccountRouter', async () => {
   const localChain = 'test1';
@@ -59,15 +60,18 @@ describe('InterchainAccountRouter', async () => {
   it('forwards calls from interchain account', async () => {
     const recipientF = new TestRecipient__factory(signer);
     const recipient = await recipientF.deploy();
-    const fooData = '0x12';
-    const data = recipient.interface.encodeFunctionData('foo', [fooData]);
+    const fooMessage = 'Test';
+    const data = recipient.interface.encodeFunctionData('fooBar', [
+      1,
+      fooMessage,
+    ]);
     const icaAddress = await remote.getInterchainAccount(
       localDomain,
       signer.address,
     );
     await local.dispatch(remoteDomain, [{ to: recipient.address, data }]);
     await coreApp.processMessages();
-    expect(await recipient.lastData()).to.eql(fooData);
-    expect(await recipient.lastSender()).to.eql(icaAddress);
+    expect(await recipient.lastCallMessage()).to.eql(fooMessage);
+    expect(await recipient.lastCaller()).to.eql(icaAddress);
   });
 });
