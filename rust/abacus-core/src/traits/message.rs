@@ -12,6 +12,7 @@ pub struct RawCommittedMessage {
     pub leaf_index: u32,
     /// The fully detailed message that was committed
     pub message: Vec<u8>,
+    
 }
 
 impl RawCommittedMessage {

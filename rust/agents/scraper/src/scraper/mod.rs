@@ -1,24 +1,24 @@
-use std::cmp::min;
+use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use eyre::Result;
-use sea_orm::{Database, DbConn};
+use eyre::{eyre, Context, Result};
+use sea_orm::{ActiveValue, ColumnTrait, Database, DbConn, Insert};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::{debug, info, info_span, Instrument, warn};
 use tracing::instrument::Instrumented;
+use tracing::{debug, info, info_span, warn, Instrument};
 
-use abacus_base::{
-    BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, IndexSettings, OutboxAddresses,
-    run_all, Settings,
-};
 use abacus_base::last_message::validate_message_continuity;
+use abacus_base::{
+    run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, IndexSettings,
+    OutboxAddresses, Settings,
+};
 use abacus_core::{
-    AbacusCommon, AbacusContract, CheckpointWithMeta, CommittedMessage, ListValidity,
-    name_from_domain_id, Outbox, OutboxIndexer, RawCommittedMessage,
+    name_from_domain_id, AbacusCommon, AbacusContract, AbacusMessage, CheckpointWithMeta,
+    CommittedMessage, ListValidity, Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
 use crate::scraper::block_cursor::BlockCursor;
@@ -287,22 +287,91 @@ impl SqlOutboxScraper {
         }
     }
 
+    // TODO: move these database functions to a database wrapper type?
+
     /// Get the highest message leaf index that is stored in the database.
     async fn last_message_leaf_index(&self) -> Result<Option<u32>> {
-        todo!()
+        use crate::db::message;
+        use sea_orm::prelude::*;
+        use sea_orm::QueryOrder;
+
+        Ok(message::Entity::find()
+            .filter(message::Column::Origin.eq(self.outbox.local_domain()))
+            .filter(message::Column::OutboxAddress.eq(self.outbox.address()))
+            .order_by_desc(message::Column::LeafIndex)
+            .one(&self.db)
+            .await?
+            .map(|m| m.leaf_index as u32))
     }
 
     /// Store messages from the outbox into the database. This automatically
     /// fetches the relevant transaction and block data and stores them into the
     /// database.
     ///
-    /// Returns the highest message leaf index which was provided to this function.
+    /// Returns the highest message leaf index which was provided to this
+    /// function.
     async fn store_messages(&self, messages: &[RawCommittedMessage]) -> Result<u32> {
-        todo!()
+        use crate::db::message;
+        use sea_orm::prelude::*;
+        use sea_orm::sea_query::OnConflict;
+        use ActiveValue::*;
+
+        let messages = messages
+            .iter()
+            .map(|raw| CommittedMessage::try_from(raw).map(|parsed| (raw, parsed.message)))
+            .collect::<Result<Vec<(&RawCommittedMessage, AbacusMessage)>, _>>()
+            .context("Failed to parse a message")?;
+
+        // TODO: Look up txn info
+        // TODO: Look up block info
+
+        let message_models = messages.iter().map(|(raw_msg, parsed_msg)| {
+            debug_assert_eq!(self.outbox.local_domain(), parsed_msg.origin);
+            message::ActiveModel {
+                id: NotSet,
+                time_created: Set(crate::date_time::now()),
+                origin: Unchanged(parsed_msg.origin as i32),
+                destination: Set(parsed_msg.destination as i32),
+                leaf_index: Unchanged(raw_msg.leaf_index as i32),
+                sender: Set(parsed_msg.sender),
+                recipient: Set(parsed_msg.recipient),
+                msg_body: Set(parsed_msg.body),
+                outbox_address: Unchanged(self.outbox.address()),
+                timestamp: Set(block.timestamp),
+                origin_tx_id: Set(txn_id),
+            }
+        });
+        Insert::many(message_models)
+            .on_conflict(
+                OnConflict::columns([
+                    message::Column::OutboxAddress,
+                    message::Column::Origin,
+                    message::Column::LeafIndex,
+                ])
+                .update_columns([
+                    message::Column::TimeCreated,
+                    message::Column::Destination,
+                    message::Column::Sender,
+                    message::Column::Recipient,
+                    message::Column::MsgBody,
+                    message::Column::Timestamp,
+                    message::Column::OriginTxId,
+                ])
+                .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
+
+        messages
+            .iter()
+            .map(|m| m.0.leaf_index)
+            .max()
+            .ok_or_else(|| eyre!("Received empty list"))
     }
 
-    /// Store checkpoints from the outbox into the database. This automatically fetches relevant
-    /// transaction and block data and stores them into the database.
+    /// Store checkpoints from the outbox into the database. This automatically
+    /// fetches relevant transaction and block data and stores them into the
+    /// database.
     async fn store_checkpoints(&self, checkpoints: &[CheckpointWithMeta]) -> Result<()> {
         todo!()
     }
