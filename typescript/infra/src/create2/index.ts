@@ -19,11 +19,11 @@ export class Create2FactoryDeployer<
   constructor(multiProvider: MultiProvider<Chain>) {
     super(
       multiProvider,
-      multiProvider.map(() => {}),
+      multiProvider.map(() => ({})),
       factories,
     );
   }
-  async deployContracts(chain: Chain, _config: any) {
+  async deployContracts(chain: Chain) {
     const Create2Factory = await this.deployContract(
       chain,
       'Create2Factory',

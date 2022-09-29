@@ -19,11 +19,11 @@ export class TestRecipientDeployer<
   constructor(multiProvider: MultiProvider<Chain>) {
     super(
       multiProvider,
-      multiProvider.map(() => {}),
+      multiProvider.map(() => ({})),
       factories,
     );
   }
-  async deployContracts(chain: Chain, _config: any) {
+  async deployContracts(chain: Chain) {
     const TestRecipient = await this.deployContract(
       chain,
       'TestRecipient',
