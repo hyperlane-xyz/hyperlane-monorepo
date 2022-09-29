@@ -29,8 +29,7 @@ pub trait Indexer: Send + Sync + Debug {
 #[auto_impl(Box, Arc)]
 pub trait OutboxIndexer: Indexer + Send + Sync + Debug {
     /// Fetch list of messages between blocks `from` and `to`.
-    async fn fetch_sorted_messages(&self, from: u32, to: u32)
-        -> Result<Vec<RawCommittedMessage>>;
+    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>>;
 
     /// Fetch sequentially sorted list of cached checkpoints between blocks
     /// `from` and `to`

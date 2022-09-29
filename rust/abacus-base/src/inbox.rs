@@ -58,6 +58,10 @@ impl AbacusContract for CachingInbox {
     fn chain_name(&self) -> &str {
         self.inbox.chain_name()
     }
+
+    fn address(&self) -> H256 {
+        self.inbox.address()
+    }
 }
 
 #[async_trait]

@@ -95,6 +95,9 @@ pub trait AbacusContract {
     /// Return an identifier (not necessarily unique) for the chain this
     /// contract is deployed to.
     fn chain_name(&self) -> &str;
+
+    /// Return the address of this contract.
+    fn address(&self) -> H256;
 }
 
 /// Interface for attributes shared by Outbox and Inbox
