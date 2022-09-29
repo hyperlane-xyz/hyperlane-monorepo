@@ -14,7 +14,8 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-use eyre::Result;
+use ethers::types::H256;
+use eyre::{Context, Result};
 
 use abacus_base::BaseAgent;
 
@@ -45,4 +46,14 @@ async fn main() -> Result<()> {
     all_fut_tasks.await??;
 
     Ok(())
+}
+
+fn parse_h256<T: AsRef<[u8]>>(data: T) -> Result<H256> {
+    Ok(H256::from_slice(
+        &hex::decode(data).context("Error decoding hash or address")?,
+    ))
+}
+
+fn format_h256(data: &H256) -> String {
+    hex::encode(data)
 }

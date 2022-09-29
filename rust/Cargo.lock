@@ -3908,6 +3908,8 @@ dependencies = [
  "config",
  "ethers",
  "eyre",
+ "hex",
+ "itertools",
  "migration",
  "prometheus",
  "sea-orm",
