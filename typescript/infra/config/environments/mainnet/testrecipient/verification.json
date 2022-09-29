@@ -1,5 +1,5 @@
 {
-  "alfajores": [
+  "bsc": [
     {
       "name": "TestRecipient",
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
@@ -7,7 +7,7 @@
       "constructorArguments": ""
     }
   ],
-  "kovan": [
+  "avalanche": [
     {
       "name": "TestRecipient",
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
@@ -15,7 +15,7 @@
       "constructorArguments": ""
     }
   ],
-  "fuji": [
+  "polygon": [
     {
       "name": "TestRecipient",
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
@@ -23,7 +23,7 @@
       "constructorArguments": ""
     }
   ],
-  "mumbai": [
+  "celo": [
     {
       "name": "TestRecipient",
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
@@ -31,7 +31,7 @@
       "constructorArguments": ""
     }
   ],
-  "bsctestnet": [
+  "arbitrum": [
     {
       "name": "TestRecipient",
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
@@ -39,7 +39,7 @@
       "constructorArguments": ""
     }
   ],
-  "arbitrumrinkeby": [
+  "optimism": [
     {
       "name": "TestRecipient",
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
@@ -47,23 +47,7 @@
       "constructorArguments": ""
     }
   ],
-  "optimismkovan": [
-    {
-      "name": "TestRecipient",
-      "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-      "isProxy": false,
-      "constructorArguments": ""
-    }
-  ],
-  "goerli": [
-    {
-      "name": "TestRecipient",
-      "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
-      "isProxy": false,
-      "constructorArguments": ""
-    }
-  ],
-  "moonbasealpha": [
+  "ethereum": [
     {
       "name": "TestRecipient",
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",

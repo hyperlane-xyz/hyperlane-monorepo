@@ -1,29 +1,23 @@
 {
-  "alfajores": {
+  "bsc": {
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   },
-  "kovan": {
+  "avalanche": {
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   },
-  "fuji": {
+  "polygon": {
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   },
-  "mumbai": {
+  "celo": {
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   },
-  "bsctestnet": {
+  "arbitrum": {
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   },
-  "arbitrumrinkeby": {
+  "optimism": {
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   },
-  "optimismkovan": {
-    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
-  },
-  "goerli": {
-    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
-  },
-  "moonbasealpha": {
+  "ethereum": {
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   }
 }

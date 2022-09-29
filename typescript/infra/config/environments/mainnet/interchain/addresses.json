@@ -1,29 +1,23 @@
 {
-  "alfajores": {
+  "bsc": {
     "router": "0x28DB114018576cF6c9A523C17903455A161d18C4"
   },
-  "kovan": {
+  "avalanche": {
     "router": "0x28DB114018576cF6c9A523C17903455A161d18C4"
   },
-  "fuji": {
+  "polygon": {
     "router": "0x28DB114018576cF6c9A523C17903455A161d18C4"
   },
-  "mumbai": {
+  "celo": {
     "router": "0x28DB114018576cF6c9A523C17903455A161d18C4"
   },
-  "bsctestnet": {
+  "arbitrum": {
     "router": "0x28DB114018576cF6c9A523C17903455A161d18C4"
   },
-  "optimismkovan": {
+  "optimism": {
     "router": "0x28DB114018576cF6c9A523C17903455A161d18C4"
   },
-  "goerli": {
-    "router": "0x28DB114018576cF6c9A523C17903455A161d18C4"
-  },
-  "moonbasealpha": {
-    "router": "0x28DB114018576cF6c9A523C17903455A161d18C4"
-  },
-  "arbitrumrinkeby": {
+  "ethereum": {
     "router": "0x28DB114018576cF6c9A523C17903455A161d18C4"
   }
 }
