@@ -1,4 +1,4 @@
-use crate::{utils::domain_hash, AbacusError, Decode, Encode, SignerExt};
+use crate::{utils::domain_hash, AbacusError, Decode, Encode, LogMeta, SignerExt};
 use ethers::{
     prelude::{Address, Signature},
     types::H256,
@@ -96,46 +96,13 @@ impl Checkpoint {
     }
 }
 
-/// Metadata stored about an checkpoint
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct CheckpointMeta {
-    /// Block number
-    pub block_number: u64,
-}
-
-impl Encode for CheckpointMeta {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        let mut written = 0;
-        written += self.block_number.write_to(writer)?;
-        Ok(written)
-    }
-}
-
-impl Decode for CheckpointMeta {
-    fn read_from<R>(reader: &mut R) -> Result<Self, AbacusError>
-    where
-        R: std::io::Read,
-        Self: Sized,
-    {
-        let mut block_number = [0u8; 8];
-        reader.read_exact(&mut block_number)?;
-
-        Ok(Self {
-            block_number: u64::from_be_bytes(block_number),
-        })
-    }
-}
-
 /// A Checkpoint with Meta
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CheckpointWithMeta {
     /// The checkpoint
     pub checkpoint: Checkpoint,
     /// The metadata
-    pub metadata: CheckpointMeta,
+    pub metadata: LogMeta,
 }
 
 /// A Signed Abacus checkpoint

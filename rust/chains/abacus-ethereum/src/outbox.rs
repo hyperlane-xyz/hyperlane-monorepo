@@ -1,6 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::{error::Error as StdError, sync::Arc};
 
@@ -10,9 +11,9 @@ use eyre::Result;
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusAbi, AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, CheckpointMeta,
-    CheckpointWithMeta, ContractLocator, Indexer, Message, Outbox, OutboxIndexer, OutboxState,
-    RawCommittedMessage, TxOutcome,
+    AbacusAbi, AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint,
+    CheckpointWithMeta, ContractLocator, Indexer, LogMeta, Message, Outbox, OutboxIndexer,
+    OutboxState, RawCommittedMessage, TxOutcome,
 };
 
 use crate::contracts::outbox::{Outbox as EthereumOutboxInternal, OUTBOX_ABI};
@@ -151,7 +152,7 @@ where
         events.sort_by(|a, b| {
             let mut ordering = a.1.block_number.cmp(&b.1.block_number);
             if ordering == std::cmp::Ordering::Equal {
-                ordering = a.1.transaction_index.cmp(&b.1.transaction_index);
+                ordering = a.1.log_index.cmp(&b.1.log_index);
             }
 
             ordering
@@ -170,9 +171,7 @@ where
 
                 CheckpointWithMeta {
                     checkpoint,
-                    metadata: CheckpointMeta {
-                        block_number: event.1.block_number.as_u64(),
-                    },
+                    metadata: event.1.borrow().into(),
                 }
             })
             .collect())

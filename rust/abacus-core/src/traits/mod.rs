@@ -17,7 +17,6 @@ pub use encode::*;
 pub use inbox::*;
 pub use indexer::*;
 pub use interchain_gas::*;
-pub use message::*;
 pub use outbox::*;
 pub use validator_manager::*;
 
@@ -28,7 +27,6 @@ mod encode;
 mod inbox;
 mod indexer;
 mod interchain_gas;
-mod message;
 mod outbox;
 mod validator_manager;
 

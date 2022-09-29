@@ -1,7 +1,7 @@
 use crate::db::{DbError, TypedDB, DB};
 use crate::{
-    accumulator::merkle::Proof, traits::RawCommittedMessage, AbacusMessage, CommittedMessage,
-    Decode, InterchainGasPayment, InterchainGasPaymentMeta, InterchainGasPaymentWithMeta,
+    accumulator::merkle::Proof, AbacusMessage, CommittedMessage, Decode, InterchainGasPayment,
+    InterchainGasPaymentMeta, InterchainGasPaymentWithMeta, RawCommittedMessage,
 };
 use ethers::core::types::{H256, U256};
 use eyre::Result;
