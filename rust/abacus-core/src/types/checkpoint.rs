@@ -1,4 +1,4 @@
-use crate::{utils::domain_hash, AbacusError, Decode, Encode, LogMeta, SignerExt};
+use crate::{utils::domain_hash, AbacusError, Decode, Encode, SignerExt};
 use ethers::{
     prelude::{Address, Signature},
     types::H256,
@@ -94,15 +94,6 @@ impl Checkpoint {
             signature,
         })
     }
-}
-
-/// A Checkpoint with Meta
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct CheckpointWithMeta {
-    /// The checkpoint
-    pub checkpoint: Checkpoint,
-    /// The metadata
-    pub metadata: LogMeta,
 }
 
 /// A Signed Abacus checkpoint

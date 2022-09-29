@@ -11,9 +11,8 @@ use eyre::Result;
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusAbi, AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint,
-    CheckpointWithMeta, ContractLocator, Indexer, LogMeta, Message, Outbox, OutboxIndexer,
-    OutboxState, RawCommittedMessage, TxOutcome,
+    AbacusAbi, AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, ContractLocator,
+    Indexer, LogMeta, Message, Outbox, OutboxIndexer, OutboxState, RawCommittedMessage, TxOutcome,
 };
 
 use crate::contracts::outbox::{Outbox as EthereumOutboxInternal, OUTBOX_ABI};
@@ -140,7 +139,7 @@ where
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<CheckpointWithMeta>> {
+    ) -> Result<Vec<(Checkpoint, LogMeta)>> {
         let mut events = self
             .contract
             .checkpoint_cached_filter()
@@ -169,10 +168,7 @@ where
                     index: event.0.index.as_u32(),
                 };
 
-                CheckpointWithMeta {
-                    checkpoint,
-                    metadata: event.1.borrow().into(),
-                }
+                (checkpoint, event.1.borrow().into())
             })
             .collect())
     }

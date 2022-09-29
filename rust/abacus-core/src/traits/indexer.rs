@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use eyre::Result;
 
-use crate::{CheckpointWithMeta, InterchainGasPaymentWithMeta, RawCommittedMessage};
+use crate::{Checkpoint, InterchainGasPaymentWithMeta, LogMeta, RawCommittedMessage};
 
 /// Interface for an indexer.
 #[async_trait]
@@ -37,7 +37,7 @@ pub trait OutboxIndexer: Indexer + Send + Sync + Debug {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<CheckpointWithMeta>>;
+    ) -> Result<Vec<(Checkpoint, LogMeta)>>;
 }
 
 /// Interface for InterchainGasPaymaster contract indexer.

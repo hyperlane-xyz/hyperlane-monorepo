@@ -24,7 +24,7 @@ mock! {
     pub AbacusIndexer {
         pub fn _get_finalized_block_number(&self) -> Result<u32> {}
 
-        pub fn _fetch_sorted_cached_checkpoints(&self, from: u32, to: u32) -> Result<Vec<CheckpointWithMeta>> {}
+        pub fn _fetch_sorted_cached_checkpoints(&self, from: u32, to: u32) -> Result<Vec<(Checkpoint, LogMeta)>> {}
 
         pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {}
     }
@@ -53,7 +53,7 @@ impl OutboxIndexer for MockAbacusIndexer {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<CheckpointWithMeta>> {
+    ) -> Result<Vec<(Checkpoint, LogMeta)>> {
         self._fetch_sorted_cached_checkpoints(from, to)
     }
 }
