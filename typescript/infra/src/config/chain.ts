@@ -42,7 +42,7 @@ export async function fetchProvider(
   if (quorum) {
     return new ethers.providers.FallbackProvider(
       (rpc as string[]).map((url) => providerBuilder(url, chainName)),
-      1,
+      1, // a single provider is "quorum", but failure will cause failover to the next provider
     );
   } else {
     return providerBuilder(rpc, chainName);
