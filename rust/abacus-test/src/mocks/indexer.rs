@@ -10,7 +10,7 @@ mock! {
     pub Indexer {
         pub fn _get_finalized_block_number(&self) -> Result<u32> {}
 
-        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {}
+        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(RawCommittedMessage, LogMeta)>> {}
     }
 }
 
@@ -26,7 +26,7 @@ mock! {
 
         pub fn _fetch_sorted_cached_checkpoints(&self, from: u32, to: u32) -> Result<Vec<(Checkpoint, LogMeta)>> {}
 
-        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {}
+        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(RawCommittedMessage, LogMeta)>> {}
     }
 }
 
@@ -45,7 +45,11 @@ impl Indexer for MockAbacusIndexer {
 
 #[async_trait]
 impl OutboxIndexer for MockAbacusIndexer {
-    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {
+    async fn fetch_sorted_messages(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> Result<Vec<(RawCommittedMessage, LogMeta)>> {
         self._fetch_sorted_messages(from, to)
     }
 

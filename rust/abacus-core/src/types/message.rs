@@ -62,7 +62,6 @@ impl Decode for RawCommittedMessage {
     }
 }
 
-// ember: tracingify these across usage points
 /// A Stamped message that has been committed at some leaf index
 #[derive(Debug, Default, Clone)]
 pub struct CommittedMessage {

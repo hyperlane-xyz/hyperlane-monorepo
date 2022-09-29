@@ -8,6 +8,7 @@ use std::{error::Error as StdError, sync::Arc};
 use async_trait::async_trait;
 use ethers::prelude::*;
 use eyre::Result;
+use tokio::sync::OnceCell;
 use tracing::instrument;
 
 use abacus_core::{
@@ -65,6 +66,7 @@ where
     #[allow(unused)]
     chunk_size: u32,
     finality_blocks: u32,
+    outbox_domain: OnceCell<u32>,
 }
 
 impl<M> EthereumOutboxIndexer<M>
@@ -79,16 +81,33 @@ where
         chunk_size: u32,
         finality_blocks: u32,
     ) -> Self {
+        let contract = Arc::new(EthereumOutboxInternal::new(
+            &locator.address,
+            provider.clone(),
+        ));
         Self {
-            contract: Arc::new(EthereumOutboxInternal::new(
-                &locator.address,
-                provider.clone(),
-            )),
+            contract,
             provider,
             from_height,
             chunk_size,
             finality_blocks,
+            outbox_domain: OnceCell::new(),
         }
+    }
+
+    /// Get the outbox domain, this will do a one-time init and will resolve
+    /// immediately thereafter.
+    async fn outbox_domain(&self) -> u32 {
+        *self
+            .outbox_domain
+            .get_or_init(|| async {
+                self.contract
+                    .local_domain()
+                    .call()
+                    .await
+                    .expect("Failed to query outbox domain")
+            })
+            .await
     }
 }
 
@@ -114,24 +133,31 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {
-        let mut events = self
+    async fn fetch_sorted_messages(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> Result<Vec<(RawCommittedMessage, LogMeta)>> {
+        let mut events: Vec<(RawCommittedMessage, LogMeta)> = self
             .contract
             .dispatch_filter()
             .from_block(from)
             .to_block(to)
-            .query()
-            .await?;
-
-        events.sort_by(|a, b| a.leaf_index.cmp(&b.leaf_index));
-
-        Ok(events
+            .query_with_meta()
+            .await?
             .into_iter()
-            .map(|f| RawCommittedMessage {
-                leaf_index: f.leaf_index.as_u32(),
-                message: f.message.to_vec(),
+            .map(|(event, meta)| {
+                (
+                    RawCommittedMessage {
+                        leaf_index: event.leaf_index.as_u32(),
+                        message: event.message.to_vec(),
+                    },
+                    meta.into(),
+                )
             })
-            .collect())
+            .collect();
+        events.sort_by(|a, b| a.0.leaf_index.cmp(&b.0.leaf_index));
+        Ok(events)
     }
 
     #[instrument(err, skip(self))]
@@ -140,37 +166,28 @@ where
         from: u32,
         to: u32,
     ) -> Result<Vec<(Checkpoint, LogMeta)>> {
-        let mut events = self
+        let outbox_domain = self.outbox_domain().await;
+        let mut events: Vec<(Checkpoint, LogMeta)> = self
             .contract
             .checkpoint_cached_filter()
             .from_block(from)
             .to_block(to)
             .query_with_meta()
-            .await?;
-
-        events.sort_by(|a, b| {
-            let mut ordering = a.1.block_number.cmp(&b.1.block_number);
-            if ordering == std::cmp::Ordering::Equal {
-                ordering = a.1.log_index.cmp(&b.1.log_index);
-            }
-
-            ordering
-        });
-
-        let outbox_domain = self.contract.local_domain().call().await?;
-
-        Ok(events
-            .iter()
-            .map(|event| {
-                let checkpoint = Checkpoint {
-                    outbox_domain,
-                    root: event.0.root.into(),
-                    index: event.0.index.as_u32(),
-                };
-
-                (checkpoint, event.1.borrow().into())
+            .await?
+            .into_iter()
+            .map(|(event, meta)| {
+                (
+                    Checkpoint {
+                        outbox_domain,
+                        root: event.root.into(),
+                        index: event.index.as_u32(),
+                    },
+                    meta.into(),
+                )
             })
-            .collect())
+            .collect();
+        events.sort_by(|a, b| a.1.cmp(&b.1));
+        Ok(events)
     }
 }
 

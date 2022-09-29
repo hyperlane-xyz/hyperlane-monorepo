@@ -109,7 +109,7 @@ where
                 // Still search the full-size chunk size to possibly catch events that nodes have dropped "close to the tip"
                 let full_chunk_from = to.checked_sub(chunk_size).unwrap_or_default();
 
-                let mut sorted_messages = indexer.fetch_sorted_messages(full_chunk_from, to).await?;
+                let mut sorted_messages: Vec<_> = indexer.fetch_sorted_messages(full_chunk_from, to).await?.into_iter().map(|(msg, _)| msg).collect();
 
                 info!(
                     from = full_chunk_from,
@@ -136,7 +136,7 @@ where
                 );
 
                 // Ensure the sorted messages are a valid continuation of last_leaf_index
-                match validate_message_continuity(last_leaf_index, &sorted_messages) {
+                match validate_message_continuity(last_leaf_index, &sorted_messages.iter().collect::<Vec<_>>()) {
                     ListValidity::Valid => {
                         // Store messages
                         let max_leaf_index_of_batch = db.store_messages(&sorted_messages)?;
@@ -212,7 +212,7 @@ mod test {
     use tokio::select;
     use tokio::time::{interval, timeout};
 
-    use abacus_core::{db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage};
+    use abacus_core::{db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage, LogMeta};
     use abacus_test::mocks::indexer::MockAbacusIndexer;
     use abacus_test::test_utils;
     use mockall::predicate::eq;
@@ -234,6 +234,15 @@ mod test {
             }
             .write_to(&mut message_vec)
             .expect("!write_to");
+
+            let meta = || LogMeta {
+                address: Default::default(),
+                block_number: 0,
+                block_hash: Default::default(),
+                transaction_hash: Default::default(),
+                transaction_index: 0,
+                log_index: Default::default()
+            };
 
             let m0 = RawCommittedMessage {
                 leaf_index: 0,
@@ -283,7 +292,7 @@ mod test {
                     .times(1)
                     .with(eq(91), eq(110))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![m0_clone]));
+                    .return_once(move |_, _| Ok(vec![(m0_clone, meta())]));
 
                 // Return m1, miss m2.
                 let m1_clone = m1.clone();
@@ -297,7 +306,7 @@ mod test {
                     .times(1)
                     .with(eq(101), eq(120))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![m1_clone]));
+                    .return_once(move |_, _| Ok(vec![(m1_clone, meta())]));
 
                 // Miss m3.
                 mock_indexer
@@ -343,7 +352,7 @@ mod test {
                     .times(1)
                     .with(eq(131), eq(150))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![m5_clone]));
+                    .return_once(move |_, _| Ok(vec![(m5_clone, meta())]));
 
                 // Indexer goes back to the last valid message range start block
                 // and indexes the range based off the chunk size of 19.
@@ -360,7 +369,7 @@ mod test {
                     .times(1)
                     .with(eq(101), eq(120))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![m1_clone, m2_clone]));
+                    .return_once(move |_, _| Ok(vec![(m1_clone, meta()), (m2_clone, meta())]));
 
                 // Indexer continues, this time getting m3 and m5 message, but skipping m4,
                 // which means this range contains gaps
@@ -376,7 +385,7 @@ mod test {
                     .times(1)
                     .with(eq(121), eq(140))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![m3_clone, m5_clone]));
+                    .return_once(move |_, _| Ok(vec![(m3_clone, meta()), (m5_clone, meta())]));
 
                 // Indexer retries, the same range in hope of filling the gap,
                 // which it now does successfully
@@ -390,7 +399,7 @@ mod test {
                     .times(1)
                     .with(eq(121), eq(140))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![m3, m4, m5]));
+                    .return_once(move |_, _| Ok(vec![(m3, meta()), (m4, meta()), (m5, meta())]));
 
                 // Indexer continues with the next block range, which happens to be empty
                 mock_indexer

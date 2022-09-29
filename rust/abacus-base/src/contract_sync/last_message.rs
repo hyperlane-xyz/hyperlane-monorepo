@@ -12,7 +12,7 @@ use abacus_core::{ListValidity, RawCommittedMessage};
 /// previous messages (None case).
 pub fn validate_message_continuity(
     latest_message_leaf_index: Option<u32>,
-    sorted_messages: &[RawCommittedMessage],
+    sorted_messages: &[&RawCommittedMessage],
 ) -> ListValidity {
     if sorted_messages.is_empty() {
         return ListValidity::Empty;
