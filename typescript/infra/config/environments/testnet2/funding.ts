@@ -19,5 +19,5 @@ export const keyFunderConfig: KeyFunderConfig = {
     [Contexts.Abacus]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
     [Contexts.ReleaseCandidate]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
   },
-  connectionType: ConnectionType.HttpQuorum,
+  connectionType: ConnectionType.Http,
 };
