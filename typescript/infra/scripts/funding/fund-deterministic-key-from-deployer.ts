@@ -60,6 +60,9 @@ async function main() {
 
   await promiseObjAll(
     objMap(multiProvider.chainMap, async (chain, dc) => {
+      if (argv.chainsToSkip?.includes(chain)) {
+        return;
+      }
       // fund signer on each network with gas * gasPrice
       const actual = await dc.provider.getBalance(address);
       const gasPrice = BigNumber.from(
