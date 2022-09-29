@@ -42,7 +42,7 @@ export const releaseCandidate: HelloWorldConfig<MainnetChains> = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: ConnectionType.HttpQuorum,
+    connectionType: ConnectionType.Http,
   },
 };
 

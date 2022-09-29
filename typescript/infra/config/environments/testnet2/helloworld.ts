@@ -23,7 +23,7 @@ export const abacus: HelloWorldConfig<TestnetChains> = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: ConnectionType.HttpQuorum,
+    connectionType: ConnectionType.Http,
   },
 };
 
@@ -42,7 +42,7 @@ export const releaseCandidate: HelloWorldConfig<TestnetChains> = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: ConnectionType.HttpQuorum,
+    connectionType: ConnectionType.Http,
   },
 };
 
