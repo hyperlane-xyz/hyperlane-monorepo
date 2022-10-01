@@ -14,6 +14,7 @@ use tracing::instrument::Instrumented;
 use tracing::{debug, info, info_span, warn, Instrument};
 
 use crate::db::transaction;
+use crate::{format_h256, parse_h256};
 use abacus_base::last_message::validate_message_continuity;
 use abacus_base::{
     run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, IndexSettings,
@@ -23,7 +24,6 @@ use abacus_core::{
     name_from_domain_id, AbacusCommon, AbacusContract, AbacusMessage, Checkpoint, CommittedMessage,
     ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
 };
-use crate::{format_h256, parse_h256};
 
 use crate::scraper::block_cursor::BlockCursor;
 use crate::settings::ScraperSettings;
@@ -335,98 +335,172 @@ impl SqlOutboxScraper {
         // TODO: Look up txn info
         // TODO: Look up block info
 
-        // all txns we care about
-        let mut txns = messages
+        let txns = self
+            .ensure_blocks_and_txns(
+                messages.iter().map(|(_, meta)| meta.block_hash),
+                messages.iter().map(|(_, meta)| meta.transaction_hash),
+            )
+            .await?;
+
+        let message_models = messages.iter().map(|(msg, meta)| {
+            debug_assert_eq!(self.outbox.local_domain(), msg.origin);
+            message::ActiveModel {
+                id: NotSet,
+                time_created: Set(crate::date_time::now()),
+                origin: Unchanged(msg.origin as i32),
+                destination: Set(msg.destination as i32),
+                leaf_index: Unchanged(meta.leaf_index as i32),
+                sender: Set(msg.sender),
+                recipient: Set(msg.recipient),
+                msg_body: Set(msg.body),
+                outbox_address: Unchanged(self.outbox.address()),
+                timestamp: Set(block.timestamp),
+                origin_tx_id: Set(txn_id),
+            }
+        });
+        Insert::many(message_models)
+            .on_conflict(
+                OnConflict::columns([
+                    message::Column::OutboxAddress,
+                    message::Column::Origin,
+                    message::Column::LeafIndex,
+                ])
+                .update_columns([
+                    message::Column::TimeCreated,
+                    message::Column::Destination,
+                    message::Column::Sender,
+                    message::Column::Recipient,
+                    message::Column::MsgBody,
+                    message::Column::Timestamp,
+                    message::Column::OriginTxId,
+                ])
+                .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
+
+        messages
             .iter()
-            .map(|(_, meta)| &meta.transaction_hash)
-            .collect::<HashSet<_>>();
-        // check database to see which txns we already know and fetch their IDs
+            .map(|m| m.0.leaf_index)
+            .max()
+            .ok_or_else(|| eyre!("Received empty list"))
+    }
+
+    /// Takes a list of txn and block hashes and ensure they are all in the
+    /// database. If any are not it will fetch the data and insert them.
+    ///
+    /// Returns a lit of transaction hashes mapping to their database ids.
+    async fn ensure_blocks_and_txns(
+        &self,
+        txns: impl Iterator<Item = H256>,
+        blocks: impl Iterator<Item = H256>,
+    ) -> Result<impl Iterator<Item = (H256, i64)>> {
+        // all blocks we care about
+        let blocks: HashMap<_, _> = self.ensure_blocks(blocks).await?.collect();
+
+        // all txns we care about
+        self.ensure_txns(txns.map(move |txn_hash| (txn_hash, *blocks.get(&txn_hash).unwrap())))
+            .await
+    }
+
+    // /// Store checkpoints from the outbox into the database. This automatically
+    // /// fetches relevant transaction and block data and stores them into the
+    // /// database.
+    // async fn store_checkpoints(&self, checkpoints: &[(Checkpoint, LogMeta)]) ->
+    // Result<()> {     todo!()
+    // }
+
+    /// Takes a list of `(transaction_hash, block_id)` and for each transaction
+    /// if it is in the database already:
+    ///     Fetches its associated ID
+    /// if it is not in the database already:
+    ///     Looks up its data with ethers and then returns the id after
+    ///     inserting it into the database.
+    async fn ensure_txns(
+        &self,
+        txns: impl Iterator<Item = (H256, i64)>,
+    ) -> Result<impl Iterator<Item = (H256, i64)>> {
+        use crate::db::{block, message, transaction};
+        use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
+
+        // mapping of txn hash to (txn_id, block_id).
+        let mut txns: HashMap<H256, (Option<i64>, i64)> = txns
+            .map(|(txn_hash, block_id)| (txn_hash, (None, block_id)))
+            .collect();
+
         if !txns.is_empty() {
+            // check database to see which txns we already know and fetch their IDs
             let db_txns: Vec<transaction::Model> = transaction::Entity::find()
                 .filter(
                     txns.iter()
-                        .map(|txn| transaction::Column::Hash.eq(hex::encode(txn)))
+                        .map(|(txn, _)| transaction::Column::Hash.eq(hex::encode(txn)))
                         .reduce(|acc, i| acc.or(i))
                         .unwrap(),
                 )
                 .all(&self.db)
                 .await?;
             for txn in db_txns {
-                let removed = txns.remove(&parse_h256(txn.hash)?);
-                debug_assert!(removed);
+                let hash = parse_h256(&txn.hash)?;
+                let _ = txns
+                    .get_mut(&hash)
+                    .expect("We found a txn that we did not request")
+                    .0
+                    .insert(txn.id);
             }
+
+            let txns_to_fetch: Vec<H256> = txns
+                .iter()
+                .filter(|(_, id)| id.0.is_none())
+                .map(|(hash, _)| *hash)
+                .collect();
+
+            // TODO: fetch txn data from ethers
+
+            // insert any txns that were not known and get their IDs
+            // use this vec as temporary list of mut refs so we can update once we get back
+            // the ids.
+            let mut txns_to_insert: Vec<(&H256, &mut (Option<i64>, i64))> =
+                txns.iter_mut().filter(|(_, id)| id.0.is_none()).collect();
+            let models: Vec<transaction::ActiveModel> = txns_to_insert
+                .iter()
+                .map(|(hash, (_, block_id))| transaction::ActiveModel {
+                    id: NotSet,
+                    block_id: Unchanged(*block_id),
+                    hash: Unchanged(format_h256(hash)),
+                    time_created: Set(crate::date_time::now()),
+                    gas_used: Set(Default::default()), // TODO: get this from ethers
+                    sender: Set("00".to_owned()),      // TODO: get this from ethers
+                })
+                .collect();
+
+            let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
+            for (_hash, (txn_id, _block_id)) in txns_to_insert.iter_mut().rev() {
+                let _ = txn_id.insert(cur_id);
+                cur_id -= 1;
+            }
+            drop(txns_to_insert);
         }
-        // insert any txns that were not known and get their IDs
-
-
-        todo!()
-        // // all blocks we care about
-        // let blocks = messages
-        //     .iter()
-        //     .map(|(_, meta)| &meta.block_hash)
-        //     .collect::<HashSet<_>>();
-        //
-        // let message_models = messages.iter().map(|(raw_msg, parsed_msg)| {
-        //     debug_assert_eq!(self.outbox.local_domain(), parsed_msg.origin);
-        //     message::ActiveModel {
-        //         id: NotSet,
-        //         time_created: Set(crate::date_time::now()),
-        //         origin: Unchanged(parsed_msg.origin as i32),
-        //         destination: Set(parsed_msg.destination as i32),
-        //         leaf_index: Unchanged(raw_msg.leaf_index as i32),
-        //         sender: Set(parsed_msg.sender),
-        //         recipient: Set(parsed_msg.recipient),
-        //         msg_body: Set(parsed_msg.body),
-        //         outbox_address: Unchanged(self.outbox.address()),
-        //         timestamp: Set(block.timestamp),
-        //         origin_tx_id: Set(txn_id),
-        //     }
-        // });
-        // Insert::many(message_models)
-        //     .on_conflict(
-        //         OnConflict::columns([
-        //             message::Column::OutboxAddress,
-        //             message::Column::Origin,
-        //             message::Column::LeafIndex,
-        //         ])
-        //         .update_columns([
-        //             message::Column::TimeCreated,
-        //             message::Column::Destination,
-        //             message::Column::Sender,
-        //             message::Column::Recipient,
-        //             message::Column::MsgBody,
-        //             message::Column::Timestamp,
-        //             message::Column::OriginTxId,
-        //         ])
-        //         .to_owned(),
-        //     )
-        //     .exec(&self.db)
-        //     .await?;
-        //
-        // messages
-        //     .iter()
-        //     .map(|m| m.0.leaf_index)
-        //     .max()
-        //     .ok_or_else(|| eyre!("Received empty list"))
+        Ok(txns
+            .into_iter()
+            .map(|(hash, (txn_id, _block_id))| (hash, txn_id.unwrap())))
     }
 
-    /// Store checkpoints from the outbox into the database. This automatically
-    /// fetches relevant transaction and block data and stores them into the
-    /// database.
-    async fn store_checkpoints(&self, checkpoints: &[(Checkpoint, LogMeta)]) -> Result<()> {
-        todo!()
-    }
+    /// Takes a list of block hashes and for each block
+    /// if it is in the database already:
+    ///     Fetches its associated ID
+    /// if it is not in the database already:
+    ///     Looks up its data with ethers and then returns the id after
+    ///     inserting it into the database.
+    async fn ensure_blocks(
+        &self,
+        blocks: impl Iterator<Item = H256>,
+    ) -> Result<impl Iterator<Item = (H256, i64)>> {
+        use crate::db::{block, message, transaction};
+        use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
 
-    /// Store into the database relevant transactions. These are
-    /// blockchain-level transactions that contain events/messages.
-    async fn store_txs(&self, txs: &[()]) -> Result<()> {
-        todo!()
-    }
-
-    /// Store into the database relevant blocks. These are blocks for which we
-    /// have at least one relevent transaction.
-    async fn store_blocks(&self, blocks: &[()]) -> Result<()> {
-        todo!()
+        let mut blocks: HashMap<H256, Option<i64>> = blocks.map(|b| (b, None)).collect();
+        todo!();
+        Ok(blocks.into_iter().map(|(hash, id)| (hash, id.unwrap())))
     }
 }
 
