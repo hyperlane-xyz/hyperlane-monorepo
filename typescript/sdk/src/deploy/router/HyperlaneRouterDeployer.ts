@@ -70,28 +70,31 @@ export abstract class HyperlaneRouterDeployer<
   async enrollRemoteRouters(
     contractsMap: ChainMap<Chain, Contracts>,
   ): Promise<void> {
-    this.logger(`Enrolling deployed routers with each other...`);
+    this.logger(
+      `Enrolling deployed routers with each other (if not already)...`,
+    );
     // Make all routers aware of each other.
+    const deployedChains = Object.keys(contractsMap);
     await promiseObjAll(
       objMap(contractsMap, async (local, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(local);
-        for (const remote of this.multiProvider.remoteChains(local)) {
-          const remoteRouterAddress = utils.addressToBytes32(
+        // only enroll chains which are deployed
+        const enrollChains = this.multiProvider
+          .remoteChains(local)
+          .filter((c) => deployedChains.includes(c));
+        for (const remote of enrollChains) {
+          const remoteDomain = chainMetadata[remote].id;
+          const current = await contracts.router.routers(remoteDomain);
+          const expected = utils.addressToBytes32(
             contractsMap[remote].router.address,
           );
-          const remoteDomainId = chainMetadata[remote].id;
-
-          const enrolledRouterForRemoteDomain = await contracts.router.routers(
-            remoteDomainId,
-          );
-
-          if (enrolledRouterForRemoteDomain !== remoteRouterAddress) {
+          if (current !== expected) {
             await super.runIfOwner(local, contracts.router, async () => {
-              this.logger(`Enroll router for remote ${remote} on ${local}`);
+              this.logger(`Enroll ${remote}'s router on ${local}`);
               await chainConnection.handleTx(
                 contracts.router.enrollRemoteRouter(
-                  remoteDomainId,
-                  remoteRouterAddress,
+                  chainMetadata[remote].id,
+                  expected,
                   chainConnection.overrides,
                 ),
               );

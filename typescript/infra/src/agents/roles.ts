@@ -4,6 +4,7 @@ export enum KEY_ROLE_ENUM {
   Deployer = 'deployer',
   Bank = 'bank',
   Kathy = 'kathy',
+  Create2Deployer = 'create2deployer',
 }
 
 export const ALL_KEY_ROLES = [

@@ -21,6 +21,8 @@ async function check() {
     throw new Error(
       `Checking core deploy yielded ${coreChecker.violations.length} violations`,
     );
+  } else {
+    console.info('CoreChecker found no violations');
   }
 }
 
