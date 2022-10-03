@@ -7,14 +7,13 @@ use async_trait::async_trait;
 use ethers::types::H256;
 use eyre::{eyre, Context, Result};
 use itertools::Itertools;
+use sea_orm::prelude::TimeDateTime;
 use sea_orm::{Database, DbConn};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::instrument::Instrumented;
 use tracing::{debug, info, info_span, warn, Instrument};
 
-use crate::db::transaction;
-use crate::{format_h256, parse_h256};
 use abacus_base::last_message::validate_message_continuity;
 use abacus_base::{
     run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, IndexSettings,
@@ -25,8 +24,10 @@ use abacus_core::{
     ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
+use crate::db::transaction;
 use crate::scraper::block_cursor::BlockCursor;
 use crate::settings::ScraperSettings;
+use crate::{format_h256, parse_h256};
 
 mod block_cursor;
 
@@ -179,6 +180,8 @@ impl SqlOutboxScraper {
     /// abacus-base.
     ///
     /// TODO: merge duplicate logic?
+    /// TODO: better handling for errors to auto-restart without bringing down
+    /// the whole service?
     pub async fn sync(self) -> Result<()> {
         use sea_orm::prelude::*;
 
@@ -328,34 +331,46 @@ impl SqlOutboxScraper {
 
         let messages = messages
             .iter()
-            .map(|(raw, meta)| CommittedMessage::try_from(raw).map(|parsed| (parsed.message, meta)))
-            .collect::<Result<Vec<(AbacusMessage, &LogMeta)>, _>>()
+            .map(|(raw, meta)| CommittedMessage::try_from(raw).map(|parsed| (parsed, meta)))
+            .collect::<Result<Vec<(CommittedMessage, &LogMeta)>, _>>()
             .context("Failed to parse a message")?;
 
         // TODO: Look up txn info
         // TODO: Look up block info
 
-        let txns = self
+        let txns: HashMap<H256, (i64, TimeDateTime)> = self
             .ensure_blocks_and_txns(
                 messages.iter().map(|(_, meta)| meta.block_hash),
                 messages.iter().map(|(_, meta)| meta.transaction_hash),
             )
-            .await?;
+            .await?
+            .collect();
 
-        let message_models = messages.iter().map(|(msg, meta)| {
-            debug_assert_eq!(self.outbox.local_domain(), msg.origin);
+        let max_leaf_id = messages
+            .iter()
+            .map(|m| m.0.leaf_index)
+            .max()
+            .ok_or_else(|| eyre!("Received empty list"));
+
+        let message_models = messages.into_iter().map(|(msg, meta)| {
+            debug_assert_eq!(self.outbox.local_domain(), msg.message.origin);
+            let (txn_id, txn_timestamp) = txns.get(&meta.transaction_hash).unwrap();
             message::ActiveModel {
                 id: NotSet,
                 time_created: Set(crate::date_time::now()),
-                origin: Unchanged(msg.origin as i32),
-                destination: Set(msg.destination as i32),
-                leaf_index: Unchanged(meta.leaf_index as i32),
-                sender: Set(msg.sender),
-                recipient: Set(msg.recipient),
-                msg_body: Set(msg.body),
-                outbox_address: Unchanged(self.outbox.address()),
-                timestamp: Set(block.timestamp),
-                origin_tx_id: Set(txn_id),
+                origin: Unchanged(msg.message.origin as i32),
+                destination: Set(msg.message.destination as i32),
+                leaf_index: Unchanged(msg.leaf_index as i32),
+                sender: Set(format_h256(&msg.message.sender)),
+                recipient: Set(format_h256(&msg.message.recipient)),
+                msg_body: Set(if msg.message.body.is_empty() {
+                    None
+                } else {
+                    Some(msg.message.body)
+                }),
+                outbox_address: Unchanged(format_h256(&self.outbox.address())),
+                timestamp: Set(*txn_timestamp),
+                origin_tx_id: Set(*txn_id),
             }
         });
         Insert::many(message_models)
@@ -379,11 +394,7 @@ impl SqlOutboxScraper {
             .exec(&self.db)
             .await?;
 
-        messages
-            .iter()
-            .map(|m| m.0.leaf_index)
-            .max()
-            .ok_or_else(|| eyre!("Received empty list"))
+        max_leaf_id
     }
 
     /// Takes a list of txn and block hashes and ensure they are all in the
@@ -394,13 +405,34 @@ impl SqlOutboxScraper {
         &self,
         txns: impl Iterator<Item = H256>,
         blocks: impl Iterator<Item = H256>,
-    ) -> Result<impl Iterator<Item = (H256, i64)>> {
+    ) -> Result<impl Iterator<Item = (H256, (i64, TimeDateTime))>> {
         // all blocks we care about
         let blocks: HashMap<_, _> = self.ensure_blocks(blocks).await?.collect();
+        // not sure why rust can't detect the lifetimes here are valid, but just
+        // wrapping with the Arc/mutex for now.
+        let block_timestamps_by_txn: Arc<std::sync::Mutex<HashMap<H256, TimeDateTime>>> =
+            Default::default();
 
+        let block_timestamps_by_txn_clone = block_timestamps_by_txn.clone();
         // all txns we care about
-        self.ensure_txns(txns.map(move |txn_hash| (txn_hash, *blocks.get(&txn_hash).unwrap())))
-            .await
+        let ids = self
+            .ensure_txns(txns.map(move |txn_hash| {
+                let mut block_timestamps_by_txn = block_timestamps_by_txn_clone.lock().unwrap();
+                let block_info = *blocks.get(&txn_hash).unwrap();
+                block_timestamps_by_txn.insert(txn_hash, block_info.1);
+                (txn_hash, block_info.0)
+            }))
+            .await?;
+
+        Ok(ids.map(move |(txn, id)| {
+            (
+                txn,
+                (
+                    id,
+                    *block_timestamps_by_txn.lock().unwrap().get(&txn).unwrap(),
+                ),
+            )
+        }))
     }
 
     // /// Store checkpoints from the outbox into the database. This automatically
@@ -495,11 +527,12 @@ impl SqlOutboxScraper {
     async fn ensure_blocks(
         &self,
         blocks: impl Iterator<Item = H256>,
-    ) -> Result<impl Iterator<Item = (H256, i64)>> {
-        use crate::db::{block, message, transaction};
+    ) -> Result<impl Iterator<Item = (H256, (i64, TimeDateTime))>> {
+        use crate::db::block;
         use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
 
-        let mut blocks: HashMap<H256, Option<i64>> = blocks.map(|b| (b, None)).collect();
+        let mut blocks: HashMap<H256, Option<(Option<i64>, TimeDateTime)>> =
+            blocks.map(|b| (b, None)).collect();
 
         if !blocks.is_empty() {
             // check database to see which blocks we already know and fetch their IDs
@@ -518,7 +551,7 @@ impl SqlOutboxScraper {
                 let _ = blocks
                     .get_mut(&hash)
                     .expect("We found a block that we did not request")
-                    .insert(block.id);
+                    .insert((Some(block.id), block.timestamp));
             }
 
             let blocks_to_fetch: Vec<H256> = blocks
@@ -532,30 +565,37 @@ impl SqlOutboxScraper {
             // insert any blocks that were not known and get their IDs
             // use this vec as temporary list of mut refs so we can update once we get back
             // the ids.
-            let mut blocks_to_insert: Vec<(&H256, &mut Option<i64>)> =
+            let mut blocks_to_insert: Vec<(&H256, &mut Option<(Option<i64>, TimeDateTime)>)> =
                 blocks.iter_mut().filter(|(_, id)| id.is_none()).collect();
             let models: Vec<block::ActiveModel> = blocks_to_insert
-                .iter()
-                .map(|(hash, block_id)| block::ActiveModel {
-                    id: NotSet,
-                    hash: Unchanged(format_h256(hash)),
-                    time_created: Set(crate::date_time::now()),
-                    domain: Unchanged(self.outbox.local_domain() as i32),
-                    height: Unchanged(0), // TODO: get this from ethers
-                    timestamp: Unchanged(crate::date_time::now()), // TODO: get this from ethers
+                .iter_mut()
+                .map(|(hash, block_info)| {
+                    let timestamp = crate::date_time::now();
+                    let _ = block_info.insert((None, timestamp));
+                    block::ActiveModel {
+                        id: NotSet,
+                        hash: Unchanged(format_h256(hash)),
+                        time_created: Set(crate::date_time::now()),
+                        domain: Unchanged(self.outbox.local_domain() as i32),
+                        height: Unchanged(0), // TODO: get this from ethers
+                        timestamp: Unchanged(timestamp), // TODO: get this from ethers
+                    }
                 })
                 .collect();
 
             let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
-            for (_hash, block_id) in blocks_to_insert.iter_mut().rev() {
+            for (_hash, block_info) in blocks_to_insert.iter_mut().rev() {
                 // go backwards and set the ids since we just get last insert id
-                let _ = block_id.insert(cur_id);
+                let _ = block_info.unwrap().0.insert(cur_id);
                 cur_id -= 1;
             }
             drop(blocks_to_insert);
         }
 
-        Ok(blocks.into_iter().map(|(hash, id)| (hash, id.unwrap())))
+        Ok(blocks.into_iter().map(|(hash, block_info)| {
+            let block_info = block_info.unwrap();
+            (hash, (block_info.0.unwrap(), block_info.1))
+        }))
     }
 }
 
