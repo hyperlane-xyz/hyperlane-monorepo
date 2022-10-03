@@ -1,7 +1,7 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use async_trait::async_trait;
 use ethers::types::H256;
@@ -475,6 +475,7 @@ impl SqlOutboxScraper {
 
             let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
             for (_hash, (txn_id, _block_id)) in txns_to_insert.iter_mut().rev() {
+                // go backwards and set the ids since we just get last insert id
                 let _ = txn_id.insert(cur_id);
                 cur_id -= 1;
             }
@@ -499,7 +500,61 @@ impl SqlOutboxScraper {
         use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
 
         let mut blocks: HashMap<H256, Option<i64>> = blocks.map(|b| (b, None)).collect();
-        todo!();
+
+        if !blocks.is_empty() {
+            // check database to see which blocks we already know and fetch their IDs
+            let db_blocks: Vec<block::Model> = block::Entity::find()
+                .filter(
+                    blocks
+                        .iter()
+                        .map(|(block, _)| block::Column::Hash.eq(hex::encode(block)))
+                        .reduce(|acc, i| acc.or(i))
+                        .unwrap(),
+                )
+                .all(&self.db)
+                .await?;
+            for block in db_blocks {
+                let hash = parse_h256(&block.hash)?;
+                let _ = blocks
+                    .get_mut(&hash)
+                    .expect("We found a block that we did not request")
+                    .insert(block.id);
+            }
+
+            let blocks_to_fetch: Vec<H256> = blocks
+                .iter()
+                .filter(|(_, id)| id.is_none())
+                .map(|(hash, _)| *hash)
+                .collect();
+
+            // TODO: fetch block data from ethers
+
+            // insert any blocks that were not known and get their IDs
+            // use this vec as temporary list of mut refs so we can update once we get back
+            // the ids.
+            let mut blocks_to_insert: Vec<(&H256, &mut Option<i64>)> =
+                blocks.iter_mut().filter(|(_, id)| id.is_none()).collect();
+            let models: Vec<block::ActiveModel> = blocks_to_insert
+                .iter()
+                .map(|(hash, block_id)| block::ActiveModel {
+                    id: NotSet,
+                    hash: Unchanged(format_h256(hash)),
+                    time_created: Set(crate::date_time::now()),
+                    domain: Unchanged(self.outbox.local_domain() as i32),
+                    height: Unchanged(0), // TODO: get this from ethers
+                    timestamp: Unchanged(crate::date_time::now()), // TODO: get this from ethers
+                })
+                .collect();
+
+            let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
+            for (_hash, block_id) in blocks_to_insert.iter_mut().rev() {
+                // go backwards and set the ids since we just get last insert id
+                let _ = block_id.insert(cur_id);
+                cur_id -= 1;
+            }
+            drop(blocks_to_insert);
+        }
+
         Ok(blocks.into_iter().map(|(hash, id)| (hash, id.unwrap())))
     }
 }
