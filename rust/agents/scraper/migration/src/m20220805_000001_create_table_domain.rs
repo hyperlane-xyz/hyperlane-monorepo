@@ -1,7 +1,7 @@
 use std::time;
 use std::time::UNIX_EPOCH;
 
-// use abacus_base::chain::domain_id_from_name;
+use abacus_core::domain_id_from_name;
 use sea_orm::prelude::DateTime;
 use sea_orm_migration::prelude::*;
 
@@ -13,7 +13,6 @@ const DOMAINS: &[(&str, &str, u64, bool)] = &[
     ("alfajores", "CELO", 44787, true),
     ("arbitrum", "ETH", 42161, false),
     ("arbitrumrinkeby", "ETH", 421611, true),
-    ("auroratestnet", "ETH", 1313161555, true),
     ("avalanche", "AVAX", 43114, false),
     ("bsc", "BNB", 56, false),
     ("bsctestnet", "tBNB", 97, true),
@@ -22,6 +21,7 @@ const DOMAINS: &[(&str, &str, u64, bool)] = &[
     ("fuji", "AVAX", 43113, true),
     ("goerli", "ETH", 5, true),
     ("kovan", "ETH", 42, true),
+    ("moonbasealpha", "DEV", 1287, true),
     ("mumbai", "MATIC", 80001, true),
     ("optimism", "ETH", 10, false),
     ("optimismkovan", "ETH", 69, true),
@@ -66,9 +66,11 @@ impl MigrationTrait for Migration {
                 DateTime::from_timestamp(dur.as_secs() as i64, dur.subsec_nanos())
             };
 
+            let domain_id = domain_id_from_name(domain.0).ok_or_else(|| {
+                DbErr::Custom(format!("Unable to get domain id for {}", domain.0))
+            })?;
             EntityTrait::insert(domain::ActiveModel {
-                // id: Set(domain_id_from_name(domain.0).expect("Unknown chain name")),
-                id: Set(1u32),
+                id: Set(domain_id),
                 time_created: Set(now),
                 time_updated: Set(now),
                 name: Set(domain.0.to_owned()),
