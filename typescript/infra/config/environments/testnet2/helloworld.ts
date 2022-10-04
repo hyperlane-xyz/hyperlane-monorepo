@@ -14,7 +14,7 @@ export const abacus: HelloWorldConfig<TestnetChains> = {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
       tag: 'sha-dcc84ea',
     },
-    chainsToSkip: [],
+    chainsToSkip: ['kovan', 'optimismkovan', 'arbitrumrinkeby'],
     runEnv: environment,
     namespace: environment,
     runConfig: {
@@ -34,7 +34,7 @@ export const releaseCandidate: HelloWorldConfig<TestnetChains> = {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
       tag: 'sha-dcc84ea',
     },
-    chainsToSkip: [],
+    chainsToSkip: ['kovan', 'optimismkovan', 'arbitrumrinkeby'],
     runEnv: environment,
     namespace: environment,
     runConfig: {
