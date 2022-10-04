@@ -129,7 +129,20 @@
       }
     }
   },
-  "outbox": {},
+  "outbox": {
+    "addresses": {
+      "outbox": "",
+      "interchainGasPaymaster": ""
+    },
+    "domain": "0",
+    "name": "IGNORED",
+    "rpcStyle": "ethereum",
+    "finalityBlocks": "0",
+    "connection": {
+      "type": "http",
+      "url": ""
+    }
+  },
   "outboxes": {
     "alfajores": {
       "addresses": {
@@ -263,7 +276,9 @@
     "fmt": "json"
   },
   "db": "db_path",
-  "index": {},
+  "index": {
+    "from": ""
+  },
   "indexes": {
     "alfajores": {
       "from": "11877043"
