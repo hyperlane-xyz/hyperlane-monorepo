@@ -9,6 +9,9 @@ import {IMessageRecipient} from "@hyperlane-xyz/core/interfaces/IMessageRecipien
 import {IOutbox} from "@hyperlane-xyz/core/interfaces/IOutbox.sol";
 
 abstract contract Router is AbacusConnectionClient, IMessageRecipient {
+    string constant NO_ROUTER_ENROLLED_REVERT_MESSAGE =
+        "No router enrolled for domain. Did you specify the right domain ID?";
+
     // ============ Mutable Storage ============
 
     mapping(uint32 => bytes32) public routers;
@@ -30,7 +33,10 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
      * @param _router The address the message is coming from
      */
     modifier onlyRemoteRouter(uint32 _origin, bytes32 _router) {
-        require(_isRemoteRouter(_origin, _router), "!router");
+        require(
+            _isRemoteRouter(_origin, _router),
+            NO_ROUTER_ENROLLED_REVERT_MESSAGE
+        );
         _;
     }
 
@@ -125,7 +131,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         returns (bytes32 _router)
     {
         _router = routers[_domain];
-        require(_router != bytes32(0), "!router");
+        require(_router != bytes32(0), NO_ROUTER_ENROLLED_REVERT_MESSAGE);
     }
 
     /**

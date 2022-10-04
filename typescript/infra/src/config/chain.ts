@@ -41,7 +41,8 @@ export async function fetchProvider(
   const rpc = await getSecretRpcEndpoint(environment, chainName, quorum);
   if (quorum) {
     return new ethers.providers.FallbackProvider(
-      (rpc as string[]).map((url) => providerBuilder(url, chainName, false)), // disable retry for quorum
+      (rpc as string[]).map((url) => providerBuilder(url, chainName)),
+      1, // a single provider is "quorum", but failure will cause failover to the next provider
     );
   } else {
     return providerBuilder(rpc, chainName);

@@ -3723,7 +3723,6 @@ __metadata:
     "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts": ^4.6.0
     "@openzeppelin/contracts-upgradeable": ^4.6.0
-    "@summa-tx/memview-sol": ^2.0.0
     "@typechain/ethers-v5": 10.0.0
     "@typechain/hardhat": ^6.0.0
     chai: ^4.3.0
@@ -3789,6 +3788,7 @@ __metadata:
     "@gnosis.pm/safe-service-client": ^1.2.0
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
     "@hyperlane-xyz/helloworld": 0.5.0-beta0
+    "@hyperlane-xyz/interchain-accounts": 0.5.0-beta0
     "@hyperlane-xyz/sdk": 0.5.0-beta0
     "@hyperlane-xyz/utils": 0.5.0-beta0
     "@nomiclabs/hardhat-ethers": ^2.0.5
@@ -3815,7 +3815,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/interchain-accounts@workspace:typescript/ica":
+"@hyperlane-xyz/interchain-accounts@0.5.0-beta0, @hyperlane-xyz/interchain-accounts@workspace:typescript/ica":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/interchain-accounts@workspace:typescript/ica"
   dependencies:
@@ -4453,13 +4453,6 @@ __metadata:
   dependencies:
     antlr4ts: ^0.5.0-alpha.4
   checksum: 616df6c31007710f2a99f8022fa5917968bbe83293cdc0154ba378aad405c0fc0b7af45cf2c99d159ff0b24b67c7a9bc01f80178d086c705682f2f8c7f771137
-  languageName: node
-  linkType: hard
-
-"@summa-tx/memview-sol@npm:^2.0.0":
-  version: 2.0.1
-  resolution: "@summa-tx/memview-sol@npm:2.0.1"
-  checksum: fbdb525033024f2a0a2078c8f36fb74902ea8590b91c4a68b2782eec27f5585220ae17e973ba96dff77bb87cd7491dca0a3af6694dfabc6db4e64c5ce740d5c8
   languageName: node
   linkType: hard
 
