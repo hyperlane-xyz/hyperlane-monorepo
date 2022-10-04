@@ -56,8 +56,14 @@ impl BaseAgent for Scraper {
         let metrics = core_settings.try_into_metrics(Self::AGENT_NAME)?;
 
         let db = Database::connect(&core_settings.db).await?;
-        let outboxes =
-            Self::load_outboxes(&db, &core_settings, settings.outboxes, &metrics).await?;
+        let outboxes = Self::load_outboxes(
+            &db,
+            &core_settings,
+            settings.outboxes,
+            &settings.indexes,
+            &metrics,
+        )
+        .await?;
         let inboxes = Self::load_inboxes(&db, &core_settings, &metrics).await?;
         let gas_paymasters = Self::load_gas_paymasters(&db, &core_settings, &metrics).await?;
         Ok(Self {
@@ -89,6 +95,7 @@ impl Scraper {
         db: &DbConn,
         core_settings: &Settings,
         config: HashMap<String, ChainSetup<OutboxAddresses>>,
+        index_settings: &HashMap<String, IndexSettings>,
         metrics: &Arc<CoreMetrics>,
     ) -> Result<HashMap<String, SqlOutboxScraper>> {
         let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
@@ -102,13 +109,16 @@ impl Scraper {
             let indexer = core_settings
                 .try_outbox_indexer_from_config(metrics, &outbox_setup)
                 .await?;
+            let index_settings_for_chain = index_settings
+                .get(outbox.chain_name())
+                .ok_or_else(|| eyre!("Index settings are missing for {}", outbox.chain_name()))?;
             outboxes.insert(
                 name,
                 SqlOutboxScraper::new(
                     db.clone(),
                     outbox.into(),
                     indexer.into(),
-                    core_settings.index.clone(),
+                    index_settings_for_chain,
                     contract_sync_metrics.clone(),
                 )
                 .await?,
@@ -141,7 +151,7 @@ struct SqlOutboxScraper {
     db: DbConn,
     outbox: Arc<dyn Outbox>,
     indexer: Arc<dyn OutboxIndexer>,
-    index_settings: IndexSettings,
+    chunk_size: u32,
     metrics: ContractSyncMetrics,
     cursor: Arc<BlockCursor>,
 }
@@ -151,7 +161,7 @@ impl SqlOutboxScraper {
         db: DbConn,
         outbox: Arc<dyn Outbox>,
         indexer: Arc<dyn OutboxIndexer>,
-        index_settings: IndexSettings,
+        index_settings: &IndexSettings,
         metrics: ContractSyncMetrics,
     ) -> Result<Self> {
         let cursor = Arc::new(
@@ -166,7 +176,7 @@ impl SqlOutboxScraper {
             db,
             outbox,
             indexer,
-            index_settings,
+            chunk_size: index_settings.chunk_size(),
             metrics,
             cursor,
         })
@@ -188,7 +198,7 @@ impl SqlOutboxScraper {
         let missed_messages = self.metrics.missed_events.with_label_values(&labels);
         let message_leaf_index = self.metrics.message_leaf_index.clone();
 
-        let chunk_size = self.index_settings.chunk_size();
+        let chunk_size = self.chunk_size;
         // difference 1
         let mut from = self.cursor.height().await as u32;
         let mut last_valid_range_start_block = from;

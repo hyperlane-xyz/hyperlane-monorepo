@@ -263,7 +263,34 @@
     "fmt": "json"
   },
   "db": "db_path",
-  "index": {
-    "from": "11877043"
+  "index": {},
+  "indexes": {
+    "alfajores": {
+      "from": "11877043"
+    },
+    "arbitrumrinkeby": {
+      "from": "12652433"
+    },
+    "bsctestnet": {
+      "from": "20035396"
+    },
+    "fuji": {
+      "from": "10542676"
+    },
+    "goerli": {
+      "from": "7061415"
+    },
+    "kovan": {
+      "from": "32080902"
+    },
+    "moonbasealpha": {
+      "from": "2309252"
+    },
+    "mumbai": {
+      "from": "26666833"
+    },
+    "optimismkovan": {
+      "from": "3810531"
+    }
   }
 }
