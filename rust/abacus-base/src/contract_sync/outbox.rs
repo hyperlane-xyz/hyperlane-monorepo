@@ -212,7 +212,7 @@ mod test {
     use tokio::select;
     use tokio::time::{interval, timeout};
 
-    use abacus_core::{db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage, LogMeta};
+    use abacus_core::{db::AbacusDB, AbacusMessage, Encode, LogMeta, RawCommittedMessage};
     use abacus_test::mocks::indexer::MockAbacusIndexer;
     use abacus_test::test_utils;
     use mockall::predicate::eq;
@@ -241,7 +241,7 @@ mod test {
                 block_hash: Default::default(),
                 transaction_hash: Default::default(),
                 transaction_index: 0,
-                log_index: Default::default()
+                log_index: Default::default(),
             };
 
             let m0 = RawCommittedMessage {

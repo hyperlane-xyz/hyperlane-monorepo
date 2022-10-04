@@ -6,7 +6,7 @@
 
 use eyre::Result;
 
-use abacus_base::{Agent, BaseAgent};
+use abacus_base::BaseAgent;
 
 use crate::validator::Validator;
 

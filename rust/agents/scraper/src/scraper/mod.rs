@@ -1,12 +1,11 @@
 use std::cmp::min;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::types::H256;
 use eyre::{eyre, Context, Result};
-use itertools::Itertools;
 use sea_orm::prelude::TimeDateTime;
 use sea_orm::{Database, DbConn};
 use tokio::task::JoinHandle;
@@ -20,11 +19,10 @@ use abacus_base::{
     OutboxAddresses, Settings,
 };
 use abacus_core::{
-    name_from_domain_id, AbacusCommon, AbacusContract, AbacusMessage, Checkpoint, CommittedMessage,
-    ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
+    name_from_domain_id, AbacusCommon, AbacusContract, CommittedMessage, ListValidity, LogMeta,
+    Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
-use crate::db::transaction;
 use crate::scraper::block_cursor::BlockCursor;
 use crate::settings::ScraperSettings;
 use crate::{format_h256, parse_h256};
@@ -183,8 +181,6 @@ impl SqlOutboxScraper {
     /// TODO: better handling for errors to auto-restart without bringing down
     /// the whole service?
     pub async fn sync(self) -> Result<()> {
-        use sea_orm::prelude::*;
-
         let chain_name = self.outbox.chain_name();
         let labels = [MESSAGES_LABEL, chain_name];
         let indexed_height = self.metrics.indexed_height.with_label_values(&labels);
@@ -324,7 +320,7 @@ impl SqlOutboxScraper {
     /// Returns the highest message leaf index which was provided to this
     /// function.
     async fn store_messages(&self, messages: &[(RawCommittedMessage, LogMeta)]) -> Result<u32> {
-        use crate::db::{block, message, transaction};
+        use crate::db::message;
         use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
 
         debug_assert!(!messages.is_empty());
@@ -452,8 +448,8 @@ impl SqlOutboxScraper {
         &self,
         txns: impl Iterator<Item = (H256, i64)>,
     ) -> Result<impl Iterator<Item = (H256, i64)>> {
-        use crate::db::{block, message, transaction};
-        use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
+        use crate::db::transaction;
+        use sea_orm::{prelude::*, ActiveValue::*, Insert};
 
         // mapping of txn hash to (txn_id, block_id).
         let mut txns: HashMap<H256, (Option<i64>, i64)> = txns
@@ -480,7 +476,7 @@ impl SqlOutboxScraper {
                     .insert(txn.id);
             }
 
-            let txns_to_fetch: Vec<H256> = txns
+            let _txns_to_fetch: Vec<H256> = txns
                 .iter()
                 .filter(|(_, id)| id.0.is_none())
                 .map(|(hash, _)| *hash)
@@ -529,10 +525,10 @@ impl SqlOutboxScraper {
         blocks: impl Iterator<Item = H256>,
     ) -> Result<impl Iterator<Item = (H256, (i64, TimeDateTime))>> {
         use crate::db::block;
-        use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
+        use sea_orm::{prelude::*, ActiveValue::*, Insert};
 
-        let mut blocks: HashMap<H256, Option<(Option<i64>, TimeDateTime)>> =
-            blocks.map(|b| (b, None)).collect();
+        type OptionalBlockInfo = Option<(Option<i64>, TimeDateTime)>;
+        let mut blocks: HashMap<H256, OptionalBlockInfo> = blocks.map(|b| (b, None)).collect();
 
         if !blocks.is_empty() {
             // check database to see which blocks we already know and fetch their IDs
@@ -554,7 +550,7 @@ impl SqlOutboxScraper {
                     .insert((Some(block.id), block.timestamp));
             }
 
-            let blocks_to_fetch: Vec<H256> = blocks
+            let _blocks_to_fetch: Vec<H256> = blocks
                 .iter()
                 .filter(|(_, id)| id.is_none())
                 .map(|(hash, _)| *hash)
@@ -565,7 +561,7 @@ impl SqlOutboxScraper {
             // insert any blocks that were not known and get their IDs
             // use this vec as temporary list of mut refs so we can update once we get back
             // the ids.
-            let mut blocks_to_insert: Vec<(&H256, &mut Option<(Option<i64>, TimeDateTime)>)> =
+            let mut blocks_to_insert: Vec<(&H256, &mut OptionalBlockInfo)> =
                 blocks.iter_mut().filter(|(_, id)| id.is_none()).collect();
             let models: Vec<block::ActiveModel> = blocks_to_insert
                 .iter_mut()

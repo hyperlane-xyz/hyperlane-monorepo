@@ -1,7 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::{error::Error as StdError, sync::Arc};
 

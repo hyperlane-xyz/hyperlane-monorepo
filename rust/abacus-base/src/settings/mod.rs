@@ -79,7 +79,7 @@ use std::{collections::HashMap, env, sync::Arc};
 
 use config::{Config, ConfigError, Environment, File};
 use ethers::prelude::AwsSigner;
-use eyre::{bail, eyre, Context, Report};
+use eyre::{bail, Context, Report};
 use once_cell::sync::OnceCell;
 use rusoto_core::{credential::EnvironmentProvider, HttpClient};
 use rusoto_kms::KmsClient;
