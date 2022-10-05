@@ -26,7 +26,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-986b531',
+    tag: 'sha-25f4882',
   },
   aws: {
     region: 'us-east-1',
@@ -50,20 +50,11 @@ export const abacus: AgentConfig<TestnetChains> = {
       fuji: {
         reorgPeriod: 3,
       },
-      kovan: {
-        reorgPeriod: 7,
-      },
       mumbai: {
         reorgPeriod: 32,
       },
       bsctestnet: {
         reorgPeriod: 9,
-      },
-      arbitrumrinkeby: {
-        reorgPeriod: 0,
-      },
-      optimismkovan: {
-        reorgPeriod: 0,
       },
       goerli: {
         reorgPeriod: 7,
@@ -92,13 +83,13 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   context: Contexts.Flowcarbon,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-986b531',
+    tag: 'sha-25f4882',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
-  contextChainNames: ['alfajores', 'kovan'],
+  contextChainNames: ['alfajores'],
   validatorSets: validators,
   gelato: {
     enabledChains: ['alfajores'],
@@ -124,7 +115,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-986b531',
+    tag: 'sha-25f4882',
   },
   aws: {
     region: 'us-east-1',

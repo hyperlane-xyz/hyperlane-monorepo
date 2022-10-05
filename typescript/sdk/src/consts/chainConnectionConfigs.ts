@@ -103,16 +103,6 @@ export const goerli: IChainConnection = {
   apiPrefix: 'api-',
 };
 
-export const kovan: IChainConnection = {
-  provider: new ethers.providers.JsonRpcProvider(
-    'https://kovan.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161',
-    42,
-  ),
-  confirmations: 1,
-  blockExplorerUrl: 'https://kovan.etherscan.io',
-  apiPrefix: 'api-',
-};
-
 export const mumbai: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'https://rpc-mumbai.maticvigil.com',
@@ -130,26 +120,6 @@ export const bsctestnet: IChainConnection = {
   ),
   confirmations: 1,
   blockExplorerUrl: 'https://testnet.bscscan.com',
-  apiPrefix: 'api-',
-};
-
-export const arbitrumrinkeby: IChainConnection = {
-  provider: new ethers.providers.JsonRpcProvider(
-    'https://rinkeby.arbitrum.io/rpc',
-    421611,
-  ),
-  confirmations: 1,
-  blockExplorerUrl: 'https://testnet.arbiscan.io',
-  apiPrefix: 'api-',
-};
-
-export const optimismkovan: IChainConnection = {
-  provider: new ethers.providers.JsonRpcProvider(
-    'https://kovan.optimism.io',
-    69,
-  ),
-  confirmations: 1,
-  blockExplorerUrl: 'https://kovan-optimistic.etherscan.io',
   apiPrefix: 'api-',
 };
 
@@ -198,12 +168,9 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   alfajores,
   fuji,
   goerli,
-  kovan,
   mumbai,
   bsctestnet,
-  arbitrumrinkeby,
   optimism,
-  optimismkovan,
   moonbasealpha,
   test1,
   test2,
