@@ -1,0 +1,23 @@
+{
+  "bsc": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  },
+  "avalanche": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  },
+  "polygon": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  },
+  "celo": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  },
+  "arbitrum": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  },
+  "optimism": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  },
+  "ethereum": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  }
+}

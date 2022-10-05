@@ -2,6 +2,7 @@ import { Debugger, debug } from 'debug';
 import { ethers } from 'ethers';
 
 import {
+  Create2Factory__factory,
   Ownable,
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
@@ -26,6 +27,13 @@ export interface DeployerOptions {
   logger?: Debugger;
 }
 
+export interface DeployOptions {
+  create2Salt?: string;
+  initCalldata?: string;
+}
+
+export const CREATE2FACTORY_ADDRESS =
+  '0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a';
 export abstract class HyperlaneDeployer<
   Chain extends ChainName,
   Config,
@@ -113,6 +121,7 @@ export abstract class HyperlaneDeployer<
     factory: F,
     contractName: string,
     args: Parameters<F['deploy']>,
+    deployOpts?: DeployOptions,
   ): Promise<ReturnType<F['deploy']>> {
     const cachedContract = this.deployedContracts[chain]?.[contractName];
     if (cachedContract) {
@@ -128,31 +137,92 @@ export abstract class HyperlaneDeployer<
 
     this.logger(`Deploy ${contractName} on ${chain}`);
 
-    const contract = await factory
-      .connect(signer)
-      .deploy(...args, chainConnection.overrides);
+    if (
+      deployOpts &&
+      deployOpts.create2Salt &&
+      (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
+    ) {
+      if (args.length > 0) {
+        throw new Error("Can't use CREATE2 with deployment args");
+      }
+      this.logger(`Deploying with CREATE2 factory`);
 
-    await chainConnection.handleTx(contract.deployTransaction);
+      const create2Factory = Create2Factory__factory.connect(
+        CREATE2FACTORY_ADDRESS,
+        signer,
+      );
+      const salt = ethers.utils.keccak256(
+        ethers.utils.hexlify(ethers.utils.toUtf8Bytes(deployOpts.create2Salt)),
+      );
+      const contractAddr = await create2Factory.deployedAddress(
+        factory.bytecode,
+        await signer.getAddress(),
+        salt,
+      );
 
-    const verificationInput = getContractVerificationInput(
-      contractName,
-      contract,
-      factory.bytecode,
-    );
-    this.verificationInputs[chain].push(verificationInput);
-    return contract as ReturnType<F['deploy']>;
+      const deployTx = deployOpts.initCalldata
+        ? await create2Factory.deployAndInit(
+            factory.bytecode,
+            salt,
+            deployOpts.initCalldata,
+            chainConnection.overrides,
+          )
+        : await create2Factory.deploy(
+            factory.bytecode,
+            salt,
+            chainConnection.overrides,
+          );
+      await chainConnection.handleTx(deployTx);
+
+      this.verificationInputs[chain].push({
+        name: contractName,
+        address: contractAddr,
+        isProxy: false,
+        constructorArguments: '',
+      });
+
+      return factory.attach(contractAddr).connect(signer) as ReturnType<
+        F['deploy']
+      >;
+    } else {
+      const contract = await factory
+        .connect(signer)
+        .deploy(...args, chainConnection.overrides);
+
+      await chainConnection.handleTx(contract.deployTransaction);
+
+      if (deployOpts?.initCalldata) {
+        this.logger(`Initialize ${contractName} on ${chain}`);
+        const initTx = await signer.sendTransaction({
+          to: contract.address,
+          data: deployOpts.initCalldata,
+        });
+        await chainConnection.handleTx(initTx);
+      }
+
+      const verificationInput = getContractVerificationInput(
+        contractName,
+        contract,
+        factory.bytecode,
+      );
+      this.verificationInputs[chain].push(verificationInput);
+
+      return contract as ReturnType<F['deploy']>;
+    }
   }
 
   async deployContract<K extends keyof Factories>(
     chain: Chain,
     contractName: K,
     args: Parameters<Factories[K]['deploy']>,
+    deployOpts?: DeployOptions,
   ): Promise<ReturnType<Factories[K]['deploy']>> {
     return this.deployContractFromFactory(
       chain,
       this.factories[contractName],
       contractName.toString(),
       args,
+      deployOpts,
     );
   }
 

@@ -8,6 +8,7 @@ import {Router} from "@hyperlane-xyz/app/contracts/Router.sol";
 import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /*
  * @title The Hello World App
@@ -17,12 +18,13 @@ contract InterchainAccountRouter is Router {
     bytes constant bytecode = type(OwnableMulticall).creationCode;
     bytes32 constant bytecodeHash = bytes32(keccak256(bytecode));
 
-    constructor(
+    function initialize(
+        address _owner,
         address _abacusConnectionManager,
         address _interchainGasPaymaster
-    ) {
+    ) public initializer {
         // Transfer ownership of the contract to deployer
-        _transferOwnership(msg.sender);
+        _transferOwnership(_owner);
         // Set the addresses for the ACM and IGP
         // Alternatively, this could be done later in an initialize method
         _setAbacusConnectionManager(_abacusConnectionManager);
