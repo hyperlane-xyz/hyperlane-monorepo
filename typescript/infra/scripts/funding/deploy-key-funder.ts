@@ -1,3 +1,4 @@
+import { Contexts } from '../../config/contexts';
 import {
   getKeyFunderConfig,
   runKeyFunderHelmCommand,
@@ -15,7 +16,7 @@ async function main() {
   await assertCorrectKubeContext(coreConfig);
 
   const keyFunderConfig = getKeyFunderConfig(coreConfig);
-  const agentConfig = await getContextAgentConfig(coreConfig);
+  const agentConfig = await getContextAgentConfig(coreConfig, Contexts.Abacus);
 
   await runKeyFunderHelmCommand(
     HelmCommand.InstallOrUpgrade,
