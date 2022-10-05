@@ -57,7 +57,7 @@ pub trait MakeableWithProvider {
                     // being retried, while retrying at the inner provider level will result in only the
                     // second RPC being retried (the one with the error), which is the desired behavior.
                     let retrying_provider =
-                        RetryingProvider::new(http_provider, Some(3), Some(1000));
+                        RetryingProvider::new(http_provider, Some(5), Some(1000));
                     let metrics_provider = self.wrap_rpc_with_metrics(
                         retrying_provider,
                         Url::parse(url)?,
