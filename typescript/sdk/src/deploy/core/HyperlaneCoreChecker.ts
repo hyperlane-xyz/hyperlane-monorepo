@@ -110,9 +110,7 @@ export class HyperlaneCoreChecker<
     const config = this.configMap[remote];
 
     const validatorManagerConfig = config.validatorManager;
-    const expectedValidators = config.remove
-      ? []
-      : validatorManagerConfig.validators;
+    const expectedValidators = validatorManagerConfig.validators;
     const actualValidators = await validatorManager.validators();
 
     const expectedSet = new Set<string>(

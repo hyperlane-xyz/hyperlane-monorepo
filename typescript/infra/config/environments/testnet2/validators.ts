@@ -56,47 +56,6 @@ export const validators: ChainValidatorSets<TestnetChains> = {
       },
     ],
   },
-  kovan: {
-    threshold: 3,
-    validators: [
-      {
-        address: '0x1ee94e776cbe4bf74d2f80dae551758efbc21887',
-        name: s3BucketName('kovan', 0),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('kovan', 0),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0xf2af10d9fd08eead8c6724a7feb679b5c900a38c',
-        name: s3BucketName('kovan', 1),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('kovan', 1),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0xf3b7d58acfbff1fd64f173607101f611034e4f5f',
-        name: s3BucketName('kovan', 2),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('kovan', 2),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0xff94c7660e857ba3f35ee248ae461feea266a504',
-        name: s3BucketName('kovan', 3),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('kovan', 3),
-          region: s3BucketRegion,
-        },
-      },
-    ],
-  },
   fuji: {
     threshold: 3,
     validators: [
@@ -215,88 +174,6 @@ export const validators: ChainValidatorSets<TestnetChains> = {
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('bsctestnet', 3),
-          region: s3BucketRegion,
-        },
-      },
-    ],
-  },
-  arbitrumrinkeby: {
-    threshold: 3,
-    validators: [
-      {
-        address: '0xf5a871bcb9d6dfa2d3519caf396e7ab3c5a7a2ee',
-        name: s3BucketName('arbitrumrinkeby', 0),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('arbitrumrinkeby', 0),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0xa6773fc38b023a512106e104a4f2cad2e68d802d',
-        name: s3BucketName('arbitrumrinkeby', 1),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('arbitrumrinkeby', 1),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0x42f7b994720463eff351186f83d683efa5e2ed49',
-        name: s3BucketName('arbitrumrinkeby', 2),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('arbitrumrinkeby', 2),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0x49649a8708f45171f5439ec71dc83baafd98b01c',
-        name: s3BucketName('arbitrumrinkeby', 3),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('arbitrumrinkeby', 3),
-          region: s3BucketRegion,
-        },
-      },
-    ],
-  },
-  optimismkovan: {
-    threshold: 3,
-    validators: [
-      {
-        address: '0xef0d7bbb9c71fef7dc148722060afd78d0ff09d8',
-        name: s3BucketName('optimismkovan', 0),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('optimismkovan', 0),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0x8e64ff3936aeadacc23a76cf2c96466927ed758f',
-        name: s3BucketName('optimismkovan', 1),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('optimismkovan', 1),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0x13a3cd962ce99d6a6509f8d5b63a4498db329323',
-        name: s3BucketName('optimismkovan', 2),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('optimismkovan', 2),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0x85f8286a8ee13aecc227e99b75375826cdb512dd',
-        name: s3BucketName('optimismkovan', 3),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('optimismkovan', 3),
           region: s3BucketRegion,
         },
       },

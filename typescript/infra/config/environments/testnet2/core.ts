@@ -14,17 +14,6 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
       threshold: 3,
     },
   },
-  kovan: {
-    validatorManager: {
-      validators: [
-        '0x1ee94e776cbe4bf74d2f80dae551758efbc21887',
-        '0xf2af10d9fd08eead8c6724a7feb679b5c900a38c',
-        '0xf3b7d58acfbff1fd64f173607101f611034e4f5f',
-        '0xff94c7660e857ba3f35ee248ae461feea266a504',
-      ],
-      threshold: 3,
-    },
-  },
   fuji: {
     validatorManager: {
       validators: [
@@ -54,28 +43,6 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
         '0xc78c1198d4224103dbb0e365286c3403c54fbbf6',
         '0x453da5c773e829aa4f61be9bad64aa5eaaef000a',
         '0x625027ffb9b9b9ba083d267e5b7756af33e636a0',
-      ],
-      threshold: 3,
-    },
-  },
-  arbitrumrinkeby: {
-    validatorManager: {
-      validators: [
-        '0xf5a871bcb9d6dfa2d3519caf396e7ab3c5a7a2ee',
-        '0xa6773fc38b023a512106e104a4f2cad2e68d802d',
-        '0x42f7b994720463eff351186f83d683efa5e2ed49',
-        '0x49649a8708f45171f5439ec71dc83baafd98b01c',
-      ],
-      threshold: 3,
-    },
-  },
-  optimismkovan: {
-    validatorManager: {
-      validators: [
-        '0xef0d7bbb9c71fef7dc148722060afd78d0ff09d8',
-        '0x8e64ff3936aeadacc23a76cf2c96466927ed758f',
-        '0x13a3cd962ce99d6a6509f8d5b63a4498db329323',
-        '0x85f8286a8ee13aecc227e99b75375826cdb512dd',
       ],
       threshold: 3,
     },
