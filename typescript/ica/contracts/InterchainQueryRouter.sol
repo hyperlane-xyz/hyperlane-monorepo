@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {OwnableMulticall, Call, Callback} from "./OwnableMulticall.sol";
+import {OwnableMulticall, Call} from "./OwnableMulticall.sol";
 
 // ============ External Imports ============
 import {Router} from "@hyperlane-xyz/app/contracts/Router.sol";
@@ -19,10 +19,10 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
         uint32 indexed destinationDomain,
         address indexed sender
     );
-    event QueryHandled(
-        uint32 indexed originDomain,
-        address indexed sender,
-        Action indexed action
+    event QueryReturned(uint32 indexed originDomain, address indexed sender);
+    event QueryResolved(
+        uint32 indexed destinationDomain,
+        address indexed sender
     );
 
     function initialize(
@@ -40,9 +40,21 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
 
     function query(
         uint32 _destinationDomain,
-        Call[] calldata calls,
-        Callback[] calldata callbacks
+        Call calldata call,
+        bytes calldata callback
     ) external {
+        Call[] memory calls = new Call[](1);
+        calls[0] = call;
+        bytes[] memory callbacks = new bytes[](1);
+        callbacks[0] = callback;
+        query(_destinationDomain, calls, callbacks);
+    }
+
+    function query(
+        uint32 _destinationDomain,
+        Call[] memory calls,
+        bytes[] memory callbacks
+    ) public {
         require(
             calls.length == callbacks.length,
             "InterchainQueryRouter: calls and callbacks must be same length"
@@ -60,23 +72,27 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
         bytes calldata _message
     ) internal override {
         (Action action, address sender) = abi.decode(
-            _message[:24],
+            _message,
             (Action, address)
         );
         if (action == Action.DISPATCH) {
-            (Call[] memory calls, Callback[] memory callbacks) = abi.decode(
-                _message[24:],
-                (Call[], Callback[])
+            (, , Call[] memory calls, bytes[] memory callbacks) = abi.decode(
+                _message,
+                (Action, address, Call[], bytes[])
             );
-            Call[] memory resolvedCalls = _call(calls, callbacks);
+            bytes[] memory resolveCallbacks = _call(calls, callbacks);
             _dispatch(
                 _origin,
-                abi.encode(Action.RESOLVE, sender, resolvedCalls)
+                abi.encode(Action.RESOLVE, sender, resolveCallbacks)
             );
+            emit QueryReturned(_origin, sender);
         } else if (action == Action.RESOLVE) {
-            Call[] memory resolvedCalls = abi.decode(_message[24:], (Call[]));
-            _proxyCalls(resolvedCalls);
+            (, , bytes[] memory resolveCallbacks) = abi.decode(
+                _message,
+                (Action, address, bytes[])
+            );
+            proxyCallBatch(sender, resolveCallbacks);
+            emit QueryResolved(_origin, sender);
         }
-        emit QueryHandled(_origin, sender, action);
     }
 }
