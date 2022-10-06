@@ -2,9 +2,6 @@
   "alfajores": {
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   },
-  "kovan": {
-    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
-  },
   "fuji": {
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   },
@@ -12,12 +9,6 @@
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   },
   "bsctestnet": {
-    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
-  },
-  "arbitrumrinkeby": {
-    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
-  },
-  "optimismkovan": {
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   },
   "goerli": {

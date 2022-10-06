@@ -22,7 +22,7 @@ async function deploy() {
       .filter((_) => !agentConfig.contextChainNames.includes(_))
       .map(async (chainName) => {
         if (await doesAgentReleaseExist(agentConfig, chainName)) {
-          runAgentHelmCommand(HelmCommand.Remove, agentConfig, chainName);
+          await runAgentHelmCommand(HelmCommand.Remove, agentConfig, chainName);
         }
       }),
   );
