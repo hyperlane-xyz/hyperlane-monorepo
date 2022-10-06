@@ -18,6 +18,7 @@ use ethers::types::H256;
 use eyre::{Context, Result};
 
 use abacus_base::BaseAgent;
+use abacus_base::trace::TracingConfig;
 
 use crate::scraper::Scraper;
 
@@ -36,7 +37,7 @@ async fn main() -> Result<()> {
     color_eyre::install()?;
 
     let settings = settings::ScraperSettings::new()?;
-    let tracing_config = settings.base.tracing.clone();
+    let tracing_config: TracingConfig = settings.base.tracing.clone();
     let agent = Scraper::from_settings(settings).await?;
     tracing_config.start_tracing(agent.metrics())?;
 

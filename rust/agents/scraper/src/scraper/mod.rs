@@ -12,7 +12,7 @@ use sea_orm::{Database, DbConn};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::instrument::Instrumented;
-use tracing::{debug, info, info_span, warn, Instrument};
+use tracing::{debug, info, info_span, trace, warn, Instrument, instrument};
 
 use abacus_base::last_message::validate_message_continuity;
 use abacus_base::{
@@ -199,6 +199,7 @@ impl SqlOutboxScraper {
     /// TODO: merge duplicate logic?
     /// TODO: better handling for errors to auto-restart without bringing down
     /// the whole service?
+    #[instrument]
     pub async fn sync(self) -> Result<()> {
         let chain_name = self.outbox.chain_name();
         let labels = [MESSAGES_LABEL, chain_name];
@@ -318,6 +319,7 @@ impl SqlOutboxScraper {
     // TODO: move these database functions to a database wrapper type?
 
     /// Get the highest message leaf index that is stored in the database.
+    #[instrument(skip(self))]
     async fn last_message_leaf_index(&self) -> Result<Option<u32>> {
         use crate::db::message;
         use sea_orm::prelude::*;
@@ -338,6 +340,7 @@ impl SqlOutboxScraper {
     ///
     /// Returns the highest message leaf index which was provided to this
     /// function.
+    #[instrument(skip(self))]
     async fn store_messages(&self, messages: &[(RawCommittedMessage, LogMeta)]) -> Result<u32> {
         use crate::db::message;
         use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
@@ -363,28 +366,30 @@ impl SqlOutboxScraper {
             .map(|m| m.0.leaf_index)
             .max()
             .ok_or_else(|| eyre!("Received empty list"));
-
-        let message_models = messages.into_iter().map(|(msg, meta)| {
-            debug_assert_eq!(self.outbox.local_domain(), msg.message.origin);
-            let (txn_id, txn_timestamp) = txns.get(&meta.transaction_hash).unwrap();
-            message::ActiveModel {
-                id: NotSet,
-                time_created: Set(crate::date_time::now()),
-                origin: Unchanged(msg.message.origin as i32),
-                destination: Set(msg.message.destination as i32),
-                leaf_index: Unchanged(msg.leaf_index as i32),
-                sender: Set(format_h256(&msg.message.sender)),
-                recipient: Set(format_h256(&msg.message.recipient)),
-                msg_body: Set(if msg.message.body.is_empty() {
-                    None
-                } else {
-                    Some(msg.message.body)
-                }),
-                outbox_address: Unchanged(format_h256(&self.outbox.address())),
-                timestamp: Set(*txn_timestamp),
-                origin_tx_id: Set(*txn_id),
-            }
-        });
+        let message_models = messages
+            .into_iter()
+            .map(|(msg, meta)| {
+                debug_assert_eq!(self.outbox.local_domain(), msg.message.origin);
+                let (txn_id, txn_timestamp) = txns.get(&meta.transaction_hash).unwrap();
+                message::ActiveModel {
+                    id: NotSet,
+                    time_created: Set(crate::date_time::now()),
+                    origin: Unchanged(msg.message.origin as i32),
+                    destination: Set(msg.message.destination as i32),
+                    leaf_index: Unchanged(msg.leaf_index as i32),
+                    sender: Set(format_h256(&msg.message.sender)),
+                    recipient: Set(format_h256(&msg.message.recipient)),
+                    msg_body: Set(if msg.message.body.is_empty() {
+                        None
+                    } else {
+                        Some(msg.message.body)
+                    }),
+                    outbox_address: Unchanged(format_h256(&self.outbox.address())),
+                    timestamp: Set(*txn_timestamp),
+                    origin_tx_id: Set(*txn_id),
+                }
+            })
+            .inspect(|message| trace!(?message, "Writing message to database"));
         Insert::many(message_models)
             .on_conflict(
                 OnConflict::columns([
