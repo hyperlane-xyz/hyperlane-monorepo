@@ -38,6 +38,11 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
         _setInterchainGasPaymaster(_interchainGasPaymaster);
     }
 
+    /**
+     * @param _destinationDomain Domain of destination chain
+     * @param call Call (to and data packed struct) to be made on destination chain.
+     * @param callback Callback function selector on `msg.sender` and optionally abi-encoded prefix arguments.
+     */
     function query(
         uint32 _destinationDomain,
         Call calldata call,
@@ -50,6 +55,11 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
         query(_destinationDomain, calls, callbacks);
     }
 
+    /**
+     * @param _destinationDomain Domain of destination chain
+     * @param calls Array of calls (to and data packed struct) to be made on destination chain in sequence.
+     * @param callbacks Array of callback function selectors on `msg.sender` and optionally abi-encoded prefix arguments.
+     */
     function query(
         uint32 _destinationDomain,
         Call[] memory calls,
