@@ -104,8 +104,8 @@ impl Scraper {
             let signer = core_settings.get_signer(&name).await;
             let outbox = outbox_setup.try_into_outbox(signer, metrics).await?;
             let indexer = core_settings
-            .try_outbox_indexer_from_config(metrics, &outbox_setup)
-            .await?;
+                .try_outbox_indexer_from_config(metrics, &outbox_setup)
+                .await?;
             let index_settings_for_chain = index_settings
                 .get(outbox.chain_name())
                 .ok_or_else(|| eyre!("Index settings are missing for {}", outbox.chain_name()))?;
@@ -470,7 +470,7 @@ impl SqlOutboxScraper {
             let db_txns: Vec<transaction::Model> = transaction::Entity::find()
                 .filter(
                     txns.iter()
-                        .map(|(txn, _)| transaction::Column::Hash.eq(hex::encode(txn)))
+                        .map(|(txn, _)| transaction::Column::Hash.eq(format_h256(txn)))
                         .reduce(|acc, i| acc.or(i))
                         .unwrap(),
                 )
@@ -485,13 +485,10 @@ impl SqlOutboxScraper {
                     .insert(txn.id);
             }
 
-            let _txns_to_fetch: Vec<H256> = txns
-                .iter()
-                .filter(|(_, id)| id.0.is_none())
-                .map(|(hash, _)| *hash)
-                .collect();
-
-            // TODO: fetch txn data from ethers
+            let txns_to_fetch = txns.iter_mut().filter(|(_, id)| id.0.is_none());
+            for (_hash, _txn_info) in txns_to_fetch {
+                // TODO: fetch txn data from ethers
+            }
 
             // insert any txns that were not known and get their IDs
             // use this vec as temporary list of mut refs so we can update once we get back
@@ -545,7 +542,7 @@ impl SqlOutboxScraper {
                 .filter(
                     blocks
                         .iter()
-                        .map(|(block, _)| block::Column::Hash.eq(hex::encode(block)))
+                        .map(|(block, _)| block::Column::Hash.eq(format_h256(block)))
                         .reduce(|acc, i| acc.or(i))
                         .unwrap(),
                 )
@@ -559,31 +556,35 @@ impl SqlOutboxScraper {
                     .insert((Some(block.id), block.timestamp));
             }
 
-            let _blocks_to_fetch: Vec<H256> = blocks
-                .iter()
-                .filter(|(_, id)| id.is_none())
-                .map(|(hash, _)| *hash)
-                .collect();
-
-            // TODO: fetch block data from ethers
+            let blocks_to_fetch = blocks
+                .iter_mut()
+                .inspect(|(_, info)| {
+                    // info being defined implies the id has been set (at this point)
+                    debug_assert!(info.is_none() || info.unwrap().0.is_some())
+                })
+                .filter(|(_, block_info)| block_info.is_none());
+            for (_hash, block_info) in blocks_to_fetch {
+                // TODO: fetch block data from ethers
+                let _ = block_info.insert((None, crate::date_time::now()));
+            }
 
             // insert any blocks that were not known and get their IDs
             // use this vec as temporary list of mut refs so we can update once we get back
             // the ids.
-            let mut blocks_to_insert: Vec<(&H256, &mut OptionalBlockInfo)> =
-                blocks.iter_mut().filter(|(_, id)| id.is_none()).collect();
+            let mut blocks_to_insert: Vec<(&H256, &mut OptionalBlockInfo)> = blocks
+                .iter_mut()
+                .filter(|(_, info)| info.unwrap().0.is_none())
+                .collect();
             let models: Vec<block::ActiveModel> = blocks_to_insert
                 .iter_mut()
                 .map(|(hash, block_info)| {
-                    let timestamp = crate::date_time::now();
-                    let _ = block_info.insert((None, timestamp));
                     block::ActiveModel {
                         id: NotSet,
                         hash: Unchanged(format_h256(hash)),
                         time_created: Set(crate::date_time::now()),
                         domain: Unchanged(self.outbox.local_domain() as i32),
                         height: Unchanged(0), // TODO: get this from ethers
-                        timestamp: Unchanged(timestamp), // TODO: get this from ethers
+                        timestamp: Unchanged(block_info.unwrap().1),
                     }
                 })
                 .collect();
@@ -594,7 +595,6 @@ impl SqlOutboxScraper {
                 let _ = block_info.unwrap().0.insert(cur_id);
                 cur_id -= 1;
             }
-            drop(blocks_to_insert);
         }
 
         Ok(blocks.into_iter().map(|(hash, block_info)| {
