@@ -16,20 +16,6 @@
         "validatorManager": "0xAf4778deef817E02c63076d803D687596067179d"
       }
     },
-    "kovan": {
-      "domain": "3000",
-      "name": "kovan",
-      "rpcStyle": "ethereum",
-      "finalityBlocks": "15",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "addresses": {
-        "inbox": "0x339B46496D60b1b6B42e9715DeD8B3D2154dA0Bb",
-        "validatorManager": "0x4b6fb57de2DE643bEFBa13F46149A765FCd2DD09"
-      }
-    },
     "fuji": {
       "domain": "43113",
       "name": "fuji",
@@ -70,34 +56,6 @@
       "addresses": {
         "inbox": "0xFfA20C4c8e3b2A2C1220134684FEe23EEB8872d0",
         "validatorManager": "0x5B30De0c322F7720D144df2AB2e82b160Eba0EBF"
-      }
-    },
-    "arbitrumrinkeby": {
-      "domain": "1634872690",
-      "name": "arbitrumrinkeby",
-      "rpcStyle": "ethereum",
-      "finalityBlocks": "0",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "addresses": {
-        "inbox": "0xcE4D149Db78729E8b52a9D79A36E64C5429dD39a",
-        "validatorManager": "0x6202f54B22b72526dEC5364F6b7bE2bd0abEd8A6"
-      }
-    },
-    "optimismkovan": {
-      "domain": "1869622635",
-      "name": "optimismkovan",
-      "rpcStyle": "ethereum",
-      "finalityBlocks": "0",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "addresses": {
-        "inbox": "0xF8E6c1222049AAb68E410E43242449994Cb64996",
-        "validatorManager": "0x413c74F3D034dB54A1ecfFbd0Ad74Cb25E59f579"
       }
     },
     "goerli": {
@@ -158,20 +116,6 @@
         "url": ""
       }
     },
-    "arbitrumrinkeby": {
-      "addresses": {
-        "outbox": "0xB6a4129c305056d80fFfea96DdbDCf1F58BC8240",
-        "interchainGasPaymaster": "0x76D20943b68985dF999C5bb13d6E7AdF3CFc276F"
-      },
-      "domain": "1634872690",
-      "name": "arbitrumrinkeby",
-      "rpcStyle": "ethereum",
-      "finalityBlocks": "0",
-      "connection": {
-        "type": "http",
-        "url": ""
-      }
-    },
     "bsctestnet": {
       "addresses": {
         "outbox": "0xE023239c8dfc172FF008D8087E7442d3eBEd9350",
@@ -214,20 +158,6 @@
         "url": ""
       }
     },
-    "kovan": {
-      "addresses": {
-        "outbox": "0xE199902fb97726e3D924bF6606382af11a954c85",
-        "interchainGasPaymaster": "0x74234D5EEb6229fD75fF5370fab7D9819295F0D5"
-      },
-      "domain": "3000",
-      "name": "kovan",
-      "rpcStyle": "ethereum",
-      "finalityBlocks": "15",
-      "connection": {
-        "type": "http",
-        "url": ""
-      }
-    },
     "moonbasealpha": {
       "addresses": {
         "outbox": "0x54148470292C24345fb828B003461a9444414517",
@@ -255,20 +185,6 @@
         "type": "http",
         "url": ""
       }
-    },
-    "optimismkovan": {
-      "addresses": {
-        "outbox": "0x981f5C4070bC048186CDE1CcB61Ea5c969194b54",
-        "interchainGasPaymaster": "0xD7D2B0f61B834D98772e938Fa64425587C0f3481"
-      },
-      "domain": "1869622635",
-      "name": "optimismkovan",
-      "rpcStyle": "ethereum",
-      "finalityBlocks": "0",
-      "connection": {
-        "type": "http",
-        "url": ""
-      }
     }
   },
   "tracing": {
@@ -283,9 +199,6 @@
     "alfajores": {
       "from": "11877043"
     },
-    "arbitrumrinkeby": {
-      "from": "12652433"
-    },
     "bsctestnet": {
       "from": "20035396"
     },
@@ -295,17 +208,11 @@
     "goerli": {
       "from": "7061415"
     },
-    "kovan": {
-      "from": "32080902"
-    },
     "moonbasealpha": {
       "from": "2309252"
     },
     "mumbai": {
       "from": "26666833"
-    },
-    "optimismkovan": {
-      "from": "3810531"
     }
   }
 }
