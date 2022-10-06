@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -601,7 +602,7 @@ impl SqlOutboxScraper {
             let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
             for (_hash, block_info) in blocks_to_insert.iter_mut().rev() {
                 // go backwards and set the ids since we just get last insert id
-                let _ = block_info.unwrap().0.insert(cur_id);
+                let _ = block_info.as_mut().unwrap().0.insert(cur_id);
                 cur_id -= 1;
             }
         }
