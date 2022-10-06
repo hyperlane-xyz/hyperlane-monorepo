@@ -101,6 +101,15 @@ impl Scraper {
         let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
         let mut outboxes = HashMap::new();
         for (name, outbox_setup) in config {
+            if outbox_setup
+                .disabled
+                .as_ref()
+                .and_then(|d| d.parse::<bool>().ok())
+                .unwrap_or(false)
+            {
+                continue;
+            }
+
             let signer = core_settings.get_signer(&name).await;
             let outbox = outbox_setup.try_into_outbox(signer, metrics).await?;
             let indexer = core_settings
