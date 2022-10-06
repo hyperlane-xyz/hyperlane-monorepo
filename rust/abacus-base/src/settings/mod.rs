@@ -366,8 +366,6 @@ impl Settings {
     ) -> eyre::Result<Box<dyn OutboxIndexer>> {
         match &outbox.chain {
             ChainConf::Ethereum(conn) => Ok(OutboxIndexerBuilder {
-                from_height: self.index.from(),
-                chunk_size: self.index.chunk_size(),
                 finality_blocks: outbox.finality_blocks(),
             }
             .make_with_connection(

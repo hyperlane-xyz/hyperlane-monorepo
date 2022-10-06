@@ -104,8 +104,8 @@ impl Scraper {
             let signer = core_settings.get_signer(&name).await;
             let outbox = outbox_setup.try_into_outbox(signer, metrics).await?;
             let indexer = core_settings
-                .try_outbox_indexer_from_config(metrics, &outbox_setup)
-                .await?;
+            .try_outbox_indexer_from_config(metrics, &outbox_setup)
+            .await?;
             let index_settings_for_chain = index_settings
                 .get(outbox.chain_name())
                 .ok_or_else(|| eyre!("Index settings are missing for {}", outbox.chain_name()))?;

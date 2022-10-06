@@ -29,8 +29,6 @@ where
 }
 
 pub struct OutboxIndexerBuilder {
-    pub from_height: u32,
-    pub chunk_size: u32,
     pub finality_blocks: u32,
 }
 
@@ -45,8 +43,6 @@ impl MakeableWithProvider for OutboxIndexerBuilder {
         Box::new(EthereumOutboxIndexer::new(
             Arc::new(provider),
             locator,
-            self.from_height,
-            self.chunk_size,
             self.finality_blocks,
         ))
     }
@@ -60,10 +56,6 @@ where
 {
     contract: Arc<EthereumOutboxInternal<M>>,
     provider: Arc<M>,
-    #[allow(unused)]
-    from_height: u32,
-    #[allow(unused)]
-    chunk_size: u32,
     finality_blocks: u32,
     outbox_domain: OnceCell<u32>,
 }
@@ -76,8 +68,6 @@ where
     pub fn new(
         provider: Arc<M>,
         locator: &ContractLocator,
-        from_height: u32,
-        chunk_size: u32,
         finality_blocks: u32,
     ) -> Self {
         let contract = Arc::new(EthereumOutboxInternal::new(
@@ -87,8 +77,6 @@ where
         Self {
             contract,
             provider,
-            from_height,
-            chunk_size,
             finality_blocks,
             outbox_domain: OnceCell::new(),
         }
