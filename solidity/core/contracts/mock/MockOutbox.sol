@@ -6,9 +6,11 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 
 contract MockOutbox {
     MockInbox inbox;
+    uint32 domain;
     using TypeCasts for address;
 
-    constructor(address _inbox) {
+    constructor(uint32 _domain, address _inbox) {
+        domain = _domain;
         inbox = MockInbox(_inbox);
     }
 
@@ -16,11 +18,13 @@ contract MockOutbox {
         uint32,
         bytes32 _recipientAddress,
         bytes calldata _messageBody
-    ) external {
+    ) external returns (uint256) {
         inbox.addPendingMessage(
+            domain,
             msg.sender.addressToBytes32(),
             _recipientAddress,
             _messageBody
         );
+        return 1;
     }
 }
