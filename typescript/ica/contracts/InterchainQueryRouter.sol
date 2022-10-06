@@ -48,6 +48,7 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
         Call calldata call,
         bytes calldata callback
     ) external {
+        // TODO: fix this ugly arrayification
         Call[] memory calls = new Call[](1);
         calls[0] = call;
         bytes[] memory callbacks = new bytes[](1);
@@ -76,20 +77,21 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
         emit QueryDispatched(_destinationDomain, msg.sender);
     }
 
+    // TODO: add REJECT behavior ala NodeJS Promise API
     function _handle(
         uint32 _origin,
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        (Action action, address sender) = abi.decode(
-            _message,
-            (Action, address)
-        );
+        // TODO: fix double ABI decoding with calldata slices
+        Action action = abi.decode(_message, (Action));
         if (action == Action.DISPATCH) {
-            (, , Call[] memory calls, bytes[] memory callbacks) = abi.decode(
-                _message,
-                (Action, address, Call[], bytes[])
-            );
+            (
+                ,
+                address sender,
+                Call[] memory calls,
+                bytes[] memory callbacks
+            ) = abi.decode(_message, (Action, address, Call[], bytes[]));
             bytes[] memory resolveCallbacks = _call(calls, callbacks);
             _dispatch(
                 _origin,
@@ -97,7 +99,7 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
             );
             emit QueryReturned(_origin, sender);
         } else if (action == Action.RESOLVE) {
-            (, , bytes[] memory resolveCallbacks) = abi.decode(
+            (, address sender, bytes[] memory resolveCallbacks) = abi.decode(
                 _message,
                 (Action, address, bytes[])
             );
