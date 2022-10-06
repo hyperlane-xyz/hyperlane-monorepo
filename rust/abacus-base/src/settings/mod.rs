@@ -368,23 +368,22 @@ impl Settings {
             ChainConf::Ethereum(conn) => Ok(OutboxIndexerBuilder {
                 from_height: self.index.from(),
                 chunk_size: self.index.chunk_size(),
-                finality_blocks: self.outbox.finality_blocks(),
+                finality_blocks: outbox.finality_blocks(),
             }
             .make_with_connection(
                 conn.clone(),
                 &ContractLocator {
-                    chain_name: self.outbox.name.clone(),
-                    domain: self.outbox.domain.parse().expect("invalid uint"),
-                    address: self
-                        .outbox
+                    chain_name: outbox.name.clone(),
+                    domain: outbox.domain.parse().expect("invalid uint"),
+                    address: outbox
                         .addresses
                         .outbox
                         .parse::<ethers::types::Address>()?
                         .into(),
                 },
-                self.get_signer(&self.outbox.name).await,
+                self.get_signer(&outbox.name).await,
                 Some(|| metrics.json_rpc_client_metrics()),
-                Some((metrics.provider_metrics(), self.outbox.metrics_conf())),
+                Some((metrics.provider_metrics(), outbox.metrics_conf())),
             )
             .await?),
         }
