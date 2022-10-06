@@ -1,6 +1,6 @@
 use std::borrow::BorrowMut;
 use std::cmp::min;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -354,10 +354,7 @@ impl SqlOutboxScraper {
         // TODO: Look up block info
 
         let txns: HashMap<H256, (i64, TimeDateTime)> = self
-            .ensure_blocks_and_txns(
-                messages.iter().map(|(_, meta)| meta.block_hash),
-                messages.iter().map(|(_, meta)| meta.transaction_hash),
-            )
+            .ensure_blocks_and_txns(messages.iter().map(|(_, meta)| *meta))
             .await?
             .collect();
 
@@ -418,11 +415,17 @@ impl SqlOutboxScraper {
     /// Returns a lit of transaction hashes mapping to their database ids.
     async fn ensure_blocks_and_txns(
         &self,
-        txns: impl Iterator<Item = H256>,
-        blocks: impl Iterator<Item = H256>,
+        message_metadata: impl Iterator<Item = &LogMeta>,
     ) -> Result<impl Iterator<Item = (H256, (i64, TimeDateTime))>> {
+        let blocks_by_txn_hash: HashMap<H256, H256> = message_metadata
+            .map(|meta| (meta.transaction_hash, meta.block_hash))
+            .collect();
+
         // all blocks we care about
-        let blocks: HashMap<_, _> = self.ensure_blocks(blocks).await?.collect();
+        let blocks: HashMap<_, _> = self
+            .ensure_blocks(blocks_by_txn_hash.values().copied())
+            .await?
+            .collect();
         // not sure why rust can't detect the lifetimes here are valid, but just
         // wrapping with the Arc/mutex for now.
         let block_timestamps_by_txn: Arc<std::sync::Mutex<HashMap<H256, TimeDateTime>>> =
@@ -431,12 +434,17 @@ impl SqlOutboxScraper {
         let block_timestamps_by_txn_clone = block_timestamps_by_txn.clone();
         // all txns we care about
         let ids = self
-            .ensure_txns(txns.map(move |txn_hash| {
-                let mut block_timestamps_by_txn = block_timestamps_by_txn_clone.lock().unwrap();
-                let block_info = *blocks.get(&txn_hash).unwrap();
-                block_timestamps_by_txn.insert(txn_hash, block_info.1);
-                (txn_hash, block_info.0)
-            }))
+            .ensure_txns(
+                blocks_by_txn_hash
+                    .into_iter()
+                    .map(move |(txn_hash, block_hash)| {
+                        let mut block_timestamps_by_txn =
+                            block_timestamps_by_txn_clone.lock().unwrap();
+                        let block_info = *blocks.get(&block_hash).unwrap();
+                        block_timestamps_by_txn.insert(txn_hash, block_info.1);
+                        (txn_hash, block_info.0)
+                    }),
+            )
             .await?;
 
         Ok(ids.map(move |(txn, id)| {
