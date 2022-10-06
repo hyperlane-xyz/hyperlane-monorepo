@@ -368,12 +368,13 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
   if (action === HelmCommand.InstallOrUpgrade) {
     // Delete secrets to avoid them being stale
     try {
-      const instanceSelector =
-        agentConfig.context === 'abacus'
-          ? outboxChainName
-          : `{outboxChainName}-${agentConfig.context}`;
       await execCmd(
-        `kubectl delete secrets --namespace ${agentConfig.namespace} --selector app.kubernetes.io/instance=${instanceSelector}`,
+        `kubectl delete secrets --namespace ${
+          agentConfig.namespace
+        } --selector app.kubernetes.io/instance=${getHelmReleaseName(
+          outboxChainName,
+          agentConfig,
+        )}`,
         {},
         false,
         false,
