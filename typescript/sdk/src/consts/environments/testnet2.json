@@ -9,15 +9,6 @@
       "beacon": "0xd95091C1c1A7E0e5DdD7d44568A04588e76e4dDe"
     },
     "inboxes": {
-      "kovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x443f8614728327Ce0cAb864DD463Fe2702b57597",
-          "implementation": "0x09a7167BD6d44Ba500f77dd45C693443C4d7dEC0",
-          "beacon": "0x209Ccdbe13BB913104117B1D6f7801684e98FA1F"
-        },
-        "inboxValidatorManager": "0x6B3fA33fE951D5b2Dca82B64aD4c283187FD881D"
-      },
       "fuji": {
         "inbox": {
           "kind": "UpgradeBeacon",
@@ -44,24 +35,6 @@
           "beacon": "0x209Ccdbe13BB913104117B1D6f7801684e98FA1F"
         },
         "inboxValidatorManager": "0x0AfCCF2ffc1D7A42b3F8616C4270Da27f2729F5F"
-      },
-      "arbitrumrinkeby": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x90C85cEB1D7CEaD73914FC57dd14ea5115b27a32",
-          "implementation": "0x09a7167BD6d44Ba500f77dd45C693443C4d7dEC0",
-          "beacon": "0x209Ccdbe13BB913104117B1D6f7801684e98FA1F"
-        },
-        "inboxValidatorManager": "0x0d772404D3a6De86F7263D82E055686f73f55Ba8"
-      },
-      "optimismkovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x5939e17FE19669Ba22f06603CA2eBE18C836c6Ab",
-          "implementation": "0x09a7167BD6d44Ba500f77dd45C693443C4d7dEC0",
-          "beacon": "0x209Ccdbe13BB913104117B1D6f7801684e98FA1F"
-        },
-        "inboxValidatorManager": "0xAf4778deef817E02c63076d803D687596067179d"
       },
       "goerli": {
         "inbox": {
@@ -90,97 +63,6 @@
     },
     "outboxValidatorManager": "0xEB25e6e42B743a815E5C0409007993a828a0565f"
   },
-  "kovan": {
-    "upgradeBeaconController": "0x38030040C09B213ec47F121c9B8a396D7FC2636b",
-    "connectionManager": "0xfA1fBF362144ae1bEf2E33409948dA1FB812bb41",
-    "interchainGasPaymaster": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x74234D5EEb6229fD75fF5370fab7D9819295F0D5",
-      "implementation": "0x1c554e54745aeaA7cf33c9Df17A70b9B258279e1",
-      "beacon": "0xA07b287Bd5Bb8101D28b331Bcd499aea949BC6dc"
-    },
-    "inboxes": {
-      "alfajores": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x339B46496D60b1b6B42e9715DeD8B3D2154dA0Bb",
-          "implementation": "0x1b530F53fa7aeb2E36FD76DCc951908DBFc8c460",
-          "beacon": "0x786bBdD9a8472F9428D7E5D80Db8C34C2d4fCB66"
-        },
-        "inboxValidatorManager": "0x4b6fb57de2DE643bEFBa13F46149A765FCd2DD09"
-      },
-      "fuji": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x3d26cd5dD9F08e17D21EB7ac65BdBAbb5f9FE7Fc",
-          "implementation": "0x1b530F53fa7aeb2E36FD76DCc951908DBFc8c460",
-          "beacon": "0x786bBdD9a8472F9428D7E5D80Db8C34C2d4fCB66"
-        },
-        "inboxValidatorManager": "0x506aDc3Ff4E70da42BB9Fc5ca9fa4A89f30D64a4"
-      },
-      "mumbai": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x2E822b77f02F47A4D2452572ec74e3D6d19D7A64",
-          "implementation": "0x1b530F53fa7aeb2E36FD76DCc951908DBFc8c460",
-          "beacon": "0x786bBdD9a8472F9428D7E5D80Db8C34C2d4fCB66"
-        },
-        "inboxValidatorManager": "0x17Dc724B7a2F09141C13b8AC33B396073785c2BC"
-      },
-      "bsctestnet": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xAFbc8Fc9649188B0EC89D09F06113d5D9702A77C",
-          "implementation": "0x1b530F53fa7aeb2E36FD76DCc951908DBFc8c460",
-          "beacon": "0x786bBdD9a8472F9428D7E5D80Db8C34C2d4fCB66"
-        },
-        "inboxValidatorManager": "0x1710F4F05955da2645CE8E5B6AaEfa6A2109F030"
-      },
-      "arbitrumrinkeby": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x78f135365794892b3b6bB589Db5340715126E32f",
-          "implementation": "0x1b530F53fa7aeb2E36FD76DCc951908DBFc8c460",
-          "beacon": "0x786bBdD9a8472F9428D7E5D80Db8C34C2d4fCB66"
-        },
-        "inboxValidatorManager": "0xce25Bc319913BE39d1469ab6c4f0443d94d96d81"
-      },
-      "optimismkovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xA16f90576244dCAA274DEdeEF6FEb07a03a6064D",
-          "implementation": "0x1b530F53fa7aeb2E36FD76DCc951908DBFc8c460",
-          "beacon": "0x786bBdD9a8472F9428D7E5D80Db8C34C2d4fCB66"
-        },
-        "inboxValidatorManager": "0x8705bc838b7EB06FB330CaA1e807CDFCe52Be2b6"
-      },
-      "goerli": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x27C8C1f9cf9CB89E0a7729690502C2e3c3c5eb3d",
-          "implementation": "0x1b530F53fa7aeb2E36FD76DCc951908DBFc8c460",
-          "beacon": "0x786bBdD9a8472F9428D7E5D80Db8C34C2d4fCB66"
-        },
-        "inboxValidatorManager": "0x936eA9Bcf465A5b8da94FC66cdbFe1FD2e72A315"
-      },
-      "moonbasealpha": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xA9f54B5160e7Dc949a77cc0c51B2c9de1e4282D8",
-          "implementation": "0x1b530F53fa7aeb2E36FD76DCc951908DBFc8c460",
-          "beacon": "0x786bBdD9a8472F9428D7E5D80Db8C34C2d4fCB66"
-        },
-        "inboxValidatorManager": "0x4d8E450e5F510f46261D28247860BEE854928477"
-      }
-    },
-    "outbox": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0xE199902fb97726e3D924bF6606382af11a954c85",
-      "implementation": "0xFF214d77Ac42592b6E44B8d6C7c70565D5d72AB9",
-      "beacon": "0xa088193B63413A03b533a9aeABdc37F90c0929Db"
-    },
-    "outboxValidatorManager": "0x81e53D200FAB5eFfaC369D9255d82EFe4A2d43bF"
-  },
   "fuji": {
     "upgradeBeaconController": "0x97Bbc6bBaFa5Ce3b2FA966c121Af63bD09e940f8",
     "connectionManager": "0x33AbaF6708be03Bdf0595DA0745A7111b01dB8c7",
@@ -200,15 +82,6 @@
         },
         "inboxValidatorManager": "0x4904f38433583f0F72609C0bb8788d3296bd0E3B"
       },
-      "kovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x93DF36E1b8186eAE960f08A75D26Fc7767A71218",
-          "implementation": "0x657A78E8c129Ee54105151FD03cc295f3470A235",
-          "beacon": "0x593834864f540db61025Bdc6463F6eb4B6075ce7"
-        },
-        "inboxValidatorManager": "0x892D9cD6D2DB86a15863b4EA1431F77330b23FDf"
-      },
       "mumbai": {
         "inbox": {
           "kind": "UpgradeBeacon",
@@ -226,24 +99,6 @@
           "beacon": "0x593834864f540db61025Bdc6463F6eb4B6075ce7"
         },
         "inboxValidatorManager": "0x15569bE4B03593A9eA93Bd519bB74928B1eF5fB2"
-      },
-      "arbitrumrinkeby": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x3f09709b9865993f0320C3e836f3a3F4ff83eA9b",
-          "implementation": "0x657A78E8c129Ee54105151FD03cc295f3470A235",
-          "beacon": "0x593834864f540db61025Bdc6463F6eb4B6075ce7"
-        },
-        "inboxValidatorManager": "0x71775B071F77F1ce52Ece810ce084451a3045FFe"
-      },
-      "optimismkovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x4D24f47e3fa67fA4f0c3f980EbE7871e9d4964d3",
-          "implementation": "0x657A78E8c129Ee54105151FD03cc295f3470A235",
-          "beacon": "0x593834864f540db61025Bdc6463F6eb4B6075ce7"
-        },
-        "inboxValidatorManager": "0x6f2756380FD49228ae25Aa7F2817993cB74Ecc56"
       },
       "goerli": {
         "inbox": {
@@ -291,15 +146,6 @@
         },
         "inboxValidatorManager": "0x99A42d6Bf191127667f55297Af0259708bd8c59e"
       },
-      "kovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x1b0d4c88288258D57998F0bdb30489007A42B834",
-          "implementation": "0xfBe9FEE52abe170Ef4e1dc0CECF4409Dcd2AA4a7",
-          "beacon": "0xb6242d549d4b19a20684397790AFa555b16Bc979"
-        },
-        "inboxValidatorManager": "0x2b51361F4E49A78b57b5561d87Cb49784c1720A6"
-      },
       "fuji": {
         "inbox": {
           "kind": "UpgradeBeacon",
@@ -317,24 +163,6 @@
           "beacon": "0xb6242d549d4b19a20684397790AFa555b16Bc979"
         },
         "inboxValidatorManager": "0x3572a9d808738922194921b275B2A55414BcDA57"
-      },
-      "arbitrumrinkeby": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x4C434bC53B0527Df7D12F2cFF17716199C3b36D8",
-          "implementation": "0xfBe9FEE52abe170Ef4e1dc0CECF4409Dcd2AA4a7",
-          "beacon": "0xb6242d549d4b19a20684397790AFa555b16Bc979"
-        },
-        "inboxValidatorManager": "0x26b1C86221dA5Fa24C508dCeD1C86749F2Bdf4F0"
-      },
-      "optimismkovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xB7C51c5fc8D2deA2563370aaC6993c8893098442",
-          "implementation": "0xfBe9FEE52abe170Ef4e1dc0CECF4409Dcd2AA4a7",
-          "beacon": "0xb6242d549d4b19a20684397790AFa555b16Bc979"
-        },
-        "inboxValidatorManager": "0x4D40f433F2f89cBa4BB9D994FD18D8302C378D26"
       },
       "goerli": {
         "inbox": {
@@ -382,15 +210,6 @@
         },
         "inboxValidatorManager": "0x5B30De0c322F7720D144df2AB2e82b160Eba0EBF"
       },
-      "kovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xe0c5bDAfEe7F7065402337040E426A42b5C33650",
-          "implementation": "0x062dF6670d8F4E1dB8C1caaFf590e9c290147bba",
-          "beacon": "0x7398C64259ee12861D43fD5D302c28CA96182133"
-        },
-        "inboxValidatorManager": "0xC9f8Ab1f8b5F58B09317b93c07BfF44e4c01E66F"
-      },
       "fuji": {
         "inbox": {
           "kind": "UpgradeBeacon",
@@ -408,24 +227,6 @@
           "beacon": "0x7398C64259ee12861D43fD5D302c28CA96182133"
         },
         "inboxValidatorManager": "0xDa5177080f7fC5d9255eB32cC64B9b4e5136A716"
-      },
-      "arbitrumrinkeby": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xF61322936D80cd87B49df48F3DE24fD5c02dE9D1",
-          "implementation": "0x062dF6670d8F4E1dB8C1caaFf590e9c290147bba",
-          "beacon": "0x7398C64259ee12861D43fD5D302c28CA96182133"
-        },
-        "inboxValidatorManager": "0xd876C01aB40e8cE42Db417fBC79c726d45504dE4"
-      },
-      "optimismkovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x957ff8ca77Af405D620e47350327fDA24b83070b",
-          "implementation": "0x062dF6670d8F4E1dB8C1caaFf590e9c290147bba",
-          "beacon": "0x7398C64259ee12861D43fD5D302c28CA96182133"
-        },
-        "inboxValidatorManager": "0xC60C145f1e1904f9d6483A611BF1416697CCc1FE"
       },
       "goerli": {
         "inbox": {
@@ -454,188 +255,6 @@
     },
     "outboxValidatorManager": "0xE0745955baF7e614707E22c90EA14d329C38941D"
   },
-  "arbitrumrinkeby": {
-    "upgradeBeaconController": "0xA6cb9B457d1670bb5cDa4AAADA56a2d010E49bb9",
-    "connectionManager": "0xFb55597F07417b08195Ba674f4dd58aeC9B89FBB",
-    "interchainGasPaymaster": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x76D20943b68985dF999C5bb13d6E7AdF3CFc276F",
-      "implementation": "0xAFd1f0E77555A835987B1b8A683bA7C67105DFDc",
-      "beacon": "0x3e1420105177FED86Cd55762fd21b14278E1e93e"
-    },
-    "inboxes": {
-      "alfajores": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xcE4D149Db78729E8b52a9D79A36E64C5429dD39a",
-          "implementation": "0x3212977FBE6464c2bB60Fdb85ab0a5E06e25cdFB",
-          "beacon": "0xfc0da0E35Bba1F49318B2207ecaE86eb088dd3Bb"
-        },
-        "inboxValidatorManager": "0x6202f54B22b72526dEC5364F6b7bE2bd0abEd8A6"
-      },
-      "kovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x08911d73b443309081d66A878227E20d6DF0f64C",
-          "implementation": "0x3212977FBE6464c2bB60Fdb85ab0a5E06e25cdFB",
-          "beacon": "0xfc0da0E35Bba1F49318B2207ecaE86eb088dd3Bb"
-        },
-        "inboxValidatorManager": "0x8921Adb6B2e365545CCF3EDfc04a7199164e0E0e"
-      },
-      "fuji": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x69181Ea49C2F5F7904cEb7299a75620bAd0954FA",
-          "implementation": "0x3212977FBE6464c2bB60Fdb85ab0a5E06e25cdFB",
-          "beacon": "0xfc0da0E35Bba1F49318B2207ecaE86eb088dd3Bb"
-        },
-        "inboxValidatorManager": "0xE43CEb0771DB31C8658F446441F3d5F451b42954"
-      },
-      "mumbai": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x62A3fC7873AC96fFF1975663Aa41Ab9100cDe2FB",
-          "implementation": "0x3212977FBE6464c2bB60Fdb85ab0a5E06e25cdFB",
-          "beacon": "0xfc0da0E35Bba1F49318B2207ecaE86eb088dd3Bb"
-        },
-        "inboxValidatorManager": "0x5f2fFCF69c58AcA2b521690400756FAe8CC99117"
-      },
-      "bsctestnet": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x603d9041D636CD3218888F1C6F18A4BfeDcdB7F0",
-          "implementation": "0x3212977FBE6464c2bB60Fdb85ab0a5E06e25cdFB",
-          "beacon": "0xfc0da0E35Bba1F49318B2207ecaE86eb088dd3Bb"
-        },
-        "inboxValidatorManager": "0xa1C91dd4F3050DE9C4184BD8B4403A0C81D5463C"
-      },
-      "optimismkovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xBA3f3A84F149842529993bc38A7b4cF8131c17c2",
-          "implementation": "0x3212977FBE6464c2bB60Fdb85ab0a5E06e25cdFB",
-          "beacon": "0xfc0da0E35Bba1F49318B2207ecaE86eb088dd3Bb"
-        },
-        "inboxValidatorManager": "0x890eB21B76DCB165A1807cBE279f883716eA47D4"
-      },
-      "goerli": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xcf17C5F836fe8d162eF8d3F3D09D7794b3F3ACc7",
-          "implementation": "0x3212977FBE6464c2bB60Fdb85ab0a5E06e25cdFB",
-          "beacon": "0xfc0da0E35Bba1F49318B2207ecaE86eb088dd3Bb"
-        },
-        "inboxValidatorManager": "0x750af13E04b5294daBFF36C61A587f4a153ab853"
-      },
-      "moonbasealpha": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x636bcE43104Ef1E61e93E84F0A324d037C258308",
-          "implementation": "0x3212977FBE6464c2bB60Fdb85ab0a5E06e25cdFB",
-          "beacon": "0xfc0da0E35Bba1F49318B2207ecaE86eb088dd3Bb"
-        },
-        "inboxValidatorManager": "0x3ab3Da824d4fcfd0e477ae1ADD55A04259cD140E"
-      }
-    },
-    "outbox": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0xB6a4129c305056d80fFfea96DdbDCf1F58BC8240",
-      "implementation": "0x6C3132f78260EdD1cE88Ea4FeEB8C2D6309ecc75",
-      "beacon": "0xe63844Ca06Ce8E6D4097Cb33E9b3d62704122307"
-    },
-    "outboxValidatorManager": "0x0E18b28D98C2efDb59252c021320F203305b1B66"
-  },
-  "optimismkovan": {
-    "upgradeBeaconController": "0xc0Ce04851bF6Ea149fA06bf7a4808c9db81af189",
-    "connectionManager": "0x740bEd6E4eEc7c57a2818177Fba3f9E896D5DE1c",
-    "interchainGasPaymaster": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0xD7D2B0f61B834D98772e938Fa64425587C0f3481",
-      "implementation": "0xE48fb6dAF7e7a71856dAA7d5728BE2132175d256",
-      "beacon": "0x07eCE1601749a4813f293F54ec9507DF5e926B10"
-    },
-    "inboxes": {
-      "alfajores": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xF8E6c1222049AAb68E410E43242449994Cb64996",
-          "implementation": "0xE6C0740b6aB7C060e197a7bd2952A27bB219c62A",
-          "beacon": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217"
-        },
-        "inboxValidatorManager": "0x413c74F3D034dB54A1ecfFbd0Ad74Cb25E59f579"
-      },
-      "kovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x9667EfF1556A9D092fdbeC09244CB99b677E9D1E",
-          "implementation": "0xE6C0740b6aB7C060e197a7bd2952A27bB219c62A",
-          "beacon": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217"
-        },
-        "inboxValidatorManager": "0x6916690816a1aE1F6D9163dA9e691124737B5f5b"
-      },
-      "fuji": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x2A9E9188C7e76f3345e91fD4650aC654A9FE355C",
-          "implementation": "0xE6C0740b6aB7C060e197a7bd2952A27bB219c62A",
-          "beacon": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217"
-        },
-        "inboxValidatorManager": "0xe18Bc753aa53E938315f57B13EDB6E1b168f0d26"
-      },
-      "mumbai": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xA9425D5cBcD2c83EB2a5BF453EAA18968db3ef77",
-          "implementation": "0xE6C0740b6aB7C060e197a7bd2952A27bB219c62A",
-          "beacon": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217"
-        },
-        "inboxValidatorManager": "0xF78deCe5Cf97e1bd61C202A5ba1af33b87454878"
-      },
-      "bsctestnet": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x0E18b28D98C2efDb59252c021320F203305b1B66",
-          "implementation": "0xE6C0740b6aB7C060e197a7bd2952A27bB219c62A",
-          "beacon": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217"
-        },
-        "inboxValidatorManager": "0xFb55597F07417b08195Ba674f4dd58aeC9B89FBB"
-      },
-      "arbitrumrinkeby": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xB6a4129c305056d80fFfea96DdbDCf1F58BC8240",
-          "implementation": "0xE6C0740b6aB7C060e197a7bd2952A27bB219c62A",
-          "beacon": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217"
-        },
-        "inboxValidatorManager": "0xe63844Ca06Ce8E6D4097Cb33E9b3d62704122307"
-      },
-      "goerli": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xFCfc6653cc65d5F85Ecbc21be40eaA45Bee107B4",
-          "implementation": "0xE6C0740b6aB7C060e197a7bd2952A27bB219c62A",
-          "beacon": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217"
-        },
-        "inboxValidatorManager": "0x665A25Ea86fB782BCb26657e806f709b423E48eF"
-      },
-      "moonbasealpha": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xe30515624b1318a2BDB63bAB64dba09026361b0C",
-          "implementation": "0xE6C0740b6aB7C060e197a7bd2952A27bB219c62A",
-          "beacon": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217"
-        },
-        "inboxValidatorManager": "0xb26fE3032f4943FcD2E34CF67E92D1e636E30F8e"
-      }
-    },
-    "outbox": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x981f5C4070bC048186CDE1CcB61Ea5c969194b54",
-      "implementation": "0xB261C52241E133f957630AeeFEd48a82963AC33e",
-      "beacon": "0xD5B70f7Da85F98A5197E55114A38f3eDcDCf020e"
-    },
-    "outboxValidatorManager": "0x45AEBD45B5Bb1C3A0bDBDf6094e8adA5712e1b74"
-  },
   "goerli": {
     "upgradeBeaconController": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
     "connectionManager": "0x01812D60958798695391dacF092BAc4a715B1718",
@@ -654,15 +273,6 @@
           "beacon": "0x833Dad7FF66884389D5F0cEcba446ffaa7d2837e"
         },
         "inboxValidatorManager": "0xB08d78F439e55D02C398519eef61606A5926245F"
-      },
-      "kovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x7FE7EA170cf08A25C2ff315814D96D93C311E692",
-          "implementation": "0x46f7C5D896bbeC89bE1B19e4485e59b4Be49e9Cc",
-          "beacon": "0x833Dad7FF66884389D5F0cEcba446ffaa7d2837e"
-        },
-        "inboxValidatorManager": "0x7d498740A4572f2B5c6b0A1Ba9d1d9DbE207e89E"
       },
       "fuji": {
         "inbox": {
@@ -690,24 +300,6 @@
           "beacon": "0x833Dad7FF66884389D5F0cEcba446ffaa7d2837e"
         },
         "inboxValidatorManager": "0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8"
-      },
-      "arbitrumrinkeby": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x5d56B8a669F50193b54319442c6EEE5edD662381",
-          "implementation": "0x46f7C5D896bbeC89bE1B19e4485e59b4Be49e9Cc",
-          "beacon": "0x833Dad7FF66884389D5F0cEcba446ffaa7d2837e"
-        },
-        "inboxValidatorManager": "0x527768930D889662Fe7ACF64294871e86e4C2381"
-      },
-      "optimismkovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x58483b754Abb1E8947BE63d6b95DF75b8249543A",
-          "implementation": "0x46f7C5D896bbeC89bE1B19e4485e59b4Be49e9Cc",
-          "beacon": "0x833Dad7FF66884389D5F0cEcba446ffaa7d2837e"
-        },
-        "inboxValidatorManager": "0xcf5BaaF976C80a66Fa7839715C45788f60041A33"
       },
       "moonbasealpha": {
         "inbox": {
@@ -746,15 +338,6 @@
         },
         "inboxValidatorManager": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD"
       },
-      "kovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x304cAb315c93B87AAdb2B826A791b2c1Bf749996",
-          "implementation": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
-          "beacon": "0xB08d78F439e55D02C398519eef61606A5926245F"
-        },
-        "inboxValidatorManager": "0xD3d062a5dcBA85ae863618d4c264d2358300c283"
-      },
       "fuji": {
         "inbox": {
           "kind": "UpgradeBeacon",
@@ -781,24 +364,6 @@
           "beacon": "0xB08d78F439e55D02C398519eef61606A5926245F"
         },
         "inboxValidatorManager": "0x666a24F62f7A97BA33c151776Eb3D9441a059eB8"
-      },
-      "arbitrumrinkeby": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x3C5154a193D6e2955650f9305c8d80c18C814A68",
-          "implementation": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
-          "beacon": "0xB08d78F439e55D02C398519eef61606A5926245F"
-        },
-        "inboxValidatorManager": "0x7914A3349107A7295Bbf2374db5A973d73D1b324"
-      },
-      "optimismkovan": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x05Ea36Caee7d92C173334C9D97DcD39ABdCB2b69",
-          "implementation": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
-          "beacon": "0xB08d78F439e55D02C398519eef61606A5926245F"
-        },
-        "inboxValidatorManager": "0x5d56B8a669F50193b54319442c6EEE5edD662381"
       },
       "goerli": {
         "inbox": {
