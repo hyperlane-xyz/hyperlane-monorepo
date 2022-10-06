@@ -102,10 +102,7 @@ impl Scraper {
         let mut outboxes = HashMap::new();
         for (name, outbox_setup) in config {
             let signer = core_settings.get_signer(&name).await;
-            let outbox = core_settings
-                .outbox
-                .try_into_outbox(signer, metrics)
-                .await?;
+            let outbox = outbox_setup.try_into_outbox(signer, metrics).await?;
             let indexer = core_settings
                 .try_outbox_indexer_from_config(metrics, &outbox_setup)
                 .await?;
