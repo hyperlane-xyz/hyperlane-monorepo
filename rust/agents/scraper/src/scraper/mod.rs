@@ -129,7 +129,8 @@ impl Scraper {
         _core_settings: &Settings,
         _metrics: &Arc<CoreMetrics>,
     ) -> Result<HashMap<String, ()>> {
-        todo!()
+        // TODO
+        Ok(HashMap::new())
     }
 
     async fn load_gas_paymasters(
@@ -137,7 +138,8 @@ impl Scraper {
         _core_settings: &Settings,
         _metrics: &Arc<CoreMetrics>,
     ) -> Result<HashMap<String, ()>> {
-        todo!()
+        // TODO
+        Ok(HashMap::new())
     }
 }
 
