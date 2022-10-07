@@ -1,10 +1,6 @@
 apiVersion: v2
-name: abacus-agent
+name: scraper
 description: A Helm Chart that encapsulates the deployment of the Abacus Rust Agent(s)
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
-dependencies:
-- name: agent-common
-  version: 0.1.0
-  repository: file://../agent-common

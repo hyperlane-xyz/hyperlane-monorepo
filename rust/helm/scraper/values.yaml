@@ -1,0 +1,23 @@
+image:
+  repository: gcr.io/clabs-abacus/abacus-agent
+  pullPolicy: Always
+  tag: 'latest'
+
+imagePullSecrets: []
+nameOverride: ''
+fullnameOverride: ''
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ''
+
+externalSecrets:
+  clusterSecretStore:
+
+podAnnotations: {}
+podCommonLabels: {}
+
+storage:
+  storageClass: 'standard'
+  accessModes: ReadWriteOnce

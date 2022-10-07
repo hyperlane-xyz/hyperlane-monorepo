@@ -384,11 +384,19 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
     }
   }
 
+  // Build the chart dependencies
+  await execCmd(
+    `cd ../../rust/helm/abacus-agent/ && helm dependency build`,
+    {},
+    false,
+    true,
+  );
+
   await execCmd(
     `helm ${action} ${getHelmReleaseName(
       outboxChainName,
       agentConfig,
-    )} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
+    )} ../../rust/helm/abacus-agent/ --debug --dry-run --create-namespace --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
     {},
