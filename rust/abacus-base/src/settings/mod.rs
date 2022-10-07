@@ -452,11 +452,9 @@ impl Settings {
     /// Try to generate an agent core for a named agent
     pub async fn try_into_abacus_core(
         &self,
-        name: &str,
+        metrics: Arc<CoreMetrics>,
         parse_inboxes: bool,
     ) -> eyre::Result<AbacusAgentCore> {
-        let metrics = self.try_into_metrics(name)?;
-
         let db = DB::from_path(&self.db)?;
         let outbox = self.try_caching_outbox(db.clone(), &metrics).await?;
         let interchain_gas_paymaster = self

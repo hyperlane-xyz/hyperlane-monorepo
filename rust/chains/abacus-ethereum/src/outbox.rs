@@ -65,11 +65,7 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumOutboxIndexer
-    pub fn new(
-        provider: Arc<M>,
-        locator: &ContractLocator,
-        finality_blocks: u32,
-    ) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         let contract = Arc::new(EthereumOutboxInternal::new(
             &locator.address,
             provider.clone(),

@@ -51,13 +51,13 @@ impl BaseAgent for Relayer {
         &self.core.metrics
     }
 
-    async fn from_settings(settings: Self::Settings) -> Result<Self>
+    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
     where
         Self: Sized,
     {
         let core = settings
             .as_ref()
-            .try_into_abacus_core(Self::AGENT_NAME, true)
+            .try_into_abacus_core(metrics, true)
             .await?;
 
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings

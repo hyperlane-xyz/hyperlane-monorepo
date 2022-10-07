@@ -56,7 +56,7 @@ impl BaseAgent for Validator {
         &self.core.metrics
     }
 
-    async fn from_settings(settings: Self::Settings) -> Result<Self>
+    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
     where
         Self: Sized,
     {
@@ -65,7 +65,7 @@ impl BaseAgent for Validator {
         let interval = settings.interval.parse().expect("invalid uint");
         let core = settings
             .as_ref()
-            .try_into_abacus_core(Self::AGENT_NAME, false)
+            .try_into_abacus_core(metrics, false)
             .await?;
         let checkpoint_syncer = settings.checkpointsyncer.try_into_checkpoint_syncer(None)?;
 

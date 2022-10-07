@@ -1,6 +1,5 @@
-use std::borrow::BorrowMut;
 use std::cmp::min;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,7 +11,7 @@ use sea_orm::{Database, DbConn};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::instrument::Instrumented;
-use tracing::{debug, info, info_span, trace, warn, Instrument, instrument};
+use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
 
 use abacus_base::last_message::validate_message_continuity;
 use abacus_base::{
@@ -49,12 +48,11 @@ impl BaseAgent for Scraper {
         &self.metrics
     }
 
-    async fn from_settings(settings: Self::Settings) -> Result<Self>
+    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
     where
         Self: Sized,
     {
         let core_settings: Settings = settings.base;
-        let metrics = core_settings.try_into_metrics(Self::AGENT_NAME)?;
 
         let db = Database::connect(&core_settings.db).await?;
         let outboxes = Self::load_outboxes(
