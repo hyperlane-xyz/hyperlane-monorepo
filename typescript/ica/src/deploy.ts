@@ -71,6 +71,7 @@ export class InterchainQueryDeployer<
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, InterchainQueryConfig>,
     protected core: HyperlaneCore<Chain>,
+    protected salt = 'asdasdsd',
   ) {
     super(multiProvider, configMap, interchainQueryFactories, {});
   }
@@ -84,7 +85,7 @@ export class InterchainQueryDeployer<
         [config.owner, config.connectionManager, config.interchainGasPaymaster],
       );
     const router = await this.deployContract(chain, 'router', [], {
-      create2Salt: 'asdasdsd',
+      create2Salt: this.salt,
       initCalldata,
     });
     return {

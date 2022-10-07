@@ -30,7 +30,12 @@ async function main() {
   // config gcp deployer key as owner
   const configMap = await getConfiguration(environment, multiProvider);
 
-  const deployer = new InterchainQueryDeployer(multiProvider, configMap, core);
+  const deployer = new InterchainQueryDeployer(
+    multiProvider,
+    configMap,
+    core,
+    'IQS-SALT-1',
+  );
 
   await deployWithArtifacts(dir, interchainQueryFactories, deployer);
 }
