@@ -1,18 +1,18 @@
-{{- if .Values.abacus.relayer.enabled }}
+{{- if .Values.abacus.scraper.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "scraper.fullname" . }}
+  name: {{ include "agent-common.fullname" . }}
   labels:
-    {{- include "scraper.labels" . | nindent 4 }}
-    app.kubernetes.io/component: relayer
+    {{- include "agent-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scraper
 spec:
   selector:
     matchLabels:
-      {{- include "scraper.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: relayer
+      {{- include "agent-common.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scraper
   replicas: 1 
-  serviceName: {{ include "scraper.fullname" . }}
+  serviceName: {{ include "agent-common.fullname" . }}
   template:
     metadata:
       annotations:
@@ -20,16 +20,16 @@ spec:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.abacus.relayer.podAnnotations }}
+        {{- with .Values.abacus.scraper.podAnnotations }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "scraper.labels" . | nindent 8 }}
-        app.kubernetes.io/component: relayer
+        {{- include "agent-common.labels" . | nindent 8 }}
+        app.kubernetes.io/component: scraper
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.abacus.relayer.podLabels }}
+        {{- with .Values.abacus.scraper.podLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
     spec:
@@ -46,25 +46,23 @@ spec:
           {{- toYaml .Values.securityContext | nindent 10 }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["./relayer"]
+        command: ["./scraper"]
         envFrom:
         - configMapRef:
-            name: {{ include "scraper.fullname" . }}
+            name: {{ include "agent-common.fullname" . }}
         - secretRef:
-            name: {{ include "scraper.fullname" . }}-secret
-        - secretRef:
-            name: {{ include "scraper.fullname" . }}-relayer-secret
+            name: {{ include "agent-common.fullname" . }}-secret
         env:
-{{- include "scraper.config-env-vars" (dict "config" .Values.abacus.relayer.config "agent_name" "relayer") | indent 10 }}
-          {{- range .Values.abacus.relayer.signers }}
+{{- include "agent-common.config-env-vars" (dict "config" .Values.abacus.scraper.config "agent_name" "scraper") | indent 10 }}
+          {{- range .Values.abacus.scraper.signers }}
 {{- include "agent-common.config-env-vars" (dict "config" .keyConfig "agent_name" "base" "key_name_prefix" (printf "SIGNERS_%s_" (.name | upper))) | indent 10 }}
           {{- end }}
           {{- if .Values.abacus.tracing.uri }}
           - name: HYP_BASE_TRACING_JAEGER_NAME
-            value: {{ include "agent-common.fullname" . }}-relayer
+            value: {{ include "agent-common.fullname" . }}-scraper
           {{- end }}
         resources:
-          {{- toYaml .Values.abacus.relayer.resources | nindent 10 }}
+          {{- toYaml .Values.abacus.scraper.resources | nindent 10 }}
         volumeMounts:
         - name: state
           mountPath: {{ .Values.abacus.dbPath }}
@@ -89,13 +87,13 @@ spec:
     spec:
       storageClassName: {{ .Values.storage.storageClass }}
       accessModes: [ {{ .Values.storage.accessModes }} ]
-      {{- if .Values.abacus.relayer.storage.snapshot.enabled }}
+      {{- if .Values.abacus.scraper.storage.snapshot.enabled }}
       dataSource:
-        name: {{ .Values.abacus.relayer.storage.snapshot.name }}
+        name: {{ .Values.abacus.scraper.storage.snapshot.name }}
         kind: VolumeSnapshot
         apiGroup: snapshot.storage.k8s.io
       {{- end }}
       resources:
         requests:
-          storage: {{ .Values.abacus.relayer.storage.size }}
+          storage: {{ .Values.abacus.scraper.storage.size }}
 {{- end }}
