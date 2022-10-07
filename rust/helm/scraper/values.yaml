@@ -21,3 +21,57 @@ podCommonLabels: {}
 storage:
   storageClass: 'standard'
   accessModes: ReadWriteOnce
+
+# -- Abacus Overrides
+# By Default, Abacus Agents load the config baked into the Docker Image
+# Pass values here in order to override the values in the config
+# Note: For successful operation, one _must_ pass signer keys as
+#       they are not baked into the image for security reasons.
+abacus:
+  # Sets the config folder to use
+  runEnv: 'default'
+  context: 'abacus'
+  # Sets the base config to be used (switch between Homes)
+  baseConfig: 'base.json'
+  # Set the SQL db connection info
+  dbPath: postgresql://postgres:password@localhost:5433/postgres
+  rustBacktrace: full
+  tracing:
+    # Set the log formatting
+    format: json
+    # Set the log level
+    level: info
+    uri: ''
+  metrics:
+    port: 9090
+
+  inboxChains:
+  - name: 'alfajores'
+    disabled: false
+    connection:
+      type: "http"
+      # -- Connection string pointing to an RPC endpoint for the inbox chain
+
+  scraper:
+    enabled: true
+    podAnnotations:
+      prometheus.io/port: '9090'
+      prometheus.io/scrape: 'true'
+    podLabels: {}
+    storage:
+      size: 10Gi
+      snapshot:
+        enabled: false
+        name: ''
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+    signers:
+    config:
+      outboxes:
+        alfajores:
+          name: 'alfajores'
+          disabled: false
+          connection:
+            type: "http"

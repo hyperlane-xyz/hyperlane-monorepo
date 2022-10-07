@@ -396,7 +396,7 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
     `helm ${action} ${getHelmReleaseName(
       outboxChainName,
       agentConfig,
-    )} ../../rust/helm/abacus-agent/ --debug --dry-run --create-namespace --namespace ${
+    )} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
     {},

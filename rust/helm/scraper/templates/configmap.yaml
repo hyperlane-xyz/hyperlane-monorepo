@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agent-common.fullname" . }}
+  labels:
+    {{- include "agent-common.labels" . | nindent 4 }}
+data:
+  RUN_ENV: {{ .Values.abacus.runEnv | quote }}
+  BASE_CONFIG: {{ .Values.abacus.baseConfig }}
+  RUST_BACKTRACE: {{ .Values.abacus.rustBacktrace }}
+  HYP_BASE_DB: {{ .Values.abacus.dbPath }}
+  HYP_BASE_TRACING_FMT: {{ .Values.abacus.tracing.format }}
+  HYP_BASE_TRACING_LEVEL: {{ .Values.abacus.tracing.level }}
+  {{- range .Values.abacus.inboxChains }}
+{{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "INBOXES_%s_" (.name | upper)) "format" "config_map") | indent 2 }}
+  {{- end }}
+  {{- if .Values.abacus.tracing.uri }}
+  HYP_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.abacus.tracing.uri }}
+  {{- end }}
+  HYP_BASE_METRICS: {{ .Values.abacus.metrics.port | quote }}

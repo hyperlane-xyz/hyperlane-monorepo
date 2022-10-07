@@ -1,3 +1,4 @@
+import { runScraperHelmCommand } from '../src/scraper/deploy';
 import { HelmCommand } from '../src/utils/helm';
 
 import {
@@ -15,7 +16,6 @@ async function deploy() {
 
   await assertCorrectKubeContext(config);
 
-  // @ts-ignore
   await runScraperHelmCommand(HelmCommand.InstallOrUpgrade, agentConfig);
 }
 

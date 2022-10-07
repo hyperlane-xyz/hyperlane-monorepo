@@ -47,11 +47,6 @@ spec:
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command: ["./scraper"]
-        envFrom:
-        - configMapRef:
-            name: {{ include "agent-common.fullname" . }}
-        - secretRef:
-            name: {{ include "agent-common.fullname" . }}-secret
         env:
 {{- include "agent-common.config-env-vars" (dict "config" .Values.abacus.scraper.config "agent_name" "scraper") | indent 10 }}
           {{- range .Values.abacus.scraper.signers }}
@@ -61,6 +56,11 @@ spec:
           - name: HYP_BASE_TRACING_JAEGER_NAME
             value: {{ include "agent-common.fullname" . }}-scraper
           {{- end }}
+        envFrom:
+        - configMapRef:
+            name: {{ include "agent-common.fullname" . }}
+        - secretRef:
+            name: {{ include "agent-common.fullname" . }}-secret
         resources:
           {{- toYaml .Values.abacus.scraper.resources | nindent 10 }}
         volumeMounts:
