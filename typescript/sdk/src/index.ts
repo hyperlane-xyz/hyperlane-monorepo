@@ -4,7 +4,10 @@ export {
   chainConnectionConfigs,
   testChainConnectionConfigs,
 } from './consts/chainConnectionConfigs';
-export { environments as coreEnvironments } from './consts/environments';
+export {
+  environments as coreEnvironments,
+  hyperlaneCoreAddresses,
+} from './consts/environments';
 
 export {
   ChainMap,
