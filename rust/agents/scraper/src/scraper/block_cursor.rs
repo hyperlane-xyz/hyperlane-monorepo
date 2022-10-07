@@ -1,10 +1,11 @@
 use std::time::{Duration, Instant};
 
 use eyre::Result;
+use migration::OnConflict;
 use sea_orm::prelude::*;
-use sea_orm::ActiveValue;
+use sea_orm::{ActiveValue, Insert};
 use tokio::sync::RwLock;
-use tracing::log::warn;
+use tracing::{debug, instrument, trace, warn};
 
 use crate::date_time;
 use crate::db::cursor;
@@ -51,6 +52,7 @@ impl BlockCursor {
         self.inner.read().await.height
     }
 
+    #[instrument(skip(self), fields(cursor = ?self.inner))]
     pub async fn update(&self, height: u64) {
         let mut inner = self.inner.write().await;
 
@@ -58,18 +60,29 @@ impl BlockCursor {
         inner.height = inner.height.max(height);
 
         let now = Instant::now();
-        if height > old_height && now.duration_since(inner.last_saved_at) > MAX_WRITE_BACK_FREQUENCY
-        {
+        let time_since_last_save = now.duration_since(inner.last_saved_at);
+        if height > old_height && time_since_last_save > MAX_WRITE_BACK_FREQUENCY {
             inner.last_saved_at = now;
             // prevent any more writes to the inner struct until the write is complete.
-            let _inner = inner.downgrade();
+            let inner = inner.downgrade();
             let model = cursor::ActiveModel {
                 domain: ActiveValue::Unchanged(self.domain as i32),
                 time_updated: ActiveValue::Set(date_time::now()),
                 height: ActiveValue::Set(height as i64),
             };
-            if let Err(e) = model.save(&self.db).await {
-                warn!("Failed to update database with new cursor: {e}")
+            trace!(?model, "Upserting cursor");
+            if let Err(e) = Insert::one(model)
+                .on_conflict(
+                    OnConflict::column(cursor::Column::Domain)
+                        .update_columns([cursor::Column::TimeUpdated, cursor::Column::Height])
+                        .to_owned(),
+                )
+                .exec(&self.db)
+                .await
+            {
+                warn!(error = ?e, "Failed to update database with new cursor")
+            } else {
+                debug!(cursor = ?*inner, "Updated cursor")
             }
         }
     }
