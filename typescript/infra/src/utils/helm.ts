@@ -8,6 +8,7 @@ import { execCmd } from './utils';
 export enum HelmCommand {
   InstallOrUpgrade = 'upgrade --install',
   UpgradeDiff = 'template --debug',
+  Remove = 'uninstall',
 }
 
 export function helmifyValues(config: any, prefix?: string): string[] {
