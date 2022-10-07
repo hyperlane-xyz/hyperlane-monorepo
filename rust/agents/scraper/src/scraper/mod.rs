@@ -368,7 +368,7 @@ impl SqlOutboxScraper {
             .map(|m| m.0.leaf_index)
             .max()
             .ok_or_else(|| eyre!("Received empty list"));
-        let message_models = messages
+        let models: Vec<_> = messages
             .into_iter()
             .map(|(msg, meta)| {
                 debug_assert_eq!(self.outbox.local_domain(), msg.message.origin);
@@ -391,8 +391,10 @@ impl SqlOutboxScraper {
                     origin_tx_id: Set(*txn_id),
                 }
             })
-            .inspect(|message| trace!(?message, "Writing message to database"));
-        Insert::many(message_models)
+            .collect();
+        trace!(?models, "Writing messages to database");
+
+        Insert::many(models)
             .on_conflict(
                 OnConflict::columns([
                     message::Column::OutboxAddress,
@@ -433,6 +435,8 @@ impl SqlOutboxScraper {
             .ensure_blocks(blocks_by_txn_hash.values().copied())
             .await?
             .collect();
+        trace!(?blocks, "Ensured blocks");
+
         // not sure why rust can't detect the lifetimes here are valid, but just
         // wrapping with the Arc/mutex for now.
         let block_timestamps_by_txn: Arc<std::sync::Mutex<HashMap<H256, TimeDateTime>>> =
@@ -530,14 +534,15 @@ impl SqlOutboxScraper {
                     gas_used: Set(Default::default()), // TODO: get this from ethers
                     sender: Set("00".to_owned()),      // TODO: get this from ethers
                 })
-                .inspect(|txn| trace!(?txn, "Writing txn to database"))
                 .collect();
+            trace!(?models, "Writing txns to database");
 
+            // so apparently this is actually the ID that was first inserted for postgres?
             let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
             for (_hash, (txn_id, _block_id)) in txns_to_insert.iter_mut().rev() {
-                // go backwards and set the ids since we just get last insert id
+                debug_assert!(cur_id > 0);
                 let _ = txn_id.insert(cur_id);
-                cur_id -= 1;
+                cur_id += 1;
             }
             drop(txns_to_insert);
         }
@@ -613,14 +618,15 @@ impl SqlOutboxScraper {
                         timestamp: Unchanged(block_info.unwrap().1),
                     }
                 })
-                .inspect(|block| trace!(?block, "Writing block to database"))
                 .collect();
+            trace!(?models, "Writing blocks to database");
 
+            // so apparently this is actually the ID that was first inserted for postgres?
             let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
-            for (_hash, block_info) in blocks_to_insert.iter_mut().rev() {
-                // go backwards and set the ids since we just get last insert id
+            for (_hash, block_info) in blocks_to_insert.iter_mut() {
+                debug_assert!(cur_id > 0);
                 let _ = block_info.as_mut().unwrap().0.insert(cur_id);
-                cur_id -= 1;
+                cur_id += 1;
             }
         }
 
