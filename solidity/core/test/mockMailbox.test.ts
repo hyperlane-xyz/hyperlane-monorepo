@@ -9,12 +9,12 @@ import { MockInbox__factory, MockOutbox__factory } from '../types';
 describe('Mock mailbox contracts', function () {
   it('should be able to mock sending a message', async function () {
     const [signer] = await ethers.getSigners();
-
+    const originDomain = 1;
     const inboxFactory = new MockInbox__factory(signer);
     const outboxFactory = new MockOutbox__factory(signer);
     const testRecipientFactory = new TestRecipient__factory(signer);
     const inbox = await inboxFactory.deploy();
-    const outbox = await outboxFactory.deploy(inbox.address);
+    const outbox = await outboxFactory.deploy(originDomain, inbox.address);
     const recipient = await testRecipientFactory.deploy();
 
     const data = ethers.utils.toUtf8Bytes('This is a test message');
