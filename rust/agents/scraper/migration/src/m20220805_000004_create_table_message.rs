@@ -60,7 +60,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(Message::Table)
-                    .name("idx-message_tx")
+                    .name("message_tx_idx")
                     .col(Message::OriginTxId)
                     .to_owned(),
             )
@@ -69,7 +69,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(Message::Table)
-                    .name("idx-message_sender")
+                    .name("message_sender_idx")
                     .col(Message::Sender)
                     .to_owned(),
             )
@@ -78,7 +78,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(Message::Table)
-                    .name("idx-message_recipient")
+                    .name("message_recipient_idx")
                     .col(Message::Recipient)
                     .to_owned(),
             )
