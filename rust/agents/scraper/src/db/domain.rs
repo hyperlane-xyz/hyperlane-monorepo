@@ -50,6 +50,7 @@ impl PrimaryKeyTrait for PrimaryKey {
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
     Cursor,
+    Message,
     Block,
     Checkpoint,
     GasPayment,
@@ -75,6 +76,7 @@ impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
             Self::Cursor => Entity::has_many(super::cursor::Entity).into(),
+            Self::Message => Entity::has_many(super::message::Entity).into(),
             Self::Block => Entity::has_many(super::block::Entity).into(),
             Self::Checkpoint => Entity::has_many(super::checkpoint::Entity).into(),
             Self::GasPayment => Entity::has_many(super::gas_payment::Entity).into(),
@@ -85,6 +87,12 @@ impl RelationTrait for Relation {
 impl Related<super::cursor::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Cursor.def()
+    }
+}
+
+impl Related<super::message::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Message.def()
     }
 }
 

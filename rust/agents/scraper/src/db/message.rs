@@ -55,8 +55,7 @@ impl PrimaryKeyTrait for PrimaryKey {
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
-    Domain2,
-    Domain1,
+    Domain,
     Transaction,
     MessageState,
     DeliveredMessage,
@@ -84,11 +83,7 @@ impl ColumnTrait for Column {
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
-            Self::Domain2 => Entity::belongs_to(super::domain::Entity)
-                .from(Column::Destination)
-                .to(super::domain::Column::Id)
-                .into(),
-            Self::Domain1 => Entity::belongs_to(super::domain::Entity)
+            Self::Domain => Entity::belongs_to(super::domain::Entity)
                 .from(Column::Origin)
                 .to(super::domain::Column::Id)
                 .into(),
@@ -99,6 +94,12 @@ impl RelationTrait for Relation {
             Self::MessageState => Entity::has_many(super::message_state::Entity).into(),
             Self::DeliveredMessage => Entity::has_one(super::delivered_message::Entity).into(),
         }
+    }
+}
+
+impl Related<super::domain::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Domain.def()
     }
 }
 
