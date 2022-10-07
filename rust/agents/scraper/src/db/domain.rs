@@ -20,6 +20,7 @@ pub struct Model {
     pub native_token: String,
     pub chain_id: Option<i64>,
     pub is_test_net: bool,
+    pub is_deprecated: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -31,6 +32,7 @@ pub enum Column {
     NativeToken,
     ChainId,
     IsTestNet,
+    IsDeprecated,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
@@ -47,10 +49,10 @@ impl PrimaryKeyTrait for PrimaryKey {
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
+    Cursor,
     Block,
     Checkpoint,
     GasPayment,
-    Cursor,
 }
 
 impl ColumnTrait for Column {
@@ -64,6 +66,7 @@ impl ColumnTrait for Column {
             Self::NativeToken => ColumnType::Text.def(),
             Self::ChainId => ColumnType::BigInteger.def().null().unique(),
             Self::IsTestNet => ColumnType::Boolean.def(),
+            Self::IsDeprecated => ColumnType::Boolean.def(),
         }
     }
 }
@@ -71,11 +74,17 @@ impl ColumnTrait for Column {
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
+            Self::Cursor => Entity::has_many(super::cursor::Entity).into(),
             Self::Block => Entity::has_many(super::block::Entity).into(),
             Self::Checkpoint => Entity::has_many(super::checkpoint::Entity).into(),
             Self::GasPayment => Entity::has_many(super::gas_payment::Entity).into(),
-            Self::Cursor => Entity::has_many(super::cursor::Entity).into(),
         }
+    }
+}
+
+impl Related<super::cursor::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Cursor.def()
     }
 }
 
@@ -94,12 +103,6 @@ impl Related<super::checkpoint::Entity> for Entity {
 impl Related<super::gas_payment::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::GasPayment.def()
-    }
-}
-
-impl Related<super::cursor::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Cursor.def()
     }
 }
 
