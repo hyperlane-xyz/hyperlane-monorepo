@@ -17,7 +17,7 @@
 use ethers::types::H256;
 use eyre::{Context, Result};
 
-use abacus_base::BaseAgent;
+use abacus_base::agent_main;
 
 use crate::scraper::Scraper;
 
@@ -30,21 +30,7 @@ mod settings;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    #[cfg(feature = "oneline-errors")]
-    abacus_base::oneline_eyre::install()?;
-    #[cfg(not(feature = "oneline-errors"))]
-    color_eyre::install()?;
-
-    let settings = settings::ScraperSettings::new()?;
-    let metrics = settings.base.try_into_metrics(Scraper::AGENT_NAME)?;
-    settings.base.tracing.start_tracing(&metrics)?;
-    let agent = Scraper::from_settings(settings, metrics.clone()).await?;
-    let _ = metrics.run_http_server();
-
-    let all_fut_tasks = agent.run().await;
-    all_fut_tasks.await??;
-
-    Ok(())
+    agent_main::<Scraper>().await
 }
 
 fn parse_h256<T: AsRef<[u8]>>(data: T) -> Result<H256> {
