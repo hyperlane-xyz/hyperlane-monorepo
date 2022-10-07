@@ -1,0 +1,11 @@
+{
+  "alfajores": {
+    "router": "0x28DA0C38b40B9B971233a615097de1ca736f2C8a"
+  },
+  "fuji": {
+    "router": "0x28DA0C38b40B9B971233a615097de1ca736f2C8a"
+  },
+  "mumbai": {
+    "router": "0x28DA0C38b40B9B971233a615097de1ca736f2C8a"
+  }
+}
