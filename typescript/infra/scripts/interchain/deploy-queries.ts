@@ -34,7 +34,7 @@ async function main() {
     multiProvider,
     configMap,
     core,
-    'IQS-SALT-1',
+    'IQS-SALT-2',
   );
 
   await deployWithArtifacts(dir, interchainQueryFactories, deployer);
