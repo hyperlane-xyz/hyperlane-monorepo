@@ -30,7 +30,8 @@ RUN \
     cargo build --release --no-default-features --features oneline-errors && \
     mkdir -p /release && \
     cp /usr/src/target/release/validator /release && \
-    cp /usr/src/target/release/relayer /release
+    cp /usr/src/target/release/relayer /release && \
+    cp /usr/src/target/release/scraper /release
 
 ## 2: Copy the binaries to release image
 FROM ubuntu:20.04
