@@ -338,7 +338,11 @@ impl SqlOutboxScraper {
     ///
     /// Returns the highest message leaf index which was provided to this
     /// function.
-    #[instrument(skip(self))]
+    #[instrument(
+        level = "debug",
+        skip_all,
+        fields(messages = ?messages.iter().map(|(_, meta)| meta).collect::<Vec<_>>())
+    )]
     async fn store_messages(&self, messages: &[(RawCommittedMessage, LogMeta)]) -> Result<u32> {
         use crate::db::message;
         use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
@@ -526,6 +530,7 @@ impl SqlOutboxScraper {
                     gas_used: Set(Default::default()), // TODO: get this from ethers
                     sender: Set("00".to_owned()),      // TODO: get this from ethers
                 })
+                .inspect(|txn| trace!(?txn, "Writing txn to database"))
                 .collect();
 
             let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
@@ -541,7 +546,7 @@ impl SqlOutboxScraper {
             .map(|(hash, (txn_id, _block_id))| (hash, txn_id.unwrap())))
     }
 
-    /// Takes a list of block hashes and for each block
+    /// Takes a list of block hashes for each block
     /// if it is in the database already:
     ///     Fetches its associated ID
     /// if it is not in the database already:
@@ -608,6 +613,7 @@ impl SqlOutboxScraper {
                         timestamp: Unchanged(block_info.unwrap().1),
                     }
                 })
+                .inspect(|block| trace!(?block, "Writing block to database"))
                 .collect();
 
             let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
