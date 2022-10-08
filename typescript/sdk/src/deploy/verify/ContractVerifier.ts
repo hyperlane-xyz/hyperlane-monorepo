@@ -46,7 +46,9 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
   verify(): Promise<PromiseSettledResult<void>[]> {
     return Promise.allSettled(
-      this.chains().map((chain) => this.verifyChain(chain, this.get(chain))),
+      this.chains()
+        .filter((chain) => this.multiProvider.chains().includes(chain))
+        .map((chain) => this.verifyChain(chain, this.get(chain))),
     );
   }
 
