@@ -8,6 +8,7 @@ contract MockInbox {
     using TypeCasts for bytes32;
 
     struct PendingMessage {
+        uint32 originDomain;
         bytes32 sender;
         bytes32 recipient;
         bytes messageBody;
@@ -18,11 +19,13 @@ contract MockInbox {
     uint256 messageProcessed = 0;
 
     function addPendingMessage(
+        uint32 _originDomain,
         bytes32 _sender,
         bytes32 _recipient,
         bytes memory _messageBody
     ) external {
         pendingMessages[totalMessages] = PendingMessage(
+            _originDomain,
             _sender,
             _recipient,
             _messageBody
@@ -40,7 +43,7 @@ contract MockInbox {
         IMessageRecipient(recipient).handle(
             // This is completely arbitrary and consumers should not rely
             // on domain handling in the mock mailbox contracts.
-            1,
+            pendingMessage.originDomain,
             pendingMessage.sender,
             pendingMessage.messageBody
         );

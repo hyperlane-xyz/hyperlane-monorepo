@@ -5,12 +5,26 @@ import { KeyFunderConfig } from '../config/funding';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
-export function runKeyFunderHelmCommand<Chain extends ChainName>(
+export async function runKeyFunderHelmCommand<Chain extends ChainName>(
   helmCommand: HelmCommand,
   agentConfig: AgentConfig<Chain>,
   keyFunderConfig: KeyFunderConfig,
 ) {
   const values = getKeyFunderHelmValues(agentConfig, keyFunderConfig);
+
+  if (helmCommand === HelmCommand.InstallOrUpgrade) {
+    // Delete secrets to avoid them being stale
+    try {
+      await execCmd(
+        `kubectl delete secrets --namespace ${agentConfig.namespace} --selector app.kubernetes.io/instance=key-funder`,
+        {},
+        false,
+        false,
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   return execCmd(
     `helm ${helmCommand} key-funder ./helm/key-funder --namespace ${

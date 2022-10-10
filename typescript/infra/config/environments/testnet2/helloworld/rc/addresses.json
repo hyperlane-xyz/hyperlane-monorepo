@@ -2,9 +2,6 @@
   "alfajores": {
     "router": "0x8fE544451F5CE316D43b9Bb94fC14a3F91E2bAD4"
   },
-  "kovan": {
-    "router": "0x5C607ECCA9085aeA21533B69eDF9440D853284C7"
-  },
   "fuji": {
     "router": "0x9bD9044622be25558cB153BfC75e1e1F828609f5"
   },
@@ -13,12 +10,6 @@
   },
   "bsctestnet": {
     "router": "0xD2Ca930Cd1fA92b0Cb6c749aE47DB38b7dbaB13e"
-  },
-  "arbitrumrinkeby": {
-    "router": "0x86E897e0a19d6bcebF876ab56F4035E3f5eF748a"
-  },
-  "optimismkovan": {
-    "router": "0xF7975b91895fEbB765B252fc39a3D6C2B8f861DD"
   },
   "goerli": {
     "router": "0xeC7eb4196Bd601DEa7585A744FbFB4CF11278450"

@@ -319,11 +319,44 @@ async function getSecretRpcEndpoints<Chain extends ChainName>(
   );
 }
 
+export async function doesAgentReleaseExist<Chain extends ChainName>(
+  agentConfig: AgentConfig<Chain>,
+  outboxChainName: Chain,
+) {
+  try {
+    await execCmd(
+      `helm status ${getHelmReleaseName(
+        outboxChainName,
+        agentConfig,
+      )} --namespace ${agentConfig.namespace}`,
+      {},
+      false,
+      false,
+    );
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 export async function runAgentHelmCommand<Chain extends ChainName>(
   action: HelmCommand,
   agentConfig: AgentConfig<Chain>,
   outboxChainName: Chain,
 ) {
+  if (action === HelmCommand.Remove) {
+    return execCmd(
+      `helm ${action} ${getHelmReleaseName(
+        outboxChainName,
+        agentConfig,
+      )} --namespace ${agentConfig.namespace}`,
+
+      {},
+      false,
+      true,
+    );
+  }
+
   const valueDict = await helmValuesForChain(outboxChainName, agentConfig);
   const values = helmifyValues(valueDict);
 
@@ -332,7 +365,26 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
       ? ` | kubectl diff -n ${agentConfig.namespace} --field-manager="Go-http-client" -f - || true`
       : '';
 
-  return execCmd(
+  if (action === HelmCommand.InstallOrUpgrade) {
+    // Delete secrets to avoid them being stale
+    try {
+      await execCmd(
+        `kubectl delete secrets --namespace ${
+          agentConfig.namespace
+        } --selector app.kubernetes.io/instance=${getHelmReleaseName(
+          outboxChainName,
+          agentConfig,
+        )}`,
+        {},
+        false,
+        false,
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  await execCmd(
     `helm ${action} ${getHelmReleaseName(
       outboxChainName,
       agentConfig,
@@ -343,6 +395,8 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
     false,
     true,
   );
+
+  return;
 }
 
 function getHelmReleaseName<Chain extends ChainName>(
