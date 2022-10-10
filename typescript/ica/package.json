@@ -53,6 +53,7 @@
     "type": "git",
     "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"
   },
+  "private": true,
   "scripts": {
     "build": "hardhat compile && tsc",
     "clean": "hardhat clean && rm -rf dist cache src/types",
