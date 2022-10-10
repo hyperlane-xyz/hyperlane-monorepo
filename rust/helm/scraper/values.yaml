@@ -34,7 +34,7 @@ abacus:
   # Sets the base config to be used (switch between Homes)
   baseConfig: 'base.json'
   # Set the SQL db connection info
-  dbPath: postgresql://postgres:password@localhost:5433/postgres
+  dbPath: external-secret
   rustBacktrace: full
   tracing:
     # Set the log formatting
@@ -46,11 +46,6 @@ abacus:
     port: 9090
 
   inboxChains:
-  - name: 'alfajores'
-    disabled: false
-    connection:
-      type: "http"
-      # -- Connection string pointing to an RPC endpoint for the inbox chain
 
   scraper:
     enabled: true
@@ -59,19 +54,13 @@ abacus:
       prometheus.io/scrape: 'true'
     podLabels: {}
     storage:
-      size: 10Gi
+      size: 0Gi
       snapshot:
         enabled: false
         name: ''
     resources:
       requests:
         cpu: 250m
-        memory: 1Gi
+        memory: 256Mi
     signers:
     config:
-      outboxes:
-        alfajores:
-          name: 'alfajores'
-          disabled: false
-          connection:
-            type: "http"
