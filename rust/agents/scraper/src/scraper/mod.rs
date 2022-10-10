@@ -31,6 +31,7 @@ mod block_cursor;
 
 /// A message explorer scraper agent
 #[derive(Debug)]
+#[allow(unused)]
 pub struct Scraper {
     metrics: Arc<CoreMetrics>,
     /// A map of outbox contracts by name.
