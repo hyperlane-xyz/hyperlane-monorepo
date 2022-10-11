@@ -17,10 +17,9 @@ async function deploy() {
   if (agentConfig.context != Contexts.Abacus) {
     // scraper scrapes everything so deploying for multiple contexts might cause unintentional
     // conflicts
-    console.error(
+    throw new Error(
       `Scraper only supports the '${Contexts.Abacus}' context at this time`,
     );
-    process.exit(1);
   }
 
   await assertCorrectKubeContext(config);
