@@ -13,6 +13,7 @@ impl EntityName for Entity {
 
 #[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel)]
 pub struct Model {
+    pub id: i64,
     pub domain: i32,
     pub time_updated: TimeDateTime,
     pub height: i64,
@@ -20,6 +21,7 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
 pub enum Column {
+    Id,
     Domain,
     TimeUpdated,
     Height,
@@ -27,13 +29,13 @@ pub enum Column {
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
 pub enum PrimaryKey {
-    Domain,
+    Id,
 }
 
 impl PrimaryKeyTrait for PrimaryKey {
-    type ValueType = i32;
+    type ValueType = i64;
     fn auto_increment() -> bool {
-        false
+        true
     }
 }
 
@@ -46,6 +48,7 @@ impl ColumnTrait for Column {
     type EntityName = Entity;
     fn def(&self) -> ColumnDef {
         match self {
+            Self::Id => ColumnType::BigInteger.def(),
             Self::Domain => ColumnType::Integer.def(),
             Self::TimeUpdated => ColumnType::DateTime.def(),
             Self::Height => ColumnType::BigInteger.def(),

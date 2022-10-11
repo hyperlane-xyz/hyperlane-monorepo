@@ -1,9 +1,8 @@
 use std::time::{Duration, Instant};
 
 use eyre::Result;
-use migration::OnConflict;
 use sea_orm::prelude::*;
-use sea_orm::{ActiveValue, Insert};
+use sea_orm::{ActiveValue, Insert, Order, QueryOrder, QuerySelect};
 use tokio::sync::RwLock;
 use tracing::{debug, instrument, trace, warn};
 
@@ -30,10 +29,14 @@ pub struct BlockCursor {
 
 impl BlockCursor {
     pub async fn new(db: DbConn, domain: u32, default_height: u64) -> Result<Self> {
-        let height = cursor::Entity::find_by_id(domain as i32)
+        let height: u64 = (cursor::Entity::find())
+            .filter(cursor::Column::Domain.eq(domain))
+            .order_by(cursor::Column::Id, Order::Desc)
+            .select_only()
+            .column(cursor::Column::Height)
+            .into_values::<_, cursor::Column>()
             .one(&db)
             .await?
-            .map(|model| model.height as u64)
             .unwrap_or(default_height);
         if height < default_height {
             warn!("Cursor height loaded from the database is lower than the default height!")
@@ -66,20 +69,13 @@ impl BlockCursor {
             // prevent any more writes to the inner struct until the write is complete.
             let inner = inner.downgrade();
             let model = cursor::ActiveModel {
-                domain: ActiveValue::Unchanged(self.domain as i32),
+                id: ActiveValue::NotSet,
+                domain: ActiveValue::Set(self.domain as i32),
                 time_updated: ActiveValue::Set(date_time::now()),
                 height: ActiveValue::Set(height as i64),
             };
-            trace!(?model, "Upserting cursor");
-            if let Err(e) = Insert::one(model)
-                .on_conflict(
-                    OnConflict::column(cursor::Column::Domain)
-                        .update_columns([cursor::Column::TimeUpdated, cursor::Column::Height])
-                        .to_owned(),
-                )
-                .exec(&self.db)
-                .await
-            {
+            trace!(?model, "Inserting cursor");
+            if let Err(e) = Insert::one(model).exec(&self.db).await {
                 warn!(error = ?e, "Failed to update database with new cursor")
             } else {
                 debug!(cursor = ?*inner, "Updated cursor")
