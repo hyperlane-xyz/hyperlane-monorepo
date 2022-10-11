@@ -54,7 +54,7 @@ abacus:
       prometheus.io/scrape: 'true'
     podLabels: {}
     storage:
-      size: 0Gi
+      size: 10Mi
       snapshot:
         enabled: false
         name: ''
