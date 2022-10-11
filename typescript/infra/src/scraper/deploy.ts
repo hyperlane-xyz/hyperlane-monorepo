@@ -78,14 +78,11 @@ async function scraperHelmValues<Chain extends ChainName>(
     };
   }
 
-  // Keyed by chain name
-  const chains = agentConfig.environmentChainNames.map((name) => {
-    return {
-      name,
-      disabled: !agentConfig.contextChainNames.includes(name),
-      connection: baseConnectionConfig,
-    };
-  });
+  const chains = agentConfig.environmentChainNames.map((name) => ({
+    name,
+    disabled: !agentConfig.contextChainNames.includes(name),
+    connection: baseConnectionConfig,
+  }));
 
   const valueDict = {
     abacus: {
