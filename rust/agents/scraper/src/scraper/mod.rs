@@ -393,6 +393,8 @@ impl SqlOutboxScraper {
                 }
             })
             .collect();
+
+        debug_assert!(!models.is_empty());
         trace!(?models, "Writing messages to database");
 
         Insert::many(models)
@@ -495,9 +497,9 @@ impl SqlOutboxScraper {
             .map(|(txn_hash, block_id)| (txn_hash, (None, block_id)))
             .collect();
 
-        if !txns.is_empty() {
+        let db_txns: Vec<transaction::Model> = if !txns.is_empty() {
             // check database to see which txns we already know and fetch their IDs
-            let db_txns: Vec<transaction::Model> = transaction::Entity::find()
+            transaction::Entity::find()
                 .filter(
                     txns.iter()
                         .map(|(txn, _)| transaction::Column::Hash.eq(format_h256(txn)))
@@ -505,39 +507,43 @@ impl SqlOutboxScraper {
                         .unwrap(),
                 )
                 .all(&self.db)
-                .await?;
-            for txn in db_txns {
-                let hash = parse_h256(&txn.hash)?;
-                let _ = txns
-                    .get_mut(&hash)
-                    .expect("We found a txn that we did not request")
-                    .0
-                    .insert(txn.id);
-            }
+                .await?
+        } else {
+            vec![]
+        };
+        for txn in db_txns {
+            let hash = parse_h256(&txn.hash)?;
+            let _ = txns
+                .get_mut(&hash)
+                .expect("We found a txn that we did not request")
+                .0
+                .insert(txn.id);
+        }
 
-            let txns_to_fetch = txns.iter_mut().filter(|(_, id)| id.0.is_none());
-            for (_hash, _txn_info) in txns_to_fetch {
-                // TODO: fetch txn data from ethers
-            }
+        let txns_to_fetch = txns.iter_mut().filter(|(_, id)| id.0.is_none());
+        for (_hash, _txn_info) in txns_to_fetch {
+            // TODO: fetch txn data from ethers
+        }
 
-            // insert any txns that were not known and get their IDs
-            // use this vec as temporary list of mut refs so we can update once we get back
-            // the ids.
-            let mut txns_to_insert: Vec<(&H256, &mut (Option<i64>, i64))> =
-                txns.iter_mut().filter(|(_, id)| id.0.is_none()).collect();
-            let models: Vec<transaction::ActiveModel> = txns_to_insert
-                .iter()
-                .map(|(hash, (_, block_id))| transaction::ActiveModel {
-                    id: NotSet,
-                    block_id: Unchanged(*block_id),
-                    hash: Unchanged(format_h256(hash)),
-                    time_created: Set(crate::date_time::now()),
-                    gas_used: Set(Default::default()), // TODO: get this from ethers
-                    sender: Set("00".to_owned()),      // TODO: get this from ethers
-                })
-                .collect();
+        // insert any txns that were not known and get their IDs
+        // use this vec as temporary list of mut refs so we can update once we get back
+        // the ids.
+        let mut txns_to_insert: Vec<(&H256, &mut (Option<i64>, i64))> =
+            txns.iter_mut().filter(|(_, id)| id.0.is_none()).collect();
+        let models: Vec<transaction::ActiveModel> = txns_to_insert
+            .iter()
+            .map(|(hash, (_, block_id))| transaction::ActiveModel {
+                id: NotSet,
+                block_id: Unchanged(*block_id),
+                hash: Unchanged(format_h256(hash)),
+                time_created: Set(crate::date_time::now()),
+                gas_used: Set(Default::default()), // TODO: get this from ethers
+                sender: Set("00".to_owned()),      // TODO: get this from ethers
+            })
+            .collect();
+
+        if !models.is_empty() {
             trace!(?models, "Writing txns to database");
-
             // so apparently this is actually the ID that was first inserted for postgres?
             let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
             for (_hash, (txn_id, _block_id)) in txns_to_insert.iter_mut().rev() {
@@ -545,8 +551,9 @@ impl SqlOutboxScraper {
                 let _ = txn_id.insert(cur_id);
                 cur_id += 1;
             }
-            drop(txns_to_insert);
         }
+        drop(txns_to_insert);
+
         Ok(txns
             .into_iter()
             .map(|(hash, (txn_id, _block_id))| (hash, txn_id.unwrap())))
@@ -568,9 +575,9 @@ impl SqlOutboxScraper {
         type OptionalBlockInfo = Option<(Option<i64>, TimeDateTime)>;
         let mut blocks: HashMap<H256, OptionalBlockInfo> = blocks.map(|b| (b, None)).collect();
 
-        if !blocks.is_empty() {
+        let db_blocks: Vec<block::Model> = if !blocks.is_empty() {
             // check database to see which blocks we already know and fetch their IDs
-            let db_blocks: Vec<block::Model> = block::Entity::find()
+            block::Entity::find()
                 .filter(
                     blocks
                         .iter()
@@ -579,49 +586,54 @@ impl SqlOutboxScraper {
                         .unwrap(),
                 )
                 .all(&self.db)
-                .await?;
-            for block in db_blocks {
-                let hash = parse_h256(&block.hash)?;
-                let _ = blocks
-                    .get_mut(&hash)
-                    .expect("We found a block that we did not request")
-                    .insert((Some(block.id), block.timestamp));
-            }
+                .await?
+        } else {
+            vec![]
+        };
 
-            let blocks_to_fetch = blocks
-                .iter_mut()
-                .inspect(|(_, info)| {
-                    // info being defined implies the id has been set (at this point)
-                    debug_assert!(info.is_none() || info.unwrap().0.is_some())
-                })
-                .filter(|(_, block_info)| block_info.is_none());
-            for (_hash, block_info) in blocks_to_fetch {
-                // TODO: fetch block data from ethers
-                let _ = block_info.insert((None, crate::date_time::now()));
-            }
+        for block in db_blocks {
+            let hash = parse_h256(&block.hash)?;
+            let _ = blocks
+                .get_mut(&hash)
+                .expect("We found a block that we did not request")
+                .insert((Some(block.id), block.timestamp));
+        }
 
-            // insert any blocks that were not known and get their IDs
-            // use this vec as temporary list of mut refs so we can update once we get back
-            // the ids.
-            let mut blocks_to_insert: Vec<(&H256, &mut OptionalBlockInfo)> = blocks
-                .iter_mut()
-                .filter(|(_, info)| info.unwrap().0.is_none())
-                .collect();
-            let models: Vec<block::ActiveModel> = blocks_to_insert
-                .iter_mut()
-                .map(|(hash, block_info)| {
-                    block::ActiveModel {
-                        id: NotSet,
-                        hash: Unchanged(format_h256(hash)),
-                        time_created: Set(crate::date_time::now()),
-                        domain: Unchanged(self.outbox.local_domain() as i32),
-                        height: Unchanged(0), // TODO: get this from ethers
-                        timestamp: Unchanged(block_info.unwrap().1),
-                    }
-                })
-                .collect();
+        let blocks_to_fetch = blocks
+            .iter_mut()
+            .inspect(|(_, info)| {
+                // info being defined implies the id has been set (at this point)
+                debug_assert!(info.is_none() || info.unwrap().0.is_some())
+            })
+            .filter(|(_, block_info)| block_info.is_none());
+        for (_hash, block_info) in blocks_to_fetch {
+            // TODO: fetch block data from ethers
+            let _ = block_info.insert((None, crate::date_time::now()));
+        }
+
+        // insert any blocks that were not known and get their IDs
+        // use this vec as temporary list of mut refs so we can update once we get back
+        // the ids.
+        let mut blocks_to_insert: Vec<(&H256, &mut OptionalBlockInfo)> = blocks
+            .iter_mut()
+            .filter(|(_, info)| info.unwrap().0.is_none())
+            .collect();
+        let models: Vec<block::ActiveModel> = blocks_to_insert
+            .iter_mut()
+            .map(|(hash, block_info)| {
+                block::ActiveModel {
+                    id: NotSet,
+                    hash: Set(format_h256(hash)),
+                    time_created: Set(crate::date_time::now()),
+                    domain: Unchanged(self.outbox.local_domain() as i32),
+                    height: Unchanged(0), // TODO: get this from ethers
+                    timestamp: Set(block_info.unwrap().1),
+                }
+            })
+            .collect();
+
+        if !models.is_empty() {
             trace!(?models, "Writing blocks to database");
-
             // so apparently this is actually the ID that was first inserted for postgres?
             let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
             for (_hash, block_info) in blocks_to_insert.iter_mut() {
