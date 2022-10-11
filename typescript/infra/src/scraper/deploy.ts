@@ -109,6 +109,10 @@ async function scraperHelmValues<Chain extends ChainName>(
         },
       },
     },
+    image: {
+      repository: agentConfig.docker.repo,
+      tag: agentConfig.docker.tag,
+    },
   };
   return helmifyValues(valueDict);
 }
