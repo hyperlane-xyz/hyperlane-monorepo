@@ -42,10 +42,8 @@ export async function runScraperHelmCommand<Chain extends ChainName>(
     true,
   );
 
-  // TODO: remove --debug --dry-run below
-
   await execCmd(
-    `helm ${action} ${helmReleaseName} ${helmChartPath} --debug --dry-run --create-namespace --namespace ${
+    `helm ${action} ${helmReleaseName} ${helmChartPath} --create-namespace --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
     {},
