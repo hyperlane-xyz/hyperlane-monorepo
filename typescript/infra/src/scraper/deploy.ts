@@ -79,21 +79,13 @@ async function scraperHelmValues<Chain extends ChainName>(
   }
 
   // Keyed by chain name
-  const chains = agentConfig.environmentChainNames
-    .map((name) => {
-      return {
-        name,
-        disabled: !agentConfig.contextChainNames.includes(name),
-        connection: baseConnectionConfig,
-      };
-    })
-    .reduce(
-      (prev, v) => ({
-        ...prev,
-        [v.name]: v,
-      }),
-      {},
-    );
+  const chains = agentConfig.environmentChainNames.map((name) => {
+    return {
+      name,
+      disabled: !agentConfig.contextChainNames.includes(name),
+      connection: baseConnectionConfig,
+    };
+  });
 
   const valueDict = {
     abacus: {
@@ -101,12 +93,10 @@ async function scraperHelmValues<Chain extends ChainName>(
       runEnv: agentConfig.environment,
       context: agentConfig.context,
       // Expects an array
-      inboxChains: Object.values(chains),
+      inboxChains: chains,
+      outboxChains: chains,
       scraper: {
-        config: {
-          // Expects a dict, keyed by chain name
-          outboxes: chains,
-        },
+        config: {},
       },
     },
     image: {
