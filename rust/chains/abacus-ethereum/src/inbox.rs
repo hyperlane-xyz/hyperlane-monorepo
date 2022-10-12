@@ -2,16 +2,17 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::fmt::Display;
+use std::fmt::{self, Debug, Display};
 use std::{error::Error as StdError, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::prelude::*;
 use eyre::Result;
+use tracing::instrument;
 
 use abacus_core::{
     AbacusAbi, AbacusCommon, AbacusContract, Address, ChainCommunicationError, ContractLocator,
-    Inbox, MessageStatus, TxOutcome,
+    Inbox, InboxIndexer, Indexer, MessageStatus, TxOutcome,
 };
 
 use crate::contracts::inbox::{Inbox as EthereumInboxInternal, INBOX_ABI};
@@ -21,7 +22,7 @@ impl<M> Display for EthereumInboxInternal<M>
 where
     M: Middleware,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }
@@ -37,6 +38,72 @@ impl MakeableWithProvider for InboxBuilder {
         locator: &ContractLocator,
     ) -> Self::Output {
         Box::new(EthereumInbox::new(Arc::new(provider), locator))
+    }
+}
+
+#[derive(Debug)]
+pub struct EthereumInboxIndexer<M>
+where
+    M: Middleware,
+{
+    contract: Arc<EthereumInboxInternal<M>>,
+    provider: Arc<M>,
+    finality_blocks: u32,
+}
+
+impl<M> EthereumInboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
+        let contract = Arc::new(EthereumInboxInternal::new(
+            &locator.address,
+            provider.clone(),
+        ));
+        Self {
+            contract,
+            provider,
+            finality_blocks,
+        }
+    }
+}
+
+#[async_trait]
+impl<M> Indexer for EthereumInboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    async fn get_finalized_block_number(&self) -> Result<u32> {
+        Ok(self
+            .provider
+            .get_block_number()
+            .await?
+            .as_u32()
+            .saturating_sub(self.finality_blocks))
+    }
+}
+
+#[async_trait]
+impl<M> InboxIndexer for EthereumInboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument(err, skip(self))]
+    async fn fetch_processed_messages(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> Result<Vec<(H256, abacus_core::LogMeta)>> {
+        Ok(self
+            .contract
+            .process_filter()
+            .from_block(from)
+            .to_block(to)
+            .query_with_meta()
+            .await?
+            .into_iter()
+            .map(|(event, meta)| (H256::from(event.message_hash), meta.into()))
+            .collect())
     }
 }
 
