@@ -321,16 +321,23 @@ impl SqlOutboxScraper {
     #[instrument(skip(self))]
     async fn last_message_leaf_index(&self) -> Result<Option<u32>> {
         use crate::db::message;
-        use sea_orm::prelude::*;
-        use sea_orm::QueryOrder;
+        use sea_orm::{prelude::*, QueryOrder, QuerySelect};
+
+        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+        enum QueryAs {
+            LeafIndex,
+        }
 
         Ok(message::Entity::find()
             .filter(message::Column::Origin.eq(self.outbox.local_domain()))
             .filter(message::Column::OutboxAddress.eq(format_h256(&self.outbox.address())))
             .order_by_desc(message::Column::LeafIndex)
+            .select_only()
+            .column_as(message::Column::LeafIndex, QueryAs::LeafIndex)
+            .into_values::<i32, QueryAs>()
             .one(&self.db)
             .await?
-            .map(|m| m.leaf_index as u32))
+            .map(|idx| idx as u32))
     }
 
     /// Store messages from the outbox into the database. This automatically
@@ -490,14 +497,20 @@ impl SqlOutboxScraper {
         txns: impl Iterator<Item = (H256, i64)>,
     ) -> Result<impl Iterator<Item = (H256, i64)>> {
         use crate::db::transaction;
-        use sea_orm::{prelude::*, ActiveValue::*, Insert};
+        use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect};
 
         // mapping of txn hash to (txn_id, block_id).
         let mut txns: HashMap<H256, (Option<i64>, i64)> = txns
             .map(|(txn_hash, block_id)| (txn_hash, (None, block_id)))
             .collect();
 
-        let db_txns: Vec<transaction::Model> = if !txns.is_empty() {
+        let db_txns: Vec<(i64, String)> = if !txns.is_empty() {
+            #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+            enum QueryAs {
+                Id,
+                Hash,
+            }
+
             // check database to see which txns we already know and fetch their IDs
             transaction::Entity::find()
                 .filter(
@@ -506,18 +519,22 @@ impl SqlOutboxScraper {
                         .reduce(|acc, i| acc.or(i))
                         .unwrap(),
                 )
+                .select_only()
+                .column_as(transaction::Column::Hash, QueryAs::Hash)
+                .column_as(transaction::Column::Id, QueryAs::Id)
+                .into_values::<_, QueryAs>()
                 .all(&self.db)
                 .await?
         } else {
             vec![]
         };
         for txn in db_txns {
-            let hash = parse_h256(&txn.hash)?;
+            let hash = parse_h256(&txn.1)?;
             let _ = txns
                 .get_mut(&hash)
                 .expect("We found a txn that we did not request")
                 .0
-                .insert(txn.id);
+                .insert(txn.0);
         }
 
         let txns_to_fetch = txns.iter_mut().filter(|(_, id)| id.0.is_none());
@@ -570,12 +587,19 @@ impl SqlOutboxScraper {
         blocks: impl Iterator<Item = H256>,
     ) -> Result<impl Iterator<Item = (H256, (i64, TimeDateTime))>> {
         use crate::db::block;
-        use sea_orm::{prelude::*, ActiveValue::*, Insert};
+        use sea_orm::{prelude::*, ActiveValue::*, FromQueryResult, Insert, QuerySelect};
 
         type OptionalBlockInfo = Option<(Option<i64>, TimeDateTime)>;
         let mut blocks: HashMap<H256, OptionalBlockInfo> = blocks.map(|b| (b, None)).collect();
 
-        let db_blocks: Vec<block::Model> = if !blocks.is_empty() {
+        #[derive(FromQueryResult)]
+        struct Block {
+            id: i64,
+            hash: String,
+            timestamp: TimeDateTime,
+        }
+
+        let db_blocks: Vec<Block> = if !blocks.is_empty() {
             // check database to see which blocks we already know and fetch their IDs
             block::Entity::find()
                 .filter(
@@ -585,6 +609,11 @@ impl SqlOutboxScraper {
                         .reduce(|acc, i| acc.or(i))
                         .unwrap(),
                 )
+                .select_only()
+                .column_as(block::Column::Id, "id")
+                .column_as(block::Column::Hash, "hash")
+                .column_as(block::Column::Timestamp, "timestamp")
+                .into_model::<Block>()
                 .all(&self.db)
                 .await?
         } else {

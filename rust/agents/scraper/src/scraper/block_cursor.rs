@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use eyre::Result;
 use sea_orm::prelude::*;
-use sea_orm::{ActiveValue, Insert, Order, QueryOrder};
+use sea_orm::{ActiveValue, Insert, Order, QueryOrder, QuerySelect};
 use tokio::sync::RwLock;
 use tracing::{debug, instrument, trace, warn};
 
@@ -29,12 +29,20 @@ pub struct BlockCursor {
 
 impl BlockCursor {
     pub async fn new(db: DbConn, domain: u32, default_height: u64) -> Result<Self> {
+        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+        enum QueryAs {
+            Height,
+        }
+
         let height = (cursor::Entity::find())
             .filter(cursor::Column::Domain.eq(domain))
             .order_by(cursor::Column::Id, Order::Desc)
+            .select_only()
+            .column_as(cursor::Column::Height, QueryAs::Height)
+            .into_values::<i64, QueryAs>()
             .one(&db)
             .await?
-            .map(|block| block.height as u64)
+            .map(|h| h as u64)
             .unwrap_or(default_height);
         if height < default_height {
             warn!("Cursor height loaded from the database is lower than the default height!")
