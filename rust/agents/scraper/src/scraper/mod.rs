@@ -23,6 +23,7 @@ use abacus_core::{
     Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
+use crate::db::sea_orm_active_enums::ContractType;
 use crate::scraper::block_cursor::BlockCursor;
 use crate::settings::ScraperSettings;
 use crate::{format_h256, parse_h256};
@@ -172,6 +173,8 @@ impl SqlOutboxScraper {
             BlockCursor::new(
                 db.clone(),
                 outbox.local_domain(),
+                outbox.address(),
+                ContractType::Outbox,
                 index_settings.from() as u64,
             )
             .await?,

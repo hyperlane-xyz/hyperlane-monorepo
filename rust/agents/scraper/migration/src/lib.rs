@@ -7,6 +7,7 @@ pub use sea_orm_migration::prelude::*;
 mod l20220805_types;
 mod m20220805_000001_create_table_domain;
 mod m20220805_000001_create_type_enum_checkpoint_update;
+mod m20220805_000001_create_type_enum_contract_type;
 mod m20220805_000002_create_table_block;
 
 mod m20220805_000003_create_table_checkpoint;
@@ -29,6 +30,7 @@ impl MigratorTrait for Migrator {
         vec![
             Box::new(m20220805_000001_create_table_domain::Migration),
             Box::new(m20220805_000001_create_type_enum_checkpoint_update::Migration),
+            Box::new(m20220805_000001_create_type_enum_contract_type::Migration),
             Box::new(m20220805_000002_create_table_block::Migration),
             Box::new(m20220805_000003_create_table_checkpoint::Migration),
             Box::new(m20220805_000003_create_table_cursor::Migration),
