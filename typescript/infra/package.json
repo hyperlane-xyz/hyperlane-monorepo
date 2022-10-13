@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/infra",
   "description": "Infrastructure utilities for the Hyperlane Network",
-  "version": "0.5.0",
+  "version": "0.5.0-beta0",
   "dependencies": {
     "@aws-sdk/client-iam": "^3.74.0",
     "@aws-sdk/client-kms": "3.48.0",
