@@ -1,8 +1,6 @@
-use crate::l20220805_types::Address;
 use sea_orm_migration::prelude::*;
 
 use crate::m20220805_000001_create_table_domain::Domain;
-use crate::m20220805_000001_create_type_enum_contract_type::ContractType;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -24,12 +22,6 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Cursor::Domain).unsigned().not_null())
                     .col(ColumnDef::new(Cursor::TimeUpdated).timestamp().not_null())
-                    .col(ColumnDef::new_with_type(Cursor::ContractAddress, Address).not_null())
-                    .col(
-                        ColumnDef::new(Cursor::ContractType)
-                            .custom(ContractType::Table)
-                            .not_null(),
-                    )
                     .col(ColumnDef::new(Cursor::Height).big_unsigned().not_null())
                     .foreign_key(
                         ForeignKey::create()
@@ -56,10 +48,6 @@ pub enum Cursor {
     Id,
     /// Abacus domain ID the cursor is for
     Domain,
-    /// Address of the contract which is being scraped
-    ContractAddress,
-    /// Type of contract: Inbox/outbox/...
-    ContractType,
     /// Time of the last record update
     TimeUpdated,
     /// Height of the last block read for finality

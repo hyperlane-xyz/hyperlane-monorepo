@@ -14,15 +14,3 @@ pub enum CheckpointUpdateType {
     #[sea_orm(string_value = "premature")]
     Premature,
 }
-#[derive(Debug, Clone, PartialEq, EnumIter, DeriveActiveEnum, Copy)]
-#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "contract_type")]
-pub enum ContractType {
-    #[sea_orm(string_value = "inbox")]
-    Inbox,
-    #[sea_orm(string_value = "interchain_gas_paymaster")]
-    InterchainGasPaymaster,
-    #[sea_orm(string_value = "outbox")]
-    Outbox,
-    #[sea_orm(string_value = "validator_manager")]
-    ValidatorManager,
-}

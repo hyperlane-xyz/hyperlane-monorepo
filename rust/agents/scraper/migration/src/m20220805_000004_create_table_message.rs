@@ -22,6 +22,11 @@ impl MigrationTrait for Migration {
                             .primary_key(),
                     )
                     .col(ColumnDef::new(Message::TimeCreated).timestamp().not_null())
+                    .col(
+                        ColumnDef::new_with_type(Message::Hash, Hash)
+                            .not_null()
+                            .unique_key(),
+                    )
                     .col(ColumnDef::new(Message::Origin).unsigned().not_null())
                     .col(ColumnDef::new(Message::Destination).unsigned().not_null())
                     .col(ColumnDef::new(Message::LeafIndex).unsigned().not_null())
@@ -97,6 +102,8 @@ pub enum Message {
     Id,
     /// Time of record creation
     TimeCreated,
+    /// Message hash
+    Hash,
     /// Domain ID of the origin chain
     Origin,
     /// Domain ID of the destination chain
@@ -112,7 +119,8 @@ pub enum Message {
     MsgBody,
     /// Address of the outbox contract
     OutboxAddress,
-    /// timestamp on block that includes the origin transaction (saves a double join)
+    /// timestamp on block that includes the origin transaction (saves a double
+    /// join)
     Timestamp,
     /// Transaction this message was dispatched in on the origin chain.
     OriginTxId,

@@ -174,7 +174,7 @@ impl Decode for AbacusMessage {
 }
 
 impl AbacusMessage {
-    /// Convert the message to a leaf
+    /// Convert the message to a leaf. This is the message hash.
     pub fn to_leaf(&self, leaf_index: u32) -> H256 {
         let buffer = [0u8; 28];
         H256::from_slice(

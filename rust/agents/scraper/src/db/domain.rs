@@ -54,6 +54,7 @@ pub enum Relation {
     Block,
     Checkpoint,
     GasPayment,
+    DeliveredMessage,
 }
 
 impl ColumnTrait for Column {
@@ -80,6 +81,7 @@ impl RelationTrait for Relation {
             Self::Block => Entity::has_many(super::block::Entity).into(),
             Self::Checkpoint => Entity::has_many(super::checkpoint::Entity).into(),
             Self::GasPayment => Entity::has_many(super::gas_payment::Entity).into(),
+            Self::DeliveredMessage => Entity::has_many(super::delivered_message::Entity).into(),
         }
     }
 }
@@ -111,6 +113,12 @@ impl Related<super::checkpoint::Entity> for Entity {
 impl Related<super::gas_payment::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::GasPayment.def()
+    }
+}
+
+impl Related<super::delivered_message::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::DeliveredMessage.def()
     }
 }
 

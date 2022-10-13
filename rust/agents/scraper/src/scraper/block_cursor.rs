@@ -8,7 +8,6 @@ use tokio::sync::RwLock;
 use tracing::{debug, instrument, trace, warn};
 
 use crate::db::cursor;
-use crate::db::sea_orm_active_enums::ContractType;
 use crate::{date_time, format_h256};
 
 const MAX_WRITE_BACK_FREQUENCY: Duration = Duration::from_secs(10);
@@ -26,9 +25,6 @@ pub struct BlockCursor {
     db: DbConn,
     /// The abacus domain this block cursor is for.
     domain: u32,
-    /// contract address this cursor is for
-    address: H256,
-    contract_type: ContractType,
     inner: RwLock<BlockCursorInner>,
 }
 
@@ -36,8 +32,6 @@ impl BlockCursor {
     pub async fn new(
         db: DbConn,
         domain: u32,
-        contract_addr: H256,
-        contract_type: ContractType,
         default_height: u64,
     ) -> Result<Self> {
         #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -47,7 +41,6 @@ impl BlockCursor {
 
         let height = (cursor::Entity::find())
             .filter(cursor::Column::Domain.eq(domain))
-            .filter(cursor::Column::ContractAddress.eq(format_h256(&contract_addr)))
             .order_by(cursor::Column::Height, Order::Desc)
             .select_only()
             .column_as(cursor::Column::Height, QueryAs::Height)
@@ -62,8 +55,6 @@ impl BlockCursor {
         Ok(Self {
             db,
             domain,
-            address: contract_addr,
-            contract_type,
             inner: RwLock::new(BlockCursorInner {
                 height,
                 last_saved_at: Instant::now(),
@@ -91,8 +82,6 @@ impl BlockCursor {
             let model = cursor::ActiveModel {
                 id: ActiveValue::NotSet,
                 domain: ActiveValue::Set(self.domain as i32),
-                contract_address: ActiveValue::Set(format_h256(&self.address)),
-                contract_type: ActiveValue::Set(self.contract_type),
                 time_updated: ActiveValue::Set(date_time::now()),
                 height: ActiveValue::Set(height as i64),
             };
