@@ -63,9 +63,6 @@ spec:
             name: {{ include "agent-common.fullname" . }}-secret
         resources:
           {{- toYaml .Values.abacus.scraper.resources | nindent 10 }}
-        volumeMounts:
-        - name: state
-          mountPath: {{ .Values.abacus.dbPath }}
         ports: 
         - name: metrics
           containerPort: {{ .Values.abacus.metrics.port }}
@@ -81,19 +78,4 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-  volumeClaimTemplates:
-  - metadata:
-      name: state
-    spec:
-      storageClassName: {{ .Values.storage.storageClass }}
-      accessModes: [ {{ .Values.storage.accessModes }} ]
-      {{- if .Values.abacus.scraper.storage.snapshot.enabled }}
-      dataSource:
-        name: {{ .Values.abacus.scraper.storage.snapshot.name }}
-        kind: VolumeSnapshot
-        apiGroup: snapshot.storage.k8s.io
-      {{- end }}
-      resources:
-        requests:
-          storage: {{ .Values.abacus.scraper.storage.size }}
 {{- end }}
