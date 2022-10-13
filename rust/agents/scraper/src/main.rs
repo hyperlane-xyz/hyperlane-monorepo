@@ -15,7 +15,7 @@
 #![warn(unused_extern_crates)]
 
 use ethers::types::H256;
-use eyre::{Context, Result};
+use eyre::Result;
 
 use abacus_base::agent_main;
 
@@ -33,14 +33,14 @@ async fn main() -> Result<()> {
     agent_main::<Scraper>().await
 }
 
-pub fn parse_h256<T: AsRef<[u8]>>(data: T) -> eyre::Result<H256> {
+fn parse_h256<T: AsRef<[u8]>>(data: T) -> Result<H256> {
     Ok(H256(hex::parse_h256_raw(data.as_ref().try_into()?)?))
 }
 
-pub fn format_h256(data: &H256) -> String {
+fn format_h256(data: &H256) -> String {
     if hex::is_h160(data.as_fixed_bytes()) {
-        hex::format_h160_raw(&data.as_fixed_bytes()[12..32].try_into().unwrap())
+        hex::format_h160_raw(data.as_fixed_bytes()[12..32].try_into().unwrap())
     } else {
-        hex::format_h256_raw(&data.as_fixed_bytes())
+        hex::format_h256_raw(data.as_fixed_bytes())
     }
 }

@@ -5,27 +5,27 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::types::H256;
-use eyre::{Context, eyre, Result};
+use eyre::{eyre, Context, Result};
 use sea_orm::prelude::TimeDateTime;
 use sea_orm::{Database, DbConn};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::instrument::Instrumented;
-use tracing::{debug, info, info_span, instrument, Instrument, trace, warn};
+use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
 
 use abacus_base::last_message::validate_message_continuity;
 use abacus_base::{
-    BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, IndexSettings, OutboxAddresses,
-    run_all, Settings,
+    run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, IndexSettings,
+    OutboxAddresses, Settings,
 };
 use abacus_core::{
-    AbacusCommon, AbacusContract, CommittedMessage, ListValidity, LogMeta, name_from_domain_id,
+    name_from_domain_id, AbacusCommon, AbacusContract, CommittedMessage, ListValidity, LogMeta,
     Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
 use crate::scraper::block_cursor::BlockCursor;
 use crate::settings::ScraperSettings;
-use crate::hex::{format_h256, parse_h256};
+use crate::{format_h256, parse_h256};
 
 mod block_cursor;
 

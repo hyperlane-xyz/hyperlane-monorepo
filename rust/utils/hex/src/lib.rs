@@ -35,34 +35,34 @@ pub const fn is_h160<const S: usize>(data: &[u8; S]) -> bool {
             z |= data[1];
         }
         if S >= 23 {
-            z |= data[1];
+            z |= data[2];
         }
         if S >= 24 {
-            z |= data[1];
+            z |= data[3];
         }
         if S >= 25 {
-            z |= data[1];
+            z |= data[4];
         }
         if S >= 26 {
-            z |= data[1];
+            z |= data[5];
         }
         if S >= 27 {
-            z |= data[1];
+            z |= data[6];
         }
         if S >= 28 {
-            z |= data[1];
+            z |= data[7];
         }
         if S >= 29 {
-            z |= data[1];
+            z |= data[8];
         }
         if S >= 30 {
-            z |= data[1];
+            z |= data[9];
         }
         if S >= 31 {
-            z |= data[1];
+            z |= data[10];
         }
         if S == 32 {
-            z |= data[1];
+            z |= data[11];
         }
 
         z == 0
