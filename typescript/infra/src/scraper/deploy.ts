@@ -2,7 +2,11 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { AgentConfig } from '../config';
 import { ConnectionType } from '../config/agent';
-import { HelmCommand, helmifyValues } from '../utils/helm';
+import {
+  HelmCommand,
+  buildHelmChartDependencies,
+  helmifyValues,
+} from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
 const helmChartPath = '../../rust/helm/scraper/';
@@ -35,12 +39,7 @@ export async function runScraperHelmCommand<Chain extends ChainName>(
   }
 
   // Build the chart dependencies
-  await execCmd(
-    `cd ${helmChartPath} && helm dependency build`,
-    {},
-    false,
-    true,
-  );
+  await buildHelmChartDependencies(helmChartPath);
 
   await execCmd(
     `helm ${action} ${helmReleaseName} ${helmChartPath} --create-namespace --namespace ${
@@ -55,8 +54,6 @@ export async function runScraperHelmCommand<Chain extends ChainName>(
 async function scraperHelmValues<Chain extends ChainName>(
   agentConfig: AgentConfig<Chain>,
 ) {
-  // TODO: pass in the correct chains
-
   // By default, if a context only enables a subset of chains, the
   // connection url (or urls, when HttpQuorum is used) are not fetched
   // from GCP secret manager. For Http/Ws, the `url` param is expected,

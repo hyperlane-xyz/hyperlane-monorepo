@@ -9,7 +9,11 @@ import {
   ConnectionType,
 } from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
-import { HelmCommand, helmifyValues } from '../utils/helm';
+import {
+  HelmCommand,
+  buildHelmChartDependencies,
+  helmifyValues,
+} from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
 import { keyIdentifier } from './agent';
@@ -18,6 +22,8 @@ import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
 import { KEY_ROLE_ENUM } from './roles';
+
+const helmChartPath = '../../rust/helm/abacus-agent/';
 
 async function helmValuesForChain<Chain extends ChainName>(
   chainName: Chain,
@@ -385,18 +391,13 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
   }
 
   // Build the chart dependencies
-  await execCmd(
-    `cd ../../rust/helm/abacus-agent/ && helm dependency build`,
-    {},
-    false,
-    true,
-  );
+  await buildHelmChartDependencies(helmChartPath);
 
   await execCmd(
     `helm ${action} ${getHelmReleaseName(
       outboxChainName,
       agentConfig,
-    )} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
+    )} ${helmChartPath} --create-namespace --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
     {},
