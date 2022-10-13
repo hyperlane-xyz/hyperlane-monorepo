@@ -66,7 +66,7 @@ dependencies = [
  "ethers-providers",
  "ethers-signers",
  "eyre",
- "hex",
+ "hex 0.4.3",
  "lazy_static",
  "maplit",
  "num",
@@ -97,7 +97,7 @@ dependencies = [
  "ethers-prometheus",
  "ethers-signers",
  "eyre",
- "hex",
+ "hex 0.4.3",
  "num",
  "reqwest",
  "rocksdb",
@@ -875,7 +875,7 @@ dependencies = [
  "bitvec 0.17.4",
  "coins-bip32",
  "getrandom",
- "hex",
+ "hex 0.4.3",
  "hmac 0.12.1",
  "pbkdf2 0.11.0",
  "rand",
@@ -895,7 +895,7 @@ dependencies = [
  "blake2",
  "digest 0.10.3",
  "generic-array 0.14.6",
- "hex",
+ "hex 0.4.3",
  "ripemd",
  "serde",
  "serde_derive",
@@ -1358,7 +1358,7 @@ dependencies = [
  "aes",
  "ctr",
  "digest 0.10.3",
- "hex",
+ "hex 0.4.3",
  "hmac 0.12.1",
  "pbkdf2 0.11.0",
  "rand",
@@ -1378,7 +1378,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4966fba78396ff92db3b817ee71143eccd98acf0f876b8d600e585a670c5d1b"
 dependencies = [
  "ethereum-types",
- "hex",
+ "hex 0.4.3",
  "once_cell",
  "regex",
  "serde",
@@ -1450,7 +1450,7 @@ dependencies = [
  "ethers-core",
  "ethers-providers",
  "futures-util",
- "hex",
+ "hex 0.4.3",
  "once_cell",
  "pin-project",
  "serde",
@@ -1469,7 +1469,7 @@ dependencies = [
  "ethers-core",
  "eyre",
  "getrandom",
- "hex",
+ "hex 0.4.3",
  "proc-macro2",
  "quote",
  "regex",
@@ -1488,7 +1488,7 @@ source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-12-01#1cbb
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
- "hex",
+ "hex 0.4.3",
  "proc-macro2",
  "quote",
  "serde_json",
@@ -1509,7 +1509,7 @@ dependencies = [
  "ethabi",
  "fastrlp",
  "generic-array 0.14.6",
- "hex",
+ "hex 0.4.3",
  "k256",
  "once_cell",
  "proc-macro2",
@@ -1602,7 +1602,7 @@ dependencies = [
  "futures-util",
  "getrandom",
  "hashers",
- "hex",
+ "hex 0.4.3",
  "http",
  "once_cell",
  "parking_lot 0.11.2",
@@ -1634,7 +1634,7 @@ dependencies = [
  "elliptic-curve",
  "eth-keystore",
  "ethers-core",
- "hex",
+ "hex 0.4.3",
  "rand",
  "rusoto_core",
  "rusoto_kms",
@@ -2100,6 +2100,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "hex"
+version = "0.1.0"
+dependencies = [
+ "crunchy",
 ]
 
 [[package]]
@@ -3752,7 +3759,7 @@ dependencies = [
  "chrono",
  "digest 0.9.0",
  "futures",
- "hex",
+ "hex 0.4.3",
  "hmac 0.11.0",
  "http",
  "hyper",
@@ -3906,7 +3913,7 @@ dependencies = [
  "config",
  "ethers",
  "eyre",
- "hex",
+ "hex 0.1.0",
  "itertools",
  "migration",
  "prometheus",
@@ -4420,7 +4427,7 @@ dependencies = [
  "futures-intrusive",
  "futures-util",
  "hashlink",
- "hex",
+ "hex 0.4.3",
  "hkdf",
  "hmac 0.12.1",
  "indexmap",
@@ -5034,7 +5041,7 @@ checksum = "12f03af7ccf01dd611cc450a0d10dbc9b745770d096473e2faf0ca6e2d66d1e0"
 dependencies = [
  "byteorder",
  "crunchy",
- "hex",
+ "hex 0.4.3",
  "static_assertions",
 ]
 

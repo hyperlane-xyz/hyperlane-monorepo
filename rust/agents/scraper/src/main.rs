@@ -33,12 +33,14 @@ async fn main() -> Result<()> {
     agent_main::<Scraper>().await
 }
 
-fn parse_h256<T: AsRef<[u8]>>(data: T) -> Result<H256> {
-    Ok(H256::from_slice(
-        &hex::decode(data).context("Error decoding hash or address")?,
-    ))
+pub fn parse_h256<T: AsRef<[u8]>>(data: T) -> eyre::Result<H256> {
+    Ok(H256(hex::parse_h256_raw(data.as_ref().try_into()?)?))
 }
 
-fn format_h256(data: &H256) -> String {
-    hex::encode(data)
+pub fn format_h256(data: &H256) -> String {
+    if hex::is_h160(data.as_fixed_bytes()) {
+        hex::format_h160_raw(&data.as_fixed_bytes()[12..32].try_into().unwrap())
+    } else {
+        hex::format_h256_raw(&data.as_fixed_bytes())
+    }
 }
