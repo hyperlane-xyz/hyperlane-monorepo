@@ -34,7 +34,13 @@ async fn main() -> Result<()> {
 }
 
 fn parse_h256<T: AsRef<[u8]>>(data: T) -> Result<H256> {
-    Ok(H256(hex::parse_h256_raw(data.as_ref().try_into()?)?))
+    if data.as_ref().len() == 40 {
+        Ok(H256(hex::parse_h256_raw::<40>(
+            data.as_ref().try_into().unwrap(),
+        )?))
+    } else {
+        Ok(H256(hex::parse_h256_raw::<64>(data.as_ref().try_into()?)?))
+    }
 }
 
 fn format_h256(data: &H256) -> String {

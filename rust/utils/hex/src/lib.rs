@@ -101,28 +101,33 @@ pub fn format_h256_raw(data: &[u8; 32]) -> String {
     }
 }
 
-pub const fn parse_h256_raw(data: &[u8; 64]) -> Result<[u8; 32], InvalidHexCharacter> {
+pub const fn parse_h256_raw<const L: usize>(
+    data: &[u8; L],
+) -> Result<[u8; 32], InvalidHexCharacter> {
     unsafe {
         let mut decoded: [u8; 32] = mem::transmute::<[mem::MaybeUninit<u8>; 32], [u8; 32]>(
             [mem::MaybeUninit::uninit(); 32],
         );
+        let offset = 32 - L / 2;
         unroll! {
             for i in 0..32 {
-                let a = FROM_HEX_CHARS[data[i * 2] as usize];
-                if a == 0xff {
-                    return Err(InvalidHexCharacter {
-                        value: data[i * 2],
-                        index: i * 2,
-                    });
+                if i * 2 + 1 < L {
+                    let a = FROM_HEX_CHARS[data[i * 2] as usize];
+                    if a == 0xff {
+                        return Err(InvalidHexCharacter {
+                            value: data[i * 2],
+                            index: i * 2,
+                        });
+                    }
+                    let b = FROM_HEX_CHARS[data[i * 2 + 1] as usize];
+                    if b == 0xff {
+                        return Err(InvalidHexCharacter {
+                            value: data[i * 2 + 1],
+                            index: i * 2 + 1,
+                        });
+                    }
+                    decoded[offset + i] = (a << 4) | b;
                 }
-                let b = FROM_HEX_CHARS[data[i * 2 + 1] as usize];
-                if b == 0xff {
-                    return Err(InvalidHexCharacter {
-                        value: data[i * 2 + 1],
-                        index: i * 2 + 1,
-                    });
-                }
-                decoded[i] = (a << 4) | b;
             }
         }
         Ok(decoded)
@@ -198,7 +203,7 @@ mod test {
     #[test]
     fn parse_h256() {
         assert_eq!(
-            super::parse_h256_raw(
+            super::parse_h256_raw::<64>(
                 b"0056Fad1c94469700833717fa8a3017278Bc1ca8031CAB0130744a44aa430000"
             )
             .unwrap(),
@@ -206,6 +211,15 @@ mod test {
                 0x00, 0x56, 0xfa, 0xd1, 0xc9, 0x44, 0x69, 0x70, 0x08, 0x33, 0x71, 0x7f, 0xa8, 0xa3,
                 0x01, 0x72, 0x78, 0xbc, 0x1c, 0xa8, 0x03, 0x1c, 0xab, 0x01, 0x30, 0x74, 0x4a, 0x44,
                 0xaa, 0x43, 0x00, 0x00,
+            ]
+        );
+
+        assert_eq!(
+            super::parse_h256_raw::<40>(b"fad1c94469700833717fa8a3017278bc1ca8031c").unwrap(),
+            [
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfa, 0xd1,
+                0xc9, 0x44, 0x69, 0x70, 0x08, 0x33, 0x71, 0x7f, 0xa8, 0xa3, 0x01, 0x72, 0x78, 0xbc,
+                0x1c, 0xa8, 0x03, 0x1c,
             ]
         )
     }
