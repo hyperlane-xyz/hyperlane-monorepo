@@ -33,6 +33,7 @@
     "underscore": "^1.13",
     "fetch-ponyfill": "^7.1",
     "lodash": "^4.17.21",
-    "async": "^2.6.4"
+    "async": "^2.6.4",
+    "undici": "^5.11"
   }
 }
