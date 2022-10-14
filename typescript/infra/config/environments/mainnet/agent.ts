@@ -59,6 +59,9 @@ export const abacus: AgentConfig<MainnetChains> = {
       polygon: {
         reorgPeriod: 256,
       },
+      moonbeam: {
+        reorgPeriod: 0,
+      },
     },
   },
   relayer: {

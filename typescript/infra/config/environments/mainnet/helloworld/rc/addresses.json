@@ -19,5 +19,8 @@
   },
   "ethereum": {
     "router": "0x7E647Eb3A10D7718F12f64b76542c169b9cE355D"
+  },
+  "moonbeam": {
+    "router": "0xb3d652BA393f83c0Cf7eF5e0Fc30532ebd49d45B"
   }
 }

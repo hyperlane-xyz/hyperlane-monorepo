@@ -99,6 +99,8 @@ pub enum AbacusDomain {
 
     /// Moonbeam testnet MoonbaseAlpha domain ID, decimal ID 1836002657
     MoonbaseAlpha = 0x6d6f2d61,
+    /// Moonbeam domain ID, decimal ID 1836002669
+    Moonbeam = 0x6d6f2d6d,
 
     // -- Local test chains --
     /// Test1 local chain
