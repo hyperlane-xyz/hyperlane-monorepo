@@ -162,6 +162,7 @@ impl AbacusDomain {
             AbacusDomain::Alfajores => AbacusDomainType::Testnet,
 
             AbacusDomain::MoonbaseAlpha => AbacusDomainType::Testnet,
+            AbacusDomain::Moonbeam => AbacusDomainType::Mainnet,
 
             AbacusDomain::Test1 => AbacusDomainType::LocalTestChain,
             AbacusDomain::Test2 => AbacusDomainType::LocalTestChain,
