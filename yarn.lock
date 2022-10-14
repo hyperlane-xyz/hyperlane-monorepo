@@ -948,14 +948,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/app@npm:0.5.0-beta0":
-  version: 0.5.0-beta0
-  resolution: "@hyperlane-xyz/app@npm:0.5.0-beta0"
+"@hyperlane-xyz/app@npm:0.5.0":
+  version: 0.5.0
+  resolution: "@hyperlane-xyz/app@npm:0.5.0"
   dependencies:
-    "@hyperlane-xyz/core": 0.5.0-beta0
-    "@hyperlane-xyz/utils": 0.5.0-beta0
+    "@hyperlane-xyz/core": 0.5.0
+    "@hyperlane-xyz/utils": 0.5.0
     "@openzeppelin/contracts-upgradeable": ^4.5.0
-  checksum: 14dac843eb418bd9807116bb0dd56aca08bd4a8645cd635f534dc75bb8fbfd1b5a12c1d1b2e9343d12592798e827f191c48725d0e6d943e2e9d7fe3bd3fddf47
+  checksum: 7fb0517cd3b4df7509ebb59c2ca4cf44c5507909717cb691fa5cfc72de85e836239f22797252ea883f609d73c6617863e9957d5efd4cd5f7bb31d0dca4e0a791
   languageName: node
   linkType: hard
 
@@ -968,15 +968,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/core@npm:0.5.0-beta0":
-  version: 0.5.0-beta0
-  resolution: "@hyperlane-xyz/core@npm:0.5.0-beta0"
+"@hyperlane-xyz/core@npm:0.5.0":
+  version: 0.5.0
+  resolution: "@hyperlane-xyz/core@npm:0.5.0"
   dependencies:
-    "@hyperlane-xyz/utils": 0.5.0-beta0
+    "@hyperlane-xyz/utils": 0.5.0
     "@openzeppelin/contracts": ^4.6.0
     "@openzeppelin/contracts-upgradeable": ^4.6.0
-    "@summa-tx/memview-sol": ^2.0.0
-  checksum: 7c3f88d4140d63b50013feddd1a13275e28eeb1ff1e7cd119480aee904a11c6ff0b50535159e90058b6a80cf28176a7ef0bdd13a20e99f82ef722a34b807a193
+  checksum: 336eca56b94057f5781a2551d95608b22073897e7ca771bdfa426a4273cd4405a1fc17bd0de023655ba6a120ea2cac572abbf67f8da797d116e3e00d2f194ffa
   languageName: node
   linkType: hard
 
@@ -984,8 +983,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:."
   dependencies:
-    "@hyperlane-xyz/sdk": ^0.5.0-beta0
-    "@hyperlane-xyz/utils": ^0.5.0-beta0
+    "@hyperlane-xyz/sdk": ^0.5.0
+    "@hyperlane-xyz/utils": ^0.5.0
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts-upgradeable": ^4.6.0
@@ -1013,29 +1012,29 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@npm:^0.5.0-beta0":
-  version: 0.5.0-beta0
-  resolution: "@hyperlane-xyz/sdk@npm:0.5.0-beta0"
+"@hyperlane-xyz/sdk@npm:^0.5.0":
+  version: 0.5.0
+  resolution: "@hyperlane-xyz/sdk@npm:0.5.0"
   dependencies:
-    "@hyperlane-xyz/app": 0.5.0-beta0
+    "@hyperlane-xyz/app": 0.5.0
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
-    "@hyperlane-xyz/core": 0.5.0-beta0
-    "@hyperlane-xyz/utils": 0.5.0-beta0
+    "@hyperlane-xyz/core": 0.5.0
+    "@hyperlane-xyz/utils": 0.5.0
     "@types/debug": ^4.1.7
     coingecko-api: ^1.0.10
     cross-fetch: ^3.1.5
     debug: ^4.3.4
     ethers: ^5.6.8
-  checksum: 85ef5c70ad290f1ff67297fdd76419d8b4290b22c3a1eb9ed5c1ac4876c7fef5c11471a063190aa8940156bc622e6527950d24aac9e58897cd301da33c41c1c7
+  checksum: 13dfb9f31a153f16afc516cc80e5be292b7bfe7cbc290e3af09e55dabcc994b6e6e9a78bf1d263c39a4e7a06a0a26bcb2a6f962a7f33814b8de3dcb1ea48b055
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/utils@npm:0.5.0-beta0, @hyperlane-xyz/utils@npm:^0.5.0-beta0":
-  version: 0.5.0-beta0
-  resolution: "@hyperlane-xyz/utils@npm:0.5.0-beta0"
+"@hyperlane-xyz/utils@npm:0.5.0, @hyperlane-xyz/utils@npm:^0.5.0":
+  version: 0.5.0
+  resolution: "@hyperlane-xyz/utils@npm:0.5.0"
   dependencies:
     ethers: ^5.6.8
-  checksum: 7628b0624a1b7bbab77b04ada38d0842dee8076273f58c0cd608877b430e46f2d965de0293d53b6bdcfe66b4fb36840ded0ee2a9e30894394415be38817e223f
+  checksum: da96153d3a31d8e236d7fa737acf823378c44db4e2391558ecd7bc9ad369d6f1b34d7efbf99f3d514841dcf480e30115b67f6ac9dbe0dbf9d728a88c0f30672d
   languageName: node
   linkType: hard
 
@@ -1381,13 +1380,6 @@ __metadata:
   dependencies:
     antlr4ts: ^0.5.0-alpha.4
   checksum: 7d1dd44beb27e8a6ad2cca6f99d2536eaafd9ec156b6bfff64475e1c85e2e1d3cd84f697e275d7c0742aa365ecade6f68b15ed8cd8b0f339ee239a91fdbda37c
-  languageName: node
-  linkType: hard
-
-"@summa-tx/memview-sol@npm:^2.0.0":
-  version: 2.0.1
-  resolution: "@summa-tx/memview-sol@npm:2.0.1"
-  checksum: fbdb525033024f2a0a2078c8f36fb74902ea8590b91c4a68b2782eec27f5585220ae17e973ba96dff77bb87cd7491dca0a3af6694dfabc6db4e64c5ce740d5c8
   languageName: node
   linkType: hard
 
@@ -2464,23 +2456,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"async@npm:1.x, async@npm:^1.4.2":
-  version: 1.5.2
-  resolution: "async@npm:1.5.2"
-  checksum: fe5d6214d8f15bd51eee5ae8ec5079b228b86d2d595f47b16369dec2e11b3ff75a567bb5f70d12d79006665fbbb7ee0a7ec0e388524eefd454ecbe651c124ebd
-  languageName: node
-  linkType: hard
-
-"async@npm:2.6.2":
-  version: 2.6.2
-  resolution: "async@npm:2.6.2"
-  dependencies:
-    lodash: ^4.17.11
-  checksum: e5e90a3bcc4d9bf964bfc6b77d63b8f5bee8c14e9a51c3317dbcace44d5b6b1fe01cd4fd347449704a107da7fcd25e1382ee8545957b2702782ae720605cf7a4
-  languageName: node
-  linkType: hard
-
-"async@npm:^2.0.1, async@npm:^2.1.2, async@npm:^2.4.0, async@npm:^2.5.0, async@npm:^2.6.1":
+"async@npm:^2.6.4":
   version: 2.6.4
   resolution: "async@npm:2.6.4"
   dependencies:
@@ -3524,6 +3500,15 @@ __metadata:
     node-gyp: latest
     node-gyp-build: ^4.3.0
   checksum: dd107560947445280af7820c3d0534127b911577d85d537e1d7e0aa30fd634853cef8a994d6e8aed3d81388ab1a20257de776164afe6a6af8e78f5f17968ebd6
+  languageName: node
+  linkType: hard
+
+"busboy@npm:^1.6.0":
+  version: 1.6.0
+  resolution: "busboy@npm:1.6.0"
+  dependencies:
+    streamsearch: ^1.1.0
+  checksum: 32801e2c0164e12106bf236291a00795c3c4e4b709ae02132883fe8478ba2ae23743b11c5735a0aae8afe65ac4b6ca4568b91f0d9fed1fdbc32ede824a73746e
   languageName: node
   linkType: hard
 
@@ -4840,7 +4825,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"encoding@npm:^0.1.11, encoding@npm:^0.1.13":
+"encoding@npm:^0.1.13":
   version: 0.1.13
   resolution: "encoding@npm:0.1.13"
   dependencies:
@@ -6086,12 +6071,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fetch-ponyfill@npm:^4.0.0":
-  version: 4.1.0
-  resolution: "fetch-ponyfill@npm:4.1.0"
+"fetch-ponyfill@npm:^7.1":
+  version: 7.1.0
+  resolution: "fetch-ponyfill@npm:7.1.0"
   dependencies:
-    node-fetch: ~1.7.1
-  checksum: 00c85b661a8314e18cb314640b69d3b6e9635517d54290c8f366ddcb21b506ac8fa5d92f899c0fe21bc2163238130be2cf73ffd9d5a8a41a9866a55c52f57f16
+    node-fetch: ~2.6.1
+  checksum: 7fd497dd5f7db890e80193de5bc1cd0115a62400272cd9a992849288e66886fcdb0724ea1ed161be7b8db2daeafda8c58d0259acdda42d6561155dbcdbb0720a
   languageName: node
   linkType: hard
 
@@ -7945,7 +7930,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"is-stream@npm:^1.0.0, is-stream@npm:^1.0.1":
+"is-stream@npm:^1.0.0":
   version: 1.1.0
   resolution: "is-stream@npm:1.1.0"
   checksum: 063c6bec9d5647aa6d42108d4c59723d2bd4ae42135a2d4db6eadbd49b7ea05b750fd69d279e5c7c45cf9da753ad2c00d8978be354d65aa9f6bb434969c6a2ae
@@ -8776,14 +8761,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lodash@npm:4.17.20":
-  version: 4.17.20
-  resolution: "lodash@npm:4.17.20"
-  checksum: b31afa09739b7292a88ec49ffdb2fcaeb41f690def010f7a067eeedffece32da6b6847bfe4d38a77e6f41778b9b2bca75eeab91209936518173271f0b69376ea
-  languageName: node
-  linkType: hard
-
-"lodash@npm:4.17.21, lodash@npm:^4.17.11, lodash@npm:^4.17.12, lodash@npm:^4.17.14, lodash@npm:^4.17.15, lodash@npm:^4.17.19, lodash@npm:^4.17.21, lodash@npm:^4.17.4":
+"lodash@npm:^4.17.21":
   version: 4.17.21
   resolution: "lodash@npm:4.17.21"
   checksum: eb835a2e51d381e561e508ce932ea50a8e5a68f4ebdd771ea240d3048244a8d13658acbd502cd4829768c56f2e16bdd4340b9ea141297d472517b83868e677f7
@@ -9660,7 +9638,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-fetch@npm:2.6.7, node-fetch@npm:^2.6.1, node-fetch@npm:^2.6.7":
+"node-fetch@npm:2.6.7, node-fetch@npm:^2.6.1, node-fetch@npm:^2.6.7, node-fetch@npm:~2.6.1":
   version: 2.6.7
   resolution: "node-fetch@npm:2.6.7"
   dependencies:
@@ -9671,16 +9649,6 @@ __metadata:
     encoding:
       optional: true
   checksum: 8d816ffd1ee22cab8301c7756ef04f3437f18dace86a1dae22cf81db8ef29c0bf6655f3215cb0cdb22b420b6fe141e64b26905e7f33f9377a7fa59135ea3e10b
-  languageName: node
-  linkType: hard
-
-"node-fetch@npm:~1.7.1":
-  version: 1.7.3
-  resolution: "node-fetch@npm:1.7.3"
-  dependencies:
-    encoding: ^0.1.11
-    is-stream: ^1.0.1
-  checksum: 3bb0528c05d541316ebe52770d71ee25a6dce334df4231fd55df41a644143e07f068637488c18a5b0c43f05041dbd3346752f9e19b50df50569a802484544d5b
   languageName: node
   linkType: hard
 
@@ -12120,6 +12088,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"streamsearch@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "streamsearch@npm:1.1.0"
+  checksum: 1cce16cea8405d7a233d32ca5e00a00169cc0e19fbc02aa839959985f267335d435c07f96e5e0edd0eadc6d39c98d5435fb5bbbdefc62c41834eadc5622ad942
+  languageName: node
+  linkType: hard
+
 "strict-uri-encode@npm:^1.0.0":
   version: 1.1.0
   resolution: "strict-uri-encode@npm:1.1.0"
@@ -13031,17 +13006,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"underscore@npm:1.9.1":
-  version: 1.9.1
-  resolution: "underscore@npm:1.9.1"
-  checksum: bee6f587661a6a9ca2f77e611896141e0287af51d8ca6034b11d0d4163ddbdd181a9720078ddbe94d265b7694f4880bc7f4c2ad260cfb8985ee2f9adcf13df03
+"underscore@npm:^1.13":
+  version: 1.13.6
+  resolution: "underscore@npm:1.13.6"
+  checksum: d5cedd14a9d0d91dd38c1ce6169e4455bb931f0aaf354108e47bd46d3f2da7464d49b2171a5cf786d61963204a42d01ea1332a903b7342ad428deaafaf70ec36
   languageName: node
   linkType: hard
 
-"undici@npm:^5.4.0":
-  version: 5.4.0
-  resolution: "undici@npm:5.4.0"
-  checksum: 2852397ee1dbb2b3ad58166520ec30f4f0143895f6e7b157dbedfac4e43b522a710a3927be61a67b2ae791190973f206d30785564ece7675e08133427cebaaa1
+"undici@npm:^5.11":
+  version: 5.11.0
+  resolution: "undici@npm:5.11.0"
+  dependencies:
+    busboy: ^1.6.0
+  checksum: 20669ef4023d24a75e81ed8142829f525f16af14d61f833b5f19cfc6bed7c706adde343a190d764dcceb227eba3211222d2b194010462a2ca221a7da0487f563
   languageName: node
   linkType: hard
 
