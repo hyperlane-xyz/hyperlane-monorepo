@@ -1,1 +1,10 @@
-"{\"bsc\":[],\"avalanche\":[],\"polygon\":[],\"celo\":[],\"arbitrum\":[],\"optimism\":[],\"ethereum\":[]}"
+{
+  "moonbeam": [
+    {
+      "name": "router",
+      "address": "0xb3d652BA393f83c0Cf7eF5e0Fc30532ebd49d45B",
+      "constructorArguments": "0000000000000000000000001052ef3419f26bec74ed7cef4a4fa6812bc09908000000000000000000000000eb9fcfdc9efdc17c1ec5e1dc085b98485da213d6",
+      "isProxy": false
+    }
+  ]
+}
