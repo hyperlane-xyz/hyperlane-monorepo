@@ -1,12 +1,12 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "0.5.0-beta0",
+  "version": "0.5.0",
   "dependencies": {
-    "@hyperlane-xyz/app": "0.5.0-beta0",
+    "@hyperlane-xyz/app": "0.5.0",
     "@hyperlane-xyz/celo-ethers-provider": "^0.1.1",
-    "@hyperlane-xyz/core": "0.5.0-beta0",
-    "@hyperlane-xyz/utils": "0.5.0-beta0",
+    "@hyperlane-xyz/core": "0.5.0",
+    "@hyperlane-xyz/utils": "0.5.0",
     "@types/debug": "^4.1.7",
     "coingecko-api": "^1.0.10",
     "cross-fetch": "^3.1.5",
