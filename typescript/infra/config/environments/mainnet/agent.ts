@@ -23,7 +23,7 @@ export const abacus: AgentConfig<MainnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-da5c504',
+    tag: 'sha-329d259',
   },
   aws: {
     region: 'us-east-1',
@@ -59,6 +59,9 @@ export const abacus: AgentConfig<MainnetChains> = {
       polygon: {
         reorgPeriod: 256,
       },
+      moonbeam: {
+        reorgPeriod: 0,
+      },
     },
   },
   relayer: {
@@ -80,7 +83,7 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-da5c504',
+    tag: 'sha-329d259',
   },
   aws: {
     region: 'us-east-1',

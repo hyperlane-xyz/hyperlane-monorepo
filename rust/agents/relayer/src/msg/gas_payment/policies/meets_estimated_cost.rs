@@ -48,6 +48,7 @@ fn abacus_domain_id_to_native_token_coingecko_id(domain_id: u32) -> Result<&'sta
         AbacusDomain::Optimism => "ethereum",
         AbacusDomain::BinanceSmartChain => "binancecoin",
         AbacusDomain::Celo => "celo",
+        AbacusDomain::Moonbeam => "moonbeam",
         _ => eyre::bail!("No CoinGecko ID for domain {abacus_domain}"),
     })
 }
