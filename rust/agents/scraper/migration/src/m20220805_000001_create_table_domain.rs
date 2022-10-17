@@ -4,6 +4,16 @@ use std::time::UNIX_EPOCH;
 use sea_orm::prelude::DateTime;
 use sea_orm_migration::prelude::*;
 
+/// List of domain data we want to initialize the database with.
+///
+/// This needs to be immutable because once we create the tables, we need to
+/// make additional migrations to make changes, otherwise we have to rollback
+/// everything to apply the new version of this migration again. Admittedly we
+/// will reset the database every so often so it isn't as big of a deal, but I
+/// want to try and support not having to do that.
+///
+/// This is why it does not use the domain id lookup tools in the library which
+/// are subject to change as we deprecate and add new ones.
 const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "alfajores",
