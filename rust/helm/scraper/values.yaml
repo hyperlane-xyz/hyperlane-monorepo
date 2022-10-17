@@ -1,0 +1,92 @@
+image:
+  repository: gcr.io/clabs-abacus/abacus-agent
+  pullPolicy: Always
+  tag: 'latest'
+
+imagePullSecrets: []
+nameOverride: ''
+fullnameOverride: ''
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ''
+
+externalSecrets:
+  clusterSecretStore:
+
+podAnnotations: {}
+podCommonLabels: {}
+
+storage:
+  storageClass: 'standard'
+  accessModes: ReadWriteOnce
+
+# -- Abacus Overrides
+# By Default, Abacus Agents load the config baked into the Docker Image
+# Pass values here in order to override the values in the config
+# Note: For successful operation, one _must_ pass signer keys as
+#       they are not baked into the image for security reasons.
+abacus:
+  # Sets the config folder to use
+  runEnv: 'default'
+  context: 'abacus'
+  # Sets the base config to be used (switch between Homes)
+  baseConfig: 'base.json'
+  # Set the SQL db connection info
+  dbPath: external-secret
+  rustBacktrace: full
+  tracing:
+    # Set the log formatting
+    format: json
+    # Set the log level
+    level: info
+    uri: ''
+  metrics:
+    port: 9090
+
+  inboxChains:
+
+  scraper:
+    enabled: true
+    podAnnotations:
+      prometheus.io/port: '9090'
+      prometheus.io/scrape: 'true'
+    podLabels: {}
+    storage:
+      size: 10Mi
+      snapshot:
+        enabled: false
+        name: ''
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    signers:
+    config:
+
+podSecurityContext:
+  fsGroup: 2000
+
+securityContext:
+  {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources:
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 250m
+  #   memory: 1Gi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

@@ -2,17 +2,17 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "abacus-agent.fullname" . }}-validator
+  name: {{ include "agent-common.fullname" . }}-validator
   labels:
-    {{- include "abacus-agent.labels" . | nindent 4 }}
+    {{- include "agent-common.labels" . | nindent 4 }}
     app.kubernetes.io/component: validator
 spec:
   selector:
     matchLabels:
-      {{- include "abacus-agent.selectorLabels" . | nindent 6 }}
+      {{- include "agent-common.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: validator
   replicas: {{ len .Values.abacus.validator.configs }}
-  serviceName: {{ include "abacus-agent.fullname" . }}-validator
+  serviceName: {{ include "agent-common.fullname" . }}-validator
   template:
     metadata:
       annotations:
@@ -25,7 +25,7 @@ spec:
         {{ toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "abacus-agent.labels" . | nindent 8 }}
+        {{- include "agent-common.labels" . | nindent 8 }}
         app.kubernetes.io/component: validator
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
@@ -54,11 +54,11 @@ spec:
             env $(cat /config-env-vars/validator-$RID.env /secret-env-vars/validator-$RID.env | xargs) ./validator
         envFrom:
         - configMapRef:
-            name: {{ include "abacus-agent.fullname" . }}
+            name: {{ include "agent-common.fullname" . }}
         - secretRef:
-            name: {{ include "abacus-agent.fullname" . }}-secret
+            name: {{ include "agent-common.fullname" . }}-secret
         - secretRef:
-            name: {{ include "abacus-agent.fullname" . }}-validator-secret
+            name: {{ include "agent-common.fullname" . }}-validator-secret
         env:
           - name: REPLICA_NAME
             valueFrom:
@@ -66,7 +66,7 @@ spec:
                 fieldPath: metadata.name
           {{- if .Values.abacus.tracing.uri }}
           - name: HYP_BASE_TRACING_JAEGER_NAME
-            value: {{ include "abacus-agent.fullname" . }}-validator
+            value: {{ include "agent-common.fullname" . }}-validator
           {{- end }}
         resources:
           {{- toYaml .Values.abacus.validator.resources | nindent 10 }}
@@ -83,10 +83,10 @@ spec:
       volumes:
       - name: config-env-vars
         configMap:
-          name: {{ include "abacus-agent.fullname" . }}-validator
+          name: {{ include "agent-common.fullname" . }}-validator
       - name: secret-env-vars
         secret:
-          secretName: {{ include "abacus-agent.fullname" . }}-validator-secret
+          secretName: {{ include "agent-common.fullname" . }}-validator-secret
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
