@@ -22,10 +22,4 @@ pub trait Inbox: AbacusCommon + Send + Sync + Debug {
 
     /// The on-chain address of the inbox contract.
     fn contract_address(&self) -> Address;
-
-    /// Calls checkpoint on mock variant. Should only be used during tests.
-    #[auto_impl(keep_default_for(Box, Arc))]
-    fn checkpoint(&mut self) {
-        unimplemented!("Checkpoint is only available for mock implementations of inbox.")
-    }
 }

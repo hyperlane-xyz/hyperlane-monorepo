@@ -39,12 +39,6 @@ pub trait Outbox: AbacusCommon + Send + Sync + Debug {
         &self,
         lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError>;
-
-    /// Calls checkpoint on mock variant. Should only be used during tests.
-    #[auto_impl(keep_default_for(Box, Arc))]
-    fn checkpoint(&mut self) {
-        unimplemented!("Checkpoint is only available for mock implementations of outbox.")
-    }
 }
 
 /// Interface for retrieving event data emitted specifically by the outbox

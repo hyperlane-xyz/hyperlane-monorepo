@@ -88,10 +88,6 @@ impl Outbox for MockOutboxContract {
     ) -> Result<Checkpoint, ChainCommunicationError> {
         self._latest_checkpoint(maybe_lag)
     }
-
-    fn checkpoint(&mut self) {
-        MockOutboxContract::checkpoint(self)
-    }
 }
 
 impl AbacusContract for MockOutboxContract {
