@@ -471,13 +471,6 @@ impl SqlOutboxScraper {
         }))
     }
 
-    // /// Store checkpoints from the outbox into the database. This automatically
-    // /// fetches relevant transaction and block data and stores them into the
-    // /// database.
-    // async fn store_checkpoints(&self, checkpoints: &[(Checkpoint, LogMeta)]) ->
-    // Result<()> {     todo!()
-    // }
-
     /// Takes a list of `(transaction_hash, block_id)` and for each transaction
     /// if it is in the database already:
     ///     Fetches its associated ID
