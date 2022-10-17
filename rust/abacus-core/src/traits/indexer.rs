@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use eyre::Result;
 
-use crate::{CheckpointWithMeta, InterchainGasPaymentWithMeta, RawCommittedMessage};
+use crate::{Checkpoint, InterchainGasPaymentWithMeta, LogMeta, RawCommittedMessage};
 
 /// Interface for an indexer.
 #[async_trait]
@@ -29,8 +29,11 @@ pub trait Indexer: Send + Sync + Debug {
 #[auto_impl(Box, Arc)]
 pub trait OutboxIndexer: Indexer + Send + Sync + Debug {
     /// Fetch list of messages between blocks `from` and `to`.
-    async fn fetch_sorted_messages(&self, _from: u32, _to: u32)
-        -> Result<Vec<RawCommittedMessage>>;
+    async fn fetch_sorted_messages(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> Result<Vec<(RawCommittedMessage, LogMeta)>>;
 
     /// Fetch sequentially sorted list of cached checkpoints between blocks
     /// `from` and `to`
@@ -38,7 +41,7 @@ pub trait OutboxIndexer: Indexer + Send + Sync + Debug {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<CheckpointWithMeta>>;
+    ) -> Result<Vec<(Checkpoint, LogMeta)>>;
 }
 
 /// Interface for InterchainGasPaymaster contract indexer.

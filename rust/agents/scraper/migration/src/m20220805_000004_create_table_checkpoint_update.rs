@@ -58,7 +58,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .name("idx-checkpoint_checkpoint")
+                    .name("checkpoint_update_checkpoint_idx")
                     .table(CheckpointUpdate::Table)
                     .col(CheckpointUpdate::CheckpointId)
                     .to_owned(),

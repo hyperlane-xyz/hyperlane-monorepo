@@ -6,7 +6,7 @@
 
 use eyre::Result;
 
-use abacus_base::{Agent, BaseAgent};
+use abacus_base::agent_main;
 
 use crate::validator::Validator;
 
@@ -14,31 +14,7 @@ mod settings;
 mod submit;
 mod validator;
 
-async fn _main() -> Result<()> {
-    #[cfg(feature = "oneline-errors")]
-    abacus_base::oneline_eyre::install()?;
-    #[cfg(not(feature = "oneline-errors"))]
-    color_eyre::install()?;
-
-    let settings = settings::ValidatorSettings::new()?;
-
-    let agent = Validator::from_settings(settings).await?;
-
-    agent
-        .as_ref()
-        .settings
-        .tracing
-        .start_tracing(&agent.metrics())?;
-    let _ = agent.metrics().run_http_server();
-
-    agent.run().await.await??;
-    Ok(())
-}
-
-fn main() -> Result<()> {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(_main())
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<()> {
+    agent_main::<Validator>().await
 }

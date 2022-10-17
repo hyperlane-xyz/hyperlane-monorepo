@@ -10,6 +10,8 @@ use abacus_core::*;
 mock! {
     pub OutboxContract {
         // Outbox
+        pub fn _address(&self) -> H256 {}
+
         pub fn _local_domain(&self) -> u32 {}
 
         pub fn _domain_hash(&self) -> H256 {}
@@ -91,6 +93,10 @@ impl Outbox for MockOutboxContract {
 impl AbacusContract for MockOutboxContract {
     fn chain_name(&self) -> &str {
         self._chain_name()
+    }
+
+    fn address(&self) -> H256 {
+        self._address()
     }
 }
 

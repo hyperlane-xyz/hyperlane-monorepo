@@ -9,7 +9,8 @@ pub use outbox::*;
 use crate::settings::IndexSettings;
 
 mod interchain_gas;
-mod last_message;
+/// Tools for working with message continuity.
+pub mod last_message;
 mod metrics;
 mod outbox;
 mod schema;

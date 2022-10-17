@@ -149,6 +149,10 @@ impl AbacusContract for CachingOutbox {
     fn chain_name(&self) -> &str {
         self.outbox.chain_name()
     }
+
+    fn address(&self) -> H256 {
+        self.outbox.address()
+    }
 }
 
 #[async_trait]

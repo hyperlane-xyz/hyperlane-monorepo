@@ -256,6 +256,12 @@ mod tests {
         let paths = config_paths(root);
         let files: Vec<String> = paths
             .iter()
+            .filter(|n| {
+                // Special config with different rules, with
+                // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1134
+                // we will remove this weird case
+                !n.contains("scraper_config")
+            })
             .filter_map(|x| read_to_string(x).ok())
             .collect();
         paths
