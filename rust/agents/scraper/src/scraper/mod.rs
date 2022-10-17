@@ -668,11 +668,3 @@ impl SqlOutboxScraper {
         }))
     }
 }
-
-// struct SqlContractSync<I> {
-//     chain_name: String,
-//     db: DbConn,
-//     indexer: I,
-//     index_settings: IndexSettings,
-//     metrics: ContractSyncMetrics,
-// }
