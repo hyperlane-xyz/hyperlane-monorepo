@@ -653,7 +653,7 @@ impl SqlOutboxScraper {
 
         if !models.is_empty() {
             trace!(?models, "Writing blocks to database");
-            // so apparently this is actually the ID that was first inserted for postgres?
+            // `last_insert_id` is actually the ID that was first inserted for postgres
             let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
             for (_hash, block_info) in blocks_to_insert.iter_mut() {
                 debug_assert!(cur_id > 0);
