@@ -11,12 +11,25 @@ data:
   HYP_BASE_DB: {{ .Values.abacus.dbPath }}
   HYP_BASE_TRACING_FMT: {{ .Values.abacus.tracing.format }}
   HYP_BASE_TRACING_LEVEL: {{ .Values.abacus.tracing.level }}
-  {{- if .Values.abacus.outboxChain.connection.type }}
-  HYP_BASE_OUTBOX_CONNECTION_TYPE: {{ .Values.abacus.outboxChain.connection.type }}
-  {{- end }}
   {{- range .Values.abacus.inboxChains }}
 {{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "INBOXES_%s_" (.name | upper)) "format" "config_map") | indent 2 }}
   {{- end }}
+
+  {{- range .Values.abacus.outboxChains }}
+  {{- if not .disabled }}
+  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_DISABLED: "false"
+  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_CONNECTION_TYPE: {{ .connection.type }}
+  {{- if eq .connection.type "httpQuorum" }}
+  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_CONNECTION_URLS: ""
+  {{- else }}
+  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_CONNECTION_URL: ""
+  {{- end }}
+  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_NAME: {{ .name | lower }}
+  {{- else}}
+  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_DISABLED: "true"
+  {{- end }}
+  {{- end }}
+
   {{- if .Values.abacus.tracing.uri }}
   HYP_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.abacus.tracing.uri }}
   {{- end }}

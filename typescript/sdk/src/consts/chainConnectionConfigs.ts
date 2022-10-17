@@ -133,6 +133,16 @@ export const moonbasealpha: IChainConnection = {
   apiPrefix: 'api-',
 };
 
+export const moonbeam: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://rpc.api.moonbeam.network	',
+    1284,
+  ),
+  confirmations: 1,
+  blockExplorerUrl: 'https://moonscan.io/',
+  apiPrefix: 'api-moonbeam.',
+};
+
 export const test1: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'http://localhost:8545',
@@ -172,6 +182,7 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   bsctestnet,
   optimism,
   moonbasealpha,
+  moonbeam,
   test1,
   test2,
   test3,

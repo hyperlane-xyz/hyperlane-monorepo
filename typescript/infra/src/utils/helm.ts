@@ -82,3 +82,7 @@ export function getDeployableHelmChartName(helmChartConfig: HelmChartConfig) {
   }
   return helmChartConfig.name;
 }
+
+export function buildHelmChartDependencies(chartPath: string) {
+  return execCmd(`cd ${chartPath} && helm dependency build`, {}, false, true);
+}

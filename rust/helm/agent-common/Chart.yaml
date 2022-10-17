@@ -1,0 +1,6 @@
+apiVersion: v2
+name: agent-common
+description: Common helper templates for agents
+type: library
+version: 0.1.0
+appVersion: "0.1.0"
