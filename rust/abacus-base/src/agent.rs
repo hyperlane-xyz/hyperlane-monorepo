@@ -67,9 +67,6 @@ pub trait BaseAgent: Send + Sync + Debug {
     /// The settings object for this agent
     type Settings: AgentSettings;
 
-    /// Return a handle to the metrics registry
-    fn metrics(&self) -> &Arc<CoreMetrics>;
-
     /// Instantiate the agent from the standard settings object
     async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
     where

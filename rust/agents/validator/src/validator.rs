@@ -52,10 +52,6 @@ impl BaseAgent for Validator {
 
     type Settings = ValidatorSettings;
 
-    fn metrics(&self) -> &Arc<CoreMetrics> {
-        &self.core.metrics
-    }
-
     async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
     where
         Self: Sized,

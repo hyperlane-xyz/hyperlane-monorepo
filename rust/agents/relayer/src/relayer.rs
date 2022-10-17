@@ -47,10 +47,6 @@ impl BaseAgent for Relayer {
 
     type Settings = RelayerSettings;
 
-    fn metrics(&self) -> &Arc<CoreMetrics> {
-        &self.core.metrics
-    }
-
     async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
     where
         Self: Sized,
@@ -117,7 +113,7 @@ impl BaseAgent for Relayer {
 
         tasks.push(self.run_checkpoint_fetcher(signed_checkpoint_sender));
 
-        let sync_metrics = ContractSyncMetrics::new(self.metrics().clone());
+        let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());
         tasks.push(self.run_outbox_sync(sync_metrics.clone()));
 
         if let Some(paymaster) = self.interchain_gas_paymaster() {

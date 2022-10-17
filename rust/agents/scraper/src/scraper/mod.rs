@@ -45,10 +45,6 @@ impl BaseAgent for Scraper {
     const AGENT_NAME: &'static str = "scraper";
     type Settings = ScraperSettings;
 
-    fn metrics(&self) -> &Arc<CoreMetrics> {
-        &self.metrics
-    }
-
     async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
     where
         Self: Sized,
