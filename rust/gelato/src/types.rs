@@ -33,6 +33,7 @@ pub enum Chain {
     Alfajores = 44787,
 
     MoonbaseAlpha = 1287,
+    Moonbeam = 1284,
 }
 
 impl fmt::Display for Chain {

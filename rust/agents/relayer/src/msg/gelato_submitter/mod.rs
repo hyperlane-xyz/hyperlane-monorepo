@@ -232,6 +232,7 @@ pub fn abacus_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
         AbacusDomain::Alfajores => Chain::Alfajores,
 
         AbacusDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
+        AbacusDomain::Moonbeam => Chain::Moonbeam,
 
         _ => bail!("No Gelato Chain for domain {abacus_domain}"),
     })

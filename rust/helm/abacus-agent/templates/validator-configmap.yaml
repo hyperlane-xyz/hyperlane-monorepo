@@ -2,14 +2,14 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "abacus-agent.fullname" . }}-validator
+  name: {{ include "agent-common.fullname" . }}-validator
   labels:
-    {{- include "abacus-agent.labels" . | nindent 4 }}
+    {{- include "agent-common.labels" . | nindent 4 }}
 data:
 {{ $index := 0 }}
 {{- range .Values.abacus.validator.configs }}
   validator-{{ $index }}.env: |
-{{- include "abacus-agent.config-env-vars" (dict "config" . "agent_name" "validator" "format" "dot_env") | indent 4 }}
+{{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "validator" "format" "dot_env") | indent 4 }}
 {{ $index = add1 $index }}
 {{- end }}
 {{- end }}

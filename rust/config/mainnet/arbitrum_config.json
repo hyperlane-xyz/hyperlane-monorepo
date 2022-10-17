@@ -85,6 +85,20 @@
         "inbox": "0x7082e975Fde8D85B0C56B4512b437efFb46F0a09",
         "validatorManager": "0xCA41932888D323B3d99f5eA48F86D502055C0322"
       }
+    },
+    "moonbeam": {
+      "domain": "1836002669",
+      "name": "moonbeam",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0xCA41932888D323B3d99f5eA48F86D502055C0322",
+        "validatorManager": "0x71b2644183ECA86401c13577f5332fcc5e48352a"
+      }
     }
   },
   "outbox": {
