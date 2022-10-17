@@ -430,13 +430,13 @@ impl SqlOutboxScraper {
         &self,
         message_metadata: impl Iterator<Item = &LogMeta>,
     ) -> Result<impl Iterator<Item = (H256, (i64, TimeDateTime))>> {
-        let blocks_by_txn_hash: HashMap<H256, H256> = message_metadata
+        let block_hash_by_txn_hash: HashMap<H256, H256> = message_metadata
             .map(|meta| (meta.transaction_hash, meta.block_hash))
             .collect();
 
         // all blocks we care about
         let blocks: HashMap<_, _> = self
-            .ensure_blocks(blocks_by_txn_hash.values().copied())
+            .ensure_blocks(block_hash_by_txn_hash.values().copied())
             .await?
             .collect();
         trace!(?blocks, "Ensured blocks");
@@ -448,18 +448,15 @@ impl SqlOutboxScraper {
 
         let block_timestamps_by_txn_clone = block_timestamps_by_txn.clone();
         // all txns we care about
-        let ids = self
-            .ensure_txns(
-                blocks_by_txn_hash
-                    .into_iter()
-                    .map(move |(txn_hash, block_hash)| {
-                        let mut block_timestamps_by_txn =
-                            block_timestamps_by_txn_clone.lock().unwrap();
-                        let block_info = *blocks.get(&block_hash).unwrap();
-                        block_timestamps_by_txn.insert(txn_hash, block_info.1);
-                        (txn_hash, block_info.0)
-                    }),
-            )
+        let ids =
+            self.ensure_txns(block_hash_by_txn_hash.into_iter().map(
+                move |(txn_hash, block_hash)| {
+                    let mut block_timestamps_by_txn = block_timestamps_by_txn_clone.lock().unwrap();
+                    let block_info = *blocks.get(&block_hash).unwrap();
+                    block_timestamps_by_txn.insert(txn_hash, block_info.1);
+                    (txn_hash, block_info.0)
+                },
+            ))
             .await?;
 
         Ok(ids.map(move |(txn, id)| {
