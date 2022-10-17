@@ -473,9 +473,9 @@ impl SqlOutboxScraper {
 
     /// Takes a list of `(transaction_hash, block_id)` and for each transaction
     /// if it is in the database already:
-    ///     Fetches its associated ID
+    ///     Fetches its associated database id
     /// if it is not in the database already:
-    ///     Looks up its data with ethers and then returns the id after
+    ///     Looks up its data with ethers and then returns the database id after
     ///     inserting it into the database.
     async fn ensure_txns(
         &self,
@@ -563,9 +563,9 @@ impl SqlOutboxScraper {
 
     /// Takes a list of block hashes for each block
     /// if it is in the database already:
-    ///     Fetches its associated ID
+    ///     Fetches its associated database id
     /// if it is not in the database already:
-    ///     Looks up its data with ethers and then returns the id after
+    ///     Looks up its data with ethers and then returns the database id after
     ///     inserting it into the database.
     async fn ensure_blocks(
         &self,
