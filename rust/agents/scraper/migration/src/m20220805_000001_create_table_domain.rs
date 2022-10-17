@@ -223,6 +223,7 @@ impl MigrationTrait for Migration {
                 name: Set(domain.name.to_owned()),
                 native_token: Set(domain.token.to_owned()),
                 chain_id: if domain.chain_id == 0 {
+                    // this is to support testnets and maybe in the future chains without chain ids.
                     NotSet
                 } else {
                     Set(domain.chain_id)
