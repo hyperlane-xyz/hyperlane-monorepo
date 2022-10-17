@@ -150,6 +150,11 @@ export const moonbasealpha: ChainMetadata = {
   finalityBlocks: 1,
 };
 
+export const moonbeam: ChainMetadata = {
+  id: 0x6d6f2d6d, // b'mo-a' interpreted as an int
+  finalityBlocks: 1,
+};
+
 export const chainMetadata = {
   arbitrum,
   bsc,
@@ -165,5 +170,6 @@ export const chainMetadata = {
   bsctestnet,
   auroratestnet,
   moonbasealpha,
+  moonbeam,
   ...testChains,
 } as Record<ChainName, ChainMetadata>;

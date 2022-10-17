@@ -108,4 +108,15 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
       threshold: 3,
     },
   },
+  moonbeam: {
+    owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+    validatorManager: {
+      validators: [
+        '0x3da42c84aaf9d548feb219bfdf5fcb2217fbfb48',
+        '0x65e94ffb6696403a5e6534cbfb6befebda6a0226',
+        '0x1bf2f7e9fdfe832c5d05f94dd66dc8704ebdc581',
+      ],
+      threshold: 2,
+    },
+  },
 };

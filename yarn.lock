@@ -3677,12 +3677,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/app@0.5.0-beta0, @hyperlane-xyz/app@workspace:solidity/app":
+"@hyperlane-xyz/app@0.5.0, @hyperlane-xyz/app@workspace:solidity/app":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/app@workspace:solidity/app"
   dependencies:
-    "@hyperlane-xyz/core": 0.5.0-beta0
-    "@hyperlane-xyz/utils": 0.5.0-beta0
+    "@hyperlane-xyz/core": 0.5.0
+    "@hyperlane-xyz/utils": 0.5.0
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts-upgradeable": ^4.5.0
@@ -3714,11 +3714,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/core@0.5.0-beta0, @hyperlane-xyz/core@workspace:solidity/core":
+"@hyperlane-xyz/core@0.5.0, @hyperlane-xyz/core@workspace:solidity/core":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity/core"
   dependencies:
-    "@hyperlane-xyz/utils": 0.5.0-beta0
+    "@hyperlane-xyz/utils": 0.5.0
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts": ^4.6.0
@@ -3741,12 +3741,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@0.5.0-beta0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@0.5.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
-    "@hyperlane-xyz/sdk": ^0.5.0-beta0
-    "@hyperlane-xyz/utils": ^0.5.0-beta0
+    "@hyperlane-xyz/sdk": ^0.5.0
+    "@hyperlane-xyz/utils": ^0.5.0
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts-upgradeable": ^4.6.0
@@ -3787,10 +3787,10 @@ __metadata:
     "@gnosis.pm/safe-ethers-lib": ^1.4.0
     "@gnosis.pm/safe-service-client": ^1.2.0
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
-    "@hyperlane-xyz/helloworld": 0.5.0-beta0
-    "@hyperlane-xyz/interchain-accounts": 0.5.0-beta0
-    "@hyperlane-xyz/sdk": 0.5.0-beta0
-    "@hyperlane-xyz/utils": 0.5.0-beta0
+    "@hyperlane-xyz/helloworld": 0.5.0
+    "@hyperlane-xyz/interchain-accounts": 0.5.0
+    "@hyperlane-xyz/sdk": 0.5.0
+    "@hyperlane-xyz/utils": 0.5.0
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-etherscan": ^3.0.3
     "@nomiclabs/hardhat-waffle": ^2.0.2
@@ -3815,13 +3815,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/interchain-accounts@0.5.0-beta0, @hyperlane-xyz/interchain-accounts@workspace:typescript/ica":
+"@hyperlane-xyz/interchain-accounts@0.5.0, @hyperlane-xyz/interchain-accounts@workspace:typescript/ica":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/interchain-accounts@workspace:typescript/ica"
   dependencies:
-    "@hyperlane-xyz/app": 0.5.0-beta0
-    "@hyperlane-xyz/sdk": 0.5.0-beta0
-    "@hyperlane-xyz/utils": 0.5.0-beta0
+    "@hyperlane-xyz/app": 0.5.0
+    "@hyperlane-xyz/sdk": 0.5.0
+    "@hyperlane-xyz/utils": 0.5.0
     "@nomicfoundation/hardhat-chai-matchers": ^1.0.3
     "@nomicfoundation/hardhat-toolbox": ^1.0.2
     "@nomiclabs/hardhat-ethers": ^2.0.5
@@ -3866,14 +3866,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@0.5.0-beta0, @hyperlane-xyz/sdk@^0.5.0-beta0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@0.5.0, @hyperlane-xyz/sdk@^0.5.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
-    "@hyperlane-xyz/app": 0.5.0-beta0
+    "@hyperlane-xyz/app": 0.5.0
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
-    "@hyperlane-xyz/core": 0.5.0-beta0
-    "@hyperlane-xyz/utils": 0.5.0-beta0
+    "@hyperlane-xyz/core": 0.5.0
+    "@hyperlane-xyz/utils": 0.5.0
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
     "@types/coingecko-api": ^1.0.10
@@ -3896,7 +3896,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/utils@0.5.0-beta0, @hyperlane-xyz/utils@^0.5.0-beta0, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@0.5.0, @hyperlane-xyz/utils@^0.5.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
@@ -6755,6 +6755,15 @@ __metadata:
     node-gyp: latest
     node-gyp-build: ^4.3.0
   checksum: dd107560947445280af7820c3d0534127b911577d85d537e1d7e0aa30fd634853cef8a994d6e8aed3d81388ab1a20257de776164afe6a6af8e78f5f17968ebd6
+  languageName: node
+  linkType: hard
+
+"busboy@npm:^1.6.0":
+  version: 1.6.0
+  resolution: "busboy@npm:1.6.0"
+  dependencies:
+    streamsearch: ^1.1.0
+  checksum: 32801e2c0164e12106bf236291a00795c3c4e4b709ae02132883fe8478ba2ae23743b11c5735a0aae8afe65ac4b6ca4568b91f0d9fed1fdbc32ede824a73746e
   languageName: node
   linkType: hard
 
@@ -16040,6 +16049,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"streamsearch@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "streamsearch@npm:1.1.0"
+  checksum: 1cce16cea8405d7a233d32ca5e00a00169cc0e19fbc02aa839959985f267335d435c07f96e5e0edd0eadc6d39c98d5435fb5bbbdefc62c41834eadc5622ad942
+  languageName: node
+  linkType: hard
+
 "strict-uri-encode@npm:^1.0.0":
   version: 1.1.0
   resolution: "strict-uri-encode@npm:1.1.0"
@@ -17060,10 +17076,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"undici@npm:^5.4.0":
-  version: 5.5.1
-  resolution: "undici@npm:5.5.1"
-  checksum: c041c9093df7ec683479a9555581206a7c7bebfc1ed6e8669920e55618461fc4ce08938e2fbf8ef7d692c2813c44392b5ed25c58396ee4a72ffd1f1f953712c9
+"undici@npm:^5.11":
+  version: 5.11.0
+  resolution: "undici@npm:5.11.0"
+  dependencies:
+    busboy: ^1.6.0
+  checksum: 20669ef4023d24a75e81ed8142829f525f16af14d61f833b5f19cfc6bed7c706adde343a190d764dcceb227eba3211222d2b194010462a2ca221a7da0487f563
   languageName: node
   linkType: hard
 

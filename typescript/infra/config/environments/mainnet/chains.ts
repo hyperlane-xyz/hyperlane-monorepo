@@ -32,6 +32,7 @@ export const mainnetConfigs: ChainMap<any, IChainConnection> = {
       maxPriorityFeePerGas: 5 * 10 ** 9, // gwei
     },
   },
+  moonbeam: chainConnectionConfigs.moonbeam,
 };
 
 export type MainnetChains = keyof typeof mainnetConfigs;

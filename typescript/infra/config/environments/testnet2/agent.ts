@@ -26,7 +26,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-25f4882',
+    tag: 'sha-da5c504',
   },
   aws: {
     region: 'us-east-1',
@@ -83,7 +83,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   context: Contexts.Flowcarbon,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-25f4882',
+    tag: 'sha-da5c504',
   },
   aws: {
     region: 'us-east-1',
@@ -115,7 +115,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-25f4882',
+    tag: 'sha-da5c504',
   },
   aws: {
     region: 'us-east-1',
