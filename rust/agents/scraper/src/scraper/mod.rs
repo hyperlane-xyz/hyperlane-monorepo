@@ -569,13 +569,14 @@ impl SqlOutboxScraper {
     ///     inserting it into the database.
     async fn ensure_blocks(
         &self,
-        blocks: impl Iterator<Item = H256>,
+        block_hashes: impl Iterator<Item = H256>,
     ) -> Result<impl Iterator<Item = (H256, (i64, TimeDateTime))>> {
         use crate::db::block;
         use sea_orm::{prelude::*, ActiveValue::*, FromQueryResult, Insert, QuerySelect};
 
         type OptionalBlockInfo = Option<(Option<i64>, TimeDateTime)>;
-        let mut blocks: HashMap<H256, OptionalBlockInfo> = blocks.map(|b| (b, None)).collect();
+        let mut blocks: HashMap<H256, OptionalBlockInfo> =
+            block_hashes.map(|b| (b, None)).collect();
 
         #[derive(FromQueryResult)]
         struct Block {
