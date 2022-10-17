@@ -435,6 +435,7 @@ impl SqlOutboxScraper {
             .collect();
 
         // all blocks we care about
+        // hash of block maps to the block id and timestamp
         let blocks: HashMap<_, _> = self
             .ensure_blocks(block_hash_by_txn_hash.values().copied())
             .await?
