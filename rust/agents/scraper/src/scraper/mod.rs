@@ -626,6 +626,7 @@ impl SqlOutboxScraper {
             .filter(|(_, block_info)| block_info.is_none());
         for (_hash, block_info) in blocks_to_fetch {
             // TODO: fetch block data from ethers
+            // (timestamps are not included in LogMeta)
             let _ = block_info.insert((None, crate::date_time::now()));
         }
 
