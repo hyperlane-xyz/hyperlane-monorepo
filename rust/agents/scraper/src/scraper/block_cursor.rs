@@ -36,7 +36,7 @@ impl BlockCursor {
 
         let height = (cursor::Entity::find())
             .filter(cursor::Column::Domain.eq(domain))
-            .order_by(cursor::Column::Id, Order::Desc)
+            .order_by(cursor::Column::Height, Order::Desc)
             .select_only()
             .column_as(cursor::Column::Height, QueryAs::Height)
             .into_values::<i64, QueryAs>()
