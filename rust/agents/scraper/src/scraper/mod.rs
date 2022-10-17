@@ -207,6 +207,7 @@ impl SqlOutboxScraper {
         // difference 1
         let mut from = self.cursor.height().await as u32;
         let mut last_valid_range_start_block = from;
+        let mut last_leaf_index = self.last_message_leaf_index().await?.unwrap_or(0);
 
         info!(from, chunk_size, chain_name, "Resuming outbox sync");
 
@@ -239,14 +240,10 @@ impl SqlOutboxScraper {
             );
 
             // Difference 2
-            // TODO: can we avoid querying this each time?
-            let last_leaf_index = self.last_message_leaf_index().await?;
-            if let Some(min_index) = last_leaf_index {
-                sorted_messages = sorted_messages
-                    .into_iter()
-                    .filter(|m| m.0.leaf_index > min_index)
-                    .collect();
-            }
+            sorted_messages = sorted_messages
+                .into_iter()
+                .filter(|m| m.0.leaf_index > last_leaf_index)
+                .collect();
 
             debug!(
                 from = full_chunk_from,
@@ -257,7 +254,7 @@ impl SqlOutboxScraper {
             );
 
             match validate_message_continuity(
-                last_leaf_index,
+                Some(last_leaf_index),
                 &sorted_messages
                     .iter()
                     .map(|(msg, _)| msg)
@@ -280,6 +277,7 @@ impl SqlOutboxScraper {
 
                     // Difference 4
                     self.cursor.update(full_chunk_from as u64).await;
+                    last_leaf_index = max_leaf_index_of_batch;
                     last_valid_range_start_block = full_chunk_from;
                     from = to + 1;
                 }

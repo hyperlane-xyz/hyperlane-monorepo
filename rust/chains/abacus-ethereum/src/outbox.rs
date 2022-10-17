@@ -7,7 +7,6 @@ use std::{error::Error as StdError, sync::Arc};
 use async_trait::async_trait;
 use ethers::prelude::*;
 use eyre::Result;
-use tokio::sync::OnceCell;
 use tracing::instrument;
 
 use abacus_core::{
@@ -57,7 +56,7 @@ where
     contract: Arc<EthereumOutboxInternal<M>>,
     provider: Arc<M>,
     finality_blocks: u32,
-    outbox_domain: OnceCell<u32>,
+    outbox_domain: u32,
 }
 
 impl<M> EthereumOutboxIndexer<M>
@@ -74,23 +73,8 @@ where
             contract,
             provider,
             finality_blocks,
-            outbox_domain: OnceCell::new(),
+            outbox_domain: locator.domain,
         }
-    }
-
-    /// Get the outbox domain, this will do a one-time init and will resolve
-    /// immediately thereafter.
-    async fn outbox_domain(&self) -> u32 {
-        *self
-            .outbox_domain
-            .get_or_init(|| async {
-                self.contract
-                    .local_domain()
-                    .call()
-                    .await
-                    .expect("Failed to query outbox domain")
-            })
-            .await
     }
 }
 
@@ -149,7 +133,6 @@ where
         from: u32,
         to: u32,
     ) -> Result<Vec<(Checkpoint, LogMeta)>> {
-        let outbox_domain = self.outbox_domain().await;
         let mut events: Vec<(Checkpoint, LogMeta)> = self
             .contract
             .checkpoint_cached_filter()
@@ -161,7 +144,7 @@ where
             .map(|(event, meta)| {
                 (
                     Checkpoint {
-                        outbox_domain,
+                        outbox_domain: self.outbox_domain,
                         root: event.root.into(),
                         index: event.index.as_u32(),
                     },
