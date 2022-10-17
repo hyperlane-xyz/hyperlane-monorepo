@@ -575,6 +575,9 @@ impl SqlOutboxScraper {
         use sea_orm::{prelude::*, ActiveValue::*, FromQueryResult, Insert, QuerySelect};
 
         type OptionalBlockInfo = Option<(Option<i64>, TimeDateTime)>;
+        // mapping of block hash to the database id and block timestamp. Optionals are
+        // in place because we will find the timestamp first if the block was not
+        // already in the db.
         let mut blocks: HashMap<H256, OptionalBlockInfo> =
             block_hashes.map(|b| (b, None)).collect();
 
