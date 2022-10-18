@@ -192,37 +192,10 @@ impl IndexSettings {
     }
 }
 
-/// Settings. Usually this should be treated as a base config and used as
-/// follows:
-///
-/// ```
-/// use abacus_base::*;
-/// use serde::Deserialize;
-///
-/// pub struct OtherSettings { /* anything */ };
-///
-/// #[derive(Debug, Deserialize)]
-/// pub struct MySettings {
-///     #[serde(flatten)]
-///     base_settings: Settings,
-///     #[serde(flatten)]
-///     other_settings: (),
-/// }
-///
-/// // Make sure to define MySettings::new()
-/// impl MySettings {
-///     fn new() -> Self {
-///         unimplemented!()
-///     }
-/// }
-/// ```
+/// Settings specific to a given chain.
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct Settings {
-    /// The path to use for the DB file
-    pub db: String,
-    /// Port to listen for prometheus scrape requests
-    pub metrics: Option<String>,
+pub struct ChainSettings {
     /// Settings for the outbox indexer
     #[serde(default)]
     pub index: IndexSettings,
@@ -230,32 +203,13 @@ pub struct Settings {
     pub outbox: ChainSetup<OutboxAddresses>,
     /// Configurations for contracts on inbox chains
     pub inboxes: HashMap<String, ChainSetup<InboxAddresses>>,
-    /// The tracing configuration
-    pub tracing: TracingConfig,
     /// Transaction signers
     pub signers: HashMap<String, SignerConf>,
     /// Gelato config
     pub gelato: Option<GelatoConf>,
 }
 
-impl Settings {
-    /// Private to preserve linearity of AgentCore::from_settings -- creating an
-    /// agent consumes the settings.
-    fn clone(&self) -> Self {
-        Self {
-            db: self.db.clone(),
-            metrics: self.metrics.clone(),
-            index: self.index.clone(),
-            outbox: self.outbox.clone(),
-            inboxes: self.inboxes.clone(),
-            tracing: self.tracing.clone(),
-            signers: self.signers.clone(),
-            gelato: self.gelato.clone(),
-        }
-    }
-}
-
-impl Settings {
+impl ChainSettings {
     /// Try to get a signer instance by name
     pub async fn get_signer(&self, name: &str) -> Option<Signers> {
         self.signers.get(name)?.try_into_signer().await.ok()
@@ -436,7 +390,21 @@ impl Settings {
             .await?),
         }
     }
+}
 
+/// Settings specific to the application.
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplicationSettings {
+    /// The path to use for the DB file
+    pub db: String,
+    /// Port to listen for prometheus scrape requests
+    pub metrics: Option<String>,
+    /// The tracing configuration
+    pub tracing: TracingConfig,
+}
+
+impl ApplicationSettings {
     /// Create the core metrics from the settings given the name of the agent.
     pub fn try_into_metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
         Ok(Arc::new(CoreMetrics::new(
@@ -448,21 +416,92 @@ impl Settings {
             prometheus::Registry::new(),
         )?))
     }
+}
 
+/// Settings. Usually this should be treated as a base config and used as
+/// follows:
+///
+/// ```
+/// use abacus_base::*;
+/// use serde::Deserialize;
+///
+/// pub struct OtherSettings { /* anything */ };
+///
+/// #[derive(Debug, Deserialize)]
+/// pub struct MySettings {
+///     #[serde(flatten)]
+///     base_settings: Settings,
+///     #[serde(flatten)]
+///     other_settings: (),
+/// }
+///
+/// // Make sure to define MySettings::new()
+/// impl MySettings {
+///     fn new() -> Self {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Settings {
+    /// Settings specific to a given chain
+    #[serde(flatten)]
+    pub chain: ChainSettings,
+    /// Settings for the application as a whole
+    #[serde(flatten)]
+    pub app: ApplicationSettings,
+}
+
+impl Settings {
+    /// Private to preserve linearity of AgentCore::from_settings -- creating an
+    /// agent consumes the settings.
+    fn clone(&self) -> Self {
+        Self {
+            chain: ChainSettings {
+                index: self.chain.index.clone(),
+                outbox: self.chain.outbox.clone(),
+                inboxes: self.chain.inboxes.clone(),
+                signers: self.chain.signers.clone(),
+                gelato: self.chain.gelato.clone(),
+            },
+            app: ApplicationSettings {
+                db: self.app.db.clone(),
+                metrics: self.app.metrics.clone(),
+                tracing: self.app.tracing.clone(),
+            },
+        }
+    }
+}
+
+impl AsRef<ApplicationSettings> for Settings {
+    fn as_ref(&self) -> &ApplicationSettings {
+        &self.app
+    }
+}
+
+impl AsRef<ChainSettings> for Settings {
+    fn as_ref(&self) -> &ChainSettings {
+        &self.chain
+    }
+}
+
+impl Settings {
     /// Try to generate an agent core for a named agent
     pub async fn try_into_abacus_core(
         &self,
         metrics: Arc<CoreMetrics>,
         parse_inboxes: bool,
     ) -> eyre::Result<AbacusAgentCore> {
-        let db = DB::from_path(&self.db)?;
-        let outbox = self.try_caching_outbox(db.clone(), &metrics).await?;
+        let db = DB::from_path(&self.app.db)?;
+        let outbox = self.chain.try_caching_outbox(db.clone(), &metrics).await?;
         let interchain_gas_paymaster = self
+            .chain
             .try_caching_interchain_gas_paymaster(db.clone(), &metrics)
             .await?;
 
         let inbox_contracts = if parse_inboxes {
-            self.try_inbox_contracts(db.clone(), &metrics).await?
+            self.chain.try_inbox_contracts(db.clone(), &metrics).await?
         } else {
             HashMap::new()
         };
@@ -473,7 +512,7 @@ impl Settings {
             interchain_gas_paymaster,
             db,
             metrics,
-            indexer: self.index.clone(),
+            indexer: self.chain.index.clone(),
             settings: self.clone(),
         })
     }

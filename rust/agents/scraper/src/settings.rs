@@ -1,13 +1,30 @@
 use std::collections::HashMap;
 
-use abacus_base::decl_settings;
-use abacus_base::{ChainSetup, IndexSettings, OutboxAddresses};
+use abacus_base::{decl_settings, AgentSettings, Settings};
 
-// TODO: Make it so the inherited settings better communicate that the `outbox`
-// config is not needed for the scraper.
-decl_settings!(Scraper {
-    /// Configurations for contracts on the outbox chains
-    outboxes: HashMap<String, ChainSetup<OutboxAddresses>>,
-    /// Index settings by chain
-    indexes: HashMap<String, IndexSettings>,
-});
+pub struct ScraperSettings {
+    /// settings by domain id for each domain
+    settings: HashMap<u32, Settings>,
+}
+
+impl ScraperSettings {
+    fn for_domain(&self, domain: u32) -> &Settings {
+        self.settings
+            .get(&domain)
+            .expect("Missing configuration for domain")
+    }
+}
+
+impl AsRef<Settings> for ScraperSettings {
+    fn as_ref(&self) -> &Settings {
+        todo!()
+    }
+}
+
+impl AgentSettings for ScraperSettings {
+    type Error = config::ConfigError;
+
+    fn new() -> Result<Self, Self::Error> {
+        todo!()
+    }
+}

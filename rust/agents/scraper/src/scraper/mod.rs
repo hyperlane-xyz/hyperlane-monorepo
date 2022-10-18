@@ -53,10 +53,10 @@ impl BaseAgent for Scraper {
     where
         Self: Sized,
     {
-        let core_settings: Settings = settings.base;
-
-        let db = Database::connect(&core_settings.db).await?;
         todo!()
+        // let core_settings: Settings = settings.base;
+
+        // let db = Database::connect(&core_settings.db).await?;
         // for (name, chain) in settings.chains {
         //     if config
         //         .disabled
