@@ -29,11 +29,7 @@ pub struct BlockCursor {
 }
 
 impl BlockCursor {
-    pub async fn new(
-        db: DbConn,
-        domain: u32,
-        default_height: u64,
-    ) -> Result<Self> {
+    pub async fn new(db: DbConn, domain: u32, default_height: u64) -> Result<Self> {
         #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
         enum QueryAs {
             Height,

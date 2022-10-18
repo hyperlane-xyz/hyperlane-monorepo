@@ -109,11 +109,6 @@ impl BaseAgent for Scraper {
                 let syncer = outbox.clone().sync();
                 tokio::spawn(syncer).instrument(span)
             })
-            .chain(
-                [tokio::spawn(delivered_message_linker(self.db.clone()))
-                    .instrument(info_span!("DeliveredMessageLinker"))]
-                .into_iter(),
-            )
             .collect();
 
         run_all(tasks)
@@ -806,30 +801,5 @@ impl SqlChainScraper {
             let block_info = block_info.unwrap();
             (hash, (block_info.0.unwrap(), block_info.1))
         }))
-    }
-}
-
-/// Task-thread to link the delivered messages to the correct messages.
-#[instrument]
-async fn delivered_message_linker(db: DbConn) -> Result<()> {
-    const QUERY: &str = r#"
-        UPDATE
-            "delivered_message" AS "delivered"
-        SET
-            "delivered"."msg_id" = "message"."id"
-        FROM
-            "message"
-        WHERE
-            "delivered"."msg_id" IS NULL
-            AND "message"."hash" = "delivered"."hash"
-    "#;
-
-    loop {
-        db.execute(sea_orm::Statement::from_sql_and_values(
-            DbBackend::Postgres,
-            QUERY,
-            vec![],
-        ));
-        sleep(Duration::from_secs(10)).await;
     }
 }

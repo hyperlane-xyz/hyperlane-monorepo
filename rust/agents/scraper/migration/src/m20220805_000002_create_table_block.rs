@@ -35,13 +35,25 @@ impl MigrationTrait for Migration {
                             .from_col(Block::Domain)
                             .to(Domain::Table, Domain::Id),
                     )
-                    // TODO: re-include this constraint once we fetch the block height data from ethers
-                    // .index(
+                    // TODO: re-include this constraint once we fetch the block height data from
+                    // ethers .index(
                     //     Index::create()
                     //         .col(Block::Domain)
                     //         .col(Block::Height)
                     //         .unique(),
                     // )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .table(Block::Table)
+                    .name("block_hash_idx")
+                    .col(Block::Hash)
+                    .index_type(IndexType::Hash)
+                    .unique()
                     .to_owned(),
             )
             .await

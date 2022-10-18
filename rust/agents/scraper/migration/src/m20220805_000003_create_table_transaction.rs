@@ -26,11 +26,7 @@ impl MigrationTrait for Migration {
                             .timestamp()
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new_with_type(Transaction::Hash, Hash)
-                            .unique_key()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new_with_type(Transaction::Hash, Hash).not_null())
                     .col(
                         ColumnDef::new(Transaction::BlockId)
                             .big_integer()
@@ -49,17 +45,29 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .name("transaction_sender_idx")
                     .table(Transaction::Table)
-                    .col(Transaction::Sender)
+                    .name("transaction_hash_idx")
+                    .col(Transaction::Hash)
+                    .index_type(IndexType::Hash)
+                    .unique()
                     .to_owned(),
             )
             .await?;
         manager
             .create_index(
                 Index::create()
-                    .name("transaction_block_idx")
                     .table(Transaction::Table)
+                    .name("transaction_sender_idx")
+                    .col(Transaction::Sender)
+                    .index_type(IndexType::Hash)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(Transaction::Table)
+                    .name("transaction_block_idx")
                     .col(Transaction::BlockId)
                     .to_owned(),
             )

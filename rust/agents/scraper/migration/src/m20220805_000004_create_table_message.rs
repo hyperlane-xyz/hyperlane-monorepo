@@ -71,6 +71,7 @@ impl MigrationTrait for Migration {
                     .table(Message::Table)
                     .name("message_sender_idx")
                     .col(Message::Sender)
+                    .index_type(IndexType::Hash)
                     .to_owned(),
             )
             .await?;
@@ -80,6 +81,7 @@ impl MigrationTrait for Migration {
                     .table(Message::Table)
                     .name("message_recipient_idx")
                     .col(Message::Recipient)
+                    .index_type(IndexType::Hash)
                     .to_owned(),
             )
             .await?;

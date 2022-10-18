@@ -3,7 +3,6 @@ use sea_orm_migration::prelude::*;
 use crate::l20220805_types::*;
 use crate::m20220805_000001_create_table_domain::Domain;
 use crate::m20220805_000003_create_table_transaction::Transaction;
-use crate::m20220805_000004_create_table_message::Message;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -28,11 +27,7 @@ impl MigrationTrait for Migration {
                             .timestamp()
                             .not_null(),
                     )
-                    .col(
-                        ColumnDef::new_with_type(DeliveredMessage::Hash, Hash)
-                            .not_null()
-                            .unique_key(),
-                    )
+                    .col(ColumnDef::new_with_type(DeliveredMessage::Hash, Hash).not_null())
                     .col(
                         ColumnDef::new(DeliveredMessage::Domain)
                             .unsigned()
@@ -43,11 +38,6 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(DeliveredMessage::MsgId)
-                            .big_integer()
-                            .unique_key(),
-                    )
-                    .col(
                         ColumnDef::new(DeliveredMessage::TxId)
                             .big_integer()
                             .not_null(),
@@ -56,11 +46,6 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .from_col(DeliveredMessage::Domain)
                             .to(Domain::Table, Domain::Id),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .from_col(DeliveredMessage::MsgId)
-                            .to(Message::Table, Message::Id),
                     )
                     .foreign_key(
                         ForeignKey::create()
@@ -76,6 +61,17 @@ impl MigrationTrait for Migration {
                     .table(DeliveredMessage::Table)
                     .name("delivered_message_tx_idx")
                     .col(DeliveredMessage::TxId)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(DeliveredMessage::Table)
+                    .name("delivered_message_hash_idx")
+                    .col(DeliveredMessage::Hash)
+                    .index_type(IndexType::Hash)
+                    .unique()
                     .to_owned(),
             )
             .await?;
@@ -103,8 +99,6 @@ pub enum DeliveredMessage {
     Domain,
     /// Address of the inbox contract the message was received by
     InboxAddress,
-    /// Message which was delivered. May be null until the message is scraped
-    MsgId,
     /// Transaction the delivery was included in
     TxId,
 }
