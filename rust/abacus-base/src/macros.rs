@@ -88,9 +88,23 @@ macro_rules! decl_settings {
                 )*
             }
 
-            impl AsRef<abacus_base::Settings> for [<$name Settings>] {
-                fn as_ref(&self) -> &abacus_base::Settings {
+            impl std::ops::Deref for [<$name Settings>] {
+                type Target = abacus_base::Settings;
+
+                fn deref(&self) -> &Self::Target {
                     &self.base
+                }
+            }
+
+            impl AsRef<abacus_base::ChainSettings> for [<$name Settings>] {
+                fn as_ref(&self) -> &abacus_base::ChainSettings {
+                    &self.base.chain
+                }
+            }
+
+            impl AsRef<abacus_base::ApplicationSettings> for [<$name Settings>] {
+                fn as_ref(&self) -> &abacus_base::ApplicationSettings {
+                    &self.base.app
                 }
             }
 

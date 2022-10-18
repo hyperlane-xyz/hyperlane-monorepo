@@ -16,7 +16,7 @@ use crate::{
     cancel_task,
     metrics::CoreMetrics,
     settings::{IndexSettings, Settings},
-    CachingInbox, CachingInterchainGasPaymaster, CachingOutbox,
+    ApplicationSettings, CachingInbox, CachingInterchainGasPaymaster, CachingOutbox,
 };
 
 /// Contracts relating to an inbox chain
@@ -48,7 +48,7 @@ pub struct AbacusAgentCore {
 }
 
 /// Settings of an agent.
-pub trait AgentSettings: AsRef<Settings> + Sized {
+pub trait AgentSettings: AsRef<ApplicationSettings> + Sized {
     /// The error type returned by new on failures to parse.
     type Error: 'static + StdError + Send + Sync;
 
@@ -137,10 +137,10 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     eyre::install()?;
 
     let settings = A::Settings::new()?;
-    let core_settings: &Settings = settings.as_ref();
+    let core_settings: &ApplicationSettings = settings.as_ref();
 
-    let metrics = settings.as_ref().app.try_into_metrics(A::AGENT_NAME)?;
-    core_settings.app.tracing.start_tracing(&metrics)?;
+    let metrics = settings.as_ref().try_into_metrics(A::AGENT_NAME)?;
+    core_settings.tracing.start_tracing(&metrics)?;
     let agent = A::from_settings(settings, metrics.clone()).await?;
     let _ = metrics.run_http_server();
 

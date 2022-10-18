@@ -5,7 +5,9 @@ use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use abacus_base::{run_all, AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers, CoreMetrics};
+use abacus_base::{
+    run_all, AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers, CoreMetrics, Settings,
+};
 use abacus_core::{AbacusContract, Signers};
 
 use crate::submit::ValidatorSubmitterMetrics;
@@ -59,10 +61,7 @@ impl BaseAgent for Validator {
         let signer = settings.validator.try_into_signer().await?;
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
         let interval = settings.interval.parse().expect("invalid uint");
-        let core = settings
-            .as_ref()
-            .try_into_abacus_core(metrics, false)
-            .await?;
+        let core = settings.try_into_abacus_core(metrics, false).await?;
         let checkpoint_syncer = settings.checkpointsyncer.try_into_checkpoint_syncer(None)?;
 
         Ok(Self::new(

@@ -51,10 +51,7 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings
-            .as_ref()
-            .try_into_abacus_core(metrics, true)
-            .await?;
+        let core = settings.try_into_abacus_core(metrics, true).await?;
 
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
