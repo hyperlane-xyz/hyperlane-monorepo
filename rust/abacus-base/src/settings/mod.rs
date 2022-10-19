@@ -89,8 +89,8 @@ use tracing::instrument;
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
-    AbacusContract, Inbox, InboxIndexer, InboxValidatorManager,
-    InterchainGasPaymasterIndexer, Outbox, OutboxIndexer, Signers,
+    AbacusContract, Inbox, InboxIndexer, InboxValidatorManager, InterchainGasPaymasterIndexer,
+    Outbox, OutboxIndexer, Signers,
 };
 pub use chains::{ChainConf, ChainSetup, InboxAddresses, OutboxAddresses};
 
