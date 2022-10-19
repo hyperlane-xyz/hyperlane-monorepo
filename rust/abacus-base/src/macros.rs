@@ -48,7 +48,6 @@ macro_rules! decl_agent {
 #[doc(hidden)]
 pub use paste;
 use serde::Deserialize;
-use std::env;
 
 #[macro_export]
 /// Declare a new settings block

@@ -5,10 +5,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::types::H256;
-use ethers::utils::hash_message;
-use eyre::{eyre, Context, Result};
+use eyre::{eyre, Result};
 use sea_orm::prelude::TimeDateTime;
-use sea_orm::{ConnectionTrait, Database, DbBackend, DbConn, QueryTrait, UpdateMany};
+use sea_orm::{Database, DbConn};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::instrument::Instrumented;
@@ -17,14 +16,12 @@ use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
 use abacus_base::last_message::validate_message_continuity;
 use abacus_base::{
     run_all, BaseAgent, ChainSettings, ChainSetup, ContractSyncMetrics, CoreMetrics,
-    InboxAddresses, IndexSettings, OutboxAddresses, Settings,
+    InboxAddresses, IndexSettings,
 };
 use abacus_core::{
     name_from_domain_id, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxIndexer,
     ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
 };
-use migration::SubQueryStatement::SelectStatement;
-use migration::{SimpleExpr, WithClause};
 
 use crate::scraper::block_cursor::BlockCursor;
 use crate::settings::ScraperSettings;
@@ -68,8 +65,13 @@ impl BaseAgent for Scraper {
                     Self::load_inbox(&chain_config, inbox_config, &metrics).await?
                 {
                     assert_eq!(local.outbox.local_domain(), local_domain);
-                    assert_ne!(remote.inbox.remote_domain(), local_domain);
-                    remotes.insert(remote.inbox.remote_domain(), remote);
+                    let remote_domain = remote
+                        .inbox
+                        .remote_domain()
+                        .await
+                        .expect("Failed to get remote domain");
+                    assert_ne!(remote_domain, local_domain);
+                    remotes.insert(remote_domain, remote);
                 }
             }
 
@@ -96,11 +98,11 @@ impl BaseAgent for Scraper {
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let tasks = self
-            .outboxes
+            .scrapers
             .iter()
-            .map(|(name, outbox)| {
-                let span = info_span!("ChainContractSync", %name, self = ?outbox);
-                let syncer = outbox.clone().sync();
+            .map(|(name, scraper)| {
+                let span = info_span!("ChainContractSync", %name, self = ?scraper);
+                let syncer = scraper.clone().sync();
                 tokio::spawn(syncer).instrument(span)
             })
             .collect();
@@ -155,15 +157,6 @@ impl Scraper {
                 })
             },
         )
-    }
-
-    async fn load_gas_paymasters(
-        _db: &DbConn,
-        _core_settings: &Settings,
-        _metrics: &Arc<CoreMetrics>,
-    ) -> Result<HashMap<u32, ()>> {
-        // TODO
-        Ok(HashMap::new())
     }
 }
 
@@ -457,7 +450,7 @@ impl SqlChainScraper {
         txns: &HashMap<H256, (i64, TimeDateTime)>,
     ) -> Result<u32> {
         use crate::db::message;
-        use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
+        use sea_orm::{sea_query::OnConflict, ActiveValue::*, Insert};
 
         debug_assert!(!messages.is_empty());
 
@@ -528,7 +521,7 @@ impl SqlChainScraper {
         txns: &HashMap<H256, (i64, TimeDateTime)>,
     ) -> Result<()> {
         use crate::db::delivered_message;
-        use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
+        use sea_orm::{sea_query::OnConflict, ActiveValue::*, Insert};
 
         if deliveries.is_empty() {
             return Ok(());

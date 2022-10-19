@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 use std::env;
 
-use config::{Config, Environment, File};
-
 use abacus_base::macros::load_settings_object;
-use abacus_base::{decl_settings, AgentSettings, ApplicationSettings, ChainSettings, Settings};
+use abacus_base::{AgentSettings, ApplicationSettings, ChainSettings};
 
 /// Scraper settings work a bit differently than other agents because we need to
 /// load the information for all of the chains.
@@ -28,14 +26,6 @@ pub struct ScraperSettings {
     /// settings by domain id for each domain
     pub chains: HashMap<u32, ChainSettings>,
     pub app: ApplicationSettings,
-}
-
-impl ScraperSettings {
-    fn for_domain(&self, domain: u32) -> &ChainSettings {
-        self.chains
-            .get(&domain)
-            .expect("Missing configuration for domain")
-    }
 }
 
 impl AsRef<ApplicationSettings> for ScraperSettings {

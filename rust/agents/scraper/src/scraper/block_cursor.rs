@@ -1,14 +1,13 @@
 use std::time::{Duration, Instant};
 
-use ethers::prelude::H256;
 use eyre::Result;
 use sea_orm::prelude::*;
 use sea_orm::{ActiveValue, Insert, Order, QueryOrder, QuerySelect};
 use tokio::sync::RwLock;
 use tracing::{debug, instrument, trace, warn};
 
+use crate::date_time;
 use crate::db::cursor;
-use crate::{date_time, format_h256};
 
 const MAX_WRITE_BACK_FREQUENCY: Duration = Duration::from_secs(10);
 

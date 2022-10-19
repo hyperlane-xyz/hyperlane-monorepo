@@ -2,16 +2,15 @@ use ethers::signers::Signer;
 use serde::Deserialize;
 
 use abacus_core::{
-    AbacusAbi, ContractLocator, Inbox, InboxValidatorManager, InterchainGasPaymaster,
+    AbacusAbi, ContractLocator, Inbox, InboxIndexer, InboxValidatorManager, InterchainGasPaymaster,
     InterchainGasPaymasterIndexer, Outbox, OutboxIndexer, Signers,
 };
 use abacus_ethereum::{
-    Connection, ContractConnectionInfo, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi,
-    EthereumOutboxAbi, InboxBuilder, InboxIndexerBuilder, InboxValidatorManagerBuilder,
-    InterchainGasPaymasterBuilder, InterchainGasPaymasterIndexerBuilder, MakeableWithProvider,
-    OutboxBuilder, OutboxIndexerBuilder,
+    Connection, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi, EthereumOutboxAbi,
+    InboxBuilder, InboxIndexerBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
+    InterchainGasPaymasterIndexerBuilder, MakeableWithProvider, OutboxBuilder,
+    OutboxIndexerBuilder,
 };
-use ethers_prometheus::json_rpc_client::JsonRpcClientMetrics;
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
@@ -111,26 +110,30 @@ impl<T> ChainSetup<T> {
             .expect("could not parse finality_blocks")
     }
 
-    fn build<B: MakeableWithProvider>(
+    async fn build<B: MakeableWithProvider + Sync>(
         &self,
         address: &str,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
         metrics_conf: PrometheusMiddlewareConf,
         builder: B,
-    ) -> B::Output {
+    ) -> eyre::Result<B::Output> {
         match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(builder.make_with_connection(
-                conf.clone(),
-                &ContractLocator {
-                    chain_name: self.name.clone(),
-                    domain: self.domain.parse().expect("invalid uint"),
-                    address: address.parse::<ethers::types::Address>()?.into(),
-                },
-                signer,
-                Some(|| metrics.json_rpc_client_metrics()),
-                Some((metrics.provider_metrics(), metrics_conf)),
-            )),
+            ChainConf::Ethereum(conf) => {
+                builder
+                    .make_with_connection(
+                        conf.clone(),
+                        &ContractLocator {
+                            chain_name: self.name.clone(),
+                            domain: self.domain.parse().expect("invalid uint"),
+                            address: address.parse::<ethers::types::Address>()?.into(),
+                        },
+                        signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some((metrics.provider_metrics(), metrics_conf)),
+                    )
+                    .await
+            }
         }
     }
 }
@@ -148,6 +151,7 @@ impl ChainSetup<OutboxAddresses> {
             .await
     }
 
+    /// Try to convert the chain settings into an Outbox contract indexer
     pub async fn try_into_outbox_indexer(
         &self,
         signer: Option<Signers>,
@@ -171,11 +175,13 @@ impl ChainSetup<OutboxAddresses> {
             let builder = InterchainGasPaymasterBuilder {};
             self.build(address, signer, metrics, self.metrics_conf(), builder)
                 .await
+                .map(|v| Some(v))
         } else {
             Ok(None)
         }
     }
 
+    /// Try to convert the chain settings into a IGP contract indexer
     pub async fn try_into_interchain_gas_paymaster_indexer(
         &self,
         signer: Option<Signers>,
@@ -190,6 +196,7 @@ impl ChainSetup<OutboxAddresses> {
             };
             self.build(address, signer, metrics, self.metrics_conf(), builder)
                 .await
+                .map(|v| Some(v))
         } else {
             Ok(None)
         }
@@ -238,11 +245,12 @@ impl ChainSetup<InboxAddresses> {
             .await
     }
 
+    /// Try to convert the chain settings into an inbox contract indexer.
     pub async fn try_into_inbox_indexer(
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn Inbox>> {
+    ) -> eyre::Result<Box<dyn InboxIndexer>> {
         let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         let address = &self.addresses.inbox;
         let builder = InboxIndexerBuilder {

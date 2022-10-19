@@ -46,7 +46,7 @@ pub struct InboxIndexerBuilder {
 }
 
 impl MakeableWithProvider for InboxIndexerBuilder {
-    type Output = Box<dyn Inbox>;
+    type Output = Box<dyn InboxIndexer>;
 
     fn make_with_provider<M: Middleware + 'static>(
         &self,

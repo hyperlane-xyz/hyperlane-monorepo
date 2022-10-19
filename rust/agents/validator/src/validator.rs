@@ -5,9 +5,7 @@ use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use abacus_base::{
-    run_all, AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers, CoreMetrics, Settings,
-};
+use abacus_base::{run_all, AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers, CoreMetrics};
 use abacus_core::{AbacusContract, Signers};
 
 use crate::submit::ValidatorSubmitterMetrics;

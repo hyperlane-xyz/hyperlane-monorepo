@@ -267,6 +267,7 @@ impl ChainSettings {
         Ok(CachingInbox::new(inbox.into(), abacus_db))
     }
 
+    /// Try to get an InboxIndexer
     pub async fn try_inbox_indexer(
         &self,
         chain_setup: &ChainSetup<InboxAddresses>,
