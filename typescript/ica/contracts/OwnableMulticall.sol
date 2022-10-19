@@ -13,7 +13,6 @@ struct Call {
 /*
  * @title OwnableMulticall
  * @dev Allows only only address to execute calls to other contracts
-
  */
 contract OwnableMulticall is OwnableUpgradeable {
     constructor() {
