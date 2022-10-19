@@ -26,8 +26,8 @@ use abacus_base::{decl_settings, AgentSettings, ApplicationSettings, ChainSettin
 /// settings loaded via a config file.
 pub struct ScraperSettings {
     /// settings by domain id for each domain
-    chains: HashMap<u32, ChainSettings>,
-    app: ApplicationSettings,
+    pub chains: HashMap<u32, ChainSettings>,
+    pub app: ApplicationSettings,
 }
 
 impl ScraperSettings {

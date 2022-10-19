@@ -111,14 +111,6 @@ impl<T> ChainSetup<T> {
             .expect("could not parse finality_blocks")
     }
 
-    fn locator(&self, address: &str) -> ContractLocator {
-        ContractLocator {
-            chain_name: self.name.clone(),
-            domain: self.domain.parse().expect("invalid uint"),
-            address: address.parse::<ethers::types::Address>()?.into(),
-        }
-    }
-
     fn build<B: MakeableWithProvider>(
         &self,
         address: &str,
@@ -130,7 +122,11 @@ impl<T> ChainSetup<T> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(builder.make_with_connection(
                 conf.clone(),
-                &self.locator(address),
+                &ContractLocator {
+                    chain_name: self.name.clone(),
+                    domain: self.domain.parse().expect("invalid uint"),
+                    address: address.parse::<ethers::types::Address>()?.into(),
+                },
                 signer,
                 Some(|| metrics.json_rpc_client_metrics()),
                 Some((metrics.provider_metrics(), metrics_conf)),

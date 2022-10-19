@@ -16,8 +16,8 @@ use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
 
 use abacus_base::last_message::validate_message_continuity;
 use abacus_base::{
-    run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, IndexSettings,
-    OutboxAddresses, Settings,
+    run_all, BaseAgent, ChainSettings, ChainSetup, ContractSyncMetrics, CoreMetrics,
+    InboxAddresses, IndexSettings, OutboxAddresses, Settings,
 };
 use abacus_core::{
     name_from_domain_id, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxIndexer,
@@ -38,10 +38,8 @@ mod block_cursor;
 pub struct Scraper {
     db: DbConn,
     metrics: Arc<CoreMetrics>,
-    /// A map of outbox contracts by domain.
-    outboxes: HashMap<u32, SqlChainScraper>,
-    inboxes: HashMap<u32, ()>,
-    gas_paymasters: HashMap<u32, ()>,
+    /// A map of scrapers by domain.
+    scrapers: HashMap<u32, SqlChainScraper>,
 }
 
 #[async_trait]
@@ -53,50 +51,46 @@ impl BaseAgent for Scraper {
     where
         Self: Sized,
     {
-        todo!()
-        // let core_settings: Settings = settings.base;
+        let db = Database::connect(&settings.app.db).await?;
+        let mut scrapers = HashMap::new();
+        for (local_domain, chain_config) in settings.chains.into_iter() {
+            let local = if let Some(local) = Self::load_outbox(&chain_config, &metrics).await? {
+                local
+            } else {
+                // ignore entirely if we ignore the outbox
+                continue;
+            };
+            assert_eq!(local.outbox.local_domain(), local_domain);
 
-        // let db = Database::connect(&core_settings.db).await?;
-        // for (name, chain) in settings.chains {
-        //     if config
-        //         .disabled
-        //         .as_ref()
-        //         .and_then(|d| d.parse::<bool>().ok())
-        //         .unwrap_or(false)
-        //     {
-        //         continue;
-        //     }
-        // }
-        // let index_settings_for_chain = index_settings
-        //     .get(outbox.chain_name())
-        //     .ok_or_else(|| eyre!("Index settings are missing for {}",
-        // outbox.chain_name()))?; let outboxes = Self::load_outboxes(
-        //     &db,
-        //     &core_settings,
-        //     settings.outboxes,
-        //     &settings.indexes,
-        //     &metrics,
-        // )
-        // .await?;
-        // let inboxes = Self::load_inboxes(&db, &core_settings,
-        // &metrics).await?; let gas_paymasters =
-        // Self::load_gas_paymasters(&db, &core_settings, &metrics).await?;
-        // Ok(Self {
-        //     metrics,
-        //     outboxes,
-        //     inboxes,
-        //     gas_paymasters,
-        // })
-        // let contract_sync_metrics =
-        // ContractSyncMetrics::new(metrics.clone());
-        // SqlChainScraper::new(
-        //     db.clone(),
-        //     outbox.into(),
-        //     indexer.into(),
-        //     index_settings_for_chain,
-        //     contract_sync_metrics.clone(),
-        // )
-        //     .await?
+            let mut remotes = HashMap::new();
+            for (_, inbox_config) in chain_config.inboxes.iter() {
+                if let Some(remote) =
+                    Self::load_inbox(&chain_config, inbox_config, &metrics).await?
+                {
+                    assert_eq!(local.outbox.local_domain(), local_domain);
+                    assert_ne!(remote.inbox.remote_domain(), local_domain);
+                    remotes.insert(remote.inbox.remote_domain(), remote);
+                }
+            }
+
+            scrapers.insert(
+                local_domain,
+                SqlChainScraper::new(
+                    db.clone(),
+                    local,
+                    remotes,
+                    &chain_config.index,
+                    ContractSyncMetrics::new(metrics.clone()),
+                )
+                .await?,
+            );
+        }
+
+        Ok(Self {
+            db,
+            metrics,
+            scrapers,
+        })
     }
 
     #[allow(clippy::async_yields_async)]
@@ -116,43 +110,61 @@ impl BaseAgent for Scraper {
 }
 
 impl Scraper {
-    // async fn load_outbox(
-    //     core_settings: &Settings,
-    //     name: &str,
-    //     config: &<Scraper as BaseAgent>::Settings,
-    //     metrics: &Arc<CoreMetrics>,
-    // ) -> Result<Local> {
-    //     let signer = core_settings.get_signer(&name).await;
-    //     let outbox = config.try_into_outbox(signer, metrics).await?.into();
-    //     let indexer = core_settings
-    //         .try_outbox_indexer_from_config(metrics, &config)
-    //         .await?
-    //         .into();
-    //
-    //     Ok(Local {
-    //         domain: outbox.local_domain(),
-    //         outbox,
-    //         indexer,
-    //     })
-    // }
-    //
-    // async fn load_inboxes(
-    //     _db: &DbConn,
-    //     _core_settings: &Settings,
-    //     _metrics: &Arc<CoreMetrics>,
-    // ) -> Result<HashMap<u32, ()>> {
-    //     // TODO
-    //     Ok(HashMap::new())
-    // }
-    //
-    // async fn load_gas_paymasters(
-    //     _db: &DbConn,
-    //     _core_settings: &Settings,
-    //     _metrics: &Arc<CoreMetrics>,
-    // ) -> Result<HashMap<u32, ()>> {
-    //     // TODO
-    //     Ok(HashMap::new())
-    // }
+    async fn load_outbox(
+        config: &ChainSettings,
+        metrics: &Arc<CoreMetrics>,
+    ) -> Result<Option<Local>> {
+        Ok(
+            if !config
+                .outbox
+                .disabled
+                .as_ref()
+                .and_then(|d| d.parse::<bool>().ok())
+                .unwrap_or(false)
+            {
+                None
+            } else {
+                Some(Local {
+                    outbox: config.try_outbox(metrics).await?.into(),
+                    indexer: config.try_outbox_indexer(metrics).await?.into(),
+                })
+            },
+        )
+    }
+
+    async fn load_inbox(
+        config: &ChainSettings,
+        inbox_config: &ChainSetup<InboxAddresses>,
+        metrics: &Arc<CoreMetrics>,
+    ) -> Result<Option<Remote>> {
+        Ok(
+            if !inbox_config
+                .disabled
+                .as_ref()
+                .and_then(|d| d.parse::<bool>().ok())
+                .unwrap_or(false)
+            {
+                None
+            } else {
+                Some(Remote {
+                    inbox: config.try_inbox(inbox_config, metrics).await?.into(),
+                    indexer: config
+                        .try_inbox_indexer(inbox_config, metrics)
+                        .await?
+                        .into(),
+                })
+            },
+        )
+    }
+
+    async fn load_gas_paymasters(
+        _db: &DbConn,
+        _core_settings: &Settings,
+        _metrics: &Arc<CoreMetrics>,
+    ) -> Result<HashMap<u32, ()>> {
+        // TODO
+        Ok(HashMap::new())
+    }
 }
 
 #[derive(Debug, Clone)]
