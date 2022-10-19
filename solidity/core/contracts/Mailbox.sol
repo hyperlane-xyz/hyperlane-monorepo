@@ -8,7 +8,7 @@ import {Message} from "./libs/Message.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
 import {ISovereignRecipient} from "../interfaces/ISovereignRecipient.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
-import {ISovereignZone} from "../interfaces/ISovereignZone.sol";
+import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
 
 // ============ External Imports ============
@@ -29,23 +29,13 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
     uint256 public constant MAX_MESSAGE_BODY_BYTES = 2 * 2**10;
     // Domain of chain on which the contract is deployed
     uint32 public immutable localDomain;
-
-    // ============ Enums ============
-
-    // Status of Message:
-    //   0 - None - message has not been processed
-    //   1 - Processed - message has been dispatched to recipient
-    enum MessageStatus {
-        None,
-        Processed
-    }
+    uint32 public immutable version;
 
     // ============ Public Storage ============
-    ISovereignZone public defaultZone;
+    IInterchainSecurityModule public defaultIsm;
     MerkleLib.Tree public tree;
-
-    // Mapping of message leaves to MessageStatus
-    mapping(bytes32 => MessageStatus) public messages;
+    // Mapping of message ID to whether or not that message has been delivered.
+    mapping(bytes32 => bool) public delivered;
 
     // ============ Upgrade Gap ============
 
@@ -61,32 +51,41 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
      */
     event Dispatch(uint256 indexed leafIndex, bytes message);
 
-    /**
-     * @notice Emitted when message is processed
-     * @dev This event allows watchers to observe the merkle proof they need
-     * to prove fraud on the origin chain.
-     */
-    event Process(
-        bytes32 indexed messageHash,
-        bytes32 root,
-        bytes32[32] proof,
-        uint32 originDomain,
-        bytes32 originMailbox
-    );
+    // ============ Modifiers ============
+    modifier onlyIsm(bytes calldata _message) {
+        ISovereignRecipient _recipient = _message.recipientAddress();
+        {
+            // For backwards compatibility, use a default
+            // interchainSecurityModule if one is not specified by the
+            // recipient.
+            IInterchainSecurityModule _interchainSecurityModule;
+            try _recipient.interchainSecurityModule() returns (
+                IInterchainSecurityModule _val
+            ) {
+                _interchainSecurityModule = _val;
+            } catch {
+                _interchainSecurityModule = defaultIsm;
+            }
+
+            require(msg.sender == _interchainSecurityModule, "!ism");
+        }
+        _;
+    }
 
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
-    constructor(uint32 _localDomain) {
+    constructor(uint32 _localDomain, uint32 _version) {
         localDomain = _localDomain;
+        version = _version;
     }
 
     // ============ Initializer ============
 
-    function initialize(address _defaultZone) external initializer {
+    function initialize(address _defaultIsm) external initializer {
         __ReentrancyGuard_init();
-        // TODO: setDefaultSovereignZone, check for isContract.
-        defaultZone = ISovereignZone(_defaultZone);
+        // TODO: setDefaultIsm, check for isContract.
+        defaultIsm = IInterchainSecurityModule(_defaultIsm);
     }
 
     // ============ External Functions ============
@@ -104,33 +103,25 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes calldata _messageBody
-    ) external override returns (uint256) {
+    ) external override returns (bytes32) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
-        // The leaf has not been inserted yet at this point
-        uint256 _leafIndex = count();
-        // format the message into packed bytes
+        // Format the message into packed bytes
         bytes memory _message = Message.formatMessage(
+            version,
+            count(),
             localDomain,
             msg.sender.addressToBytes32(),
             _destinationDomain,
             _recipientAddress,
             _messageBody
         );
-        // insert the hashed message into the Merkle tree
-        bytes32 _messageHash = keccak256(
-            abi.encodePacked(
-                _message,
-                _leafIndex,
-                address(this).addressToBytes32(),
-                VERSION
-            )
-        );
-        tree.insert(_messageHash);
-        emit Dispatch(_leafIndex, _message);
-        return _leafIndex;
+        // Insert the message into the merkle tree.
+        bytes32 _id = _message.id();
+        tree.insert(_id);
+        emit Dispatch(_id, _message);
+        return _id;
     }
 
-    /**
     /**
      * @notice Attempts to process the provided formatted `message`. Performs
      * verification against root of the proof
@@ -143,86 +134,23 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
      * @param _proof Merkle proof of inclusion for message's leaf
      * @param _leafIndex Index of leaf in outbox's merkle tree
      */
-    function process(
-        bytes32 _originMailbox,
-        bytes32 _root,
-        uint256 _index,
-        bytes calldata _sovereignData,
-        bytes calldata _message,
-        bytes32[32] calldata _proof,
-        uint256 _leafIndex
-    ) external override nonReentrant {
-        require(_index >= _leafIndex, "!index");
-        bytes32 _messageHash = _message.hash(
-            _leafIndex,
-            _originMailbox,
-            VERSION
-        );
-        // ensure that message has not been processed
-        require(
-            messages[_messageHash] == MessageStatus.None,
-            "!MessageStatus.None"
-        );
-        {
-            // calculate the expected root based on the proof
-            bytes32 _calculatedRoot = MerkleLib.branchRoot(
-                _messageHash,
-                _proof,
-                _leafIndex
-            );
-            // verify the merkle proof
-            require(_calculatedRoot == _root, "!proof");
-        }
-
-        {
-            ISovereignRecipient _recipient = ISovereignRecipient(
-                _message.recipientAddress()
-            );
-            // For backwards compatibility, use a default zone if not specified by the recipient.
-            ISovereignZone _zone;
-            try _recipient.zone() returns (ISovereignZone _val) {
-                _zone = _val;
-            } catch {
-                _zone = defaultZone;
-            }
-
-            require(
-                _zone.accept(_root, _index, _sovereignData, _message),
-                "!zone"
-            );
-        }
-
-        {
-            uint32 _origin = _process(_message, _messageHash);
-            emit Process(_messageHash, _root, _proof, _origin, _originMailbox);
-        }
-    }
-
-    // ============ Internal Functions ============
-
-    /**
-     * @notice Marks a message as processed and calls handle on the recipient
-     * @dev Internal function that can be called by contracts like TestInbox
-     * @param _message Formatted message (refer to Mailbox.sol Message library)
-     * @param _messageHash keccak256 hash of the message
-     */
-    function _process(bytes calldata _message, bytes32 _messageHash)
-        internal
-        returns (uint32)
+    function process(bytes calldata _message)
+        external
+        override
+        nonReentrant
+        onlyIsm(_message)
     {
-        // ensure message was meant for this domain
+        bytes32 _id = _message.id();
+        require(delivered[_id] == false, "delivered");
+        delivered[_id] = true;
         require(_message.destination() == localDomain, "!destination");
-
-        // update message status as processed
-        messages[_messageHash] = MessageStatus.Processed;
-
         uint32 _origin = _message.origin();
         IMessageRecipient(_message.recipientAddress()).handle(
             _origin,
             _message.sender(),
             _message.body()
         );
-        return _origin;
+        emit Process(_id);
     }
 
     /**

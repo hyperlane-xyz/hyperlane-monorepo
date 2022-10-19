@@ -20,8 +20,10 @@ library Message {
      * @param _recipient Address of recipient on destination chain as bytes32
      * @param _messageBody Raw bytes of message body
      * @return Formatted message
-     **/
+     */
     function formatMessage(
+        uint32 _version,
+        uint256 _nonce,
         uint32 _originDomain,
         bytes32 _sender,
         uint32 _destinationDomain,
@@ -30,6 +32,8 @@ library Message {
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
+                _version,
+                _nonce,
                 _originDomain,
                 _sender,
                 _destinationDomain,
@@ -39,30 +43,28 @@ library Message {
     }
 
     /**
-     * @notice Returns leaf of formatted message with provided fields.
-     * @dev hash of abi packed message and leaf index.
-     * @param _message Raw bytes of message contents.
-     * @param _leafIndex Index of the message in the tree
-     * @return Leaf (hash) of formatted message
+     * @notice Returns the message ID.
+     * @param _message ABI encoded message.
+     * @return ID of _message
      */
-    function hash(
-        bytes calldata _message,
-        uint256 _leafIndex,
-        bytes32 _originMailbox,
-        uint8 _version
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked(_message, _leafIndex, _originMailbox, _version)
-            );
+    function id(bytes calldata _message) internal pure returns (bytes32) {
+        return keccak256(_message);
     }
 
-    function origin(bytes calldata _message) internal pure returns (uint32) {
+    function version(bytes calldata _message) internal pure returns (uint32) {
         return uint32(bytes4(_message[0:4]));
     }
 
+    function nonce(bytes calldata _message) internal pure returns (uint256) {
+        return uint256(bytes32(_message[4:36]));
+    }
+
+    function origin(bytes calldata _message) internal pure returns (uint32) {
+        return uint32(bytes4(_message[36:40]));
+    }
+
     function sender(bytes calldata _message) internal pure returns (bytes32) {
-        return bytes32(_message[4:36]);
+        return bytes32(_message[40:72]);
     }
 
     function senderAddress(bytes calldata _message)
@@ -78,7 +80,7 @@ library Message {
         pure
         returns (uint32)
     {
-        return uint32(bytes4(_message[36:40]));
+        return uint32(bytes4(_message[72:76]));
     }
 
     function recipient(bytes calldata _message)
@@ -86,7 +88,7 @@ library Message {
         pure
         returns (bytes32)
     {
-        return bytes32(_message[40:72]);
+        return bytes32(_message[76:108]);
     }
 
     function recipientAddress(bytes calldata _message)
@@ -102,6 +104,6 @@ library Message {
         pure
         returns (bytes calldata)
     {
-        return bytes(_message[72:]);
+        return bytes(_message[108:]);
     }
 }

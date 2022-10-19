@@ -7,24 +7,25 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 // ============ Internal Imports ============
-import {IMultisigZone} from "../../interfaces/IMultisigZone.sol";
+import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
 import {Message} from "../libs/Message.sol";
-import {EcdsaSignatureList} from "../libs/EcdsaSignatureList.sol";
+import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
 
 /**
- * @title MultisigZone
+ * @title MultisigIsm
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
  * reach a quorum.
  */
-contract MultisigZone is IMultisigZone, Ownable {
+contract MultisigIsm is IMultisigIsm, Ownable {
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
     using Message for bytes;
-    using EcdsaSignatureList for bytes;
+    using MultisigIsmMetadata for bytes;
+    using MerkleLib for MerkleLib.Tree;
 
     // ============ Constants ============
-    ZoneType public constant zoneType = ZoneType.MULTISIG;
+    IsmType public constant zoneType = IsmType.MULTISIG;
 
     // ============ Mutable Storage ============
 
@@ -35,12 +36,6 @@ contract MultisigZone is IMultisigZone, Ownable {
     mapping(uint32 => EnumerableSet.AddressSet) private validatorSets;
 
     // ============ Events ============
-    event CheckpointSignature(
-        bytes32 root,
-        uint256 index,
-        uint32 domain,
-        bytes signature
-    );
 
     /**
      * @notice Emitted when a validator is enrolled in the validator set.
@@ -144,21 +139,33 @@ contract MultisigZone is IMultisigZone, Ownable {
      * @param _root The merkle root of the checkpoint.
      * @param _index The index of the checkpoint.
      */
-    function accept(
-        bytes32 _root,
-        uint256 _index,
-        bytes calldata _signatures,
-        bytes calldata _message
-    ) public returns (bool) {
+    function process(bytes calldata _metadata, bytes calldata _message)
+        public
+        returns (bool)
+    {
         uint32 _origin = _message.origin();
         uint256 _threshold = threshold[_origin];
+        require(verifyMerkleProof(_metadata, _message), "!merkle");
         uint256 _validatorSignatureCount = _countValidatorSignatures(
-            _root,
-            _index,
-            _signatures,
-            _origin
+            _origin,
+            _metadata
         );
         return _validatorSignatureCount >= _threshold && _threshold > 0;
+    }
+
+    function verifyMerkleProof(
+        bytes calldata _metadata,
+        bytes calldata _message
+    ) private returns (bool) {
+        // calculate the expected root based on the proof
+        bytes32 _calculatedRoot = MerkleLib.branchRoot(
+            _message.id(),
+            _metadata.proof(),
+            // TODO: The leaf index may not be the same as the nonce if we choose to go
+            // with modular storage for outbound messages.
+            _message.nonce()
+        );
+        return _calculatedRoot == _metadata.root();
     }
 
     /**
@@ -184,14 +191,12 @@ contract MultisigZone is IMultisigZone, Ownable {
 
     // ============ Internal Functions ============
 
-    function _countValidatorSignatures(
-        bytes32 _root,
-        uint256 _index,
-        bytes calldata _signatures,
-        uint32 _origin
-    ) internal returns (uint256) {
+    function _countValidatorSignatures(bytes calldata _metadata, uint32 _origin)
+        internal
+        returns (uint256)
+    {
         EnumerableSet.AddressSet storage _validatorSet = validatorSets[_origin];
-        bytes32 _digest = _signedDigest(_root, _index, _origin);
+        bytes32 _digest = _signedDigest(_metadata, _origin);
         // To identify duplicates, the signers recovered from _signatures
         // must be sorted in ascending order. previousSigner is used to
         // enforce ordering.
@@ -208,20 +213,42 @@ contract MultisigZone is IMultisigZone, Ownable {
                 _validatorSignatureCount++;
             }
             _previousSigner = _signer;
-            emit CheckpointSignature(_root, _index, _origin, _signature);
+            // emit CheckpointSignature(_signature);
         }
+        // Everything you need in order to slash validators for
+        // sending fraudulent messages or censoring messages.
+        /*
+        * @dev This event allows watchers to observe the merkle proof they need
+        * to prove fraud on the origin chain.
+        emit Something(
+            _metadata.root(),
+            _metadata.index(),
+            _message.origin(),
+            _metadata.originMailbox(),
+            _metadata.proof(),
+            _message.nonce()
+        );
+        */
         return _validatorSignatureCount;
     }
 
-    function _signedDigest(
-        bytes32 _root,
-        uint256 _index,
-        uint32 _origin
-    ) internal pure returns (bytes32) {
-        bytes32 _domainHash = keccak256(abi.encodePacked(_origin, "ABACUS"));
+    function _signedDigest(bytes calldata _metadata, uint32 _origin)
+        internal
+        pure
+        returns (bytes32)
+    {
+        bytes32 _domainHash = keccak256(
+            abi.encodePacked(_origin, _metadata.originMailbox(), "HYPERLANE")
+        );
         return
             ECDSA.toEthSignedMessageHash(
-                keccak256(abi.encodePacked(_domainHash, _root, _index))
+                keccak256(
+                    abi.encodePacked(
+                        _domainHash,
+                        _metadata.root(),
+                        _metadata.index()
+                    )
+                )
             );
     }
 
