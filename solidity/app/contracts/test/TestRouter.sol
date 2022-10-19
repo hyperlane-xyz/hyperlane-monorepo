@@ -14,7 +14,7 @@ contract TestRouter is Router {
     function _handle(
         uint32,
         bytes32,
-        bytes memory
+        bytes calldata
     ) internal pure override {}
 
     function isRemoteRouter(uint32 _domain, bytes32 _potentialRemoteRouter)

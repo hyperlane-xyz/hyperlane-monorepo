@@ -5,7 +5,6 @@ import {OwnableMulticall, Call} from "./OwnableMulticall.sol";
 
 // ============ External Imports ============
 import {Router} from "@hyperlane-xyz/app/contracts/Router.sol";
-import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -17,6 +16,12 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 contract InterchainAccountRouter is Router {
     bytes constant bytecode = type(OwnableMulticall).creationCode;
     bytes32 constant bytecodeHash = bytes32(keccak256(bytecode));
+
+    event InterchainAccountCreated(
+        uint32 indexed origin,
+        address sender,
+        address account
+    );
 
     function initialize(
         address _owner,
@@ -53,6 +58,7 @@ contract InterchainAccountRouter is Router {
         address interchainAccount = _getInterchainAccount(salt);
         if (!Address.isContract(interchainAccount)) {
             interchainAccount = Create2.deploy(0, salt, bytecode);
+            emit InterchainAccountCreated(_origin, _sender, interchainAccount);
         }
         return OwnableMulticall(interchainAccount);
     }
@@ -76,7 +82,7 @@ contract InterchainAccountRouter is Router {
     function _handle(
         uint32 _origin,
         bytes32, // router sender
-        bytes memory _message
+        bytes calldata _message
     ) internal override {
         (address sender, Call[] memory calls) = abi.decode(
             _message,
