@@ -41,6 +41,26 @@ impl MakeableWithProvider for InboxBuilder {
     }
 }
 
+pub struct InboxIndexerBuilder {
+    pub finality_blocks: u32,
+}
+
+impl MakeableWithProvider for InboxIndexerBuilder {
+    type Output = Box<dyn Inbox>;
+
+    fn make_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumInboxIndexer::new(
+            Arc::new(provider),
+            locator,
+            self.finality_blocks,
+        ))
+    }
+}
+
 #[derive(Debug)]
 pub struct EthereumInboxIndexer<M>
 where
