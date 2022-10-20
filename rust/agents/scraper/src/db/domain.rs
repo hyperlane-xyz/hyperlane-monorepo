@@ -49,10 +49,10 @@ impl PrimaryKeyTrait for PrimaryKey {
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
-    Cursor,
+    Checkpoint,
     Message,
     Block,
-    Checkpoint,
+    Cursor,
     GasPayment,
     DeliveredMessage,
 }
@@ -76,19 +76,19 @@ impl ColumnTrait for Column {
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
-            Self::Cursor => Entity::has_many(super::cursor::Entity).into(),
+            Self::Checkpoint => Entity::has_many(super::checkpoint::Entity).into(),
             Self::Message => Entity::has_many(super::message::Entity).into(),
             Self::Block => Entity::has_many(super::block::Entity).into(),
-            Self::Checkpoint => Entity::has_many(super::checkpoint::Entity).into(),
+            Self::Cursor => Entity::has_many(super::cursor::Entity).into(),
             Self::GasPayment => Entity::has_many(super::gas_payment::Entity).into(),
             Self::DeliveredMessage => Entity::has_many(super::delivered_message::Entity).into(),
         }
     }
 }
 
-impl Related<super::cursor::Entity> for Entity {
+impl Related<super::checkpoint::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Cursor.def()
+        Relation::Checkpoint.def()
     }
 }
 
@@ -104,9 +104,9 @@ impl Related<super::block::Entity> for Entity {
     }
 }
 
-impl Related<super::checkpoint::Entity> for Entity {
+impl Related<super::cursor::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Checkpoint.def()
+        Relation::Cursor.def()
     }
 }
 

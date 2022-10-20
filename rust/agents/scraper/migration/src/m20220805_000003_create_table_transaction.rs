@@ -26,7 +26,11 @@ impl MigrationTrait for Migration {
                             .timestamp()
                             .not_null(),
                     )
-                    .col(ColumnDef::new_with_type(Transaction::Hash, Hash).not_null())
+                    .col(
+                        ColumnDef::new_with_type(Transaction::Hash, Hash)
+                            .not_null()
+                            .unique_key(),
+                    )
                     .col(
                         ColumnDef::new(Transaction::BlockId)
                             .big_integer()
@@ -49,7 +53,6 @@ impl MigrationTrait for Migration {
                     .name("transaction_hash_idx")
                     .col(Transaction::Hash)
                     .index_type(IndexType::Hash)
-                    .unique()
                     .to_owned(),
             )
             .await?;

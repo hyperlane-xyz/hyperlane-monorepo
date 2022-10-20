@@ -60,7 +60,6 @@ pub enum Relation {
     Domain,
     Transaction,
     MessageState,
-    DeliveredMessage,
 }
 
 impl ColumnTrait for Column {
@@ -95,7 +94,6 @@ impl RelationTrait for Relation {
                 .to(super::transaction::Column::Id)
                 .into(),
             Self::MessageState => Entity::has_many(super::message_state::Entity).into(),
-            Self::DeliveredMessage => Entity::has_one(super::delivered_message::Entity).into(),
         }
     }
 }
@@ -115,12 +113,6 @@ impl Related<super::transaction::Entity> for Entity {
 impl Related<super::message_state::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::MessageState.def()
-    }
-}
-
-impl Related<super::delivered_message::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::DeliveredMessage.def()
     }
 }
 

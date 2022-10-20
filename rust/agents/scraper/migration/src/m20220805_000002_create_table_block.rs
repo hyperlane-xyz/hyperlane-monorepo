@@ -53,7 +53,6 @@ impl MigrationTrait for Migration {
                     .name("block_hash_idx")
                     .col(Block::Hash)
                     .index_type(IndexType::Hash)
-                    .unique()
                     .to_owned(),
             )
             .await

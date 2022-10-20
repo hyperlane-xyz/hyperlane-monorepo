@@ -27,7 +27,11 @@ impl MigrationTrait for Migration {
                             .timestamp()
                             .not_null(),
                     )
-                    .col(ColumnDef::new_with_type(DeliveredMessage::Hash, Hash).not_null())
+                    .col(
+                        ColumnDef::new_with_type(DeliveredMessage::Hash, Hash)
+                            .not_null()
+                            .unique_key(),
+                    )
                     .col(
                         ColumnDef::new(DeliveredMessage::Domain)
                             .unsigned()
@@ -71,7 +75,6 @@ impl MigrationTrait for Migration {
                     .name("delivered_message_hash_idx")
                     .col(DeliveredMessage::Hash)
                     .index_type(IndexType::Hash)
-                    .unique()
                     .to_owned(),
             )
             .await?;
