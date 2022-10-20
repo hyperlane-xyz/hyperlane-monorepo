@@ -540,7 +540,6 @@ impl SqlChainScraper {
                 hash: Unchanged(format_h256(&delivery.message_hash)),
                 domain: Unchanged(self.local_domain() as i32),
                 inbox_address: Unchanged(format_h256(&delivery.inbox)),
-                msg_id: Set(None),
                 tx_id: Set(txns.get(&delivery.meta.transaction_hash).unwrap().0),
             })
             .collect::<Vec<_>>();
@@ -553,7 +552,6 @@ impl SqlChainScraper {
                 OnConflict::new()
                     .update_columns([
                         delivered_message::Column::TimeCreated,
-                        delivered_message::Column::MsgId,
                         delivered_message::Column::TxId,
                     ])
                     .to_owned(),
