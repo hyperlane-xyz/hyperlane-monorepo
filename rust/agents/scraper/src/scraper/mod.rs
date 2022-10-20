@@ -192,6 +192,7 @@ struct SqlChainScraper {
     cursor: Arc<BlockCursor>,
 }
 
+#[allow(unused)]
 impl SqlChainScraper {
     pub async fn new(
         db: DbConn,
@@ -460,7 +461,7 @@ impl SqlChainScraper {
             .max()
             .ok_or_else(|| eyre!("Received empty list"));
         let models = messages
-            .into_iter()
+            .iter()
             .map(|(raw, meta)| {
                 let msg = CommittedMessage::try_from(raw)?;
 

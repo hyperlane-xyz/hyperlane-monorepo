@@ -175,7 +175,7 @@ impl ChainSetup<OutboxAddresses> {
             let builder = InterchainGasPaymasterBuilder {};
             self.build(address, signer, metrics, self.metrics_conf(), builder)
                 .await
-                .map(|v| Some(v))
+                .map(Some)
         } else {
             Ok(None)
         }
@@ -196,7 +196,7 @@ impl ChainSetup<OutboxAddresses> {
             };
             self.build(address, signer, metrics, self.metrics_conf(), builder)
                 .await
-                .map(|v| Some(v))
+                .map(Some)
         } else {
             Ok(None)
         }
