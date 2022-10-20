@@ -109,7 +109,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
     },
   },
   moonbeam: {
-    owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+    owner: '0xF0cb1f968Df01fc789762fddBfA704AE0F952197',
     validatorManager: {
       validators: [
         '0x3da42c84aaf9d548feb219bfdf5fcb2217fbfb48',
