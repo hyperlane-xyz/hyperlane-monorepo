@@ -1,4 +1,5 @@
 use ethers::signers::Signer;
+use eyre::Context;
 use serde::Deserialize;
 
 use abacus_core::{
@@ -149,6 +150,7 @@ impl ChainSetup<OutboxAddresses> {
         let builder = OutboxBuilder {};
         self.build(address, signer, metrics, self.metrics_conf(), builder)
             .await
+            .context("Building outbox")
     }
 
     /// Try to convert the chain settings into an Outbox contract indexer
@@ -163,6 +165,7 @@ impl ChainSetup<OutboxAddresses> {
         };
         self.build(address, signer, metrics, self.metrics_conf(), builder)
             .await
+            .context("Building outbox indexer")
     }
 
     /// Try to convert the chain setting into an InterchainGasPaymaster contract
@@ -176,6 +179,7 @@ impl ChainSetup<OutboxAddresses> {
             self.build(address, signer, metrics, self.metrics_conf(), builder)
                 .await
                 .map(Some)
+                .context("Building interchain gas paymaster")
         } else {
             Ok(None)
         }
@@ -197,6 +201,7 @@ impl ChainSetup<OutboxAddresses> {
             self.build(address, signer, metrics, self.metrics_conf(), builder)
                 .await
                 .map(Some)
+                .context("Building interchain gas paymaster indexer")
         } else {
             Ok(None)
         }
@@ -243,6 +248,7 @@ impl ChainSetup<InboxAddresses> {
         let builder = InboxBuilder {};
         self.build(address, signer, metrics, metrics_conf, builder)
             .await
+            .context("Building inbox")
     }
 
     /// Try to convert the chain settings into an inbox contract indexer.
@@ -258,6 +264,7 @@ impl ChainSetup<InboxAddresses> {
         };
         self.build(address, signer, metrics, metrics_conf, builder)
             .await
+            .context("Building inbox indexer")
     }
 
     /// Try to convert the chain setting into an InboxValidatorManager contract
@@ -272,6 +279,7 @@ impl ChainSetup<InboxAddresses> {
         let builder = InboxValidatorManagerBuilder { inbox_address };
         self.build(address, signer, metrics, metrics_conf, builder)
             .await
+            .context("Building inbox validator manager")
     }
 
     /// Get a clone of the metrics conf with correctly configured contract
