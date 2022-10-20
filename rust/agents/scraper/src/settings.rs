@@ -23,6 +23,7 @@ use abacus_base::{AgentSettings, ApplicationSettings, ChainSettings};
 ///
 /// You still need the `BASE_CONFIG` if you want to have any application
 /// settings loaded via a config file.
+#[derive(Debug)]
 pub struct ScraperSettings {
     /// settings by domain id for each domain
     pub chains: HashMap<u32, ChainSettings>,
@@ -39,8 +40,12 @@ impl AgentSettings for ScraperSettings {
     type Error = eyre::Report;
 
     fn new() -> Result<Self, Self::Error> {
-        let app = load_settings_object::<_, &str>("scraper", env::var("BASE_CONFIG").ok().as_deref(), &[])
-            .context("Loading application settings")?;
+        let app = load_settings_object::<_, &str>(
+            "scraper",
+            env::var("BASE_CONFIG").ok().as_deref(),
+            &[],
+        )
+        .context("Loading application settings")?;
         let uppercase_chain_list = env::var("RUN_DOMAINS")
             .expect("Must specify run domains for scraper")
             .to_ascii_uppercase();
@@ -51,8 +56,10 @@ impl AgentSettings for ScraperSettings {
             .map(|chain_name| {
                 let config_file_name = env::var(&format!("BASE_CONFIG_{chain_name}"))
                     .expect("Must specify config file for all domains in $RUN_DOMAINS");
-                println!("Loading settings for {chain_name} from {config_file_name}");
-                let ignore_prefixes = [format!("HYP_BASE_INBOXES_{chain_name}")];
+                let ignore_prefixes = [
+                    format!("HYP_BASE_INBOXES_{chain_name}"),
+                    format!("HYP_SCRAPER_INBOXES_{chain_name}"),
+                ];
                 let settings: ChainSettings = load_settings_object(
                     &format!("scraper_{chain_name}"),
                     Some(&config_file_name),

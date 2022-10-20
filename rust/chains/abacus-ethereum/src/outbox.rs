@@ -31,10 +31,11 @@ pub struct OutboxIndexerBuilder {
     pub finality_blocks: u32,
 }
 
+#[async_trait]
 impl MakeableWithProvider for OutboxIndexerBuilder {
     type Output = Box<dyn OutboxIndexer>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -159,10 +160,11 @@ where
 
 pub struct OutboxBuilder {}
 
+#[async_trait]
 impl MakeableWithProvider for OutboxBuilder {
     type Output = Box<dyn Outbox>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,

@@ -16,7 +16,7 @@ mock! {
 
         pub fn _contract_address(&self) -> Address {}
 
-        pub fn _remote_domain(&self) -> Result<u32, ChainCommunicationError> {}
+        pub fn _remote_domain(&self) -> u32 {}
 
         pub fn _prove(&self, proof: &Proof) -> Result<TxOutcome, ChainCommunicationError> {}
 
@@ -45,7 +45,7 @@ impl std::fmt::Debug for MockInboxContract {
 
 #[async_trait]
 impl Inbox for MockInboxContract {
-    async fn remote_domain(&self) -> Result<u32, ChainCommunicationError> {
+    fn remote_domain(&self) -> u32 {
         self._remote_domain()
     }
 

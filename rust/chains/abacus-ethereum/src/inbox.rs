@@ -29,15 +29,16 @@ where
 
 pub struct InboxBuilder {}
 
+#[async_trait]
 impl MakeableWithProvider for InboxBuilder {
     type Output = Box<dyn Inbox>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumInbox::new(Arc::new(provider), locator))
+        Box::new(EthereumInbox::new(Arc::new(provider), locator).await)
     }
 }
 
@@ -45,10 +46,11 @@ pub struct InboxIndexerBuilder {
     pub finality_blocks: u32,
 }
 
+#[async_trait]
 impl MakeableWithProvider for InboxIndexerBuilder {
     type Output = Box<dyn InboxIndexer>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -134,8 +136,9 @@ where
     M: Middleware,
 {
     contract: Arc<EthereumInboxInternal<M>>,
-    domain: u32,
+    remote_domain: u32,
     chain_name: String,
+    local_domain: u32,
 }
 
 impl<M> EthereumInbox<M>
@@ -144,7 +147,7 @@ where
 {
     /// Create a reference to a inbox at a specific Ethereum address on some
     /// chain
-    pub fn new(
+    pub async fn new(
         provider: Arc<M>,
         ContractLocator {
             chain_name,
@@ -152,9 +155,16 @@ where
             address,
         }: &ContractLocator,
     ) -> Self {
+        let contract = Arc::new(EthereumInboxInternal::new(address, provider));
+        let local_domain = contract
+            .local_domain()
+            .call()
+            .await
+            .expect("Failed to get inbox's local_domain");
         Self {
-            contract: Arc::new(EthereumInboxInternal::new(address, provider)),
-            domain: *domain,
+            contract,
+            remote_domain: *domain,
+            local_domain,
             chain_name: chain_name.to_owned(),
         }
     }
@@ -179,7 +189,7 @@ where
     M: Middleware + 'static,
 {
     fn local_domain(&self) -> u32 {
-        self.domain
+        self.local_domain
     }
 
     #[tracing::instrument(err)]
@@ -205,8 +215,8 @@ impl<M> Inbox for EthereumInbox<M>
 where
     M: Middleware + 'static,
 {
-    async fn remote_domain(&self) -> Result<u32, ChainCommunicationError> {
-        Ok(self.contract.remote_domain().call().await?)
+    fn remote_domain(&self) -> u32 {
+        self.remote_domain
     }
 
     #[tracing::instrument(err)]

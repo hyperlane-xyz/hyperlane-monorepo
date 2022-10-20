@@ -123,12 +123,12 @@ macro_rules! decl_settings {
 
 /// Static logic called by the decl_settings! macro. Do not call directly!
 pub fn _new_settings<'de, T: Deserialize<'de>>(name: &str) -> eyre::Result<T> {
-    use std::env;
     use crate::settings;
+    use std::env;
 
     settings::load_settings_object::<_, &str>(
         name,
         Some(&env::var("BASE_CONFIG").unwrap_or_else(|_| "base".into())),
-        &[]
+        &[],
     )
 }

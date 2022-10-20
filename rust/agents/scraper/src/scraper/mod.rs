@@ -51,10 +51,16 @@ impl BaseAgent for Scraper {
         let db = Database::connect(&settings.app.db).await?;
         let mut scrapers = HashMap::new();
         for (local_domain, chain_config) in settings.chains.into_iter() {
+            debug!(domain=local_domain, config=?chain_config, "Creating scraper from config");
             let local = if let Some(local) = Self::load_outbox(&chain_config, &metrics).await? {
+                trace!(domain = local_domain, "Created outbox and outbox indexer");
                 local
             } else {
                 // ignore entirely if we ignore the outbox
+                info!(
+                    domain = local_domain,
+                    "Outbox is disabled; ignoring entire domain"
+                );
                 continue;
             };
             assert_eq!(local.outbox.local_domain(), local_domain);
@@ -64,13 +70,18 @@ impl BaseAgent for Scraper {
                 if let Some(remote) =
                     Self::load_inbox(&chain_config, inbox_config, &metrics).await?
                 {
-                    assert_eq!(local.outbox.local_domain(), local_domain);
-                    let remote_domain = remote
-                        .inbox
-                        .remote_domain()
-                        .await
-                        .expect("Failed to get remote domain");
-                    assert_ne!(remote_domain, local_domain);
+                    let remote_domain = remote.inbox.remote_domain();
+                    assert_eq!(remote.inbox.local_domain(), local_domain);
+                    assert_ne!(
+                        remote_domain, local_domain,
+                        "Attempting to load inbox for the chain we are on"
+                    );
+
+                    trace!(
+                        local_domain,
+                        remote_domain,
+                        "Created inbox and inbox indexer"
+                    );
                     remotes.insert(remote_domain, remote);
                 }
             }
@@ -87,6 +98,8 @@ impl BaseAgent for Scraper {
                 .await?,
             );
         }
+
+        trace!(domain_count = scrapers.len(), "Creating scraper");
 
         Ok(Self {
             db,
@@ -117,7 +130,7 @@ impl Scraper {
         metrics: &Arc<CoreMetrics>,
     ) -> Result<Option<Local>> {
         Ok(
-            if !config
+            if config
                 .outbox
                 .disabled
                 .as_ref()
@@ -140,7 +153,7 @@ impl Scraper {
         metrics: &Arc<CoreMetrics>,
     ) -> Result<Option<Remote>> {
         Ok(
-            if !inbox_config
+            if inbox_config
                 .disabled
                 .as_ref()
                 .and_then(|d| d.parse::<bool>().ok())
