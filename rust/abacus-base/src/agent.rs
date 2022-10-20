@@ -4,7 +4,6 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
-use serde::ser::StdError;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
@@ -50,7 +49,7 @@ pub struct AbacusAgentCore {
 /// Settings of an agent.
 pub trait AgentSettings: AsRef<ApplicationSettings> + Sized {
     /// The error type returned by new on failures to parse.
-    type Error: 'static + StdError + Send + Sync;
+    type Error: Into<Report>;
 
     /// Create a new instance of these settings by reading the configs and env
     /// vars.
@@ -136,7 +135,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     #[cfg(not(any(feature = "color-eyre", feature = "oneline-eyre")))]
     eyre::install()?;
 
-    let settings = A::Settings::new()?;
+    let settings = A::Settings::new().map_err(|e| e.into())?;
     let core_settings: &ApplicationSettings = settings.as_ref();
 
     let metrics = settings.as_ref().try_into_metrics(A::AGENT_NAME)?;

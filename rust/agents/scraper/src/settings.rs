@@ -1,3 +1,4 @@
+use eyre::WrapErr;
 use std::collections::HashMap;
 use std::env;
 
@@ -35,13 +36,11 @@ impl AsRef<ApplicationSettings> for ScraperSettings {
 }
 
 impl AgentSettings for ScraperSettings {
-    type Error = config::ConfigError;
+    type Error = eyre::Report;
 
     fn new() -> Result<Self, Self::Error> {
-        let app = load_settings_object(
-            "scraper",
-            &env::var("BASE_CONFIG").unwrap_or_else(|_| "base".into()),
-        )?;
+        let app = load_settings_object("scraper", env::var("BASE_CONFIG").ok().as_deref())
+            .context("Loading application settings")?;
         let chains = env::var("RUN_DOMAINS")
             .expect("Must specify run domains for scraper")
             .to_ascii_uppercase()
@@ -49,12 +48,16 @@ impl AgentSettings for ScraperSettings {
             .map(|chain_name| {
                 let config_file_name = env::var(&format!("BASE_CONFIG_{chain_name}"))
                     .expect("Must specify config file for all domains in $RUN_DOMAINS");
+                println!("Loading settings for {chain_name} from {config_file_name}");
                 let settings: ChainSettings =
-                    load_settings_object(&format!("scraper_{chain_name}"), &config_file_name)?;
+                    load_settings_object(&format!("scraper_{chain_name}"), Some(&config_file_name))
+                        .with_context(|| {
+                            format!("Loading config for chain {chain_name} from {config_file_name}")
+                        })?;
                 let domain: u32 = settings.outbox.domain.parse().expect("Invalid uint");
                 Ok((domain, settings))
             })
-            .collect::<Result<_, _>>()?;
+            .collect::<eyre::Result<_>>()?;
         Ok(Self { app, chains })
     }
 }
