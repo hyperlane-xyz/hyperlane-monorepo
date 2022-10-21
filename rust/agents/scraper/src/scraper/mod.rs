@@ -49,54 +49,74 @@ impl BaseAgent for Scraper {
         Self: Sized,
     {
         let db = Database::connect(&settings.app.db).await?;
-        let mut scrapers = HashMap::new();
-        for (local_domain, chain_config) in settings.chains.into_iter() {
-            debug!(domain=local_domain, config=?chain_config, "Creating scraper from config");
-            let local = if let Some(local) = Self::load_outbox(&chain_config, &metrics).await? {
-                trace!(domain = local_domain, "Created outbox and outbox indexer");
-                local
-            } else {
-                // ignore entirely if we ignore the outbox
-                info!(
-                    domain = local_domain,
-                    "Outbox is disabled; ignoring entire domain"
-                );
-                continue;
-            };
-            assert_eq!(local.outbox.local_domain(), local_domain);
 
-            let mut remotes = HashMap::new();
+        // so the challenge here is that the config files were written in a way that
+        // makes a lot of sense for relayers but not a lot of sense for scraping
+        // all data from a given chain at a time...
+        //
+        // Basically the format provided is Outbox + all destination Inboxes that
+        // messages from the outbox will get written to.
+        //
+        // Instead, we want the Outbox + all Inboxes that are on the same local chain.
+
+        // outboxes by their local_domain
+        let mut locals: HashMap<u32, Local> = HashMap::new();
+        // index settings for each domain
+        let mut index_settings: HashMap<u32, IndexSettings> = HashMap::new();
+        // inboxes by their local_domain, remote_domain
+        let mut remotes: HashMap<u32, HashMap<u32, Remote>> = HashMap::new();
+
+        for (outbox_domain, chain_config) in settings.chains.into_iter() {
+            if let Some(local) = Self::load_outbox(&chain_config, &metrics).await? {
+                trace!(domain = outbox_domain, "Created outbox and outbox indexer");
+                assert_eq!(local.outbox.local_domain(), outbox_domain);
+                locals.insert(outbox_domain, local);
+            };
+
             for (_, inbox_config) in chain_config.inboxes.iter() {
                 if let Some(remote) =
                     Self::load_inbox(&chain_config, inbox_config, &metrics).await?
                 {
-                    let remote_domain = remote.inbox.remote_domain();
-                    assert_eq!(remote.inbox.local_domain(), local_domain);
+                    let inbox_remote_domain = remote.inbox.remote_domain();
+                    let inbox_local_domain = remote.inbox.local_domain();
+                    assert_eq!(inbox_remote_domain, outbox_domain);
                     assert_ne!(
-                        remote_domain, local_domain,
+                        inbox_local_domain, outbox_domain,
                         "Attempting to load inbox for the chain we are on"
                     );
 
                     trace!(
-                        local_domain,
-                        remote_domain,
+                        local_domain = inbox_local_domain,
+                        remote_domain = inbox_remote_domain,
                         "Created inbox and inbox indexer"
                     );
-                    remotes.insert(remote_domain, remote);
+                    remotes
+                        .entry(inbox_local_domain)
+                        .or_default()
+                        .insert(inbox_remote_domain, remote);
                 }
             }
 
-            scrapers.insert(
-                local_domain,
-                SqlChainScraper::new(
-                    db.clone(),
-                    local,
-                    remotes,
-                    &chain_config.index,
-                    ContractSyncMetrics::new(metrics.clone()),
-                )
-                .await?,
-            );
+            index_settings.insert(outbox_domain, chain_config.index);
+        }
+
+        let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
+        let mut scrapers: HashMap<u32, SqlChainScraper> = HashMap::new();
+        for (local_domain, local) in locals.into_iter() {
+            let remotes = remotes.remove(&local_domain).unwrap_or_default();
+            let index_settings = index_settings
+                .remove(&local_domain)
+                .expect("Missing index settings for domain");
+
+            let scraper = SqlChainScraper::new(
+                db.clone(),
+                local,
+                remotes,
+                &index_settings,
+                contract_sync_metrics.clone(),
+            )
+            .await?;
+            scrapers.insert(local_domain, scraper);
         }
 
         trace!(domain_count = scrapers.len(), "Creating scraper");
