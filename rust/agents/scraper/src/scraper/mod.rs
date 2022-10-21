@@ -582,7 +582,7 @@ impl SqlChainScraper {
 
         Insert::many(models)
             .on_conflict(
-                OnConflict::new()
+                OnConflict::columns([delivered_message::Column::Hash])
                     .update_columns([
                         delivered_message::Column::TimeCreated,
                         delivered_message::Column::TxId,
