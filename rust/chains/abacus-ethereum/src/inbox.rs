@@ -156,15 +156,23 @@ where
         }: &ContractLocator,
     ) -> Self {
         let contract = Arc::new(EthereumInboxInternal::new(address, provider));
-        let local_domain = contract
-            .local_domain()
+        let remote_domain = contract
+            .remote_domain()
             .call()
             .await
             .expect("Failed to get inbox's local_domain");
+        debug_assert_eq!(
+            contract
+                .local_domain()
+                .call()
+                .await
+                .expect("Failed to get inbox's remote_domain"),
+            *domain
+        );
         Self {
             contract,
-            remote_domain: *domain,
-            local_domain,
+            remote_domain,
+            local_domain: *domain,
             chain_name: chain_name.to_owned(),
         }
     }
