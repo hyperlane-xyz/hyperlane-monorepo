@@ -221,11 +221,8 @@ async function main(): Promise<boolean> {
     messageSendSeconds.labels({ origin, remote }).inc(0);
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
-  await Promise.all(
-    chains.map(async (chain) => {
-      await updateWalletBalanceMetricFor(app, chain);
-    }),
-  );
+
+  chains.map((chain) => updateWalletBalanceMetricFor(app, chain));
 
   while (true) {
     currentPairingIndexGauge.set(currentPairingIndex);
