@@ -1,4 +1,4 @@
-export { AllChains, Chains } from './consts/chains';
+export { AllChains, Chains, Mainnets } from './consts/chains';
 export { chainMetadata } from './consts/chainMetadata';
 export {
   chainConnectionConfigs,
