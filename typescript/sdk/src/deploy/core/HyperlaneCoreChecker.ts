@@ -1,4 +1,4 @@
-import { utils } from '@abacus-network/utils';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { ChainNameToDomainId } from '../../domains';
@@ -25,7 +25,7 @@ export class HyperlaneCoreChecker<
     await this.checkDomainOwnership(chain);
     await this.checkProxiedContracts(chain);
     await this.checkMailbox(chain);
-    // await this.checkDefaultZone(chain);
+    // await this.checkDefaultModule(chain);
     await this.checkInterchainGasPaymaster(chain);
   }
 
@@ -36,7 +36,7 @@ export class HyperlaneCoreChecker<
       const ownables = [
         contracts.upgradeBeaconController,
         // contracts.mailbox.contract,
-        contracts.defaultZone,
+        contracts.defaultModule,
       ];
       return this.checkOwnership(chain, config.owner, ownables);
     }
@@ -48,16 +48,16 @@ export class HyperlaneCoreChecker<
     const localDomain = await mailbox.localDomain();
     utils.assert(localDomain === ChainNameToDomainId[chain]);
 
-    const actualZone = await mailbox.defaultZone();
-    const expectedZone = contracts.defaultZone.address;
-    if (actualZone !== expectedZone) {
+    const actualModule = await mailbox.defaultModule();
+    const expectedModule = contracts.defaultModule.address;
+    if (actualModule !== expectedModule) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
-        mailboxType: MailboxViolationType.DefaultZone,
+        mailboxType: MailboxViolationType.DefaultModule,
         contract: mailbox,
         chain,
-        actual: actualZone,
-        expected: expectedZone,
+        actual: actualModule,
+        expected: expectedModule,
       };
       this.addViolation(violation);
     }

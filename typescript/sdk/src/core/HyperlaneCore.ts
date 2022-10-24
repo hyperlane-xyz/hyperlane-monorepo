@@ -77,6 +77,7 @@ export class HyperlaneCore<
   getConnectionClientConfig(chain: Chain): ConnectionClientConfig {
     const contracts = this.getContracts(chain);
     return {
+      mailbox: contracts.mailbox.address,
       interchainGasPaymaster: contracts.interchainGasPaymaster.address,
     };
   }
@@ -117,12 +118,12 @@ export class HyperlaneCore<
   ): Promise<ethers.ContractReceipt> {
     const id = utils.messageId(message.message);
     const { mailbox, chainConnection } = this.getDestination(message);
-    const filter = mailbox.filters.Process(hash);
+    const filter = mailbox.filters.Process(id);
 
     return new Promise<ethers.ContractReceipt>((resolve, reject) => {
-      mailbox.once(filter, (emittedHash, event) => {
-        if (hash !== emittedHash) {
-          reject(`Expected message hash ${hash} but got ${emittedHash}`);
+      mailbox.once(filter, (emittedId, event) => {
+        if (id !== emittedId) {
+          reject(`Expected message id ${id} but got ${emittedId}`);
         }
         // @ts-ignore
         resolve(chainConnection.handleTx(event.getTransaction()));

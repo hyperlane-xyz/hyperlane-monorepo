@@ -10,7 +10,7 @@ export type MultisigModuleConfig = {
 };
 
 export type CoreConfig = {
-  validatorManager: MultisigModuleConfig;
+  defaultModule: MultisigModuleConfig;
   owner?: types.Address;
   remove?: boolean;
 };
@@ -48,7 +48,7 @@ export interface MailboxMultisigModuleViolation extends MailboxViolation {
 export interface MultisigModuleViolation extends CheckerViolation {
   type: CoreViolationType.MultisigModule;
   contract: MultisigModule;
-  zoneType: MultisigModuleViolationType;
+  moduleType: MultisigModuleViolationType;
   remote: ChainName;
 }
 

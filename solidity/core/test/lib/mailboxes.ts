@@ -29,26 +29,20 @@ export const dispatchMessageAndReturnProof = async (
   recipient: string,
   messageStr: string,
 ): Promise<MerkleProof> => {
-  const { leafIndex, message } = await dispatchMessage(
+  const { message } = await dispatchMessage(
     outbox,
     destination,
     recipient,
     messageStr,
   );
-  const index = leafIndex.toNumber();
-  const messageHash = utils.messageHash(
-    message,
-    index,
-    utils.addressToBytes32(outbox.address),
-    await outbox.VERSION(),
-  );
+  const { nonce } = utils.parseMessage(message);
+  const messageId = utils.messageId(message);
   const root = await outbox.root();
   const proof = await outbox.proof();
   return {
     root,
     proof: proof,
-    leaf: messageHash,
-    index,
+    leaf: messageId,
     message,
   };
 };
@@ -57,6 +51,5 @@ export interface MerkleProof {
   root: string;
   proof: string[];
   leaf: string;
-  index: number;
   message: string;
 }

@@ -1,4 +1,4 @@
-import { BigNumber, utils as ethersUtils, providers } from 'ethers';
+import { utils as ethersUtils, providers } from 'ethers';
 
 import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
@@ -47,12 +47,6 @@ export enum MessageStatus {
   Included = 1,
   Relayed = 2,
   Processed = 3,
-}
-
-export enum InboxMessageStatus {
-  None = 0,
-  Proven,
-  Processed,
 }
 
 export type EventCache = {
@@ -248,7 +242,7 @@ export class HyperlaneMessage {
       return this.cache.process;
     }
     // if not, attempt to query the event
-    const processFilter = this.inbox.filters.Process(this.leaf);
+    const processFilter = this.inbox.filters.Process(this.id);
     const processLogs = await findAnnotatedSingleEvent<ProcessEvent>(
       this.multiProvider,
       this.destinationName,
@@ -291,23 +285,12 @@ export class HyperlaneMessage {
   }
 
   /**
-   * Retrieve the inbox status of this message.
-   *
-   * @returns The {@link InboxMessageStatus} corresponding to the solidity
-   * status of the message.
-   */
-  async inboxStatus(): Promise<InboxMessageStatus> {
-    return this.inbox.messages(this.leaf);
-  }
-
-  /**
    * Checks whether the message has been delivered.
    *
    * @returns true if processed, else false.
    */
   async delivered(): Promise<boolean> {
-    const status = await this.inboxStatus();
-    return status === InboxMessageStatus.Processed;
+    return this.inbox.delivered(this.id);
   }
 
   /**
@@ -387,19 +370,9 @@ export class HyperlaneMessage {
   }
 
   /**
-   * The messageHash committed to the tree in the Outbox contract.
+   * The messageId committed to the tree in the Outbox contract.
    */
-  get leaf(): string {
-    return utils.messageHash(
-      this.dispatch.event.args.message,
-      this.dispatch.event.args.leafIndex.toNumber(),
-    );
-  }
-
-  /**
-   * The index of the leaf in the contract.
-   */
-  get leafIndex(): BigNumber {
-    return this.dispatch.event.args.leafIndex;
+  get id(): string {
+    return this.dispatch.event.args.messageId;
   }
 }

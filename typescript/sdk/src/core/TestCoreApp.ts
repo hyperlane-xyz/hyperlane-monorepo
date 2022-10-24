@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 
 import { TestMailbox } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { DomainIdToChainName } from '../domains';
@@ -64,17 +64,9 @@ export class TestCoreApp<
       const inbox: TestMailbox =
         // @ts-ignore
         this.getContracts(destinationChain).mailbox.contract;
-      const status = await inbox.messages(
-        utils.messageHash(
-          dispatch.args.message,
-          dispatch.args.leafIndex.toNumber(),
-        ),
-      );
-      if (status !== types.MessageStatus.PROCESSED) {
-        const response = await inbox.testProcess(
-          dispatch.args.message,
-          dispatch.args.leafIndex.toNumber(),
-        );
+      const delivered = await inbox.delivered(dispatch.args.messageId);
+      if (!delivered) {
+        const response = await inbox.process('0x', dispatch.args.message);
         const destinationResponses = responses.get(destinationChain) || [];
         destinationResponses.push(response);
         responses.set(destinationChain, destinationResponses);

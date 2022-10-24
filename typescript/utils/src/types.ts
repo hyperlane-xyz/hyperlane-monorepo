@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 /********* BASIC TYPES *********/
 export type Domain = number;
@@ -41,6 +41,8 @@ export enum MessageStatus {
 }
 
 export type ParsedMessage = {
+  version: number;
+  nonce: BigNumber;
   origin: number;
   sender: string;
   destination: number;

@@ -1,8 +1,7 @@
+import { types, utils } from '@hyperlane-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-
-import { types, utils } from '@abacus-network/utils';
 
 import {
   BadRecipient1__factory,
@@ -12,33 +11,34 @@ import {
   BadRecipient6__factory,
   TestMailbox,
   TestMailbox__factory,
+  TestModule,
+  TestModule__factory,
   TestRecipient__factory,
-  TestZone,
-  TestZone__factory,
 } from '../types';
 
 import { MerkleProof, dispatchMessageAndReturnProof } from './lib/mailboxes';
 
 const localDomain = 1000;
 const destDomain = 2000;
+const version = 0;
 // const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
 describe('Mailbox', async () => {
-  let mailbox: TestMailbox, zone: TestZone, signer: SignerWithAddress;
+  let mailbox: TestMailbox, module: TestModule, signer: SignerWithAddress;
 
   before(async () => {});
 
   beforeEach(async () => {
     [signer] = await ethers.getSigners();
-    const zoneFactory = new TestZone__factory(signer);
-    zone = await zoneFactory.deploy();
+    const moduleFactory = new TestModule__factory(signer);
+    module = await moduleFactory.deploy();
     const mailboxFactory = new TestMailbox__factory(signer);
-    mailbox = await mailboxFactory.deploy(localDomain);
-    await mailbox.initialize(zone.address);
+    mailbox = await mailboxFactory.deploy(localDomain, version);
+    await mailbox.initialize(module.address);
   });
 
   it('Cannot be initialized twice', async () => {
-    await expect(mailbox.initialize(zone.address)).to.be.revertedWith(
+    await expect(mailbox.initialize(module.address)).to.be.revertedWith(
       'Initializable: contract is already initialized',
     );
   });
@@ -51,27 +51,23 @@ describe('Mailbox', async () => {
     const testMessageValues = async () => {
       const message = ethers.utils.formatBytes32String('message');
 
-      const abacusMessage = utils.formatMessage(
+      const nonce = await mailbox.count();
+      const hyperlaneMessage = utils.formatMessage(
+        nonce,
+        version,
         localDomain,
         signer.address,
         destDomain,
         utils.addressToBytes32(recipient.address),
         message,
       );
-      const leafIndex = await mailbox.tree();
-      const hash = utils.messageHash(
-        abacusMessage,
-        leafIndex.toNumber(),
-        utils.addressToBytes32(mailbox.address),
-        await mailbox.VERSION(),
-      );
+      const id = utils.messageId(hyperlaneMessage);
 
       return {
         message,
         destDomain,
-        abacusMessage,
-        hash,
-        leafIndex,
+        hyperlaneMessage,
+        id,
       };
     };
 
@@ -87,7 +83,7 @@ describe('Mailbox', async () => {
     });
 
     it('Dispatches a message', async () => {
-      const { message, destDomain, abacusMessage, leafIndex } =
+      const { message, destDomain, hyperlaneMessage, id } =
         await testMessageValues();
 
       // Send message with signer address as msg.sender
@@ -101,13 +97,13 @@ describe('Mailbox', async () => {
           ),
       )
         .to.emit(mailbox, 'Dispatch')
-        .withArgs(leafIndex, abacusMessage);
+        .withArgs(id, hyperlaneMessage);
     });
 
     it('Returns the leaf index of the dispatched message', async () => {
-      const { message, leafIndex } = await testMessageValues();
+      const { message, id } = await testMessageValues();
 
-      const dispatchLeafIndex = await mailbox
+      const actualId = await mailbox
         .connect(signer)
         .callStatic.dispatch(
           destDomain,
@@ -115,7 +111,7 @@ describe('Mailbox', async () => {
           message,
         );
 
-      expect(dispatchLeafIndex).equals(leafIndex);
+      expect(actualId).equals(id);
     });
   });
 
@@ -130,12 +126,12 @@ describe('Mailbox', async () => {
     let proof: MerkleProof, recipient: string, destMailbox: TestMailbox;
 
     beforeEach(async () => {
-      await zone.setAccept(true);
+      await module.setAccept(true);
       const recipientF = new TestRecipient__factory(signer);
       recipient = utils.addressToBytes32((await recipientF.deploy()).address);
       const mailboxFactory = new TestMailbox__factory(signer);
-      destMailbox = await mailboxFactory.deploy(destDomain);
-      await destMailbox.initialize(zone.address);
+      destMailbox = await mailboxFactory.deploy(destDomain, version);
+      await destMailbox.initialize(module.address);
       proof = await dispatchMessageAndReturnProof(
         mailbox,
         destDomain,
@@ -145,17 +141,10 @@ describe('Mailbox', async () => {
     });
 
     it('processes a message', async () => {
-      await expect(
-        destMailbox.process(
-          utils.addressToBytes32(mailbox.address),
-          proof.root,
-          proof.index,
-          '0x00',
-          proof.message,
-          proof.proof,
-          proof.index,
-        ),
-      ).to.emit(destMailbox, 'Process');
+      await expect(destMailbox.process('0x', proof.message)).to.emit(
+        destMailbox,
+        'Process',
+      );
       expect(await destMailbox.messages(proof.leaf)).to.eql(
         types.MessageStatus.PROCESSED,
       );
@@ -203,8 +192,8 @@ describe('Mailbox', async () => {
       );
     });
 
-    it('Fails to process message when rejected by zone', async () => {
-      await zone.setAccept(false);
+    it('Fails to process message when rejected by module', async () => {
+      await module.setAccept(false);
       await expect(
         destMailbox.process(
           utils.addressToBytes32(mailbox.address),
@@ -215,7 +204,7 @@ describe('Mailbox', async () => {
           proof.proof,
           proof.index,
         ),
-      ).to.be.revertedWith('!zone');
+      ).to.be.revertedWith('!module');
     });
 
     for (let i = 0; i < badRecipientFactories.length; i++) {

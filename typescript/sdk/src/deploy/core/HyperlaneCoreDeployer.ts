@@ -1,7 +1,8 @@
-import { Mailbox, MultisigModule, Ownable } from '@abacus-network/core';
-import type { types } from '@abacus-network/utils';
 import debug from 'debug';
 import { ethers } from 'ethers';
+
+import { Mailbox, MultisigModule, Ownable } from '@hyperlane-xyz/core';
+import type { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
 import { CoreContractsMap, HyperlaneCore } from '../../core/HyperlaneCore';
@@ -24,16 +25,19 @@ export class HyperlaneCoreDeployer<
   typeof coreFactories
 > {
   startingBlockNumbers: ChainMap<Chain, number | undefined>;
+  version: number;
 
   constructor(
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, CoreConfig>,
     factoriesOverride = coreFactories,
+    version = 0,
   ) {
     super(multiProvider, configMap, factoriesOverride, {
       logger: debug('hyperlane:CoreDeployer'),
     });
     this.startingBlockNumbers = objMap(configMap, () => undefined);
+    this.version = version;
   }
 
   // override return type for inboxes shape derived from chain
@@ -45,7 +49,7 @@ export class HyperlaneCoreDeployer<
 
   async deployMailbox<LocalChain extends Chain>(
     chain: LocalChain,
-    zoneAddress: types.Address,
+    moduleAddress: types.Address,
     ubcAddress: types.Address,
   ): Promise<ProxiedContract<Mailbox, BeaconProxyAddresses>> {
     const domain = chainMetadata[chain].id;
@@ -53,9 +57,9 @@ export class HyperlaneCoreDeployer<
     const mailbox = await this.deployProxiedContract(
       chain,
       'mailbox',
-      [domain],
+      [domain, this.version],
       ubcAddress,
-      [zoneAddress],
+      [moduleAddress],
     );
     return mailbox;
   }
@@ -65,14 +69,14 @@ export class HyperlaneCoreDeployer<
     // config: MultisigModuleConfig
   ): Promise<MultisigModule> {
     // const domain = chainMetadata[chain].id;
-    const zone = await this.deployContract(chain, 'multisigModule', []);
+    const module = await this.deployContract(chain, 'multisigModule', []);
     /*
-    await zone.setThreshold(domain, config.threshold);
+    await module.setThreshold(domain, config.threshold);
     for (const validator of config.validators) {
-      await zone.enroll
+      await module.enroll
     }
     */
-    return zone;
+    return module;
   }
 
   async deployContracts<LocalChain extends Chain>(

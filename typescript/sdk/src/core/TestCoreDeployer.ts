@@ -15,8 +15,8 @@ import { coreFactories } from './contracts';
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ValidatorManager
-const testMultisigZoneConfig: CoreConfig = {
-  validatorManager: {
+const testMultisigModuleConfig: CoreConfig = {
+  defaultModule: {
     validators: [nonZeroAddress],
     threshold: 1,
   },
@@ -37,9 +37,9 @@ export class TestCoreDeployer<
     const configs =
       configMap ??
       ({
-        test1: testMultisigZoneConfig,
-        test2: testMultisigZoneConfig,
-        test3: testMultisigZoneConfig,
+        test1: testMultisigModuleConfig,
+        test2: testMultisigModuleConfig,
+        test3: testMultisigModuleConfig,
       } as ChainMap<TestChain, CoreConfig>); // cast so param can be optional
 
     super(multiProvider, configs, testCoreFactories);
@@ -50,7 +50,11 @@ export class TestCoreDeployer<
     chain: LocalChain,
   ): Promise<ProxiedContract<TestMailbox, BeaconProxyAddresses>> {
     const localDomain = chainMetadata[chain].id;
-    const mailbox = await this.deployContract(chain, 'mailbox', [localDomain]);
+    // TODO: Configure multisigzone
+    const mailbox = await this.deployContract(chain, 'mailbox', [
+      localDomain,
+      this.version,
+    ]);
     // await outboxContract.initialize(outboxValidatorManager.address);
     return new ProxiedContract(mailbox, {
       kind: ProxyKind.UpgradeBeacon,

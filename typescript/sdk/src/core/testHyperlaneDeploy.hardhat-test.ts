@@ -20,7 +20,7 @@ const remoteDomain = chainMetadata[remoteChain].id;
 const message = '0xdeadbeef';
 
 describe('TestCoreDeployer', async () => {
-  let hyperlane: TestCoreApp,
+  let testCoreApp: TestCoreApp,
     localOutbox: TestMailbox,
     remoteOutbox: TestMailbox,
     dispatchReceipt: ContractReceipt;
@@ -33,7 +33,7 @@ describe('TestCoreDeployer', async () => {
     testCoreApp = await deployer.deployApp();
 
     const recipient = await new TestRecipient__factory(signer).deploy();
-    localOutbox = hyperlane.getContracts(localChain).mailbox.contract;
+    localOutbox = testCoreApp.getContracts(localChain).mailbox.contract;
 
     const dispatchResponse = localOutbox.dispatch(
       remoteDomain,
@@ -44,7 +44,7 @@ describe('TestCoreDeployer', async () => {
     dispatchReceipt = await testCoreApp.multiProvider
       .getChainConnection(localChain)
       .handleTx(dispatchResponse);
-    remoteOutbox = hyperlane.getContracts(remoteChain).mailbox.contract;
+    remoteOutbox = testCoreApp.getContracts(remoteChain).mailbox.contract;
     await expect(
       remoteOutbox.dispatch(
         localDomain,

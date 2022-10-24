@@ -10,14 +10,20 @@ import { Checkpoint } from './types';
 export class BaseValidator {
   localDomain: types.Domain;
   address: types.Address;
+  mailbox: types.Address;
 
-  constructor(address: types.Address, localDomain: types.Domain) {
+  constructor(
+    address: types.Address,
+    localDomain: types.Domain,
+    mailbox: types.Address,
+  ) {
     this.localDomain = localDomain;
     this.address = address;
+    this.mailbox = mailbox;
   }
 
   domainHash() {
-    return utils.domainHash(this.localDomain);
+    return utils.domainHash(this.localDomain, this.mailbox);
   }
 
   message(root: types.HexString, index: number) {
@@ -53,12 +59,22 @@ export class Validator extends BaseValidator {
     protected signer: ethers.Signer,
     address: types.Address,
     localDomain: types.Domain,
+    mailbox: types.Address,
   ) {
-    super(address, localDomain);
+    super(address, localDomain, mailbox);
   }
 
-  static async fromSigner(signer: ethers.Signer, localDomain: types.Domain) {
-    return new Validator(signer, await signer.getAddress(), localDomain);
+  static async fromSigner(
+    signer: ethers.Signer,
+    localDomain: types.Domain,
+    mailbox: types.Address,
+  ) {
+    return new Validator(
+      signer,
+      await signer.getAddress(),
+      localDomain,
+      mailbox,
+    );
   }
 
   async signCheckpoint(

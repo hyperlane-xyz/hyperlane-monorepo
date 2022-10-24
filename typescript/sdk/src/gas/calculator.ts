@@ -311,9 +311,9 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     origin: Remotes<Chain, Destination>,
     destination: Destination,
   ): Promise<BigNumber> {
-    // TODO: Check the recipient zone
-    const zone = this.core.getContracts(destination).defaultZone;
-    const threshold = await zone.threshold(origin);
+    // TODO: Check the recipient module
+    const module = this.core.getContracts(destination).defaultModule;
+    const threshold = await module.threshold(origin);
     return threshold.mul(GAS_OVERHEAD_PER_SIGNATURE).add(GAS_OVERHEAD_BASE);
   }
 

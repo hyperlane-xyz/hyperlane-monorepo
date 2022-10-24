@@ -10,6 +10,7 @@ import { RouterConfig } from '../../deploy/router/types';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
 import { ChainMap, ChainName } from '../../types';
+import { objMap, promiseObjAll } from '../../utils/objects';
 
 export const fullEnvTestConfigs = {
   test1: chainConnectionConfigs.test1,
@@ -69,10 +70,10 @@ export class EnvSubsetDeployer<
     await promiseObjAll(
       objMap(contractsMap, async (chain, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(chain);
-        const acm = this.configMap[chain].connectionManager;
+        const mailbox = this.configMap[chain].mailbox;
         await chainConnection.handleTx(
           // @ts-ignore
-          contracts.router.initialize(acm, chainConnection.overrides),
+          contracts.router.initialize(mailbox, chainConnection.overrides),
         );
       }),
     );
