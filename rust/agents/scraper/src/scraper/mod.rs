@@ -18,10 +18,7 @@ use abacus_base::{
     run_all, BaseAgent, ChainSettings, ChainSetup, ContractSyncMetrics, CoreMetrics,
     InboxAddresses, IndexSettings,
 };
-use abacus_core::{
-    name_from_domain_id, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxIndexer,
-    ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
-};
+use abacus_core::{name_from_domain_id, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxIndexer, ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage, AbacusDomain};
 
 use crate::scraper::block_cursor::BlockCursor;
 use crate::settings::ScraperSettings;
@@ -385,6 +382,7 @@ impl SqlChainScraper {
                     .collect::<Vec<_>>(),
             ) {
                 ListValidity::Valid => {
+                    // transaction (database_id, timestamp) by transaction hash
                     let txns: HashMap<H256, (i64, TimeDateTime)> = self
                         .ensure_blocks_and_txns(
                             sorted_messages
@@ -677,8 +675,8 @@ impl SqlChainScraper {
                         .unwrap(),
                 )
                 .select_only()
-                .column_as(transaction::Column::Hash, QueryAs::Hash)
                 .column_as(transaction::Column::Id, QueryAs::Id)
+                .column_as(transaction::Column::Hash, QueryAs::Hash)
                 .into_values::<_, QueryAs>()
                 .all(&self.db)
                 .await?
@@ -687,6 +685,7 @@ impl SqlChainScraper {
         };
         for txn in db_txns {
             let hash = parse_h256(&txn.1)?;
+            // insert the txn id now that we have it to the Option value in txns
             let _ = txns
                 .get_mut(&hash)
                 .expect("We found a txn that we did not request")
@@ -718,9 +717,9 @@ impl SqlChainScraper {
 
         if !models.is_empty() {
             trace!(?models, "Writing txns to database");
-            // so apparently this is actually the ID that was first inserted for postgres?
+            // this is actually the ID that was first inserted for postgres
             let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
-            for (_hash, (txn_id, _block_id)) in txns_to_insert.iter_mut().rev() {
+            for (_hash, (txn_id, _block_id)) in txns_to_insert.iter_mut() {
                 debug_assert!(cur_id > 0);
                 let _ = txn_id.insert(cur_id);
                 cur_id += 1;
