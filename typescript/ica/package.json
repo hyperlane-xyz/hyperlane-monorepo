@@ -1,11 +1,11 @@
 {
   "name": "@hyperlane-xyz/interchain-accounts",
   "description": "A router middleware for interchain accounts",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "dependencies": {
-    "@hyperlane-xyz/app": "0.5.0",
-    "@hyperlane-xyz/sdk": "0.5.0",
-    "@hyperlane-xyz/utils": "0.5.0",
+    "@hyperlane-xyz/app": "0.5.1",
+    "@hyperlane-xyz/sdk": "0.5.1",
+    "@hyperlane-xyz/utils": "0.5.1",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "ethers": "^5.6.8"
   },
