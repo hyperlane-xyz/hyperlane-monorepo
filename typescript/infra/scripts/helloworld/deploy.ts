@@ -4,13 +4,13 @@ import {
   HelloWorldContracts,
   HelloWorldDeployer,
   helloWorldFactories,
-} from '@abacus-network/helloworld';
+} from '@hyperlane-xyz/helloworld';
 import {
-  AbacusCore,
   ChainMap,
+  HyperlaneCore,
   buildContracts,
   serializeContracts,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
@@ -28,13 +28,13 @@ async function main() {
   const environment = await getEnvironment();
   const context = await getContext();
   const coreConfig = getCoreEnvironmentConfig(environment);
-  // Always deploy from the abacus deployer
+  // Always deploy from the hyperlane deployer
   const multiProvider = await coreConfig.getMultiProvider(
     Contexts.Abacus,
     KEY_ROLE_ENUM.Deployer,
   );
   const configMap = await getConfiguration(environment, multiProvider);
-  const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
+  const core = HyperlaneCore.fromEnvironment(environment, multiProvider as any);
   const deployer = new HelloWorldDeployer(multiProvider, configMap, core);
   const dir = path.join(
     getEnvironmentDirectory(environment),
@@ -42,30 +42,34 @@ async function main() {
     context,
   );
 
-  let partialContracts: ChainMap<any, HelloWorldContracts>;
+  let previousContracts: ChainMap<any, HelloWorldContracts> = {};
+  let existingVerificationInputs = {};
   try {
-    const addresses = readJSON(dir, 'partial_addresses.json');
-    partialContracts = buildContracts(addresses, helloWorldFactories) as any;
+    const addresses = readJSON(dir, 'addresses.json');
+    previousContracts = buildContracts(addresses, helloWorldFactories) as any;
+    existingVerificationInputs = readJSON(dir, 'verification.json');
   } catch (e) {
-    partialContracts = {};
+    console.info(`Could not load previous deployment, file may not exist`);
   }
 
   try {
-    const contracts = await deployer.deploy(partialContracts);
-    writeJSON(dir, 'addresses.json', serializeContracts(contracts));
-    writeJSON(
-      dir,
-      'verification.json',
-      JSON.stringify(deployer.verificationInputs),
-    );
+    await deployer.deploy(previousContracts);
   } catch (e) {
+    console.error(`Encountered error during deploy`);
     console.error(e);
-    writeJSON(
-      dir,
-      'partial_addresses.json',
-      serializeContracts(deployer.deployedContracts as any),
-    );
   }
+
+  writeJSON(
+    dir,
+    'addresses.json',
+    // @ts-ignore
+    serializeContracts(deployer.deployedContracts),
+  );
+  writeJSON(
+    dir,
+    'verification.json',
+    deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
+  );
 }
 
 main()

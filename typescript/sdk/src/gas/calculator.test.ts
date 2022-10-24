@@ -3,7 +3,7 @@ import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
 import { Chains } from '../consts/chains';
-import { AbacusCore } from '../core/AbacusCore';
+import { HyperlaneCore } from '../core/HyperlaneCore';
 import { CoreContracts } from '../core/contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { MockProvider, MockTokenPriceGetter } from '../test/testUtils';
@@ -57,7 +57,7 @@ describe('InterchainGasCalculator', () => {
     test2: { provider },
     test3: { provider },
   });
-  const core: AbacusCore<TestChainNames> = AbacusCore.fromEnvironment(
+  const core: HyperlaneCore<TestChainNames> = HyperlaneCore.fromEnvironment(
     'test',
     multiProvider,
   );

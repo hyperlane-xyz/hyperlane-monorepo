@@ -30,6 +30,10 @@ spec:
             - -f
             - /addresses-secret/{{ $context }}-addresses.json
 {{- end }}
+{{- if .Values.abacus.connectionType }}
+            - --connection-type
+            - {{ .Values.abacus.connectionType }}
+{{- end }}
             env:
             - name: PROMETHEUS_PUSH_GATEWAY
               value: {{ .Values.infra.prometheusPushGateway }}

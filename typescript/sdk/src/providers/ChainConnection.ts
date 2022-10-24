@@ -19,7 +19,7 @@ export class ChainConnection {
     this.confirmations = dc.confirmations ?? 0;
     this.blockExplorerUrl = dc.blockExplorerUrl ?? 'UNKNOWN_EXPLORER';
     this.apiPrefix = dc.apiPrefix ?? 'api.';
-    this.logger = debug('abacus:ChainConnection');
+    this.logger = debug('hyperlane:ChainConnection');
   }
 
   getConnection = (): ethers.providers.Provider | ethers.Signer =>
@@ -64,7 +64,11 @@ export class ChainConnection {
     if (!txFrom) {
       txFrom = await this.getAddress();
     }
-    return this.provider.estimateGas({ ...tx, from: txFrom });
+    return this.provider.estimateGas({
+      ...tx,
+      from: txFrom,
+      ...this.overrides,
+    });
   }
 
   async sendTransaction(
@@ -72,7 +76,11 @@ export class ChainConnection {
   ): Promise<ethers.ContractReceipt> {
     if (!this.signer) throw new Error('no signer found');
     const from = await this.signer.getAddress();
-    const response = await this.signer.sendTransaction({ ...tx, from });
+    const response = await this.signer.sendTransaction({
+      ...tx,
+      from,
+      ...this.overrides,
+    });
     this.logger(`sent tx ${response.hash}`);
     return this.handleTx(response);
   }

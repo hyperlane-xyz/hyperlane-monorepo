@@ -1,7 +1,6 @@
 node_modules
 test_deploy.env
 
-typescript/abacus-deploy/.env
 **/.env
 **/tsconfig.tsbuildinfo
 **/tmp.*
@@ -14,7 +13,12 @@ rust/tmp.env
 tmp.env
 .DS_STORE
 
+# Built Helm dependencies
+**/helm/**/charts/*.tgz
+
 typescript/*/node_modules
+typescript/infra/config/environments/test/create2/*json
+typescript/infra/config/environments/test/testrecipient/*json
 solidity/*/artifacts
 
 .yarn/install-state.gz

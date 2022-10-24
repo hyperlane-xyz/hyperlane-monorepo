@@ -1,4 +1,4 @@
-import { ChainName } from '@abacus-network/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { AgentConfig } from '../config';
@@ -21,7 +21,11 @@ export function getCloudAgentKey<Chain extends ChainName>(
   chainName?: Chain,
   index?: number,
 ): CloudAgentKey {
-  if (agentConfig.aws && role !== KEY_ROLE_ENUM.Deployer) {
+  if (
+    agentConfig.aws &&
+    role !== KEY_ROLE_ENUM.Deployer &&
+    role !== KEY_ROLE_ENUM.Create2Deployer
+  ) {
     // The deployer is always GCP-based
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {

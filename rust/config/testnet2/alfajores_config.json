@@ -2,20 +2,6 @@
   "environment": "testnet2",
   "signers": {},
   "inboxes": {
-    "kovan": {
-      "domain": "3000",
-      "name": "kovan",
-      "rpcStyle": "ethereum",
-      "finalityBlocks": "15",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "addresses": {
-        "inbox": "0x339B46496D60b1b6B42e9715DeD8B3D2154dA0Bb",
-        "validatorManager": "0x4b6fb57de2DE643bEFBa13F46149A765FCd2DD09"
-      }
-    },
     "fuji": {
       "domain": "43113",
       "name": "fuji",
@@ -58,38 +44,39 @@
         "validatorManager": "0x5B30De0c322F7720D144df2AB2e82b160Eba0EBF"
       }
     },
-    "arbitrumrinkeby": {
-      "domain": "1634872690",
-      "name": "arbitrumrinkeby",
+    "goerli": {
+      "domain": "5",
+      "name": "goerli",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "0",
+      "finalityBlocks": "7",
       "connection": {
         "type": "http",
         "url": ""
       },
       "addresses": {
-        "inbox": "0xcE4D149Db78729E8b52a9D79A36E64C5429dD39a",
-        "validatorManager": "0x6202f54B22b72526dEC5364F6b7bE2bd0abEd8A6"
+        "inbox": "0xD3d062a5dcBA85ae863618d4c264d2358300c283",
+        "validatorManager": "0xB08d78F439e55D02C398519eef61606A5926245F"
       }
     },
-    "optimismkovan": {
-      "domain": "1869622635",
-      "name": "optimismkovan",
+    "moonbasealpha": {
+      "domain": "1836002657",
+      "name": "moonbasealpha",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "0",
+      "finalityBlocks": "1",
       "connection": {
         "type": "http",
         "url": ""
       },
       "addresses": {
-        "inbox": "0xF8E6c1222049AAb68E410E43242449994Cb64996",
-        "validatorManager": "0x413c74F3D034dB54A1ecfFbd0Ad74Cb25E59f579"
+        "inbox": "0x46f7C5D896bbeC89bE1B19e4485e59b4Be49e9Cc",
+        "validatorManager": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD"
       }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0x5C7D9B5f38022dB78416D6C0132bf8c404deDe27"
+      "outbox": "0x5C7D9B5f38022dB78416D6C0132bf8c404deDe27",
+      "interchainGasPaymaster": "0x1Fb165396FB26AC4178ca4240b3724039F75EED7"
     },
     "domain": "1000",
     "name": "alfajores",

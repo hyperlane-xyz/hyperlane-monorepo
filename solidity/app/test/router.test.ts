@@ -14,8 +14,8 @@ import {
   TestInbox,
   TestInbox__factory,
   TestMultisigValidatorManager__factory,
-} from '@abacus-network/core';
-import { utils } from '@abacus-network/utils';
+} from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { TestRouter, TestRouter__factory } from '../types';
 
@@ -120,7 +120,9 @@ describe('Router', async () => {
       const sender = utils.addressToBytes32(nonOwner.address);
       await expect(
         inbox.testHandle(origin, sender, recipient, message),
-      ).to.be.revertedWith('!router');
+      ).to.be.revertedWith(
+        `No router enrolled for domain. Did you specify the right domain ID?`,
+      );
     });
 
     it('owner can enroll remote router', async () => {
@@ -128,7 +130,7 @@ describe('Router', async () => {
       const remoteBytes = utils.addressToBytes32(nonOwner.address);
       expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(false);
       await expect(router.mustHaveRemoteRouter(origin)).to.be.revertedWith(
-        '!router',
+        `No router enrolled for domain. Did you specify the right domain ID?`,
       );
       await router.enrollRemoteRouter(origin, utils.addressToBytes32(remote));
       expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(true);
@@ -199,7 +201,9 @@ describe('Router', async () => {
         it('reverts when dispatching a message to an unenrolled remote router', async () => {
           await expect(
             dispatchFunction(destinationWithoutRouter),
-          ).to.be.revertedWith('!router');
+          ).to.be.revertedWith(
+            `No router enrolled for domain. Did you specify the right domain ID?`,
+          );
         });
       };
 

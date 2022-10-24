@@ -1,0 +1,20 @@
+{
+  "alfajores": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  },
+  "fuji": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  },
+  "mumbai": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  },
+  "bsctestnet": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  },
+  "goerli": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  },
+  "moonbasealpha": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  }
+}

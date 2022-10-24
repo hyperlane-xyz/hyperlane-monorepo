@@ -24,7 +24,7 @@ dependencies = [
  "backtrace-oneline",
  "color-eyre",
  "config",
- "ethers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers",
  "ethers-prometheus",
  "eyre",
  "futures-util",
@@ -58,22 +58,26 @@ version = "0.1.0"
 dependencies = [
  "abacus-base",
  "async-trait",
+ "auto_impl 1.0.1",
  "bytes",
  "color-eyre",
  "config",
- "ethers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-providers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-signers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers",
+ "ethers-providers",
+ "ethers-signers",
  "eyre",
  "hex",
  "lazy_static",
  "maplit",
  "num",
+ "num-derive",
  "num-traits",
  "rocksdb",
  "serde",
  "serde_json",
  "sha3 0.9.1",
+ "strum",
+ "strum_macros",
  "thiserror",
  "tokio",
  "tracing",
@@ -88,10 +92,10 @@ dependencies = [
  "abacus-core",
  "abigen",
  "async-trait",
- "ethers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-contract 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers",
+ "ethers-contract",
  "ethers-prometheus",
- "ethers-signers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers-signers",
  "eyre",
  "hex",
  "num",
@@ -111,7 +115,7 @@ version = "0.1.0"
 dependencies = [
  "abacus-core",
  "async-trait",
- "ethers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers",
  "eyre",
  "futures-util",
  "mockall",
@@ -130,7 +134,7 @@ name = "abigen"
 version = "0.1.0"
 dependencies = [
  "Inflector",
- "ethers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers",
 ]
 
 [[package]]
@@ -757,9 +761,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfd4d1b31faaa3a89d7934dbded3111da0d2ef28e3ebccdb4f0179f5929d1ef1"
 dependencies = [
  "iana-time-zone",
+ "js-sys",
  "num-integer",
  "num-traits",
  "serde",
+ "time 0.1.44",
+ "wasm-bindgen",
  "winapi",
 ]
 
@@ -826,6 +833,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2850f2f5a82cbf437dd5af4d49848fbdfc27c157c3d010345776f952765261c5"
 dependencies = [
  "os_str_bytes",
+]
+
+[[package]]
+name = "coingecko"
+version = "1.0.1"
+source = "git+https://github.com/hyperlane-xyz/coingecko-rs?tag=2022-09-14-02#63dfc9d6a8b92516209ee9dc01e154d11b63b0ab"
+dependencies = [
+ "chrono",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1399,48 +1418,23 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01#70019a3a3d9a4c87f900f62546f2c5252fa671d6"
+source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-12-01#1cbb788589d84758ed63d3fed9bd252523d74664"
 dependencies = [
- "ethers-addressbook 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-contract 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-core 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-etherscan 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-middleware 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-providers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-signers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
-]
-
-[[package]]
-name = "ethers"
-version = "0.17.0"
-source = "git+https://github.com/gakonst/ethers-rs?branch=master#b1124441ec5564efb2e58fa0d5bb5218ca5c8429"
-dependencies = [
- "ethers-addressbook 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "ethers-contract 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "ethers-core 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "ethers-etherscan 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "ethers-middleware 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "ethers-providers 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "ethers-signers 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
+ "ethers-addressbook",
+ "ethers-contract",
+ "ethers-core",
+ "ethers-etherscan",
+ "ethers-middleware",
+ "ethers-providers",
+ "ethers-signers",
 ]
 
 [[package]]
 name = "ethers-addressbook"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01#70019a3a3d9a4c87f900f62546f2c5252fa671d6"
+source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-12-01#1cbb788589d84758ed63d3fed9bd252523d74664"
 dependencies = [
- "ethers-core 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "once_cell",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "ethers-addressbook"
-version = "0.17.0"
-source = "git+https://github.com/gakonst/ethers-rs?branch=master#b1124441ec5564efb2e58fa0d5bb5218ca5c8429"
-dependencies = [
- "ethers-core 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
+ "ethers-core",
  "once_cell",
  "serde",
  "serde_json",
@@ -1449,28 +1443,12 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01#70019a3a3d9a4c87f900f62546f2c5252fa671d6"
+source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-12-01#1cbb788589d84758ed63d3fed9bd252523d74664"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
- "ethers-core 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-providers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "futures-util",
- "hex",
- "once_cell",
- "pin-project",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "ethers-contract"
-version = "0.17.0"
-source = "git+https://github.com/gakonst/ethers-rs?branch=master#b1124441ec5564efb2e58fa0d5bb5218ca5c8429"
-dependencies = [
- "ethers-core 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "ethers-providers 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
+ "ethers-core",
+ "ethers-providers",
  "futures-util",
  "hex",
  "once_cell",
@@ -1483,12 +1461,12 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01#70019a3a3d9a4c87f900f62546f2c5252fa671d6"
+source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-12-01#1cbb788589d84758ed63d3fed9bd252523d74664"
 dependencies = [
  "Inflector",
  "cfg-if",
  "dunce",
- "ethers-core 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers-core",
  "eyre",
  "getrandom",
  "hex",
@@ -1506,10 +1484,10 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01#70019a3a3d9a4c87f900f62546f2c5252fa671d6"
+source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-12-01#1cbb788589d84758ed63d3fed9bd252523d74664"
 dependencies = [
  "ethers-contract-abigen",
- "ethers-core 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers-core",
  "hex",
  "proc-macro2",
  "quote",
@@ -1520,7 +1498,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01#70019a3a3d9a4c87f900f62546f2c5252fa671d6"
+source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-12-01#1cbb788589d84758ed63d3fed9bd252523d74664"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -1549,56 +1527,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethers-core"
-version = "0.17.0"
-source = "git+https://github.com/gakonst/ethers-rs?branch=master#b1124441ec5564efb2e58fa0d5bb5218ca5c8429"
-dependencies = [
- "arrayvec",
- "bytes",
- "chrono",
- "convert_case",
- "elliptic-curve",
- "ethabi",
- "fastrlp",
- "generic-array 0.14.6",
- "hex",
- "k256",
- "proc-macro2",
- "rand",
- "rlp",
- "rlp-derive",
- "rust_decimal",
- "serde",
- "serde_json",
- "strum",
- "syn",
- "thiserror",
- "tiny-keccak",
- "unicode-xid",
-]
-
-[[package]]
 name = "ethers-etherscan"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01#70019a3a3d9a4c87f900f62546f2c5252fa671d6"
+source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-12-01#1cbb788589d84758ed63d3fed9bd252523d74664"
 dependencies = [
- "ethers-core 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "getrandom",
- "reqwest",
- "semver",
- "serde",
- "serde-aux",
- "serde_json",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "ethers-etherscan"
-version = "0.17.0"
-source = "git+https://github.com/gakonst/ethers-rs?branch=master#b1124441ec5564efb2e58fa0d5bb5218ca5c8429"
-dependencies = [
- "ethers-core 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
+ "ethers-core",
  "getrandom",
  "reqwest",
  "semver",
@@ -1612,40 +1545,15 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01#70019a3a3d9a4c87f900f62546f2c5252fa671d6"
+source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-12-01#1cbb788589d84758ed63d3fed9bd252523d74664"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
- "ethers-contract 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-core 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-etherscan 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-providers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-signers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "futures-locks",
- "futures-util",
- "instant",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-futures",
- "url",
-]
-
-[[package]]
-name = "ethers-middleware"
-version = "0.17.0"
-source = "git+https://github.com/gakonst/ethers-rs?branch=master#b1124441ec5564efb2e58fa0d5bb5218ca5c8429"
-dependencies = [
- "async-trait",
- "auto_impl 0.5.0",
- "ethers-contract 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "ethers-core 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "ethers-etherscan 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "ethers-providers 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "ethers-signers 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
+ "ethers-contract",
+ "ethers-core",
+ "ethers-etherscan",
+ "ethers-providers",
+ "ethers-signers",
  "futures-locks",
  "futures-util",
  "instant",
@@ -1666,7 +1574,7 @@ dependencies = [
  "abigen",
  "async-trait",
  "derive_builder",
- "ethers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers",
  "futures",
  "log",
  "maplit",
@@ -1682,12 +1590,12 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01#70019a3a3d9a4c87f900f62546f2c5252fa671d6"
+source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-12-01#1cbb788589d84758ed63d3fed9bd252523d74664"
 dependencies = [
  "async-trait",
  "auto_impl 1.0.1",
  "base64 0.13.0",
- "ethers-core 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers-core",
  "futures-channel",
  "futures-core",
  "futures-timer",
@@ -1716,50 +1624,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethers-providers"
-version = "0.17.0"
-source = "git+https://github.com/gakonst/ethers-rs?branch=master#b1124441ec5564efb2e58fa0d5bb5218ca5c8429"
-dependencies = [
- "async-trait",
- "auto_impl 1.0.1",
- "base64 0.13.0",
- "ethers-core 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "futures-core",
- "futures-timer",
- "futures-util",
- "getrandom",
- "hashers",
- "hex",
- "http",
- "once_cell",
- "parking_lot 0.11.2",
- "pin-project",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-futures",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-timer",
- "web-sys",
- "ws_stream_wasm",
-]
-
-[[package]]
 name = "ethers-signers"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01#70019a3a3d9a4c87f900f62546f2c5252fa671d6"
+source = "git+https://github.com/abacus-network/ethers-rs?tag=2022-09-12-01#1cbb788589d84758ed63d3fed9bd252523d74664"
 dependencies = [
  "async-trait",
  "coins-bip32",
  "coins-bip39",
  "elliptic-curve",
  "eth-keystore",
- "ethers-core 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers-core",
  "hex",
  "rand",
  "rusoto_core",
@@ -1768,23 +1642,6 @@ dependencies = [
  "spki",
  "thiserror",
  "tracing",
-]
-
-[[package]]
-name = "ethers-signers"
-version = "0.17.0"
-source = "git+https://github.com/gakonst/ethers-rs?branch=master#b1124441ec5564efb2e58fa0d5bb5218ca5c8429"
-dependencies = [
- "async-trait",
- "coins-bip32",
- "coins-bip39",
- "elliptic-curve",
- "eth-keystore",
- "ethers-core 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
- "hex",
- "rand",
- "sha2 0.10.2",
- "thiserror",
 ]
 
 [[package]]
@@ -2069,11 +1926,12 @@ name = "gelato"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "ethers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers",
  "reqwest",
  "rustc-hex",
  "serde",
  "serde_json",
+ "serde_repr",
  "thiserror",
  "tokio",
  "tracing",
@@ -2107,7 +1965,7 @@ dependencies = [
  "cfg-if",
  "js-sys",
  "libc",
- "wasi",
+ "wasi 0.11.0+wasi-snapshot-preview1",
  "wasm-bindgen",
 ]
 
@@ -2721,7 +2579,7 @@ checksum = "57ee1c23c7c63b0c9250c339ffdc69255f110b298b901b9f6c82547b7b87caaf"
 dependencies = [
  "libc",
  "log",
- "wasi",
+ "wasi 0.11.0+wasi-snapshot-preview1",
  "windows-sys",
 ]
 
@@ -2850,6 +2708,17 @@ checksum = "7ae39348c8bc5fbd7f40c727a9925f03517afd2ab27d46702108b6a7e5414c19"
 dependencies = [
  "num-traits",
  "serde",
+]
+
+[[package]]
+name = "num-derive"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "876a53fff98e03a936a674b29568b0e605f06b29372c2489ff4de23f1949743d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -3414,7 +3283,7 @@ dependencies = [
  "postgres-protocol",
  "serde",
  "serde_json",
- "time",
+ "time 0.3.13",
  "uuid 1.1.2",
 ]
 
@@ -3643,10 +3512,10 @@ dependencies = [
  "abacus-ethereum",
  "abacus-test",
  "async-trait",
- "color-eyre",
+ "coingecko",
  "config",
- "ethers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
- "ethers-contract 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers",
+ "ethers-contract",
  "eyre",
  "futures-util",
  "gelato",
@@ -3654,6 +3523,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "strum",
  "thiserror",
  "tokio",
  "tokio-test",
@@ -4032,10 +3902,12 @@ dependencies = [
  "abacus-core",
  "abacus-test",
  "async-trait",
- "color-eyre",
+ "chrono",
  "config",
- "ethers 0.17.0 (git+https://github.com/gakonst/ethers-rs?branch=master)",
+ "ethers",
  "eyre",
+ "hex",
+ "itertools",
  "migration",
  "prometheus",
  "sea-orm",
@@ -4093,7 +3965,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
- "time",
+ "time 0.3.13",
  "tracing",
  "url",
  "uuid 1.1.2",
@@ -4157,7 +4029,7 @@ dependencies = [
  "sea-query-derive",
  "sea-query-driver",
  "serde_json",
- "time",
+ "time 0.3.13",
  "uuid 1.1.2",
 ]
 
@@ -4321,6 +4193,17 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "serde_repr"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fe39d9fbb0ebf5eb2c7cb7e2a47e4f462fad1379f1166b8ae49ad9eae89a7ca"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -4561,7 +4444,7 @@ dependencies = [
  "sqlx-rt",
  "stringprep",
  "thiserror",
- "time",
+ "time 0.3.13",
  "tokio-stream",
  "url",
  "uuid 1.1.2",
@@ -4755,6 +4638,17 @@ dependencies = [
 
 [[package]]
 name = "time"
+version = "0.1.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6db9e6914ab8b1ae1c260a4ae7a49b6c5611b40328a735b21862567685e73255"
+dependencies = [
+ "libc",
+ "wasi 0.10.0+wasi-snapshot-preview1",
+ "winapi",
+]
+
+[[package]]
+name = "time"
 version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db76ff9fa4b1458b3c7f077f3ff9887394058460d21e634355b273aaf11eea45"
@@ -4808,6 +4702,7 @@ dependencies = [
  "mio",
  "num_cpus",
  "once_cell",
+ "parking_lot 0.12.1",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
@@ -5256,9 +5151,8 @@ dependencies = [
  "abacus-ethereum",
  "abacus-test",
  "async-trait",
- "color-eyre",
  "config",
- "ethers 0.17.0 (git+https://github.com/abacus-network/ethers-rs?tag=2022-09-07-01)",
+ "ethers",
  "eyre",
  "futures-util",
  "prometheus",
@@ -5357,6 +5251,12 @@ dependencies = [
  "tower-service",
  "tracing",
 ]
+
+[[package]]
+name = "wasi"
+version = "0.10.0+wasi-snapshot-preview1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a143597ca7c7793eff794def352d41792a93c481eb1042423ff7ff72ba2c31f"
 
 [[package]]
 name = "wasi"

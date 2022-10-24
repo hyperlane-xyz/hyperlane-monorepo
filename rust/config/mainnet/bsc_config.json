@@ -85,11 +85,26 @@
         "inbox": "0x81a92A1a272cb09d7b4970b07548463dC7aE0cB7",
         "validatorManager": "0xC343A7054838FE9F249D7E3Ec1Fa6f1D108694b8"
       }
+    },
+    "moonbeam": {
+      "domain": "1836002669",
+      "name": "moonbeam",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x552D41c0B5c774F529C956E7CC77d0e054D7aFa8",
+        "validatorManager": "0x23ce76645EC601148fa451e751eeB75785b97A00"
+      }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xc3F23848Ed2e04C0c6d41bd7804fa8f89F940B94"
+      "outbox": "0xc3F23848Ed2e04C0c6d41bd7804fa8f89F940B94",
+      "interchainGasPaymaster": "0x47bf94790241B1764fC41A35a8329A15569E121C"
     },
     "domain": "6452067",
     "name": "bsc",

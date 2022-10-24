@@ -1,19 +1,19 @@
-import { chainConnectionConfigs } from '@abacus-network/sdk';
+import { chainConnectionConfigs } from '@hyperlane-xyz/sdk';
 
 export const testnetConfigs = {
   alfajores: chainConnectionConfigs.alfajores,
-  kovan: chainConnectionConfigs.kovan,
   fuji: chainConnectionConfigs.fuji,
   mumbai: {
     ...chainConnectionConfigs.mumbai,
+    confirmations: 3,
     overrides: {
-      maxFeePerGas: 1000 * 10 ** 9, // 1000 gwei
+      maxFeePerGas: 70 * 10 ** 9, // 1000 gwei
       maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
     },
   },
   bsctestnet: chainConnectionConfigs.bsctestnet,
-  arbitrumrinkeby: chainConnectionConfigs.arbitrumrinkeby,
-  optimismkovan: chainConnectionConfigs.optimismkovan,
+  goerli: chainConnectionConfigs.goerli,
+  moonbasealpha: chainConnectionConfigs.moonbasealpha,
 };
 
 export type TestnetChains = keyof typeof testnetConfigs;

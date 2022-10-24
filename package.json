@@ -1,6 +1,6 @@
 {
-  "name": "@abacus-network/monorepo",
-  "description": "A yarn workspace of many core Abacus packages",
+  "name": "@hyperlane-xyz/monorepo",
+  "description": "A yarn workspace of core Hyperlane packages",
   "version": "0.0.0",
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^3.2.0",
@@ -33,6 +33,7 @@
     "underscore": "^1.13",
     "fetch-ponyfill": "^7.1",
     "lodash": "^4.17.21",
-    "async": "^2.6.4"
+    "async": "^2.6.4",
+    "undici": "^5.11"
   }
 }

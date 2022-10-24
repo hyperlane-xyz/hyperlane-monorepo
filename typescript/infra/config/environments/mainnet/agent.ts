@@ -1,6 +1,9 @@
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
-import { ConnectionType } from '../../../src/config/agent';
+import {
+  ConnectionType,
+  GasPaymentEnforcementPolicyType,
+} from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 import { helloworldMatchingList } from '../../utils';
 
@@ -20,7 +23,7 @@ export const abacus: AgentConfig<MainnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-33b82dc',
+    tag: 'sha-329d259',
   },
   aws: {
     region: 'us-east-1',
@@ -28,7 +31,7 @@ export const abacus: AgentConfig<MainnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   validatorSets: validators,
-  connectionType: ConnectionType.Http,
+  connectionType: ConnectionType.HttpQuorum,
   validator: {
     default: {
       interval: 5,
@@ -56,13 +59,18 @@ export const abacus: AgentConfig<MainnetChains> = {
       polygon: {
         reorgPeriod: 256,
       },
+      moonbeam: {
+        reorgPeriod: 0,
+      },
     },
   },
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       blacklist: releaseCandidateHelloworldMatchingList,
+      gasPaymentEnforcementPolicy: {
+        type: GasPaymentEnforcementPolicyType.None,
+      },
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,
@@ -75,7 +83,7 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-33b82dc',
+    tag: 'sha-329d259',
   },
   aws: {
     region: 'us-east-1',
@@ -83,12 +91,24 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
   validatorSets: validators,
-  connectionType: ConnectionType.Http,
+  gelato: {
+    enabledChains: [
+      'bsc',
+      'ethereum',
+      'polygon',
+      'avalanche',
+      'arbitrum',
+      'optimism',
+    ],
+  },
+  connectionType: ConnectionType.HttpQuorum,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      maxProcessingRetries: 10,
       whitelist: releaseCandidateHelloworldMatchingList,
+      gasPaymentEnforcementPolicy: {
+        type: GasPaymentEnforcementPolicyType.None,
+      },
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],

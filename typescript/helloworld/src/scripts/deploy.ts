@@ -1,12 +1,12 @@
 import { Wallet } from 'ethers';
 
 import {
-  AbacusCore,
+  HyperlaneCore,
   MultiProvider,
   getChainToOwnerMap,
   objMap,
   serializeContracts,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { prodConfigs } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
@@ -23,7 +23,7 @@ async function main() {
   }));
   const multiProvider = new MultiProvider(chainProviders);
 
-  const core = AbacusCore.fromEnvironment('testnet2', multiProvider);
+  const core = HyperlaneCore.fromEnvironment('testnet2', multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(prodConfigs, signer.address),
   );

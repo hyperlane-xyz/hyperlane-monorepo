@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { Signer, ethers } from 'ethers';
 
 import { ChainMap, ChainName, IChainConnection, Remotes } from '../types';
 import { MultiGeneric } from '../utils/MultiGeneric';
@@ -106,14 +106,27 @@ export class MultiProvider<
    */
   intersect<IntersectionChain extends Chain>(
     chains: ChainName[],
+    throwIfNotSubset = false,
   ): {
     intersection: IntersectionChain[];
     multiProvider: MultiProvider<IntersectionChain>;
   } {
     const ownChains = this.chains();
-    const intersection = ownChains.filter((c) =>
-      chains.includes(c),
-    ) as IntersectionChain[];
+    const intersection = [] as IntersectionChain[];
+
+    for (const chain of chains) {
+      // @ts-ignore
+      if (ownChains.includes(chain)) {
+        // @ts-ignore
+        intersection.push(chain);
+      } else {
+        if (throwIfNotSubset) {
+          throw new Error(
+            `MultiProvider#intersect: chains specified ${chain}, but ownChains did not include it`,
+          );
+        }
+      }
+    }
 
     if (!intersection.length) {
       throw new Error(`No chains shared between MultiProvider and list`);
@@ -125,6 +138,15 @@ export class MultiProvider<
       ...intersectionChainMap,
     });
     return { intersection, multiProvider };
+  }
+
+  rotateSigner(newSigner: Signer): void {
+    this.forEach((chain, dc) => {
+      this.setChainConnection(chain, {
+        ...dc,
+        signer: newSigner.connect(dc.provider),
+      });
+    });
   }
 
   // This doesn't work on hardhat providers so we skip for now

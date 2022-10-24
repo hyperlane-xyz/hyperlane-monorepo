@@ -4,13 +4,13 @@ import {
   CoreConfig,
   EnvironmentConfig,
   MultiProvider,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
 import { KEY_ROLE_ENUM } from '../agents/roles';
 
-import { AgentConfig } from './agent';
+import { AgentConfig, ConnectionType } from './agent';
 import { KeyFunderConfig } from './funding';
 import { HelloWorldConfig } from './helloworld';
 import { InfrastructureConfig } from './infrastructure';
@@ -32,6 +32,7 @@ export type CoreEnvironmentConfig<Chain extends ChainName> = {
   getMultiProvider: (
     context?: Contexts,
     role?: KEY_ROLE_ENUM,
+    connectionType?: ConnectionType,
   ) => Promise<MultiProvider<Chain>>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig<Chain>>>;
   keyFunderConfig?: KeyFunderConfig;

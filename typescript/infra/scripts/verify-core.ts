@@ -5,7 +5,7 @@ import {
   CompilerOptions,
   CompleteChainMap,
   ContractVerifier,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { fetchGCPSecret } from '../src/utils/gcloud';
 import { execCmd, readJSON } from '../src/utils/utils';
@@ -39,7 +39,7 @@ async function main() {
   // from solidity/core/hardhat.config.ts
   const compilerOptions: CompilerOptions = {
     codeformat: 'solidity-single-file',
-    compilerversion: 'v0.8.13+commit.abaa5c0e',
+    compilerversion: 'v0.8.16+commit.07a7930e',
     optimizationUsed: '1',
     runs: '999999',
   };

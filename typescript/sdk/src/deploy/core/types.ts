@@ -1,37 +1,37 @@
-import { Mailbox, MultisigZone } from '@abacus-network/core';
-import type { types } from '@abacus-network/utils';
+import { Mailbox, MultisigModule } from '@hyperlane-xyz/core';
+import type { types } from '@hyperlane-xyz/utils';
 
 import { ChainName } from '../../types';
 import type { CheckerViolation } from '../types';
 
-export type MultisigZoneConfig = {
+export type MultisigModuleConfig = {
   validators: Array<types.Address>;
   threshold: number;
 };
 
 export type CoreConfig = {
-  validatorManager: MultisigZoneConfig;
+  validatorManager: MultisigModuleConfig;
   owner?: types.Address;
   remove?: boolean;
 };
 
 export enum CoreViolationType {
-  MultisigZone = 'MultisigZone',
+  MultisigModule = 'MultisigModule',
   Mailbox = 'Mailbox',
-  AbacusConnectionManager = 'AbacusConnectionManager',
+  ConnectionManager = 'ConnectionManager',
 }
 
-export enum MultisigZoneViolationType {
+export enum MultisigModuleViolationType {
   EnrolledValidators = 'EnrolledValidators',
   Threshold = 'Threshold',
 }
 
-export enum AbacusConnectionManagerViolationType {
+export enum ConnectionManagerViolationType {
   EnrolledInboxes = 'EnrolledInboxes',
 }
 
 export enum MailboxViolationType {
-  DefaultZone = 'DefaultZone',
+  DefaultModule = 'DefaultModule',
 }
 
 export interface MailboxViolation extends CheckerViolation {
@@ -40,26 +40,26 @@ export interface MailboxViolation extends CheckerViolation {
   mailboxType: MailboxViolationType;
 }
 
-export interface MailboxMultisigZoneViolation extends MailboxViolation {
+export interface MailboxMultisigModuleViolation extends MailboxViolation {
   actual: types.Address;
   expected: types.Address;
 }
 
-export interface MultisigZoneViolation extends CheckerViolation {
-  type: CoreViolationType.MultisigZone;
-  contract: MultisigZone;
-  zoneType: MultisigZoneViolationType;
+export interface MultisigModuleViolation extends CheckerViolation {
+  type: CoreViolationType.MultisigModule;
+  contract: MultisigModule;
+  zoneType: MultisigModuleViolationType;
   remote: ChainName;
 }
 
-export interface EnrolledValidatorsViolation extends MultisigZoneViolation {
-  validatorManagerType: MultisigZoneViolationType.EnrolledValidators;
+export interface EnrolledValidatorsViolation extends MultisigModuleViolation {
+  validatorManagerType: MultisigModuleViolationType.EnrolledValidators;
   actual: Set<types.Address>;
   expected: Set<types.Address>;
 }
 
-export interface ThresholdViolation extends MultisigZoneViolation {
-  validatorManagerType: MultisigZoneViolationType.Threshold;
+export interface ThresholdViolation extends MultisigModuleViolation {
+  validatorManagerType: MultisigModuleViolationType.Threshold;
   actual: number;
   expected: number;
 }

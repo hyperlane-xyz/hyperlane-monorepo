@@ -2,17 +2,17 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "abacus-agent.fullname" . }}-relayer
+  name: {{ include "agent-common.fullname" . }}-relayer
   labels:
-    {{- include "abacus-agent.labels" . | nindent 4 }}
+    {{- include "agent-common.labels" . | nindent 4 }}
     app.kubernetes.io/component: relayer
 spec:
   selector:
     matchLabels:
-      {{- include "abacus-agent.selectorLabels" . | nindent 6 }}
+      {{- include "agent-common.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: relayer
   replicas: 1 
-  serviceName: {{ include "abacus-agent.fullname" . }}-relayer
+  serviceName: {{ include "agent-common.fullname" . }}-relayer
   template:
     metadata:
       annotations:
@@ -24,7 +24,7 @@ spec:
         {{ toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "abacus-agent.labels" . | nindent 8 }}
+        {{- include "agent-common.labels" . | nindent 8 }}
         app.kubernetes.io/component: relayer
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
@@ -49,19 +49,19 @@ spec:
         command: ["./relayer"]
         envFrom:
         - configMapRef:
-            name: {{ include "abacus-agent.fullname" . }}
+            name: {{ include "agent-common.fullname" . }}
         - secretRef:
-            name: {{ include "abacus-agent.fullname" . }}-secret
+            name: {{ include "agent-common.fullname" . }}-secret
         - secretRef:
-            name: {{ include "abacus-agent.fullname" . }}-relayer-secret
+            name: {{ include "agent-common.fullname" . }}-relayer-secret
         env:
-{{- include "abacus-agent.config-env-vars" (dict "config" .Values.abacus.relayer.config "agent_name" "relayer") | indent 10 }}
+{{- include "agent-common.config-env-vars" (dict "config" .Values.abacus.relayer.config "agent_name" "relayer") | indent 10 }}
           {{- range .Values.abacus.relayer.signers }}
-{{- include "abacus-agent.config-env-vars" (dict "config" .keyConfig "agent_name" "base" "key_name_prefix" (printf "SIGNERS_%s_" (.name | upper))) | indent 10 }}
+{{- include "agent-common.config-env-vars" (dict "config" .keyConfig "agent_name" "base" "key_name_prefix" (printf "SIGNERS_%s_" (.name | upper))) | indent 10 }}
           {{- end }}
           {{- if .Values.abacus.tracing.uri }}
-          - name: ABC_BASE_TRACING_JAEGER_NAME
-            value: {{ include "abacus-agent.fullname" . }}-relayer
+          - name: HYP_BASE_TRACING_JAEGER_NAME
+            value: {{ include "agent-common.fullname" . }}-relayer
           {{- end }}
         resources:
           {{- toYaml .Values.abacus.relayer.resources | nindent 10 }}

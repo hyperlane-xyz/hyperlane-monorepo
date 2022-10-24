@@ -1,11 +1,19 @@
-import { ChainName } from '@abacus-network/sdk';
-import { utils } from '@abacus-network/utils';
+import { ChainName } from '@hyperlane-xyz/sdk';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { AgentConfig, DeployEnvironment } from '../config';
-import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
+import {
+  ChainAgentConfig,
+  CheckpointSyncerType,
+  ConnectionType,
+} from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
-import { HelmCommand, helmifyValues } from '../utils/helm';
+import {
+  HelmCommand,
+  buildHelmChartDependencies,
+  helmifyValues,
+} from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
 import { keyIdentifier } from './agent';
@@ -15,16 +23,37 @@ import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
 import { KEY_ROLE_ENUM } from './roles';
 
+const helmChartPath = '../../rust/helm/abacus-agent/';
+
 async function helmValuesForChain<Chain extends ChainName>(
   chainName: Chain,
   agentConfig: AgentConfig<Chain>,
 ) {
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
+  const gelatoApiKeyRequired =
+    await chainAgentConfig.ensureGelatoApiKeySecretExistsIfRequired();
+  await chainAgentConfig.ensureCoingeckoApiKeySecretExistsIfRequired();
 
-  const gelatoSupportedOnOutboxChain = agentConfig.gelato
-    ?.useForDisabledOriginChains
-    ? true
-    : agentConfig.gelato?.enabledChains.includes(chainName) ?? false;
+  // By default, if a context only enables a subset of chains, the
+  // connection url (or urls, when HttpQuorum is used) are not fetched
+  // from GCP secret manager. For Http/Ws, the `url` param is expected,
+  // which is set by default to "" in the agent json configs. For HttpQuorum,
+  // no default is present in those configs, so we make sure to pass in urls
+  // as "" to avoid startup configuration issues.
+  let baseConnectionConfig: Record<string, string> = {
+    type: agentConfig.connectionType,
+  };
+  if (baseConnectionConfig.type == ConnectionType.HttpQuorum) {
+    baseConnectionConfig = {
+      ...baseConnectionConfig,
+      urls: '',
+    };
+  } else {
+    baseConnectionConfig = {
+      ...baseConnectionConfig,
+      url: '',
+    };
+  }
 
   return {
     image: {
@@ -37,24 +66,20 @@ async function helmValuesForChain<Chain extends ChainName>(
       baseConfig: `${chainName}_config.json`,
       outboxChain: {
         name: chainName,
-        connectionType: agentConfig.connectionType,
+        connection: baseConnectionConfig,
       },
       aws: !!agentConfig.aws,
+      gelatoApiKeyRequired,
       inboxChains: agentConfig.environmentChainNames
         .filter((name) => name !== chainName)
         .map((remoteChainName) => {
           return {
             name: remoteChainName,
             disabled: !agentConfig.contextChainNames.includes(remoteChainName),
-            gelato: {
-              enabled:
-                gelatoSupportedOnOutboxChain &&
-                (agentConfig.gelato?.enabledChains?.includes(remoteChainName) ??
-                  false),
+            txsubmission: {
+              type: chainAgentConfig.transactionSubmissionType(remoteChainName),
             },
-            connection: {
-              type: agentConfig.connectionType,
-            },
+            connection: baseConnectionConfig,
           };
         }),
       validator: {
@@ -86,11 +111,11 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   let envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig);
   envVars.push(
-    `ABC_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`,
+    `HYP_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`,
   );
   valueDict.abacus.inboxChains.forEach((inboxChain: any) => {
     envVars.push(
-      `ABC_BASE_INBOXES_${inboxChain.name.toUpperCase()}_CONNECTION_URL=${
+      `HYP_BASE_INBOXES_${inboxChain.name.toUpperCase()}_CONNECTION_URL=${
         rpcEndpoints[inboxChain.name]
       }`,
     );
@@ -99,10 +124,10 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   // Base vars from config map
   envVars.push(`BASE_CONFIG=${valueDict.abacus.baseConfig}`);
   envVars.push(`RUN_ENV=${agentConfig.runEnv}`);
-  envVars.push(`ABC_BASE_METRICS=9090`);
-  envVars.push(`ABC_BASE_TRACING_LEVEL=info`);
+  envVars.push(`HYP_BASE_METRICS=9090`);
+  envVars.push(`HYP_BASE_TRACING_LEVEL=info`);
   envVars.push(
-    `ABC_BASE_DB=/tmp/${agentConfig.environment}-${role}-${outboxChainName}${
+    `HYP_BASE_DB=/tmp/${agentConfig.environment}-${role}-${outboxChainName}${
       role === KEY_ROLE_ENUM.Validator ? `-${index}` : ''
     }-db`,
   );
@@ -126,18 +151,18 @@ export async function getAgentEnvVars<Chain extends ChainName>(
     if (role === KEY_ROLE_ENUM.Relayer) {
       chainNames.forEach((name) => {
         envVars.push(
-          `ABC_BASE_SIGNERS_${name.toUpperCase()}_KEY=${utils.strip0x(
+          `HYP_BASE_SIGNERS_${name.toUpperCase()}_KEY=${utils.strip0x(
             gcpKeys[keyId].privateKey,
           )}`,
         );
-        envVars.push(`ABC_BASE_SIGNERS_${name.toUpperCase()}_TYPE=hexKey`);
+        envVars.push(`HYP_BASE_SIGNERS_${name.toUpperCase()}_TYPE=hexKey`);
       });
     } else if (role === KEY_ROLE_ENUM.Validator) {
       const privateKey = gcpKeys[keyId].privateKey;
 
       envVars.push(
-        `ABC_VALIDATOR_VALIDATOR_KEY=${utils.strip0x(privateKey)}`,
-        `ABC_VALIDATOR_VALIDATOR_TYPE=hexKey`,
+        `HYP_VALIDATOR_VALIDATOR_KEY=${utils.strip0x(privateKey)}`,
+        `HYP_VALIDATOR_VALIDATOR_TYPE=hexKey`,
       );
     }
   } else {
@@ -217,7 +242,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
 
 // Recursively converts a config object into environment variables than can
 // be parsed by rust. For example, a config of { foo: { bar: { baz: 420 }, boo: 421 } } will
-// be: ABC_FOO_BAR_BAZ=420 and ABC_FOO_BOO=421
+// be: HYP_FOO_BAR_BAZ=420 and HYP_FOO_BOO=421
 function configEnvVars(
   config: Record<string, any>,
   role: string,
@@ -237,7 +262,7 @@ function configEnvVars(
       ];
     } else {
       envVars.push(
-        `ABC_${role.toUpperCase()}_${key_name_prefix}${key.toUpperCase()}=${
+        `HYP_${role.toUpperCase()}_${key_name_prefix}${key.toUpperCase()}=${
           config[key]
         }`,
       );
@@ -300,11 +325,44 @@ async function getSecretRpcEndpoints<Chain extends ChainName>(
   );
 }
 
+export async function doesAgentReleaseExist<Chain extends ChainName>(
+  agentConfig: AgentConfig<Chain>,
+  outboxChainName: Chain,
+) {
+  try {
+    await execCmd(
+      `helm status ${getHelmReleaseName(
+        outboxChainName,
+        agentConfig,
+      )} --namespace ${agentConfig.namespace}`,
+      {},
+      false,
+      false,
+    );
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 export async function runAgentHelmCommand<Chain extends ChainName>(
   action: HelmCommand,
   agentConfig: AgentConfig<Chain>,
   outboxChainName: Chain,
 ) {
+  if (action === HelmCommand.Remove) {
+    return execCmd(
+      `helm ${action} ${getHelmReleaseName(
+        outboxChainName,
+        agentConfig,
+      )} --namespace ${agentConfig.namespace}`,
+
+      {},
+      false,
+      true,
+    );
+  }
+
   const valueDict = await helmValuesForChain(outboxChainName, agentConfig);
   const values = helmifyValues(valueDict);
 
@@ -313,17 +371,41 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
       ? ` | kubectl diff -n ${agentConfig.namespace} --field-manager="Go-http-client" -f - || true`
       : '';
 
-  return execCmd(
+  if (action === HelmCommand.InstallOrUpgrade) {
+    // Delete secrets to avoid them being stale
+    try {
+      await execCmd(
+        `kubectl delete secrets --namespace ${
+          agentConfig.namespace
+        } --selector app.kubernetes.io/instance=${getHelmReleaseName(
+          outboxChainName,
+          agentConfig,
+        )}`,
+        {},
+        false,
+        false,
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // Build the chart dependencies
+  await buildHelmChartDependencies(helmChartPath);
+
+  await execCmd(
     `helm ${action} ${getHelmReleaseName(
       outboxChainName,
       agentConfig,
-    )} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
+    )} ${helmChartPath} --create-namespace --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
     {},
     false,
     true,
   );
+
+  return;
 }
 
 function getHelmReleaseName<Chain extends ChainName>(

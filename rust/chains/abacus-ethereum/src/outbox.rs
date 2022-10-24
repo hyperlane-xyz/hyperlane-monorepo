@@ -10,9 +10,8 @@ use eyre::Result;
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusAbi, AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, CheckpointMeta,
-    CheckpointWithMeta, ContractLocator, Indexer, Message, Outbox, OutboxIndexer, OutboxState,
-    RawCommittedMessage, TxOutcome,
+    AbacusAbi, AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, ContractLocator,
+    Indexer, LogMeta, Message, Outbox, OutboxIndexer, OutboxState, RawCommittedMessage, TxOutcome,
 };
 
 use crate::contracts::outbox::{Outbox as EthereumOutboxInternal, OUTBOX_ABI};
@@ -29,8 +28,6 @@ where
 }
 
 pub struct OutboxIndexerBuilder {
-    pub from_height: u32,
-    pub chunk_size: u32,
     pub finality_blocks: u32,
 }
 
@@ -45,8 +42,6 @@ impl MakeableWithProvider for OutboxIndexerBuilder {
         Box::new(EthereumOutboxIndexer::new(
             Arc::new(provider),
             locator,
-            self.from_height,
-            self.chunk_size,
             self.finality_blocks,
         ))
     }
@@ -60,11 +55,8 @@ where
 {
     contract: Arc<EthereumOutboxInternal<M>>,
     provider: Arc<M>,
-    #[allow(unused)]
-    from_height: u32,
-    #[allow(unused)]
-    chunk_size: u32,
     finality_blocks: u32,
+    outbox_domain: u32,
 }
 
 impl<M> EthereumOutboxIndexer<M>
@@ -72,22 +64,16 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumOutboxIndexer
-    pub fn new(
-        provider: Arc<M>,
-        locator: &ContractLocator,
-        from_height: u32,
-        chunk_size: u32,
-        finality_blocks: u32,
-    ) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
+        let contract = Arc::new(EthereumOutboxInternal::new(
+            &locator.address,
+            provider.clone(),
+        ));
         Self {
-            contract: Arc::new(EthereumOutboxInternal::new(
-                &locator.address,
-                provider.clone(),
-            )),
+            contract,
             provider,
-            from_height,
-            chunk_size,
             finality_blocks,
+            outbox_domain: locator.domain,
         }
     }
 }
@@ -114,24 +100,31 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {
-        let mut events = self
+    async fn fetch_sorted_messages(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> Result<Vec<(RawCommittedMessage, LogMeta)>> {
+        let mut events: Vec<(RawCommittedMessage, LogMeta)> = self
             .contract
             .dispatch_filter()
             .from_block(from)
             .to_block(to)
-            .query()
-            .await?;
-
-        events.sort_by(|a, b| a.leaf_index.cmp(&b.leaf_index));
-
-        Ok(events
+            .query_with_meta()
+            .await?
             .into_iter()
-            .map(|f| RawCommittedMessage {
-                leaf_index: f.leaf_index.as_u32(),
-                message: f.message.to_vec(),
+            .map(|(event, meta)| {
+                (
+                    RawCommittedMessage {
+                        leaf_index: event.leaf_index.as_u32(),
+                        message: event.message.to_vec(),
+                    },
+                    meta.into(),
+                )
             })
-            .collect())
+            .collect();
+        events.sort_by(|a, b| a.0.leaf_index.cmp(&b.0.leaf_index));
+        Ok(events)
     }
 
     #[instrument(err, skip(self))]
@@ -139,43 +132,28 @@ where
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<CheckpointWithMeta>> {
-        let mut events = self
+    ) -> Result<Vec<(Checkpoint, LogMeta)>> {
+        let mut events: Vec<(Checkpoint, LogMeta)> = self
             .contract
             .checkpoint_cached_filter()
             .from_block(from)
             .to_block(to)
             .query_with_meta()
-            .await?;
-
-        events.sort_by(|a, b| {
-            let mut ordering = a.1.block_number.cmp(&b.1.block_number);
-            if ordering == std::cmp::Ordering::Equal {
-                ordering = a.1.transaction_index.cmp(&b.1.transaction_index);
-            }
-
-            ordering
-        });
-
-        let outbox_domain = self.contract.local_domain().call().await?;
-
-        Ok(events
-            .iter()
-            .map(|event| {
-                let checkpoint = Checkpoint {
-                    outbox_domain,
-                    root: event.0.root.into(),
-                    index: event.0.index.as_u32(),
-                };
-
-                CheckpointWithMeta {
-                    checkpoint,
-                    metadata: CheckpointMeta {
-                        block_number: event.1.block_number.as_u64(),
+            .await?
+            .into_iter()
+            .map(|(event, meta)| {
+                (
+                    Checkpoint {
+                        outbox_domain: self.outbox_domain,
+                        root: event.root.into(),
+                        index: event.index.as_u32(),
                     },
-                }
+                    meta.into(),
+                )
             })
-            .collect())
+            .collect();
+        events.sort_by(|a, b| a.1.cmp(&b.1));
+        Ok(events)
     }
 }
 
@@ -230,6 +208,10 @@ where
 {
     fn chain_name(&self) -> &str {
         &self.chain_name
+    }
+
+    fn address(&self) -> H256 {
+        self.contract.address().into()
     }
 }
 

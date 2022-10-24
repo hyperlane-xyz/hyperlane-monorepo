@@ -1,5 +1,5 @@
-import { ChainMap, ChainName, RemoteChainMap } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
+import { ChainMap, ChainName, RemoteChainMap } from '@hyperlane-xyz/sdk';
+import { types } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import {
@@ -8,6 +8,7 @@ import {
   ValidatorAgentAwsUser,
 } from '../agents/aws';
 import { KEY_ROLE_ENUM } from '../agents/roles';
+import { gcpSecretExists } from '../utils/gcloud';
 
 import { DeployEnvironment } from './environment';
 
@@ -72,6 +73,7 @@ interface ValidatorSet {
 // A validator. This isn't agent-specific configuration, just information
 // on the validator that is enrolled in a validator set.
 interface Validator {
+  name: string;
   address: string;
   checkpointSyncer: CheckpointSyncerConfig;
   readonly?: boolean;
@@ -96,12 +98,29 @@ interface MatchingListElement {
   destinationAddress?: '*' | string | string[];
 }
 
+export enum GasPaymentEnforcementPolicyType {
+  None = 'none',
+  Minimum = 'minimum',
+  MeetsEstimatedCost = 'meetsEstimatedCost',
+}
+
+export type GasPaymentEnforcementPolicy =
+  | {
+      type: GasPaymentEnforcementPolicyType.None;
+    }
+  | {
+      type: GasPaymentEnforcementPolicyType.Minimum;
+      payment: string | number;
+    }
+  | {
+      type: GasPaymentEnforcementPolicyType.MeetsEstimatedCost;
+    };
+
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
   // The polling interval to check for new signed checkpoints in seconds
   signedCheckpointPollingInterval: number;
-  // The maxinmum number of times a processor will try to process a message
-  maxProcessingRetries: number;
+  gasPaymentEnforcementPolicy: GasPaymentEnforcementPolicy;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
 }
@@ -182,14 +201,11 @@ export interface DockerConfig {
 export interface GelatoConfig<Chain extends ChainName> {
   // List of chains in which using Gelato is enabled for
   enabledChains: Chain[];
-  // If true, Gelato will still be used for messages whose
-  // origin chain is *not* supported by Gelato. If false,
-  // Gelato will not be used for any messages from a disabled
-  // origin chain, even if the destination chain is enabled.
-  // Because Gelato doesn't charge on testnets, this is likely
-  // to be true for testnet environments where the chain in which gas
-  // is paid on (the origin) doesn't need to be supported by Gelato.
-  useForDisabledOriginChains: boolean;
+}
+
+export enum TransactionSubmissionType {
+  Signer = 'signer',
+  Gelato = 'gelato',
 }
 
 export interface AgentConfig<Chain extends ChainName> {
@@ -244,7 +260,7 @@ export type RustContractBlock<T> = {
 
 export type OutboxAddresses = {
   outbox: types.Address;
-  interchainGasPaymaster?: types.Address;
+  interchainGasPaymaster: types.Address;
 };
 
 export type InboxAddresses = {
@@ -256,8 +272,12 @@ export type RustConfig<Chain extends ChainName> = {
   environment: DeployEnvironment;
   index?: { from: string };
   signers: Partial<ChainMap<Chain, RustSigner>>;
-  inboxes: RemoteChainMap<Chain, any, RustContractBlock<InboxAddresses>>;
-  outbox: RustContractBlock<OutboxAddresses>;
+  inboxes: RemoteChainMap<
+    Chain,
+    any,
+    RustContractBlock<Partial<InboxAddresses>>
+  >;
+  outbox: RustContractBlock<Partial<OutboxAddresses>>;
   tracing: {
     level: string;
     fmt: 'json';
@@ -421,11 +441,11 @@ export class ChainAgentConfig<Chain extends ChainName> {
     const relayerConfig: RelayerConfig = {
       signedCheckpointPollingInterval:
         baseConfig.signedCheckpointPollingInterval,
-      maxProcessingRetries: baseConfig.maxProcessingRetries,
       multisigCheckpointSyncer: {
         threshold: this.validatorSet.threshold,
         checkpointSyncers,
       },
+      gasPaymentEnforcementPolicy: baseConfig.gasPaymentEnforcementPolicy,
     };
     if (baseConfig.whitelist) {
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
@@ -439,6 +459,53 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
   get relayerEnabled(): boolean {
     return this.agentConfig.relayer !== undefined;
+  }
+
+  // Returns if it's required, throws if it's required and isn't present.
+  async ensureGelatoApiKeySecretExistsIfRequired(): Promise<boolean> {
+    // No need to check anything if no chains require Gelato
+    if (
+      !this.agentConfig.gelato ||
+      this.agentConfig.gelato.enabledChains.length == 0
+    ) {
+      return false;
+    }
+
+    // Check to see if the Gelato API key exists in GCP secret manager - throw if it doesn't
+    const secretName = `${this.agentConfig.runEnv}-gelato-api-key`;
+    const secretExists = await gcpSecretExists(secretName);
+    if (!secretExists) {
+      throw Error(
+        `Expected Gelato API Key GCP Secret named ${secretName} to exist, have you created it?`,
+      );
+    }
+    return true;
+  }
+
+  async ensureCoingeckoApiKeySecretExistsIfRequired() {
+    // The CoinGecko API Key is only needed when using the "MeetsEstimatedCost" policy.
+    if (
+      this.relayerConfig?.gasPaymentEnforcementPolicy.type !==
+      GasPaymentEnforcementPolicyType.MeetsEstimatedCost
+    ) {
+      return;
+    }
+    // Check to see if the Gelato API key exists in GCP secret manager - throw if it doesn't
+    const secretName = `${this.agentConfig.runEnv}-coingecko-api-key`;
+    const secretExists = await gcpSecretExists(secretName);
+    if (!secretExists) {
+      throw Error(
+        `Expected CoinGecko API Key GCP Secret named ${secretName} to exist, have you created it?`,
+      );
+    }
+  }
+
+  transactionSubmissionType(chain: Chain): TransactionSubmissionType {
+    if (this.agentConfig.gelato?.enabledChains.includes(chain)) {
+      return TransactionSubmissionType.Gelato;
+    }
+
+    return TransactionSubmissionType.Signer;
   }
 
   get validatorSet(): ValidatorSet {

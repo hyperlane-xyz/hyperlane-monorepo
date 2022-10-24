@@ -1,12 +1,12 @@
 import type { ethers } from 'ethers';
 
-import { Router } from '@abacus-network/app';
-import type { types } from '@abacus-network/utils';
+import { Router } from '@hyperlane-xyz/app';
+import type { types } from '@hyperlane-xyz/utils';
 
-import { AbacusContracts, AbacusFactories } from './contracts';
+import { HyperlaneContracts, HyperlaneFactories } from './contracts';
 
 export type RouterContracts<RouterContract extends Router = Router> =
-  AbacusContracts & {
+  HyperlaneContracts & {
     router: RouterContract;
   };
 
@@ -16,7 +16,7 @@ type RouterFactory<RouterContract extends Router = Router> =
   };
 
 export type RouterFactories<RouterContract extends Router = Router> =
-  AbacusFactories & {
+  HyperlaneFactories & {
     router: RouterFactory<RouterContract>;
   };
 
@@ -24,4 +24,4 @@ export type ConnectionClientConfig = {
   interchainGasPaymaster: types.Address;
 };
 
-export { Router } from '@abacus-network/app';
+export { Router } from '@hyperlane-xyz/app';

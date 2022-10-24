@@ -85,11 +85,26 @@
         "inbox": "0x95Ad03405aC24c0bc247bdFDC113B01955A71761",
         "validatorManager": "0x4B44e4305B42405382b7BeC717F64D0552a9D9Fe"
       }
+    },
+    "moonbeam": {
+      "domain": "1836002669",
+      "name": "moonbeam",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x4B44e4305B42405382b7BeC717F64D0552a9D9Fe",
+        "validatorManager": "0x398633D19f4371e1DB5a8EFE90468eB70B1176AA"
+      }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004"
+      "outbox": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+      "interchainGasPaymaster": "0xed9a722c543883FB7e07E78F3879762DE09eA7D5"
     },
     "domain": "1635148152",
     "name": "avalanche",

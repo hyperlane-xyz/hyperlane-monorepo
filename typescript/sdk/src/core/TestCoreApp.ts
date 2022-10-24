@@ -1,14 +1,14 @@
 import { ethers } from 'ethers';
 
-import { TestMailbox } from '@abacus-network/core';
-import { types, utils } from '@abacus-network/utils';
+import { TestMailbox } from '@hyperlane-xyz/core';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { DomainIdToChainName } from '../domains';
 import { ProxiedContract } from '../proxy';
 import { ChainName, TestChainNames } from '../types';
 
-import { AbacusCore } from './AbacusCore';
+import { HyperlaneCore } from './HyperlaneCore';
 import { CoreContracts } from './contracts';
 
 type MockProxyAddresses = {
@@ -23,7 +23,7 @@ export type TestCoreContracts<Local extends TestChainNames> = CoreContracts & {
 
 export class TestCoreApp<
   TestChain extends TestChainNames = TestChainNames,
-> extends AbacusCore<TestChain> {
+> extends HyperlaneCore<TestChain> {
   getContracts<Local extends TestChain>(
     chain: Local,
   ): TestCoreContracts<Local> {
@@ -47,7 +47,7 @@ export class TestCoreApp<
 
   async processOutboundMessages<Local extends TestChain>(
     origin: Local,
-  ): Promise<Map<ChainName, any>> {
+  ): Promise<Map<ChainName, ethers.providers.TransactionResponse[]>> {
     const responses = new Map<ChainName, any>();
     const contracts = this.getContracts(origin);
     const outbox: TestMailbox = contracts.mailbox.contract;

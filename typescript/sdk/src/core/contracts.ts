@@ -3,11 +3,11 @@ import {
   InterchainGasPaymaster__factory,
   Mailbox,
   Mailbox__factory,
-  MultisigZone,
-  MultisigZone__factory,
+  MultisigModule,
+  MultisigModule__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
-} from '@abacus-network/core';
+} from '@hyperlane-xyz/core';
 
 import { BeaconProxyAddresses, ProxiedContract } from '../proxy';
 
@@ -22,13 +22,13 @@ type ConnectionClientContracts = {
 
 export type CoreContracts = ConnectionClientContracts & {
   mailbox: ProxiedContract<Mailbox, BeaconProxyAddresses>;
-  defaultZone: MultisigZone;
+  defaultModule: MultisigModule;
   upgradeBeaconController: UpgradeBeaconController;
 };
 
 export const coreFactories = {
   upgradeBeaconController: new UpgradeBeaconController__factory(),
   interchainGasPaymaster: new InterchainGasPaymaster__factory(),
-  multisigZone: new MultisigZone__factory(),
+  multisigModule: new MultisigModule__factory(),
   mailbox: new Mailbox__factory(),
 };

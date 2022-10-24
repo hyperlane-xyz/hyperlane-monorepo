@@ -1,20 +1,19 @@
 // TODO: Reapply tip buffer
 // TODO: Reapply metrics
 
-use std::sync::Arc;
-
-use crate::settings::IndexSettings;
 use abacus_core::db::AbacusDB;
-
-mod interchain_gas;
-mod last_message;
-mod metrics;
-mod outbox;
-mod schema;
-
 pub use interchain_gas::*;
 pub use metrics::ContractSyncMetrics;
 pub use outbox::*;
+
+use crate::settings::IndexSettings;
+
+mod interchain_gas;
+/// Tools for working with message continuity.
+pub mod last_message;
+mod metrics;
+mod outbox;
+mod schema;
 
 /// Entity that drives the syncing of an agent's db with on-chain data.
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
@@ -25,7 +24,7 @@ pub use outbox::*;
 pub struct ContractSync<I> {
     chain_name: String,
     db: AbacusDB,
-    indexer: Arc<I>,
+    indexer: I,
     index_settings: IndexSettings,
     metrics: ContractSyncMetrics,
 }
@@ -35,7 +34,7 @@ impl<I> ContractSync<I> {
     pub fn new(
         chain_name: String,
         db: AbacusDB,
-        indexer: Arc<I>,
+        indexer: I,
         index_settings: IndexSettings,
         metrics: ContractSyncMetrics,
     ) -> Self {

@@ -1,13 +1,13 @@
-import { IMessageRecipient__factory } from '@abacus-network/helloworld/dist/src/types';
+import { IMessageRecipient__factory } from '@hyperlane-xyz/helloworld/dist/src/types';
 import {
-  AbacusCore,
   ChainName,
   DispatchedMessage,
   DomainIdToChainName,
+  HyperlaneCore,
   MultiProvider,
   chainConnectionConfigs,
-} from '@abacus-network/sdk';
-import { utils } from '@abacus-network/utils';
+} from '@hyperlane-xyz/sdk';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { assertChain } from '../src/utils/utils';
 
@@ -42,7 +42,7 @@ async function main() {
   // to run this script
   const multiProvider = new MultiProvider(chainConnectionConfigs);
 
-  const core = AbacusCore.fromEnvironment(environment, multiProvider);
+  const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
 
   const originProvider = multiProvider.getChainProvider(argv.originChain);
   const dispatchReceipt = await originProvider.getTransactionReceipt(
@@ -62,7 +62,7 @@ async function main() {
 }
 
 async function checkMessage(
-  core: AbacusCore<any>,
+  core: HyperlaneCore<any>,
   multiProvider: MultiProvider<any>,
   message: DispatchedMessage,
 ) {
@@ -128,7 +128,7 @@ async function checkMessage(
   );
 
   try {
-    await recipient.callStatic.handle(
+    await recipient.estimateGas.handle(
       message.parsed.origin,
       message.parsed.sender,
       message.parsed.body,
@@ -138,10 +138,12 @@ async function checkMessage(
       'Calling recipient `handle` function from the inbox does not revert',
     );
   } catch (err: any) {
-    console.error(
-      `Error calling recipient \`handle\` function from the inbox`,
-      err,
-    );
+    console.error(`Error calling recipient \`handle\` function from the inbox`);
+    if (err.reason) {
+      console.error('Reason: ', err.reason);
+    } else {
+      console.error(err);
+    }
   }
 }
 

@@ -14,23 +14,31 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-use eyre::Result;
+use ethers::types::H256;
+use eyre::{Context, Result};
+
+use abacus_base::agent_main;
+
+use crate::scraper::Scraper;
 
 #[allow(clippy::all)]
 mod db;
 
+mod date_time;
 mod scraper;
 mod settings;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    #[cfg(feature = "oneline-errors")]
-    abacus_base::oneline_eyre::install()?;
-    #[cfg(not(feature = "oneline-errors"))]
-    color_eyre::install()?;
+    agent_main::<Scraper>().await
+}
 
-    let _settings = settings::ScraperSettings::new()?;
-    // let agent = Scraper::from_settings(settings).await?;
+fn parse_h256<T: AsRef<[u8]>>(data: T) -> Result<H256> {
+    Ok(H256::from_slice(
+        &hex::decode(data).context("Error decoding hash or address")?,
+    ))
+}
 
-    Ok(())
+fn format_h256(data: &H256) -> String {
+    hex::encode(data)
 }

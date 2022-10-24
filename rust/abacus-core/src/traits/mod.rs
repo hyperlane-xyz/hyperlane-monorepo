@@ -1,16 +1,9 @@
-mod common;
-mod encode;
-mod inbox;
-mod indexer;
-mod interchain_gas;
-mod message;
-mod outbox;
-mod validator_manager;
-
 use std::collections::HashMap;
+use std::error::Error as StdError;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use auto_impl::auto_impl;
 use ethers::prelude::Selector;
 use ethers::{
     contract::ContractError,
@@ -18,18 +11,24 @@ use ethers::{
     providers::{Middleware, ProviderError},
 };
 use eyre::Result;
-use std::error::Error as StdError;
-
-use crate::{db::DbError, utils::domain_hash, AbacusError};
 
 pub use common::*;
 pub use encode::*;
 pub use inbox::*;
 pub use indexer::*;
 pub use interchain_gas::*;
-pub use message::*;
 pub use outbox::*;
 pub use validator_manager::*;
+
+use crate::{db::DbError, utils::domain_hash, AbacusError};
+
+mod common;
+mod encode;
+mod inbox;
+mod indexer;
+mod interchain_gas;
+mod outbox;
+mod validator_manager;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]
@@ -89,14 +88,19 @@ where
 /// Interface for a deployed contract.
 /// This trait is intended to expose attributes of any contract, and
 /// should not consider the purpose or implementation details of the contract.
+#[auto_impl(Box, Arc)]
 pub trait AbacusContract {
     /// Return an identifier (not necessarily unique) for the chain this
     /// contract is deployed to.
     fn chain_name(&self) -> &str;
+
+    /// Return the address of this contract.
+    fn address(&self) -> H256;
 }
 
 /// Interface for attributes shared by Outbox and Inbox
 #[async_trait]
+#[auto_impl(Box, Arc)]
 pub trait AbacusCommon: AbacusContract + Sync + Send + Debug {
     /// Return the domain ID
     fn local_domain(&self) -> u32;
@@ -114,11 +118,13 @@ pub trait AbacusCommon: AbacusContract + Sync + Send + Debug {
 }
 
 /// Static contract ABI information.
+#[auto_impl(Box, Arc)]
 pub trait AbacusAbi {
     /// Get a mapping from function selectors to human readable function names.
     fn fn_map() -> HashMap<Selector, &'static str>;
 
-    /// Get a mapping from function selectors to owned human readable function names.
+    /// Get a mapping from function selectors to owned human readable function
+    /// names.
     fn fn_map_owned() -> HashMap<Selector, String> {
         Self::fn_map()
             .into_iter()

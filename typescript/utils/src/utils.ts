@@ -98,7 +98,7 @@ export function destinationAndNonce(
 export function domainHash(domain: number): string {
   return ethers.utils.solidityKeccak256(
     ['uint32', 'string'],
-    [domain, 'ABACUS'],
+    [domain, 'ABACUS'], // TODO rename
   );
 }
 

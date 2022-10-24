@@ -1,12 +1,12 @@
 {
-  "name": "@abacus-network/sdk",
-  "description": "The official SDK for the Abacus Network",
-  "version": "0.4.1",
+  "name": "@hyperlane-xyz/sdk",
+  "description": "The official SDK for the Hyperlane Network",
+  "version": "0.5.1",
   "dependencies": {
-    "@abacus-network/app": "0.4.1",
-    "@abacus-network/celo-ethers-provider": "^0.1.0",
-    "@abacus-network/core": "0.4.1",
-    "@abacus-network/utils": "0.4.1",
+    "@hyperlane-xyz/app": "0.5.1",
+    "@hyperlane-xyz/celo-ethers-provider": "^0.1.1",
+    "@hyperlane-xyz/core": "0.5.1",
+    "@hyperlane-xyz/utils": "0.5.1",
     "@types/debug": "^4.1.7",
     "coingecko-api": "^1.0.10",
     "cross-fetch": "^3.1.5",
@@ -32,15 +32,15 @@
   "files": [
     "/dist"
   ],
-  "homepage": "https://www.useabacus.network",
+  "homepage": "https://www.hyperlane.xyz",
   "keywords": [
-    "Abacus",
+    "Hyperlane",
     "SDK",
     "Typescript"
   ],
   "license": "Apache-2.0",
   "main": "dist/index.js",
-  "repository": "https://github.com/abacus-network/abacus-monorepo",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",

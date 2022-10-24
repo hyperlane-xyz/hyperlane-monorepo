@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
+import { StaticCeloJsonRpcProvider } from '@hyperlane-xyz/celo-ethers-provider';
 
 import { ChainMap, ChainName, IChainConnection } from '../types';
 
@@ -71,7 +71,8 @@ export const alfajores: IChainConnection = {
     44787,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://alfajores-blockscout.celo-testnet.org',
+  blockExplorerUrl: 'https://alfajores.celoscan.io',
+  apiPrefix: 'api-',
 };
 
 export const auroratestnet: IChainConnection = {
@@ -89,6 +90,7 @@ export const fuji: IChainConnection = {
   ),
   confirmations: 3,
   blockExplorerUrl: 'https://testnet.snowtrace.io',
+  apiPrefix: 'api-',
 };
 
 export const goerli: IChainConnection = {
@@ -97,15 +99,8 @@ export const goerli: IChainConnection = {
     5,
   ),
   confirmations: 1,
-};
-
-export const kovan: IChainConnection = {
-  provider: new ethers.providers.JsonRpcProvider(
-    'https://kovan.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161',
-    42,
-  ),
-  confirmations: 1,
-  blockExplorerUrl: 'https://kovan.etherscan.io',
+  blockExplorerUrl: 'https://goerli.etherscan.io/',
+  apiPrefix: 'api-',
 };
 
 export const mumbai: IChainConnection = {
@@ -115,6 +110,7 @@ export const mumbai: IChainConnection = {
   ),
   confirmations: 30,
   blockExplorerUrl: 'https://mumbai.polygonscan.com',
+  apiPrefix: 'api-',
 };
 
 export const bsctestnet: IChainConnection = {
@@ -124,24 +120,27 @@ export const bsctestnet: IChainConnection = {
   ),
   confirmations: 1,
   blockExplorerUrl: 'https://testnet.bscscan.com',
+  apiPrefix: 'api-',
 };
 
-export const arbitrumrinkeby: IChainConnection = {
+export const moonbasealpha: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
-    'https://rinkeby.arbitrum.io/rpc',
-    421611,
+    'https://rpc.api.moonbase.moonbeam.network',
+    1287,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://testnet.arbiscan.io',
+  blockExplorerUrl: 'https://moonbase.moonscan.io/',
+  apiPrefix: 'api-',
 };
 
-export const optimismkovan: IChainConnection = {
+export const moonbeam: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
-    'https://kovan.optimism.io',
-    69,
+    'https://rpc.api.moonbeam.network	',
+    1284,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://kovan-optimistic.etherscan.io',
+  blockExplorerUrl: 'https://moonscan.io/',
+  apiPrefix: 'api-moonbeam.',
 };
 
 export const test1: IChainConnection = {
@@ -179,12 +178,11 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   alfajores,
   fuji,
   goerli,
-  kovan,
   mumbai,
   bsctestnet,
-  arbitrumrinkeby,
   optimism,
-  optimismkovan,
+  moonbasealpha,
+  moonbeam,
   test1,
   test2,
   test3,

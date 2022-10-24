@@ -2,9 +2,9 @@ import {
   buildContracts,
   coreFactories,
   serializeContracts,
-} from '@abacus-network/sdk';
+} from '@hyperlane-xyz/sdk';
 
-import { AbacusCoreInfraDeployer } from '../src/core/deploy';
+import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
 import { readJSON, writeJSON } from '../src/utils/utils';
 
 import {
@@ -13,54 +13,52 @@ import {
   getCoreRustDirectory,
   getCoreVerificationDirectory,
   getEnvironment,
-  getEnvironmentDirectory,
 } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment) as any;
   const multiProvider = await config.getMultiProvider();
-  const deployer = new AbacusCoreInfraDeployer(multiProvider, config.core);
+  const deployer = new HyperlaneCoreInfraDeployer(multiProvider, config.core);
 
-  let partial_contracts = {};
-  try {
+  let previousContracts = {};
+  previousAddressParsing: try {
+    if (environment === 'test') {
+      break previousAddressParsing;
+    }
     const addresses = readJSON(
-      getEnvironmentDirectory(environment),
-      'partial_core_addresses.json',
+      getCoreContractsSdkFilepath(),
+      `${environment}.json`,
     );
-    partial_contracts = buildContracts(addresses, coreFactories);
+    previousContracts = buildContracts(addresses, coreFactories);
   } catch (e) {
     console.info('Could not load partial core addresses, file may not exist');
   }
+
   try {
-    const contracts = await deployer.deploy(partial_contracts);
-    writeJSON(
-      getCoreContractsSdkFilepath(),
-      `${environment}.json`,
-      serializeContracts(contracts),
-    );
-    writeJSON(
-      getCoreVerificationDirectory(environment),
-      'verification.json',
-      deployer.verificationInputs,
-    );
-    deployer.writeRustConfigs(
-      environment,
-      getCoreRustDirectory(environment),
-      contracts,
-    );
+    await deployer.deploy(previousContracts);
   } catch (e) {
+    console.error(`Encountered error during deploy`);
     console.error(e);
-    // persist partial deployment
-    writeJSON(
-      getEnvironmentDirectory(environment),
-      'partial_core_addresses.json',
-      {
-        ...serializeContracts(deployer.deployedContracts),
-        ...serializeContracts(partial_contracts),
-      },
-    );
   }
+
+  // Persist artifacts, irrespective of deploy success
+  writeJSON(
+    getCoreContractsSdkFilepath(),
+    `${environment}.json`,
+    serializeContracts(deployer.deployedContracts),
+  );
+  const existingVerificationInputs = readJSON(
+    getCoreVerificationDirectory(environment),
+    'verification.json',
+  );
+  writeJSON(
+    getCoreVerificationDirectory(environment),
+    'verification.json',
+    deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
+  );
+
+  deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
 }
 
 main().then(console.log).catch(console.error);

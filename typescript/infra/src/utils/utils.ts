@@ -5,7 +5,7 @@ import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 
-import { AllChains, ChainName } from '@abacus-network/sdk';
+import { AllChains, ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';

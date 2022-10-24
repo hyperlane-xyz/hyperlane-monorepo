@@ -1,14 +1,14 @@
 import CoinGecko from 'coingecko-api';
 import { BigNumber, FixedNumber, ethers } from 'ethers';
 
-import { utils } from '@abacus-network/utils';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import {
-  AbacusCore,
   CoreEnvironment,
   CoreEnvironmentChain,
-} from '../core/AbacusCore';
+  HyperlaneCore,
+} from '../core/HyperlaneCore';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName, Remotes } from '../types';
 import { convertDecimalValue, mulBigAndFixed } from '../utils/number';
@@ -82,7 +82,7 @@ export type ParsedMessage<
  * Calculates interchain gas payments.
  */
 export class InterchainGasCalculator<Chain extends ChainName> {
-  private core: AbacusCore<Chain>;
+  private core: HyperlaneCore<Chain>;
   private multiProvider: MultiProvider<Chain>;
 
   private tokenPriceGetter: TokenPriceGetter;
@@ -95,13 +95,13 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     multiProvider: MultiProvider<CoreEnvironmentChain<Env>>,
     config?: InterchainGasCalculatorConfig,
   ): InterchainGasCalculator<CoreEnvironmentChain<Env>> {
-    const core = AbacusCore.fromEnvironment(env, multiProvider);
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     return new InterchainGasCalculator(multiProvider, core, config);
   }
 
   constructor(
     multiProvider: MultiProvider<Chain>,
-    core: AbacusCore<Chain>,
+    core: HyperlaneCore<Chain>,
     config?: InterchainGasCalculatorConfig,
   ) {
     this.multiProvider = multiProvider;

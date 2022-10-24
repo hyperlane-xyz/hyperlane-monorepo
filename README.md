@@ -1,14 +1,14 @@
-# Abacus
+# Hyperlane
 
 ## Overview
 
-Abacus is an interchain messaging protocol that allows applications to communicate between blockchains.
+Hyperlane is an interchain messaging protocol that allows applications to communicate between blockchains.
 
-Developers can use Abacus to share state between blockchains, allowing them to build interchain applications that live natively across multiple chains.
+Developers can use Hyperlane to share state between blockchains, allowing them to build interchain applications that live natively across multiple chains.
 
-To read more about interchain applications, how the protocol works, and how to integrate with Abacus, please see the [documentation](https://docs.useabacus.network/).
+To read more about interchain applications, how the protocol works, and how to integrate with Hyperlane, please see the [documentation](https://docs.hyperlane.xyz/).
 
-## Working on Abacus
+## Working on Hyperlane
 
 ### Workspaces
 

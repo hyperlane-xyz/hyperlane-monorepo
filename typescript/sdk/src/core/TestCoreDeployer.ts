@@ -1,9 +1,9 @@
 import { ethers } from 'ethers';
 
-import { TestMailbox, TestMailbox__factory } from '@abacus-network/core';
+import { TestMailbox, TestMailbox__factory } from '@hyperlane-xyz/core';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { AbacusCoreDeployer } from '../deploy/core/AbacusCoreDeployer';
+import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
 import { CoreConfig } from '../deploy/core/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { BeaconProxyAddresses, ProxiedContract, ProxyKind } from '../proxy';
@@ -29,7 +29,7 @@ const testCoreFactories = {
 
 export class TestCoreDeployer<
   TestChain extends TestChainNames = TestChainNames,
-> extends AbacusCoreDeployer<TestChain> {
+> extends HyperlaneCoreDeployer<TestChain> {
   constructor(
     public readonly multiProvider: MultiProvider<TestChain>,
     configMap?: ChainMap<TestChain, CoreConfig>,

@@ -1,14 +1,16 @@
 use ethers::types::{H256, U256};
 
 mod checkpoint;
-mod messages;
+mod log_metadata;
+mod message;
 
 /// Unified 32-byte identifier with convenience tooling for handling
 /// 20-byte ids (e.g ethereum addresses)
 pub mod identifiers;
 
 pub use checkpoint::*;
-pub use messages::*;
+pub use log_metadata::*;
+pub use message::*;
 
 use crate::{AbacusError, Decode, Encode};
 
@@ -62,4 +64,13 @@ pub struct InterchainGasPaymentWithMeta {
     pub payment: InterchainGasPayment,
     /// Metadata for the payment
     pub meta: InterchainGasPaymentMeta,
+}
+
+/// A cost estimate for a transaction.
+#[derive(Clone, Debug)]
+pub struct TxCostEstimate {
+    /// The gas limit for the transaction.
+    pub gas_limit: U256,
+    /// The gas price for the transaction.
+    pub gas_price: U256,
 }

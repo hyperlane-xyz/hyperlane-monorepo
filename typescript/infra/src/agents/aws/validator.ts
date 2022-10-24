@@ -1,4 +1,4 @@
-import { BaseValidator, types, utils } from '@abacus-network/utils';
+import { BaseValidator, types, utils } from '@hyperlane-xyz/utils';
 
 import { S3Receipt, S3Wrapper } from './s3';
 
@@ -48,6 +48,16 @@ export class S3Validator extends BaseValidator {
   constructor(address: string, localDomain: number, s3Bucket: string) {
     super(address, localDomain);
     this.s3Bucket = new S3Wrapper(s3Bucket);
+  }
+
+  async getLatestCheckpointIndex() {
+    const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
+      LATEST_KEY,
+    );
+
+    if (!latestCheckpointIndex) return -1;
+
+    return latestCheckpointIndex.data;
   }
 
   async compare(other: S3Validator, count = 20): Promise<CheckpointMetric[]> {

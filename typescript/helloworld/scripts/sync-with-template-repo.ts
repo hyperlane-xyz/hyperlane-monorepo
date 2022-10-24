@@ -17,7 +17,7 @@ import { existsSync } from 'fs';
 
 const SKIP_GIT_FLAG = '--no-commit';
 
-const PATH_TO_TEMPLATE_REPO = '../../../abacus-app-template';
+const PATH_TO_TEMPLATE_REPO = '../../../hyperlane-app-template';
 
 const SYNC_WHITELIST = [
   'contracts',

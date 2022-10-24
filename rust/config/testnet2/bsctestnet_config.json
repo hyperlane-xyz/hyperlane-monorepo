@@ -16,20 +16,6 @@
         "validatorManager": "0x0AfCCF2ffc1D7A42b3F8616C4270Da27f2729F5F"
       }
     },
-    "kovan": {
-      "domain": "3000",
-      "name": "kovan",
-      "rpcStyle": "ethereum",
-      "finalityBlocks": "15",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "addresses": {
-        "inbox": "0xAFbc8Fc9649188B0EC89D09F06113d5D9702A77C",
-        "validatorManager": "0x1710F4F05955da2645CE8E5B6AaEfa6A2109F030"
-      }
-    },
     "fuji": {
       "domain": "43113",
       "name": "fuji",
@@ -58,38 +44,39 @@
         "validatorManager": "0x3572a9d808738922194921b275B2A55414BcDA57"
       }
     },
-    "arbitrumrinkeby": {
-      "domain": "1634872690",
-      "name": "arbitrumrinkeby",
+    "goerli": {
+      "domain": "5",
+      "name": "goerli",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "0",
+      "finalityBlocks": "7",
       "connection": {
         "type": "http",
         "url": ""
       },
       "addresses": {
-        "inbox": "0x603d9041D636CD3218888F1C6F18A4BfeDcdB7F0",
-        "validatorManager": "0xa1C91dd4F3050DE9C4184BD8B4403A0C81D5463C"
+        "inbox": "0x7914A3349107A7295Bbf2374db5A973d73D1b324",
+        "validatorManager": "0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8"
       }
     },
-    "optimismkovan": {
-      "domain": "1869622635",
-      "name": "optimismkovan",
+    "moonbasealpha": {
+      "domain": "1836002657",
+      "name": "moonbasealpha",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "0",
+      "finalityBlocks": "1",
       "connection": {
         "type": "http",
         "url": ""
       },
       "addresses": {
-        "inbox": "0x0E18b28D98C2efDb59252c021320F203305b1B66",
-        "validatorManager": "0xFb55597F07417b08195Ba674f4dd58aeC9B89FBB"
+        "inbox": "0xef48bd850E5827B96B55C4D28FB32Bbaa73616F2",
+        "validatorManager": "0x666a24F62f7A97BA33c151776Eb3D9441a059eB8"
       }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xE023239c8dfc172FF008D8087E7442d3eBEd9350"
+      "outbox": "0xE023239c8dfc172FF008D8087E7442d3eBEd9350",
+      "interchainGasPaymaster": "0x155b1F1801030Ea4dF038107d3cc1b4bA496916e"
     },
     "domain": "1651715444",
     "name": "bsctestnet",

@@ -10,6 +10,8 @@ use abacus_core::*;
 mock! {
     pub OutboxContract {
         // Outbox
+        pub fn _address(&self) -> H256 {}
+
         pub fn _local_domain(&self) -> u32 {}
 
         pub fn _domain_hash(&self) -> H256 {}
@@ -56,16 +58,16 @@ impl std::fmt::Debug for MockOutboxContract {
 
 #[async_trait]
 impl Outbox for MockOutboxContract {
-    async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
-        self._dispatch(message)
-    }
-
     async fn state(&self) -> Result<OutboxState, ChainCommunicationError> {
         self._state()
     }
 
     async fn count(&self) -> Result<u32, ChainCommunicationError> {
         self._count()
+    }
+
+    async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
+        self._dispatch(message)
     }
 
     async fn cache_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
@@ -91,6 +93,10 @@ impl Outbox for MockOutboxContract {
 impl AbacusContract for MockOutboxContract {
     fn chain_name(&self) -> &str {
         self._chain_name()
+    }
+
+    fn address(&self) -> H256 {
+        self._address()
     }
 }
 

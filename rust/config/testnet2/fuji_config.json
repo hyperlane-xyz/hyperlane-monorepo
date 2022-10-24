@@ -16,20 +16,6 @@
         "validatorManager": "0x793b4c911362c8900372cE6Da5f9dA96457E8c1B"
       }
     },
-    "kovan": {
-      "domain": "3000",
-      "name": "kovan",
-      "rpcStyle": "ethereum",
-      "finalityBlocks": "15",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "addresses": {
-        "inbox": "0x3d26cd5dD9F08e17D21EB7ac65BdBAbb5f9FE7Fc",
-        "validatorManager": "0x506aDc3Ff4E70da42BB9Fc5ca9fa4A89f30D64a4"
-      }
-    },
     "mumbai": {
       "domain": "80001",
       "name": "mumbai",
@@ -58,38 +44,39 @@
         "validatorManager": "0x6d6a9bDDea1456673062633b7a4823dB13bDB9fb"
       }
     },
-    "arbitrumrinkeby": {
-      "domain": "1634872690",
-      "name": "arbitrumrinkeby",
+    "goerli": {
+      "domain": "5",
+      "name": "goerli",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "0",
+      "finalityBlocks": "7",
       "connection": {
         "type": "http",
         "url": ""
       },
       "addresses": {
-        "inbox": "0x69181Ea49C2F5F7904cEb7299a75620bAd0954FA",
-        "validatorManager": "0xE43CEb0771DB31C8658F446441F3d5F451b42954"
+        "inbox": "0xfc8d0D2E15A36f1A3F3aE3Cb127B706c1f23Aadc",
+        "validatorManager": "0xF7F0DaB0BECE4498dAc7eb616e288809D4499371"
       }
     },
-    "optimismkovan": {
-      "domain": "1869622635",
-      "name": "optimismkovan",
+    "moonbasealpha": {
+      "domain": "1836002657",
+      "name": "moonbasealpha",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "0",
+      "finalityBlocks": "1",
       "connection": {
         "type": "http",
         "url": ""
       },
       "addresses": {
-        "inbox": "0x2A9E9188C7e76f3345e91fD4650aC654A9FE355C",
-        "validatorManager": "0xe18Bc753aa53E938315f57B13EDB6E1b168f0d26"
+        "inbox": "0x1D5EbC3e15e9ECDe0e3530C85899556797eeaea5",
+        "validatorManager": "0x7FE7EA170cf08A25C2ff315814D96D93C311E692"
       }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xc507A7c848b59469cC44A3653F8a582aa8BeC71E"
+      "outbox": "0xc507A7c848b59469cC44A3653F8a582aa8BeC71E",
+      "interchainGasPaymaster": "0x4834a491f78BBF48e983F9Ce0E20D1E4DbE013D8"
     },
     "domain": "43113",
     "name": "fuji",

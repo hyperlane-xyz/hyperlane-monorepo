@@ -4,36 +4,38 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
+use serde::ser::StdError;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
 use abacus_core::db::DB;
+use abacus_core::InboxValidatorManager;
 
 use crate::{
     cancel_task,
     metrics::CoreMetrics,
     settings::{IndexSettings, Settings},
-    CachingInbox, CachingInterchainGasPaymaster, CachingOutbox, InboxValidatorManagers,
+    CachingInbox, CachingInterchainGasPaymaster, CachingOutbox,
 };
 
 /// Contracts relating to an inbox chain
 #[derive(Clone, Debug)]
 pub struct InboxContracts {
     /// A boxed Inbox
-    pub inbox: Arc<CachingInbox>,
+    pub inbox: CachingInbox,
     /// A boxed InboxValidatorManager
-    pub validator_manager: Arc<InboxValidatorManagers>,
+    pub validator_manager: Arc<dyn InboxValidatorManager>,
 }
 
 /// Properties shared across all abacus agents
 #[derive(Debug)]
 pub struct AbacusAgentCore {
     /// A boxed Outbox
-    pub outbox: Arc<CachingOutbox>,
+    pub outbox: CachingOutbox,
     /// A boxed InterchainGasPaymaster
-    pub interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
-    /// A map of boxed Inbox contracts
+    pub interchain_gas_paymaster: Option<CachingInterchainGasPaymaster>,
+    /// A map of Inbox contracts by name
     pub inboxes: HashMap<String, InboxContracts>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
@@ -45,6 +47,16 @@ pub struct AbacusAgentCore {
     pub settings: Settings,
 }
 
+/// Settings of an agent.
+pub trait AgentSettings: AsRef<Settings> + Sized {
+    /// The error type returned by new on failures to parse.
+    type Error: 'static + StdError + Send + Sync;
+
+    /// Create a new instance of these settings by reading the configs and env
+    /// vars.
+    fn new() -> std::result::Result<Self, Self::Error>;
+}
+
 /// A fundamental agent which does not make any assumptions about the tools
 /// which are used.
 #[async_trait]
@@ -53,10 +65,10 @@ pub trait BaseAgent: Send + Sync + Debug {
     const AGENT_NAME: &'static str;
 
     /// The settings object for this agent
-    type Settings: AsRef<Settings>;
+    type Settings: AgentSettings;
 
     /// Instantiate the agent from the standard settings object
-    async fn from_settings(settings: Self::Settings) -> Result<Self>
+    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
     where
         Self: Sized;
 
@@ -71,50 +83,68 @@ pub trait BaseAgent: Send + Sync + Debug {
 /// To use the default implementation you must `impl AsRef<AbacusAgentCore>`
 #[async_trait]
 pub trait Agent: BaseAgent {
-    /// Return a handle to the metrics registry
-    fn metrics(&self) -> Arc<CoreMetrics>;
-
     /// Return a handle to the DB
-    fn db(&self) -> DB;
+    fn db(&self) -> &DB;
 
     /// Return a reference to an Outbox contract
-    fn outbox(&self) -> Arc<CachingOutbox>;
+    fn outbox(&self) -> &CachingOutbox;
 
     /// Return a reference to an InterchainGasPaymaster contract
-    fn interchain_gas_paymaster(&self) -> Option<Arc<CachingInterchainGasPaymaster>>;
+    fn interchain_gas_paymaster(&self) -> Option<&CachingInterchainGasPaymaster>;
 
     /// Get a reference to the inboxes map
     fn inboxes(&self) -> &HashMap<String, InboxContracts>;
 
     /// Get a reference to an inbox's contracts by its name
-    fn inbox_by_name(&self, name: &str) -> Option<InboxContracts>;
+    fn inbox_by_name(&self, name: &str) -> Option<&InboxContracts>;
 }
 
 #[async_trait]
-impl<B: BaseAgent + AsRef<AbacusAgentCore>> Agent for B {
-    fn metrics(&self) -> Arc<CoreMetrics> {
-        self.as_ref().metrics.clone()
+impl<B> Agent for B
+where
+    B: BaseAgent + AsRef<AbacusAgentCore>,
+{
+    fn db(&self) -> &DB {
+        &self.as_ref().db
     }
 
-    fn db(&self) -> DB {
-        self.as_ref().db.clone()
+    fn outbox(&self) -> &CachingOutbox {
+        &self.as_ref().outbox
     }
 
-    fn outbox(&self) -> Arc<CachingOutbox> {
-        self.as_ref().outbox.clone()
-    }
-
-    fn interchain_gas_paymaster(&self) -> Option<Arc<CachingInterchainGasPaymaster>> {
-        self.as_ref().interchain_gas_paymaster.clone()
+    fn interchain_gas_paymaster(&self) -> Option<&CachingInterchainGasPaymaster> {
+        self.as_ref().interchain_gas_paymaster.as_ref()
     }
 
     fn inboxes(&self) -> &HashMap<String, InboxContracts> {
         &self.as_ref().inboxes
     }
 
-    fn inbox_by_name(&self, name: &str) -> Option<InboxContracts> {
-        self.inboxes().get(name).map(Clone::clone)
+    fn inbox_by_name(&self, name: &str) -> Option<&InboxContracts> {
+        self.inboxes().get(name)
     }
+}
+
+/// Call this from `main` to fully initialize and run the agent for its entire
+/// lifecycle. This assumes only a single agent is being run. This will
+/// initialize the metrics server and tracing as well.
+pub async fn agent_main<A: BaseAgent>() -> Result<()> {
+    #[cfg(feature = "oneline-errors")]
+    crate::oneline_eyre::install()?;
+    #[cfg(all(feature = "color_eyre", not(feature = "oneline-errors")))]
+    color_eyre::install()?;
+    #[cfg(not(any(feature = "color-eyre", feature = "oneline-eyre")))]
+    eyre::install()?;
+
+    let settings = A::Settings::new()?;
+    let core_settings: &Settings = settings.as_ref();
+
+    let metrics = settings.as_ref().try_into_metrics(A::AGENT_NAME)?;
+    core_settings.tracing.start_tracing(&metrics)?;
+    let agent = A::from_settings(settings, metrics.clone()).await?;
+    let _ = metrics.run_http_server();
+
+    agent.run().await.await?
 }
 
 /// Utility to run multiple tasks and shutdown if any one task ends.

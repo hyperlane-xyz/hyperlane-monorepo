@@ -1,8 +1,10 @@
 use ethers::signers::Signer;
-use eyre::Report;
 use serde::Deserialize;
 
-use abacus_core::{AbacusAbi, ContractLocator, Signers};
+use abacus_core::{
+    AbacusAbi, ContractLocator, Inbox, InboxValidatorManager, InterchainGasPaymaster, Outbox,
+    Signers,
+};
 use abacus_ethereum::{
     Connection, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi, EthereumOutboxAbi,
     InboxBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
@@ -12,10 +14,7 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 
-use crate::{
-    CoreMetrics, InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes,
-    InterchainGasPaymasterVariants, InterchainGasPaymasters, OutboxVariants, Outboxes,
-};
+use crate::CoreMetrics;
 
 /// A connection to _some_ blockchain.
 ///
@@ -33,13 +32,23 @@ impl Default for ChainConf {
     }
 }
 
+/// Ways in which transactions can be submitted to a blockchain.
+#[derive(Copy, Clone, Debug, Default, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum TransactionSubmissionType {
+    /// Use the configured signer to sign and submit transactions in the "default" manner.
+    #[default]
+    Signer,
+    /// Submit transactions via the Gelato relay.
+    Gelato,
+}
+
 /// Configuration for using the Gelato Relay to interact with some chain.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GelatoConf {
-    /// Whether to use the Gelato Relay service for transactions submitted to
-    /// the chain.
-    pub enabled: String,
+    /// The sponsor API key for submitting sponsored calls
+    pub sponsorapikey: String,
 }
 
 /// Addresses for outbox chain contracts
@@ -78,8 +87,9 @@ pub struct ChainSetup<T> {
     /// The chain connection details
     #[serde(flatten)]
     pub chain: ChainConf,
-    /// Gelato configuration for this chain (Gelato unused if None)
-    pub gelato: Option<GelatoConf>,
+    /// How transactions to this chain are submitted.
+    #[serde(default)]
+    pub txsubmission: TransactionSubmissionType,
     /// Set this key to disable the inbox. Does nothing for outboxes.
     #[serde(default)]
     pub disabled: Option<String>,
@@ -105,28 +115,25 @@ impl ChainSetup<OutboxAddresses> {
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> Result<Outboxes, Report> {
+    ) -> eyre::Result<Box<dyn Outbox>> {
         match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(OutboxVariants::Ethereum(
-                OutboxBuilder {}
-                    .make_with_connection(
-                        conf.clone(),
-                        &ContractLocator {
-                            chain_name: self.name.clone(),
-                            domain: self.domain.parse().expect("invalid uint"),
-                            address: self
-                                .addresses
-                                .outbox
-                                .parse::<ethers::types::Address>()?
-                                .into(),
-                        },
-                        signer,
-                        Some(|| metrics.json_rpc_client_metrics()),
-                        Some((metrics.provider_metrics(), self.metrics_conf())),
-                    )
-                    .await?,
-            )
-            .into()),
+            ChainConf::Ethereum(conf) => Ok(OutboxBuilder {}
+                .make_with_connection(
+                    conf.clone(),
+                    &ContractLocator {
+                        chain_name: self.name.clone(),
+                        domain: self.domain.parse().expect("invalid uint"),
+                        address: self
+                            .addresses
+                            .outbox
+                            .parse::<ethers::types::Address>()?
+                            .into(),
+                    },
+                    signer,
+                    Some(|| metrics.json_rpc_client_metrics()),
+                    Some((metrics.provider_metrics(), self.metrics_conf())),
+                )
+                .await?),
         }
     }
 
@@ -135,7 +142,7 @@ impl ChainSetup<OutboxAddresses> {
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> Result<Option<InterchainGasPaymasters>, Report> {
+    ) -> eyre::Result<Option<Box<dyn InterchainGasPaymaster>>> {
         let paymaster_address = if let Some(address) = &self.addresses.interchain_gas_paymaster {
             address
         } else {
@@ -143,24 +150,19 @@ impl ChainSetup<OutboxAddresses> {
         };
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(Some(
-                InterchainGasPaymasterVariants::Ethereum(
-                    InterchainGasPaymasterBuilder {}
-                        .make_with_connection(
-                            conf.clone(),
-                            &ContractLocator {
-                                chain_name: self.name.clone(),
-                                domain: self.domain.parse().expect("invalid uint"),
-                                address: paymaster_address
-                                    .parse::<ethers::types::Address>()?
-                                    .into(),
-                            },
-                            signer,
-                            Some(|| metrics.json_rpc_client_metrics()),
-                            Some((metrics.provider_metrics(), self.metrics_conf())),
-                        )
-                        .await?,
-                )
-                .into(),
+                InterchainGasPaymasterBuilder {}
+                    .make_with_connection(
+                        conf.clone(),
+                        &ContractLocator {
+                            chain_name: self.name.clone(),
+                            domain: self.domain.parse().expect("invalid uint"),
+                            address: paymaster_address.parse::<ethers::types::Address>()?.into(),
+                        },
+                        signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some((metrics.provider_metrics(), self.metrics_conf())),
+                    )
+                    .await?,
             )),
         }
     }
@@ -200,29 +202,26 @@ impl ChainSetup<InboxAddresses> {
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> Result<Inboxes, Report> {
+    ) -> eyre::Result<Box<dyn Inbox>> {
         let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(InboxVariants::Ethereum(
-                InboxBuilder {}
-                    .make_with_connection(
-                        conf.clone(),
-                        &ContractLocator {
-                            chain_name: self.name.clone(),
-                            domain: self.domain.parse().expect("invalid uint"),
-                            address: self
-                                .addresses
-                                .inbox
-                                .parse::<ethers::types::Address>()?
-                                .into(),
-                        },
-                        signer,
-                        Some(|| metrics.json_rpc_client_metrics()),
-                        Some((metrics.provider_metrics(), metrics_conf)),
-                    )
-                    .await?,
-            )
-            .into()),
+            ChainConf::Ethereum(conf) => Ok(InboxBuilder {}
+                .make_with_connection(
+                    conf.clone(),
+                    &ContractLocator {
+                        chain_name: self.name.clone(),
+                        domain: self.domain.parse().expect("invalid uint"),
+                        address: self
+                            .addresses
+                            .inbox
+                            .parse::<ethers::types::Address>()?
+                            .into(),
+                    },
+                    signer,
+                    Some(|| metrics.json_rpc_client_metrics()),
+                    Some((metrics.provider_metrics(), metrics_conf)),
+                )
+                .await?),
         }
     }
 
@@ -231,30 +230,27 @@ impl ChainSetup<InboxAddresses> {
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> Result<InboxValidatorManagers, Report> {
+    ) -> eyre::Result<Box<dyn InboxValidatorManager>> {
         let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
         let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(InboxValidatorManagerVariants::Ethereum(
-                InboxValidatorManagerBuilder { inbox_address }
-                    .make_with_connection(
-                        conf.clone(),
-                        &ContractLocator {
-                            chain_name: self.name.clone(),
-                            domain: self.domain.parse().expect("invalid uint"),
-                            address: self
-                                .addresses
-                                .validator_manager
-                                .parse::<ethers::types::Address>()?
-                                .into(),
-                        },
-                        signer,
-                        Some(|| metrics.json_rpc_client_metrics()),
-                        Some((metrics.provider_metrics(), metrics_conf)),
-                    )
-                    .await?,
-            )
-            .into()),
+            ChainConf::Ethereum(conf) => Ok(InboxValidatorManagerBuilder { inbox_address }
+                .make_with_connection(
+                    conf.clone(),
+                    &ContractLocator {
+                        chain_name: self.name.clone(),
+                        domain: self.domain.parse().expect("invalid uint"),
+                        address: self
+                            .addresses
+                            .validator_manager
+                            .parse::<ethers::types::Address>()?
+                            .into(),
+                    },
+                    signer,
+                    Some(|| metrics.json_rpc_client_metrics()),
+                    Some((metrics.provider_metrics(), metrics_conf)),
+                )
+                .await?),
         }
     }
 

@@ -1,5 +1,5 @@
 image:
-  repository: gcr.io/abacus-labs-dev/abacus-monorepo
+  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
   tag:
 abacus:
   runEnv: testnet2

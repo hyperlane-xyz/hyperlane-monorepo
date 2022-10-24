@@ -3,20 +3,23 @@ import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
+  AllChains,
   ChainConnection,
   ChainName,
   CompleteChainMap,
   MultiProvider,
-} from '@abacus-network/sdk';
-import { error, log } from '@abacus-network/utils';
+} from '@hyperlane-xyz/sdk';
+import { error, log } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
+import { parseKeyIdentifier } from '../../src/agents/agent';
 import { getAllCloudAgentKeys } from '../../src/agents/key-utils';
 import {
   BaseCloudAgentKey,
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
+import { ConnectionType } from '../../src/config/agent';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
@@ -66,17 +69,16 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   avalanche: '0.1',
   fuji: '1',
   ethereum: '0.2',
-  kovan: '0.1',
   polygon: '1',
   mumbai: '0.5',
   optimism: '0.05',
-  optimismkovan: '0.1',
   arbitrum: '0.01',
-  arbitrumrinkeby: '0.1',
   bsc: '0.01',
   bsctestnet: '1',
+  goerli: '0.1',
+  moonbasealpha: '1',
+  moonbeam: '0.1',
   // unused
-  goerli: '0',
   auroratestnet: '0',
   test1: '0',
   test2: '0',
@@ -107,6 +109,7 @@ async function main() {
       'f',
       'Files each containing JSON arrays of identifier and address objects for a single context. If not specified, key addresses are fetched from GCP/AWS and require sufficient credentials.',
     )
+
     .string('contexts-and-roles')
     .array('contexts-and-roles')
     .describe(
@@ -114,12 +117,25 @@ async function main() {
       'Array indicating contexts and the roles to fund for each context. Each element is expected as <context>=<role>,<role>,<role>...',
     )
     .coerce('contexts-and-roles', parseContextAndRolesMap)
-    .demandOption('contexts-and-roles').argv;
+    .demandOption('contexts-and-roles')
+
+    .string('connection-type')
+    .describe('connection-type', 'The provider connection type to use for RPCs')
+    .default('connection-type', ConnectionType.Http)
+    .choices('connection-type', [
+      ConnectionType.Http,
+      ConnectionType.HttpQuorum,
+    ])
+    .demandOption('connection-type').argv;
 
   const environment = assertEnvironment(argv.e as string);
   constMetricLabels.abacus_deployment = environment;
   const config = getCoreEnvironmentConfig(environment);
-  const multiProvider = await config.getMultiProvider();
+  const multiProvider = await config.getMultiProvider(
+    Contexts.Abacus, // Always fund from the abacus context
+    KEY_ROLE_ENUM.Deployer, // Always fund from the deployer
+    argv.connectionType,
+  );
 
   let contextFunders: ContextFunder[];
 
@@ -187,12 +203,23 @@ class ContextFunder {
       path,
     });
     const idsAndAddresses = readJSONAtPath(path);
-    const keys: BaseCloudAgentKey[] = idsAndAddresses.map((idAndAddress: any) =>
-      ReadOnlyCloudAgentKey.fromSerializedAddress(
-        idAndAddress.identifier,
-        idAndAddress.address,
-      ),
-    );
+    const keys: BaseCloudAgentKey[] = idsAndAddresses
+      .filter((idAndAddress: any) => {
+        const parsed = parseKeyIdentifier(idAndAddress.identifier);
+        // Filter out any invalid chain names. This can happen if we're running an old
+        // version of this script but the list of identifiers (expected to be stored in GCP secrets)
+        // references newer chains.
+        return (
+          parsed.chainName === undefined ||
+          AllChains.includes(parsed.chainName as ChainName)
+        );
+      })
+      .map((idAndAddress: any) =>
+        ReadOnlyCloudAgentKey.fromSerializedAddress(
+          idAndAddress.identifier,
+          idAndAddress.address,
+        ),
+      );
 
     // TODO: Why do we need to cast here?
     const context = keys[0].context as Contexts;
@@ -294,7 +321,14 @@ class ContextFunder {
     key: BaseCloudAgentKey,
     chain: ChainName,
   ): Promise<boolean> {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const chainConnection = this.multiProvider.tryGetChainConnection(chain);
+    if (!chainConnection) {
+      error('Cannot get chain connection', {
+        chain,
+      });
+      // Consider this an error, but don't throw and prevent all future funding attempts
+      return true;
+    }
     const desiredBalance = desiredBalancePerChain[chain];
 
     let failureOccurred = false;

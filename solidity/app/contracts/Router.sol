@@ -2,13 +2,15 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import {AbacusConnectionClient} from "./AbacusConnectionClient.sol";
-import {IAbacusConnectionManager} from "@abacus-network/core/interfaces/IAbacusConnectionManager.sol";
-import {IInterchainGasPaymaster} from "@abacus-network/core/interfaces/IInterchainGasPaymaster.sol";
-import {IMessageRecipient} from "@abacus-network/core/interfaces/IMessageRecipient.sol";
-import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
+import {HyperlaneConnectionClient} from "./HyperlaneConnectionClient.sol";
+import {IInterchainGasPaymaster} from "@hyperlane-xyz/core/interfaces/IInterchainGasPaymaster.sol";
+import {IMessageRecipient} from "@hyperlane-xyz/core/interfaces/IMessageRecipient.sol";
+import {IMailbox} from "@hyperlane-xyz/core/interfaces/IMailbox.sol";
 
-abstract contract Router is AbacusConnectionClient, IMessageRecipient {
+abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
+    string constant NO_ROUTER_ENROLLED_REVERT_MESSAGE =
+        "No router enrolled for domain. Did you specify the right domain ID?";
+
     // ============ Mutable Storage ============
 
     mapping(uint32 => bytes32) public routers;
@@ -30,24 +32,24 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
      * @param _router The address the message is coming from
      */
     modifier onlyRemoteRouter(uint32 _origin, bytes32 _router) {
-        require(_isRemoteRouter(_origin, _router), "!router");
+        require(
+            _isRemoteRouter(_origin, _router),
+            NO_ROUTER_ENROLLED_REVERT_MESSAGE
+        );
         _;
     }
 
     // ======== Initializer =========
-    function __Router_initialize(address _abacusConnectionManager)
-        internal
-        onlyInitializing
-    {
-        __AbacusConnectionClient_initialize(_abacusConnectionManager);
+    function __Router_initialize(address _mailbox) internal onlyInitializing {
+        __HyperlaneConnectionClient_initialize(_mailbox);
     }
 
     function __Router_initialize(
-        address _abacusConnectionManager,
+        address _mailbox,
         address _interchainGasPaymaster
     ) internal onlyInitializing {
-        __AbacusConnectionClient_initialize(
-            _abacusConnectionManager,
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
             _interchainGasPaymaster
         );
     }
@@ -76,8 +78,8 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     function handle(
         uint32 _origin,
         bytes32 _sender,
-        bytes memory _message
-    ) external virtual override onlyInbox onlyRemoteRouter(_origin, _sender) {
+        bytes calldata _message
+    ) external virtual override onlyMailbox onlyRemoteRouter(_origin, _sender) {
         // TODO: callbacks on success/failure
         _handle(_origin, _sender, _message);
     }
@@ -86,7 +88,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     function _handle(
         uint32 _origin,
         bytes32 _sender,
-        bytes memory _message
+        bytes calldata _message
     ) internal virtual;
 
     // ============ Internal functions ============
@@ -125,25 +127,11 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         returns (bytes32 _router)
     {
         _router = routers[_domain];
-        require(_router != bytes32(0), "!router");
+        require(_router != bytes32(0), NO_ROUTER_ENROLLED_REVERT_MESSAGE);
     }
 
     /**
-     * @notice Dispatches a message to an enrolled router via the local router's Outbox.
-     * @notice Does not pay interchain gas.
-     * @dev Reverts if there is no enrolled router for _destinationDomain.
-     * @param _destinationDomain The domain of the chain to which to send the message.
-     * @param _msg The message to dispatch.
-     */
-    function _dispatch(uint32 _destinationDomain, bytes memory _msg)
-        internal
-        returns (uint256)
-    {
-        return _dispatch(_outbox(), _destinationDomain, _msg);
-    }
-
-    /**
-     * @notice Dispatches a message to an enrolled router via the local router's Outbox
+     * @notice Dispatches a message to an enrolled router via the local router's Mailbox
      * and pays for it to be relayed to the destination.
      * @dev Reverts if there is no enrolled router for _destinationDomain.
      * @param _destinationDomain The domain of the chain to which to send the message.
@@ -155,34 +143,29 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         bytes memory _msg,
         uint256 _gasPayment
     ) internal {
-        IOutbox _outbox = _outbox();
-        uint256 _leafIndex = _dispatch(_outbox, _destinationDomain, _msg);
+        bytes32 _messageId = _dispatch(_destinationDomain, _msg);
         if (_gasPayment > 0) {
             interchainGasPaymaster.payGasFor{value: _gasPayment}(
-                address(_outbox),
-                _leafIndex,
+                address(mailbox),
+                _messageId,
                 _destinationDomain
             );
         }
     }
 
-    // ============ Private functions ============
-
     /**
-     * @notice Dispatches a message to an enrolled router via the provided Outbox.
+     * @notice Dispatches a message to an enrolled router via the provided Mailbox.
      * @dev Does not pay interchain gas.
      * @dev Reverts if there is no enrolled router for _destinationDomain.
-     * @param _outbox The outbox contract to dispatch the message through.
      * @param _destinationDomain The domain of the chain to which to send the message.
      * @param _msg The message to dispatch.
      */
-    function _dispatch(
-        IOutbox _outbox,
-        uint32 _destinationDomain,
-        bytes memory _msg
-    ) private returns (uint256) {
+    function _dispatch(uint32 _destinationDomain, bytes memory _msg)
+        internal
+        returns (bytes32)
+    {
         // Ensure that destination chain has an enrolled router.
         bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
-        return _outbox.dispatch(_destinationDomain, _router, _msg);
+        return mailbox.dispatch(_destinationDomain, _router, _msg);
     }
 }

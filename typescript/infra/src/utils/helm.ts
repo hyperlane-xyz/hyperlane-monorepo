@@ -8,6 +8,7 @@ import { execCmd } from './utils';
 export enum HelmCommand {
   InstallOrUpgrade = 'upgrade --install',
   UpgradeDiff = 'template --debug',
+  Remove = 'uninstall',
 }
 
 export function helmifyValues(config: any, prefix?: string): string[] {
@@ -80,4 +81,8 @@ export function getDeployableHelmChartName(helmChartConfig: HelmChartConfig) {
     return `${helmChartConfig.repository.name}/${helmChartConfig.name}`;
   }
   return helmChartConfig.name;
+}
+
+export function buildHelmChartDependencies(chartPath: string) {
+  return execCmd(`cd ${chartPath} && helm dependency build`, {}, false, true);
 }

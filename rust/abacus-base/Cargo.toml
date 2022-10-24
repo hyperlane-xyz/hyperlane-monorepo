@@ -10,11 +10,12 @@ tokio = { version = "1", features = ["rt", "macros"] }
 config = "0.13"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false }
-ethers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-09-07-01" }
+ethers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-09-12-01" }
 thiserror = { version = "1.0", default-features = false }
 async-trait = { version = "0.1", default-features = false }
 futures-util = "0.3"
 eyre = "0.6"
+color-eyre = { version = "0.6", optional = true }
 tracing = "0.1"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", features = ["json"] }
@@ -60,3 +61,4 @@ color-eyre = "0.6"
 
 [features]
 oneline-eyre = ["backtrace-oneline", "backtrace"]
+oneline-errors = ["oneline-eyre"]

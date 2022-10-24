@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { utils } from '@abacus-network/utils';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { TestMailbox } from '../../types';
 import { DispatchEvent } from '../../types/contracts/Mailbox';

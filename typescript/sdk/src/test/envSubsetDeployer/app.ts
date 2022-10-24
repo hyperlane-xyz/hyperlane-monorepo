@@ -1,11 +1,11 @@
-import { TestRouter__factory } from '@abacus-network/app';
+import { TestRouter__factory } from '@hyperlane-xyz/app';
 
-import { AbacusApp } from '../../AbacusApp';
+import { HyperlaneApp } from '../../HyperlaneApp';
 import { chainConnectionConfigs } from '../../consts/chainConnectionConfigs';
-import { AbacusCore } from '../../core/AbacusCore';
-import { AbacusDeployer } from '../../deploy/AbacusDeployer';
-import { AbacusRouterChecker } from '../../deploy/router/AbacusRouterChecker';
-import { AbacusRouterDeployer } from '../../deploy/router/AbacusRouterDeployer';
+import { HyperlaneCore } from '../../core/HyperlaneCore';
+import { HyperlaneDeployer } from '../../deploy/HyperlaneDeployer';
+import { HyperlaneRouterChecker } from '../../deploy/router/HyperlaneRouterChecker';
+import { HyperlaneRouterDeployer } from '../../deploy/router/HyperlaneRouterDeployer';
 import { RouterConfig } from '../../deploy/router/types';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
@@ -30,11 +30,11 @@ export const alfajoresChainConfig = {
 
 export class EnvSubsetApp<
   Chain extends ChainName = ChainName,
-> extends AbacusApp<RouterContracts, Chain> {}
+> extends HyperlaneApp<RouterContracts, Chain> {}
 
 export class EnvSubsetChecker<
   Chain extends ChainName,
-> extends AbacusRouterChecker<
+> extends HyperlaneRouterChecker<
   Chain,
   EnvSubsetApp<Chain>,
   RouterConfig,
@@ -47,7 +47,7 @@ export const envSubsetFactories: RouterFactories = {
 
 export class EnvSubsetDeployer<
   Chain extends ChainName,
-> extends AbacusRouterDeployer<
+> extends HyperlaneRouterDeployer<
   Chain,
   RouterConfig,
   RouterContracts,
@@ -56,13 +56,12 @@ export class EnvSubsetDeployer<
   constructor(
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, RouterConfig>,
-    protected core: AbacusCore<Chain>,
+    protected core: HyperlaneCore<Chain>,
   ) {
     super(multiProvider, configMap, envSubsetFactories, {});
   }
 
-  // Consider moving this up to AbacusRouterDeployer
-  /*
+  // Consider moving this up to HyperlaneRouterDeployer
   async initRouter(
     contractsMap: ChainMap<Chain, RouterContracts>,
   ): Promise<void> {
@@ -70,7 +69,7 @@ export class EnvSubsetDeployer<
     await promiseObjAll(
       objMap(contractsMap, async (chain, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(chain);
-        const acm = this.configMap[chain].abacusConnectionManager;
+        const acm = this.configMap[chain].connectionManager;
         await chainConnection.handleTx(
           // @ts-ignore
           contracts.router.initialize(acm, chainConnection.overrides),
@@ -78,10 +77,9 @@ export class EnvSubsetDeployer<
       }),
     );
   }
-  */
 
   async deploy(): Promise<ChainMap<Chain, RouterContracts>> {
-    const contractsMap = (await AbacusDeployer.prototype.deploy.apply(
+    const contractsMap = (await HyperlaneDeployer.prototype.deploy.apply(
       this,
     )) as Record<Chain, RouterContracts>;
     // await this.initRouter(contractsMap);

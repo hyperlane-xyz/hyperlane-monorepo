@@ -1,7 +1,7 @@
 use crate::db::{DbError, TypedDB, DB};
 use crate::{
-    accumulator::merkle::Proof, traits::RawCommittedMessage, AbacusMessage, CommittedMessage,
-    Decode, InterchainGasPayment, InterchainGasPaymentMeta, InterchainGasPaymentWithMeta,
+    accumulator::merkle::Proof, AbacusMessage, CommittedMessage, Decode, InterchainGasPayment,
+    InterchainGasPaymentMeta, InterchainGasPaymentWithMeta, RawCommittedMessage,
 };
 use ethers::core::types::{H256, U256};
 use eyre::Result;
@@ -236,15 +236,17 @@ impl AbacusDB {
 
     /// If the provided gas payment, identified by its metadata, has not been processed,
     /// processes the gas payment and records it as processed.
+    /// Returns whether the gas payment was processed for the first time.
     pub fn process_gas_payment(
         &self,
         gas_payment_with_meta: &InterchainGasPaymentWithMeta,
-    ) -> Result<(), DbError> {
+    ) -> Result<bool, DbError> {
         let meta = &gas_payment_with_meta.meta;
         // If the gas payment has already been processed, do nothing
         if self.retrieve_gas_payment_meta_processed(meta)? {
             trace!(gas_payment_with_meta=?gas_payment_with_meta, "Attempted to process an already-processed gas payment");
-            return Ok(());
+            // Return false to indicate the gas payment was already processed
+            return Ok(false);
         }
         // Set the gas payment as processed
         self.store_gas_payment_meta_processed(meta)?;
@@ -252,7 +254,8 @@ impl AbacusDB {
         // Update the total gas payment for the leaf to include the payment
         self.update_gas_payment_for_leaf(&gas_payment_with_meta.payment)?;
 
-        Ok(())
+        // Return true to indicate the gas payment was processed for the first time
+        Ok(true)
     }
 
     /// Record a gas payment, identified by its metadata, as processed
@@ -289,7 +292,7 @@ impl AbacusDB {
     }
 
     /// Retrieve the total gas payment for a leaf index
-    fn retrieve_gas_payment_for_leaf(&self, leaf_index: u32) -> Result<U256, DbError> {
+    pub fn retrieve_gas_payment_for_leaf(&self, leaf_index: u32) -> Result<U256, DbError> {
         Ok(self
             .retrieve_keyed_decodable(GAS_PAYMENT_FOR_LEAF, &leaf_index)?
             .unwrap_or(U256::zero()))

@@ -59,7 +59,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(DeliveredMessage::Table)
-                    .name("idx-delivered-message_tx")
+                    .name("delivered_message_tx_idx")
                     .col(DeliveredMessage::TxId)
                     .to_owned(),
             )

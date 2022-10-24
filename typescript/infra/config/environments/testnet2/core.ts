@@ -1,4 +1,4 @@
-import { ChainMap, CoreConfig } from '@abacus-network/sdk';
+import { ChainMap, CoreConfig } from '@hyperlane-xyz/sdk';
 
 import { TestnetChains } from './chains';
 
@@ -10,17 +10,6 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
         '0xb476f4d55d640e9a9a43b9bdf471dc06e4508bbd',
         '0xda63918dd964c0d7c59a04062bffe0fba8edaf1c',
         '0xebb97602f6acd259ecec9f9fa811aed5b35981ab',
-      ],
-      threshold: 3,
-    },
-  },
-  kovan: {
-    validatorManager: {
-      validators: [
-        '0x1ee94e776cbe4bf74d2f80dae551758efbc21887',
-        '0xf2af10d9fd08eead8c6724a7feb679b5c900a38c',
-        '0xf3b7d58acfbff1fd64f173607101f611034e4f5f',
-        '0xff94c7660e857ba3f35ee248ae461feea266a504',
       ],
       threshold: 3,
     },
@@ -58,26 +47,24 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
       threshold: 3,
     },
   },
-  arbitrumrinkeby: {
+  goerli: {
     validatorManager: {
       validators: [
-        '0xf5a871bcb9d6dfa2d3519caf396e7ab3c5a7a2ee',
-        '0xa6773fc38b023a512106e104a4f2cad2e68d802d',
-        '0x42f7b994720463eff351186f83d683efa5e2ed49',
-        '0x49649a8708f45171f5439ec71dc83baafd98b01c',
+        '0x89687c99ffb56f329915f80a858a45fccc2b7402',
+        '0xca25781e7c0067a71d09b991bd7b37ab1168c76c',
+        '0xcbf6cde516f43a7b5346f48319b016b0e05cb7af',
       ],
-      threshold: 3,
+      threshold: 2,
     },
   },
-  optimismkovan: {
+  moonbasealpha: {
     validatorManager: {
       validators: [
-        '0xef0d7bbb9c71fef7dc148722060afd78d0ff09d8',
-        '0x8e64ff3936aeadacc23a76cf2c96466927ed758f',
-        '0x13a3cd962ce99d6a6509f8d5b63a4498db329323',
-        '0x85f8286a8ee13aecc227e99b75375826cdb512dd',
+        '0x0cc08084a0a7cc61102e800204851627732f8aa4',
+        '0xd151f6ca08e632eb7abd5afcb49c47d6a9b67a54',
+        '0x8d41c4cb699a408f9b5c69156eaa12ce76346b16',
       ],
-      threshold: 3,
+      threshold: 2,
     },
   },
 };
