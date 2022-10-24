@@ -79,7 +79,7 @@ use std::{collections::HashMap, env, sync::Arc};
 
 use config::{Config, ConfigError, Environment, File};
 use ethers::prelude::AwsSigner;
-use eyre::{bail, Report};
+use eyre::{bail, Context, Report};
 use once_cell::sync::OnceCell;
 use rusoto_core::{credential::EnvironmentProvider, HttpClient};
 use rusoto_kms::KmsClient;
@@ -358,35 +358,42 @@ impl Settings {
         }
     }
 
-    /// Try to get an indexer object for a outbox
-    pub async fn try_outbox_indexer(
+    /// Try to get an indexer object for a given outbox
+    pub async fn try_outbox_indexer_from_config(
         &self,
         metrics: &CoreMetrics,
+        outbox: &ChainSetup<OutboxAddresses>,
     ) -> eyre::Result<Box<dyn OutboxIndexer>> {
-        match &self.outbox.chain {
+        match &outbox.chain {
             ChainConf::Ethereum(conn) => Ok(OutboxIndexerBuilder {
-                from_height: self.index.from(),
-                chunk_size: self.index.chunk_size(),
-                finality_blocks: self.outbox.finality_blocks(),
+                finality_blocks: outbox.finality_blocks(),
             }
             .make_with_connection(
                 conn.clone(),
                 &ContractLocator {
-                    chain_name: self.outbox.name.clone(),
-                    domain: self.outbox.domain.parse().expect("invalid uint"),
-                    address: self
-                        .outbox
+                    chain_name: outbox.name.clone(),
+                    domain: outbox.domain.parse().expect("invalid uint"),
+                    address: outbox
                         .addresses
                         .outbox
                         .parse::<ethers::types::Address>()?
                         .into(),
                 },
-                self.get_signer(&self.outbox.name).await,
+                self.get_signer(&outbox.name).await,
                 Some(|| metrics.json_rpc_client_metrics()),
-                Some((metrics.provider_metrics(), self.outbox.metrics_conf())),
+                Some((metrics.provider_metrics(), outbox.metrics_conf())),
             )
             .await?),
         }
+    }
+
+    /// Try to get an indexer object for the outbox
+    pub async fn try_outbox_indexer(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn OutboxIndexer>> {
+        self.try_outbox_indexer_from_config(metrics, &self.outbox)
+            .await
     }
 
     /// Try to get an indexer object for an interchain gas paymaster.
@@ -430,20 +437,24 @@ impl Settings {
         }
     }
 
-    /// Try to generate an agent core for a named agent
-    pub async fn try_into_abacus_core(
-        &self,
-        name: &str,
-        parse_inboxes: bool,
-    ) -> eyre::Result<AbacusAgentCore> {
-        let metrics = Arc::new(CoreMetrics::new(
+    /// Create the core metrics from the settings given the name of the agent.
+    pub fn try_into_metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
+        Ok(Arc::new(CoreMetrics::new(
             name,
             self.metrics
                 .as_ref()
-                .map(|v| v.parse::<u16>().expect("metrics port must be u16")),
+                .map(|v| v.parse::<u16>().context("Port must be a valid u16"))
+                .transpose()?,
             prometheus::Registry::new(),
-        )?);
+        )?))
+    }
 
+    /// Try to generate an agent core for a named agent
+    pub async fn try_into_abacus_core(
+        &self,
+        metrics: Arc<CoreMetrics>,
+        parse_inboxes: bool,
+    ) -> eyre::Result<AbacusAgentCore> {
         let db = DB::from_path(&self.db)?;
         let outbox = self.try_caching_outbox(db.clone(), &metrics).await?;
         let interchain_gas_paymaster = self

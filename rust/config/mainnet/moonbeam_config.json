@@ -1,0 +1,126 @@
+{
+  "environment": "mainnet",
+  "signers": {},
+  "inboxes": {
+    "bsc": {
+      "domain": "6452067",
+      "name": "bsc",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "15",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x79e25126E1dAB135734e0261E8aB93674131fD2b",
+        "validatorManager": "0x319f058FeedA044bD20E949FDCA31AEbb19b0063"
+      }
+    },
+    "avalanche": {
+      "domain": "1635148152",
+      "name": "avalanche",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "3",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x32af5Df81fEd5E26119F6640FBB13f3d63a94CDe",
+        "validatorManager": "0xDd0D36E55078c643cefDc17936b63BACC71c50Da"
+      }
+    },
+    "polygon": {
+      "domain": "1886350457",
+      "name": "polygon",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "256",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x6267Dbfc38f7Af897536563c15f07B89634cb656",
+        "validatorManager": "0x0c7b67793c56eD93773cEee07A43B3D7aDF533b7"
+      }
+    },
+    "celo": {
+      "domain": "1667591279",
+      "name": "celo",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "0",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0xEb4ca142644172878Bee23E44C8BDae215E92430",
+        "validatorManager": "0x0D11258092e5BC4a813478ff8837887C2A1a6e89"
+      }
+    },
+    "arbitrum": {
+      "domain": "6386274",
+      "name": "arbitrum",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "0",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x88AcaD5222Fbb66C23d0E9532FDd32e57C68a53F",
+        "validatorManager": "0x76b76307f778CB98Cc71DF9f00cBF99C32544C03"
+      }
+    },
+    "optimism": {
+      "domain": "28528",
+      "name": "optimism",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "0",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0xCDaebcc592DA5c982B05E95039FF5f3467420223",
+        "validatorManager": "0xdc47eDc036daaE45D3F019CCfD443Bf72fBD981c"
+      }
+    },
+    "ethereum": {
+      "domain": "6648936",
+      "name": "ethereum",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "20",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0xdc47eDc036daaE45D3F019CCfD443Bf72fBD981c",
+        "validatorManager": "0x1Dcf599693707f41375695488589F4C6Af3845e8"
+      }
+    }
+  },
+  "outbox": {
+    "addresses": {
+      "outbox": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
+      "interchainGasPaymaster": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6"
+    },
+    "domain": "1836002669",
+    "name": "moonbeam",
+    "rpcStyle": "ethereum",
+    "finalityBlocks": "1",
+    "connection": {
+      "type": "http",
+      "url": ""
+    }
+  },
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  },
+  "db": "db_path",
+  "index": {
+    "from": "2050158"
+  }
+}

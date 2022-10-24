@@ -9,7 +9,11 @@ import {
   ConnectionType,
 } from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
-import { HelmCommand, helmifyValues } from '../utils/helm';
+import {
+  HelmCommand,
+  buildHelmChartDependencies,
+  helmifyValues,
+} from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
 import { keyIdentifier } from './agent';
@@ -18,6 +22,8 @@ import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
 import { KEY_ROLE_ENUM } from './roles';
+
+const helmChartPath = '../../rust/helm/abacus-agent/';
 
 async function helmValuesForChain<Chain extends ChainName>(
   chainName: Chain,
@@ -319,11 +325,44 @@ async function getSecretRpcEndpoints<Chain extends ChainName>(
   );
 }
 
+export async function doesAgentReleaseExist<Chain extends ChainName>(
+  agentConfig: AgentConfig<Chain>,
+  outboxChainName: Chain,
+) {
+  try {
+    await execCmd(
+      `helm status ${getHelmReleaseName(
+        outboxChainName,
+        agentConfig,
+      )} --namespace ${agentConfig.namespace}`,
+      {},
+      false,
+      false,
+    );
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 export async function runAgentHelmCommand<Chain extends ChainName>(
   action: HelmCommand,
   agentConfig: AgentConfig<Chain>,
   outboxChainName: Chain,
 ) {
+  if (action === HelmCommand.Remove) {
+    return execCmd(
+      `helm ${action} ${getHelmReleaseName(
+        outboxChainName,
+        agentConfig,
+      )} --namespace ${agentConfig.namespace}`,
+
+      {},
+      false,
+      true,
+    );
+  }
+
   const valueDict = await helmValuesForChain(outboxChainName, agentConfig);
   const values = helmifyValues(valueDict);
 
@@ -332,17 +371,41 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
       ? ` | kubectl diff -n ${agentConfig.namespace} --field-manager="Go-http-client" -f - || true`
       : '';
 
-  return execCmd(
+  if (action === HelmCommand.InstallOrUpgrade) {
+    // Delete secrets to avoid them being stale
+    try {
+      await execCmd(
+        `kubectl delete secrets --namespace ${
+          agentConfig.namespace
+        } --selector app.kubernetes.io/instance=${getHelmReleaseName(
+          outboxChainName,
+          agentConfig,
+        )}`,
+        {},
+        false,
+        false,
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // Build the chart dependencies
+  await buildHelmChartDependencies(helmChartPath);
+
+  await execCmd(
     `helm ${action} ${getHelmReleaseName(
       outboxChainName,
       agentConfig,
-    )} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
+    )} ${helmChartPath} --create-namespace --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
     {},
     false,
     true,
   );
+
+  return;
 }
 
 function getHelmReleaseName<Chain extends ChainName>(

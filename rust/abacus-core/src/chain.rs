@@ -99,6 +99,8 @@ pub enum AbacusDomain {
 
     /// Moonbeam testnet MoonbaseAlpha domain ID, decimal ID 1836002657
     MoonbaseAlpha = 0x6d6f2d61,
+    /// Moonbeam domain ID, decimal ID 1836002669
+    Moonbeam = 0x6d6f2d6d,
 
     // -- Local test chains --
     /// Test1 local chain
@@ -160,6 +162,7 @@ impl AbacusDomain {
             AbacusDomain::Alfajores => AbacusDomainType::Testnet,
 
             AbacusDomain::MoonbaseAlpha => AbacusDomainType::Testnet,
+            AbacusDomain::Moonbeam => AbacusDomainType::Mainnet,
 
             AbacusDomain::Test1 => AbacusDomainType::LocalTestChain,
             AbacusDomain::Test2 => AbacusDomainType::LocalTestChain,
@@ -253,6 +256,12 @@ mod tests {
         let paths = config_paths(root);
         let files: Vec<String> = paths
             .iter()
+            .filter(|n| {
+                // Special config with different rules, with
+                // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1134
+                // we will remove this weird case
+                !n.contains("scraper_config")
+            })
             .filter_map(|x| read_to_string(x).ok())
             .collect();
         paths

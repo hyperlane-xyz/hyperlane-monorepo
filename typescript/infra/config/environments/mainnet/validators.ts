@@ -379,4 +379,36 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       },
     ],
   },
+  moonbeam: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x3da42c84aaf9d548feb219bfdf5fcb2217fbfb48',
+        name: s3BucketName('moonbeam', 0),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('moonbeam', 0),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x65e94ffb6696403a5e6534cbfb6befebda6a0226',
+        name: s3BucketName('moonbeam', 1),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('moonbeam', 1),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x1bf2f7e9fdfe832c5d05f94dd66dc8704ebdc581',
+        name: s3BucketName('moonbeam', 2),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('moonbeam', 2),
+          region: s3BucketRegion,
+        },
+      },
+    ],
+  },
 };

@@ -49,7 +49,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(Checkpoint::Table)
-                    .name("idx-checkpoint_outbox-domain-index")
+                    .name("checkpoint_outbox_domain_index_idx")
                     .col(Checkpoint::OutboxAddress)
                     .col(Checkpoint::OriginDomain)
                     .col(Checkpoint::Index)

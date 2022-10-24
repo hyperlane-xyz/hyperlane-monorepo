@@ -208,6 +208,10 @@ where
     fn chain_name(&self) -> &str {
         &self.chain_name
     }
+
+    fn address(&self) -> H256 {
+        self.contract.address().into()
+    }
 }
 
 #[async_trait]

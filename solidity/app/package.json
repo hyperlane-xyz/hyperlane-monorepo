@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/app",
   "description": "Solidity contracts for Hyperlane apps",
-  "version": "0.5.0-beta0",
+  "version": "0.5.1",
   "dependencies": {
-    "@hyperlane-xyz/core": "0.5.0-beta0",
-    "@hyperlane-xyz/utils": "0.5.0-beta0",
+    "@hyperlane-xyz/core": "0.5.1",
+    "@hyperlane-xyz/utils": "0.5.1",
     "@openzeppelin/contracts-upgradeable": "^4.5.0"
   },
   "devDependencies": {

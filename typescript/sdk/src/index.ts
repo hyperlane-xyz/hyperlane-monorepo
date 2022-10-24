@@ -1,10 +1,13 @@
-export { AllChains, Chains } from './consts/chains';
+export { AllChains, Chains, Mainnets } from './consts/chains';
 export { chainMetadata } from './consts/chainMetadata';
 export {
   chainConnectionConfigs,
   testChainConnectionConfigs,
 } from './consts/chainConnectionConfigs';
-export { environments as coreEnvironments } from './consts/environments';
+export {
+  environments as coreEnvironments,
+  hyperlaneCoreAddresses,
+} from './consts/environments';
 
 export {
   ChainMap,

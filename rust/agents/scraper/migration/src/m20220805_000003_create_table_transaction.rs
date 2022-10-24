@@ -49,7 +49,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .name("idx-transaction_sender")
+                    .name("transaction_sender_idx")
                     .table(Transaction::Table)
                     .col(Transaction::Sender)
                     .to_owned(),
@@ -58,7 +58,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .name("idx-transaction_block")
+                    .name("transaction_block_idx")
                     .table(Transaction::Table)
                     .col(Transaction::BlockId)
                     .to_owned(),

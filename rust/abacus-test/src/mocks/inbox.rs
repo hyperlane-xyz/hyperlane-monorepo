@@ -10,6 +10,8 @@ use abacus_core::{accumulator::merkle::Proof, *};
 mock! {
     pub InboxContract {
         // Inbox
+        pub fn _address(&self) -> H256 {}
+
         pub fn _local_domain(&self) -> u32 {}
 
         pub fn _contract_address(&self) -> Address {}
@@ -59,6 +61,10 @@ impl Inbox for MockInboxContract {
 impl AbacusContract for MockInboxContract {
     fn chain_name(&self) -> &str {
         self._chain_name()
+    }
+
+    fn address(&self) -> H256 {
+        self._address()
     }
 }
 

@@ -58,7 +58,7 @@ export class TestCoreApp<
 
   async processOutboundMessages<Local extends TestChain>(
     origin: Local,
-  ): Promise<Map<ChainName, any>> {
+  ): Promise<Map<ChainName, ethers.providers.TransactionResponse[]>> {
     const responses = new Map<ChainName, any>();
     const contracts = this.getContracts(origin);
     const outbox: TestOutbox = contracts.outbox.contract;

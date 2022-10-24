@@ -94,7 +94,9 @@ macro_rules! decl_settings {
                 }
             }
 
-            impl [<$name Settings>] {
+            impl abacus_base::AgentSettings for [<$name Settings>] {
+                type Error = config::ConfigError;
+
                 /// Read settings from the config files and/or env
                 /// The config will be located at `config/default` unless specified
                 /// otherwise
@@ -113,7 +115,7 @@ macro_rules! decl_settings {
                 /// Specify a configuration directory with the `RUN_ENV` env
                 /// variable. Specify a configuration file with the `BASE_CONFIG`
                 /// env variable.
-                pub fn new() -> Result<Self, config::ConfigError> {
+                fn new() -> Result<Self, Self::Error> {
                     abacus_base::macros::_new_settings(stringify!($name))
                 }
             }

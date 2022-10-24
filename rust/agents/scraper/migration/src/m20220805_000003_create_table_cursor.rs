@@ -14,11 +14,13 @@ impl MigrationTrait for Migration {
                     .table(Cursor::Table)
                     .if_not_exists()
                     .col(
-                        ColumnDef::new(Cursor::Domain)
-                            .unsigned()
+                        ColumnDef::new(Cursor::Id)
+                            .big_integer()
                             .not_null()
+                            .auto_increment()
                             .primary_key(),
                     )
+                    .col(ColumnDef::new(Cursor::Domain).unsigned().not_null())
                     .col(ColumnDef::new(Cursor::TimeUpdated).timestamp().not_null())
                     .col(ColumnDef::new(Cursor::Height).big_unsigned().not_null())
                     .foreign_key(
@@ -42,6 +44,8 @@ impl MigrationTrait for Migration {
 #[derive(Iden)]
 pub enum Cursor {
     Table,
+    /// Unique database ID
+    Id,
     /// Abacus domain ID the cursor is for
     Domain,
     /// Time of the last record update
