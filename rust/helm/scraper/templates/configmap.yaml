@@ -6,8 +6,10 @@ metadata:
     {{- include "agent-common.labels" . | nindent 4 }}
 data:
   RUN_ENV: {{ .Values.abacus.runEnv | quote }}
-
-  RUN_DOMAINS: {{ .Values.abacus.outboxChains | get "name" | join "," }}
+  {{- define "runDomains" -}}
+  {{- range .Values.abacus.outboxChains}}{{ print .name }},{{ end }}
+  {{- end }}
+  RUN_DOMAINS: {{ include "runDomains" . | trimSuffix "," | quote }}
   {{- range .Values.abacus.outboxChains }}
   BASE_CONFIG_{{ .name | upper }}: {{ printf "%s_config.json" (.name | lower ) | quote }}
   {{- end }}
