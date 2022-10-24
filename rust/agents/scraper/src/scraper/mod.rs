@@ -18,7 +18,10 @@ use abacus_base::{
     run_all, BaseAgent, ChainSettings, ChainSetup, ContractSyncMetrics, CoreMetrics,
     InboxAddresses, IndexSettings,
 };
-use abacus_core::{name_from_domain_id, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxIndexer, ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage, AbacusDomain};
+use abacus_core::{
+    name_from_domain_id, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxIndexer,
+    ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
+};
 
 use crate::scraper::block_cursor::BlockCursor;
 use crate::settings::ScraperSettings;
