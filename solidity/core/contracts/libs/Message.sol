@@ -47,7 +47,7 @@ library Message {
      * @param _message ABI encoded message.
      * @return ID of _message
      */
-    function id(bytes calldata _message) internal pure returns (bytes32) {
+    function id(bytes memory _message) internal pure returns (bytes32) {
         return keccak256(_message);
     }
 

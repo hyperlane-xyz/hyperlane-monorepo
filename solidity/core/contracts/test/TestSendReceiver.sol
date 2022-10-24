@@ -18,7 +18,7 @@ contract TestSendReceiver is IMessageRecipient {
         uint32 _destinationDomain,
         bytes calldata _messageBody
     ) external payable {
-        uint256 _leafIndex = _outbox.dispatch(
+        bytes32 _messageId = _outbox.dispatch(
             _destinationDomain,
             address(this).addressToBytes32(),
             _messageBody
@@ -30,19 +30,19 @@ contract TestSendReceiver is IMessageRecipient {
             uint256 _half = _value / 2;
             _paymaster.payGasFor{value: _half}(
                 address(_outbox),
-                _leafIndex,
+                _messageId,
                 _destinationDomain
             );
             _paymaster.payGasFor{value: _value - _half}(
                 address(_outbox),
-                _leafIndex,
+                _messageId,
                 _destinationDomain
             );
         } else {
             // Pay the entire msg.value in one call
             _paymaster.payGasFor{value: _value}(
                 address(_outbox),
-                _leafIndex,
+                _messageId,
                 _destinationDomain
             );
         }

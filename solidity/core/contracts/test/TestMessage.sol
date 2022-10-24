@@ -6,6 +6,22 @@ import {Message} from "../libs/Message.sol";
 contract TestMessage {
     using Message for bytes;
 
+    function version(bytes calldata _message)
+        external
+        pure
+        returns (uint32 _version)
+    {
+        return _message.version();
+    }
+
+    function nonce(bytes calldata _message)
+        external
+        pure
+        returns (uint256 _nonce)
+    {
+        return _message.nonce();
+    }
+
     function body(bytes calldata _message)
         external
         pure
@@ -54,12 +70,7 @@ contract TestMessage {
         return _message.recipientAddress();
     }
 
-    function leaf(
-        bytes calldata _message,
-        uint256 _leafIndex,
-        bytes32 _originMailbox,
-        uint8 _version
-    ) external pure returns (bytes32) {
-        return _message.hash(_leafIndex, _originMailbox, _version);
+    function id(bytes calldata _message) external pure returns (bytes32) {
+        return _message.id();
     }
 }

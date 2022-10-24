@@ -6,8 +6,7 @@ import {Versioned} from "./upgrade/Versioned.sol";
 import {MerkleLib} from "./libs/Merkle.sol";
 import {Message} from "./libs/Message.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
-import {ISovereignRecipient} from "../interfaces/ISovereignRecipient.sol";
-import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
+import {IMessageRecipient, IHasInterchainSecurityModule} from "../interfaces/IMessageRecipient.sol";
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
 
@@ -32,7 +31,7 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
     uint32 public immutable version;
 
     // ============ Public Storage ============
-    IInterchainSecurityModule public defaultIsm;
+    IInterchainSecurityModule public defaultModule;
     MerkleLib.Tree public tree;
     // Mapping of message ID to whether or not that message has been delivered.
     mapping(bytes32 => bool) public delivered;
@@ -46,31 +45,10 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
 
     /**
      * @notice Emitted when a new message is dispatched via Abacus
-     * @param leafIndex Index of message's leaf in merkle tree
      * @param message Raw bytes of message
      */
-    event Dispatch(uint256 indexed leafIndex, bytes message);
-
-    // ============ Modifiers ============
-    modifier onlyIsm(bytes calldata _message) {
-        ISovereignRecipient _recipient = _message.recipientAddress();
-        {
-            // For backwards compatibility, use a default
-            // interchainSecurityModule if one is not specified by the
-            // recipient.
-            IInterchainSecurityModule _interchainSecurityModule;
-            try _recipient.interchainSecurityModule() returns (
-                IInterchainSecurityModule _val
-            ) {
-                _interchainSecurityModule = _val;
-            } catch {
-                _interchainSecurityModule = defaultIsm;
-            }
-
-            require(msg.sender == _interchainSecurityModule, "!ism");
-        }
-        _;
-    }
+    event Dispatch(bytes32 indexed messageId, bytes message);
+    event Process(bytes32 indexed messageId);
 
     // ============ Constructor ============
 
@@ -82,10 +60,10 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
 
     // ============ Initializer ============
 
-    function initialize(address _defaultIsm) external initializer {
+    function initialize(address _defaultModule) external initializer {
         __ReentrancyGuard_init();
-        // TODO: setDefaultIsm, check for isContract.
-        defaultIsm = IInterchainSecurityModule(_defaultIsm);
+        // TODO: setDefaultModule, check for isContract.
+        defaultModule = IInterchainSecurityModule(_defaultModule);
     }
 
     // ============ External Functions ============
@@ -105,7 +83,7 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
         bytes calldata _messageBody
     ) external override returns (bytes32) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
-        // Format the message into packed bytes
+        // Format the message into packed bytes.
         bytes memory _message = Message.formatMessage(
             version,
             count(),
@@ -115,7 +93,8 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
             _recipientAddress,
             _messageBody
         );
-        // Insert the message into the merkle tree.
+
+        // Insert the message ID into the merkle tree.
         bytes32 _id = _message.id();
         tree.insert(_id);
         emit Dispatch(_id, _message);
@@ -128,22 +107,33 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
      * @dev Called by the validator manager, which is responsible for verifying a
      * quorum of validator signatures on the checkpoint.
      * @dev Reverts if verification of the message fails.
-     * @param _root The merkle root of the checkpoint used to prove message inclusion.
-     * @param _index The index of the checkpoint used to prove message inclusion.
      * @param _message Formatted message (refer to Mailbox.sol Message library)
-     * @param _proof Merkle proof of inclusion for message's leaf
-     * @param _leafIndex Index of leaf in outbox's merkle tree
      */
-    function process(bytes calldata _message)
+    function process(bytes calldata _message, bytes calldata _metadata)
         external
         override
         nonReentrant
-        onlyIsm(_message)
     {
+        // TODO: If we wanted to support multiple message types,
+        // you could have a library for each type that tells the mailbox
+        // what to do with the message.
+
+        // Check that the message was intended for this mailbox.
+        require(_message.version() == version, "!version");
+        require(_message.destination() == localDomain, "!destination");
+
+        // Check that the message hasn't already been delivered.
         bytes32 _id = _message.id();
         require(delivered[_id] == false, "delivered");
         delivered[_id] = true;
-        require(_message.destination() == localDomain, "!destination");
+
+        // Verify the message in the ISM.
+        IInterchainSecurityModule _ism = _recipientModule(
+            IHasInterchainSecurityModule(_message.recipientAddress())
+        );
+        require(_ism.verify(_message, _metadata));
+
+        // Deliver the message to the recipient.
         uint32 _origin = _message.origin();
         IMessageRecipient(_message.recipientAddress()).handle(
             _origin,
@@ -174,5 +164,22 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
      */
     function latestCheckpoint() public view returns (bytes32, uint256) {
         return (root(), count() - 1);
+    }
+
+    function _recipientModule(IHasInterchainSecurityModule _recipient)
+        internal
+        view
+        returns (IInterchainSecurityModule)
+    {
+        // For backwards compatibility, use a default
+        // interchainSecurityModule if one is not specified by the
+        // recipient.
+        try _recipient.interchainSecurityModule() returns (
+            IInterchainSecurityModule _val
+        ) {
+            return _val;
+        } catch {
+            return defaultModule;
+        }
     }
 }

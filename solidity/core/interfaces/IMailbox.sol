@@ -8,17 +8,10 @@ interface IMailbox {
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes calldata _messageBody
-    ) external returns (uint256);
+    ) external returns (bytes32);
 
-    function process(
-        bytes32 _originMailbox,
-        bytes32 _root,
-        uint256 _index,
-        bytes calldata _sovereignData,
-        bytes calldata _message,
-        bytes32[32] calldata _proof,
-        uint256 _leafIndex
-    ) external;
+    function process(bytes calldata _metadata, bytes calldata _message)
+        external;
 
     function count() external view returns (uint256);
 

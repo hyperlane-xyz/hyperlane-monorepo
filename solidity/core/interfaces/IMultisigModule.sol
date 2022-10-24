@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.0;
 
-import {ISovereignZone} from "./ISovereignZone.sol";
+import {IInterchainSecurityModule} from "./IInterchainSecurityModule.sol";
 
-interface IMultisigZone is ISovereignZone {
+interface IMultisigModule is IInterchainSecurityModule {
     function threshold(uint32 _domain) external view returns (uint256);
 
     // TODO: Should this be bytes32[]?

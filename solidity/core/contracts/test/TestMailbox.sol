@@ -8,7 +8,9 @@ contract TestMailbox is Mailbox {
     using Message for bytes32;
     using TypeCasts for bytes32;
 
-    constructor(uint32 _localDomain) Mailbox(_localDomain) {} // solhint-disable-line no-empty-blocks
+    constructor(uint32 _localDomain, uint32 _version)
+        Mailbox(_localDomain, _version)
+    {} // solhint-disable-line no-empty-blocks
 
     function proof() external view returns (bytes32[32] memory) {
         bytes32[32] memory _zeroes = MerkleLib.zeroHashes();
@@ -38,11 +40,6 @@ contract TestMailbox is Mailbox {
         return MerkleLib.branchRoot(_item, _branch, _index);
     }
 
-    function testProcess(bytes calldata _message, uint256 leafIndex) external {
-        bytes32 _messageHash = keccak256(abi.encodePacked(_message, leafIndex));
-        _process(_message, _messageHash);
-    }
-
     function testHandle(
         uint32 origin,
         bytes32 sender,
@@ -56,8 +53,8 @@ contract TestMailbox is Mailbox {
         );
     }
 
-    function setMessageStatus(bytes32 _leaf, MessageStatus status) external {
-        messages[_leaf] = status;
+    function setMessageDelivered(bytes32 _id, bool _delivered) external {
+        delivered[_id] = _delivered;
     }
 
     function getRevertMsg(bytes calldata _res)
