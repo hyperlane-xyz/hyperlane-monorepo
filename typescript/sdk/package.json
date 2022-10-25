@@ -3,7 +3,6 @@
   "description": "The official SDK for the Hyperlane Network",
   "version": "0.5.1",
   "dependencies": {
-    "@hyperlane-xyz/app": "0.5.1",
     "@hyperlane-xyz/celo-ethers-provider": "^0.1.1",
     "@hyperlane-xyz/core": "0.5.1",
     "@hyperlane-xyz/utils": "0.5.1",

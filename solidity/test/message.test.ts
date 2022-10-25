@@ -5,7 +5,7 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { TestMessage, TestMessage__factory } from '../types';
 
-const testCases = require('../../../vectors/message.json');
+const testCases = require('../../vectors/message.json');
 
 const remoteDomain = 1000;
 const localDomain = 2000;
