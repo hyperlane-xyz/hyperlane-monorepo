@@ -138,6 +138,11 @@ impl BaseAgent for Scraper {
                 let syncer = scraper.clone().sync();
                 tokio::spawn(syncer).instrument(span)
             })
+            .chain(
+                [tokio::spawn(delivered_message_linker(self.db.clone()))
+                    .instrument(info_span!("DeliveredMessageLinker"))]
+                .into_iter(),
+            )
             .collect();
 
         run_all(tasks)
@@ -571,6 +576,7 @@ impl SqlChainScraper {
             .map(|delivery| delivered_message::ActiveModel {
                 id: NotSet,
                 time_created: Set(crate::date_time::now()),
+                msg_id: NotSet,
                 hash: Unchanged(format_h256(&delivery.message_hash)),
                 domain: Unchanged(self.local_domain() as i32),
                 inbox_address: Unchanged(format_h256(&delivery.inbox)),
@@ -840,5 +846,35 @@ impl SqlChainScraper {
             let block_info = block_info.unwrap();
             (hash, (block_info.0.unwrap(), block_info.1))
         }))
+    }
+}
+
+/// Task-thread to link the delivered messages to the correct messages.
+#[instrument]
+async fn delivered_message_linker(db: DbConn) -> Result<()> {
+    use sea_orm::{ConnectionTrait, DbBackend, Statement};
+
+    const QUERY: &str = r#"
+        UPDATE
+            "delivered_message" AS "delivered"
+        SET
+            "msg_id" = "message"."id"
+        FROM
+            "message"
+        WHERE
+            "delivered"."msg_id" IS NULL
+            AND "message"."hash" = "delivered"."hash"
+    "#;
+
+    loop {
+        let linked = db
+            .execute(Statement::from_string(
+                DbBackend::Postgres,
+                QUERY.to_owned(),
+            ))
+            .await?
+            .rows_affected();
+        info!(linked, "Linked message deliveries");
+        sleep(Duration::from_secs(10)).await;
     }
 }

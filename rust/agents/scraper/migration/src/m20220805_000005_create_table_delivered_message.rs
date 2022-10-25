@@ -3,6 +3,7 @@ use sea_orm_migration::prelude::*;
 use crate::l20220805_types::*;
 use crate::m20220805_000001_create_table_domain::Domain;
 use crate::m20220805_000003_create_table_transaction::Transaction;
+use crate::m20220805_000004_create_table_message::Message;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -28,6 +29,11 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
+                        ColumnDef::new(DeliveredMessage::MsgId)
+                            .big_integer()
+                            .unique_key(),
+                    )
+                    .col(
                         ColumnDef::new_with_type(DeliveredMessage::Hash, Hash)
                             .not_null()
                             .unique_key(),
@@ -45,6 +51,11 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(DeliveredMessage::TxId)
                             .big_integer()
                             .not_null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(DeliveredMessage::MsgId)
+                            .to(Message::Table, Message::Id),
                     )
                     .foreign_key(
                         ForeignKey::create()
@@ -96,6 +107,9 @@ pub enum DeliveredMessage {
     Id,
     /// Time of record creation
     TimeCreated,
+    /// Id of the message which was delivered. May be null until we scape the
+    /// sent message + link it.
+    MsgId,
     /// Hash of the message which was delivered
     Hash,
     /// Domain the message was received on
