@@ -9,9 +9,9 @@ edition = "2021"
 # Main block
 serde = "1.0"
 serde_json = { version = "1.0", default-features = false }
-ethers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-09-12-01", features = ["abigen"] }
-ethers-signers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-09-12-01", features = ["aws"] }
-ethers-contract = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-09-12-01", features=["legacy"] }
+ethers = { git = "https://github.com/abacus-network/ethers-rs", branch = "trevor/gas-estimate-quorum", features = ["abigen"] }
+ethers-signers = { git = "https://github.com/abacus-network/ethers-rs", branch = "trevor/gas-estimate-quorum", features = ["aws"] }
+ethers-contract = { git = "https://github.com/abacus-network/ethers-rs", branch = "trevor/gas-estimate-quorum", features=["legacy"] }
 async-trait = { version = "0.1", default-features = false }
 thiserror = { version = "1.0", default-features = false }
 tracing = "0.1"
