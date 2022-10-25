@@ -209,6 +209,7 @@ struct Remote {
 struct Local {
     pub outbox: Arc<dyn Outbox>,
     pub indexer: Arc<dyn OutboxIndexer>,
+    pub provider: Arc<dyn Provider>
 }
 
 #[derive(Debug, Clone)]

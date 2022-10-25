@@ -5,8 +5,8 @@ use ethers::core::types::H256;
 use eyre::Result;
 
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, Address, ChainCommunicationError, Inbox,
-    MessageStatus, TxOutcome,
+    db::AbacusDB, AbacusChain, AbacusCommon, AbacusContract, Address, ChainCommunicationError,
+    Inbox, MessageStatus, TxOutcome,
 };
 
 /// Caching inbox type.
@@ -54,11 +54,17 @@ impl Inbox for CachingInbox {
     }
 }
 
-impl AbacusContract for CachingInbox {
+impl AbacusChain for CachingInbox {
     fn chain_name(&self) -> &str {
         self.inbox.chain_name()
     }
 
+    fn local_domain(&self) -> u32 {
+        self.inbox.local_domain()
+    }
+}
+
+impl AbacusContract for CachingInbox {
     fn address(&self) -> H256 {
         self.inbox.address()
     }
@@ -66,10 +72,6 @@ impl AbacusContract for CachingInbox {
 
 #[async_trait]
 impl AbacusCommon for CachingInbox {
-    fn local_domain(&self) -> u32 {
-        self.inbox.local_domain()
-    }
-
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
         self.inbox.status(txid).await
     }

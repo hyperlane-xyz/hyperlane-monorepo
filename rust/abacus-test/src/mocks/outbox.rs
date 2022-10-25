@@ -1,9 +1,8 @@
 #![allow(non_snake_case)]
 
 use async_trait::async_trait;
-use mockall::*;
-
 use ethers::core::types::H256;
+use mockall::*;
 
 use abacus_core::*;
 
@@ -90,11 +89,17 @@ impl Outbox for MockOutboxContract {
     }
 }
 
-impl AbacusContract for MockOutboxContract {
+impl AbacusChain for MockOutboxContract {
     fn chain_name(&self) -> &str {
         self._chain_name()
     }
 
+    fn local_domain(&self) -> u32 {
+        self._local_domain()
+    }
+}
+
+impl AbacusContract for MockOutboxContract {
     fn address(&self) -> H256 {
         self._address()
     }
@@ -102,10 +107,6 @@ impl AbacusContract for MockOutboxContract {
 
 #[async_trait]
 impl AbacusCommon for MockOutboxContract {
-    fn local_domain(&self) -> u32 {
-        self._local_domain()
-    }
-
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
         self._status(txid)
     }

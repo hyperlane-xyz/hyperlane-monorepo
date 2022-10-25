@@ -19,6 +19,7 @@ pub use indexer::*;
 pub use interchain_gas::*;
 pub use outbox::*;
 pub use validator_manager::*;
+pub use provider::*;
 
 use crate::{db::DbError, utils::domain_hash, AbacusError};
 
@@ -29,6 +30,7 @@ mod indexer;
 mod interchain_gas;
 mod outbox;
 mod validator_manager;
+mod provider;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]
@@ -85,15 +87,28 @@ where
     }
 }
 
+/// Interface for features of something deployed on/in a domain or is otherwise
+/// connected to it.
+#[auto_impl(Box, Arc)]
+pub trait AbacusChain {
+    /// Return an identifier (not necessarily unique) for the chain this
+    /// is connected to
+    fn chain_name(&self) -> &str;
+
+    /// Return the domain ID
+    fn local_domain(&self) -> u32;
+
+    /// Return the domain hash
+    fn local_domain_hash(&self) -> H256 {
+        domain_hash(self.local_domain())
+    }
+}
+
 /// Interface for a deployed contract.
 /// This trait is intended to expose attributes of any contract, and
 /// should not consider the purpose or implementation details of the contract.
 #[auto_impl(Box, Arc)]
-pub trait AbacusContract {
-    /// Return an identifier (not necessarily unique) for the chain this
-    /// contract is deployed to.
-    fn chain_name(&self) -> &str;
-
+pub trait AbacusContract: AbacusChain {
     /// Return the address of this contract.
     fn address(&self) -> H256;
 }
@@ -102,14 +117,6 @@ pub trait AbacusContract {
 #[async_trait]
 #[auto_impl(Box, Arc)]
 pub trait AbacusCommon: AbacusContract + Sync + Send + Debug {
-    /// Return the domain ID
-    fn local_domain(&self) -> u32;
-
-    /// Return the domain hash
-    fn local_domain_hash(&self) -> H256 {
-        domain_hash(self.local_domain())
-    }
-
     /// Get the status of a transaction.
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError>;
 
