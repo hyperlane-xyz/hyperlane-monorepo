@@ -5,5 +5,4 @@
     "rootDir": "./src/"
   },
   "include": ["./src/**/*.ts", "./src/*.d.ts"],
-  "files": ["hardhat.config.ts"]
 }

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {InterchainQueryRouter} from "../InterchainQueryRouter.sol";
+import {InterchainQueryRouter} from "../middleware/InterchainQueryRouter.sol";
 import {Call} from "../OwnableMulticall.sol";
-import {TypeCasts} from "@hyperlane-xyz/core/contracts/libs/TypeCasts.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 
 contract TestQuery {
     InterchainQueryRouter public router;

@@ -1,10 +1,10 @@
 import path from 'path';
 
 import {
+  HyperlaneCore,
   InterchainQueryDeployer,
   interchainQueryFactories,
-} from '@hyperlane-xyz/interchain-accounts';
-import { HyperlaneCore } from '@hyperlane-xyz/sdk';
+} from '@hyperlane-xyz/sdk';
 
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';

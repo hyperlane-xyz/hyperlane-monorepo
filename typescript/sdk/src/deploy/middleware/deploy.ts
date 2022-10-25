@@ -1,17 +1,9 @@
 import {
-  ChainMap,
-  ChainName,
-  HyperlaneCore,
-  HyperlaneRouterDeployer,
-  MultiProvider,
-  RouterConfig,
-} from '@hyperlane-xyz/sdk';
-
-import {
   InterchainAccountRouter__factory,
   InterchainQueryRouter__factory,
-} from '../types';
+} from '@hyperlane-xyz/core';
 
+import { HyperlaneCore } from '../../core/HyperlaneCore';
 import {
   InterchainAccountContracts,
   InterchainAccountFactories,
@@ -19,7 +11,11 @@ import {
   InterchainQueryFactories,
   interchainAccountFactories,
   interchainQueryFactories,
-} from './contracts';
+} from '../../middleware';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { ChainMap, ChainName } from '../../types';
+import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
+import { RouterConfig } from '../router/types';
 
 export type InterchainAccountConfig = RouterConfig;
 

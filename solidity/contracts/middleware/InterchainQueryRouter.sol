@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {OwnableMulticall, Call} from "./OwnableMulticall.sol";
+import {OwnableMulticall, Call} from "../OwnableMulticall.sol";
 
 // ============ External Imports ============
-import {Router} from "@hyperlane-xyz/core/contracts/Router.sol";
+import {Router} from "../Router.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";

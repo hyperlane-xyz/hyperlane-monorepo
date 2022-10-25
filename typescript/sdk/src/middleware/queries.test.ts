@@ -3,21 +3,20 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
 import {
-  ChainMap,
-  ChainNameToDomainId,
-  MultiProvider,
-  RouterConfig,
-  TestChainNames,
-  TestCoreApp,
-  TestCoreDeployer,
-  getChainToOwnerMap,
-  getTestMultiProvider,
-  testChainConnectionConfigs,
-} from '@hyperlane-xyz/sdk';
+  InterchainQueryRouter,
+  TestQuery,
+  TestQuery__factory,
+} from '@hyperlane-xyz/core';
 
-import { InterchainQueryDeployer } from '../src/deploy';
-import { InterchainQueryRouter } from '../types';
-import { TestQuery, TestQuery__factory } from '../types';
+import { testChainConnectionConfigs } from '../consts/chainConnectionConfigs';
+import { TestCoreApp } from '../core/TestCoreApp';
+import { TestCoreDeployer } from '../core/TestCoreDeployer';
+import { InterchainQueryDeployer } from '../deploy/middleware/deploy';
+import { RouterConfig } from '../deploy/router/types';
+import { getChainToOwnerMap, getTestMultiProvider } from '../deploy/utils';
+import { ChainNameToDomainId } from '../domains';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainMap, TestChainNames } from '../types';
 
 describe('InterchainQueryRouter', async () => {
   const localChain = 'test1';
