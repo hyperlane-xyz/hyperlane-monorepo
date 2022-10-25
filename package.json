@@ -26,7 +26,7 @@
     "publish:all": "yarn workspaces foreach --no-private --verbose --topological npm publish --access public"
   },
   "workspaces": [
-    "solidity/*",
+    "solidity",
     "typescript/*"
   ],
   "resolutions": {

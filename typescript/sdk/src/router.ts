@@ -1,6 +1,6 @@
 import type { ethers } from 'ethers';
 
-import { Router } from '@hyperlane-xyz/app';
+import { Router } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneFactories } from './contracts';
@@ -25,4 +25,4 @@ export type ConnectionClientConfig = {
   interchainGasPaymaster: types.Address;
 };
 
-export { Router } from '@hyperlane-xyz/app';
+export { Router } from '@hyperlane-xyz/core';

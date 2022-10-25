@@ -10,8 +10,7 @@ import {
   Outbox__factory,
   TestInbox__factory,
   TestMultisigValidatorManager__factory,
-} from '@hyperlane-xyz/core';
-
+} from '../types';
 import {
   TestAbacusConnectionClient,
   TestAbacusConnectionClient__factory,

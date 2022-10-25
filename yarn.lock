@@ -3677,34 +3677,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/app@0.5.1, @hyperlane-xyz/app@workspace:solidity/app":
-  version: 0.0.0-use.local
-  resolution: "@hyperlane-xyz/app@workspace:solidity/app"
-  dependencies:
-    "@hyperlane-xyz/core": 0.5.1
-    "@hyperlane-xyz/utils": 0.5.1
-    "@nomiclabs/hardhat-ethers": ^2.0.5
-    "@nomiclabs/hardhat-waffle": ^2.0.2
-    "@openzeppelin/contracts-upgradeable": ^4.5.0
-    "@typechain/ethers-v5": 10.0.0
-    "@typechain/hardhat": ^6.0.0
-    "@types/mocha": ^9.1.0
-    chai: ^4.3.0
-    ethereum-waffle: ^3.4.4
-    ethers: ^5.6.8
-    hardhat: ^2.8.4
-    hardhat-gas-reporter: ^1.0.7
-    prettier: ^2.4.1
-    prettier-plugin-solidity: ^1.0.0-beta.5
-    solhint: ^3.3.2
-    solhint-plugin-prettier: ^0.0.5
-    solidity-coverage: ^0.7.14
-    ts-node: ^10.8.0
-    typechain: 8.0.0
-    typescript: ^4.7.2
-  languageName: unknown
-  linkType: soft
-
 "@hyperlane-xyz/celo-ethers-provider@npm:^0.1.1":
   version: 0.1.1
   resolution: "@hyperlane-xyz/celo-ethers-provider@npm:0.1.1"
@@ -3714,9 +3686,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/core@0.5.1, @hyperlane-xyz/core@workspace:solidity/core":
+"@hyperlane-xyz/core@0.5.1, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
-  resolution: "@hyperlane-xyz/core@workspace:solidity/core"
+  resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@hyperlane-xyz/utils": 0.5.1
     "@nomiclabs/hardhat-ethers": ^2.0.5
@@ -3819,7 +3791,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/interchain-accounts@workspace:typescript/ica"
   dependencies:
-    "@hyperlane-xyz/app": 0.5.1
+    "@hyperlane-xyz/core": 0.5.1
     "@hyperlane-xyz/sdk": 0.5.1
     "@hyperlane-xyz/utils": 0.5.1
     "@nomicfoundation/hardhat-chai-matchers": ^1.0.3
@@ -3870,7 +3842,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
-    "@hyperlane-xyz/app": 0.5.1
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
     "@hyperlane-xyz/core": 0.5.1
     "@hyperlane-xyz/utils": 0.5.1
@@ -4235,7 +4206,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts-upgradeable@npm:^4.5.0, @openzeppelin/contracts-upgradeable@npm:^4.6.0":
+"@openzeppelin/contracts-upgradeable@npm:^4.6.0":
   version: 4.6.0
   resolution: "@openzeppelin/contracts-upgradeable@npm:4.6.0"
   checksum: f9802c9cccf31bd475412ba5d862ed15eed5352302c30b29c38f84aed2dcfe0d957687935a72068f3d44292a4a55b0ff26cd018b2e14a47f16f74f087009aa29
