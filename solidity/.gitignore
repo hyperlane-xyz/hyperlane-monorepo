@@ -6,3 +6,7 @@ dist/
 coverage/
 coverage.json
 .env
+
+# Foundry
+out
+forge-cache
