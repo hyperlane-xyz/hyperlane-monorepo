@@ -37,7 +37,10 @@ export class InterchainAccountDeployer<
 
   // Custom contract deployment logic can go here
   // If no custom logic is needed, call deployContract for the router
-  async deployContracts(chain: Chain, config: InterchainAccountConfig) {
+  async deployContracts(
+    chain: Chain,
+    config: InterchainAccountConfig,
+  ): Promise<InterchainAccountContracts> {
     const initCalldata =
       InterchainAccountRouter__factory.createInterface().encodeFunctionData(
         'initialize',
@@ -74,7 +77,10 @@ export class InterchainQueryDeployer<
 
   // Custom contract deployment logic can go here
   // If no custom logic is needed, call deployContract for the router
-  async deployContracts(chain: Chain, config: InterchainQueryConfig) {
+  async deployContracts(
+    chain: Chain,
+    config: InterchainQueryConfig,
+  ): Promise<InterchainQueryContracts> {
     const initCalldata =
       InterchainQueryRouter__factory.createInterface().encodeFunctionData(
         'initialize',
