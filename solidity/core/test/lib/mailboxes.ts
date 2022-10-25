@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
+import { types, utils } from '@hyperlane-xyz/utils';
+
 import { TestMailbox } from '../../types';
 import { DispatchEvent } from '../../types/contracts/Mailbox';
 
@@ -21,26 +23,61 @@ export const dispatchMessage = async (
   return dispatch.args!;
 };
 
+export type MessageAndProof = {
+  proof: types.MerkleProof;
+  message: string;
+};
+
 export const dispatchMessageAndReturnProof = async (
   outbox: TestMailbox,
   destination: number,
   recipient: string,
   messageStr: string,
-): Promise<MerkleProof> => {
-  const { message } = await dispatchMessage(
+): Promise<MessageAndProof> => {
+  const nonce = await outbox.count();
+  const { message, messageId } = await dispatchMessage(
     outbox,
     destination,
-    recipient,
+    utils.addressToBytes32(recipient),
     messageStr,
   );
   const proof = await outbox.proof();
   return {
-    proof: proof,
+    proof: {
+      branch: proof,
+      leaf: messageId,
+      index: nonce.toNumber(),
+    },
     message,
   };
 };
 
-export interface MerkleProof {
-  proof: string[];
-  message: string;
-}
+export const messageValues = async (
+  mailbox: TestMailbox,
+  sender: string,
+  destination: number,
+  recipient: string,
+  messageStr: string,
+) => {
+  const body = utils.ensure0x(
+    Buffer.from(ethers.utils.toUtf8Bytes(messageStr)).toString('hex'),
+  );
+  const nonce = await mailbox.count();
+  const version = await mailbox.version();
+  const localDomain = await mailbox.localDomain();
+  const message = utils.formatMessage(
+    nonce,
+    version,
+    localDomain,
+    sender,
+    destination,
+    recipient,
+    body,
+  );
+  const id = utils.messageId(message);
+  return {
+    message,
+    id,
+    body,
+  };
+};

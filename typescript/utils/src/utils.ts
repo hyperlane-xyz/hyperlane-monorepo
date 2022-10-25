@@ -1,7 +1,14 @@
 import { BigNumber, ethers, utils } from 'ethers';
 
-import { Checkpoint } from './types';
-import { Address, Domain, HexString, ParsedMessage } from './types';
+import {
+  Address,
+  Checkpoint,
+  Domain,
+  HexString,
+  MerkleProof,
+  ParsedMessage,
+  SignatureLike,
+} from './types';
 
 export function assert(predicate: any, errorMessage?: string) {
   if (!predicate) {
@@ -61,6 +68,35 @@ export const formatMessage = (
       destinationDomain,
       recipientAddr,
       body,
+    ],
+  );
+};
+
+export const formatMultisigModuleMetadata = (
+  checkpoint: Checkpoint,
+  originMailbox: Address,
+  proof: MerkleProof,
+  signatures: SignatureLike[],
+  addresses: Address[],
+): string => {
+  return ethers.utils.solidityPack(
+    [
+      'bytes32',
+      'uint256',
+      'bytes32',
+      'bytes32[32]',
+      'uint256',
+      'bytes',
+      'bytes',
+    ],
+    [
+      checkpoint.root,
+      checkpoint.index,
+      addressToBytes32(originMailbox),
+      proof.branch,
+      signatures.length,
+      ensure0x(signatures.join('')),
+      ensure0x(addresses.join('')),
     ],
   );
 };

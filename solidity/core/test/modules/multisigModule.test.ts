@@ -3,9 +3,17 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { Validator } from '@hyperlane-xyz/utils';
+import { Validator, types } from '@hyperlane-xyz/utils';
+import { MerkleProof } from '@hyperlane-xyz/utils/dist/src/types';
+import { formatMultisigModuleMetadata } from '@hyperlane-xyz/utils/dist/src/utils';
 
-import { MultisigModule, MultisigModule__factory } from '../../types';
+import {
+  TestMailbox,
+  TestMailbox__factory,
+  TestMultisigModule,
+  TestMultisigModule__factory,
+} from '../../types';
+import { dispatchMessageAndReturnProof } from '../lib/mailboxes';
 
 // import { signCheckpoint } from './utils';
 
@@ -16,8 +24,8 @@ const MAILBOX_ADDRESS = '0xc541ddb5c50b47b694819626c167d5fcbca57c09';
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
 // const domainHashTestCases = require('../../../../vectors/domainHash.json');
 
-describe('MultisigModule', async () => {
-  let multisigModule: MultisigModule,
+describe.only('MultisigModule', async () => {
+  let multisigModule: TestMultisigModule,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress,
     validator0: Validator,
@@ -53,8 +61,10 @@ describe('MultisigModule', async () => {
   });
 
   beforeEach(async () => {
-    const multisigModuleFactory = new MultisigModule__factory(signer);
+    const multisigModuleFactory = new TestMultisigModule__factory(signer);
     multisigModule = await multisigModuleFactory.deploy();
+    // Enroll a single validator for testing purposes
+    await multisigModule.enrollValidator(OUTBOX_DOMAIN, validator0.address);
   });
 
   describe('#constructor', () => {
@@ -189,8 +199,43 @@ describe('MultisigModule', async () => {
     });
   });
 
-  /*
   describe('#verifyMerkleProof', () => {
+    let proof: MerkleProof,
+      message: string,
+      checkpoint: types.Checkpoint,
+      mailbox: TestMailbox;
+    before(async () => {
+      const localDomain = 1000;
+      const version = 0;
+      const mailboxFactory = new TestMailbox__factory(signer);
+      mailbox = await mailboxFactory.deploy(localDomain, version);
+      const recipient = '0x1234567890123456789012345678901234567890'; // random address
+      ({ proof, message } = await dispatchMessageAndReturnProof(
+        mailbox,
+        localDomain,
+        recipient,
+        'hello world',
+      ));
+      const root = await mailbox.root();
+      const index = await mailbox.count();
+      checkpoint = { root, index: index.toNumber(), signature: '' };
+    });
+
+    it('returns true when a valid proof is provided', async () => {
+      const metadata = formatMultisigModuleMetadata(
+        checkpoint,
+        mailbox.address,
+        proof,
+        [], // Signatures are unused
+        [], // Addresses are unused
+      );
+      expect(await multisigModule.verifyMerkleProof(metadata, message)).to.be
+        .true;
+    });
+  });
+
+  /*
+  describe.skip('#isQuorum', () => {
     const root = ethers.utils.formatBytes32String('test root');
     const index = 1;
 
@@ -258,7 +303,7 @@ describe('MultisigModule', async () => {
     });
   });
 
-  describe('#_domainHash', () => {
+  describe.skip('#_domainHash', () => {
     it('matches Rust-produced domain hashes', async () => {
       // Compare Rust output in json file to solidity output (json file matches
       // hash for local domain of 1000)

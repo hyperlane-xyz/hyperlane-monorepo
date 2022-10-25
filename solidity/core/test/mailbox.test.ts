@@ -17,7 +17,7 @@ import {
   TestRecipient__factory,
 } from '../types';
 
-import { dispatchMessage } from './lib/mailboxes';
+import { messageValues } from './lib/mailboxes';
 
 const localDomain = 1000;
 const destDomain = 2000;
@@ -45,48 +45,30 @@ describe('Mailbox', async () => {
   });
 
   describe('#dispatch', () => {
-    let recipient: SignerWithAddress;
+    let recipient: SignerWithAddress, message: string, id: string, body: string;
     before(async () => {
       [, recipient] = await ethers.getSigners();
-    });
-    const testMessageValues = async () => {
-      const message = ethers.utils.formatBytes32String('message');
-
-      const nonce = await mailbox.count();
-      const hyperlaneMessage = utils.formatMessage(
-        nonce,
-        version,
-        localDomain,
+      ({ message, id, body } = await messageValues(
+        mailbox,
         signer.address,
         destDomain,
-        utils.addressToBytes32(recipient.address),
-        message,
-      );
-      const id = utils.messageId(hyperlaneMessage);
-
-      return {
-        message,
-        destDomain,
-        hyperlaneMessage,
-        id,
-      };
-    };
+        recipient.address,
+        'message',
+      ));
+    });
 
     it('Does not dispatch too large messages', async () => {
-      const message = `0x${Buffer.alloc(3000).toString('hex')}`;
+      const longMessage = `0x${Buffer.alloc(3000).toString('hex')}`;
       await expect(
         mailbox.dispatch(
           destDomain,
           utils.addressToBytes32(recipient.address),
-          message,
+          longMessage,
         ),
       ).to.be.revertedWith('msg too long');
     });
 
     it('Dispatches a message', async () => {
-      const { message, destDomain, hyperlaneMessage, id } =
-        await testMessageValues();
-
       // Send message with signer address as msg.sender
       await expect(
         mailbox
@@ -94,22 +76,20 @@ describe('Mailbox', async () => {
           .dispatch(
             destDomain,
             utils.addressToBytes32(recipient.address),
-            message,
+            body,
           ),
       )
         .to.emit(mailbox, 'Dispatch')
-        .withArgs(id, hyperlaneMessage);
+        .withArgs(id, message);
     });
 
-    it('Returns the leaf index of the dispatched message', async () => {
-      const { message, id } = await testMessageValues();
-
+    it('Returns the id of the dispatched message', async () => {
       const actualId = await mailbox
         .connect(signer)
         .callStatic.dispatch(
           destDomain,
           utils.addressToBytes32(recipient.address),
-          message,
+          body,
         );
 
       expect(actualId).equals(id);
@@ -124,27 +104,28 @@ describe('Mailbox', async () => {
       BadRecipient5__factory,
       BadRecipient6__factory,
     ];
-    let message: string, messageId: string, recipient: string;
+    let message: string, id: string, recipient: string;
 
     beforeEach(async () => {
       await module.setAccept(true);
       const recipientF = new TestRecipient__factory(signer);
       recipient = utils.addressToBytes32((await recipientF.deploy()).address);
-      ({ message, messageId } = await dispatchMessage(
+      ({ message, id } = await messageValues(
         mailbox,
+        signer.address,
         localDomain,
         recipient,
-        'hello world',
+        'message',
       ));
     });
 
     it('processes a message', async () => {
       await expect(mailbox.process('0x', message)).to.emit(mailbox, 'Process');
-      expect(await mailbox.delivered(messageId)).to.be.true;
+      expect(await mailbox.delivered(id)).to.be.true;
     });
 
     it('Rejects an already-processed message', async () => {
-      await mailbox.setMessageDelivered(messageId, true);
+      await mailbox.setMessageDelivered(id, true);
 
       // Try to process message again
       await expect(mailbox.process('0x', message)).to.be.revertedWith(
@@ -166,24 +147,26 @@ describe('Mailbox', async () => {
         const factory = new badRecipientFactories[i](signer);
         const badRecipient = await factory.deploy();
 
-        let { message } = await dispatchMessage(
+        ({ message } = await messageValues(
           mailbox,
-          destDomain,
-          utils.addressToBytes32(badRecipient.address),
-          'hello world',
-        );
-
+          signer.address,
+          localDomain,
+          badRecipient.address,
+          'message',
+        ));
         await expect(mailbox.process('0x', message)).to.be.reverted;
       });
     }
 
+    // TODO: Fails to process with wrong version..
     it('Fails to process message with wrong destination Domain', async () => {
-      let { message } = await dispatchMessage(
+      ({ message } = await messageValues(
         mailbox,
-        destDomain + 1,
+        signer.address,
+        localDomain + 1,
         recipient,
-        'hello world',
-      );
+        'message',
+      ));
 
       await expect(mailbox.process('0x', message)).to.be.revertedWith(
         '!destination',
@@ -191,12 +174,13 @@ describe('Mailbox', async () => {
     });
 
     it('Fails to process message sent to a non-existent contract address', async () => {
-      let { message } = await dispatchMessage(
+      ({ message } = await messageValues(
         mailbox,
-        destDomain,
-        utils.addressToBytes32('0x1234567890123456789012345678901234567890'), // non-existent contract address
-        'hello world',
-      );
+        signer.address,
+        localDomain,
+        '0x1234567890123456789012345678901234567890', // non-existent contract address
+        'message',
+      ));
       await expect(mailbox.process('0x', message)).to.be.reverted;
     });
   });
