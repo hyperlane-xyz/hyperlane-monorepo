@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import merkleTestCases from '../../../vectors/merkle.json';
+import merkleTestCases from '../../vectors/merkle.json';
 import { TestMerkle, TestMerkle__factory } from '../types';
 
 describe('Merkle', async () => {
