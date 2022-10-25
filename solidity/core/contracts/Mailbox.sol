@@ -12,6 +12,7 @@ import {IMailbox} from "../interfaces/IMailbox.sol";
 
 // ============ External Imports ============
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "hardhat/console.sol";
 
 contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
     // ============ Libraries ============
@@ -109,7 +110,7 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
      * @dev Reverts if verification of the message fails.
      * @param _message Formatted message (refer to Mailbox.sol Message library)
      */
-    function process(bytes calldata _message, bytes calldata _metadata)
+    function process(bytes calldata _metadata, bytes calldata _message)
         external
         override
         nonReentrant
@@ -131,7 +132,7 @@ contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
         IInterchainSecurityModule _ism = _recipientModule(
             IHasInterchainSecurityModule(_message.recipientAddress())
         );
-        require(_ism.verify(_message, _metadata));
+        require(_ism.verify(_metadata, _message), "!module");
 
         // Deliver the message to the recipient.
         uint32 _origin = _message.origin();

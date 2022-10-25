@@ -9,6 +9,8 @@ const testCases = require('../../../vectors/message.json');
 
 const remoteDomain = 1000;
 const localDomain = 2000;
+const version = 0;
+const nonce = 11;
 
 describe('Message', async () => {
   let messageLib: TestMessage;
@@ -25,6 +27,8 @@ describe('Message', async () => {
     const body = ethers.utils.formatBytes32String('message');
 
     const message = utils.formatMessage(
+      version,
+      nonce,
       remoteDomain,
       sender.address,
       localDomain,
@@ -32,6 +36,8 @@ describe('Message', async () => {
       body,
     );
 
+    expect(await messageLib.version(message)).to.equal(version);
+    expect(await messageLib.nonce(message)).to.equal(nonce);
     expect(await messageLib.origin(message)).to.equal(remoteDomain);
     expect(await messageLib.sender(message)).to.equal(
       utils.addressToBytes32(sender.address),
@@ -46,15 +52,16 @@ describe('Message', async () => {
     expect(await messageLib.body(message)).to.equal(body);
   });
 
-  it('Matches Rust-output AbacusMessage and leaf', async () => {
+  it('Matches Rust-output HyperlaneMessage and leaf', async () => {
     const origin = 1000;
     const sender = '0x1111111111111111111111111111111111111111';
     const destination = 2000;
     const recipient = '0x2222222222222222222222222222222222222222';
     const body = '0x1234';
 
-    const leafIndex = 0;
-    const abacusMessage = utils.formatMessage(
+    const hyperlaneMessage = utils.formatMessage(
+      version,
+      nonce,
       origin,
       sender,
       destination,
@@ -71,18 +78,17 @@ describe('Message', async () => {
       messageHash,
     } = testCases[0];
 
-    expect(await messageLib.origin(abacusMessage)).to.equal(testOrigin);
-    expect(await messageLib.sender(abacusMessage)).to.equal(testSender);
-    expect(await messageLib.destination(abacusMessage)).to.equal(
+    expect(await messageLib.origin(hyperlaneMessage)).to.equal(testOrigin);
+    expect(await messageLib.sender(hyperlaneMessage)).to.equal(testSender);
+    expect(await messageLib.destination(hyperlaneMessage)).to.equal(
       testDestination,
     );
-    expect(await messageLib.recipient(abacusMessage)).to.equal(testRecipient);
-    expect(await messageLib.body(abacusMessage)).to.equal(
+    expect(await messageLib.recipient(hyperlaneMessage)).to.equal(
+      testRecipient,
+    );
+    expect(await messageLib.body(hyperlaneMessage)).to.equal(
       ethers.utils.hexlify(testBody),
     );
-    expect(await messageLib.leaf(abacusMessage, leafIndex)).to.equal(
-      messageHash,
-    );
-    expect(utils.messageHash(abacusMessage, leafIndex)).to.equal(messageHash);
+    expect(utils.messageId(hyperlaneMessage)).to.equal(messageHash);
   });
 });

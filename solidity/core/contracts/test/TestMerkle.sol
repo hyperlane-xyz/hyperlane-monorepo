@@ -28,4 +28,8 @@ contract TestMerkle {
     function count() public view returns (uint256) {
         return tree.count;
     }
+
+    function root() public view returns (bytes32) {
+        return tree.root();
+    }
 }

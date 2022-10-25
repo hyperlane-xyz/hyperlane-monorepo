@@ -40,7 +40,7 @@ export function formatCallData<
 }
 
 export const formatMessage = (
-  version: number,
+  version: number | BigNumber,
   nonce: number,
   originDomain: Domain,
   senderAddr: Address,

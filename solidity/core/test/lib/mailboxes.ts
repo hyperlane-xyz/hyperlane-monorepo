@@ -1,8 +1,6 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
-
 import { TestMailbox } from '../../types';
 import { DispatchEvent } from '../../types/contracts/Mailbox';
 
@@ -35,21 +33,14 @@ export const dispatchMessageAndReturnProof = async (
     recipient,
     messageStr,
   );
-  const { nonce } = utils.parseMessage(message);
-  const messageId = utils.messageId(message);
-  const root = await outbox.root();
   const proof = await outbox.proof();
   return {
-    root,
     proof: proof,
-    leaf: messageId,
     message,
   };
 };
 
 export interface MerkleProof {
-  root: string;
   proof: string[];
-  leaf: string;
   message: string;
 }

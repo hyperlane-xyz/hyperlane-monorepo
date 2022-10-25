@@ -46,7 +46,8 @@ contract MultisigModule is IMultisigModule, Ownable {
     event ValidatorEnrolled(
         uint32 indexed domain,
         address indexed validator,
-        uint256 validatorCount
+        uint256 validatorCount,
+        bytes32 commitment
     );
 
     /**
@@ -57,15 +58,19 @@ contract MultisigModule is IMultisigModule, Ownable {
     event ValidatorUnenrolled(
         uint32 indexed domain,
         address indexed validator,
-        uint256 validatorCount
+        uint256 validatorCount,
+        bytes32 commitment
     );
 
     /**
      * @notice Emitted when the quorum threshold is set.
      * @param threshold The new quorum threshold.
      */
-    event ThresholdSet(uint32 indexed domain, uint256 threshold);
-    event CommitmentUpdated(uint32 indexed domain, bytes32 commitment);
+    event ThresholdSet(
+        uint32 indexed domain,
+        uint256 threshold,
+        bytes32 commitment
+    );
 
     // ============ Constructor ============
 
@@ -87,8 +92,13 @@ contract MultisigModule is IMultisigModule, Ownable {
     {
         require(_validator != address(0), "zero address");
         require(validatorSets[_domain].add(_validator), "already enrolled");
-        _updateCommitment(_domain);
-        emit ValidatorEnrolled(_domain, _validator, validatorCount(_domain));
+        bytes32 _commitment = _updateCommitment(_domain);
+        emit ValidatorEnrolled(
+            _domain,
+            _validator,
+            validatorCount(_domain),
+            _commitment
+        );
     }
 
     /**
@@ -106,8 +116,13 @@ contract MultisigModule is IMultisigModule, Ownable {
             _numValidators >= threshold[_domain],
             "violates quorum threshold"
         );
-        _updateCommitment(_domain);
-        emit ValidatorUnenrolled(_domain, _validator, _numValidators);
+        bytes32 _commitment = _updateCommitment(_domain);
+        emit ValidatorUnenrolled(
+            _domain,
+            _validator,
+            _numValidators,
+            _commitment
+        );
     }
 
     /**
@@ -123,8 +138,8 @@ contract MultisigModule is IMultisigModule, Ownable {
             "!range"
         );
         threshold[_domain] = _threshold;
-        _updateCommitment(_domain);
-        emit ThresholdSet(_domain, _threshold);
+        bytes32 _commitment = _updateCommitment(_domain);
+        emit ThresholdSet(_domain, _threshold, _commitment);
     }
 
     // ============ Public Functions ============
@@ -278,11 +293,12 @@ contract MultisigModule is IMultisigModule, Ownable {
             );
     }
 
-    function _updateCommitment(uint32 _domain) internal {
+    function _updateCommitment(uint32 _domain) internal returns (bytes32) {
         address[] memory _validators = validators(_domain);
         uint256 _threshold = threshold[_domain];
         bytes32 _commitment = keccak256(abi.encode(_threshold, _validators));
+        return _commitment;
         setCommitment[_domain] = _commitment;
-        emit CommitmentUpdated(_domain, _commitment);
+        return _commitment;
     }
 }

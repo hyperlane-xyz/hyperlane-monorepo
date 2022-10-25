@@ -1,7 +1,8 @@
-import { types, utils } from '@hyperlane-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
+
+import { utils } from '@hyperlane-xyz/utils';
 
 import {
   BadRecipient1__factory,
@@ -16,7 +17,7 @@ import {
   TestRecipient__factory,
 } from '../types';
 
-import { MerkleProof, dispatchMessageAndReturnProof } from './lib/mailboxes';
+import { dispatchMessage } from './lib/mailboxes';
 
 const localDomain = 1000;
 const destDomain = 2000;
@@ -123,88 +124,39 @@ describe('Mailbox', async () => {
       BadRecipient5__factory,
       BadRecipient6__factory,
     ];
-    let proof: MerkleProof, recipient: string, destMailbox: TestMailbox;
+    let message: string, messageId: string, recipient: string;
 
     beforeEach(async () => {
       await module.setAccept(true);
       const recipientF = new TestRecipient__factory(signer);
       recipient = utils.addressToBytes32((await recipientF.deploy()).address);
-      const mailboxFactory = new TestMailbox__factory(signer);
-      destMailbox = await mailboxFactory.deploy(destDomain, version);
-      await destMailbox.initialize(module.address);
-      proof = await dispatchMessageAndReturnProof(
+      ({ message, messageId } = await dispatchMessage(
         mailbox,
-        destDomain,
+        localDomain,
         recipient,
         'hello world',
-      );
+      ));
     });
 
     it('processes a message', async () => {
-      await expect(destMailbox.process('0x', proof.message)).to.emit(
-        destMailbox,
-        'Process',
-      );
-      expect(await destMailbox.messages(proof.leaf)).to.eql(
-        types.MessageStatus.PROCESSED,
-      );
+      await expect(mailbox.process('0x', message)).to.emit(mailbox, 'Process');
+      expect(await mailbox.delivered(messageId)).to.be.true;
     });
 
     it('Rejects an already-processed message', async () => {
-      await destMailbox.setMessageStatus(
-        proof.leaf,
-        types.MessageStatus.PROCESSED,
-      );
+      await mailbox.setMessageDelivered(messageId, true);
 
       // Try to process message again
-      await expect(
-        destMailbox.process(
-          utils.addressToBytes32(mailbox.address),
-          proof.root,
-          proof.index,
-          '0x00',
-          proof.message,
-          proof.proof,
-          proof.index,
-        ),
-      ).to.be.revertedWith('!MessageStatus.None');
-    });
-
-    it('Rejects invalid message proof', async () => {
-      // Switch ordering of proof hashes
-      // NB: We copy 'path' here to avoid mutating the test cases for
-      // other tests.
-      const newProof = proof.proof.slice().reverse();
-
-      expect(
-        destMailbox.process(
-          utils.addressToBytes32(mailbox.address),
-          proof.root,
-          proof.index,
-          '0x00',
-          proof.message,
-          newProof,
-          proof.index,
-        ),
-      ).to.be.revertedWith('!proof');
-      expect(await destMailbox.messages(proof.leaf)).to.equal(
-        types.MessageStatus.NONE,
+      await expect(mailbox.process('0x', message)).to.be.revertedWith(
+        'delivered',
       );
     });
 
     it('Fails to process message when rejected by module', async () => {
       await module.setAccept(false);
-      await expect(
-        destMailbox.process(
-          utils.addressToBytes32(mailbox.address),
-          proof.root,
-          proof.index,
-          '0x00',
-          proof.message,
-          proof.proof,
-          proof.index,
-        ),
-      ).to.be.revertedWith('!module');
+      await expect(mailbox.process('0x', message)).to.be.revertedWith(
+        '!module',
+      );
     });
 
     for (let i = 0; i < badRecipientFactories.length; i++) {
@@ -214,66 +166,38 @@ describe('Mailbox', async () => {
         const factory = new badRecipientFactories[i](signer);
         const badRecipient = await factory.deploy();
 
-        const badProof = await dispatchMessageAndReturnProof(
+        let { message } = await dispatchMessage(
           mailbox,
           destDomain,
           utils.addressToBytes32(badRecipient.address),
           'hello world',
         );
 
-        await expect(
-          destMailbox.process(
-            utils.addressToBytes32(mailbox.address),
-            badProof.root,
-            badProof.index,
-            '0x00',
-            badProof.message,
-            badProof.proof,
-            badProof.index,
-          ),
-        ).to.be.reverted;
+        await expect(mailbox.process('0x', message)).to.be.reverted;
       });
     }
 
     it('Fails to process message with wrong destination Domain', async () => {
-      const badProof = await dispatchMessageAndReturnProof(
+      let { message } = await dispatchMessage(
         mailbox,
         destDomain + 1,
         recipient,
         'hello world',
       );
 
-      await expect(
-        destMailbox.process(
-          utils.addressToBytes32(mailbox.address),
-          badProof.root,
-          badProof.index,
-          '0x00',
-          badProof.message,
-          badProof.proof,
-          badProof.index,
-        ),
-      ).to.be.revertedWith('!destination');
+      await expect(mailbox.process('0x', message)).to.be.revertedWith(
+        '!destination',
+      );
     });
 
     it('Fails to process message sent to a non-existent contract address', async () => {
-      const badProof = await dispatchMessageAndReturnProof(
+      let { message } = await dispatchMessage(
         mailbox,
         destDomain,
         utils.addressToBytes32('0x1234567890123456789012345678901234567890'), // non-existent contract address
         'hello world',
       );
-      await expect(
-        destMailbox.process(
-          utils.addressToBytes32(mailbox.address),
-          badProof.root,
-          badProof.index,
-          '0x00',
-          badProof.message,
-          badProof.proof,
-          badProof.index,
-        ),
-      ).to.be.reverted;
+      await expect(mailbox.process('0x', message)).to.be.reverted;
     });
   });
 
