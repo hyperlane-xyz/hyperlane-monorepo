@@ -1,11 +1,11 @@
-import { RouterContracts, RouterFactories } from '@hyperlane-xyz/sdk';
-
 import {
   InterchainAccountRouter,
   InterchainAccountRouter__factory,
   InterchainQueryRouter,
   InterchainQueryRouter__factory,
-} from '../types';
+} from '@hyperlane-xyz/core';
+
+import { RouterContracts, RouterFactories } from './router';
 
 export type InterchainAccountFactories =
   RouterFactories<InterchainAccountRouter>;

@@ -111,6 +111,14 @@ export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export { UpgradeBeaconViolation } from './deploy/proxy';
 export { HyperlaneRouterDeployer } from './deploy/router/HyperlaneRouterDeployer';
 export { HyperlaneRouterChecker } from './deploy/router/HyperlaneRouterChecker';
+export {
+  InterchainAccountDeployer,
+  InterchainQueryDeployer,
+} from './deploy/middleware/deploy';
+export {
+  interchainAccountFactories,
+  interchainQueryFactories,
+} from './middleware';
 export { RouterConfig } from './deploy/router/types';
 export { getTestMultiProvider, getChainToOwnerMap } from './deploy/utils';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';

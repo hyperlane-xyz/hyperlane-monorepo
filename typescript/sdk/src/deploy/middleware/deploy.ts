@@ -1,17 +1,9 @@
 import {
-  ChainMap,
-  ChainName,
-  HyperlaneCore,
-  HyperlaneRouterDeployer,
-  MultiProvider,
-  RouterConfig,
-} from '@hyperlane-xyz/sdk';
-
-import {
   InterchainAccountRouter__factory,
   InterchainQueryRouter__factory,
-} from '../types';
+} from '@hyperlane-xyz/core';
 
+import { HyperlaneCore } from '../../core/HyperlaneCore';
 import {
   InterchainAccountContracts,
   InterchainAccountFactories,
@@ -19,7 +11,11 @@ import {
   InterchainQueryFactories,
   interchainAccountFactories,
   interchainQueryFactories,
-} from './contracts';
+} from '../../middleware';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { ChainMap, ChainName } from '../../types';
+import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
+import { RouterConfig } from '../router/types';
 
 export type InterchainAccountConfig = RouterConfig;
 
@@ -41,7 +37,10 @@ export class InterchainAccountDeployer<
 
   // Custom contract deployment logic can go here
   // If no custom logic is needed, call deployContract for the router
-  async deployContracts(chain: Chain, config: InterchainAccountConfig) {
+  async deployContracts(
+    chain: Chain,
+    config: InterchainAccountConfig,
+  ): Promise<InterchainAccountContracts> {
     const initCalldata =
       InterchainAccountRouter__factory.createInterface().encodeFunctionData(
         'initialize',
@@ -78,7 +77,10 @@ export class InterchainQueryDeployer<
 
   // Custom contract deployment logic can go here
   // If no custom logic is needed, call deployContract for the router
-  async deployContracts(chain: Chain, config: InterchainQueryConfig) {
+  async deployContracts(
+    chain: Chain,
+    config: InterchainQueryConfig,
+  ): Promise<InterchainQueryContracts> {
     const initCalldata =
       InterchainQueryRouter__factory.createInterface().encodeFunctionData(
         'initialize',

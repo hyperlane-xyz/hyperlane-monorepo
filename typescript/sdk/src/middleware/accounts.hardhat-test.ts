@@ -2,22 +2,20 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { TestRecipient__factory } from '@hyperlane-xyz/core';
 import {
-  ChainMap,
-  ChainNameToDomainId,
-  MultiProvider,
-  RouterConfig,
-  TestChainNames,
-  TestCoreApp,
-  TestCoreDeployer,
-  getChainToOwnerMap,
-  getTestMultiProvider,
-  testChainConnectionConfigs,
-} from '@hyperlane-xyz/sdk';
+  InterchainAccountRouter,
+  TestRecipient__factory,
+} from '@hyperlane-xyz/core';
 
-import { InterchainAccountDeployer } from '../src/deploy';
-import { InterchainAccountRouter } from '../types';
+import { testChainConnectionConfigs } from '../consts/chainConnectionConfigs';
+import { TestCoreApp } from '../core/TestCoreApp';
+import { TestCoreDeployer } from '../core/TestCoreDeployer';
+import { InterchainAccountDeployer } from '../deploy/middleware/deploy';
+import { RouterConfig } from '../deploy/router/types';
+import { getChainToOwnerMap, getTestMultiProvider } from '../deploy/utils';
+import { ChainNameToDomainId } from '../domains';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainMap, TestChainNames } from '../types';
 
 describe('InterchainAccountRouter', async () => {
   const localChain = 'test1';
