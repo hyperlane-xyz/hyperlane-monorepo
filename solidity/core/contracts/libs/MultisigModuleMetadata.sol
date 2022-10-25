@@ -55,13 +55,29 @@ library MultisigModuleMetadata {
         return _metadata[_start:_end];
     }
 
+    function validatorAt(bytes calldata _metadata, uint256 _index)
+        internal
+        pure
+        returns (address)
+    {
+        // Validator addresses are left padded to bytes32 in order to match
+        // abi.encodePacked(address[]).
+        uint256 _start = 1152 +
+            (threshold(_metadata)) *
+            65 +
+            (_index * 32) +
+            12;
+        uint256 _end = _start + 20;
+        return address(bytes20(_metadata[_start:_end]));
+    }
+
     function validators(bytes calldata _metadata)
         internal
         pure
-        returns (address[] memory)
+        returns (bytes calldata)
     {
-        uint256 _signaturesEnd = 1152 + (threshold(_metadata) + 1) * 65;
-        return
-            abi.decode(_metadata[_signaturesEnd:_metadata.length], (address[]));
+        uint256 _start = 1152 + (threshold(_metadata)) * 65;
+        uint256 _end = _metadata.length;
+        return _metadata[_start:_end];
     }
 }

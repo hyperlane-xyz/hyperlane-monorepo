@@ -3,9 +3,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { Validator, types } from '@hyperlane-xyz/utils';
-import { MerkleProof } from '@hyperlane-xyz/utils/dist/src/types';
-import { formatMultisigModuleMetadata } from '@hyperlane-xyz/utils/dist/src/utils';
+import { Validator } from '@hyperlane-xyz/utils';
 
 import {
   TestMailbox,
@@ -13,19 +11,21 @@ import {
   TestMultisigModule,
   TestMultisigModule__factory,
 } from '../../types';
-import { dispatchMessageAndReturnProof } from '../lib/mailboxes';
+import {
+  dispatchMessageAndReturnMetadata,
+  getCommitment,
+} from '../lib/mailboxes';
 
-// import { signCheckpoint } from './utils';
-
-const OUTBOX_DOMAIN = 1234;
+const ORIGIN_DOMAIN = 1234;
+const DESTINATION_DOMAIN = 4321;
 // const QUORUM_THRESHOLD = 1;
-const MAILBOX_ADDRESS = '0xc541ddb5c50b47b694819626c167d5fcbca57c09';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
 // const domainHashTestCases = require('../../../../vectors/domainHash.json');
 
 describe.only('MultisigModule', async () => {
   let multisigModule: TestMultisigModule,
+    mailbox: TestMailbox,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress,
     validator0: Validator,
@@ -36,26 +36,29 @@ describe.only('MultisigModule', async () => {
   before(async () => {
     const signers = await ethers.getSigners();
     [signer, nonOwner] = signers;
+    const version = 0;
+    const mailboxFactory = new TestMailbox__factory(signer);
+    mailbox = await mailboxFactory.deploy(ORIGIN_DOMAIN, version);
     validator0 = await Validator.fromSigner(
       signers[2],
-      OUTBOX_DOMAIN,
-      MAILBOX_ADDRESS,
+      ORIGIN_DOMAIN,
+      mailbox.address,
     );
     validator1 = await Validator.fromSigner(
       signers[3],
-      OUTBOX_DOMAIN,
-      MAILBOX_ADDRESS,
+      ORIGIN_DOMAIN,
+      mailbox.address,
     );
     validator2 = await Validator.fromSigner(
       signers[4],
-      OUTBOX_DOMAIN,
-      MAILBOX_ADDRESS,
+      ORIGIN_DOMAIN,
+      mailbox.address,
     );
     /*
     validator3 = await Validator.fromSigner(
       signers[5],
-      OUTBOX_DOMAIN,
-      MAILBOX_ADDRESS,
+      ORIGIN_DOMAIN,
+      mailbox.address,
     );
     */
   });
@@ -64,7 +67,8 @@ describe.only('MultisigModule', async () => {
     const multisigModuleFactory = new TestMultisigModule__factory(signer);
     multisigModule = await multisigModuleFactory.deploy();
     // Enroll a single validator for testing purposes
-    await multisigModule.enrollValidator(OUTBOX_DOMAIN, validator0.address);
+    await multisigModule.enrollValidator(ORIGIN_DOMAIN, validator0.address);
+    await multisigModule.setThreshold(ORIGIN_DOMAIN, 1);
   });
 
   describe('#constructor', () => {
@@ -76,25 +80,29 @@ describe.only('MultisigModule', async () => {
   // TODO: Verify commitment in event
   describe('#enrollValidator', () => {
     it('enrolls a validator into the validator set', async () => {
-      await multisigModule.enrollValidator(OUTBOX_DOMAIN, validator1.address);
+      await multisigModule.enrollValidator(ORIGIN_DOMAIN, validator1.address);
 
-      expect(await multisigModule.validators(OUTBOX_DOMAIN)).to.deep.equal([
+      expect(await multisigModule.validators(ORIGIN_DOMAIN)).to.deep.equal([
         validator0.address,
         validator1.address,
       ]);
     });
 
     it('emits the ValidatorEnrolled event', async () => {
+      const expectedCommitment = getCommitment(1, [
+        validator0.address,
+        validator1.address,
+      ]);
       expect(
-        await multisigModule.enrollValidator(OUTBOX_DOMAIN, validator1.address),
+        await multisigModule.enrollValidator(ORIGIN_DOMAIN, validator1.address),
       )
         .to.emit(multisigModule, 'ValidatorEnrolled')
-        .withArgs(validator1.address, 2);
+        .withArgs(ORIGIN_DOMAIN, validator1.address, 2, expectedCommitment);
     });
 
     it('reverts if the validator is already enrolled', async () => {
       await expect(
-        multisigModule.enrollValidator(OUTBOX_DOMAIN, validator0.address),
+        multisigModule.enrollValidator(ORIGIN_DOMAIN, validator0.address),
       ).to.be.revertedWith('already enrolled');
     });
 
@@ -102,7 +110,7 @@ describe.only('MultisigModule', async () => {
       await expect(
         multisigModule
           .connect(nonOwner)
-          .enrollValidator(OUTBOX_DOMAIN, validator1.address),
+          .enrollValidator(ORIGIN_DOMAIN, validator1.address),
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
@@ -110,39 +118,40 @@ describe.only('MultisigModule', async () => {
   describe('#unenrollValidator', () => {
     beforeEach(async () => {
       // Enroll a second validator
-      await multisigModule.enrollValidator(OUTBOX_DOMAIN, validator1.address);
+      await multisigModule.enrollValidator(ORIGIN_DOMAIN, validator1.address);
     });
 
     it('unenrolls a validator from the validator set', async () => {
-      await multisigModule.unenrollValidator(OUTBOX_DOMAIN, validator1.address);
+      await multisigModule.unenrollValidator(ORIGIN_DOMAIN, validator1.address);
 
-      expect(await multisigModule.validators(OUTBOX_DOMAIN)).to.deep.equal([
+      expect(await multisigModule.validators(ORIGIN_DOMAIN)).to.deep.equal([
         validator0.address,
       ]);
     });
 
-    it('emits the UnenrollValidator event', async () => {
+    it('emits the ValidatorUnenrolled event', async () => {
+      const expectedCommitment = getCommitment(1, [validator0.address]);
       expect(
         await multisigModule.unenrollValidator(
-          OUTBOX_DOMAIN,
+          ORIGIN_DOMAIN,
           validator1.address,
         ),
       )
         .to.emit(multisigModule, 'ValidatorUnenrolled')
-        .withArgs(validator1.address, 1);
+        .withArgs(ORIGIN_DOMAIN, validator1.address, 1, expectedCommitment);
     });
 
     it('reverts if the resulting validator set size will be less than the quorum threshold', async () => {
-      await multisigModule.setThreshold(OUTBOX_DOMAIN, 2);
+      await multisigModule.setThreshold(ORIGIN_DOMAIN, 2);
 
       await expect(
-        multisigModule.unenrollValidator(OUTBOX_DOMAIN, validator1.address),
+        multisigModule.unenrollValidator(ORIGIN_DOMAIN, validator1.address),
       ).to.be.revertedWith('violates quorum threshold');
     });
 
     it('reverts if the validator is not already enrolled', async () => {
       await expect(
-        multisigModule.unenrollValidator(OUTBOX_DOMAIN, validator2.address),
+        multisigModule.unenrollValidator(ORIGIN_DOMAIN, validator2.address),
       ).to.be.revertedWith('!enrolled');
     });
 
@@ -150,7 +159,7 @@ describe.only('MultisigModule', async () => {
       await expect(
         multisigModule
           .connect(nonOwner)
-          .unenrollValidator(OUTBOX_DOMAIN, validator1.address),
+          .unenrollValidator(ORIGIN_DOMAIN, validator1.address),
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
@@ -159,78 +168,86 @@ describe.only('MultisigModule', async () => {
     beforeEach(async () => {
       // Have 2 validators to allow us to have more than 1 valid
       // quorum threshold
-      await multisigModule.enrollValidator(OUTBOX_DOMAIN, validator1.address);
+      await multisigModule.enrollValidator(ORIGIN_DOMAIN, validator1.address);
     });
 
     it('sets the quorum threshold', async () => {
-      await multisigModule.setThreshold(OUTBOX_DOMAIN, 2);
+      await multisigModule.setThreshold(ORIGIN_DOMAIN, 2);
 
-      expect(await multisigModule.threshold(OUTBOX_DOMAIN)).to.equal(2);
+      expect(await multisigModule.threshold(ORIGIN_DOMAIN)).to.equal(2);
     });
 
     it('emits the SetThreshold event', async () => {
-      expect(await multisigModule.setThreshold(OUTBOX_DOMAIN, 2))
+      const expectedCommitment = getCommitment(2, [
+        validator0.address,
+        validator1.address,
+      ]);
+      expect(await multisigModule.setThreshold(ORIGIN_DOMAIN, 2))
         .to.emit(multisigModule, 'ThresholdSet')
-        .withArgs(2);
+        .withArgs(ORIGIN_DOMAIN, 2, expectedCommitment);
     });
 
     it('reverts if the new quorum threshold is zero', async () => {
       await expect(
-        multisigModule.setThreshold(OUTBOX_DOMAIN, 0),
+        multisigModule.setThreshold(ORIGIN_DOMAIN, 0),
       ).to.be.revertedWith('!range');
     });
 
     it('reverts if the new quorum threshold is greater than the validator set size', async () => {
       await expect(
-        multisigModule.setThreshold(OUTBOX_DOMAIN, 3),
+        multisigModule.setThreshold(ORIGIN_DOMAIN, 3),
       ).to.be.revertedWith('!range');
     });
 
     it('reverts when called by a non-owner', async () => {
       await expect(
-        multisigModule.connect(nonOwner).setThreshold(OUTBOX_DOMAIN, 2),
+        multisigModule.connect(nonOwner).setThreshold(ORIGIN_DOMAIN, 2),
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
 
   describe('#validatorCount', () => {
     it('returns the number of validators enrolled in the validator set', async () => {
-      expect(await multisigModule.validatorCount(OUTBOX_DOMAIN)).to.equal(1);
+      expect(await multisigModule.validatorCount(ORIGIN_DOMAIN)).to.equal(1);
     });
   });
 
-  describe('#verifyMerkleProof', () => {
-    let proof: MerkleProof,
-      message: string,
-      checkpoint: types.Checkpoint,
-      mailbox: TestMailbox;
-    before(async () => {
-      const localDomain = 1000;
-      const version = 0;
-      const mailboxFactory = new TestMailbox__factory(signer);
-      mailbox = await mailboxFactory.deploy(localDomain, version);
-      const recipient = '0x1234567890123456789012345678901234567890'; // random address
-      ({ proof, message } = await dispatchMessageAndReturnProof(
-        mailbox,
-        localDomain,
-        recipient,
-        'hello world',
-      ));
-      const root = await mailbox.root();
-      const index = await mailbox.count();
-      checkpoint = { root, index: index.toNumber(), signature: '' };
+  describe('#verify', () => {
+    let metadata: string, message: string;
+    beforeEach(async () => {
+      await multisigModule.enrollValidator(ORIGIN_DOMAIN, validator1.address);
+      await multisigModule.setThreshold(ORIGIN_DOMAIN, 2);
     });
 
-    it('returns true when a valid proof is provided', async () => {
-      const metadata = formatMultisigModuleMetadata(
-        checkpoint,
-        mailbox.address,
-        proof,
-        [], // Signatures are unused
-        [], // Addresses are unused
-      );
-      expect(await multisigModule.verifyMerkleProof(metadata, message)).to.be
-        .true;
+    before(async () => {
+      const validators = [validator0, validator1];
+      const recipient = '0x1234567890123456789012345678901234567890'; // random address
+      ({ message, metadata } = await dispatchMessageAndReturnMetadata(
+        mailbox,
+        DESTINATION_DOMAIN,
+        recipient,
+        'hello world',
+        validators,
+      ));
+    });
+
+    it('returns true when valid metadata is provided', async () => {
+      expect(await multisigModule.verify(metadata, message)).to.be.true;
+    });
+
+    describe('#verifyMerkleProof', () => {
+      it('returns true when a valid proof is provided', async () => {
+        expect(await multisigModule.verifyMerkleProof(metadata, message)).to.be
+          .true;
+      });
+    });
+
+    describe('#verifyValidatorSignatures', () => {
+      it('returns true when valid signatures are provided', async () => {
+        expect(
+          await multisigModule.verifyValidatorSignatures(metadata, message),
+        ).to.be.true;
+      });
     });
   });
 
@@ -241,10 +258,10 @@ describe.only('MultisigModule', async () => {
 
     beforeEach(async () => {
       // Have 3 validators and a quorum of 2
-      await multisigModule.enrollValidator(OUTBOX_DOMAIN, validator1.address);
-      await multisigModule.enrollValidator(OUTBOX_DOMAIN, validator2.address);
+      await multisigModule.enrollValidator(ORIGIN_DOMAIN, validator1.address);
+      await multisigModule.enrollValidator(ORIGIN_DOMAIN, validator2.address);
 
-      await multisigModule.setThreshold(OUTBOX_DOMAIN, 2);
+      await multisigModule.setThreshold(ORIGIN_DOMAIN, 2);
     });
 
     it('returns true when there is a quorum', async () => {

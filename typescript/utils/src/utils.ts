@@ -7,7 +7,6 @@ import {
   HexString,
   MerkleProof,
   ParsedMessage,
-  SignatureLike,
 } from './types';
 
 export function assert(predicate: any, errorMessage?: string) {
@@ -76,9 +75,10 @@ export const formatMultisigModuleMetadata = (
   checkpoint: Checkpoint,
   originMailbox: Address,
   proof: MerkleProof,
-  signatures: SignatureLike[],
+  signatures: string[],
   addresses: Address[],
 ): string => {
+  console.log('addresses', addresses);
   return ethers.utils.solidityPack(
     [
       'bytes32',
@@ -87,7 +87,7 @@ export const formatMultisigModuleMetadata = (
       'bytes32[32]',
       'uint256',
       'bytes',
-      'bytes',
+      'address[]',
     ],
     [
       checkpoint.root,
@@ -95,8 +95,8 @@ export const formatMultisigModuleMetadata = (
       addressToBytes32(originMailbox),
       proof.branch,
       signatures.length,
-      ensure0x(signatures.join('')),
-      ensure0x(addresses.join('')),
+      ethers.utils.hexConcat(signatures),
+      addresses,
     ],
   );
 };

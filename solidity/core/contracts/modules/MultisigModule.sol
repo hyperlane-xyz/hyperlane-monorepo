@@ -11,6 +11,7 @@ import {IMultisigModule} from "../../interfaces/IMultisigModule.sol";
 import {Message} from "../libs/Message.sol";
 import {MultisigModuleMetadata} from "../libs/MultisigModuleMetadata.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
+import "hardhat/console.sol";
 
 /**
  * @title MultisigModule
@@ -233,19 +234,16 @@ contract MultisigModule is IMultisigModule, Ownable {
         bytes calldata _message
     ) internal view returns (bool) {
         uint256 _threshold = _metadata.threshold();
-        address[] memory _validators = _metadata.validators();
         bytes32 _digest;
         {
             uint32 _origin = _message.origin();
-            // Ensures _validators is sorted by ascending address.
-            require(
-                keccak256(abi.encode(_threshold, _validators)) ==
-                    setCommitment[_origin]
+            bytes32 _commitment = keccak256(
+                abi.encodePacked(_threshold, _metadata.validators())
             );
+            // Ensures _validators is sorted by ascending address.
+            require(_commitment == setCommitment[_origin], "!commitment");
             _digest = _signedDigest(_metadata, _origin);
         }
-
-        uint256 _validatorCount = _validators.length;
         uint256 _validatorIndex = 0;
         // looking for signers within validators
         // assuming that both validators and signatures are sorted
@@ -254,12 +252,12 @@ contract MultisigModule is IMultisigModule, Ownable {
             // looping through remaining validators to find a match
             for (
                 ;
-                _validatorIndex < _validatorCount &&
-                    _signer != _validators[_validatorIndex];
+                _validatorIndex < _threshold &&
+                    _signer != _metadata.validatorAt(_validatorIndex);
                 ++_validatorIndex
             ) {}
             // checking if we are out of validators
-            require(_validatorIndex < _validatorCount, "!threshold");
+            require(_validatorIndex < _threshold, "!threshold");
             // emit CheckpointSignature(_signature);
             // increasing validators index if match was found
             ++_validatorIndex;
@@ -296,8 +294,9 @@ contract MultisigModule is IMultisigModule, Ownable {
     function _updateCommitment(uint32 _domain) internal returns (bytes32) {
         address[] memory _validators = validators(_domain);
         uint256 _threshold = threshold[_domain];
-        bytes32 _commitment = keccak256(abi.encode(_threshold, _validators));
-        return _commitment;
+        bytes32 _commitment = keccak256(
+            abi.encodePacked(_threshold, _validators)
+        );
         setCommitment[_domain] = _commitment;
         return _commitment;
     }
