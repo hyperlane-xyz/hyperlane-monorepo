@@ -20,7 +20,7 @@ async function main() {
     provider: config.provider,
     confirmations: config.confirmations,
     overrides: config.overrides,
-    signer
+    signer,
   }));
   const multiProvider = new MultiProvider(chainProviders);
 
