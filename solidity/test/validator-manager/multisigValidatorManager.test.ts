@@ -16,7 +16,7 @@ const OUTBOX_DOMAIN = 1234;
 const QUORUM_THRESHOLD = 1;
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-const domainHashTestCases = require('../../../../vectors/domainHash.json');
+const domainHashTestCases = require('../../../vectors/domainHash.json');
 
 describe('MultisigValidatorManager', async () => {
   let validatorManager: TestMultisigValidatorManager,

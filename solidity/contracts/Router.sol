@@ -3,10 +3,10 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {AbacusConnectionClient} from "./AbacusConnectionClient.sol";
-import {IAbacusConnectionManager} from "@hyperlane-xyz/core/interfaces/IAbacusConnectionManager.sol";
-import {IInterchainGasPaymaster} from "@hyperlane-xyz/core/interfaces/IInterchainGasPaymaster.sol";
-import {IMessageRecipient} from "@hyperlane-xyz/core/interfaces/IMessageRecipient.sol";
-import {IOutbox} from "@hyperlane-xyz/core/interfaces/IOutbox.sol";
+import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.sol";
+import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
+import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
+import {IOutbox} from "../interfaces/IOutbox.sol";
 
 abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     string constant NO_ROUTER_ENROLLED_REVERT_MESSAGE =

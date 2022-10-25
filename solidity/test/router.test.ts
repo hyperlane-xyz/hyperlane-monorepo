@@ -4,6 +4,8 @@ import { expect } from 'chai';
 import { ContractTransaction } from 'ethers';
 import { ethers } from 'hardhat';
 
+import { utils } from '@hyperlane-xyz/utils';
+
 import {
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
@@ -14,9 +16,7 @@ import {
   TestInbox,
   TestInbox__factory,
   TestMultisigValidatorManager__factory,
-} from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
-
+} from '../types';
 import { TestRouter, TestRouter__factory } from '../types';
 
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
