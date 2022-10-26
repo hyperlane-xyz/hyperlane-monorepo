@@ -4,7 +4,12 @@ use std::{alloc, mem};
 
 use crunchy::unroll;
 
+/// This is a lookup table that can be used to take a single hex digit's value
+/// and index it to the associated ASCII/UTF-8 value.
 const TO_HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
+
+/// This is a lookup table that can be used to take an ASCII/UTF-8 encoded char
+/// value as an index value and get the associated parsed hex value.
 const FROM_HEX_CHARS: [u8; 256] = [
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -24,6 +29,7 @@ const FROM_HEX_CHARS: [u8; 256] = [
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 ];
 
+/// Checks if a byte slice fits within 160 bits.
 pub const fn is_h160<const S: usize>(data: &[u8; S]) -> bool {
     assert!(S <= 32);
     if S <= 20 {
@@ -42,6 +48,8 @@ pub const fn is_h160<const S: usize>(data: &[u8; S]) -> bool {
     }
 }
 
+/// This formats a 160bit byte slice as a lowercase hex string without any
+/// prefixing (will include leading zeros).
 pub fn format_h160_raw(data: &[u8; 20]) -> String {
     unsafe {
         let encoded: *mut u8 =
@@ -58,6 +66,8 @@ pub fn format_h160_raw(data: &[u8; 20]) -> String {
     }
 }
 
+/// This formats a 256bit byte slice as a lowercase hex string without any
+/// prefixing (will include leading zeros).
 pub fn format_h256_raw(data: &[u8; 32]) -> String {
     unsafe {
         let encoded: *mut u8 =
@@ -74,6 +84,8 @@ pub fn format_h256_raw(data: &[u8; 32]) -> String {
     }
 }
 
+/// Parse a 256 bits from an unprefixed hex string. This will read the string
+/// into the least significant bytes if it is shorter. For now, L <= 64.
 pub const fn parse_h256_raw<const L: usize>(
     data: &[u8; L],
 ) -> Result<[u8; 32], InvalidHexCharacter> {
@@ -107,6 +119,8 @@ pub const fn parse_h256_raw<const L: usize>(
     }
 }
 
+/// An invalid hex char was discovered in the input when attempting to parse the
+/// string.
 pub struct InvalidHexCharacter {
     pub value: u8,
     pub index: usize,
