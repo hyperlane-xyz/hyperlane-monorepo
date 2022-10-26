@@ -31,7 +31,7 @@ async function main() {
     multiProvider,
     configMap,
     core,
-    'ica1',
+    'ica2',
   );
 
   await deployWithArtifacts(dir, interchainAccountFactories, deployer);

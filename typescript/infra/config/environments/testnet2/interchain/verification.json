@@ -2,21 +2,7 @@
   "alfajores": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
-      "isProxy": false,
-      "constructorArguments": ""
-    },
-    {
-      "name": "router",
-      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
-      "isProxy": false,
-      "constructorArguments": ""
-    }
-  ],
-  "kovan": [
-    {
-      "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -24,13 +10,7 @@
   "fuji": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
-      "isProxy": false,
-      "constructorArguments": ""
-    },
-    {
-      "name": "router",
-      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -38,13 +18,7 @@
   "mumbai": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
-      "isProxy": false,
-      "constructorArguments": ""
-    },
-    {
-      "name": "router",
-      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -52,29 +26,7 @@
   "bsctestnet": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
-      "isProxy": false,
-      "constructorArguments": ""
-    },
-    {
-      "name": "router",
-      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
-      "isProxy": false,
-      "constructorArguments": ""
-    }
-  ],
-  "arbitrumrinkeby": [
-    {
-      "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
-      "isProxy": false,
-      "constructorArguments": ""
-    }
-  ],
-  "optimismkovan": [
-    {
-      "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -82,13 +34,7 @@
   "goerli": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
-      "isProxy": false,
-      "constructorArguments": ""
-    },
-    {
-      "name": "router",
-      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -96,29 +42,23 @@
   "moonbasealpha": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
-      "isProxy": false,
-      "constructorArguments": ""
-    },
-    {
-      "name": "router",
-      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
   ],
   "optimismgoerli": [
     {
-      "name": "router",
-      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
+      "name": "InterchainAccountRouter",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
   ],
   "arbitrumgoerli": [
     {
-      "name": "router",
-      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
+      "name": "InterchainAccountRouter",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }

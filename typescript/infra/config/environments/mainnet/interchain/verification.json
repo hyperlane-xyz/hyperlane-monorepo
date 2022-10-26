@@ -2,7 +2,7 @@
   "bsc": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -10,7 +10,7 @@
   "avalanche": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -18,7 +18,7 @@
   "polygon": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -26,7 +26,7 @@
   "celo": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -34,7 +34,7 @@
   "arbitrum": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -42,7 +42,7 @@
   "optimism": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -50,7 +50,15 @@
   "ethereum": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "moonbeam": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
       "isProxy": false,
       "constructorArguments": ""
     }
