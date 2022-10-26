@@ -11,8 +11,6 @@ import {
 
 import { BeaconProxyAddresses, ProxiedContract } from '../proxy';
 
-export type MailboxContracts = {};
-
 type ConnectionClientContracts = {
   interchainGasPaymaster: ProxiedContract<
     InterchainGasPaymaster,
@@ -22,7 +20,7 @@ type ConnectionClientContracts = {
 
 export type CoreContracts = ConnectionClientContracts & {
   mailbox: ProxiedContract<Mailbox, BeaconProxyAddresses>;
-  defaultModule: MultisigModule;
+  multisigModule: MultisigModule;
   upgradeBeaconController: UpgradeBeaconController;
 };
 

@@ -75,14 +75,6 @@ export const alfajores: IChainConnection = {
   apiPrefix: 'api-',
 };
 
-export const auroratestnet: IChainConnection = {
-  provider: new ethers.providers.JsonRpcProvider(
-    'https://testnet.aurora.dev',
-    1313161555,
-  ),
-  confirmations: 1,
-};
-
 export const fuji: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'https://api.avax-test.network/ext/bc/C/rpc',
@@ -169,7 +161,6 @@ export const test3: IChainConnection = {
 
 export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   arbitrum,
-  auroratestnet,
   bsc,
   ethereum,
   celo,

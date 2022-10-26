@@ -16,7 +16,7 @@ const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ValidatorManager
 const testMultisigModuleConfig: CoreConfig = {
-  defaultModule: {
+  multisigModule: {
     validators: [nonZeroAddress],
     threshold: 1,
   },

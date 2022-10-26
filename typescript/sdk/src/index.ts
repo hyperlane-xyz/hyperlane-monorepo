@@ -89,8 +89,9 @@ export { HyperlaneCoreChecker } from './deploy/core/HyperlaneCoreChecker';
 export {
   CoreConfig,
   CoreViolationType,
-  ConnectionManagerViolationType,
   EnrolledValidatorsViolation,
+  MultisigModuleViolation,
+  MultisigModuleViolationType,
 } from './deploy/core/types';
 export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export { UpgradeBeaconViolation } from './deploy/proxy';

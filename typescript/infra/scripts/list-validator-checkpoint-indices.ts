@@ -1,4 +1,7 @@
-import { ChainNameToDomainId } from '@hyperlane-xyz/sdk';
+import {
+  ChainNameToDomainId,
+  hyperlaneCoreAddresses,
+} from '@hyperlane-xyz/sdk';
 
 import { S3Validator } from '../src/agents/aws/validator';
 import { concurrentMap } from '../src/utils/utils';
@@ -26,6 +29,8 @@ async function main() {
         validator.address,
         // @ts-ignore
         ChainNameToDomainId[chain],
+        // @ts-ignore
+        hyperlaneCoreAddresses[chain].mailbox,
         // @ts-ignore
         `https://${validator.checkpointSyncer.bucket!}.s3.${
           // @ts-ignore

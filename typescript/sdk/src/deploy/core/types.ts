@@ -10,7 +10,7 @@ export type MultisigModuleConfig = {
 };
 
 export type CoreConfig = {
-  defaultModule: MultisigModuleConfig;
+  multisigModule: MultisigModuleConfig;
   owner?: types.Address;
   remove?: boolean;
 };
@@ -24,10 +24,6 @@ export enum CoreViolationType {
 export enum MultisigModuleViolationType {
   EnrolledValidators = 'EnrolledValidators',
   Threshold = 'Threshold',
-}
-
-export enum ConnectionManagerViolationType {
-  EnrolledInboxes = 'EnrolledInboxes',
 }
 
 export enum MailboxViolationType {
@@ -48,7 +44,7 @@ export interface MailboxMultisigModuleViolation extends MailboxViolation {
 export interface MultisigModuleViolation extends CheckerViolation {
   type: CoreViolationType.MultisigModule;
   contract: MultisigModule;
-  moduleType: MultisigModuleViolationType;
+  subType: MultisigModuleViolationType;
   remote: ChainName;
 }
 

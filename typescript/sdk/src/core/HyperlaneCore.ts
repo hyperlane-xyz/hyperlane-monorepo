@@ -26,6 +26,7 @@ export type CoreContractsMap<Chain extends ChainName> = {
 };
 
 export type DispatchedMessage = {
+  id: string;
   message: string;
   parsed: types.ParsedMessage;
 };
@@ -148,8 +149,9 @@ export class HyperlaneCore<
     }
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
+      const id = log.args['messageId'];
       const parsed = utils.parseMessage(message);
-      return { leafIndex: log.args['leafIndex'], message, parsed };
+      return { id, message, parsed };
     });
   }
 

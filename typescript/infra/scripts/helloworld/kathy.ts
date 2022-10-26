@@ -410,11 +410,8 @@ async function messageIsProcessed(
   destination: ChainName,
   message: DispatchedMessage,
 ): Promise<boolean> {
-  const { destinationInbox: inbox } = core.getMailboxPair(origin, destination);
-  const messageHash = utils.messageHash(message.message, message.leafIndex);
-  const status = await inbox.messages(messageHash);
-  // Return if the status is MessageStatus.Processed
-  return status === 1;
+  const destinationMailbox = core.getContracts(destination).mailbox.contract;
+  return destinationMailbox.delivered(message.id);
 }
 
 async function updateWalletBalanceMetricFor(

@@ -19,29 +19,18 @@ const chainSummary = async <Chain extends ChainName>(
   chain: Chain,
 ) => {
   const coreContracts = core.getContracts(chain);
-  const outbox = coreContracts.outbox.contract;
-  const count = (await outbox.tree()).toNumber();
-
-  const inboxSummary = async (remote: Chain) => {
-    const remoteContracts = core.getContracts(remote);
-    const inbox =
-      remoteContracts.inboxes[chain as Exclude<Chain, Chain>].inbox.contract;
-    const processFilter = inbox.filters.Process();
-    const processes = await inbox.queryFilter(processFilter);
-    return {
-      chain: remote,
-      processed: processes.length,
-    };
-  };
+  const mailbox = coreContracts.mailbox.contract;
+  const dispatched = (await mailbox.count()).toNumber();
+  // TODO: Allow processed messages to be filtered by
+  // origin, possibly sender and recipient.
+  const processFilter = mailbox.filters.Process();
+  const processes = await mailbox.queryFilter(processFilter);
+  const processed = processes.length;
 
   const summary = {
     chain,
-    outbox: {
-      count,
-    },
-    inboxes: await Promise.all(
-      core.remoteChains(chain).map((remote) => inboxSummary(remote)),
-    ),
+    dispatched,
+    processed,
   };
   return summary;
 };
@@ -85,13 +74,13 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remote: ChainName = randomElement(core.remoteChains(local));
         const remoteId = ChainNameToDomainId[remote];
         const coreContracts = core.getContracts(local);
-        const outbox = coreContracts.outbox.contract;
+        const mailbox = coreContracts.mailbox.contract;
         const paymaster = coreContracts.interchainGasPaymaster;
         // Send a batch of messages to the destination chain to test
         // the relayer submitting only greedily
         for (let i = 0; i < 10; i++) {
           await recipient.dispatchToSelf(
-            outbox.address,
+            mailbox.address,
             paymaster.address,
             remoteId,
             '0x1234',
@@ -104,9 +93,9 @@ task('kathy', 'Dispatches random hyperlane messages')
             },
           );
           console.log(
-            `send to ${recipient.address} on ${remote} via outbox ${
-              outbox.address
-            } at index ${(await outbox.count()).toNumber() - 1}`,
+            `send to ${recipient.address} on ${remote} via mailbox ${
+              mailbox.address
+            } with nonce ${(await mailbox.count()).toNumber() - 1}`,
           );
           console.log(await chainSummary(core, local));
           await sleep(timeout);

@@ -64,7 +64,7 @@ export class HyperlaneCoreDeployer<
     return mailbox;
   }
 
-  async deployModule<LocalChain extends Chain>(
+  async deployMultisigModule<LocalChain extends Chain>(
     chain: LocalChain,
     // config: MultisigModuleConfig
   ): Promise<MultisigModule> {
@@ -107,11 +107,11 @@ export class HyperlaneCoreDeployer<
       [],
     );
 
-    const defaultModule = await this.deployModule(chain);
+    const multisigModule = await this.deployMultisigModule(chain);
 
     const mailbox = await this.deployMailbox(
       chain,
-      defaultModule.address,
+      multisigModule.address,
       upgradeBeaconController.address,
     );
 
@@ -119,7 +119,7 @@ export class HyperlaneCoreDeployer<
       upgradeBeaconController,
       interchainGasPaymaster,
       mailbox,
-      defaultModule,
+      multisigModule,
     };
   }
 
@@ -146,7 +146,7 @@ export class HyperlaneCoreDeployer<
   ): Promise<ethers.ContractReceipt[]> {
     const ownables: Ownable[] = [
       // coreContracts.mailbox.contract,
-      coreContracts.defaultModule,
+      coreContracts.multisigModule,
       coreContracts.upgradeBeaconController,
     ];
     return Promise.all(

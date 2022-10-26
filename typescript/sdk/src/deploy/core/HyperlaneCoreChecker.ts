@@ -36,7 +36,7 @@ export class HyperlaneCoreChecker<
       const ownables = [
         contracts.upgradeBeaconController,
         // contracts.mailbox.contract,
-        contracts.defaultModule,
+        contracts.multisigModule,
       ];
       return this.checkOwnership(chain, config.owner, ownables);
     }
@@ -49,7 +49,7 @@ export class HyperlaneCoreChecker<
     utils.assert(localDomain === ChainNameToDomainId[chain]);
 
     const actualModule = await mailbox.defaultModule();
-    const expectedModule = contracts.defaultModule.address;
+    const expectedModule = contracts.multisigModule.address;
     if (actualModule !== expectedModule) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
