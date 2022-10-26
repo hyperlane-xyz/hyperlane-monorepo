@@ -5,8 +5,9 @@ import { Mailbox, MultisigModule, Ownable } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
-import { CoreContractsMap, HyperlaneCore } from '../../core/HyperlaneCore';
+import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { CoreContracts, coreFactories } from '../../core/contracts';
+import { ChainNameToDomainId } from '../../domains';
 import { ChainConnection } from '../../providers/ChainConnection';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { BeaconProxyAddresses, ProxiedContract } from '../../proxy';
@@ -40,13 +41,6 @@ export class HyperlaneCoreDeployer<
     this.version = version;
   }
 
-  // override return type for inboxes shape derived from chain
-  async deploy(
-    partialDeployment?: Partial<CoreContractsMap<Chain>>,
-  ): Promise<CoreContractsMap<Chain>> {
-    return super.deploy(partialDeployment) as Promise<CoreContractsMap<Chain>>;
-  }
-
   async deployMailbox<LocalChain extends Chain>(
     chain: LocalChain,
     moduleAddress: types.Address,
@@ -66,16 +60,36 @@ export class HyperlaneCoreDeployer<
 
   async deployMultisigModule<LocalChain extends Chain>(
     chain: LocalChain,
-    // config: MultisigModuleConfig
   ): Promise<MultisigModule> {
-    // const domain = chainMetadata[chain].id;
     const module = await this.deployContract(chain, 'multisigModule', []);
-    /*
-    await module.setThreshold(domain, config.threshold);
-    for (const validator of config.validators) {
-      await module.enroll
-    }
-    */
+    const configChains = Object.keys(this.configMap) as Chain[];
+    const remotes = this.multiProvider
+      .intersect(configChains, false)
+      .multiProvider.remoteChains(chain);
+    await super.runIfOwner(chain, module, async () => {
+      // TODO: Remove extraneous validators
+      for (const remote of remotes) {
+        const moduleConfig = this.configMap[remote].multisigModule;
+        const domain = ChainNameToDomainId[remote];
+        for (const validator of moduleConfig.validators) {
+          const isValidator = await module.isValidator(domain, validator);
+          if (!isValidator) {
+            this.logger(
+              `Enrolling ${validator} as ${remote} validator on ${chain}`,
+            );
+            await module.enrollValidator(domain, validator);
+          }
+        }
+        const threshold = await module.threshold(domain);
+        if (!threshold.eq(moduleConfig.threshold)) {
+          this.logger(
+            `Setting ${remote} threshold to ${moduleConfig.threshold} on ${chain}`,
+          );
+          await module.setThreshold(domain, moduleConfig.threshold);
+        }
+      }
+    });
+
     return module;
   }
 

@@ -83,7 +83,7 @@ export class EnvSubsetDeployer<
     const contractsMap = (await HyperlaneDeployer.prototype.deploy.apply(
       this,
     )) as Record<Chain, RouterContracts>;
-    // await this.initRouter(contractsMap);
+    await this.initRouter(contractsMap);
     await this.enrollRemoteRouters(contractsMap);
     return contractsMap;
   }

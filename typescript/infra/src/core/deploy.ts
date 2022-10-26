@@ -49,6 +49,6 @@ export class HyperlaneCoreInfraDeployer<
       }
       rustConfig.chains[chain] = chainConfig;
     });
-    writeJSON(directory, `${environment}_rust_config.json`, rustConfig);
+    writeJSON(directory, 'rust_config.json', rustConfig);
   }
 }

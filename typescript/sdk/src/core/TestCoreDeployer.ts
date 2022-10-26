@@ -1,6 +1,10 @@
 import { ethers } from 'ethers';
 
-import { TestMailbox, TestMailbox__factory } from '@hyperlane-xyz/core';
+import {
+  TestMailbox,
+  TestMailbox__factory,
+  TestModule__factory,
+} from '@hyperlane-xyz/core';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
@@ -25,6 +29,7 @@ const testMultisigModuleConfig: CoreConfig = {
 const testCoreFactories = {
   ...coreFactories,
   mailbox: new TestMailbox__factory(),
+  testModule: new TestModule__factory(),
 };
 
 export class TestCoreDeployer<
@@ -34,6 +39,7 @@ export class TestCoreDeployer<
     public readonly multiProvider: MultiProvider<TestChain>,
     configMap?: ChainMap<TestChain, CoreConfig>,
   ) {
+    // Note that the multisig module configs are unused.
     const configs =
       configMap ??
       ({
@@ -50,12 +56,20 @@ export class TestCoreDeployer<
     chain: LocalChain,
   ): Promise<ProxiedContract<TestMailbox, BeaconProxyAddresses>> {
     const localDomain = chainMetadata[chain].id;
-    // TODO: Configure multisigzone
+
+    const testModule = await this.deployContractFromFactory(
+      chain,
+      testCoreFactories.testModule,
+      'testModule',
+      [],
+    );
+    await testModule.setAccept(true);
+
     const mailbox = await this.deployContract(chain, 'mailbox', [
       localDomain,
       this.version,
     ]);
-    // await outboxContract.initialize(outboxValidatorManager.address);
+    await mailbox.initialize(testModule.address);
     return new ProxiedContract(mailbox, {
       kind: ProxyKind.UpgradeBeacon,
       proxy: mailbox.address,

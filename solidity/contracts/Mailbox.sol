@@ -12,7 +12,6 @@ import {IMailbox} from "../interfaces/IMailbox.sol";
 
 // ============ External Imports ============
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import "hardhat/console.sol";
 
 contract Mailbox is IMailbox, ReentrancyGuardUpgradeable, Versioned {
     // ============ Libraries ============
