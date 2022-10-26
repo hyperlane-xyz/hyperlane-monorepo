@@ -1418,7 +1418,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#7bbb8084d66b98f2a072be5e137c429ccf504944"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#dd2036a51b009d73a9d6a0aaf9185909a69a6e6d"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -1432,7 +1432,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#7bbb8084d66b98f2a072be5e137c429ccf504944"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#dd2036a51b009d73a9d6a0aaf9185909a69a6e6d"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -1443,7 +1443,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#7bbb8084d66b98f2a072be5e137c429ccf504944"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#dd2036a51b009d73a9d6a0aaf9185909a69a6e6d"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -1461,7 +1461,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#7bbb8084d66b98f2a072be5e137c429ccf504944"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#dd2036a51b009d73a9d6a0aaf9185909a69a6e6d"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -1484,7 +1484,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#7bbb8084d66b98f2a072be5e137c429ccf504944"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#dd2036a51b009d73a9d6a0aaf9185909a69a6e6d"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -1498,7 +1498,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#7bbb8084d66b98f2a072be5e137c429ccf504944"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#dd2036a51b009d73a9d6a0aaf9185909a69a6e6d"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -1529,7 +1529,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#7bbb8084d66b98f2a072be5e137c429ccf504944"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#dd2036a51b009d73a9d6a0aaf9185909a69a6e6d"
 dependencies = [
  "ethers-core",
  "getrandom",
@@ -1545,7 +1545,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#7bbb8084d66b98f2a072be5e137c429ccf504944"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#dd2036a51b009d73a9d6a0aaf9185909a69a6e6d"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -1590,7 +1590,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#7bbb8084d66b98f2a072be5e137c429ccf504944"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#dd2036a51b009d73a9d6a0aaf9185909a69a6e6d"
 dependencies = [
  "async-trait",
  "auto_impl 1.0.1",
@@ -1626,7 +1626,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "0.17.0"
-source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#7bbb8084d66b98f2a072be5e137c429ccf504944"
+source = "git+https://github.com/abacus-network/ethers-rs?branch=trevor/gas-estimate-quorum#dd2036a51b009d73a9d6a0aaf9185909a69a6e6d"
 dependencies = [
  "async-trait",
  "coins-bip32",
