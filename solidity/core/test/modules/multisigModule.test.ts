@@ -10,6 +10,7 @@ import {
   TestMailbox__factory,
   TestMultisigModule,
   TestMultisigModule__factory,
+  TestRecipient__factory,
 } from '../../types';
 import {
   dispatchMessageAndReturnMetadata,
@@ -18,11 +19,12 @@ import {
 
 const ORIGIN_DOMAIN = 1234;
 const DESTINATION_DOMAIN = 4321;
+const version = 0;
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
 const domainHashTestCases = require('../../../../vectors/domainHash.json');
 
-describe.only('MultisigModule', async () => {
+describe('MultisigModule', async () => {
   let multisigModule: TestMultisigModule,
     mailbox: TestMailbox,
     signer: SignerWithAddress,
@@ -32,7 +34,6 @@ describe.only('MultisigModule', async () => {
   before(async () => {
     const signers = await ethers.getSigners();
     [signer, nonOwner] = signers;
-    const version = 0;
     const mailboxFactory = new TestMailbox__factory(signer);
     mailbox = await mailboxFactory.deploy(ORIGIN_DOMAIN, version);
     validators = await Promise.all(
@@ -74,7 +75,7 @@ describe.only('MultisigModule', async () => {
         ),
       )
         .to.emit(multisigModule, 'ValidatorEnrolled')
-        .withArgs(ORIGIN_DOMAIN, validators[1].address, 1, expectedCommitment);
+        .withArgs(ORIGIN_DOMAIN, validators[0].address, 1, expectedCommitment);
     });
 
     it('reverts if the validator is already enrolled', async () => {
@@ -229,7 +230,7 @@ describe.only('MultisigModule', async () => {
   });
 
   describe('#verify', () => {
-    const recipient = '0x1234567890123456789012345678901234567890'; // random address
+    let recipient;
     let metadata: string, message: string;
     beforeEach(async () => {
       // Must be done sequentially so gas estimation is correct.
@@ -240,6 +241,8 @@ describe.only('MultisigModule', async () => {
     });
 
     before(async () => {
+      const recipientF = new TestRecipient__factory(signer);
+      recipient = (await recipientF.deploy()).address;
       ({ message, metadata } = await dispatchMessageAndReturnMetadata(
         mailbox,
         DESTINATION_DOMAIN,
@@ -251,6 +254,16 @@ describe.only('MultisigModule', async () => {
 
     it('returns true when valid metadata is provided', async () => {
       expect(await multisigModule.verify(metadata, message)).to.be.true;
+    });
+
+    it('allows for message processing when valid metadata is provided', async () => {
+      const mailboxFactory = new TestMailbox__factory(signer);
+      const destinationMailbox = await mailboxFactory.deploy(
+        DESTINATION_DOMAIN,
+        version,
+      );
+      await destinationMailbox.initialize(multisigModule.address);
+      await destinationMailbox.process(metadata, message);
     });
 
     it.skip('reverts when not enough signatures are provided', async () => {
