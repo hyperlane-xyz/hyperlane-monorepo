@@ -112,7 +112,7 @@ macro_rules! decl_settings {
             impl abacus_base::AgentSettings for [<$name Settings>] {
                 type Error = eyre::Report;
 
-                /// See `load_setting_object` for more information about how settings are loaded.
+                /// See `load_settings_object` for more information about how settings are loaded.
                 fn new() -> Result<Self, Self::Error> {
                     abacus_base::macros::_new_settings(stringify!($name))
                 }
