@@ -40,16 +40,21 @@ contract InterchainAccountRouterTest is Test {
         originRouter = new InterchainAccountRouter();
         remoteRouter = new InterchainAccountRouter();
 
-        originRouter.initialize(msg.sender, address(originManager), msg.sender);
-        remoteRouter.initialize(msg.sender, address(remoteManager), msg.sender);
+        originRouter.initialize(
+            address(this),
+            address(originManager),
+            address(0)
+        );
+        remoteRouter.initialize(
+            address(this),
+            address(remoteManager),
+            address(0)
+        );
 
-        // IDK why its this way
-        vm.prank(originRouter.owner());
         originRouter.enrollRemoteRouter(
             remoteDomain,
             TypeCasts.addressToBytes32(address(remoteRouter))
         );
-        vm.prank(remoteRouter.owner());
         remoteRouter.enrollRemoteRouter(
             originDomain,
             TypeCasts.addressToBytes32(address(originRouter))
