@@ -39,7 +39,7 @@ abstract contract HyperlaneConnectionClient is OwnableUpgradeable {
      * @notice Only accept messages from an Hyperlane Mailbox contract
      */
     modifier onlyMailbox() {
-        require(msg.sender == address(mailbox), "!inbox");
+        require(msg.sender == address(mailbox), "!mailbox");
         _;
     }
 

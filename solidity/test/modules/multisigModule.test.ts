@@ -22,7 +22,7 @@ const DESTINATION_DOMAIN = 4321;
 const version = 0;
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-const domainHashTestCases = require('../../../../vectors/domainHash.json');
+const domainHashTestCases = require('../../../vectors/domainHash.json');
 
 describe('MultisigModule', async () => {
   let multisigModule: TestMultisigModule,

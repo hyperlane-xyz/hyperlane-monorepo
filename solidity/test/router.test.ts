@@ -7,28 +7,27 @@ import { ethers } from 'hardhat';
 import { utils } from '@hyperlane-xyz/utils';
 
 import {
-  AbacusConnectionManager,
-  AbacusConnectionManager__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
-  Outbox,
-  Outbox__factory,
-  TestInbox,
-  TestInbox__factory,
-  TestMultisigValidatorManager__factory,
+  TestMailbox,
+  TestMailbox__factory,
+  TestModule__factory,
+  TestRouter,
+  TestRouter__factory,
 } from '../types';
-import { TestRouter, TestRouter__factory } from '../types';
+
+import { messageValues } from './lib/mailboxes';
 
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 const origin = 1;
 const destination = 2;
 const destinationWithoutRouter = 3;
-const message = '0xdeadbeef';
+const body = '0xdeadbeef';
+const version = 0;
 
 describe('Router', async () => {
   let router: TestRouter,
-    outbox: Outbox,
-    connectionManager: AbacusConnectionManager,
+    mailbox: TestMailbox,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
 
@@ -37,39 +36,24 @@ describe('Router', async () => {
   });
 
   beforeEach(async () => {
-    const connectionManagerFactory = new AbacusConnectionManager__factory(
-      signer,
-    );
-    connectionManager = await connectionManagerFactory.deploy();
-
-    const outboxFactory = new Outbox__factory(signer);
-    outbox = await outboxFactory.deploy(origin);
-    // dispatch dummy message
-    await outbox.dispatch(
-      destination,
-      utils.addressToBytes32(outbox.address),
-      '0x',
-    );
-    await connectionManager.setOutbox(outbox.address);
-
+    const mailboxFactory = new TestMailbox__factory(signer);
+    mailbox = await mailboxFactory.deploy(origin, version);
     router = await new TestRouter__factory(signer).deploy();
   });
 
   describe('#initialize', () => {
-    it('should set the abacus connection manager', async () => {
-      await router.initialize(connectionManager.address);
-      expect(await router.abacusConnectionManager()).to.equal(
-        connectionManager.address,
-      );
+    it('should set the mailbox', async () => {
+      await router.initialize(mailbox.address);
+      expect(await router.mailbox()).to.equal(mailbox.address);
     });
 
     it('should transfer owner to deployer', async () => {
-      await router.initialize(connectionManager.address);
+      await router.initialize(mailbox.address);
       expect(await router.owner()).to.equal(signer.address);
     });
 
     it('should use overloaded initialize', async () => {
-      await expect(router.initialize(connectionManager.address)).to.emit(
+      await expect(router.initialize(mailbox.address)).to.emit(
         router,
         'InitializeOverload',
       );
@@ -84,42 +68,32 @@ describe('Router', async () => {
   });
 
   describe('when initialized', () => {
-    let inbox: TestInbox;
-
     beforeEach(async () => {
-      await router.initialize(connectionManager.address);
-      const validatorManger = await new TestMultisigValidatorManager__factory(
-        signer,
-      ).deploy(origin, [signer.address], 1);
-      inbox = await new TestInbox__factory(signer).deploy(destination);
-      await inbox.initialize(origin, validatorManger.address);
+      await router.initialize(mailbox.address);
+      const ism = await new TestModule__factory(signer).deploy();
+      await ism.setAccept(true);
+      await mailbox.initialize(ism.address);
     });
 
-    it('accepts message from enrolled inbox and router', async () => {
-      await connectionManager.enrollInbox(origin, inbox.address);
-      const remote = utils.addressToBytes32(nonOwner.address);
-      await router.enrollRemoteRouter(origin, remote);
+    it('accepts message from enrolled mailbox and router', async () => {
+      const sender = utils.addressToBytes32(nonOwner.address);
+      await router.enrollRemoteRouter(origin, sender);
       const recipient = utils.addressToBytes32(router.address);
       // Does not revert.
-      await inbox.testHandle(origin, remote, recipient, message);
+      await mailbox.testHandle(origin, sender, recipient, body);
     });
 
-    it('rejects message from unenrolled inbox', async () => {
+    it('rejects message from unenrolled mailbox', async () => {
       await expect(
-        router.handle(
-          origin,
-          utils.addressToBytes32(nonOwner.address),
-          message,
-        ),
-      ).to.be.revertedWith('!inbox');
+        router.handle(origin, utils.addressToBytes32(nonOwner.address), body),
+      ).to.be.revertedWith('!mailbox');
     });
 
     it('rejects message from unenrolled router', async () => {
-      await connectionManager.enrollInbox(origin, inbox.address);
-      const recipient = utils.addressToBytes32(router.address);
       const sender = utils.addressToBytes32(nonOwner.address);
+      const recipient = utils.addressToBytes32(router.address);
       await expect(
-        inbox.testHandle(origin, sender, recipient, message),
+        mailbox.testHandle(origin, sender, recipient, body),
       ).to.be.revertedWith(
         `No router enrolled for domain. Did you specify the right domain ID?`,
       );
@@ -179,7 +153,7 @@ describe('Router', async () => {
 
         it('dispatches a message', async () => {
           await expect(dispatchFunction(destination)).to.emit(
-            outbox,
+            mailbox,
             'Dispatch',
           );
         });
@@ -188,14 +162,20 @@ describe('Router', async () => {
           expectGasPayment ? 'pays' : 'does not pay'
         } interchain gas`, async () => {
           const testInterchainGasPayment = 1234;
-          const leafIndex = await outbox.count();
+          const { id } = await messageValues(
+            mailbox,
+            router.address,
+            destination,
+            await router.routers(destination),
+            '',
+          );
           const assertion = expectAssertion(
             expect(dispatchFunction(destination, testInterchainGasPayment)).to,
             expectGasPayment,
           );
           await assertion
             .emit(interchainGasPaymaster, 'GasPayment')
-            .withArgs(outbox.address, leafIndex, testInterchainGasPayment);
+            .withArgs(mailbox.address, id, testInterchainGasPayment);
         });
 
         it('reverts when dispatching a message to an unenrolled remote router', async () => {

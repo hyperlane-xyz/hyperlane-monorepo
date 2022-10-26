@@ -3,24 +3,21 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
 import {
-  AbacusConnectionManager,
-  AbacusConnectionManager__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
-  Outbox__factory,
-  TestInbox__factory,
-  TestMultisigValidatorManager__factory,
+  Mailbox,
+  Mailbox__factory,
 } from '../types';
 import {
-  TestAbacusConnectionClient,
-  TestAbacusConnectionClient__factory,
+  TestHyperlaneConnectionClient,
+  TestHyperlaneConnectionClient__factory,
 } from '../types';
 
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
-describe('AbacusConnectionClient', async () => {
-  let connectionClient: TestAbacusConnectionClient,
-    connectionManager: AbacusConnectionManager,
+describe('HyperlaneConnectionClient', async () => {
+  let connectionClient: TestHyperlaneConnectionClient,
+    mailbox: Mailbox,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
 
@@ -29,16 +26,16 @@ describe('AbacusConnectionClient', async () => {
   });
 
   beforeEach(async () => {
-    const connectionManagerFactory = new AbacusConnectionManager__factory(
-      signer,
-    );
-    connectionManager = await connectionManagerFactory.deploy();
+    const mailboxFactory = new Mailbox__factory(signer);
+    const domain = 1000;
+    const version = 0;
+    mailbox = await mailboxFactory.deploy(domain, version);
 
-    const connectionClientFactory = new TestAbacusConnectionClient__factory(
+    const connectionClientFactory = new TestHyperlaneConnectionClient__factory(
       signer,
     );
     connectionClient = await connectionClientFactory.deploy();
-    await connectionClient.initialize(connectionManager.address);
+    await connectionClient.initialize(mailbox.address);
   });
 
   it('Cannot be initialized twice', async () => {
@@ -47,57 +44,20 @@ describe('AbacusConnectionClient', async () => {
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
-  it('owner can set connection manager', async () => {
-    const newConnectionManager = signer.address;
-    expect(await connectionClient.abacusConnectionManager()).to.not.equal(
-      newConnectionManager,
+  it('owner can set mailbox', async () => {
+    const newMailbox = signer.address;
+    expect(await connectionClient.mailbox()).to.not.equal(newMailbox);
+    await expect(connectionClient.setMailbox(newMailbox)).to.emit(
+      connectionClient,
+      'MailboxSet',
     );
-    await expect(
-      connectionClient.setAbacusConnectionManager(newConnectionManager),
-    ).to.emit(connectionClient, 'AbacusConnectionManagerSet');
-    expect(await connectionClient.abacusConnectionManager()).to.equal(
-      newConnectionManager,
-    );
+    expect(await connectionClient.mailbox()).to.equal(newMailbox);
   });
 
-  it('non-owner cannot set connection manager', async () => {
+  it('non-owner cannot set mailbox', async () => {
     await expect(
-      connectionClient
-        .connect(nonOwner)
-        .setAbacusConnectionManager(signer.address),
+      connectionClient.connect(nonOwner).setMailbox(signer.address),
     ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
-  });
-
-  it('returns outbox from connection manager', async () => {
-    // must be contract
-    const outbox = connectionManager.address;
-    expect(await connectionClient.outbox()).to.equal(
-      ethers.constants.AddressZero,
-    );
-    await connectionManager.setOutbox(outbox);
-    expect(await connectionClient.outbox()).to.equal(outbox);
-  });
-
-  it('returns inbox from connection manager', async () => {
-    const domain = 1;
-    const remoteDomain = 2;
-    const validatorManager = await new TestMultisigValidatorManager__factory(
-      signer,
-    ).deploy(domain, [nonOwner.address], 1);
-    const inboxContract = await new TestInbox__factory(signer).deploy(domain);
-    await inboxContract.initialize(remoteDomain, validatorManager.address);
-    const inbox = inboxContract.address;
-    expect(await connectionClient.isInbox(inbox)).to.equal(false);
-    await connectionManager.enrollInbox(domain, inbox);
-    expect(await connectionClient.isInbox(inbox)).to.equal(true);
-  });
-
-  it('returns local domain from outbox', async () => {
-    const localDomain = 3;
-    const outboxFactory = new Outbox__factory(signer);
-    const outbox = await outboxFactory.deploy(localDomain);
-    await connectionManager.setOutbox(outbox.address);
-    expect(await connectionClient.localDomain()).to.equal(localDomain);
   });
 
   describe('#setInterchainGasPaymaster', () => {
