@@ -15,7 +15,7 @@ use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
 
 use abacus_base::last_message::validate_message_continuity;
 use abacus_base::{
-    run_all, BaseAgent, DomainSettings, ChainSetup, ContractSyncMetrics, CoreMetrics,
+    run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, DomainSettings,
     InboxAddresses, IndexSettings,
 };
 use abacus_core::{
@@ -71,7 +71,7 @@ impl BaseAgent for Scraper {
                 trace!(domain = outbox_domain, "Created outbox and outbox indexer");
                 assert_eq!(local.outbox.local_domain(), outbox_domain);
                 locals.insert(outbox_domain, local);
-            };
+            }
 
             for (_, inbox_config) in chain_config.inboxes.iter() {
                 if let Some(remote) =
