@@ -5,6 +5,12 @@
       "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
       "isProxy": false,
       "constructorArguments": ""
+    },
+    {
+      "name": "router",
+      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
+      "isProxy": false,
+      "constructorArguments": ""
     }
   ],
   "kovan": [
@@ -21,6 +27,12 @@
       "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
       "isProxy": false,
       "constructorArguments": ""
+    },
+    {
+      "name": "router",
+      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
+      "isProxy": false,
+      "constructorArguments": ""
     }
   ],
   "mumbai": [
@@ -29,12 +41,24 @@
       "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
       "isProxy": false,
       "constructorArguments": ""
+    },
+    {
+      "name": "router",
+      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
+      "isProxy": false,
+      "constructorArguments": ""
     }
   ],
   "bsctestnet": [
     {
       "name": "InterchainAccountRouter",
       "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "router",
+      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -61,12 +85,40 @@
       "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
       "isProxy": false,
       "constructorArguments": ""
+    },
+    {
+      "name": "router",
+      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
+      "isProxy": false,
+      "constructorArguments": ""
     }
   ],
   "moonbasealpha": [
     {
       "name": "InterchainAccountRouter",
       "address": "0x28DB114018576cF6c9A523C17903455A161d18C4",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "router",
+      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "optimismgoerli": [
+    {
+      "name": "router",
+      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "arbitrumgoerli": [
+    {
+      "name": "router",
+      "address": "0x7889ee4bf487b46949F4e4e951BFc469d413cD53",
       "isProxy": false,
       "constructorArguments": ""
     }
