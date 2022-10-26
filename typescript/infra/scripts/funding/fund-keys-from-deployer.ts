@@ -82,6 +82,7 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   arbitrumgoerli: '0.1',
   // unused
   auroratestnet: '0',
+  zksync2testnet: '0',
   test1: '0',
   test2: '0',
   test3: '0',
