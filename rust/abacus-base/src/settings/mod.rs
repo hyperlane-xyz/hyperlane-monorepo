@@ -118,24 +118,24 @@ static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 /// 1. The file specified by the `RUN_ENV` and `BASE_CONFIG`
 ///    env vars. `RUN_ENV/BASE_CONFIG`
 /// 2. The file specified by the `RUN_ENV` env var and the
-///    agent's name. `RUN_ENV/<app_prefix>-partial.json`
+///    agent's name. `RUN_ENV/<agent_prefix>-partial.json`
 /// 3. Configuration env vars with the prefix `HYP_BASE` intended
 ///    to be shared by multiple agents in the same environment
-/// 4. Configuration env vars with the prefix `HYP_<app_prefix>`
+/// 4. Configuration env vars with the prefix `HYP_<agent_prefix>`
 ///    intended to be used by a specific agent.
 ///
 /// Specify a configuration directory with the `RUN_ENV` env
 /// variable. Specify a configuration file with the `BASE_CONFIG`
 /// env variable.
 pub fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
-    app_prefix: &str,
+    agent_prefix: &str,
     config_file_name: Option<&str>,
     ignore_prefixes: &[S],
 ) -> eyre::Result<T> {
     let env = env::var("RUN_ENV").unwrap_or_else(|_| "default".into());
 
     // Derive additional prefix from agent name
-    let prefix = format!("HYP_{}", app_prefix).to_ascii_uppercase();
+    let prefix = format!("HYP_{}", agent_prefix).to_ascii_uppercase();
 
     let filtered_env: HashMap<String, String> = env::vars()
         .filter(|(k, _v)| {
@@ -156,7 +156,7 @@ pub fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
             File::with_name(&format!(
                 "./config/{}/{}-partial",
                 env,
-                app_prefix.to_lowercase()
+                agent_prefix.to_lowercase()
             ))
             .required(false),
         )
