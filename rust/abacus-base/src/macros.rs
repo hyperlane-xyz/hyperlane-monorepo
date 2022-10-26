@@ -97,8 +97,8 @@ macro_rules! decl_settings {
                 }
             }
 
-            impl AsRef<abacus_base::ChainSettings> for [<$name Settings>] {
-                fn as_ref(&self) -> &abacus_base::ChainSettings {
+            impl AsRef<abacus_base::DomainSettings> for [<$name Settings>] {
+                fn as_ref(&self) -> &abacus_base::DomainSettings {
                     &self.base.chain
                 }
             }

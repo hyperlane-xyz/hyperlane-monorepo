@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::env;
 
 use abacus_base::load_settings_object;
-use abacus_base::{AgentSettings, ApplicationSettings, ChainSettings};
+use abacus_base::{AgentSettings, ApplicationSettings, DomainSettings};
 
 /// Scraper settings work a bit differently than other agents because we need to
 /// load the information for all of the chains.
@@ -26,7 +26,7 @@ use abacus_base::{AgentSettings, ApplicationSettings, ChainSettings};
 #[derive(Debug)]
 pub struct ScraperSettings {
     /// settings by domain id for each domain
-    pub chains: HashMap<u32, ChainSettings>,
+    pub chains: HashMap<u32, DomainSettings>,
     pub app: ApplicationSettings,
 }
 
@@ -60,7 +60,7 @@ impl AgentSettings for ScraperSettings {
                     format!("HYP_BASE_INBOXES_{chain_name}"),
                     format!("HYP_SCRAPER_INBOXES_{chain_name}"),
                 ];
-                let settings: ChainSettings = load_settings_object(
+                let settings: DomainSettings = load_settings_object(
                     &format!("scraper_{chain_name}"),
                     Some(&config_file_name),
                     &ignore_prefixes,

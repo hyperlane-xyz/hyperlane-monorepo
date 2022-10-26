@@ -15,7 +15,7 @@ use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
 
 use abacus_base::last_message::validate_message_continuity;
 use abacus_base::{
-    run_all, BaseAgent, ChainSettings, ChainSetup, ContractSyncMetrics, CoreMetrics,
+    run_all, BaseAgent, DomainSettings, ChainSetup, ContractSyncMetrics, CoreMetrics,
     InboxAddresses, IndexSettings,
 };
 use abacus_core::{
@@ -151,7 +151,7 @@ impl BaseAgent for Scraper {
 
 impl Scraper {
     async fn load_outbox(
-        config: &ChainSettings,
+        config: &DomainSettings,
         metrics: &Arc<CoreMetrics>,
     ) -> Result<Option<Local>> {
         Ok(
@@ -173,7 +173,7 @@ impl Scraper {
     }
 
     async fn load_inbox(
-        config: &ChainSettings,
+        config: &DomainSettings,
         inbox_config: &ChainSetup<InboxAddresses>,
         metrics: &Arc<CoreMetrics>,
     ) -> Result<Option<Remote>> {

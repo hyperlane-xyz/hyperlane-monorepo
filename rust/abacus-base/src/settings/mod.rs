@@ -258,10 +258,11 @@ impl IndexSettings {
     }
 }
 
-/// Settings specific to a given chain.
+/// Settings specific to a given domain. This is the outbox + all of the inboxes
+/// it publishes to (on different chains).
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct ChainSettings {
+pub struct DomainSettings {
     /// Settings for the outbox indexer
     #[serde(default)]
     pub index: IndexSettings,
@@ -275,7 +276,7 @@ pub struct ChainSettings {
     pub gelato: Option<GelatoConf>,
 }
 
-impl ChainSettings {
+impl DomainSettings {
     /// Try to get a signer instance by name
     pub async fn get_signer(&self, name: &str) -> Option<Signers> {
         self.signers.get(name)?.try_into_signer().await.ok()
@@ -492,7 +493,7 @@ impl ApplicationSettings {
 pub struct Settings {
     /// Settings specific to a given chain
     #[serde(flatten)]
-    pub chain: ChainSettings,
+    pub chain: DomainSettings,
     /// Settings for the application as a whole
     #[serde(flatten)]
     pub app: ApplicationSettings,
@@ -503,7 +504,7 @@ impl Settings {
     /// agent consumes the settings.
     fn clone(&self) -> Self {
         Self {
-            chain: ChainSettings {
+            chain: DomainSettings {
                 index: self.chain.index.clone(),
                 outbox: self.chain.outbox.clone(),
                 inboxes: self.chain.inboxes.clone(),
@@ -525,8 +526,8 @@ impl AsRef<ApplicationSettings> for Settings {
     }
 }
 
-impl AsRef<ChainSettings> for Settings {
-    fn as_ref(&self) -> &ChainSettings {
+impl AsRef<DomainSettings> for Settings {
+    fn as_ref(&self) -> &DomainSettings {
         &self.chain
     }
 }
