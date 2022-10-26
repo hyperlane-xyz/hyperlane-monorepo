@@ -110,6 +110,21 @@ export const goerli: ChainMetadata = {
   finalityBlocks: 7,
 };
 
+export const optimismgoerli: ChainMetadata = {
+  id: 420, // b'op-i' interpreted as an int
+  finalityBlocks: 1,
+};
+
+export const arbitrumgoerli: ChainMetadata = {
+  id: 421613, // b'ar-i' interpreted as an int
+  finalityBlocks: 1,
+};
+
+export const zksync2testnet: ChainMetadata = {
+  id: 280,
+  finalityBlocks: 1,
+};
+
 export const mumbai: ChainMetadata = {
   id: 80001,
   finalityBlocks: 32,
@@ -171,5 +186,8 @@ export const chainMetadata = {
   auroratestnet,
   moonbasealpha,
   moonbeam,
+  optimismgoerli,
+  arbitrumgoerli,
+  zksync2testnet,
   ...testChains,
 } as Record<ChainName, ChainMetadata>;

@@ -221,9 +221,11 @@ pub fn abacus_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
 
         AbacusDomain::Arbitrum => Chain::Arbitrum,
         AbacusDomain::ArbitrumRinkeby => Chain::ArbitrumRinkeby,
+        AbacusDomain::ArbitrumGoerli => Chain::ArbitrumGoerli,
 
         AbacusDomain::Optimism => Chain::Optimism,
         AbacusDomain::OptimismKovan => Chain::OptimismKovan,
+        AbacusDomain::OptimismGoerli => Chain::OptimismGoerli,
 
         AbacusDomain::BinanceSmartChain => Chain::BinanceSmartChain,
         AbacusDomain::BinanceSmartChainTestnet => Chain::BinanceSmartChainTestnet,
@@ -234,6 +236,8 @@ pub fn abacus_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
         AbacusDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
         AbacusDomain::Moonbeam => Chain::Moonbeam,
 
+        AbacusDomain::Zksync2Testnet => Chain::Zksync2Testnet,
+        
         _ => bail!("No Gelato Chain for domain {abacus_domain}"),
     })
 }
