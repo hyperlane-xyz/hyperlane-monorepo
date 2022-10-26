@@ -17,9 +17,8 @@ async function main() {
 
   console.info('Preparing utilities');
   const chainProviders = objMap(prodConfigs, (_, config) => ({
-    provider: config.provider,
-    confirmations: config.confirmations,
-    overrides: config.overrides,
+    ...config,
+    signer: signer.connect(config.provider),
   }));
   const multiProvider = new MultiProvider(chainProviders);
 

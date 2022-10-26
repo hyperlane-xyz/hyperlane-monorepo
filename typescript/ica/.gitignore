@@ -1,9 +1,0 @@
-artifacts/
-cache/
-coverage/
-coverage.json
-dist/
-node_modules/
-types/
-*.swp
-.yarn/install-state.gz

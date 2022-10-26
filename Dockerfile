@@ -14,10 +14,8 @@ COPY .yarn/releases ./.yarn/releases
 COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
-COPY typescript/ica/package.json ./typescript/ica/
 COPY typescript/infra/package.json ./typescript/infra/
-COPY solidity/core/package.json ./solidity/core/
-COPY solidity/app/package.json ./solidity/app/
+COPY solidity/package.json ./solidity/
 
 RUN yarn install && yarn cache clean
 

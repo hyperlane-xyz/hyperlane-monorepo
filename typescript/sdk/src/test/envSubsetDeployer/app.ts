@@ -1,4 +1,4 @@
-import { TestRouter__factory } from '@hyperlane-xyz/app';
+import { TestRouter__factory } from '@hyperlane-xyz/core';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
 import { chainConnectionConfigs } from '../../consts/chainConnectionConfigs';
