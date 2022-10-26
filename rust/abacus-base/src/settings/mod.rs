@@ -431,7 +431,7 @@ impl ChainSettings {
     ) -> eyre::Result<Box<dyn InterchainGasPaymasterIndexer>> {
         let signer = self.get_signer(&self.outbox.name).await;
         self.outbox
-            .try_into_interchain_gas_paymaster_indexer(signer, metrics)
+            .try_into_interchain_gas_paymaster_indexer(signer, &self.index, metrics)
             .await
             .map(|inner| inner.expect("Missing interchain gas paymaster address"))
     }

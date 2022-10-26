@@ -16,7 +16,7 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 
-use crate::CoreMetrics;
+use crate::{CoreMetrics, IndexSettings};
 
 /// A connection to _some_ blockchain.
 ///
@@ -189,14 +189,18 @@ impl ChainSetup<OutboxAddresses> {
     pub async fn try_into_interchain_gas_paymaster_indexer(
         &self,
         signer: Option<Signers>,
+        index: &IndexSettings,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Option<Box<dyn InterchainGasPaymasterIndexer>>> {
         if let Some(address) = &self.addresses.interchain_gas_paymaster {
             let builder = InterchainGasPaymasterIndexerBuilder {
-                outbox_address: self.addresses.outbox.parse::<ethers::types::Address>()?,
-                from_height: 0,
-                chunk_size: 0,
-                finality_blocks: 0,
+                outbox_address: self
+                    .addresses
+                    .outbox
+                    .parse::<ethers::types::Address>()?,
+                from_height: index.from(),
+                chunk_size: index.chunk_size(),
+                finality_blocks: self.finality_blocks(),
             };
             self.build(address, signer, metrics, self.metrics_conf(), builder)
                 .await
