@@ -143,6 +143,15 @@ contract MultisigModule is IMultisigModule, Ownable {
         emit ThresholdSet(_domain, _threshold, _commitment);
     }
 
+    function isValidator(uint32 _domain, address _validator)
+        external
+        view
+        returns (bool)
+    {
+        EnumerableSet.AddressSet storage _validatorSet = validatorSets[_domain];
+        return _validatorSet.contains(_validator);
+    }
+
     // ============ Public Functions ============
 
     /**
@@ -265,7 +274,7 @@ contract MultisigModule is IMultisigModule, Ownable {
         return true;
     }
 
-    function _signedDigest(bytes calldata _metadata, uint32 _origin)
+    function _getDomainHash(uint32 _origin, bytes32 _originMailbox)
         internal
         pure
         returns (bytes32)
@@ -276,8 +285,18 @@ contract MultisigModule is IMultisigModule, Ownable {
         // B.
         // The slashing protocol should slash if validators sign attestations for
         // anything other than a whitelisted mailbox.
-        bytes32 _domainHash = keccak256(
-            abi.encodePacked(_origin, _metadata.originMailbox(), "HYPERLANE")
+        return
+            keccak256(abi.encodePacked(_origin, _originMailbox, "HYPERLANE"));
+    }
+
+    function _signedDigest(bytes calldata _metadata, uint32 _origin)
+        internal
+        pure
+        returns (bytes32)
+    {
+        bytes32 _domainHash = _getDomainHash(
+            _origin,
+            _metadata.originMailbox()
         );
         return
             ECDSA.toEthSignedMessageHash(

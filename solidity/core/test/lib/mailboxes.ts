@@ -2,7 +2,6 @@ import { expect } from 'chai';
 import { ethers } from 'ethers';
 
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
-import { addressToBytes32 } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { TestMailbox } from '../../types';
 import { DispatchEvent } from '../../types/contracts/Mailbox';
@@ -124,17 +123,9 @@ export async function dispatchMessageAndReturnMetadata(
   );
   const root = await mailbox.root();
   const index = await mailbox.count();
-  // TODO: Addresses need sorting
-  const addresses = validators.map((v) => v.address);
+  const addresses = utils.sortAddresses(validators.map((v) => v.address));
   const signatures = await signCheckpoint(root, index.toNumber(), validators);
-  console.log(addresses, signatures);
   const checkpoint = { root, index: index.toNumber(), signature: '' };
-  console.log('root', checkpoint.root);
-  console.log('index', checkpoint.index);
-  console.log('mailbox', addressToBytes32(mailbox.address));
-  console.log('proof', ethers.utils.hexConcat(proofAndMessage.proof.branch));
-  console.log('signatures', ethers.utils.hexConcat(signatures));
-  console.log('addresses', ethers.utils.hexConcat(addresses));
   const metadata = utils.formatMultisigModuleMetadata(
     checkpoint,
     mailbox.address,
@@ -149,10 +140,7 @@ export function getCommitment(
   threshold: number,
   validators: types.Address[],
 ): string {
-  const sortedValidators = validators.sort((a, b) => {
-    // Remove the checksums for accurate comparison
-    return a.toLowerCase().localeCompare(b.toLowerCase());
-  });
+  const sortedValidators = utils.sortAddresses(validators);
   const packed = ethers.utils.solidityPack(
     ['uint256', 'address[]'],
     [threshold, sortedValidators],

@@ -3,8 +3,11 @@ import { ethers } from 'hardhat';
 
 import { utils } from '@hyperlane-xyz/utils';
 
-import { TestRecipient__factory } from '../dist';
-import { MockInbox__factory, MockOutbox__factory } from '../types';
+import {
+  MockInbox__factory,
+  MockOutbox__factory,
+  TestRecipient__factory,
+} from '../types';
 
 describe('Mock mailbox contracts', function () {
   it('should be able to mock sending a message', async function () {
