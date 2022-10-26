@@ -109,5 +109,3 @@ jobs:
 
       - name: core
         run: yarn workspace @hyperlane-xyz/core run test
-      - name: app
-        run: yarn workspace @hyperlane-xyz/app run test

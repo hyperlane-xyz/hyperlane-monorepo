@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 // ============ External Imports ============
-import {Router} from "@hyperlane-xyz/app/contracts/Router.sol";
+import {Router} from "@hyperlane-xyz/core/contracts/Router.sol";
 
 /*
  * @title The Hello World App
@@ -34,15 +34,12 @@ contract HelloWorld is Router {
         string message
     );
 
-    constructor(
-        address _abacusConnectionManager,
-        address _interchainGasPaymaster
-    ) {
+    constructor(address _mailbox, address _interchainGasPaymaster) {
         // Transfer ownership of the contract to deployer
         _transferOwnership(msg.sender);
-        // Set the addresses for the ACM and IGP
+        // Set the addresses for the Mailbox and IGP
         // Alternatively, this could be done later in an initialize method
-        _setAbacusConnectionManager(_abacusConnectionManager);
+        _setMailbox(_mailbox);
         _setInterchainGasPaymaster(_interchainGasPaymaster);
     }
 
@@ -60,7 +57,11 @@ contract HelloWorld is Router {
         sent += 1;
         sentTo[_destinationDomain] += 1;
         _dispatchWithGas(_destinationDomain, bytes(_message), msg.value);
-        emit SentHelloWorld(_localDomain(), _destinationDomain, _message);
+        emit SentHelloWorld(
+            mailbox.localDomain(),
+            _destinationDomain,
+            _message
+        );
     }
 
     // ============ Internal functions ============
@@ -81,7 +82,7 @@ contract HelloWorld is Router {
         receivedFrom[_origin] += 1;
         emit ReceivedHelloWorld(
             _origin,
-            _localDomain(),
+            mailbox.localDomain(),
             _sender,
             string(_message)
         );

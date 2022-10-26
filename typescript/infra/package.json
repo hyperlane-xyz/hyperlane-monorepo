@@ -13,7 +13,6 @@
     "@gnosis.pm/safe-service-client": "^1.2.0",
     "@hyperlane-xyz/celo-ethers-provider": "^0.1.1",
     "@hyperlane-xyz/helloworld": "0.5.1",
-    "@hyperlane-xyz/interchain-accounts": "0.5.1",
     "@hyperlane-xyz/sdk": "0.5.1",
     "@hyperlane-xyz/utils": "0.5.1",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
