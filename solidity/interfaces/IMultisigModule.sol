@@ -10,7 +10,7 @@ interface IMultisigModule is IInterchainSecurityModule {
 
     function setThreshold(uint32 _domain, uint256 _threshold) external;
 
-    function isValidator(uint32 _domain, address _validator)
+    function isEnrolled(uint32 _domain, address _validator)
         external
         view
         returns (bool);

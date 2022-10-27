@@ -286,7 +286,7 @@ describe('MultisigModule', async () => {
     });
   });
 
-  describe('#isValidator', () => {
+  describe('#isEnrolled', () => {
     beforeEach(async () => {
       await multisigModule.enrollValidator(
         ORIGIN_DOMAIN,
@@ -296,18 +296,19 @@ describe('MultisigModule', async () => {
 
     it('returns true if an address is enrolled in the validator set', async () => {
       expect(
-        await multisigModule.isValidator(ORIGIN_DOMAIN, validators[0].address),
+        await multisigModule.isEnrolled(ORIGIN_DOMAIN, validators[0].address),
       ).to.be.true;
     });
 
     it('returns false if an address is not enrolled in the validator set', async () => {
       expect(
-        await multisigModule.isValidator(ORIGIN_DOMAIN, validators[1].address),
+        await multisigModule.isEnrolled(ORIGIN_DOMAIN, validators[1].address),
       ).to.be.false;
     });
   });
 
-  describe.skip('#_domainHash', () => {
+  // TODO: Update rust code to output v2 domain hashes
+  describe.skip('#_getDomainHash', () => {
     it('matches Rust-produced domain hashes', async () => {
       // Compare Rust output in json file to solidity output (json file matches
       // hash for local domain of 1000)
@@ -322,5 +323,10 @@ describe('MultisigModule', async () => {
         expect(domainHash).to.equal(expectedDomainHash);
       }
     });
+  });
+
+  // TODO: Update rust code to output checkpoint digests
+  describe.skip('#_getCheckpointDigest', () => {
+    it('matches Rust-produced checkpoint digests', async () => {});
   });
 });

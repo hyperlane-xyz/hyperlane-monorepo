@@ -30,18 +30,21 @@ contract MultisigModule is IMultisigModule, Ownable {
     // The validator threshold for each remote domain.
     mapping(uint32 => uint256) public threshold;
 
-    // The set of validators for each remote domain.
-    mapping(uint32 => EnumerableSet.AddressSet) private validatorSets;
+    // The validator set for each remote domain.
+    mapping(uint32 => EnumerableSet.AddressSet) private validatorSet;
 
-    // The hash of the validator set for each remote domain.
-    mapping(uint32 => bytes32) public setCommitment;
+    // A succinct commitment to the validator set and threshold for each remote
+    // domain.
+    mapping(uint32 => bytes32) public commitment;
 
     // ============ Events ============
 
     /**
-     * @notice Emitted when a validator is enrolled in the validator set.
+     * @notice Emitted when a validator is enrolled in a validator set.
+     * @param domain The remote domain of the validator set.
      * @param validator The address of the validator.
-     * @param validatorCount The new number of enrolled validators in the validator set.
+     * @param validatorCount The number of enrolled validators in the validator set.
+     * @param commitment A commitment to the validator set and threshold.
      */
     event ValidatorEnrolled(
         uint32 indexed domain,
@@ -51,9 +54,11 @@ contract MultisigModule is IMultisigModule, Ownable {
     );
 
     /**
-     * @notice Emitted when a validator is unenrolled from the validator set.
+     * @notice Emitted when a validator is unenrolled from a validator set.
+     * @param domain The remote domain of the validator set.
      * @param validator The address of the validator.
-     * @param validatorCount The new number of enrolled validators in the validator set.
+     * @param validatorCount The number of enrolled validators in the validator set.
+     * @param commitment A commitment to the validator set and threshold.
      */
     event ValidatorUnenrolled(
         uint32 indexed domain,
@@ -64,7 +69,9 @@ contract MultisigModule is IMultisigModule, Ownable {
 
     /**
      * @notice Emitted when the quorum threshold is set.
+     * @param domain The remote domain of the validator set.
      * @param threshold The new quorum threshold.
+     * @param commitment A commitment to the validator set and threshold.
      */
     event ThresholdSet(
         uint32 indexed domain,
@@ -74,16 +81,15 @@ contract MultisigModule is IMultisigModule, Ownable {
 
     // ============ Constructor ============
 
-    /**
-     */
     // solhint-disable-next-line no-empty-blocks
     constructor() Ownable() {}
 
     // ============ External Functions ============
 
     /**
-     * @notice Enrolls a validator into the validator set.
+     * @notice Enrolls a validator into a validator set.
      * @dev Reverts if `_validator` is already in the validator set.
+     * @param _domain The remote domain of the validator set.
      * @param _validator The validator to add to the validator set.
      */
     function enrollValidator(uint32 _domain, address _validator)
@@ -91,7 +97,7 @@ contract MultisigModule is IMultisigModule, Ownable {
         onlyOwner
     {
         require(_validator != address(0), "zero address");
-        require(validatorSets[_domain].add(_validator), "already enrolled");
+        require(validatorSet[_domain].add(_validator), "already enrolled");
         bytes32 _commitment = _updateCommitment(_domain);
         emit ValidatorEnrolled(
             _domain,
@@ -102,15 +108,16 @@ contract MultisigModule is IMultisigModule, Ownable {
     }
 
     /**
-     * @notice Unenrolls a validator from the validator set.
+     * @notice Unenrolls a validator from a validator set.
      * @dev Reverts if `_validator` is not in the validator set.
+     * @param _domain The remote domain of the validator set.
      * @param _validator The validator to remove from the validator set.
      */
     function unenrollValidator(uint32 _domain, address _validator)
         external
         onlyOwner
     {
-        require(validatorSets[_domain].remove(_validator), "!enrolled");
+        require(validatorSet[_domain].remove(_validator), "!enrolled");
         uint256 _numValidators = validatorCount(_domain);
         require(
             _numValidators >= threshold[_domain],
@@ -127,6 +134,7 @@ contract MultisigModule is IMultisigModule, Ownable {
 
     /**
      * @notice Sets the quorum threshold.
+     * @param _domain The remote domain of the validator set.
      * @param _threshold The new quorum threshold.
      */
     function setThreshold(uint32 _domain, uint256 _threshold)
@@ -142,30 +150,30 @@ contract MultisigModule is IMultisigModule, Ownable {
         emit ThresholdSet(_domain, _threshold, _commitment);
     }
 
-    function isValidator(uint32 _domain, address _validator)
+    /**
+     * @notice Returns whether an address is enrolled in a validator set.
+     * @param _domain The remote domain of the validator set.
+     * @param _address The address to test for set membership.
+     * @return True if the address is enrolled, false otherwise.
+     */
+    function isEnrolled(uint32 _domain, address _address)
         external
         view
         returns (bool)
     {
-        EnumerableSet.AddressSet storage _validatorSet = validatorSets[_domain];
-        return _validatorSet.contains(_validator);
+        EnumerableSet.AddressSet storage _validatorSet = validatorSet[_domain];
+        return _validatorSet.contains(_address);
     }
 
     // ============ Public Functions ============
 
     /**
-     * @notice Returns whether provided signatures over a checkpoint constitute
-     * a quorum of validator signatures.
-     * @dev Reverts if `_signatures` is not sorted in ascending order by the signer
-     * address, which is required for duplicate detection.
-     * @dev Does not revert if a signature's signer is not in the validator set.
+     * @notice Verifies that a quorum of the origin domain's validators signed
+     * a checkpoint, and verifies the merkle proof of `_message` against that
+     * checkpoint.
+     * @param _metadata ABI encoded module metadata (see MultisigModuleMetadata.sol)
+     * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    // TODO: How do you compose ISMs using this interface?
-    // Doesn't seem like you can when you have each ISM call into the mailbox
-    // directly.
-    // Also requires that the
-    // Alternatively we could use the
-
     function verify(bytes calldata _metadata, bytes calldata _message)
         public
         view
@@ -173,27 +181,16 @@ contract MultisigModule is IMultisigModule, Ownable {
     {
         require(_verifyMerkleProof(_metadata, _message), "!merkle");
         require(_verifyValidatorSignatures(_metadata, _message), "!sigs");
-        /*
-        * @dev This event allows watchers to observe the merkle proof they need
-        * to prove fraud on the origin chain.
-        emit Something(
-            _metadata.root(),
-            _metadata.index(),
-            _message.origin(),
-            _metadata.originMailbox(),
-            _metadata.proof(),
-            _message.nonce()
-        );
-        */
         return true;
     }
 
     /**
      * @notice Gets the current validator set, sorted by ascending address.
+     * @param _domain The remote domain of the validator set.
      * @return The addresses of the validator set.
      */
     function validators(uint32 _domain) public view returns (address[] memory) {
-        EnumerableSet.AddressSet storage _validatorSet = validatorSets[_domain];
+        EnumerableSet.AddressSet storage _validatorSet = validatorSet[_domain];
         uint256 _numValidators = _validatorSet.length();
         address[] memory _validators = new address[](_numValidators);
         // Max address
@@ -214,14 +211,36 @@ contract MultisigModule is IMultisigModule, Ownable {
 
     /**
      * @notice Returns the number of validators enrolled in the validator set.
+     * @param _domain The remote domain of the validator set.
      * @return The number of validators enrolled in the validator set.
      */
     function validatorCount(uint32 _domain) public view returns (uint256) {
-        return validatorSets[_domain].length();
+        return validatorSet[_domain].length();
     }
 
     // ============ Internal Functions ============
 
+    /**
+     * @notice Updates the commitment to the validator set for `_domain`.
+     * @param _domain The remote domain of the validator set.
+     * @return The commitment to the validator set for `_domain`.
+     */
+    function _updateCommitment(uint32 _domain) internal returns (bytes32) {
+        address[] memory _validators = validators(_domain);
+        uint256 _threshold = threshold[_domain];
+        bytes32 _commitment = keccak256(
+            abi.encodePacked(_threshold, _validators)
+        );
+        commitment[_domain] = _commitment;
+        return _commitment;
+    }
+
+    /**
+     * @notice Verifies the merkle proof of `_message` against the provided
+     * checkpoint.
+     * @param _metadata ABI encoded module metadata (see MultisigModuleMetadata.sol)
+     * @param _message Formatted Hyperlane message (see Message.sol).
+     */
     function _verifyMerkleProof(
         bytes calldata _metadata,
         bytes calldata _message
@@ -237,6 +256,12 @@ contract MultisigModule is IMultisigModule, Ownable {
         return _calculatedRoot == _metadata.root();
     }
 
+    /**
+     * @notice Verifies that a quorum of the origin domain's validators signed
+     * the provided checkpoint.
+     * @param _metadata ABI encoded module metadata (see MultisigModuleMetadata.sol)
+     * @param _message Formatted Hyperlane message (see Message.sol).
+     */
     function _verifyValidatorSignatures(
         bytes calldata _metadata,
         bytes calldata _message
@@ -249,8 +274,8 @@ contract MultisigModule is IMultisigModule, Ownable {
                 abi.encodePacked(_threshold, _metadata.validators())
             );
             // Ensures _validators is sorted by ascending address.
-            require(_commitment == setCommitment[_origin], "!commitment");
-            _digest = _signedDigest(_metadata, _origin);
+            require(_commitment == commitment[_origin], "!commitment");
+            _digest = _getCheckpointDigest(_metadata, _origin);
         }
         uint256 _validatorIndex = 0;
         // looking for signers within validators
@@ -273,6 +298,13 @@ contract MultisigModule is IMultisigModule, Ownable {
         return true;
     }
 
+    /**
+     * @notice Returns the domain hash that validators are expected to use
+     * when signing checkpoints.
+     * @param _origin The origin domain of the checkpoint.
+     * @param _originMailbox The address of the origin mailbox as bytes32.
+     * @return The domain hash.
+     */
     function _getDomainHash(uint32 _origin, bytes32 _originMailbox)
         internal
         pure
@@ -288,7 +320,13 @@ contract MultisigModule is IMultisigModule, Ownable {
             keccak256(abi.encodePacked(_origin, _originMailbox, "HYPERLANE"));
     }
 
-    function _signedDigest(bytes calldata _metadata, uint32 _origin)
+    /**
+     * @notice Returns the digest validators are expected to sign when signing checkpoints.
+     * @param _metadata ABI encoded module metadata (see MultisigModuleMetadata.sol)
+     * @param _origin The origin domain of the checkpoint.
+     * @return The digest of the checkpoint.
+     */
+    function _getCheckpointDigest(bytes calldata _metadata, uint32 _origin)
         internal
         pure
         returns (bytes32)
@@ -307,15 +345,5 @@ contract MultisigModule is IMultisigModule, Ownable {
                     )
                 )
             );
-    }
-
-    function _updateCommitment(uint32 _domain) internal returns (bytes32) {
-        address[] memory _validators = validators(_domain);
-        uint256 _threshold = threshold[_domain];
-        bytes32 _commitment = keccak256(
-            abi.encodePacked(_threshold, _validators)
-        );
-        setCommitment[_domain] = _commitment;
-        return _commitment;
     }
 }

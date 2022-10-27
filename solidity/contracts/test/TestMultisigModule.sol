@@ -12,4 +12,12 @@ contract TestMultisigModule is MultisigModule {
     {
         return _getDomainHash(_origin, _originMailbox);
     }
+
+    function getCheckpointDigest(bytes calldata _metadata, uint32 _origin)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return _getCheckpointDigest(_metadata, _origin);
+    }
 }

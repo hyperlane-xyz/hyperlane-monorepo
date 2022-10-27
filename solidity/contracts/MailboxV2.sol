@@ -130,7 +130,7 @@ contract MailboxV2 is
      * @notice Attempts to deliver `_message` to its recipient. Verifies
      * `_message` via the recipient's ISM using the provided `_metadata`.
      * @param _metadata Metadata used by the ISM to verify `_message`.
-     * @param _message Formatted Hyperlane message (refer to Message.sol).
+     * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function process(bytes calldata _metadata, bytes calldata _message)
         external
