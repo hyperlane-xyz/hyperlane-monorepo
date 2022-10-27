@@ -213,7 +213,7 @@ impl SponsoredCallOp {
             sponsor_api_key: &self.sponsor_api_key,
         };
 
-        Ok(sponsored_call_api_call.run().await?)
+        sponsored_call_api_call.run().await
     }
 
     fn create_sponsored_call_args(&self) -> SponsoredCallArgs {
