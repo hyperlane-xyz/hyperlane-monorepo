@@ -5,7 +5,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 
 import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
-import {IMailbox} from "../../interfaces/IMailboxV2.sol";
+import {IMailbox} from "../../interfaces/IMailbox.sol";
 
 contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;

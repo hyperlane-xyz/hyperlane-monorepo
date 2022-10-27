@@ -3,7 +3,7 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
-import {IMailbox} from "../interfaces/IMailboxV2.sol";
+import {IMailbox} from "../interfaces/IMailbox.sol";
 
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";

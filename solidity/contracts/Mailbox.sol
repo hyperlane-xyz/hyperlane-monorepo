@@ -4,11 +4,11 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {Versioned} from "./upgrade/Versioned.sol";
 import {MerkleLib} from "./libs/Merkle.sol";
-import {Message} from "./libs/MessageV2.sol";
+import {Message} from "./libs/Message.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInterchainSecurityModule, IUsesInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
-import {IMailbox} from "../interfaces/IMailboxV2.sol";
+import {IMailbox} from "../interfaces/IMailbox.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";

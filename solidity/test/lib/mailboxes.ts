@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
 import { TestMailbox } from '../../types';
-import { DispatchEvent } from '../../types/contracts/MailboxV2.sol/Mailbox';
+import { DispatchEvent } from '../../types/contracts/Mailbox';
 
 export type MessageAndProof = {
   proof: types.MerkleProof;
