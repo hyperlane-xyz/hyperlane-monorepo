@@ -2,10 +2,7 @@ use ethers::signers::Signer;
 use eyre::Context;
 use serde::Deserialize;
 
-use abacus_core::{
-    AbacusAbi, ContractLocator, Inbox, InboxIndexer, InboxValidatorManager, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Outbox, OutboxIndexer, Signers,
-};
+use abacus_core::{AbacusAbi, ContractLocator, Inbox, InboxIndexer, InboxValidatorManager, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Outbox, OutboxIndexer, AbacusProvider, Signers};
 use abacus_ethereum::{
     Connection, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi, EthereumOutboxAbi,
     InboxBuilder, InboxIndexerBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
@@ -109,6 +106,10 @@ impl<T> ChainSetup<T> {
         self.finality_blocks
             .parse::<u32>()
             .expect("could not parse finality_blocks")
+    }
+
+    pub async fn try_into_provider(&self, metrics: &CoreMetrics) -> eyre::Result<Box<dyn AbacusProvider>> {
+        todo!()
     }
 
     async fn build<B: MakeableWithProvider + Sync>(

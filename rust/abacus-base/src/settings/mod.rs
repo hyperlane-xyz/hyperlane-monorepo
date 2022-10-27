@@ -360,6 +360,10 @@ impl DomainSettings {
             .await
     }
 
+    pub async fn try_provider(&self, metrics: &CoreMetrics) -> eyre::Result<Box<dyn Outbox>> {
+        self.outbox.try_into_provider()
+    }
+
     /// Try to get an Outbox
     pub async fn try_outbox(&self, metrics: &CoreMetrics) -> eyre::Result<Box<dyn Outbox>> {
         let signer = self.get_signer(&self.outbox.name).await;

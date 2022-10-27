@@ -20,7 +20,7 @@ use abacus_base::{
 };
 use abacus_core::{
     name_from_domain_id, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxIndexer,
-    ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
+    ListValidity, LogMeta, Outbox, OutboxIndexer, AbacusProvider, RawCommittedMessage,
 };
 
 use crate::scraper::block_cursor::BlockCursor;
@@ -67,7 +67,7 @@ impl BaseAgent for Scraper {
         let mut remotes: HashMap<u32, HashMap<u32, Remote>> = HashMap::new();
 
         for (outbox_domain, chain_config) in settings.chains.into_iter() {
-            if let Some(local) = Self::load_outbox(&chain_config, &metrics).await? {
+            if let Some(local) = Self::load_local(&chain_config, &metrics).await? {
                 trace!(domain = outbox_domain, "Created outbox and outbox indexer");
                 assert_eq!(local.outbox.local_domain(), outbox_domain);
                 locals.insert(outbox_domain, local);
@@ -75,7 +75,7 @@ impl BaseAgent for Scraper {
 
             for (_, inbox_config) in chain_config.inboxes.iter() {
                 if let Some(remote) =
-                    Self::load_inbox(&chain_config, inbox_config, &metrics).await?
+                    Self::load_remote(&chain_config, inbox_config, &metrics).await?
                 {
                     let inbox_remote_domain = remote.inbox.remote_domain();
                     let inbox_local_domain = remote.inbox.local_domain();
@@ -151,7 +151,7 @@ impl BaseAgent for Scraper {
 }
 
 impl Scraper {
-    async fn load_outbox(
+    async fn load_local(
         config: &DomainSettings,
         metrics: &Arc<CoreMetrics>,
     ) -> Result<Option<Local>> {
@@ -166,6 +166,7 @@ impl Scraper {
                 None
             } else {
                 Some(Local {
+                    provider: config.try_provider(metrics).await?.into(),
                     outbox: config.try_outbox(metrics).await?.into(),
                     indexer: config.try_outbox_indexer(metrics).await?.into(),
                 })
@@ -173,7 +174,7 @@ impl Scraper {
         )
     }
 
-    async fn load_inbox(
+    async fn load_remote(
         config: &DomainSettings,
         inbox_config: &ChainSetup<InboxAddresses>,
         metrics: &Arc<CoreMetrics>,
@@ -209,7 +210,7 @@ struct Remote {
 struct Local {
     pub outbox: Arc<dyn Outbox>,
     pub indexer: Arc<dyn OutboxIndexer>,
-    pub provider: Arc<dyn Provider>
+    pub provider: Arc<dyn AbacusProvider>,
 }
 
 #[derive(Debug, Clone)]
