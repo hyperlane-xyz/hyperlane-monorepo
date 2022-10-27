@@ -14,13 +14,19 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TokenBridgeRouter is Router {
-    uint32 public immutable localDomain;
-
     mapping(bytes32 => address) tokenBridgeIdAdapters;
 
-    constructor(uint32 _localDomain) {
-        // TODO just get this from the outbox
-        localDomain = _localDomain;
+    function initialize(
+        address _owner,
+        address _abacusConnectionManager,
+        address _interchainGasPaymaster
+    ) public initializer {
+        // Transfer ownership of the contract to deployer
+        _transferOwnership(_owner);
+        // Set the addresses for the ACM and IGP
+        // Alternatively, this could be done later in an initialize method
+        _setAbacusConnectionManager(_abacusConnectionManager);
+        _setInterchainGasPaymaster(_interchainGasPaymaster);
     }
 
     function dispatchWithTokens(
