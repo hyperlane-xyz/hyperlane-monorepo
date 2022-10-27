@@ -194,10 +194,7 @@ impl ChainSetup<OutboxAddresses> {
     ) -> eyre::Result<Option<Box<dyn InterchainGasPaymasterIndexer>>> {
         if let Some(address) = &self.addresses.interchain_gas_paymaster {
             let builder = InterchainGasPaymasterIndexerBuilder {
-                outbox_address: self
-                    .addresses
-                    .outbox
-                    .parse::<ethers::types::Address>()?,
+                outbox_address: self.addresses.outbox.parse::<ethers::types::Address>()?,
                 from_height: index.from(),
                 chunk_size: index.chunk_size(),
                 finality_blocks: self.finality_blocks(),
