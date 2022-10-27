@@ -14,7 +14,10 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TokenBridgeRouter is Router {
-    mapping(bytes32 => address) tokenBridgeIdAdapters;
+    // Token bridge => adapter address
+    mapping(string => address) tokenBridgeAdapters;
+
+    event TokenBridgeAdapterSet(string indexed bridge, address adapter);
 
     function initialize(
         address _owner,
@@ -37,14 +40,9 @@ contract TokenBridgeRouter is Router {
         uint256 _amount,
         string calldata _bridge
     ) external payable {
-        bytes32 _tokenBridgeId = tokenBridgeId(
-            _destinationDomain,
-            _token,
-            _bridge
-        );
         // Get the adapter for the provided destination domain, token, and bridge
         ITokenBridgeAdapter _adapter = ITokenBridgeAdapter(
-            tokenBridgeIdAdapters[_tokenBridgeId]
+            tokenBridgeAdapters[_bridge]
         );
         // Require the adapter to have been set
         require(address(_adapter) != address(0), "!adapter");
@@ -71,7 +69,7 @@ contract TokenBridgeRouter is Router {
             TypeCasts.addressToBytes32(msg.sender),
             _recipientAddress, // The "user" recipient
             _messageBody, // The "user" message
-            _tokenBridgeId, // The destination token bridge ID
+            _bridge, // The destination token bridge ID
             _amount, // The amount of the tokens sent over the bridge
             _adapterData // The adapter-specific data
         );
@@ -91,17 +89,17 @@ contract TokenBridgeRouter is Router {
             bytes32 _originalSender,
             bytes32 _userRecipientAddress,
             bytes memory _userMessageBody,
-            bytes32 _tokenBridgeId, // the ID, where the domain is the local domain
+            string memory _bridge,
             uint256 _amount,
             bytes memory _adapterData
         ) = abi.decode(
                 _message,
-                (bytes32, bytes32, bytes, bytes32, uint256, bytes)
+                (bytes32, bytes32, bytes, string, uint256, bytes)
             );
 
         // Get the adapter for the provided local domain, token, and bridge
         ITokenBridgeAdapter _adapter = ITokenBridgeAdapter(
-            tokenBridgeIdAdapters[_tokenBridgeId]
+            tokenBridgeAdapters[_bridge]
         );
         // Require the adapter to have been set
         require(address(_adapter) != address(0), "!adapter");
@@ -127,25 +125,11 @@ contract TokenBridgeRouter is Router {
         );
     }
 
-    function tokenBridgeId(
-        uint32 _destinationDomain,
-        address _token,
-        string calldata _bridge
-    ) public pure returns (bytes32) {
-        bytes memory _encoded = abi.encodePacked(
-            _destinationDomain,
-            _token,
-            _bridge
-        );
-        return keccak256(_encoded);
-    }
-
-    function tokenAndBridgeSupported(
-        uint32 _destinationDomain,
-        address _token,
-        string calldata _bridge
-    ) public view returns (bool) {
-        bytes32 _id = tokenBridgeId(_destinationDomain, _token, _bridge);
-        return tokenBridgeIdAdapters[_id] != address(0);
+    function setTokenBridgeAdapter(string calldata _bridge, address _adapter)
+        external
+        onlyOwner
+    {
+        tokenBridgeAdapters[_bridge] = _adapter;
+        emit TokenBridgeAdapterSet(_bridge, _adapter);
     }
 }

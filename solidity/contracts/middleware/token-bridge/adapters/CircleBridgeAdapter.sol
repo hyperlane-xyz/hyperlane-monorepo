@@ -1,28 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+import {Router} from "../../../Router.sol";
+
 import {ICircleBridge} from "../interfaces/circle/ICircleBridge.sol";
 import {ICircleMessageTransmitter} from "../interfaces/circle/ICircleMessageTransmitter.sol";
 import {ITokenBridgeAdapter} from "../interfaces/ITokenBridgeAdapter.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract CircleBridgeAdapter is ITokenBridgeAdapter {
+contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
     ICircleBridge public immutable circleBridge;
-
     ICircleMessageTransmitter public immutable circleMessageTransmitter;
-
-    // Hyperlane domain => router address as a bytes32
-    mapping(uint32 => bytes32) public circleBridgeAdapterRouters;
+    address public immutable tokenBridgeRouter;
 
     // Hyperlane domain => CircleDomainEntry
-    // Known Circle domains are Ethereum = 0 and Avalanche = 1.
+    // ATM, known Circle domains are Ethereum = 0 and Avalanche = 1.
     // Note this could result in ambiguity between the Circle domain being
     // Ethereum or unknown. TODO fix?
     mapping(uint32 => uint32) public hyperlaneDomainToCircleDomain;
-
-    // Remote circle domain => nonce => whether or not it's been processed
-    mapping(uint32 => mapping(uint64 => bool)) public originNonceProcessed;
 
     // Token symbol => address of token on local chain
     mapping(string => IERC20) public tokenSymbolToToken;
@@ -30,22 +26,43 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter {
     // Local chain token address => token symbol
     mapping(address => string) public tokenToTokenSymbol;
 
-    address public tokenBridgeRouter;
+    // Remote circle domain => nonce => whether or not it's been processed
+    mapping(uint32 => mapping(uint64 => bool)) public originNonceProcessed;
 
     // Emits the nonce of the Circle message
     // TODO reconsider this
     event BridgedToken(uint64 nonce);
+
+    event HyperlaneDomainToCircleDomainSet(
+        uint32 indexed hyperlaneDomain,
+        uint32 circleDomain
+    );
+
+    event TokenSet(address indexed token, string indexed tokenSymbol);
 
     modifier onlyTokenBridgeRouter() {
         require(msg.sender == tokenBridgeRouter, "!tokenBridgeRouter");
         _;
     }
 
-    constructor(address _circleBridge, address _circleMessageTransmitter) {
+    constructor(
+        address _circleBridge,
+        address _circleMessageTransmitter,
+        address _tokenBridgeRouter
+    ) {
         circleBridge = ICircleBridge(_circleBridge);
         circleMessageTransmitter = ICircleMessageTransmitter(
             _circleMessageTransmitter
         );
+        tokenBridgeRouter = _tokenBridgeRouter;
+    }
+
+    function initialize(address _owner) public initializer {
+        // Transfer ownership of the contract to deployer
+        _transferOwnership(_owner);
+        // Set the addresses for the ACM and IGP to address(0) - they aren't used
+        _setAbacusConnectionManager(address(0));
+        _setInterchainGasPaymaster(address(0));
     }
 
     function bridgeToken(
@@ -60,7 +77,7 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter {
         uint32 _circleDomain = hyperlaneDomainToCircleDomain[
             _destinationDomain
         ];
-        bytes32 _remoteRouter = circleBridgeAdapterRouters[_destinationDomain];
+        bytes32 _remoteRouter = routers[_destinationDomain];
         require(_remoteRouter != bytes32(0), "!remote router");
 
         uint64 _nonce = circleBridge.depositForBurnWithCaller(
@@ -126,5 +143,45 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter {
         require(_token.transfer(_recipient, _amount), "!transfer out");
 
         return (address(_token), _amount);
+    }
+
+    // This contract is only a Router to be aware of remote router addresses,
+    // and doesn't actually send/handle Hyperlane messages directly
+    function _handle(
+        uint32, // origin
+        bytes32, // sender
+        bytes calldata // message
+    ) internal pure override {
+        revert("No messages expected");
+    }
+
+    function setHyperlaneDomainToCircleDomain(
+        uint32 _hyperlaneDomain,
+        uint32 _circleDomain
+    ) external onlyOwner {
+        hyperlaneDomainToCircleDomain[_hyperlaneDomain] = _circleDomain;
+
+        emit HyperlaneDomainToCircleDomainSet(_hyperlaneDomain, _circleDomain);
+    }
+
+    function setToken(address _token, string calldata _tokenSymbol)
+        external
+        onlyOwner
+    {
+        // Unset any existing entries...
+        address _existingToken = address(tokenSymbolToToken[_tokenSymbol]);
+        if (_existingToken != address(0)) {
+            tokenToTokenSymbol[_existingToken] = "";
+        }
+
+        string memory _existingSymbol = tokenToTokenSymbol[_token];
+        if (bytes(_existingSymbol).length > 0) {
+            tokenSymbolToToken[_existingSymbol] = IERC20(address(0));
+        }
+
+        tokenToTokenSymbol[_token] = _tokenSymbol;
+        tokenSymbolToToken[_tokenSymbol] = IERC20(_token);
+
+        emit TokenSet(_token, _tokenSymbol);
     }
 }
