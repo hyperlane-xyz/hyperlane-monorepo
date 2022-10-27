@@ -33,13 +33,13 @@ export const abacus: AgentConfig<MainnetChains> = {
   validatorSets: validators,
   gelato: {
     enabledChains: [
-      'bsc',
-      'ethereum',
-      'polygon',
-      'avalanche',
-      // Gelato is having issues with Arbitrum, so not using for now.
-      // 'arbitrum',
-      'optimism',
+      // 'bsc',
+      // 'ethereum',
+      // 'polygon',
+      // 'avalanche',
+      // // Gelato is having issues with Arbitrum, so not using for now.
+      // // 'arbitrum',
+      // 'optimism',
     ],
   },
   connectionType: ConnectionType.HttpQuorum,
