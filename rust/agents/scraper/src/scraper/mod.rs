@@ -875,6 +875,6 @@ async fn delivered_message_linker(db: DbConn) -> Result<()> {
             .await?
             .rows_affected();
         info!(linked, "Linked message deliveries");
-        sleep(Duration::from_secs(60)).await;
+        sleep(Duration::from_secs(10)).await;
     }
 }
