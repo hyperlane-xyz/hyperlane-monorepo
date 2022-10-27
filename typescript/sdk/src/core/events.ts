@@ -1,7 +1,7 @@
 import type {
   DispatchEvent,
   ProcessEvent,
-} from '@hyperlane-xyz/core/dist/contracts/Mailbox';
+} from '@hyperlane-xyz/core/dist/contracts/MailboxV2.sol/Mailbox';
 
 import { Annotated } from '../events';
 
