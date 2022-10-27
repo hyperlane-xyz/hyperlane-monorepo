@@ -135,15 +135,15 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
      * and pays for it to be relayed to the destination.
      * @dev Reverts if there is no enrolled router for _destinationDomain.
      * @param _destinationDomain The domain of the chain to which to send the message.
-     * @param _msg The message to dispatch.
+     * @param _messageBody Raw bytes content of message.
      * @param _gasPayment The amount of native tokens to pay for the message to be relayed.
      */
     function _dispatchWithGas(
         uint32 _destinationDomain,
-        bytes memory _msg,
+        bytes memory _messageBody,
         uint256 _gasPayment
     ) internal {
-        bytes32 _messageId = _dispatch(_destinationDomain, _msg);
+        bytes32 _messageId = _dispatch(_destinationDomain, _messageBody);
         if (_gasPayment > 0) {
             interchainGasPaymaster.payGasFor{value: _gasPayment}(
                 address(mailbox),
@@ -158,14 +158,14 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
      * @dev Does not pay interchain gas.
      * @dev Reverts if there is no enrolled router for _destinationDomain.
      * @param _destinationDomain The domain of the chain to which to send the message.
-     * @param _msg The message to dispatch.
+     * @param _messageBody Raw bytes content of message.
      */
-    function _dispatch(uint32 _destinationDomain, bytes memory _msg)
+    function _dispatch(uint32 _destinationDomain, bytes memory _messageBody)
         internal
         returns (bytes32)
     {
         // Ensure that destination chain has an enrolled router.
         bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
-        return mailbox.dispatch(_destinationDomain, _router, _msg);
+        return mailbox.dispatch(_destinationDomain, _router, _messageBody);
     }
 }
