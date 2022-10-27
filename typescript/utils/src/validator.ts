@@ -20,6 +20,10 @@ export class BaseValidator {
     return utils.domainHash(this.localDomain);
   }
 
+  domainHashV2(mailbox: types.Address) {
+    return utils.domainHashV2(this.localDomain, mailbox);
+  }
+
   message(root: types.HexString, index: number) {
     return ethers.utils.solidityPack(
       ['bytes32', 'bytes32', 'uint256'],
@@ -27,8 +31,20 @@ export class BaseValidator {
     );
   }
 
+  messageV2(root: types.HexString, index: number, mailbox: types.Address) {
+    return ethers.utils.solidityPack(
+      ['bytes32', 'bytes32', 'uint256'],
+      [this.domainHashV2(mailbox), root, index],
+    );
+  }
+
   messageHash(root: types.HexString, index: number) {
     const message = this.message(root, index);
+    return ethers.utils.arrayify(ethers.utils.keccak256(message));
+  }
+
+  messageHashV2(root: types.HexString, index: number, mailbox: types.Address) {
+    const message = this.messageV2(root, index, mailbox);
     return ethers.utils.arrayify(ethers.utils.keccak256(message));
   }
 
@@ -66,6 +82,20 @@ export class Validator extends BaseValidator {
     index: number,
   ): Promise<Checkpoint> {
     const msgHash = this.messageHash(root, index);
+    const signature = await this.signer.signMessage(msgHash);
+    return {
+      root,
+      index,
+      signature,
+    };
+  }
+
+  async signCheckpointV2(
+    root: types.HexString,
+    index: number,
+    mailbox: types.Address,
+  ): Promise<Checkpoint> {
+    const msgHash = this.messageHashV2(root, index, mailbox);
     const signature = await this.signer.signMessage(msgHash);
     return {
       root,

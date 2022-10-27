@@ -10,8 +10,8 @@ import {
   BadRecipient3__factory,
   BadRecipient5__factory,
   BadRecipient6__factory,
-  MailboxV2,
-  MailboxV2__factory,
+  TestMailboxV2,
+  TestMailboxV2__factory,
   TestModule,
   TestModule__factory,
   TestRecipient__factory,
@@ -24,7 +24,7 @@ const destDomain = 2000;
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
 describe('Mailbox', async () => {
-  let mailbox: MailboxV2,
+  let mailbox: TestMailboxV2,
     module: TestModule,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
@@ -33,7 +33,7 @@ describe('Mailbox', async () => {
     [signer, nonOwner] = await ethers.getSigners();
     const moduleFactory = new TestModule__factory(signer);
     module = await moduleFactory.deploy();
-    const mailboxFactory = new MailboxV2__factory(signer);
+    const mailboxFactory = new TestMailboxV2__factory(signer);
     mailbox = await mailboxFactory.deploy(originDomain);
     await mailbox.initialize(module.address);
   });

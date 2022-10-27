@@ -17,7 +17,13 @@ export type SignatureLike =
     }
   | ethers.utils.BytesLike;
 
-/********* ABACUS CORE *********/
+export type MerkleProof = {
+  branch: ethers.utils.BytesLike[];
+  leaf: ethers.utils.BytesLike;
+  index: number;
+};
+
+/********* HYPERLANE CORE *********/
 export type Checkpoint = {
   root: string;
   index: number; // safe because 2 ** 32 leaves < Number.MAX_VALUE

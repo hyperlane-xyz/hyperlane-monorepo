@@ -1,7 +1,13 @@
 import { BigNumber, ethers, utils } from 'ethers';
 
-import { Checkpoint } from './types';
-import { Address, Domain, HexString, ParsedMessage } from './types';
+import {
+  Address,
+  Checkpoint,
+  Domain,
+  HexString,
+  MerkleProof,
+  ParsedMessage,
+} from './types';
 
 export function assert(predicate: any, errorMessage?: string) {
   if (!predicate) {
@@ -38,6 +44,35 @@ export function formatCallData<
     functionArgs,
   );
 }
+
+export const formatMultisigModuleMetadata = (
+  checkpoint: Checkpoint,
+  originMailbox: Address,
+  proof: MerkleProof,
+  signatures: string[],
+  addresses: Address[],
+): string => {
+  return ethers.utils.solidityPack(
+    [
+      'bytes32',
+      'uint256',
+      'bytes32',
+      'bytes32[32]',
+      'uint256',
+      'bytes',
+      'address[]',
+    ],
+    [
+      checkpoint.root,
+      checkpoint.index,
+      addressToBytes32(originMailbox),
+      proof.branch,
+      signatures.length,
+      ethers.utils.hexConcat(signatures),
+      addresses,
+    ],
+  );
+};
 
 export const formatMessage = (
   localDomain: Domain,
@@ -86,7 +121,7 @@ export function messageIdV2(message: HexString): string {
 }
 
 /**
- * Parse a serialized Abacus message from raw bytes.
+ * Parse a serialized Hyperlane message from raw bytes.
  *
  * @param message
  * @returns
@@ -124,6 +159,13 @@ export function domainHash(domain: number): string {
   return ethers.utils.solidityKeccak256(
     ['uint32', 'string'],
     [domain, 'ABACUS'], // TODO rename
+  );
+}
+
+export function domainHashV2(domain: number, mailbox: string): string {
+  return ethers.utils.solidityKeccak256(
+    ['uint32', 'bytes32', 'string'],
+    [domain, addressToBytes32(mailbox), 'HYPERLANE'],
   );
 }
 
@@ -250,4 +292,11 @@ export function symmetricDifference<T>(a: Set<T>, b: Set<T>) {
 
 export function setEquality<T>(a: Set<T>, b: Set<T>) {
   return symmetricDifference(a, b).size === 0;
+}
+
+export function sortAddresses(addresses: Address[]): Address[] {
+  return addresses.sort((a, b) => {
+    // Remove the checksums for accurate comparison
+    return a.toLowerCase().localeCompare(b.toLowerCase());
+  });
 }
