@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
 import {Router} from "../../Router.sol";
@@ -124,7 +125,7 @@ contract TokenBridgeRouter is Router {
         uint32 _destinationDomain,
         address _token,
         string calldata _bridge
-    ) public view returns (bytes32) {
+    ) public pure returns (bytes32) {
         bytes memory _encoded = abi.encodePacked(
             _destinationDomain,
             _token,
