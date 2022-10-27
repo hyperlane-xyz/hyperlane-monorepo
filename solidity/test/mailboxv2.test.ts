@@ -10,8 +10,8 @@ import {
   BadRecipient3__factory,
   BadRecipient5__factory,
   BadRecipient6__factory,
-  TestMailboxV2,
-  TestMailboxV2__factory,
+  MailboxV2,
+  MailboxV2__factory,
   TestModule,
   TestModule__factory,
   TestRecipient__factory,
@@ -19,21 +19,22 @@ import {
 
 import { inferMessageValues } from './lib/mailboxes';
 
-const localDomain = 1000;
+const originDomain = 1000;
 const destDomain = 2000;
-// const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
+const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
 describe('Mailbox', async () => {
-  let mailbox: TestMailboxV2, module: TestModule, signer: SignerWithAddress;
-
-  before(async () => {});
+  let mailbox: MailboxV2,
+    module: TestModule,
+    signer: SignerWithAddress,
+    nonOwner: SignerWithAddress;
 
   beforeEach(async () => {
-    [signer] = await ethers.getSigners();
+    [signer, nonOwner] = await ethers.getSigners();
     const moduleFactory = new TestModule__factory(signer);
     module = await moduleFactory.deploy();
-    const mailboxFactory = new TestMailboxV2__factory(signer);
-    mailbox = await mailboxFactory.deploy(localDomain);
+    const mailboxFactory = new MailboxV2__factory(signer);
+    mailbox = await mailboxFactory.deploy(originDomain);
     await mailbox.initialize(module.address);
   });
 
@@ -112,7 +113,7 @@ describe('Mailbox', async () => {
       ({ message, id } = await inferMessageValues(
         mailbox,
         signer.address,
-        localDomain,
+        originDomain,
         recipient,
         'message',
       ));
@@ -124,7 +125,7 @@ describe('Mailbox', async () => {
     });
 
     it('Rejects an already-processed message', async () => {
-      await mailbox.setMessageDelivered(id, true);
+      await expect(mailbox.process('0x', message)).to.emit(mailbox, 'Process');
 
       // Try to process message again
       await expect(mailbox.process('0x', message)).to.be.revertedWith(
@@ -149,7 +150,7 @@ describe('Mailbox', async () => {
         ({ message } = await inferMessageValues(
           mailbox,
           signer.address,
-          localDomain,
+          originDomain,
           badRecipient.address,
           'message',
         ));
@@ -162,7 +163,7 @@ describe('Mailbox', async () => {
       ({ message } = await inferMessageValues(
         mailbox,
         signer.address,
-        localDomain + 1,
+        originDomain + 1,
         recipient,
         'message',
       ));
@@ -176,7 +177,7 @@ describe('Mailbox', async () => {
       ({ message } = await inferMessageValues(
         mailbox,
         signer.address,
-        localDomain,
+        originDomain,
         '0x1234567890123456789012345678901234567890', // non-existent contract address
         'message',
       ));
@@ -184,23 +185,30 @@ describe('Mailbox', async () => {
     });
   });
 
-  /*
-  describe('#setValidatorManager', async () => {
-    it('Allows owner to update the ValidatorManager', async () => {
-      const mailboxFactory = new TestMailboxV2__factory(owner);
-      const newValidatorManager = await mailboxFactory.deploy(localDomain);
-      await expect(
-        mailbox.setValidatorManager(newValidatorManager.address),
-      ).to.emit(mailbox, 'ValidatorManagerSet');
-      expect(await mailbox.validatorManager()).to.equal(
-        newValidatorManager.address,
-      );
+  describe('#setDefaultModule', async () => {
+    let newModule: TestModule;
+    before(async () => {
+      const moduleFactory = new TestModule__factory(signer);
+      newModule = await moduleFactory.deploy();
     });
-    it('Does not allow nonowner to update the ValidatorManager', async () => {
+
+    it('Allows owner to update the default ISM', async () => {
+      await expect(mailbox.setDefaultModule(newModule.address))
+        .to.emit(mailbox, 'DefaultModuleSet')
+        .withArgs(newModule.address);
+      expect(await mailbox.defaultModule()).to.equal(newModule.address);
+    });
+
+    it('Does not allow non-owner to update the default ISM', async () => {
       await expect(
-        mailbox.connect(nonowner).setValidatorManager(mailbox.address),
+        mailbox.connect(nonOwner).setDefaultModule(newModule.address),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
     });
+
+    it('Reverts if the provided ISM is not a contract', async () => {
+      await expect(mailbox.setDefaultModule(signer.address)).to.be.revertedWith(
+        '!contract',
+      );
+    });
   });
-  */
 });

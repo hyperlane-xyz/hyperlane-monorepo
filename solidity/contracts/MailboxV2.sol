@@ -11,9 +11,16 @@ import {IInterchainSecurityModule, IUsesInterchainSecurityModule} from "../inter
 import {IMailboxV2} from "../interfaces/IMailboxV2.sol";
 
 // ============ External Imports ============
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
-contract MailboxV2 is IMailboxV2, ReentrancyGuardUpgradeable, Versioned {
+contract MailboxV2 is
+    IMailboxV2,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    Versioned
+{
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -23,14 +30,16 @@ contract MailboxV2 is IMailboxV2, ReentrancyGuardUpgradeable, Versioned {
 
     // ============ Constants ============
 
-    // Maximum bytes per message = 2 KiB
-    // (somewhat arbitrarily set to begin)
+    // Maximum bytes per message = 2 KiB (somewhat arbitrarily set to begin)
     uint256 public constant MAX_MESSAGE_BODY_BYTES = 2 * 2**10;
     // Domain of chain on which the contract is deployed
     uint32 public immutable localDomain;
 
     // ============ Public Storage ============
+
+    // The default ISM, used if the recipient fails to specify one.
     IInterchainSecurityModule public defaultModule;
+    // An incremental merkle tree used to store outbound message IDs.
     MerkleLib.Tree public tree;
     // Mapping of message ID to whether or not that message has been delivered.
     mapping(bytes32 => bool) public delivered;
@@ -43,10 +52,22 @@ contract MailboxV2 is IMailboxV2, ReentrancyGuardUpgradeable, Versioned {
     // ============ Events ============
 
     /**
-     * @notice Emitted when a new message is dispatched via Abacus
+     * @notice Emitted when the default ISM is updated
+     * @param module The new default ISM
+     */
+    event DefaultModuleSet(address indexed module);
+
+    /**
+     * @notice Emitted when a new message is dispatched via Hyperlane
+     * @param messageId The unique message identifier
      * @param message Raw bytes of message
      */
     event Dispatch(bytes32 indexed messageId, bytes message);
+
+    /**
+     * @notice Emitted when a Hyperlane message is delivered
+     * @param messageId The unique message identifier
+     */
     event Process(bytes32 indexed messageId);
 
     // ============ Constructor ============
@@ -60,20 +81,26 @@ contract MailboxV2 is IMailboxV2, ReentrancyGuardUpgradeable, Versioned {
 
     function initialize(address _defaultModule) external initializer {
         __ReentrancyGuard_init();
-        // TODO: setDefaultModule, check for isContract.
-        defaultModule = IInterchainSecurityModule(_defaultModule);
+        __Ownable_init();
+        _setDefaultModule(_defaultModule);
     }
 
     // ============ External Functions ============
 
     /**
-     * @notice Dispatch the message it to the destination domain & recipient
-     * @dev Format the message, insert its hash into Merkle tree,
-     * and emit `Dispatch` event with message information.
+     * @notice Sets the default ISM for the Mailbox.
+     * @param _module The new default ISM. Must be a contract.
+     */
+    function setDefaultModule(address _module) external onlyOwner {
+        _setDefaultModule(_module);
+    }
+
+    /**
+     * @notice Dispatches a message to the destination domain & recipient.
      * @param _destinationDomain Domain of destination chain
      * @param _recipientAddress Address of recipient on destination chain as bytes32
-     * @param _messageBody Raw bytes content of message
-     * @return The leaf index of the dispatched message's hash in the Merkle tree.
+     * @param _messageBody Raw bytes content of message body
+     * @return The message ID inserted into the Mailbox's merkle tree
      */
     function dispatch(
         uint32 _destinationDomain,
@@ -100,22 +127,16 @@ contract MailboxV2 is IMailboxV2, ReentrancyGuardUpgradeable, Versioned {
     }
 
     /**
-     * @notice Attempts to process the provided formatted `message`. Performs
-     * verification against root of the proof
-     * @dev Called by the validator manager, which is responsible for verifying a
-     * quorum of validator signatures on the checkpoint.
-     * @dev Reverts if verification of the message fails.
-     * @param _message Formatted message (refer to Mailbox.sol Message library)
+     * @notice Attempts to deliver `_message` to its recipient. Verifies
+     * `_message` via the recipient's ISM using the provided `_metadata`.
+     * @param _metadata Metadata used by the ISM to verify `_message`.
+     * @param _message Formatted Hyperlane message (refer to Message.sol).
      */
     function process(bytes calldata _metadata, bytes calldata _message)
         external
         override
         nonReentrant
     {
-        // TODO: If we wanted to support multiple message types,
-        // you could have a library for each type that tells the mailbox
-        // what to do with the message.
-
         // Check that the message was intended for this mailbox.
         require(_message.version() == VERSION, "!version");
         require(_message.destination() == localDomain, "!destination");
@@ -125,7 +146,7 @@ contract MailboxV2 is IMailboxV2, ReentrancyGuardUpgradeable, Versioned {
         require(delivered[_id] == false, "delivered");
         delivered[_id] = true;
 
-        // Verify the message in the ISM.
+        // Verify the message via the ISM.
         IInterchainSecurityModule _ism = _recipientModule(
             IUsesInterchainSecurityModule(_message.recipientAddress())
         );
@@ -140,6 +161,8 @@ contract MailboxV2 is IMailboxV2, ReentrancyGuardUpgradeable, Versioned {
         );
         emit Process(_id);
     }
+
+    // ============ Public Functions ============
 
     /**
      * @notice Calculates and returns tree's current root
@@ -164,6 +187,24 @@ contract MailboxV2 is IMailboxV2, ReentrancyGuardUpgradeable, Versioned {
         return (root(), count() - 1);
     }
 
+    // ============ Internal Functions ============
+
+    /**
+     * @notice Sets the default ISM for the Mailbox.
+     * @param _module The new default ISM. Must be a contract.
+     */
+    function _setDefaultModule(address _module) internal {
+        require(Address.isContract(_module), "!contract");
+        defaultModule = IInterchainSecurityModule(_module);
+        emit DefaultModuleSet(_module);
+    }
+
+    /**
+     * @notice Returns the ISM to use for the recipient, defaulting to the
+     * default ISM if none is specified.
+     * @param _recipient The message recipient whose ISM should be returned.
+     * @return The ISM to use for `_recipient`.
+     */
     function _recipientModule(IUsesInterchainSecurityModule _recipient)
         internal
         view
