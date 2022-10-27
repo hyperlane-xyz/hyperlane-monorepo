@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
 
-import { TestOutbox } from '../../types';
+import { TestMailboxV2, TestOutbox } from '../../types';
 import { DispatchEvent } from '../../types/contracts/Outbox';
 
 export const dispatchMessage = async (
@@ -55,3 +55,33 @@ export interface MerkleProof {
   index: number;
   message: string;
 }
+
+export const inferMessageValues = async (
+  mailbox: TestMailboxV2,
+  sender: string,
+  destination: number,
+  recipient: string,
+  messageStr: string,
+) => {
+  const body = utils.ensure0x(
+    Buffer.from(ethers.utils.toUtf8Bytes(messageStr)).toString('hex'),
+  );
+  const nonce = await mailbox.count();
+  const version = await mailbox.VERSION();
+  const localDomain = await mailbox.localDomain();
+  const message = utils.formatMessageV2(
+    nonce,
+    version,
+    localDomain,
+    sender,
+    destination,
+    recipient,
+    body,
+  );
+  const id = utils.messageIdV2(message);
+  return {
+    message,
+    id,
+    body,
+  };
+};
