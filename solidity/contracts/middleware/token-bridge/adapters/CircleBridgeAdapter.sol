@@ -80,6 +80,13 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
         bytes32 _remoteRouter = routers[_destinationDomain];
         require(_remoteRouter != bytes32(0), "!remote router");
 
+        // Approve the token to Circle. We assume that the TokenBridgeRouter
+        // has already transferred the token to this contract.
+        require(
+            IERC20(_token).approve(address(circleBridge), _amount),
+            "!approval"
+        );
+
         uint64 _nonce = circleBridge.depositForBurnWithCaller(
             _amount,
             _circleDomain,
