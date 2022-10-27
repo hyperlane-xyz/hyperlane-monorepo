@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 /********* BASIC TYPES *********/
 export type Domain = number;
@@ -35,18 +35,9 @@ export type CallData = {
   data: string;
 };
 
-export enum AbacusState {
-  UNINITIALIZED = 0,
-  ACTIVE,
-  FAILED,
-}
-
-export enum MessageStatus {
-  NONE = 0,
-  PROCESSED,
-}
-
 export type ParsedMessage = {
+  version: number;
+  nonce: BigNumber;
   origin: number;
   sender: string;
   destination: number;

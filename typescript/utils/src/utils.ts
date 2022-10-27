@@ -1,3 +1,4 @@
+import { types } from '..';
 import { BigNumber, ethers, utils } from 'ethers';
 
 import {
@@ -45,6 +46,32 @@ export function formatCallData<
   );
 }
 
+export const formatMessage = (
+  version: number | BigNumber,
+  nonce: number,
+  originDomain: Domain,
+  senderAddr: Address,
+  destinationDomain: Domain,
+  recipientAddr: Address,
+  body: HexString,
+): string => {
+  senderAddr = addressToBytes32(senderAddr);
+  recipientAddr = addressToBytes32(recipientAddr);
+
+  return ethers.utils.solidityPack(
+    ['uint32', 'uint256', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
+    [
+      version,
+      nonce,
+      originDomain,
+      senderAddr,
+      destinationDomain,
+      recipientAddr,
+      body,
+    ],
+  );
+};
+
 export const formatMultisigModuleMetadata = (
   checkpoint: Checkpoint,
   originMailbox: Address,
@@ -74,95 +101,29 @@ export const formatMultisigModuleMetadata = (
   );
 };
 
-export const formatMessage = (
-  localDomain: Domain,
-  senderAddr: Address,
-  destinationDomain: Domain,
-  recipientAddr: Address,
-  body: HexString,
-): string => {
-  senderAddr = addressToBytes32(senderAddr);
-  recipientAddr = addressToBytes32(recipientAddr);
-
-  return ethers.utils.solidityPack(
-    ['uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
-    [localDomain, senderAddr, destinationDomain, recipientAddr, body],
-  );
-};
-
-export const formatMessageV2 = (
-  version: number | BigNumber,
-  nonce: number,
-  originDomain: Domain,
-  senderAddr: Address,
-  destinationDomain: Domain,
-  recipientAddr: Address,
-  body: HexString,
-): string => {
-  senderAddr = addressToBytes32(senderAddr);
-  recipientAddr = addressToBytes32(recipientAddr);
-
-  return ethers.utils.solidityPack(
-    ['uint32', 'uint256', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
-    [
-      version,
-      nonce,
-      originDomain,
-      senderAddr,
-      destinationDomain,
-      recipientAddr,
-      body,
-    ],
-  );
-};
-
-export function messageIdV2(message: HexString): string {
-  return ethers.utils.solidityKeccak256(['bytes'], [message]);
-}
-
 /**
- * Parse a serialized Hyperlane message from raw bytes.
+ * Parse a serialized Abacus message from raw bytes.
  *
  * @param message
  * @returns
  */
 export function parseMessage(message: string): ParsedMessage {
   const buf = Buffer.from(utils.arrayify(message));
-  const origin = buf.readUInt32BE(0);
-  const sender = utils.hexlify(buf.slice(4, 36));
-  const destination = buf.readUInt32BE(36);
+  const version = buf.readUInt32BE(0);
+  const nonce = BigNumber.from(utils.hexlify(buf.slice(4, 36)));
+  const origin = buf.readUInt32BE(36);
+  const sender = utils.hexlify(buf.slice(40, 72));
+  const destination = buf.readUInt32BE(72);
   const recipient = utils.hexlify(buf.slice(40, 72));
   const body = utils.hexlify(buf.slice(72));
-  return { origin, sender, destination, recipient, body };
+  return { version, nonce, origin, sender, destination, recipient, body };
 }
 
-export function messageHash(message: HexString, leafIndex: number): string {
-  return ethers.utils.solidityKeccak256(
-    ['bytes', 'uint256'],
-    [message, leafIndex],
-  );
+export function messageId(message: HexString): string {
+  return ethers.utils.solidityKeccak256(['bytes'], [message]);
 }
 
-export function destinationAndNonce(
-  destination: Domain,
-  sequence: number,
-): ethers.BigNumber {
-  assert(destination < Math.pow(2, 32) - 1);
-  assert(sequence < Math.pow(2, 32) - 1);
-
-  return ethers.BigNumber.from(destination)
-    .mul(ethers.BigNumber.from(2).pow(32))
-    .add(ethers.BigNumber.from(sequence));
-}
-
-export function domainHash(domain: number): string {
-  return ethers.utils.solidityKeccak256(
-    ['uint32', 'string'],
-    [domain, 'ABACUS'], // TODO rename
-  );
-}
-
-export function domainHashV2(domain: number, mailbox: string): string {
+export function domainHash(domain: number, mailbox: string): string {
   return ethers.utils.solidityKeccak256(
     ['uint32', 'bytes32', 'string'],
     [domain, addressToBytes32(mailbox), 'HYPERLANE'],
@@ -294,7 +255,7 @@ export function setEquality<T>(a: Set<T>, b: Set<T>) {
   return symmetricDifference(a, b).size === 0;
 }
 
-export function sortAddresses(addresses: Address[]): Address[] {
+export function sortAddresses(addresses: types.Address[]): types.Address[] {
   return addresses.sort((a, b) => {
     // Remove the checksums for accurate comparison
     return a.toLowerCase().localeCompare(b.toLowerCase());

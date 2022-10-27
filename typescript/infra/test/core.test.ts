@@ -1,7 +1,6 @@
 import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-import path from 'path';
 import sinon from 'sinon';
 
 import {
@@ -49,7 +48,7 @@ describe('core', async () => {
     const base = './test/outputs/core';
     writeJSON(base, 'contracts.json', serializeContracts(contracts));
     writeJSON(base, 'verification.json', deployer.verificationInputs);
-    deployer.writeRustConfigs(environment, path.join(base, 'rust'));
+    deployer.writeRustConfigs(environment, base);
   });
 
   it('transfers ownership', async () => {
@@ -80,6 +79,7 @@ describe('core', async () => {
 
     it('can be resumed from partial (chain) failure', async () => {
       sinon.restore(); // restore normal deployer behavior and test3 will be deployed
+      console.log('redeploying');
       const result = await deployer.deploy();
       expect(result).to.have.keys(['test1', 'test2', 'test3']);
       expect(result.test3).to.have.keys(Object.keys(result.test2));
@@ -88,8 +88,8 @@ describe('core', async () => {
     it('can be resumed from partial contracts', async () => {
       sinon.restore(); // restore normal deployer behavior
 
-      delete deployer.deployedContracts.test2!.connectionManager;
-      delete deployer.deployedContracts.test2!.outbox;
+      delete deployer.deployedContracts.test2!.multisigModule;
+      delete deployer.deployedContracts.test2!.mailbox;
 
       const result = await deployer.deploy();
       expect(result.test2).to.have.keys(Object.keys(result.test1));

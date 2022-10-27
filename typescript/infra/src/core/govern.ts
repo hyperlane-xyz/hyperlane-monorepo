@@ -4,15 +4,12 @@ import {
   ChainMap,
   ChainName,
   ChainNameToDomainId,
-  ConnectionManagerViolation,
-  ConnectionManagerViolationType,
   CoreViolationType,
-  EnrolledInboxesViolation,
   EnrolledValidatorsViolation,
   HyperlaneCoreChecker,
+  MultisigModuleViolation,
+  MultisigModuleViolationType,
   OwnerViolation,
-  ValidatorManagerViolation,
-  ValidatorManagerViolationType,
   ViolationType,
   objMap,
 } from '@hyperlane-xyz/sdk';
@@ -127,20 +124,14 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
   protected async mapViolationsToCalls() {
     for (const violation of this.checker.violations) {
       switch (violation.type) {
-        case CoreViolationType.ValidatorManager: {
-          this.handleValidatorManagerViolation(
-            violation as ValidatorManagerViolation,
+        case CoreViolationType.MultisigModule: {
+          this.handleMultisigModuleViolation(
+            violation as MultisigModuleViolation,
           );
           break;
         }
         case ViolationType.Owner: {
           this.handleOwnerViolation(violation as OwnerViolation);
-          break;
-        }
-        case CoreViolationType.ConnectionManager: {
-          this.handleHyperlaneConnectionManagerViolation(
-            violation as ConnectionManagerViolation,
-          );
           break;
         }
         default:
@@ -222,73 +213,38 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
       );
   }
 
-  handleHyperlaneConnectionManagerViolation(
-    violation: ConnectionManagerViolation,
-  ) {
-    const connectionManager = violation.contract;
-    switch (violation.connectionManagerType) {
-      case ConnectionManagerViolationType.EnrolledInboxes: {
-        const typedViolation = violation as EnrolledInboxesViolation;
-        const remoteId = ChainNameToDomainId[typedViolation.remote];
-        const baseDescription = `as ${typedViolation.remote} Inbox on ${typedViolation.chain}`;
-        this.pushSetReconcilationCalls({
-          ...typedViolation,
-          add: (inbox) => ({
-            to: connectionManager.address,
-            data: connectionManager.interface.encodeFunctionData(
-              'enrollInbox',
-              [remoteId, inbox],
-            ),
-            description: `Enroll ${inbox} ${baseDescription}`,
-          }),
-          remove: (inbox) => ({
-            to: connectionManager.address,
-            data: connectionManager.interface.encodeFunctionData(
-              'unenrollInbox',
-              [inbox],
-            ),
-            description: `Unenroll ${inbox} ${baseDescription}`,
-          }),
-        });
-        break;
-      }
-      default:
-        throw new Error(
-          `Unsupported connection manager violation type ${violation.connectionManagerType}`,
-        );
-    }
-  }
-
-  handleValidatorManagerViolation(violation: ValidatorManagerViolation) {
-    const validatorManager = violation.contract;
-    switch (violation.validatorManagerType) {
-      case ValidatorManagerViolationType.EnrolledValidators: {
+  handleMultisigModuleViolation(violation: MultisigModuleViolation) {
+    const multisigModule = violation.contract;
+    const remoteDomainId = ChainNameToDomainId[violation.remote];
+    switch (violation.subType) {
+      case MultisigModuleViolationType.EnrolledValidators: {
         const baseDescription = `as ${violation.remote} validator on ${violation.chain}`;
         this.pushSetReconcilationCalls({
           ...(violation as EnrolledValidatorsViolation),
           add: (validator) => ({
-            to: validatorManager.address,
-            data: validatorManager.interface.encodeFunctionData(
+            to: multisigModule.address,
+            data: multisigModule.interface.encodeFunctionData(
               'enrollValidator',
-              [validator],
+              [remoteDomainId, validator],
             ),
             description: `Enroll ${validator} ${baseDescription}`,
           }),
           remove: (validator) => ({
-            to: validatorManager.address,
-            data: validatorManager.interface.encodeFunctionData(
+            to: multisigModule.address,
+            data: multisigModule.interface.encodeFunctionData(
               'unenrollValidator',
-              [validator],
+              [remoteDomainId, validator],
             ),
             description: `Unenroll ${validator} ${baseDescription}`,
           }),
         });
         break;
       }
-      case ValidatorManagerViolationType.Threshold: {
+      case MultisigModuleViolationType.Threshold: {
         this.pushCall(violation.chain as Chain, {
-          to: validatorManager.address,
-          data: validatorManager.interface.encodeFunctionData('setThreshold', [
+          to: multisigModule.address,
+          data: multisigModule.interface.encodeFunctionData('setThreshold', [
+            remoteDomainId,
             violation.expected,
           ]),
           description: `Set threshold to ${violation.expected} for ${violation.remote} on ${violation.chain}`,
@@ -297,7 +253,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
       }
       default:
         throw new Error(
-          `Unsupported validator manager violation type ${violation.validatorManagerType}`,
+          `Unsupported multisig module violation subtype ${violation.subType}`,
         );
     }
   }

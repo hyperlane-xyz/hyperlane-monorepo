@@ -1,15 +1,15 @@
 import { ethers } from 'ethers';
 
-import { TestInbox, TestOutbox } from '@hyperlane-xyz/core';
-import { types, utils } from '@hyperlane-xyz/utils';
+import { TestMailbox } from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { DomainIdToChainName } from '../domains';
 import { ProxiedContract } from '../proxy';
-import { ChainMap, ChainName, Remotes, TestChainNames } from '../types';
+import { ChainName, TestChainNames } from '../types';
 
 import { HyperlaneCore } from './HyperlaneCore';
-import { CoreContracts, InboxContracts, OutboxContracts } from './contracts';
+import { CoreContracts } from './contracts';
 
 type MockProxyAddresses = {
   kind: 'MOCK';
@@ -17,20 +17,9 @@ type MockProxyAddresses = {
   implementation: string;
 };
 
-export type TestOutboxContracts = OutboxContracts & {
-  outbox: ProxiedContract<TestOutbox, MockProxyAddresses>;
+export type TestCoreContracts<Local extends TestChainNames> = CoreContracts & {
+  mailbox: ProxiedContract<TestMailbox, MockProxyAddresses>;
 };
-export type TestInboxContracts = InboxContracts & {
-  inbox: ProxiedContract<TestInbox, MockProxyAddresses>;
-};
-
-export type TestCoreContracts<Local extends TestChainNames> = CoreContracts<
-  TestChainNames,
-  Local
-> &
-  TestOutboxContracts & {
-    inboxes: ChainMap<Remotes<TestChainNames, Local>, TestInboxContracts>;
-  };
 
 export class TestCoreApp<
   TestChain extends TestChainNames = TestChainNames,
@@ -61,7 +50,7 @@ export class TestCoreApp<
   ): Promise<Map<ChainName, ethers.providers.TransactionResponse[]>> {
     const responses = new Map<ChainName, any>();
     const contracts = this.getContracts(origin);
-    const outbox: TestOutbox = contracts.outbox.contract;
+    const outbox: TestMailbox = contracts.mailbox.contract;
 
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
@@ -72,20 +61,12 @@ export class TestCoreApp<
         throw new Error('Dispatched message to local domain');
       }
       const destinationChain = DomainIdToChainName[destination];
-      const inbox: TestInbox =
+      const inbox: TestMailbox =
         // @ts-ignore
-        this.getContracts(destinationChain).inboxes[origin].inbox.contract;
-      const status = await inbox.messages(
-        utils.messageHash(
-          dispatch.args.message,
-          dispatch.args.leafIndex.toNumber(),
-        ),
-      );
-      if (status !== types.MessageStatus.PROCESSED) {
-        const response = await inbox.testProcess(
-          dispatch.args.message,
-          dispatch.args.leafIndex.toNumber(),
-        );
+        this.getContracts(destinationChain).mailbox.contract;
+      const delivered = await inbox.delivered(dispatch.args.messageId);
+      if (!delivered) {
+        const response = await inbox.process('0x', dispatch.args.message);
         const destinationResponses = responses.get(destinationChain) || [];
         destinationResponses.push(response);
         responses.set(destinationChain, destinationResponses);

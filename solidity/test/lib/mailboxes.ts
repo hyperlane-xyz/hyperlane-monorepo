@@ -3,8 +3,8 @@ import { ethers } from 'ethers';
 
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
-import { TestMailboxV2 } from '../../types';
-import { DispatchEvent } from '../../types/contracts/MailboxV2';
+import { TestMailbox } from '../../types';
+import { DispatchEvent } from '../../types/contracts/Mailbox';
 
 export type MessageAndProof = {
   proof: types.MerkleProof;
@@ -17,7 +17,7 @@ export type MessageAndMetadata = {
 };
 
 export const dispatchMessage = async (
-  mailbox: TestMailboxV2,
+  mailbox: TestMailbox,
   destination: number,
   recipient: string,
   messageStr: string,
@@ -34,7 +34,7 @@ export const dispatchMessage = async (
 };
 
 export const dispatchMessageAndReturnProof = async (
-  mailbox: TestMailboxV2,
+  mailbox: TestMailbox,
   destination: number,
   recipient: string,
   messageStr: string,
@@ -58,7 +58,7 @@ export const dispatchMessageAndReturnProof = async (
 };
 
 export const inferMessageValues = async (
-  mailbox: TestMailboxV2,
+  mailbox: TestMailbox,
   sender: string,
   destination: number,
   recipient: string,
@@ -70,7 +70,7 @@ export const inferMessageValues = async (
   const nonce = await mailbox.count();
   const version = await mailbox.VERSION();
   const localDomain = await mailbox.localDomain();
-  const message = utils.formatMessageV2(
+  const message = utils.formatMessage(
     nonce,
     version,
     localDomain,
@@ -79,7 +79,7 @@ export const inferMessageValues = async (
     recipient,
     body,
   );
-  const id = utils.messageIdV2(message);
+  const id = utils.messageId(message);
   return {
     message,
     id,
@@ -92,7 +92,6 @@ export const inferMessageValues = async (
 export async function signCheckpoint(
   root: types.HexString,
   index: number,
-  mailbox: types.Address,
   unsortedValidators: Validator[],
 ): Promise<string[]> {
   const validators = unsortedValidators.sort((a, b) => {
@@ -102,9 +101,7 @@ export async function signCheckpoint(
   });
 
   const signedCheckpoints = await Promise.all(
-    validators.map((validator) =>
-      validator.signCheckpointV2(root, index, mailbox),
-    ),
+    validators.map((validator) => validator.signCheckpoint(root, index)),
   );
   return signedCheckpoints.map(
     (signedCheckpoint) => signedCheckpoint.signature as string, // cast is safe because signCheckpoint serializes to hex
@@ -112,7 +109,7 @@ export async function signCheckpoint(
 }
 
 export async function dispatchMessageAndReturnMetadata(
-  mailbox: TestMailboxV2,
+  mailbox: TestMailbox,
   destination: number,
   recipient: string,
   messageStr: string,
@@ -127,12 +124,7 @@ export async function dispatchMessageAndReturnMetadata(
   const root = await mailbox.root();
   const index = await mailbox.count();
   const addresses = utils.sortAddresses(validators.map((v) => v.address));
-  const signatures = await signCheckpoint(
-    root,
-    index.toNumber(),
-    mailbox.address,
-    validators,
-  );
+  const signatures = await signCheckpoint(root, index.toNumber(), validators);
   const checkpoint = { root, index: index.toNumber(), signature: '' };
   const metadata = utils.formatMultisigModuleMetadata(
     checkpoint,

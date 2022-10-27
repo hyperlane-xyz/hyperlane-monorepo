@@ -79,7 +79,6 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   moonbasealpha: '1',
   moonbeam: '0.1',
   // unused
-  auroratestnet: '0',
   test1: '0',
   test2: '0',
   test3: '0',

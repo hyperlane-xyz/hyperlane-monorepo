@@ -37,19 +37,16 @@ export abstract class HyperlaneRouterDeployer<
     await promiseObjAll(
       objMap(contractsMap, async (local, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(local);
-        // set hyperlane connection manager if not already set
+        // set mailbox if not already set (and configured)
+        const mailbox = this.configMap[local].mailbox;
         if (
-          // TODO rename ACM methods in router contract
-          (await contracts.router.abacusConnectionManager()) ===
-          ethers.constants.AddressZero
+          mailbox &&
+          (await contracts.router.mailbox()) === ethers.constants.AddressZero
         ) {
-          this.logger(`Set abacus connection manager on ${local}`);
-          await chainConnection.handleTx(
-            contracts.router.setAbacusConnectionManager(
-              this.configMap[local].connectionManager,
-            ),
-          );
+          this.logger(`Set mailbox on ${local}`);
+          await chainConnection.handleTx(contracts.router.setMailbox(mailbox));
         }
+
         // set interchain gas paymaster if not already set (and configured)
         const interchainGasPaymaster =
           this.configMap[local].interchainGasPaymaster;

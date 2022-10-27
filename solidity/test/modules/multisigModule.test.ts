@@ -6,8 +6,8 @@ import { ethers } from 'hardhat';
 import { Validator, utils } from '@hyperlane-xyz/utils';
 
 import {
-  TestMailboxV2,
-  TestMailboxV2__factory,
+  TestMailbox,
+  TestMailbox__factory,
   TestMultisigModule,
   TestMultisigModule__factory,
   TestRecipient__factory,
@@ -25,7 +25,7 @@ const domainHashTestCases = require('../../../vectors/domainHash.json');
 
 describe('MultisigModule', async () => {
   let multisigModule: TestMultisigModule,
-    mailbox: TestMailboxV2,
+    mailbox: TestMailbox,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress,
     validators: Validator[];
@@ -33,12 +33,12 @@ describe('MultisigModule', async () => {
   before(async () => {
     const signers = await ethers.getSigners();
     [signer, nonOwner] = signers;
-    const mailboxFactory = new TestMailboxV2__factory(signer);
+    const mailboxFactory = new TestMailbox__factory(signer);
     mailbox = await mailboxFactory.deploy(ORIGIN_DOMAIN);
     validators = await Promise.all(
       signers
         .filter((_, i) => i > 1)
-        .map((s) => Validator.fromSigner(s, ORIGIN_DOMAIN)),
+        .map((s) => Validator.fromSigner(s, ORIGIN_DOMAIN, mailbox.address)),
     );
   });
 
@@ -256,7 +256,7 @@ describe('MultisigModule', async () => {
     });
 
     it('allows for message processing when valid metadata is provided', async () => {
-      const mailboxFactory = new TestMailboxV2__factory(signer);
+      const mailboxFactory = new TestMailbox__factory(signer);
       const destinationMailbox = await mailboxFactory.deploy(
         DESTINATION_DOMAIN,
       );

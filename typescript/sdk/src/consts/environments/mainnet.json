@@ -1,658 +1,130 @@
 {
   "avalanche": {
     "upgradeBeaconController": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
-    "connectionManager": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+    "multisigModule": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0xed9a722c543883FB7e07E78F3879762DE09eA7D5",
       "implementation": "0xcAf034CE568fad5B85Cfbf088FF43974C39287cC",
       "beacon": "0xcf2d1D59C51a341818d23b0f6AfB7c85d668Dc77"
     },
-    "inboxes": {
-      "celo": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7"
-      },
-      "polygon": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x02d16BC51af6BfD153d67CA61754cF912E82C4d9",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3"
-      },
-      "optimism": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x14c3CEee8F431aE947364f43429a98EA89800238",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x8428a1a7E97Fc75Fb7Ba5c4aec31B55e52bbe9D6"
-      },
-      "bsc": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x4B44e4305B42405382b7BeC717F64D0552a9D9Fe",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x398633D19f4371e1DB5a8EFE90468eB70B1176AA"
-      },
-      "ethereum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x0E3239277501d215e17a4d31c487F86a425E110B",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x28EFBCadA00A7ed6772b3666F3898d276e88CAe3"
-      },
-      "arbitrum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x552D41c0B5c774F529C956E7CC77d0e054D7aFa8",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x23ce76645EC601148fa451e751eeB75785b97A00"
-      },
-      "moonbeam": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x32af5Df81fEd5E26119F6640FBB13f3d63a94CDe",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0xDd0D36E55078c643cefDc17936b63BACC71c50Da"
-      }
-    },
-    "outbox": {
+    "mailbox": {
       "kind": "UpgradeBeacon",
       "proxy": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
       "implementation": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
       "beacon": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908"
-    },
-    "outboxValidatorManager": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A"
+    }
   },
   "bsc": {
     "upgradeBeaconController": "0x149db7afD694722747035d5AEC7007ccb6F8f112",
-    "connectionManager": "0x19dc38aeae620380430C200a6E990D5Af5480117",
+    "multisigModule": "0x19dc38aeae620380430C200a6E990D5Af5480117",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x47bf94790241B1764fC41A35a8329A15569E121C",
       "implementation": "0x4419922ca3C11F92bd11D31489932C39BAB57DA3",
       "beacon": "0xc2Da384799488B4e1E773d70a83346529145085B"
     },
-    "inboxes": {
-      "avalanche": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x182E8d7c5F1B06201b102123FC7dF0EaeB445a7B",
-          "implementation": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a",
-          "beacon": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9"
-        },
-        "inboxValidatorManager": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638"
-      },
-      "polygon": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xaad207a0Fd7a4e3C927Ccc78ac8134baF586B852",
-          "implementation": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a",
-          "beacon": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9"
-        },
-        "inboxValidatorManager": "0x8f4BeB6552b76aA38Cd9994701c0Da7bC829648B"
-      },
-      "celo": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x66DC49405Ae2956f7E87FEAa9fE8f506C8987462",
-          "implementation": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a",
-          "beacon": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9"
-        },
-        "inboxValidatorManager": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
-      },
-      "arbitrum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x79b3D752cc9494eCB93800712471a7a62954C8AE",
-          "implementation": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a",
-          "beacon": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9"
-        },
-        "inboxValidatorManager": "0x61DDB465eEA5bc3708Cf8B53156aC91a77A2f029"
-      },
-      "optimism": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xA1ac41d8A663fd317cc3BD94C7de92dC4BA4a882",
-          "implementation": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a",
-          "beacon": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9"
-        },
-        "inboxValidatorManager": "0x8F1E22d309baa69D398a03cc88E9b46037e988AA"
-      },
-      "ethereum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xE0C452DDA7506f0F4dE5C8C1d383F7aD866eA4F0",
-          "implementation": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a",
-          "beacon": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9"
-        },
-        "inboxValidatorManager": "0x6Fae4D9935E2fcb11fC79a64e917fb2BF14DaFaa"
-      },
-      "moonbeam": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x79e25126E1dAB135734e0261E8aB93674131fD2b",
-          "implementation": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a",
-          "beacon": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9"
-        },
-        "inboxValidatorManager": "0x319f058FeedA044bD20E949FDCA31AEbb19b0063"
-      }
-    },
-    "outbox": {
+    "mailbox": {
       "kind": "UpgradeBeacon",
       "proxy": "0xc3F23848Ed2e04C0c6d41bd7804fa8f89F940B94",
       "implementation": "0xfDc940D5c148bA038505DAa5524730644527229a",
       "beacon": "0x0D63128D887159d63De29497dfa45AFc7C699AE4"
-    },
-    "outboxValidatorManager": "0xBF12ef4B9f307463D3FB59c3604F294dDCe287E2"
+    }
   },
   "polygon": {
     "upgradeBeaconController": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
-    "connectionManager": "0x1Ab68dC4f7b6cfcd00218D4b761b7F3b5a724555",
+    "multisigModule": "0x1Ab68dC4f7b6cfcd00218D4b761b7F3b5a724555",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x60B8d195f1b2EcaC26d54b95C69E6399cFD64b53",
       "implementation": "0x13E83ac41e696856B6996263501fB3225AD5E6F5",
       "beacon": "0x61374178e45F65fF9D6252d017Cd580FC60B7654"
     },
-    "inboxes": {
-      "bsc": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x9fA986ACB22953c504Fcf5985DFA476d481C3b1B",
-          "implementation": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d",
-          "beacon": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54"
-        },
-        "inboxValidatorManager": "0x0BD07E3934D1C4cc8Db0eA2a5cDAc8C8d8eb9824"
-      },
-      "avalanche": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xA805695C20ED9F4ce9905cd1aFaE7877A81ec0d7",
-          "implementation": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d",
-          "beacon": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54"
-        },
-        "inboxValidatorManager": "0x97423A68BAe94b5De52d767a17aBCc54c157c0E5"
-      },
-      "celo": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147",
-          "implementation": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d",
-          "beacon": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54"
-        },
-        "inboxValidatorManager": "0x086eF95a2F74582Ee30E7D698518a872fb18301f"
-      },
-      "arbitrum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x5060eCD5dFAD300A90592C04e504600A7cdcF70b",
-          "implementation": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d",
-          "beacon": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54"
-        },
-        "inboxValidatorManager": "0x4E1c88DD261BEe2941e6c1814597e30F53330428"
-      },
-      "optimism": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xc22B646edf6c9A43d83fDBc8D5E1B3c6DAfACb83",
-          "implementation": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d",
-          "beacon": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54"
-        },
-        "inboxValidatorManager": "0xF5165f115ba4E1Adc09f0EB392232D65F219806a"
-      },
-      "ethereum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x6A55822cf11f9fcBc4c75BC2638AfE8Eb942cAdd",
-          "implementation": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d",
-          "beacon": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54"
-        },
-        "inboxValidatorManager": "0x8105a095368f1a184CceA86cCe21318B5Ee5BE28"
-      },
-      "moonbeam": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x6267Dbfc38f7Af897536563c15f07B89634cb656",
-          "implementation": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d",
-          "beacon": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54"
-        },
-        "inboxValidatorManager": "0x0c7b67793c56eD93773cEee07A43B3D7aDF533b7"
-      }
-    },
-    "outbox": {
+    "mailbox": {
       "kind": "UpgradeBeacon",
       "proxy": "0x8249cD1275855F2BB20eE71f0B9fA3c9155E5FaB",
       "implementation": "0x17E216fBb22dF4ef8A6640ae9Cb147C92710ac84",
       "beacon": "0xe042D1fbDf59828dd16b9649Ede7abFc856F7a6c"
-    },
-    "outboxValidatorManager": "0xFC62DeF1f08793aBf0E67f69257c6be258194F72"
+    }
   },
   "celo": {
     "upgradeBeaconController": "0x48083C69f5a42c6B69ABbAd48AE195BD36770ee2",
-    "connectionManager": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
+    "multisigModule": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0xCDeb368Db32ecCefaf7018e152DA9120565cb572",
       "implementation": "0x70EbA87Cd15616f32C736B3f3BdCfaeD0713a82B",
       "beacon": "0x99fEFc1119E86Ee0153eb887cF8E8ab2d92A16e8"
     },
-    "inboxes": {
-      "bsc": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54",
-          "implementation": "0x0BD07E3934D1C4cc8Db0eA2a5cDAc8C8d8eb9824",
-          "beacon": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d"
-        },
-        "inboxValidatorManager": "0x83c2DB237e93Ce52565AB110124f78fdf159E3f4"
-      },
-      "avalanche": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x97423A68BAe94b5De52d767a17aBCc54c157c0E5",
-          "implementation": "0x0BD07E3934D1C4cc8Db0eA2a5cDAc8C8d8eb9824",
-          "beacon": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d"
-        },
-        "inboxValidatorManager": "0xf9DbC8776Bc2812c4DBEc45383A1783Ac758Fb55"
-      },
-      "polygon": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x086eF95a2F74582Ee30E7D698518a872fb18301f",
-          "implementation": "0x0BD07E3934D1C4cc8Db0eA2a5cDAc8C8d8eb9824",
-          "beacon": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d"
-        },
-        "inboxValidatorManager": "0x95878Fd41bC26f7045C0b98e381c22f010745A75"
-      },
-      "arbitrum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x4E1c88DD261BEe2941e6c1814597e30F53330428",
-          "implementation": "0x0BD07E3934D1C4cc8Db0eA2a5cDAc8C8d8eb9824",
-          "beacon": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d"
-        },
-        "inboxValidatorManager": "0xC077A0Cc408173349b1c9870C667B40FE3C01dd7"
-      },
-      "optimism": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xF5165f115ba4E1Adc09f0EB392232D65F219806a",
-          "implementation": "0x0BD07E3934D1C4cc8Db0eA2a5cDAc8C8d8eb9824",
-          "beacon": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d"
-        },
-        "inboxValidatorManager": "0x781bE492F1232E66990d83a9D3AC3Ec26f56DAfB"
-      },
-      "ethereum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x8105a095368f1a184CceA86cCe21318B5Ee5BE28",
-          "implementation": "0x0BD07E3934D1C4cc8Db0eA2a5cDAc8C8d8eb9824",
-          "beacon": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d"
-        },
-        "inboxValidatorManager": "0x2Fca7f6eC3d4A0408900f2BB30004d4616eE985E"
-      },
-      "moonbeam": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xEb4ca142644172878Bee23E44C8BDae215E92430",
-          "implementation": "0x0BD07E3934D1C4cc8Db0eA2a5cDAc8C8d8eb9824",
-          "beacon": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d"
-        },
-        "inboxValidatorManager": "0x0D11258092e5BC4a813478ff8837887C2A1a6e89"
-      }
-    },
-    "outbox": {
+    "mailbox": {
       "kind": "UpgradeBeacon",
       "proxy": "0xe042D1fbDf59828dd16b9649Ede7abFc856F7a6c",
       "implementation": "0xFC62DeF1f08793aBf0E67f69257c6be258194F72",
       "beacon": "0x17E216fBb22dF4ef8A6640ae9Cb147C92710ac84"
-    },
-    "outboxValidatorManager": "0x1Ab68dC4f7b6cfcd00218D4b761b7F3b5a724555"
+    }
   },
   "arbitrum": {
     "upgradeBeaconController": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
-    "connectionManager": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+    "multisigModule": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x376aD181E8cd45eAd5403F78d5A871D08c3c4D77",
       "implementation": "0x5c12ADC734699C07b095fe30B8312F1A7bbaA788",
       "beacon": "0xc23BaF5Eb5848D19701BbE7f139645e6bd58a319"
     },
-    "inboxes": {
-      "bsc": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7"
-      },
-      "avalanche": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x02d16BC51af6BfD153d67CA61754cF912E82C4d9",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3"
-      },
-      "polygon": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x14c3CEee8F431aE947364f43429a98EA89800238",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x8428a1a7E97Fc75Fb7Ba5c4aec31B55e52bbe9D6"
-      },
-      "celo": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x4B44e4305B42405382b7BeC717F64D0552a9D9Fe",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x398633D19f4371e1DB5a8EFE90468eB70B1176AA"
-      },
-      "optimism": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x0E3239277501d215e17a4d31c487F86a425E110B",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x28EFBCadA00A7ed6772b3666F3898d276e88CAe3"
-      },
-      "ethereum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x552D41c0B5c774F529C956E7CC77d0e054D7aFa8",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x23ce76645EC601148fa451e751eeB75785b97A00"
-      },
-      "moonbeam": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x88AcaD5222Fbb66C23d0E9532FDd32e57C68a53F",
-          "implementation": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-          "beacon": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
-        },
-        "inboxValidatorManager": "0x76b76307f778CB98Cc71DF9f00cBF99C32544C03"
-      }
-    },
-    "outbox": {
+    "mailbox": {
       "kind": "UpgradeBeacon",
       "proxy": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
       "implementation": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
       "beacon": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908"
-    },
-    "outboxValidatorManager": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A"
+    }
   },
   "optimism": {
     "upgradeBeaconController": "0x15ab173bDB6832f9b64276bA128659b0eD77730B",
-    "connectionManager": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
+    "multisigModule": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0xc5D6aCaafBCcEC6D7fD7d92F4509befce641c563",
       "implementation": "0xFB9e40D811Cea562cc8a322b029eF2BDcC3ef6ed",
       "beacon": "0x6119B76720CcfeB3D256EC1b91218EEfFD6756E1"
     },
-    "inboxes": {
-      "bsc": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x66DC49405Ae2956f7E87FEAa9fE8f506C8987462",
-          "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
-          "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
-        },
-        "inboxValidatorManager": "0xaad207a0Fd7a4e3C927Ccc78ac8134baF586B852"
-      },
-      "avalanche": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x79b3D752cc9494eCB93800712471a7a62954C8AE",
-          "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
-          "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
-        },
-        "inboxValidatorManager": "0x61DDB465eEA5bc3708Cf8B53156aC91a77A2f029"
-      },
-      "polygon": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xA1ac41d8A663fd317cc3BD94C7de92dC4BA4a882",
-          "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
-          "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
-        },
-        "inboxValidatorManager": "0x8F1E22d309baa69D398a03cc88E9b46037e988AA"
-      },
-      "celo": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xE0C452DDA7506f0F4dE5C8C1d383F7aD866eA4F0",
-          "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
-          "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
-        },
-        "inboxValidatorManager": "0x6Fae4D9935E2fcb11fC79a64e917fb2BF14DaFaa"
-      },
-      "arbitrum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x2Fa570E83009eaEef3a1cbd496a9a30F05266634",
-          "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
-          "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
-        },
-        "inboxValidatorManager": "0x931dFCc8c1141D6F532FD023bd87DAe0080c835d"
-      },
-      "ethereum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xea820f9BCFD5E16a0dd42071EB61A29874Ad81A4",
-          "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
-          "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
-        },
-        "inboxValidatorManager": "0xB3fCcD379ad66CED0c91028520C64226611A48c9"
-      },
-      "moonbeam": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xCDaebcc592DA5c982B05E95039FF5f3467420223",
-          "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
-          "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
-        },
-        "inboxValidatorManager": "0xdc47eDc036daaE45D3F019CCfD443Bf72fBD981c"
-      }
-    },
-    "outbox": {
+    "mailbox": {
       "kind": "UpgradeBeacon",
       "proxy": "0x0be2Ae2f6D02a3e0e00ECB57D3E1fCbb7f8F38F4",
       "implementation": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
       "beacon": "0x182E8d7c5F1B06201b102123FC7dF0EaeB445a7B"
-    },
-    "outboxValidatorManager": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a"
+    }
   },
   "ethereum": {
     "upgradeBeaconController": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-    "connectionManager": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
+    "multisigModule": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x17E216fBb22dF4ef8A6640ae9Cb147C92710ac84",
       "implementation": "0x1Ab68dC4f7b6cfcd00218D4b761b7F3b5a724555",
       "beacon": "0xFC62DeF1f08793aBf0E67f69257c6be258194F72"
     },
-    "inboxes": {
-      "bsc": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x81a92A1a272cb09d7b4970b07548463dC7aE0cB7",
-          "implementation": "0x8428a1a7E97Fc75Fb7Ba5c4aec31B55e52bbe9D6",
-          "beacon": "0x14c3CEee8F431aE947364f43429a98EA89800238"
-        },
-        "inboxValidatorManager": "0xC343A7054838FE9F249D7E3Ec1Fa6f1D108694b8"
-      },
-      "avalanche": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x95Ad03405aC24c0bc247bdFDC113B01955A71761",
-          "implementation": "0x8428a1a7E97Fc75Fb7Ba5c4aec31B55e52bbe9D6",
-          "beacon": "0x14c3CEee8F431aE947364f43429a98EA89800238"
-        },
-        "inboxValidatorManager": "0x4B44e4305B42405382b7BeC717F64D0552a9D9Fe"
-      },
-      "polygon": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xF59557dfacDc5a1cb8A36Af43aA4819a6A891e88",
-          "implementation": "0x8428a1a7E97Fc75Fb7Ba5c4aec31B55e52bbe9D6",
-          "beacon": "0x14c3CEee8F431aE947364f43429a98EA89800238"
-        },
-        "inboxValidatorManager": "0x0E3239277501d215e17a4d31c487F86a425E110B"
-      },
-      "celo": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xCB5C99F908410add8241b558299fe9aadC06bA99",
-          "implementation": "0x8428a1a7E97Fc75Fb7Ba5c4aec31B55e52bbe9D6",
-          "beacon": "0x14c3CEee8F431aE947364f43429a98EA89800238"
-        },
-        "inboxValidatorManager": "0x552D41c0B5c774F529C956E7CC77d0e054D7aFa8"
-      },
-      "arbitrum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x7082e975Fde8D85B0C56B4512b437efFb46F0a09",
-          "implementation": "0x8428a1a7E97Fc75Fb7Ba5c4aec31B55e52bbe9D6",
-          "beacon": "0x14c3CEee8F431aE947364f43429a98EA89800238"
-        },
-        "inboxValidatorManager": "0xCA41932888D323B3d99f5eA48F86D502055C0322"
-      },
-      "optimism": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xF7af65596A16740b16CF755F3A43206C96285da0",
-          "implementation": "0x8428a1a7E97Fc75Fb7Ba5c4aec31B55e52bbe9D6",
-          "beacon": "0x14c3CEee8F431aE947364f43429a98EA89800238"
-        },
-        "inboxValidatorManager": "0xF5739A4AF21346Aa937bF7fEB5d3B21c2d230138"
-      },
-      "moonbeam": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xdc47eDc036daaE45D3F019CCfD443Bf72fBD981c",
-          "implementation": "0x8428a1a7E97Fc75Fb7Ba5c4aec31B55e52bbe9D6",
-          "beacon": "0x14c3CEee8F431aE947364f43429a98EA89800238"
-        },
-        "inboxValidatorManager": "0x1Dcf599693707f41375695488589F4C6Af3845e8"
-      }
-    },
-    "outbox": {
+    "mailbox": {
       "kind": "UpgradeBeacon",
       "proxy": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3",
       "implementation": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7",
       "beacon": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39"
-    },
-    "outboxValidatorManager": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E"
+    }
   },
   "moonbeam": {
     "upgradeBeaconController": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
-    "connectionManager": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
+    "multisigModule": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
       "implementation": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
       "beacon": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A"
     },
-    "inboxes": {
-      "celo": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x02d16BC51af6BfD153d67CA61754cF912E82C4d9",
-          "implementation": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39",
-          "beacon": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3"
-        },
-        "inboxValidatorManager": "0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7"
-      },
-      "ethereum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x14c3CEee8F431aE947364f43429a98EA89800238",
-          "implementation": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39",
-          "beacon": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3"
-        },
-        "inboxValidatorManager": "0x8428a1a7E97Fc75Fb7Ba5c4aec31B55e52bbe9D6"
-      },
-      "avalanche": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x4B44e4305B42405382b7BeC717F64D0552a9D9Fe",
-          "implementation": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39",
-          "beacon": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3"
-        },
-        "inboxValidatorManager": "0x398633D19f4371e1DB5a8EFE90468eB70B1176AA"
-      },
-      "polygon": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x0E3239277501d215e17a4d31c487F86a425E110B",
-          "implementation": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39",
-          "beacon": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3"
-        },
-        "inboxValidatorManager": "0x28EFBCadA00A7ed6772b3666F3898d276e88CAe3"
-      },
-      "bsc": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0x552D41c0B5c774F529C956E7CC77d0e054D7aFa8",
-          "implementation": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39",
-          "beacon": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3"
-        },
-        "inboxValidatorManager": "0x23ce76645EC601148fa451e751eeB75785b97A00"
-      },
-      "arbitrum": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xCA41932888D323B3d99f5eA48F86D502055C0322",
-          "implementation": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39",
-          "beacon": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3"
-        },
-        "inboxValidatorManager": "0x71b2644183ECA86401c13577f5332fcc5e48352a"
-      },
-      "optimism": {
-        "inbox": {
-          "kind": "UpgradeBeacon",
-          "proxy": "0xF5739A4AF21346Aa937bF7fEB5d3B21c2d230138",
-          "implementation": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39",
-          "beacon": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3"
-        },
-        "inboxValidatorManager": "0xBC9cd961BF6c224FAc51fb049aB6788e38e4A9C0"
-      }
-    },
-    "outbox": {
+    "mailbox": {
       "kind": "UpgradeBeacon",
       "proxy": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
       "implementation": "0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1",
       "beacon": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7"
-    },
-    "outboxValidatorManager": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004"
+    }
   }
 }

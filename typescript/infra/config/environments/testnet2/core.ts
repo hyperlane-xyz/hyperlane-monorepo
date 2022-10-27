@@ -4,7 +4,7 @@ import { TestnetChains } from './chains';
 
 export const core: ChainMap<TestnetChains, CoreConfig> = {
   alfajores: {
-    validatorManager: {
+    multisigModule: {
       validators: [
         '0x7716860b2be4079137dc21533ac6d26a99d76e83',
         '0xb476f4d55d640e9a9a43b9bdf471dc06e4508bbd',
@@ -15,7 +15,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
     },
   },
   fuji: {
-    validatorManager: {
+    multisigModule: {
       validators: [
         '0xc0ab1f3e3317521a92462927849b8844cf408b09',
         '0xefde1812fea378c645d8e7984ce985b228cd1beb',
@@ -26,7 +26,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
     },
   },
   mumbai: {
-    validatorManager: {
+    multisigModule: {
       validators: [
         '0x0f1a231cb2ecc5f26696c433d76fe59521a227e0',
         '0x3e527087fc60752695d9a4f77a6324bbae3940b1',
@@ -37,7 +37,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
     },
   },
   bsctestnet: {
-    validatorManager: {
+    multisigModule: {
       validators: [
         '0xa7959b2f03f6fc77c9592547bd0ca12fe2c7bf8f',
         '0xc78c1198d4224103dbb0e365286c3403c54fbbf6',
@@ -48,7 +48,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
     },
   },
   goerli: {
-    validatorManager: {
+    multisigModule: {
       validators: [
         '0x89687c99ffb56f329915f80a858a45fccc2b7402',
         '0xca25781e7c0067a71d09b991bd7b37ab1168c76c',
@@ -58,7 +58,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
     },
   },
   moonbasealpha: {
-    validatorManager: {
+    multisigModule: {
       validators: [
         '0x0cc08084a0a7cc61102e800204851627732f8aa4',
         '0xd151f6ca08e632eb7abd5afcb49c47d6a9b67a54',

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+// ============ Internal Imports ============
 import {OwnableMulticall, Call} from "../OwnableMulticall.sol";
+import {Router} from "../Router.sol";
 
 // ============ External Imports ============
-import {Router} from "../Router.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -25,14 +26,14 @@ contract InterchainAccountRouter is Router {
 
     function initialize(
         address _owner,
-        address _abacusConnectionManager,
+        address _mailbox,
         address _interchainGasPaymaster
     ) public initializer {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
-        // Set the addresses for the ACM and IGP
+        // Set the addresses for the Mailbox and IGP
         // Alternatively, this could be done later in an initialize method
-        _setAbacusConnectionManager(_abacusConnectionManager);
+        _setMailbox(_mailbox);
         _setInterchainGasPaymaster(_interchainGasPaymaster);
     }
 

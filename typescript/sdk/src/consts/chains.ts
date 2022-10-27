@@ -16,7 +16,6 @@ export enum Chains { // must be string type to be used with Object.keys
   optimism = 'optimism',
   polygon = 'polygon',
   bsctestnet = 'bsctestnet',
-  auroratestnet = 'auroratestnet',
   moonbasealpha = 'moonbasealpha',
   moonbeam = 'moonbeam',
   test1 = 'test1',

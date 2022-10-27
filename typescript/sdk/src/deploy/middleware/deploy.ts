@@ -44,7 +44,7 @@ export class InterchainAccountDeployer<
     const initCalldata =
       InterchainAccountRouter__factory.createInterface().encodeFunctionData(
         'initialize',
-        [config.owner, config.connectionManager, config.interchainGasPaymaster],
+        [config.owner, config.mailbox, config.interchainGasPaymaster],
       );
     const router = await this.deployContract(chain, 'router', [], {
       create2Salt: 'asdasdsd',
@@ -84,7 +84,7 @@ export class InterchainQueryDeployer<
     const initCalldata =
       InterchainQueryRouter__factory.createInterface().encodeFunctionData(
         'initialize',
-        [config.owner, config.connectionManager, config.interchainGasPaymaster],
+        [config.owner, config.mailbox, config.interchainGasPaymaster],
       );
     const router = await this.deployContract(chain, 'router', [], {
       create2Salt: this.create2salt,

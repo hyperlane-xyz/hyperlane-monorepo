@@ -1,41 +1,33 @@
-import {
-  AbacusConnectionManager,
-  Mailbox,
-  MultisigValidatorManager,
-} from '@hyperlane-xyz/core';
+import { Mailbox, MultisigModule } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { ChainName } from '../../types';
 import type { CheckerViolation } from '../types';
 
-export type ValidatorManagerConfig = {
+export type MultisigModuleConfig = {
   validators: Array<types.Address>;
   threshold: number;
 };
 
 export type CoreConfig = {
-  validatorManager: ValidatorManagerConfig;
+  multisigModule: MultisigModuleConfig;
   owner?: types.Address;
   remove?: boolean;
 };
 
 export enum CoreViolationType {
-  ValidatorManager = 'ValidatorManager',
+  MultisigModule = 'MultisigModule',
   Mailbox = 'Mailbox',
   ConnectionManager = 'ConnectionManager',
 }
 
-export enum ValidatorManagerViolationType {
+export enum MultisigModuleViolationType {
   EnrolledValidators = 'EnrolledValidators',
   Threshold = 'Threshold',
 }
 
-export enum ConnectionManagerViolationType {
-  EnrolledInboxes = 'EnrolledInboxes',
-}
-
 export enum MailboxViolationType {
-  ValidatorManager = 'ValidatorManager',
+  DefaultModule = 'DefaultModule',
 }
 
 export interface MailboxViolation extends CheckerViolation {
@@ -44,38 +36,26 @@ export interface MailboxViolation extends CheckerViolation {
   mailboxType: MailboxViolationType;
 }
 
-export interface MailboxValidatorManagerViolation extends MailboxViolation {
+export interface MailboxMultisigModuleViolation extends MailboxViolation {
   actual: types.Address;
   expected: types.Address;
 }
 
-export interface ValidatorManagerViolation extends CheckerViolation {
-  type: CoreViolationType.ValidatorManager;
-  contract: MultisigValidatorManager;
-  validatorManagerType: ValidatorManagerViolationType;
+export interface MultisigModuleViolation extends CheckerViolation {
+  type: CoreViolationType.MultisigModule;
+  contract: MultisigModule;
+  subType: MultisigModuleViolationType;
   remote: ChainName;
 }
 
-export interface EnrolledValidatorsViolation extends ValidatorManagerViolation {
-  validatorManagerType: ValidatorManagerViolationType.EnrolledValidators;
+export interface EnrolledValidatorsViolation extends MultisigModuleViolation {
+  validatorManagerType: MultisigModuleViolationType.EnrolledValidators;
   actual: Set<types.Address>;
   expected: Set<types.Address>;
 }
 
-export interface ThresholdViolation extends ValidatorManagerViolation {
-  validatorManagerType: ValidatorManagerViolationType.Threshold;
+export interface ThresholdViolation extends MultisigModuleViolation {
+  validatorManagerType: MultisigModuleViolationType.Threshold;
   actual: number;
   expected: number;
-}
-
-export interface ConnectionManagerViolation extends CheckerViolation {
-  type: CoreViolationType.ConnectionManager;
-  contract: AbacusConnectionManager;
-  connectionManagerType: ConnectionManagerViolationType;
-}
-
-export interface EnrolledInboxesViolation extends ConnectionManagerViolation {
-  remote: ChainName;
-  actual: Set<types.Address>;
-  expected: Set<types.Address>;
 }

@@ -21,7 +21,7 @@ export type RouterFactories<RouterContract extends Router = Router> =
   };
 
 export type ConnectionClientConfig = {
-  connectionManager: types.Address;
+  mailbox: types.Address;
   interchainGasPaymaster: types.Address;
 };
 

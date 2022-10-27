@@ -54,12 +54,7 @@ export {
   CoreContractsMap,
   DispatchedMessage,
 } from './core/HyperlaneCore';
-export {
-  CoreContracts,
-  coreFactories,
-  InboxContracts,
-  OutboxContracts,
-} from './core/contracts';
+export { CoreContracts, coreFactories } from './core/contracts';
 export {
   HyperlaneLifecyleEvent,
   AnnotatedDispatch,
@@ -73,12 +68,7 @@ export {
   resolveId,
   resolveNetworks,
 } from './core/message';
-export {
-  TestCoreApp,
-  TestCoreContracts,
-  TestInboxContracts,
-  TestOutboxContracts,
-} from './core/TestCoreApp';
+export { TestCoreApp, TestCoreContracts } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 
 export { InterchainGasCalculator, ParsedMessage } from './gas/calculator';
@@ -99,13 +89,9 @@ export { HyperlaneCoreChecker } from './deploy/core/HyperlaneCoreChecker';
 export {
   CoreConfig,
   CoreViolationType,
-  ValidatorManagerConfig,
-  ValidatorManagerViolation,
-  EnrolledInboxesViolation,
-  ConnectionManagerViolation,
-  ConnectionManagerViolationType,
   EnrolledValidatorsViolation,
-  ValidatorManagerViolationType,
+  MultisigModuleViolation,
+  MultisigModuleViolationType,
 } from './deploy/core/types';
 export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export { UpgradeBeaconViolation } from './deploy/proxy';

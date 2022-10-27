@@ -234,34 +234,29 @@ describe('InterchainGasCalculator', () => {
 
   describe('estimateGasForProcess', () => {
     let threshold: number;
-    // Mock the return value of InboxValidatorManager.threshold
+    // Mock the return value of MultisigModule.threshold
     // to return `threshold`. Because the mocking involves a closure,
-    // changing `threshold` will change the return value of InboxValidatorManager.threshold.
+    // changing `threshold` will change the return value of MultisigModule.threshold.
     before(() => {
       const getContractsStub = sinon.stub(core, 'getContracts');
       let thresholdStub: sinon.SinonStub | undefined;
       getContractsStub.callsFake((chain) => {
         // Get the "real" return value of getContracts.
-        const contracts: CoreContracts<TestChainNames, TestChainNames> =
+        const contracts: CoreContracts =
           getContractsStub.wrappedMethod.bind(core)(chain);
 
         // Ethers contracts are frozen using Object.freeze, so we make a copy
         // of the object so we can stub `threshold`.
-        const validatorManager = Object.assign(
-          {},
-          // @ts-ignore
-          contracts.inboxes[origin].inboxValidatorManager,
-        );
+        const multisigModule = Object.assign({}, contracts.multisigModule);
 
         // Because we are stubbing vaidatorManager.threshold when core.getContracts gets called,
         // we must ensure we don't try to stub more than once or sinon will complain.
         if (!thresholdStub) {
           thresholdStub = sinon
-            .stub(validatorManager, 'threshold')
-            .callsFake(() => Promise.resolve(BigNumber.from(threshold)));
+            .stub(multisigModule, 'threshold')
+            .callsFake((_) => Promise.resolve(BigNumber.from(threshold)));
 
-          // @ts-ignore
-          contracts.inboxes[origin].inboxValidatorManager = validatorManager;
+          contracts.multisigModule = multisigModule;
         }
         return contracts;
       });
