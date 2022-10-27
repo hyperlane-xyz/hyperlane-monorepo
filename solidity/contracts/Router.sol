@@ -5,7 +5,7 @@ pragma solidity >=0.6.11;
 import {HyperlaneConnectionClient} from "./HyperlaneConnectionClient.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
-import {IMailbox} from "../interfaces/IMailbox.sol";
+import {IMailbox} from "../interfaces/IMailboxV2.sol";
 
 abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     string constant NO_ROUTER_ENROLLED_REVERT_MESSAGE =

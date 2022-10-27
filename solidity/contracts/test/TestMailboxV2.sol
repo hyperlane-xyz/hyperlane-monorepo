@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "../Mailbox.sol";
+import {Mailbox} from "../MailboxV2.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
+import {MerkleLib} from "../libs/Merkle.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 
 contract TestMailbox is Mailbox {

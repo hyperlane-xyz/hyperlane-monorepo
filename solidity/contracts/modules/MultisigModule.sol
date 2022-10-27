@@ -8,7 +8,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 
 // ============ Internal Imports ============
 import {IMultisigModule} from "../../interfaces/IMultisigModule.sol";
-import {Message} from "../libs/Message.sol";
+import {Message} from "../libs/MessageV2.sol";
 import {MultisigModuleMetadata} from "../libs/MultisigModuleMetadata.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 
