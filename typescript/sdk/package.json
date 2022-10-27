@@ -3,7 +3,6 @@
   "description": "The official SDK for the Hyperlane Network",
   "version": "0.5.1",
   "dependencies": {
-    "@hyperlane-xyz/app": "0.5.1",
     "@hyperlane-xyz/celo-ethers-provider": "^0.1.1",
     "@hyperlane-xyz/core": "0.5.1",
     "@hyperlane-xyz/utils": "0.5.1",
@@ -42,7 +41,7 @@
   "main": "dist/index.js",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --project tsconfig.build.json",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
     "prepublishOnly": "yarn build",

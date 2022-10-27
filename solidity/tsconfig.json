@@ -1,3 +1,9 @@
 {
-  "extends": "../tsconfig.json"
+  "compilerOptions": {
+    "outDir": "./dist/",
+    "rootDir": "./types/"
+  },
+  "exclude": ["./node_modules/", "./dist/", "./types/hardhat.d.ts"],
+  "extends": "../tsconfig.json",
+  "include": ["./types/**/*.ts"]
 }
