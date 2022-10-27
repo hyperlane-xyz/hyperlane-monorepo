@@ -18,7 +18,7 @@ const CircleBridgeInterface = new ethers.utils.Interface([
 ]);
 const FujiMessageTransmitter = '0x52fffb3ee8fa7838e9858a2d5e454007b9027c3c';
 const FujiCircleBridge = '0xb9E7682C155b5A6E37EeE6D91E7366468aF8f588';
-
+const GoerliCircleAdapter = '0x0e587eE9A0Bc4107C98A15A9F11220D11aCCF994';
 export const ChainToDomain = {
   [Chains.goerli]: 0,
   [Chains.fuji]: 1,
@@ -42,7 +42,7 @@ async function check() {
       // apikey: this.apiKeys[chain],
       module: 'logs',
       action: 'getLogs',
-      address: '0x0e587eE9A0Bc4107C98A15A9F11220D11aCCF994',
+      address: GoerliCircleAdapter,
       topic0:
         '0x958169e70ad37a5321c6f6e1b72d9e69b1c2743be96a3321f80a1118e08c8ea9',
     });
