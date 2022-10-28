@@ -19,8 +19,8 @@ use abacus_base::{
     InboxAddresses, IndexSettings,
 };
 use abacus_core::{
-    name_from_domain_id, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxIndexer,
-    ListValidity, LogMeta, Outbox, OutboxIndexer, AbacusProvider, RawCommittedMessage,
+    name_from_domain_id, AbacusContract, AbacusProvider, CommittedMessage, Inbox, InboxIndexer,
+    ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
 use crate::scraper::block_cursor::BlockCursor;

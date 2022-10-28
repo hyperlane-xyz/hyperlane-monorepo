@@ -3,6 +3,7 @@ use ethers::types::{H256, U256};
 mod checkpoint;
 mod log_metadata;
 mod message;
+mod provider_data;
 
 /// Unified 32-byte identifier with convenience tooling for handling
 /// 20-byte ids (e.g ethereum addresses)
@@ -11,6 +12,7 @@ pub mod identifiers;
 pub use checkpoint::*;
 pub use log_metadata::*;
 pub use message::*;
+pub use provider_data::*;
 
 use crate::{AbacusError, Decode, Encode};
 

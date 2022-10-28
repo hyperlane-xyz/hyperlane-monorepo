@@ -12,7 +12,7 @@ use abacus_base::{
     chains::GelatoConf, run_all, AbacusAgentCore, Agent, BaseAgent, CachingInterchainGasPaymaster,
     ContractSyncMetrics, CoreMetrics, InboxContracts, MultisigCheckpointSyncer,
 };
-use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers};
+use abacus_core::{AbacusChain, MultisigSignedCheckpoint, Signers};
 
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};

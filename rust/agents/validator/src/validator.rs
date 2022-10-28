@@ -6,7 +6,7 @@ use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
 use abacus_base::{run_all, AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers, CoreMetrics};
-use abacus_core::{AbacusChain, AbacusContract, Signers};
+use abacus_core::{AbacusChain, Signers};
 
 use crate::submit::ValidatorSubmitterMetrics;
 use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};

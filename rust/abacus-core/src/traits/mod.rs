@@ -18,8 +18,8 @@ pub use inbox::*;
 pub use indexer::*;
 pub use interchain_gas::*;
 pub use outbox::*;
-pub use validator_manager::*;
 pub use provider::*;
+pub use validator_manager::*;
 
 use crate::{db::DbError, utils::domain_hash, AbacusError};
 
@@ -29,8 +29,8 @@ mod inbox;
 mod indexer;
 mod interchain_gas;
 mod outbox;
-mod validator_manager;
 mod provider;
+mod validator_manager;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]

@@ -2,12 +2,15 @@ use ethers::signers::Signer;
 use eyre::Context;
 use serde::Deserialize;
 
-use abacus_core::{AbacusAbi, ContractLocator, Inbox, InboxIndexer, InboxValidatorManager, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Outbox, OutboxIndexer, AbacusProvider, Signers};
+use abacus_core::{
+    AbacusAbi, AbacusProvider, ContractLocator, Inbox, InboxIndexer, InboxValidatorManager,
+    InterchainGasPaymaster, InterchainGasPaymasterIndexer, Outbox, OutboxIndexer, Signers,
+};
 use abacus_ethereum::{
-    Connection, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi, EthereumOutboxAbi,
-    InboxBuilder, InboxIndexerBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
-    InterchainGasPaymasterIndexerBuilder, MakeableWithProvider, OutboxBuilder,
-    OutboxIndexerBuilder,
+    AbacusProviderBuilder, Connection, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi,
+    EthereumOutboxAbi, InboxBuilder, InboxIndexerBuilder, InboxValidatorManagerBuilder,
+    InterchainGasPaymasterBuilder, InterchainGasPaymasterIndexerBuilder, MakeableWithProvider,
+    OutboxBuilder, OutboxIndexerBuilder,
 };
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
@@ -108,8 +111,26 @@ impl<T> ChainSetup<T> {
             .expect("could not parse finality_blocks")
     }
 
-    pub async fn try_into_provider(&self, metrics: &CoreMetrics) -> eyre::Result<Box<dyn AbacusProvider>> {
-        todo!()
+    /// Try to convert the chain settings into an AbacusProvider.
+    pub async fn try_into_provider(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn AbacusProvider>> {
+        let builder = AbacusProviderBuilder {};
+        let metrics_conf = {
+            let mut cfg = self.metrics_conf.clone();
+
+            if cfg.chain.is_none() {
+                cfg.chain = Some(ChainInfo {
+                    name: Some(self.name.clone()),
+                });
+            }
+
+            cfg
+        };
+
+        self.build("0x00", None, metrics, metrics_conf, builder)
+            .await
     }
 
     async fn build<B: MakeableWithProvider + Sync>(
