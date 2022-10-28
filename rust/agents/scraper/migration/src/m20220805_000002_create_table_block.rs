@@ -30,18 +30,19 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Block::Height).big_unsigned().not_null())
                     .col(ColumnDef::new(Block::Timestamp).timestamp().not_null())
+                    .col(ColumnDef::new_with_type(Block::GasUsed, CryptoCurrency).not_null())
+                    .col(ColumnDef::new_with_type(Block::GasLimit, CryptoCurrency).not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Block::Domain)
                             .to(Domain::Table, Domain::Id),
                     )
-                    // TODO: re-include this constraint once we fetch the block height data from
-                    // ethers .index(
-                    //     Index::create()
-                    //         .col(Block::Domain)
-                    //         .col(Block::Height)
-                    //         .unique(),
-                    // )
+                    .index(
+                        Index::create()
+                            .col(Block::Domain)
+                            .col(Block::Height)
+                            .unique(),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -81,4 +82,8 @@ pub enum Block {
     Height,
     /// Time the block was created at
     Timestamp,
+    /// Total used gas by transactions in this block
+    GasUsed,
+    /// Maximum amount of gas allowed in this block
+    GasLimit,
 }

@@ -37,7 +37,10 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new_with_type(Transaction::GasUsed, CryptoCurrency).not_null())
+                    .col(ColumnDef::new_with_type(Transaction::GasPrice, CryptoCurrency).not_null())
+                    .col(ColumnDef::new(Transaction::Nonce).big_unsigned().not_null())
                     .col(ColumnDef::new_with_type(Transaction::Sender, Address).not_null())
+                    .col(ColumnDef::new_with_type(Transaction::Recipient, Address).not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Transaction::BlockId)
@@ -98,6 +101,12 @@ pub enum Transaction {
     BlockId,
     /// Total gas used by this transaction
     GasUsed,
+    /// Price paid for gas on this txn.
+    GasPrice,
+    /// Nonce of this transaction by the sneder
+    Nonce,
     /// Transaction signer
     Sender,
+    /// Recipient or contract
+    Recipient,
 }
