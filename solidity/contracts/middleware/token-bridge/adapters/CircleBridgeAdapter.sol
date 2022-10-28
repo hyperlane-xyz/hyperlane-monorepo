@@ -10,41 +10,71 @@ import {ITokenBridgeAdapter} from "../interfaces/ITokenBridgeAdapter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
+    /// @notice The CircleBridge contract.
     ICircleBridge public immutable circleBridge;
+
+    /// @notice The Circle MessageTransmitter contract.
     ICircleMessageTransmitter public immutable circleMessageTransmitter;
+
+    /// @notice The TokenBridgeRouter contract.
     address public immutable tokenBridgeRouter;
 
-    // Hyperlane domain => CircleDomainEntry
-    // ATM, known Circle domains are Ethereum = 0 and Avalanche = 1.
-    // Note this could result in ambiguity between the Circle domain being
-    // Ethereum or unknown. TODO fix?
+    /// @notice Hyperlane domain => CircleDomainEntry.
+    /// ATM, known Circle domains are Ethereum = 0 and Avalanche = 1.
+    /// Note this could result in ambiguity between the Circle domain being
+    /// Ethereum or unknown. TODO fix?
     mapping(uint32 => uint32) public hyperlaneDomainToCircleDomain;
 
-    // Token symbol => address of token on local chain
+    /// @notice Token symbol => address of token on local chain.
     mapping(string => IERC20) public tokenSymbolToToken;
 
-    // Local chain token address => token symbol
+    /// @notice Local chain token address => token symbol.
     mapping(address => string) public tokenToTokenSymbol;
 
-    // Remote circle domain => nonce => whether or not it's been processed
-    mapping(uint32 => mapping(uint64 => bool)) public originNonceProcessed;
-
     // Emits the nonce of the Circle message
-    // TODO reconsider this
+
+    /**
+     * @notice Emits the nonce of the Circle message when a token is bridged.
+     * @param nonce The nonce of the Circle message.
+     */
     event BridgedToken(uint64 nonce);
 
+    /**
+     * @notice Emitted when the Hyperlane domain to Circle domain mapping is updated.
+     * @param hyperlaneDomain The Hyperlane domain.
+     * @param circleDomain The Circle domain.
+     */
     event HyperlaneDomainToCircleDomainSet(
         uint32 indexed hyperlaneDomain,
         uint32 circleDomain
     );
 
-    event TokenSet(address indexed token, string indexed tokenSymbol);
+    /**
+     * @notice Emitted when a local token and its token symbol have been added.
+     */
+    event TokenAndTokenSymbolAdded(
+        address indexed token,
+        string indexed tokenSymbol
+    );
+
+    /**
+     * @notice Emitted when a local token and its token symbol have been removed.
+     */
+    event TokenAndTokenSymbolRemoved(
+        address indexed token,
+        string indexed tokenSymbol
+    );
 
     modifier onlyTokenBridgeRouter() {
         require(msg.sender == tokenBridgeRouter, "!tokenBridgeRouter");
         _;
     }
 
+    /**
+     * @param _circleBridge The CircleBridge contract.
+     * @param _circleMessageTransmitter The Circle MessageTransmitter contract.
+     * @param _tokenBridgeRouter The TokenBridgeRouter contract.
+     */
     constructor(
         address _circleBridge,
         address _circleMessageTransmitter,
@@ -57,10 +87,13 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
         tokenBridgeRouter = _tokenBridgeRouter;
     }
 
+    /**
+     * @param _owner The new owner.
+     */
     function initialize(address _owner) public initializer {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
-        // Set the addresses for the ACM and IGP to address(0) - they aren't used
+        // Set the addresses for the ACM and IGP to address(0) - they aren't used.
         _setAbacusConnectionManager(address(0));
         _setInterchainGasPaymaster(address(0));
     }
@@ -87,35 +120,16 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
             "!approval"
         );
 
-        uint64 _nonce = circleBridge.depositForBurnWithCaller(
+        uint64 _nonce = circleBridge.depositForBurn(
             _amount,
             _circleDomain,
             _remoteRouter, // Mint to the remote router
-            _token,
-            _remoteRouter // Only allow the remote router to mint
+            _token
         );
 
         emit BridgedToken(_nonce);
 
         return abi.encode(_tokenSymbol, _nonce);
-    }
-
-    // Mints USDC to itself
-    function receiveCircleMessage(
-        bytes calldata _message,
-        bytes calldata _attestation
-    ) external {
-        require(
-            circleMessageTransmitter.receiveMessage(_message, _attestation),
-            "!receive message"
-        );
-
-        uint32 _originCircleDomain = uint32(bytes4(_message[4:8]));
-        uint64 _nonce = uint64(bytes8(_message[12:20]));
-
-        // We can safely assume this was previously false if the above
-        // receiveMessage was successful.
-        originNonceProcessed[_originCircleDomain][_nonce] = true;
     }
 
     // Returns the token and amount sent
@@ -135,9 +149,11 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
             (string, uint64)
         );
 
+        // Require the circle message to have been processed
+        bytes32 _nonceId = _circleNonceId(_originCircleDomain, _nonce);
         require(
-            originNonceProcessed[_originCircleDomain][_nonce],
-            "token not bridged yet"
+            circleMessageTransmitter.usedNonces(_nonceId),
+            "Circle message not processed yet"
         );
 
         IERC20 _token = tokenSymbolToToken[_tokenSymbol];
@@ -171,24 +187,71 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
         emit HyperlaneDomainToCircleDomainSet(_hyperlaneDomain, _circleDomain);
     }
 
-    function setToken(address _token, string calldata _tokenSymbol)
-        external
-        onlyOwner
-    {
-        // Unset any existing entries...
+    function addTokenAndTokenSymbol(
+        address _token,
+        string calldata _tokenSymbol
+    ) external onlyOwner {
+        require(
+            _token != address(0) && bytes(_tokenSymbol).length > 0,
+            "Cannot add default values"
+        );
+
+        // Require the token and token symbol to be unset.
         address _existingToken = address(tokenSymbolToToken[_tokenSymbol]);
-        if (_existingToken != address(0)) {
-            tokenToTokenSymbol[_existingToken] = "";
-        }
+        require(_existingToken == address(0), "token symbol already has token");
 
         string memory _existingSymbol = tokenToTokenSymbol[_token];
-        if (bytes(_existingSymbol).length > 0) {
-            tokenSymbolToToken[_existingSymbol] = IERC20(address(0));
-        }
+        require(
+            bytes(_existingSymbol).length == 0,
+            "token already has token symbol"
+        );
 
         tokenToTokenSymbol[_token] = _tokenSymbol;
         tokenSymbolToToken[_tokenSymbol] = IERC20(_token);
 
-        emit TokenSet(_token, _tokenSymbol);
+        emit TokenAndTokenSymbolAdded(_token, _tokenSymbol);
+    }
+
+    function removeTokenAndTokenSymbol(
+        address _token,
+        string calldata _tokenSymbol
+    ) external onlyOwner {
+        require(
+            _token != address(0) && bytes(_tokenSymbol).length > 0,
+            "Cannot add default values"
+        );
+
+        // Require the provided token and token symbols match what's in storage.
+        address _existingToken = address(tokenSymbolToToken[_tokenSymbol]);
+        require(_existingToken == _token, "Token mismatch");
+
+        string memory _existingSymbol = tokenToTokenSymbol[_token];
+        require(
+            keccak256(bytes(_existingSymbol)) == keccak256(bytes(_tokenSymbol)),
+            "Token symbol mismatch"
+        );
+
+        // Delete them from storage.
+        delete tokenSymbolToToken[_tokenSymbol];
+        delete tokenToTokenSymbol[_token];
+
+        emit TokenAndTokenSymbolRemoved(_token, _tokenSymbol);
+    }
+
+    /**
+     * @notice Gets the Circle nonce ID by hashing _originCircleDomain and _nonce.
+     * @param _originCircleDomain Domain of chain where the transfer originated
+     * @param _nonce The unique identifier for the message from source to
+              destination
+     * @return hash of source and nonce
+     */
+    function _circleNonceId(uint32 _originCircleDomain, uint64 _nonce)
+        internal
+        pure
+        returns (bytes32)
+    {
+        // The hash is of a uint256 nonce, not a uint64 one.
+        return
+            keccak256(abi.encodePacked(_originCircleDomain, uint256(_nonce)));
     }
 }
