@@ -216,11 +216,6 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
         address _token,
         string calldata _tokenSymbol
     ) external onlyOwner {
-        require(
-            _token != address(0) && bytes(_tokenSymbol).length > 0,
-            "Cannot add default values"
-        );
-
         // Require the provided token and token symbols match what's in storage.
         address _existingToken = address(tokenSymbolToToken[_tokenSymbol]);
         require(_existingToken == _token, "Token mismatch");
