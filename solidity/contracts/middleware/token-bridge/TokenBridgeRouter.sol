@@ -15,7 +15,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TokenBridgeRouter is Router {
     // Token bridge => adapter address
-    mapping(string => address) tokenBridgeAdapters;
+    mapping(string => address) public tokenBridgeAdapters;
 
     event TokenBridgeAdapterSet(string indexed bridge, address adapter);
 
