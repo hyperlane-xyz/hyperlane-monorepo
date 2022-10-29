@@ -111,12 +111,12 @@ export const goerli: ChainMetadata = {
 };
 
 export const optimismgoerli: ChainMetadata = {
-  id: 420, // b'op-i' interpreted as an int
+  id: 420,
   finalityBlocks: 1,
 };
 
 export const arbitrumgoerli: ChainMetadata = {
-  id: 421613, // b'ar-i' interpreted as an int
+  id: 421613,
   finalityBlocks: 1,
 };
 
