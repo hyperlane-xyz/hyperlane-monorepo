@@ -71,6 +71,34 @@
         "inbox": "0x1D5EbC3e15e9ECDe0e3530C85899556797eeaea5",
         "validatorManager": "0x7FE7EA170cf08A25C2ff315814D96D93C311E692"
       }
+    },
+    "optimismgoerli": {
+      "domain": "420",
+      "name": "optimismgoerli",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x304cAb315c93B87AAdb2B826A791b2c1Bf749996",
+        "validatorManager": "0xD3d062a5dcBA85ae863618d4c264d2358300c283"
+      }
+    },
+    "arbitrumgoerli": {
+      "domain": "421613",
+      "name": "arbitrumgoerli",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x6b1bb4ce664Bb4164AEB4d3D2E7DE7450DD8084C",
+        "validatorManager": "0x863E8c26621c52ACa1849C53500606e73BA272F0"
+      }
     }
   },
   "outbox": {

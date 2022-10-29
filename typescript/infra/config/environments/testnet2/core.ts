@@ -67,4 +67,35 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
       threshold: 2,
     },
   },
+  optimismgoerli: {
+    validatorManager: {
+      validators: [
+        '0xe9ab71d1dab8f10489dce9914ffcd854e5cc1fdc',
+        '0xca170b12198fa34de73e665b1a046bb434edd6ea',
+        '0xa8b5dbf231db20e7afe5dca9a25388ffe109fb72',
+      ],
+      threshold: 2,
+    },
+  },
+  arbitrumgoerli: {
+    validatorManager: {
+      validators: [
+        '0xdf971036b9713b7471628706d0dd7187eac2d5ff',
+        '0x87feedf14ed63fbe225b1cab05b1d9ad3ac96b7e',
+        '0x00d7f1ca32a6360920c7e8ee27c2c9213cd204f4',
+      ],
+      threshold: 2,
+    },
+  },
+  // Ignore for now
+  // zksync2testnet: {
+  //   validatorManager: {
+  //     validators: [
+  //       '0x9476169618f6642413b77549c10dda7a253fb2be',
+  //       '0x96f9782038cfb4e09c98fbb07627e7c5f7afabcb',
+  //       '0xf08e3b66c34f101901e6a41cd6f36ce14653fe6b',
+  //     ],
+  //     threshold: 2,
+  //   },
+  // },
 };

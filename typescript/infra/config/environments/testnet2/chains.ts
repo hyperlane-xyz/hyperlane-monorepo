@@ -14,6 +14,8 @@ export const testnetConfigs = {
   bsctestnet: chainConnectionConfigs.bsctestnet,
   goerli: chainConnectionConfigs.goerli,
   moonbasealpha: chainConnectionConfigs.moonbasealpha,
+  optimismgoerli: chainConnectionConfigs.optimismgoerli,
+  arbitrumgoerli: chainConnectionConfigs.arbitrumgoerli,
 };
 
 export type TestnetChains = keyof typeof testnetConfigs;
