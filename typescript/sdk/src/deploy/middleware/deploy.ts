@@ -71,6 +71,7 @@ export class InterchainQueryDeployer<
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, InterchainQueryConfig>,
     protected core: HyperlaneCore<Chain>,
+    // TODO replace salt with 'hyperlane' before next redeploy
     protected create2salt = 'asdasdsd',
   ) {
     super(multiProvider, configMap, interchainQueryFactories, {});
