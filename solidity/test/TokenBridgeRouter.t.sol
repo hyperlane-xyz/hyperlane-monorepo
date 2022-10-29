@@ -3,8 +3,8 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import {TokenBridgeRouter} from "../contracts/middleware/token-bridge/TokenBridgeRouter.sol";
-import {MockToken} from "../mock/MockToken.sol";
-import {MockTokenBridgeAdapter} from "../mock/MockTokenBridgeAdapter.sol";
+import {MockToken} from "../contracts/mock/MockToken.sol";
+import {MockTokenBridgeAdapter} from "../contracts/mock/MockTokenBridgeAdapter.sol";
 import {HyperlaneTestHelper} from "./HyperlaneTestHelper.t.sol";
 
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
@@ -61,6 +61,13 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
             bridge,
             address(bridgeAdapter)
         );
+
+        destinationTokenBridgeRouter.setTokenBridgeAdapter(
+            bridge,
+            address(bridgeAdapter)
+        );
+
+        token.mint(address(this), amount);
     }
 
     function testSetTokenBridgeAdapter() public {
@@ -97,10 +104,7 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
     }
 
     function testDispatchWithTokensRevertsWithFailedTransferIn() public {
-        // Setup
-        token.setTransferFromReturnValue(false);
-
-        vm.expectRevert("!transfer in");
+        vm.expectRevert("ERC20: insufficient allowance");
         originTokenBridgeRouter.dispatchWithTokens(
             destinationDomain,
             recipient,
@@ -121,6 +125,19 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
                 amount
             )
         );
+        token.approve(address(originTokenBridgeRouter), amount);
+        originTokenBridgeRouter.dispatchWithTokens(
+            destinationDomain,
+            recipient,
+            messageBody,
+            address(token),
+            amount,
+            bridge
+        );
+    }
+
+    function testDispatchWithTokenTransfersMovesTokens() public {
+        token.approve(address(originTokenBridgeRouter), amount);
         originTokenBridgeRouter.dispatchWithTokens(
             destinationDomain,
             recipient,
@@ -142,6 +159,7 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
                 amount
             )
         );
+        token.approve(address(originTokenBridgeRouter), amount);
         originTokenBridgeRouter.dispatchWithTokens(
             destinationDomain,
             recipient,

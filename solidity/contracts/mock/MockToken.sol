@@ -1,22 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-contract MockToken {
-    bool transferFromReturnValue;
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
-    constructor() {
-        transferFromReturnValue = true;
-    }
-
-    function transferFrom(
-        address,
-        address,
-        uint256
-    ) external view returns (bool) {
-        return transferFromReturnValue;
-    }
-
-    function setTransferFromReturnValue(bool _returnValue) external {
-        transferFromReturnValue = _returnValue;
+contract MockToken is ERC20Upgradeable {
+    function mint(address account, uint256 amount) external {
+        _mint(account, amount);
     }
 }

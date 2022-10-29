@@ -4,20 +4,21 @@ pragma solidity ^0.8.13;
 import {ITokenBridgeAdapter} from "../middleware/token-bridge/interfaces/ITokenBridgeAdapter.sol";
 
 contract MockTokenBridgeAdapter is ITokenBridgeAdapter {
-    bytes mockAdapterData;
+    uint256 nonce = 0;
 
     function bridgeToken(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         address _token,
         uint256 _amount
-    ) external view override returns (bytes memory _adapterData) {
+    ) external override returns (bytes memory _adapterData) {
         _destinationDomain;
         _recipientAddress;
         _token;
         _amount;
 
-        return mockAdapterData;
+        nonce = nonce + 1;
+        return abi.encode(nonce);
     }
 
     function sendBridgedTokens(
@@ -32,9 +33,5 @@ contract MockTokenBridgeAdapter is ITokenBridgeAdapter {
         _amount;
 
         return (address(0), 0);
-    }
-
-    function setMockAdapterData(bytes calldata _mockAdapterData) external {
-        mockAdapterData = _mockAdapterData;
     }
 }
