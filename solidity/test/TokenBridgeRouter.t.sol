@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import {TokenBridgeRouter} from "../contracts/middleware/token-bridge/TokenBridgeRouter.sol";
 import {MockToken} from "../contracts/mock/MockToken.sol";
+import {TestTokenRecipient} from "../contracts/test/TestTokenRecipient.sol";
 import {MockTokenBridgeAdapter} from "../contracts/mock/MockTokenBridgeAdapter.sol";
 import {HyperlaneTestHelper} from "./HyperlaneTestHelper.t.sol";
 
@@ -19,17 +20,18 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
 
     uint32 originDomain = 123;
     uint32 destinationDomain = 321;
-    bytes32 recipient =
-        0x00000000000000000000000000000000000000000000000000000000deadbeef;
-    bytes messageBody = hex"beefdead";
+
+    TestTokenRecipient recipient;
     MockToken token;
+    bytes messageBody = hex"beefdead";
     uint256 amount = 420000;
 
     event TokenBridgeAdapterSet(string indexed bridge, address adapter);
 
     function setUp() public {
         token = new MockToken();
-        bridgeAdapter = new MockTokenBridgeAdapter();
+        bridgeAdapter = new MockTokenBridgeAdapter(token);
+        recipient = new TestTokenRecipient();
 
         originTokenBridgeRouter = new TokenBridgeRouter();
         destinationTokenBridgeRouter = new TokenBridgeRouter();
@@ -95,7 +97,7 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
         vm.expectRevert("!adapter");
         originTokenBridgeRouter.dispatchWithTokens(
             destinationDomain,
-            recipient,
+            TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
             address(token),
             amount,
@@ -107,7 +109,7 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
         vm.expectRevert("ERC20: insufficient allowance");
         originTokenBridgeRouter.dispatchWithTokens(
             destinationDomain,
-            recipient,
+            TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
             address(token),
             amount,
@@ -128,7 +130,7 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
         token.approve(address(originTokenBridgeRouter), amount);
         originTokenBridgeRouter.dispatchWithTokens(
             destinationDomain,
-            recipient,
+            TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
             address(token),
             amount,
@@ -140,7 +142,7 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
         token.approve(address(originTokenBridgeRouter), amount);
         originTokenBridgeRouter.dispatchWithTokens(
             destinationDomain,
-            recipient,
+            TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
             address(token),
             amount,
@@ -154,7 +156,7 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
             abi.encodeWithSelector(
                 bridgeAdapter.bridgeToken.selector,
                 destinationDomain,
-                recipient,
+                TypeCasts.addressToBytes32(address(recipient)),
                 address(token),
                 amount
             )
@@ -162,11 +164,43 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
         token.approve(address(originTokenBridgeRouter), amount);
         originTokenBridgeRouter.dispatchWithTokens(
             destinationDomain,
-            recipient,
+            TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
             address(token),
             amount,
             bridge
         );
+    }
+
+    function testProcessingRevertsIfBridgeAdapterReverts() public {
+        token.approve(address(originTokenBridgeRouter), amount);
+        originTokenBridgeRouter.dispatchWithTokens(
+            destinationDomain,
+            TypeCasts.addressToBytes32(address(recipient)),
+            messageBody,
+            address(token),
+            amount,
+            bridge
+        );
+
+        vm.expectRevert("Transfer has not been processed yet");
+        inbox.processNextPendingMessage();
+    }
+
+    function testDispatchWithTokensTransfersOnDestination() public {
+        token.approve(address(originTokenBridgeRouter), amount);
+        originTokenBridgeRouter.dispatchWithTokens(
+            destinationDomain,
+            TypeCasts.addressToBytes32(address(recipient)),
+            messageBody,
+            address(token),
+            amount,
+            bridge
+        );
+
+        bridgeAdapter.process(bridgeAdapter.nonce());
+        inbox.processNextPendingMessage();
+        assertEq(recipient.lastData(), messageBody);
+        assertEq(token.balanceOf(address(recipient)), amount);
     }
 }

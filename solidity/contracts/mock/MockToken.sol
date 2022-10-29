@@ -7,4 +7,8 @@ contract MockToken is ERC20Upgradeable {
     function mint(address account, uint256 amount) external {
         _mint(account, amount);
     }
+
+    function burn(uint256 _amount) external {
+        _burn(msg.sender, _amount);
+    }
 }
