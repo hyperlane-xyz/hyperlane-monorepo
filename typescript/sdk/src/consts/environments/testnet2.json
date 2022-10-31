@@ -79,7 +79,10 @@
       "implementation": "0x9095fDae1977A5fa61877FD44f307f7aDcBF9A0d",
       "beacon": "0xD3CCCbde1CCdB99313f25F8CA1A7B5C13BfD3dA2"
     },
-    "outboxValidatorManager": "0xEB25e6e42B743a815E5C0409007993a828a0565f"
+    "outboxValidatorManager": "0xEB25e6e42B743a815E5C0409007993a828a0565f",
+    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "fuji": {
     "upgradeBeaconController": "0x97Bbc6bBaFa5Ce3b2FA966c121Af63bD09e940f8",
@@ -161,7 +164,10 @@
       "implementation": "0x71B1BF7C99BEef0545eAFf441372cb6413d9367c",
       "beacon": "0x16C20625B11E0c8187Cc1B3e4ceedc35C48D8013"
     },
-    "outboxValidatorManager": "0x41e1799D0249FbB3Fc9e467b813b7479c96a3Ec3"
+    "outboxValidatorManager": "0x41e1799D0249FbB3Fc9e467b813b7479c96a3Ec3",
+    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "mumbai": {
     "upgradeBeaconController": "0xC81e6D1070aFA48DA4e4f35E744CC1aE43532a10",
@@ -243,7 +249,10 @@
       "implementation": "0x5310F977D29ae0Cf14eC000b5dbDF9734499Be4E",
       "beacon": "0xaCF0B0bA84db40cDC48235De2d6cF96540fFa5CD"
     },
-    "outboxValidatorManager": "0x5c8cC5d94a7F84893e155457E4C1244f6e2B7F8D"
+    "outboxValidatorManager": "0x5c8cC5d94a7F84893e155457E4C1244f6e2B7F8D",
+    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "bsctestnet": {
     "upgradeBeaconController": "0x638A831b4d11Be6a72AcB97d1aE79DA05Ae9B1D3",
@@ -325,7 +334,10 @@
       "implementation": "0x7740342863717e26E3d5B828639834ADfce8a061",
       "beacon": "0xa318ffca299412ce76B7cb980850ceDB15584E7e"
     },
-    "outboxValidatorManager": "0xE0745955baF7e614707E22c90EA14d329C38941D"
+    "outboxValidatorManager": "0xE0745955baF7e614707E22c90EA14d329C38941D",
+    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "goerli": {
     "upgradeBeaconController": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
@@ -407,7 +419,10 @@
       "implementation": "0x54148470292C24345fb828B003461a9444414517",
       "beacon": "0x589C201a07c26b4725A4A829d772f24423da480B"
     },
-    "outboxValidatorManager": "0x6966b0E55883d49BFB24539356a2f8A673E02039"
+    "outboxValidatorManager": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
+    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "moonbasealpha": {
     "upgradeBeaconController": "0x6E7b29CB2A7617405B4d30C6f84bBD51b4Bb4be8",
@@ -489,7 +504,10 @@
       "implementation": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
       "beacon": "0x6966b0E55883d49BFB24539356a2f8A673E02039"
     },
-    "outboxValidatorManager": "0x44b764045BfDC68517e10e783E69B376cef196B2"
+    "outboxValidatorManager": "0x44b764045BfDC68517e10e783E69B376cef196B2",
+    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "optimismgoerli": {
     "upgradeBeaconController": "0x6E7b29CB2A7617405B4d30C6f84bBD51b4Bb4be8",
@@ -571,7 +589,10 @@
       "implementation": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
       "beacon": "0x6966b0E55883d49BFB24539356a2f8A673E02039"
     },
-    "outboxValidatorManager": "0x44b764045BfDC68517e10e783E69B376cef196B2"
+    "outboxValidatorManager": "0x44b764045BfDC68517e10e783E69B376cef196B2",
+    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "arbitrumgoerli": {
     "upgradeBeaconController": "0x05Ea36Caee7d92C173334C9D97DcD39ABdCB2b69",
@@ -653,6 +674,9 @@
       "implementation": "0x07009DA2249c388aD0f416a235AfE90D784e1aAc",
       "beacon": "0xF7561c34f17A32D5620583A3397C304e7038a7F6"
     },
-    "outboxValidatorManager": "0x98AAE089CaD930C64a76dD2247a2aC5773a4B8cE"
+    "outboxValidatorManager": "0x98AAE089CaD930C64a76dD2247a2aC5773a4B8cE",
+    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   }
 }
