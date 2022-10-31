@@ -34,6 +34,17 @@ export abstract class HyperlaneAppChecker<
   abstract checkChain(chain: Chain): Promise<void>;
 
   async check(): Promise<void[]> {
+    Object.keys(this.configMap)
+      .filter((_) => !this.app.chains().includes(_ as Chain))
+      .forEach((chain: string) =>
+        this.addViolation({
+          type: ViolationType.NotDeployed,
+          chain: chain as Chain,
+          expected: '',
+          actual: '',
+        }),
+      );
+
     return Promise.all(
       this.app.chains().map((chain) => this.checkChain(chain)),
     );

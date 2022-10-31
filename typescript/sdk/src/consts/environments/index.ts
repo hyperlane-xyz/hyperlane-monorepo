@@ -17,6 +17,9 @@ export const hyperlaneCoreAddresses = objMap(
     outbox: addresses.outbox.proxy,
     connectionManager: addresses.connectionManager,
     interchainGasPaymaster: addresses.interchainGasPaymaster.proxy,
+    interchainAccountRouter: addresses.interchainAccountRouter,
+    interchainQueryRouter: addresses.interchainQueryRouter,
+    create2Factory: addresses.create2Factory,
     inboxes: objMap(
       // @ts-ignore
       addresses.inboxes,

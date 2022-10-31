@@ -70,5 +70,21 @@
       "constructorArguments": "00000000000000000000000016b710b86cad07e6f1c531861a16f5fec29dba37000000000000000000000000eb6f11189197223c656807a83b0dd374f9a6df44",
       "isProxy": false
     }
+  ],
+  "optimismgoerli": [
+    {
+      "name": "router",
+      "address": "0x68311418D79fE8d96599384ED767d225635d88a8",
+      "constructorArguments": "00000000000000000000000016b710b86cad07e6f1c531861a16f5fec29dba37000000000000000000000000eb6f11189197223c656807a83b0dd374f9a6df44",
+      "isProxy": false
+    }
+  ],
+  "arbitrumgoerli": [
+    {
+      "name": "router",
+      "address": "0xB057Fb841027a8554521DcCdeC3c3474CaC99AB5",
+      "constructorArguments": "0000000000000000000000004926a10788306d84202a2adbd290b7743146cc17000000000000000000000000679dc08cc3a4acfeea2f7cafaa37561ae0b41ce7",
+      "isProxy": false
+    }
   ]
 }

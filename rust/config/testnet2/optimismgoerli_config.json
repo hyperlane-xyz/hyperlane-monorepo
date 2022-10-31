@@ -12,8 +12,8 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0xBE3541E3D391751Ae73cC0A52F48CCe45120f74B",
-        "validatorManager": "0xdE1a1f41871ebD2D1B8ddac6BAC3a2F4898a1747"
+        "inbox": "0x873B0085924096A2d52849A4F1B921C5aeE8Fb30",
+        "validatorManager": "0xFd05F650eaA877d315E8E010010f41C8106bfA2d"
       }
     },
     "fuji": {
@@ -26,22 +26,22 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0xb31b0a575a151E0E72D438999f5a65e08802466f",
-        "validatorManager": "0x8a14566c8649C2b72600c920F40aF161FB435846"
+        "inbox": "0xaFD9a7CDd0b9ddE3c7566514516543b77621531d",
+        "validatorManager": "0x17D3e0eC252EEc723af9da44A66D9A6C1ecB2776"
       }
     },
     "mumbai": {
       "domain": "80001",
       "name": "mumbai",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "3",
+      "finalityBlocks": "32",
       "connection": {
         "type": "http",
         "url": ""
       },
       "addresses": {
-        "inbox": "0xEf9bae5E38c552bEc367b6B4f7a4D0a5e663B898",
-        "validatorManager": "0xeAD058dc774892e71403C4EB4600850A89524EaD"
+        "inbox": "0x8eAaD1572d754f5b763Be93Bc86779AbfB3DdbC4",
+        "validatorManager": "0x611241eC593B5692180A6ce5CbD79445826f30Be"
       }
     },
     "bsctestnet": {
@@ -54,8 +54,8 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x963f552583E56ddBc58d12Aa5f8f85187A72E142",
-        "validatorManager": "0x5F3aA4De5132688c2c1750D3780AdD49d72FAaBC"
+        "inbox": "0xD3193A2383423c9E43C3bFafAE6e55D2a2E3752C",
+        "validatorManager": "0x63BDC6C7b473A9eb2ba00E2a48ADB38b71D1bfe9"
       }
     },
     "goerli": {
@@ -68,13 +68,13 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x98AAE089CaD930C64a76dD2247a2aC5773a4B8cE",
-        "validatorManager": "0x4926a10788306D84202A2aDbd290b7743146Cc17"
+        "inbox": "0x6869beC919F8d79F53a695cD02B3f5424E94f82d",
+        "validatorManager": "0xFfA20C4c8e3b2A2C1220134684FEe23EEB8872d0"
       }
     },
-    "optimismgoerli": {
-      "domain": "420",
-      "name": "optimismgoerli",
+    "moonbasealpha": {
+      "domain": "1836002657",
+      "name": "moonbasealpha",
       "rpcStyle": "ethereum",
       "finalityBlocks": "1",
       "connection": {
@@ -82,8 +82,8 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x3C5154a193D6e2955650f9305c8d80c18C814A68",
-        "validatorManager": "0x7914A3349107A7295Bbf2374db5A973d73D1b324"
+        "inbox": "0x9450181a7719dAb93483d43a45473Ac2373E25B0",
+        "validatorManager": "0x6cB503d97D1c900316583C8D55997A1f17b1ABd1"
       }
     },
     "arbitrumgoerli": {
@@ -96,8 +96,8 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x75f3E2a4f424401195A5E176246Ecc9f7e7680ff",
-        "validatorManager": "0x433f7d6d0cB9eb8FF2902Ad01C1BEd6C09934a33"
+        "inbox": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C",
+        "validatorManager": "0x1b33611fCc073aB0737011d5512EF673Bff74962"
       }
     }
   },
@@ -106,8 +106,8 @@
       "outbox": "0x54148470292C24345fb828B003461a9444414517",
       "interchainGasPaymaster": "0xeb6f11189197223c656807a83B0DD374f9A6dF44"
     },
-    "domain": "1836002657",
-    "name": "moonbasealpha",
+    "domain": "420",
+    "name": "optimismgoerli",
     "rpcStyle": "ethereum",
     "finalityBlocks": "1",
     "connection": {
@@ -119,8 +119,8 @@
     "level": "debug",
     "fmt": "json"
   },
+  "db": "db_path",
   "index": {
-    "from": "2309252"
-  },
-  "db": "db_path"
+    "from": "2304322"
+  }
 }

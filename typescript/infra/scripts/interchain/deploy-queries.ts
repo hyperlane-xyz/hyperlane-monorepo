@@ -8,6 +8,7 @@ import {
 
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
+import { mergeWithSdkContractAddressArtifacts } from '../merge-sdk-contract-addresses';
 import {
   getCoreEnvironmentConfig,
   getEnvironment,
@@ -34,10 +35,11 @@ async function main() {
     multiProvider,
     configMap,
     core,
-    'IQS-SALT-2',
+    'IQS-SALT-4',
   );
 
   await deployWithArtifacts(dir, interchainQueryFactories, deployer);
+  await mergeWithSdkContractAddressArtifacts(environment);
 }
 
 main()
