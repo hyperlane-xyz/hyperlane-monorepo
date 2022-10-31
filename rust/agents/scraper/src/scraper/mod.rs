@@ -19,13 +19,13 @@ use abacus_base::{
     InboxAddresses, IndexSettings,
 };
 use abacus_core::{
-    name_from_domain_id, AbacusContract, AbacusProvider, CommittedMessage, Inbox, InboxIndexer,
-    ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
+    name_from_domain_id, AbacusContract, AbacusProvider, BlockInfo, CommittedMessage, Inbox,
+    InboxIndexer, ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
 use crate::scraper::block_cursor::BlockCursor;
 use crate::settings::ScraperSettings;
-use crate::{format_h256, parse_h256};
+use crate::{date_time, format_h256, parse_h256, u256_as_scaled_f64};
 
 mod block_cursor;
 
@@ -705,27 +705,28 @@ impl SqlChainScraper {
                 .insert(txn.0);
         }
 
-        let txns_to_fetch = txns.iter_mut().filter(|(_, id)| id.0.is_none());
-        for (_hash, _txn_info) in txns_to_fetch {
-            // TODO: fetch txn data from ethers
-        }
-
         // insert any txns that were not known and get their IDs
         // use this vec as temporary list of mut refs so we can update once we get back
         // the ids.
         let mut txns_to_insert: Vec<(&H256, &mut (Option<i64>, i64))> =
             txns.iter_mut().filter(|(_, id)| id.0.is_none()).collect();
-        let models: Vec<transaction::ActiveModel> = txns_to_insert
-            .iter()
-            .map(|(hash, (_, block_id))| transaction::ActiveModel {
+
+        let mut models: Vec<transaction::ActiveModel> = Vec::with_capacity(txns_to_insert.len());
+        for (hash, (_, block_id)) in txns_to_insert.iter() {
+            let txn = self.local.provider.get_txn_by_hash(hash).await?;
+
+            models.push(transaction::ActiveModel {
                 id: NotSet,
                 block_id: Unchanged(*block_id),
                 hash: Unchanged(format_h256(hash)),
                 time_created: Set(crate::date_time::now()),
-                gas_used: Set(Default::default()), // TODO: get this from ethers
-                sender: Set("00".to_owned()),      // TODO: get this from ethers
-            })
-            .collect();
+                gas_used: Set(u256_as_scaled_f64(txn.gas_used, 18)),
+                gas_price: Set(u256_as_scaled_f64(txn.gas_price, 18)),
+                nonce: Set(txn.nonce as i64),
+                sender: Set(format_h256(&txn.sender)),
+                recipient: Set(format_h256(&txn.recipient)),
+            });
+        }
 
         if !models.is_empty() {
             trace!(?models, "Writing txns to database");
@@ -757,7 +758,7 @@ impl SqlChainScraper {
         use crate::db::block;
         use sea_orm::{prelude::*, ActiveValue::*, FromQueryResult, Insert, QuerySelect};
 
-        type OptionalBlockInfo = Option<(Option<i64>, TimeDateTime)>;
+        type OptionalBlockInfo = Option<(Option<i64>, BlockInfo)>;
         // mapping of block hash to the database id and block timestamp. Optionals are
         // in place because we will find the timestamp first if the block was not
         // already in the db.
@@ -797,20 +798,30 @@ impl SqlChainScraper {
             let _ = blocks
                 .get_mut(&hash)
                 .expect("We found a block that we did not request")
-                .insert((Some(block.id), block.timestamp));
+                .insert((
+                    Some(block.id),
+                    BlockInfo {
+                        hash,
+                        timestamp: date_time::to_unix_timestamp_s(&block.timestamp),
+                        // TODO: we don't actually use these below, we should make sure to clean
+                        // this out
+                        number: 0,
+                        gas_used: Default::default(),
+                        gas_limit: Default::default(),
+                    },
+                ));
         }
 
         let blocks_to_fetch = blocks
             .iter_mut()
             .inspect(|(_, info)| {
                 // info being defined implies the id has been set (at this point)
-                debug_assert!(info.is_none() || info.unwrap().0.is_some())
+                debug_assert!(info.is_none() || info.as_ref().unwrap().0.is_some())
             })
             .filter(|(_, block_info)| block_info.is_none());
-        for (_hash, block_info) in blocks_to_fetch {
-            // TODO: fetch block data from ethers
-            // (timestamps are not included in LogMeta)
-            let _ = block_info.insert((None, crate::date_time::now()));
+        for (hash, block_info) in blocks_to_fetch {
+            let info = self.local.provider.get_block_by_hash(&hash).await?;
+            let _ = block_info.insert((None, info));
         }
 
         // insert any blocks that were not known and get their IDs
@@ -818,18 +829,22 @@ impl SqlChainScraper {
         // the ids.
         let mut blocks_to_insert: Vec<(&H256, &mut OptionalBlockInfo)> = blocks
             .iter_mut()
-            .filter(|(_, info)| info.unwrap().0.is_none())
+            .filter(|(_, info)| info.as_ref().unwrap().0.is_none())
             .collect();
-        let models: Vec<block::ActiveModel> = blocks_to_insert
-            .iter_mut()
+
+        let mut models: Vec<block::ActiveModel> = blocks_to_insert
+            .iter()
             .map(|(hash, block_info)| {
+                let block_info = block_info.as_ref().unwrap();
                 block::ActiveModel {
                     id: NotSet,
                     hash: Set(format_h256(hash)),
-                    time_created: Set(crate::date_time::now()),
+                    time_created: Set(date_time::now()),
                     domain: Unchanged(self.local_domain() as i32),
-                    height: Unchanged(0), // TODO: get this from ethers
-                    timestamp: Set(block_info.unwrap().1),
+                    height: Unchanged(block_info.1.number as i64),
+                    timestamp: Set(date_time::from_unix_timestamp_s(block_info.1.timestamp)),
+                    gas_used: Set(u256_as_scaled_f64(block_info.1.gas_used, 18)),
+                    gas_limit: Set(u256_as_scaled_f64(block_info.1.gas_limit, 18)),
                 }
             })
             .collect();
@@ -847,7 +862,13 @@ impl SqlChainScraper {
 
         Ok(blocks.into_iter().map(|(hash, block_info)| {
             let block_info = block_info.unwrap();
-            (hash, (block_info.0.unwrap(), block_info.1))
+            (
+                hash,
+                (
+                    block_info.0.unwrap(),
+                    date_time::from_unix_timestamp_s(block_info.1.timestamp),
+                ),
+            )
         }))
     }
 }
