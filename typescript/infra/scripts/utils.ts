@@ -132,12 +132,8 @@ export async function getMultiProviderForRole<Chain extends ChainName>(
   return new MultiProvider<Chain>(connections);
 }
 
-function getContractsSdkFilepath(mod: string) {
-  return path.join('../sdk/src/', mod, 'environments');
-}
-
 export function getCoreContractsSdkFilepath() {
-  return getContractsSdkFilepath('consts');
+  return path.join('../sdk/src/consts/environments');
 }
 
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
