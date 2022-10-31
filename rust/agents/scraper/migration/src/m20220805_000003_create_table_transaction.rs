@@ -36,8 +36,8 @@ impl MigrationTrait for Migration {
                             .big_integer()
                             .not_null(),
                     )
-                    .col(ColumnDef::new_with_type(Transaction::GasUsed, CryptoCurrency).not_null())
-                    .col(ColumnDef::new_with_type(Transaction::GasPrice, CryptoCurrency).not_null())
+                    .col(ColumnDef::new(Transaction::GasUsed).double().not_null())
+                    .col(ColumnDef::new(Transaction::GasPrice).double().not_null())
                     .col(ColumnDef::new(Transaction::Nonce).big_unsigned().not_null())
                     .col(ColumnDef::new_with_type(Transaction::Sender, Address).not_null())
                     .col(ColumnDef::new_with_type(Transaction::Recipient, Address).not_null())

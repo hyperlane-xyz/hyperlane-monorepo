@@ -30,8 +30,8 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Block::Height).big_unsigned().not_null())
                     .col(ColumnDef::new(Block::Timestamp).timestamp().not_null())
-                    .col(ColumnDef::new_with_type(Block::GasUsed, CryptoCurrency).not_null())
-                    .col(ColumnDef::new_with_type(Block::GasLimit, CryptoCurrency).not_null())
+                    .col(ColumnDef::new(Block::GasUsed).double().not_null())
+                    .col(ColumnDef::new(Block::GasLimit).double().not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Block::Domain)
