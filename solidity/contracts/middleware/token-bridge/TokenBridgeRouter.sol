@@ -45,7 +45,7 @@ contract TokenBridgeRouter is Router {
             tokenBridgeAdapters[_bridge]
         );
         // Require the adapter to have been set
-        require(address(_adapter) != address(0), "!adapter");
+        require(address(_adapter) != address(0), "No adapter found for bridge");
 
         // Transfer the tokens to the adapter
         // TODO: use safeTransferFrom
