@@ -2,6 +2,8 @@
 pragma solidity ^0.8.13;
 
 interface ICircleBridge {
+    event MessageSent(bytes message);
+
     /**
      * @notice Deposits and burns tokens from sender to be minted on destination domain.
      * Emits a `DepositForBurn` event.

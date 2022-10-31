@@ -11,13 +11,13 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
     /// @notice The CircleBridge contract.
-    ICircleBridge public immutable circleBridge;
+    ICircleBridge public circleBridge;
 
     /// @notice The Circle MessageTransmitter contract.
-    ICircleMessageTransmitter public immutable circleMessageTransmitter;
+    ICircleMessageTransmitter public circleMessageTransmitter;
 
     /// @notice The TokenBridgeRouter contract.
-    address public immutable tokenBridgeRouter;
+    address public tokenBridgeRouter;
 
     /// @notice Hyperlane domain => CircleDomainEntry.
     /// ATM, known Circle domains are Ethereum = 0 and Avalanche = 1.
@@ -71,31 +71,29 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
     }
 
     /**
+     * @param _owner The new owner.
      * @param _circleBridge The CircleBridge contract.
      * @param _circleMessageTransmitter The Circle MessageTransmitter contract.
      * @param _tokenBridgeRouter The TokenBridgeRouter contract.
      */
-    constructor(
+    function initialize(
+        address _owner,
         address _circleBridge,
         address _circleMessageTransmitter,
         address _tokenBridgeRouter
-    ) {
+    ) public initializer {
+        // Transfer ownership of the contract to deployer
+        _transferOwnership(_owner);
+
+        // Set the addresses for the ACM and IGP to address(0) - they aren't used.
+        _setAbacusConnectionManager(address(0));
+        _setInterchainGasPaymaster(address(0));
+
         circleBridge = ICircleBridge(_circleBridge);
         circleMessageTransmitter = ICircleMessageTransmitter(
             _circleMessageTransmitter
         );
         tokenBridgeRouter = _tokenBridgeRouter;
-    }
-
-    /**
-     * @param _owner The new owner.
-     */
-    function initialize(address _owner) public initializer {
-        // Transfer ownership of the contract to deployer
-        _transferOwnership(_owner);
-        // Set the addresses for the ACM and IGP to address(0) - they aren't used.
-        _setAbacusConnectionManager(address(0));
-        _setInterchainGasPaymaster(address(0));
     }
 
     function bridgeToken(
