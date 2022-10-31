@@ -94,7 +94,7 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
     // ==== dispatchWithTokens ====
 
     function testDispatchWithTokensRevertsWithUnkownBridgeAdapter() public {
-        vm.expectRevert("!adapter");
+        vm.expectRevert("No adapter found for bridge");
         originTokenBridgeRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
