@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
 
-import { TestMailboxV2, TestOutbox } from '../../types';
+import { MailboxV2, TestOutbox } from '../../types';
 import { DispatchEvent } from '../../types/contracts/Outbox';
 
 export const dispatchMessage = async (
@@ -57,7 +57,7 @@ export interface MerkleProof {
 }
 
 export const inferMessageValues = async (
-  mailbox: TestMailboxV2,
+  mailbox: MailboxV2,
   sender: string,
   destination: number,
   recipient: string,
