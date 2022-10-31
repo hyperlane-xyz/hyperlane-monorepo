@@ -37,11 +37,11 @@ type ConnectionClientContracts = {
 };
 
 export type CoreContracts<
-  Networks extends ChainName,
-  Local extends Networks,
+  Chains extends ChainName,
+  Local extends Chains,
 > = OutboxContracts &
   ConnectionClientContracts & {
-    inboxes: RemoteChainMap<Networks, Local, InboxContracts>;
+    inboxes: RemoteChainMap<Chains, Local, InboxContracts>;
     upgradeBeaconController: UpgradeBeaconController;
   };
 
