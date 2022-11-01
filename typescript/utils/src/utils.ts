@@ -57,7 +57,7 @@ export const formatMessage = (
 
 export const formatMessageV2 = (
   version: number | BigNumber,
-  nonce: number,
+  nonce: number | BigNumber,
   originDomain: Domain,
   senderAddr: Address,
   destinationDomain: Domain,

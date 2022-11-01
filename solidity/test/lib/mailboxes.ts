@@ -62,16 +62,20 @@ export const inferMessageValues = async (
   destination: number,
   recipient: string,
   messageStr: string,
+  version: number = -1,
 ) => {
   const body = utils.ensure0x(
     Buffer.from(ethers.utils.toUtf8Bytes(messageStr)).toString('hex'),
   );
   const nonce = await mailbox.count();
-  const version = await mailbox.VERSION();
+  let _version = version;
+  if (_version < 0) {
+    _version = await mailbox.VERSION();
+  }
   const localDomain = await mailbox.localDomain();
   const message = utils.formatMessageV2(
+    _version,
     nonce,
-    version,
     localDomain,
     sender,
     destination,
