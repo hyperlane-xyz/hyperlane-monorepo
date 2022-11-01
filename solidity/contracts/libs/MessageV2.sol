@@ -23,7 +23,7 @@ library MessageV2 {
      * @return Formatted message
      */
     function formatMessage(
-        uint32 _version,
+        uint8 _version,
         uint256 _nonce,
         uint32 _originDomain,
         bytes32 _sender,
@@ -58,7 +58,7 @@ library MessageV2 {
      * @return Version of `_message`
      */
     function version(bytes calldata _message) internal pure returns (uint32) {
-        return uint32(bytes4(_message[0:4]));
+        return uint32(bytes4(_message[0:1]));
     }
 
     /**
@@ -67,7 +67,7 @@ library MessageV2 {
      * @return Nonce of `_message`
      */
     function nonce(bytes calldata _message) internal pure returns (uint256) {
-        return uint256(bytes32(_message[4:36]));
+        return uint256(bytes32(_message[1:33]));
     }
 
     /**
@@ -76,7 +76,7 @@ library MessageV2 {
      * @return Origin domain of `_message`
      */
     function origin(bytes calldata _message) internal pure returns (uint32) {
-        return uint32(bytes4(_message[36:40]));
+        return uint32(bytes4(_message[33:37]));
     }
 
     /**
@@ -85,7 +85,7 @@ library MessageV2 {
      * @return Sender of `_message` as bytes32
      */
     function sender(bytes calldata _message) internal pure returns (bytes32) {
-        return bytes32(_message[40:72]);
+        return bytes32(_message[37:69]);
     }
 
     /**
@@ -111,7 +111,7 @@ library MessageV2 {
         pure
         returns (uint32)
     {
-        return uint32(bytes4(_message[72:76]));
+        return uint32(bytes4(_message[69:73]));
     }
 
     /**
@@ -124,7 +124,7 @@ library MessageV2 {
         pure
         returns (bytes32)
     {
-        return bytes32(_message[76:108]);
+        return bytes32(_message[73:105]);
     }
 
     /**
@@ -150,6 +150,6 @@ library MessageV2 {
         pure
         returns (bytes calldata)
     {
-        return bytes(_message[108:]);
+        return bytes(_message[105:]);
     }
 }
