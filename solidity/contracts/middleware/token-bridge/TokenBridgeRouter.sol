@@ -40,12 +40,7 @@ contract TokenBridgeRouter is Router {
         uint256 _amount,
         string calldata _bridge
     ) external payable {
-        // Get the adapter for the provided destination domain, token, and bridge
-        ITokenBridgeAdapter _adapter = ITokenBridgeAdapter(
-            tokenBridgeAdapters[_bridge]
-        );
-        // Require the adapter to have been set
-        require(address(_adapter) != address(0), "No adapter found for bridge");
+        ITokenBridgeAdapter _adapter = getAdapter(_bridge);
 
         // Transfer the tokens to the adapter
         // TODO: use safeTransferFrom
@@ -58,7 +53,7 @@ contract TokenBridgeRouter is Router {
         // Reverts if the bridge was unsuccessful.
         // Gets adapter-specific data that is encoded into the message
         // ultimately sent via Hyperlane.
-        bytes memory _adapterData = _adapter.bridgeToken(
+        bytes memory _adapterData = _adapter.sendTokens(
             _destinationDomain,
             _recipientAddress,
             _token,
@@ -69,10 +64,10 @@ contract TokenBridgeRouter is Router {
         bytes memory _messageWithMetadata = abi.encode(
             TypeCasts.addressToBytes32(msg.sender),
             _recipientAddress, // The "user" recipient
-            _messageBody, // The "user" message
-            _bridge, // The destination token bridge ID
             _amount, // The amount of the tokens sent over the bridge
-            _adapterData // The adapter-specific data
+            _bridge, // The destination token bridge ID
+            _adapterData, // The adapter-specific data
+            _messageBody // The "user" message
         );
 
         // Dispatch the _messageWithMetadata to the destination's TokenBridgeRouter.
@@ -89,33 +84,27 @@ contract TokenBridgeRouter is Router {
         (
             bytes32 _originalSender,
             bytes32 _userRecipientAddress,
-            bytes memory _userMessageBody,
-            string memory _bridge,
             uint256 _amount,
-            bytes memory _adapterData
+            string memory _bridge,
+            bytes memory _adapterData,
+            bytes memory _userMessageBody
         ) = abi.decode(
                 _message,
-                (bytes32, bytes32, bytes, string, uint256, bytes)
+                (bytes32, bytes32, uint256, string, bytes, bytes)
             );
-
-        // Get the adapter for the provided local domain, token, and bridge
-        ITokenBridgeAdapter _adapter = ITokenBridgeAdapter(
-            tokenBridgeAdapters[_bridge]
-        );
-        // Require the adapter to have been set
-        require(address(_adapter) != address(0), "!adapter");
 
         ITokenBridgeMessageRecipient _userRecipient = ITokenBridgeMessageRecipient(
                 TypeCasts.bytes32ToAddress(_userRecipientAddress)
             );
 
         // Reverts if the adapter hasn't received the bridged tokens yet
-        (address _token, uint256 _sentAmount) = _adapter.sendBridgedTokens(
-            _origin,
-            address(_userRecipient),
-            _adapterData,
-            _amount
-        );
+        (address _token, uint256 _sentAmount) = getAdapter(_bridge)
+            .receiveTokens(
+                _origin,
+                address(_userRecipient),
+                _amount,
+                _adapterData
+            );
 
         _userRecipient.handleWithTokens(
             _origin,
@@ -132,5 +121,15 @@ contract TokenBridgeRouter is Router {
     {
         tokenBridgeAdapters[_bridge] = _adapter;
         emit TokenBridgeAdapterSet(_bridge, _adapter);
+    }
+
+    function getAdapter(string memory _bridge)
+        internal
+        view
+        returns (ITokenBridgeAdapter _adapter)
+    {
+        _adapter = ITokenBridgeAdapter(tokenBridgeAdapters[_bridge]);
+        // Require the adapter to have been set
+        require(address(_adapter) != address(0), "No adapter found for bridge");
     }
 }

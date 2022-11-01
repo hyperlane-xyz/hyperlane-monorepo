@@ -6,11 +6,13 @@ import {TokenBridgeRouter} from "../contracts/middleware/token-bridge/TokenBridg
 import {MockToken} from "../contracts/mock/MockToken.sol";
 import {TestTokenRecipient} from "../contracts/test/TestTokenRecipient.sol";
 import {MockTokenBridgeAdapter} from "../contracts/mock/MockTokenBridgeAdapter.sol";
-import {HyperlaneTestHelper} from "./HyperlaneTestHelper.t.sol";
+import {HyperlaneTestEnvironment} from "./HyperlaneTestEnvironment.sol";
 
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
-contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
+contract TokenBridgeRouterTest is Test {
+    HyperlaneTestEnvironment testEnvironment;
+
     TokenBridgeRouter originTokenBridgeRouter;
     TokenBridgeRouter destinationTokenBridgeRouter;
 
@@ -36,17 +38,20 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
         originTokenBridgeRouter = new TokenBridgeRouter();
         destinationTokenBridgeRouter = new TokenBridgeRouter();
 
-        hyperlaneTestHelperSetUp(originDomain, destinationDomain);
+        testEnvironment = new HyperlaneTestEnvironment(
+            originDomain,
+            destinationDomain
+        );
 
         // TODO: set IGP?
         originTokenBridgeRouter.initialize(
             address(this),
-            address(originManager),
+            address(testEnvironment.connectionManager(originDomain)),
             address(0)
         );
         destinationTokenBridgeRouter.initialize(
             address(this),
-            address(destinationManager),
+            address(testEnvironment.connectionManager(destinationDomain)),
             address(0)
         );
 
@@ -117,27 +122,6 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
         );
     }
 
-    function testDispatchWithTokensTransfersTokensToAdapter() public {
-        vm.expectCall(
-            address(token),
-            abi.encodeWithSelector(
-                token.transferFrom.selector,
-                address(this),
-                address(bridgeAdapter),
-                amount
-            )
-        );
-        token.approve(address(originTokenBridgeRouter), amount);
-        originTokenBridgeRouter.dispatchWithTokens(
-            destinationDomain,
-            TypeCasts.addressToBytes32(address(recipient)),
-            messageBody,
-            address(token),
-            amount,
-            bridge
-        );
-    }
-
     function testDispatchWithTokenTransfersMovesTokens() public {
         token.approve(address(originTokenBridgeRouter), amount);
         originTokenBridgeRouter.dispatchWithTokens(
@@ -154,7 +138,7 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
         vm.expectCall(
             address(bridgeAdapter),
             abi.encodeWithSelector(
-                bridgeAdapter.bridgeToken.selector,
+                bridgeAdapter.sendTokens.selector,
                 destinationDomain,
                 TypeCasts.addressToBytes32(address(recipient)),
                 address(token),
@@ -184,7 +168,7 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
         );
 
         vm.expectRevert("Transfer has not been processed yet");
-        inbox.processNextPendingMessage();
+        testEnvironment.processNextPendingMessage();
     }
 
     function testDispatchWithTokensTransfersOnDestination() public {
@@ -199,7 +183,7 @@ contract TokenBridgeRouterTest is Test, HyperlaneTestHelper {
         );
 
         bridgeAdapter.process(bridgeAdapter.nonce());
-        inbox.processNextPendingMessage();
+        testEnvironment.processNextPendingMessage();
         assertEq(recipient.lastData(), messageBody);
         assertEq(token.balanceOf(address(recipient)), amount);
     }

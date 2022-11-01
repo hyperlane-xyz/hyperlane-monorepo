@@ -14,16 +14,12 @@ contract MockTokenBridgeAdapter is ITokenBridgeAdapter {
         token = _token;
     }
 
-    function bridgeToken(
-        uint32 _destinationDomain,
-        bytes32 _recipientAddress,
+    function sendTokens(
+        uint32,
+        bytes32,
         address _token,
         uint256 _amount
     ) external override returns (bytes memory _adapterData) {
-        _destinationDomain;
-        _recipientAddress;
-        _token;
-        _amount;
         require(_token == address(token), "cant bridge this token");
         token.burn(_amount);
         nonce = nonce + 1;
@@ -34,11 +30,11 @@ contract MockTokenBridgeAdapter is ITokenBridgeAdapter {
         isProcessed[_nonce] = true;
     }
 
-    function sendBridgedTokens(
+    function receiveTokens(
         uint32 _originDomain, // Hyperlane domain
         address _recipientAddress,
-        bytes calldata _adapterData, // The adapter data from the message
-        uint256 _amount
+        uint256 _amount,
+        bytes calldata _adapterData // The adapter data from the message
     ) external override returns (address, uint256) {
         _originDomain;
         uint256 _nonce = abi.decode(_adapterData, (uint256));

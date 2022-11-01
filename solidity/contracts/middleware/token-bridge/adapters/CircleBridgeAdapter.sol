@@ -19,19 +19,17 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
     /// @notice The TokenBridgeRouter contract.
     address public tokenBridgeRouter;
 
-    /// @notice Hyperlane domain => CircleDomainEntry.
+    /// @notice Hyperlane domain => Circle domain.
     /// ATM, known Circle domains are Ethereum = 0 and Avalanche = 1.
     /// Note this could result in ambiguity between the Circle domain being
     /// Ethereum or unknown. TODO fix?
     mapping(uint32 => uint32) public hyperlaneDomainToCircleDomain;
 
     /// @notice Token symbol => address of token on local chain.
-    mapping(string => IERC20) public tokenSymbolToToken;
+    mapping(string => IERC20) public tokenSymbolToAddress;
 
     /// @notice Local chain token address => token symbol.
-    mapping(address => string) public tokenToTokenSymbol;
-
-    // Emits the nonce of the Circle message
+    mapping(address => string) public tokenAddressToSymbol;
 
     /**
      * @notice Emits the nonce of the Circle message when a token is bridged.
@@ -44,26 +42,17 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
      * @param hyperlaneDomain The Hyperlane domain.
      * @param circleDomain The Circle domain.
      */
-    event HyperlaneDomainToCircleDomainSet(
-        uint32 indexed hyperlaneDomain,
-        uint32 circleDomain
-    );
+    event DomainAdded(uint32 indexed hyperlaneDomain, uint32 circleDomain);
 
     /**
      * @notice Emitted when a local token and its token symbol have been added.
      */
-    event TokenAndTokenSymbolAdded(
-        address indexed token,
-        string indexed tokenSymbol
-    );
+    event TokenAdded(address indexed token, string indexed symbol);
 
     /**
      * @notice Emitted when a local token and its token symbol have been removed.
      */
-    event TokenAndTokenSymbolRemoved(
-        address indexed token,
-        string indexed tokenSymbol
-    );
+    event TokenRemoved(address indexed token, string indexed symbol);
 
     modifier onlyTokenBridgeRouter() {
         require(msg.sender == tokenBridgeRouter, "!tokenBridgeRouter");
@@ -96,20 +85,26 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
         tokenBridgeRouter = _tokenBridgeRouter;
     }
 
-    function bridgeToken(
+    function sendTokens(
         uint32 _destinationDomain,
         bytes32, // _recipientAddress, unused
         address _token,
         uint256 _amount
     ) external onlyTokenBridgeRouter returns (bytes memory) {
-        string memory _tokenSymbol = tokenToTokenSymbol[_token];
-        require(bytes(_tokenSymbol).length > 0, "unknown token");
+        string memory _tokenSymbol = tokenAddressToSymbol[_token];
+        require(
+            bytes(_tokenSymbol).length > 0,
+            "CircleBridgeAdapter: Unknown token"
+        );
 
         uint32 _circleDomain = hyperlaneDomainToCircleDomain[
             _destinationDomain
         ];
         bytes32 _remoteRouter = routers[_destinationDomain];
-        require(_remoteRouter != bytes32(0), "!remote router");
+        require(
+            _remoteRouter != bytes32(0),
+            "CircleBridgeAdapter: No router for domain"
+        );
 
         // Approve the token to Circle. We assume that the TokenBridgeRouter
         // has already transferred the token to this contract.
@@ -127,24 +122,24 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
 
         emit BridgedToken(_nonce);
 
-        return abi.encode(_tokenSymbol, _nonce);
+        return abi.encodePacked(_nonce, _tokenSymbol);
     }
 
     // Returns the token and amount sent
-    function sendBridgedTokens(
+    function receiveTokens(
         uint32 _originDomain, // Hyperlane domain
         address _recipient,
-        bytes calldata _adapterData, // The adapter data from the message
-        uint256 _amount
+        uint256 _amount,
+        bytes calldata _adapterData // The adapter data from the message
     ) external onlyTokenBridgeRouter returns (address, uint256) {
         // The origin Circle domain
         uint32 _originCircleDomain = hyperlaneDomainToCircleDomain[
             _originDomain
         ];
         // Get the token symbol and nonce of the transfer from the _adapterData
-        (string memory _tokenSymbol, uint64 _nonce) = abi.decode(
+        (uint64 _nonce, string memory _tokenSymbol) = abi.decode(
             _adapterData,
-            (string, uint64)
+            (uint64, string)
         );
 
         // Require the circle message to have been processed
@@ -154,8 +149,11 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
             "Circle message not processed yet"
         );
 
-        IERC20 _token = tokenSymbolToToken[_tokenSymbol];
-        require(address(_token) != address(0), "unknown token symbol");
+        IERC20 _token = tokenSymbolToAddress[_tokenSymbol];
+        require(
+            address(_token) != address(0),
+            "CircleBridgeAdapter: Unknown token"
+        );
 
         // Transfer the token out to the recipient
         // TODO: use safeTransfer
@@ -176,59 +174,59 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
         revert("No messages expected");
     }
 
-    function setHyperlaneDomainToCircleDomain(
-        uint32 _hyperlaneDomain,
-        uint32 _circleDomain
-    ) external onlyOwner {
+    function addDomain(uint32 _hyperlaneDomain, uint32 _circleDomain)
+        external
+        onlyOwner
+    {
         hyperlaneDomainToCircleDomain[_hyperlaneDomain] = _circleDomain;
 
-        emit HyperlaneDomainToCircleDomainSet(_hyperlaneDomain, _circleDomain);
+        emit DomainAdded(_hyperlaneDomain, _circleDomain);
     }
 
-    function addTokenAndTokenSymbol(
-        address _token,
-        string calldata _tokenSymbol
-    ) external onlyOwner {
+    function addToken(address _token, string calldata _tokenSymbol)
+        external
+        onlyOwner
+    {
         require(
             _token != address(0) && bytes(_tokenSymbol).length > 0,
             "Cannot add default values"
         );
 
         // Require the token and token symbol to be unset.
-        address _existingToken = address(tokenSymbolToToken[_tokenSymbol]);
+        address _existingToken = address(tokenSymbolToAddress[_tokenSymbol]);
         require(_existingToken == address(0), "token symbol already has token");
 
-        string memory _existingSymbol = tokenToTokenSymbol[_token];
+        string memory _existingSymbol = tokenAddressToSymbol[_token];
         require(
             bytes(_existingSymbol).length == 0,
             "token already has token symbol"
         );
 
-        tokenToTokenSymbol[_token] = _tokenSymbol;
-        tokenSymbolToToken[_tokenSymbol] = IERC20(_token);
+        tokenAddressToSymbol[_token] = _tokenSymbol;
+        tokenSymbolToAddress[_tokenSymbol] = IERC20(_token);
 
-        emit TokenAndTokenSymbolAdded(_token, _tokenSymbol);
+        emit TokenAdded(_token, _tokenSymbol);
     }
 
-    function removeTokenAndTokenSymbol(
-        address _token,
-        string calldata _tokenSymbol
-    ) external onlyOwner {
+    function removeToken(address _token, string calldata _tokenSymbol)
+        external
+        onlyOwner
+    {
         // Require the provided token and token symbols match what's in storage.
-        address _existingToken = address(tokenSymbolToToken[_tokenSymbol]);
+        address _existingToken = address(tokenSymbolToAddress[_tokenSymbol]);
         require(_existingToken == _token, "Token mismatch");
 
-        string memory _existingSymbol = tokenToTokenSymbol[_token];
+        string memory _existingSymbol = tokenAddressToSymbol[_token];
         require(
             keccak256(bytes(_existingSymbol)) == keccak256(bytes(_tokenSymbol)),
             "Token symbol mismatch"
         );
 
         // Delete them from storage.
-        delete tokenSymbolToToken[_tokenSymbol];
-        delete tokenToTokenSymbol[_token];
+        delete tokenSymbolToAddress[_tokenSymbol];
+        delete tokenAddressToSymbol[_token];
 
-        emit TokenAndTokenSymbolRemoved(_token, _tokenSymbol);
+        emit TokenRemoved(_token, _tokenSymbol);
     }
 
     /**

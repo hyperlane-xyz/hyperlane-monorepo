@@ -2,17 +2,17 @@
 pragma solidity ^0.8.13;
 
 interface ITokenBridgeAdapter {
-    function bridgeToken(
+    function sendTokens(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         address _token,
         uint256 _amount
     ) external returns (bytes memory _adapterData);
 
-    function sendBridgedTokens(
+    function receiveTokens(
         uint32 _originDomain, // Hyperlane domain
         address _recipientAddress,
-        bytes calldata _adapterData, // The adapter data from the message
-        uint256 _amount
+        uint256 _amount,
+        bytes calldata _adapterData // The adapter data from the message
     ) external returns (address, uint256);
 }
