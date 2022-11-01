@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::types::H256;
-use eyre::{eyre, Result};
+use eyre::{eyre, Context, Result};
 use sea_orm::prelude::TimeDateTime;
 use sea_orm::{Database, DbConn};
 use tokio::task::JoinHandle;
@@ -67,15 +67,20 @@ impl BaseAgent for Scraper {
         let mut remotes: HashMap<u32, HashMap<u32, Remote>> = HashMap::new();
 
         for (outbox_domain, chain_config) in settings.chains.into_iter() {
-            if let Some(local) = Self::load_local(&chain_config, &metrics).await? {
+            let ctx = || format!("Loading chain {}", chain_config.outbox.name);
+            if let Some(local) = Self::load_local(&chain_config, &metrics)
+                .await
+                .with_context(ctx)?
+            {
                 trace!(domain = outbox_domain, "Created outbox and outbox indexer");
                 assert_eq!(local.outbox.local_domain(), outbox_domain);
                 locals.insert(outbox_domain, local);
             }
 
             for (_, inbox_config) in chain_config.inboxes.iter() {
-                if let Some(remote) =
-                    Self::load_remote(&chain_config, inbox_config, &metrics).await?
+                if let Some(remote) = Self::load_remote(&chain_config, inbox_config, &metrics)
+                    .await
+                    .with_context(ctx)?
                 {
                     let inbox_remote_domain = remote.inbox.remote_domain();
                     let inbox_local_domain = remote.inbox.local_domain();
@@ -165,10 +170,15 @@ impl Scraper {
             {
                 None
             } else {
+                let ctx = || format!("Loading local {}", config.outbox.name);
                 Some(Local {
-                    provider: config.try_provider(metrics).await?.into(),
-                    outbox: config.try_outbox(metrics).await?.into(),
-                    indexer: config.try_outbox_indexer(metrics).await?.into(),
+                    provider: config.try_provider(metrics).await.with_context(ctx)?.into(),
+                    outbox: config.try_outbox(metrics).await.with_context(ctx)?.into(),
+                    indexer: config
+                        .try_outbox_indexer(metrics)
+                        .await
+                        .with_context(ctx)?
+                        .into(),
                 })
             },
         )
@@ -188,11 +198,17 @@ impl Scraper {
             {
                 None
             } else {
+                let ctx = || format!("Loading remote {}", inbox_config.name);
                 Some(Remote {
-                    inbox: config.try_inbox(inbox_config, metrics).await?.into(),
+                    inbox: config
+                        .try_inbox(inbox_config, metrics)
+                        .await
+                        .with_context(ctx)?
+                        .into(),
                     indexer: config
                         .try_inbox_indexer(inbox_config, metrics)
-                        .await?
+                        .await
+                        .with_context(ctx)?
                         .into(),
                 })
             },
