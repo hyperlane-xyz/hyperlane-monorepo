@@ -107,7 +107,7 @@ export const fuji: ChainMetadata = {
 
 export const goerli: ChainMetadata = {
   id: 5,
-  finalityBlocks: 7,
+  finalityBlocks: 2,
 };
 
 export const optimismgoerli: ChainMetadata = {
