@@ -129,8 +129,14 @@ impl<T> ChainSetup<T> {
             cfg
         };
 
-        self.build("0x00", None, metrics, metrics_conf, builder)
-            .await
+        self.build(
+            "0x0000000000000000000000000000000000000000",
+            None,
+            metrics,
+            metrics_conf,
+            builder,
+        )
+        .await
     }
 
     async fn build<B: MakeableWithProvider + Sync>(
