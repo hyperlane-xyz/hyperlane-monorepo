@@ -36,10 +36,11 @@ pub struct InterchainGasPaymasterIndexerBuilder {
     pub finality_blocks: u32,
 }
 
+#[async_trait]
 impl MakeableWithProvider for InterchainGasPaymasterIndexerBuilder {
     type Output = Box<dyn InterchainGasPaymasterIndexer>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -152,10 +153,11 @@ where
 
 pub struct InterchainGasPaymasterBuilder {}
 
+#[async_trait]
 impl MakeableWithProvider for InterchainGasPaymasterBuilder {
     type Output = Box<dyn InterchainGasPaymaster>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,

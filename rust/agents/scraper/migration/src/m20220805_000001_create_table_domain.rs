@@ -120,6 +120,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "moonbeam",
+        token: "GLMR",
+        domain: 0x6d6f2d6d,
+        chain_id: 1284,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "mumbai",
         token: "MATIC",
         domain: 80001,

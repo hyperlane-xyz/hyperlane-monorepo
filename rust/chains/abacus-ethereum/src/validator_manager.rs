@@ -37,10 +37,11 @@ pub struct InboxValidatorManagerBuilder {
     pub inbox_address: Address,
 }
 
+#[async_trait]
 impl MakeableWithProvider for InboxValidatorManagerBuilder {
     type Output = Box<dyn InboxValidatorManager>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,

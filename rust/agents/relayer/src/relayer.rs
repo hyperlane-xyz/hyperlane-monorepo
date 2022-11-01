@@ -51,10 +51,7 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings
-            .as_ref()
-            .try_into_abacus_core(metrics, true)
-            .await?;
+        let core = settings.try_into_abacus_core(metrics, true).await?;
 
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
@@ -98,14 +95,15 @@ impl BaseAgent for Relayer {
             let signer = self
                 .core
                 .settings
+                .chain
                 .get_signer(inbox_name)
                 .await
                 .expect("expected signer for inbox");
             tasks.push(self.run_inbox(
                 inbox_contracts.clone(),
                 signed_checkpoint_receiver.clone(),
-                self.core.settings.inboxes[inbox_name].txsubmission,
-                self.core.settings.gelato.as_ref(),
+                self.core.settings.chain.inboxes[inbox_name].txsubmission,
+                self.core.settings.chain.gelato.as_ref(),
                 signer,
                 gas_payment_enforcer.clone(),
             ));

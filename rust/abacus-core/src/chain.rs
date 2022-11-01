@@ -264,12 +264,6 @@ mod tests {
         let paths = config_paths(root);
         let files: Vec<String> = paths
             .iter()
-            .filter(|n| {
-                // Special config with different rules, with
-                // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1134
-                // we will remove this weird case
-                !n.contains("scraper_config")
-            })
             .filter_map(|x| read_to_string(x).ok())
             .collect();
         paths
@@ -291,14 +285,14 @@ mod tests {
     fn outbox_chain_names() -> BTreeSet<String> {
         abacus_settings()
             .iter()
-            .map(|x| x.outbox.name.clone())
+            .map(|x| x.chain.outbox.name.clone())
             .collect()
     }
 
     fn inbox_chain_names() -> BTreeSet<String> {
         abacus_settings()
             .iter()
-            .flat_map(|x: &Settings| x.inboxes.iter().map(|(k, _)| String::from(k)))
+            .flat_map(|x: &Settings| x.chain.inboxes.iter().map(|(k, _)| String::from(k)))
             .collect()
     }
 
@@ -306,8 +300,8 @@ mod tests {
         abacus_settings()
             .iter()
             .map(|x| ChainCoordinate {
-                name: x.outbox.name.clone(),
-                domain: x.outbox.domain.parse().unwrap(),
+                name: x.chain.outbox.name.clone(),
+                domain: x.chain.outbox.domain.parse().unwrap(),
             })
             .collect()
     }
@@ -316,7 +310,7 @@ mod tests {
         abacus_settings()
             .iter()
             .flat_map(|x: &Settings| {
-                x.inboxes.iter().map(|(_, v)| ChainCoordinate {
+                x.chain.inboxes.iter().map(|(_, v)| ChainCoordinate {
                     name: v.name.clone(),
                     domain: v.domain.parse().unwrap(),
                 })
