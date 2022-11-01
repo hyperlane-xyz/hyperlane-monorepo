@@ -29,7 +29,9 @@ const FROM_HEX_CHARS: [u8; 256] = [
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 ];
 
-/// Checks if a byte slice fits within 160 bits.
+/// Checks if a byte slice fits within 160 bits. Assumes a big-endian encoding;
+/// ignores leading zeros. Current implementation only supports up to a 32 byte
+/// array but this could easily be extended if needed.
 pub const fn is_h160<const S: usize>(data: &[u8; S]) -> bool {
     assert!(S <= 32);
     if S <= 20 {

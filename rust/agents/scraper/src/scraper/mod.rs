@@ -139,6 +139,7 @@ impl BaseAgent for Scraper {
                 tokio::spawn(syncer).instrument(span)
             })
             .chain(
+                // TODO: remove this during refactoring if we no longer need it
                 [tokio::spawn(delivered_message_linker(self.db.clone()))
                     .instrument(info_span!("DeliveredMessageLinker"))]
                 .into_iter(),

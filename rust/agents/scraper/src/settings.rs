@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::env;
 
 use abacus_base::load_settings_object;
-use abacus_base::{NewFromAgentSettings, AgentSettings, DomainSettings};
+use abacus_base::{AgentSettings, DomainSettings, NewFromAgentSettings};
 
 /// Scraper settings work a bit differently than other agents because we need to
 /// load the information for all of the chains.
@@ -56,6 +56,11 @@ impl NewFromAgentSettings for ScraperSettings {
             .map(|chain_name| {
                 let config_file_name = env::var(&format!("BASE_CONFIG_{chain_name}"))
                     .expect("Must specify config file for all domains in $RUN_DOMAINS");
+                // If we do not ignore these, it will cause a panic. This is because it sees a
+                // config for the inbox that is on the same chain as the outbox. Which
+                // fundamentally does not make sense. When we are parsing configs like this we
+                // have a bunch of things with slightly overlapping views so this allows us to
+                // ignore the overlap that we do not want.
                 let ignore_prefixes = [
                     format!("HYP_BASE_INBOXES_{chain_name}"),
                     format!("HYP_SCRAPER_INBOXES_{chain_name}"),
