@@ -62,7 +62,7 @@
       "domain": "5",
       "name": "goerli",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "7",
+      "finalityBlocks": "2",
       "connection": {
         "type": "http",
         "url": ""
@@ -152,7 +152,7 @@
       "domain": "5",
       "name": "goerli",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "7",
+      "finalityBlocks": "2",
       "connection": {
         "type": "http",
         "url": ""
