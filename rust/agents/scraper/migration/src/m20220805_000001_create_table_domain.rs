@@ -32,6 +32,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "arbitrumgoerli",
+        token: "AGOR",
+        domain: 421613,
+        chain_id: 421613,
+        is_test_net: true,
+        is_deprecated: false
+    },
+    RawDomain {
         name: "arbitrumrinkeby",
         token: "ETH",
         domain: 0x61722d72,
@@ -190,6 +198,14 @@ const DOMAINS: &[RawDomain] = &[
         chain_id: 0,
         is_test_net: true,
         is_deprecated: false,
+    },
+    RawDomain {
+        name: "zksync2testnet",
+        token: "ETH",
+        domain: 280,
+        chain_id: 280,
+        is_test_net: true,
+        is_deprecated: false
     },
 ];
 
