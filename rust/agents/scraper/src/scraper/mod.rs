@@ -820,7 +820,7 @@ impl SqlChainScraper {
             })
             .filter(|(_, block_info)| block_info.is_none());
         for (hash, block_info) in blocks_to_fetch {
-            let info = self.local.provider.get_block_by_hash(&hash).await?;
+            let info = self.local.provider.get_block_by_hash(hash).await?;
             let _ = block_info.insert((None, info));
         }
 
