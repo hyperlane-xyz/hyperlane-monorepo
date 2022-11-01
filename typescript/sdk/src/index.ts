@@ -71,7 +71,7 @@ export {
   MessageStatus,
   resolveDomain,
   resolveId,
-  resolveNetworks,
+  resolveChains,
 } from './core/message';
 export {
   TestCoreApp,
