@@ -148,6 +148,8 @@ impl Error for InvalidHexCharacter {}
 
 #[cfg(test)]
 mod test {
+    use crate::FROM_HEX_CHARS;
+
     #[test]
     fn is_h160() {
         let v: [u8; 32] = [
@@ -225,5 +227,34 @@ mod test {
                 index: 3
             }
         ))
+    }
+
+    #[test]
+    fn verify_hex_chars_array() {
+        assert_eq!(FROM_HEX_CHARS['0' as usize], 0x00);
+        assert_eq!(FROM_HEX_CHARS['1' as usize], 0x01);
+        assert_eq!(FROM_HEX_CHARS['2' as usize], 0x02);
+        assert_eq!(FROM_HEX_CHARS['3' as usize], 0x03);
+        assert_eq!(FROM_HEX_CHARS['4' as usize], 0x04);
+        assert_eq!(FROM_HEX_CHARS['5' as usize], 0x05);
+        assert_eq!(FROM_HEX_CHARS['6' as usize], 0x06);
+        assert_eq!(FROM_HEX_CHARS['7' as usize], 0x07);
+        assert_eq!(FROM_HEX_CHARS['8' as usize], 0x08);
+        assert_eq!(FROM_HEX_CHARS['9' as usize], 0x09);
+        assert_eq!(FROM_HEX_CHARS['a' as usize], 0x0a);
+        assert_eq!(FROM_HEX_CHARS['b' as usize], 0x0b);
+        assert_eq!(FROM_HEX_CHARS['c' as usize], 0x0c);
+        assert_eq!(FROM_HEX_CHARS['d' as usize], 0x0d);
+        assert_eq!(FROM_HEX_CHARS['e' as usize], 0x0e);
+        assert_eq!(FROM_HEX_CHARS['f' as usize], 0x0f);
+        assert_eq!(FROM_HEX_CHARS['A' as usize], 0x0a);
+        assert_eq!(FROM_HEX_CHARS['B' as usize], 0x0b);
+        assert_eq!(FROM_HEX_CHARS['C' as usize], 0x0c);
+        assert_eq!(FROM_HEX_CHARS['D' as usize], 0x0d);
+        assert_eq!(FROM_HEX_CHARS['E' as usize], 0x0e);
+        assert_eq!(FROM_HEX_CHARS['F' as usize], 0x0f);
+        assert_eq!(FROM_HEX_CHARS['x' as usize], 0xff);
+        assert_eq!(FROM_HEX_CHARS['g' as usize], 0xff);
+        assert_eq!(FROM_HEX_CHARS[' ' as usize], 0xff);
     }
 }
