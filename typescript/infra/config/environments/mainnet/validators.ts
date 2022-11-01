@@ -269,7 +269,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
         name: 'ZPLabs-pgon',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
-          bucket: zplabsS3BucketInfo.name('pgon'),
+          bucket: zplabsS3BucketInfo.name('pgon' as ChainName),
           region: zplabsS3BucketInfo.region,
         },
       },
