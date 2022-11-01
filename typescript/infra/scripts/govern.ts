@@ -15,7 +15,9 @@ async function check() {
   const multiProvider = await config.getMultiProvider();
 
   // environments union doesn't work well with typescript
+  console.log('blah');
   const core = HyperlaneCore.fromEnvironment(environment, multiProvider as any);
+  console.log('bleh');
 
   const coreChecker = new HyperlaneCoreChecker<any>(
     multiProvider,
