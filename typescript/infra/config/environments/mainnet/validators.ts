@@ -90,7 +90,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x9bdd262D6b02DF346FC4A9D40fBBA4E6E04212B2',
         readonly: true,
-        name: 'Fern-celo',
+        name: 'fern-celo',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: fernS3BucketInfo.name('celo'),
@@ -152,7 +152,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x5B0c4A73004327673A8d86c20608320d21969C39',
         readonly: true,
-        name: 'Fern-ethereum',
+        name: 'fern-ethereum',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: fernS3BucketInfo.name('ethereum'),
@@ -214,7 +214,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x5fd1722741039C9Ed3a1f7946270d7c39e80A000',
         readonly: true,
-        name: 'Fern-avax',
+        name: 'fern-avax',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: fernS3BucketInfo.name('avalanche'),
@@ -276,7 +276,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x7F20Ce70be969d763c2486Cf4AAe9f9a610FAb90',
         readonly: true,
-        name: 'Fern-polygon',
+        name: 'fern-polygon',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: fernS3BucketInfo.name('polygon'),
@@ -338,7 +338,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x3959Ba717d003326c280BFAd46516063eA653E03',
         readonly: true,
-        name: 'Fern-bsc',
+        name: 'fern-bsc',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: fernS3BucketInfo.name('bsc'),
@@ -400,7 +400,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xbE2A74888A9B4A2ef13826cD77747AB87aA4cBea',
         readonly: true,
-        name: 'Fern-arbitrum',
+        name: 'fern-arbitrum',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: fernS3BucketInfo.name('arbitrum'),
@@ -462,7 +462,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x2DbFB54b2664C5f7D1Ca1935ff9AE360F1C45Bf5',
         readonly: true,
-        name: 'Fern-optimism',
+        name: 'fern-optimism',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: fernS3BucketInfo.name('optimism'),
@@ -504,7 +504,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xb17F9168dAa96dd5509919785FB03647ffcd5b5A',
         readonly: true,
-        name: 'Fern-moonbeam',
+        name: 'fern-moonbeam',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: fernS3BucketInfo.name('moonbeam'),

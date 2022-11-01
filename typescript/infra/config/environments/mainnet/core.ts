@@ -14,6 +14,8 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0xd8B404ad70A1682aaF457d4918F7b506035262D3',
         // zeeprime
         '0x1ba04e4df7DF9D736543cC9A8D6f61278EA140ec',
+        // fern
+        '0x9bdd262D6b02DF346FC4A9D40fBBA4E6E04212B2',
       ],
       threshold: 3,
     },
@@ -29,6 +31,8 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x1946782598328C6D5e1CD1076d37Feab680ad9D2',
         // zeeprime
         '0xaDF418C044e857C174e70B3a1df7454B55ee258F',
+        // fern
+        '0x5B0c4A73004327673A8d86c20608320d21969C39',
       ],
       threshold: 3,
     },
@@ -44,6 +48,8 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x1E1086F3E6F2F5762AF54B8167cdE934186cbAf9',
         // zeeprime
         '0xd0b24bb03d2c244c3B1cA78c21A793c9e6ff4d87',
+        // fern
+        '0x5fd1722741039C9Ed3a1f7946270d7c39e80A000',
       ],
       threshold: 3,
     },
@@ -59,6 +65,8 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x5201867Fc19c7104cA18B37d07C60bBfe8164197',
         // zeeprime
         '0x4c055065DdD22DC874B3494Eb81FcDC1cDe9F57e',
+        // fern
+        '0x7F20Ce70be969d763c2486Cf4AAe9f9a610FAb90',
       ],
       threshold: 3,
     },
@@ -74,6 +82,8 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x24f9004c3e02C8c354881685B221cAd8FaF4d9B0',
         // zeeprime
         '0x7e303daC8b6b24cac10b6f032e0eF373A1D80299',
+        // fern
+        '0x3959Ba717d003326c280BFAd46516063eA653E03',
       ],
       threshold: 3,
     },
@@ -89,6 +99,8 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0xFF20DFeEE355Ef5a6d3C6dEe25AAB697ad3915a4',
         // zeeprime
         '0xb2e9B58B63c8676E583c2C0050bD46cecd8Ac8F3',
+        // fern
+        '0xbE2A74888A9B4A2ef13826cD77747AB87aA4cBea',
       ],
       threshold: 3,
     },
@@ -104,6 +116,8 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x8669a883652DBf8c47DECbC4ec8b137E54A5bEAF',
         // zeeprime
         '0x9D8a7F26B62fC4e481Be0F0736683d2822A8c354',
+        // fern
+        '0x2DbFB54b2664C5f7D1Ca1935ff9AE360F1C45Bf5',
       ],
       threshold: 3,
     },
@@ -115,6 +129,8 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x3da42c84aaf9d548feb219bfdf5fcb2217fbfb48',
         '0x65e94ffb6696403a5e6534cbfb6befebda6a0226',
         '0x1bf2f7e9fdfe832c5d05f94dd66dc8704ebdc581',
+        // fern
+        '0xb17F9168dAa96dd5509919785FB03647ffcd5b5A',
       ],
       threshold: 2,
     },
