@@ -61,7 +61,7 @@ where
     async fn get_txn_by_hash(&self, hash: &H256) -> eyre::Result<TxnInfo> {
         let txn = self
             .provider
-            .get_transaction(*hash)
+            .get_transaction_receipt(*hash)
             .await?
             .ok_or_else(|| eyre!("Could not find txn with hash {}", hash))?;
 
@@ -70,10 +70,8 @@ where
 
         Ok(TxnInfo {
             hash: *hash,
-            gas_used: txn.gas,
-            gas_price: txn
-                .gas_price
-                .ok_or_else(|| eyre!("Txn is not part of the chain yet {}", hash))?,
+            gas_used: txn.gas_used.unwrap_or_else(U256::default),
+            gas_price: txn.gas_price.unwrap_or_else(U256::default),
             nonce: txn.nonce.as_u64(),
             sender: txn.from.into(),
             recipient: txn
