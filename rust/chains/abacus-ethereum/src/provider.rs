@@ -61,17 +61,18 @@ where
     async fn get_txn_by_hash(&self, hash: &H256) -> eyre::Result<TxnInfo> {
         let txn = self
             .provider
-            .get_transaction_receipt(*hash)
+            .get_transaction(*hash)
             .await?
             .ok_or_else(|| eyre!("Could not find txn with hash {}", hash))?;
+        let receipt = self.provider.get_transaction_receipt(*hash).await?;
 
         assert_eq!(&txn.hash, hash);
         debug_assert_eq!(U256::from(txn.nonce.as_u64()), txn.nonce);
 
         Ok(TxnInfo {
             hash: *hash,
-            gas_used: txn.gas_used.unwrap_or_else(U256::default),
-            gas_price: txn.gas_price.unwrap_or_else(U256::default),
+            gas_used: receipt.and_then(|r| r.gas_used).unwrap_or_default(),
+            gas_price: txn.gas_price.unwrap_or_default(),
             nonce: txn.nonce.as_u64(),
             sender: txn.from.into(),
             recipient: txn
