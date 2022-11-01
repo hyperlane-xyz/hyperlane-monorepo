@@ -28,7 +28,7 @@ export const resolveId = (nameOrDomain: NameOrDomain): number =>
     ? ChainNameToDomainId[nameOrDomain]
     : nameOrDomain;
 
-export const resolveNetworks = (
+export const resolveChains = (
   message: types.ParsedMessage,
 ): { origin: ChainName; destination: ChainName } => {
   return {
@@ -84,10 +84,10 @@ export class HyperlaneMessage {
     this.message = utils.parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
 
-    const messageNetworks = resolveNetworks(this.message);
+    const messageChains = resolveChains(this.message);
     const mailboxes = core.getMailboxPair(
-      messageNetworks.origin as never, // TODO: Fix never type that results from Exclude<T, T>
-      messageNetworks.destination,
+      messageChains.origin as never, // TODO: Fix never type that results from Exclude<T, T>
+      messageChains.destination,
     );
 
     this.outbox = mailboxes.originOutbox;

@@ -243,4 +243,101 @@ export const validators: ChainValidatorSets<TestnetChains> = {
       },
     ],
   },
+  arbitrumgoerli: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xdf971036b9713b7471628706d0dd7187eac2d5ff',
+        name: s3BucketName('arbitrumgoerli', 0),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('arbitrumgoerli', 0),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x87feedf14ed63fbe225b1cab05b1d9ad3ac96b7e',
+        name: s3BucketName('arbitrumgoerli', 1),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('arbitrumgoerli', 1),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x00d7f1ca32a6360920c7e8ee27c2c9213cd204f4',
+        name: s3BucketName('arbitrumgoerli', 2),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('arbitrumgoerli', 2),
+          region: s3BucketRegion,
+        },
+      },
+    ],
+  },
+  optimismgoerli: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xe9ab71d1dab8f10489dce9914ffcd854e5cc1fdc',
+        name: s3BucketName('optimismgoerli', 0),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('optimismgoerli', 0),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0xca170b12198fa34de73e665b1a046bb434edd6ea',
+        name: s3BucketName('optimismgoerli', 1),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('optimismgoerli', 1),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0xa8b5dbf231db20e7afe5dca9a25388ffe109fb72',
+        name: s3BucketName('optimismgoerli', 2),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('optimismgoerli', 2),
+          region: s3BucketRegion,
+        },
+      },
+    ],
+  },
+  // Ignore for now
+  // zksync2testnet: {
+  //   threshold: 2,
+  //   validators: [
+  //     {
+  //       address: '0x9476169618f6642413b77549c10dda7a253fb2be',
+  //       name: s3BucketName('zksync2testnet', 0),
+  //       checkpointSyncer: {
+  //         type: CheckpointSyncerType.S3,
+  //         bucket: s3BucketName('zksync2testnet', 0),
+  //         region: s3BucketRegion,
+  //       },
+  //     },
+  //     {
+  //       address: '0x96f9782038cfb4e09c98fbb07627e7c5f7afabcb',
+  //       name: s3BucketName('zksync2testnet', 1),
+  //       checkpointSyncer: {
+  //         type: CheckpointSyncerType.S3,
+  //         bucket: s3BucketName('zksync2testnet', 1),
+  //         region: s3BucketRegion,
+  //       },
+  //     },
+  //     {
+  //       address: '0xf08e3b66c34f101901e6a41cd6f36ce14653fe6b',
+  //       name: s3BucketName('zksync2testnet', 2),
+  //       checkpointSyncer: {
+  //         type: CheckpointSyncerType.S3,
+  //         bucket: s3BucketName('zksync2testnet', 2),
+  //         region: s3BucketRegion,
+  //       },
+  //     },
+  //   ],
+  // },
 };

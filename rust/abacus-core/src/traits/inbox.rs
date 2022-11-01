@@ -15,7 +15,7 @@ use crate::{
 #[auto_impl(Box, Arc)]
 pub trait Inbox: AbacusCommon + Send + Sync + Debug {
     /// Return the domain of the inbox's linked outbox
-    async fn remote_domain(&self) -> Result<u32, ChainCommunicationError>;
+    fn remote_domain(&self) -> u32;
 
     /// Fetch the status of a message
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError>;

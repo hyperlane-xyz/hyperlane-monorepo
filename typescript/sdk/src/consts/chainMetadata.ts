@@ -107,7 +107,22 @@ export const fuji: ChainMetadata = {
 
 export const goerli: ChainMetadata = {
   id: 5,
-  finalityBlocks: 7,
+  finalityBlocks: 2,
+};
+
+export const optimismgoerli: ChainMetadata = {
+  id: 420,
+  finalityBlocks: 1,
+};
+
+export const arbitrumgoerli: ChainMetadata = {
+  id: 421613,
+  finalityBlocks: 1,
+};
+
+export const zksync2testnet: ChainMetadata = {
+  id: 280,
+  finalityBlocks: 1,
 };
 
 export const mumbai: ChainMetadata = {
@@ -171,5 +186,8 @@ export const chainMetadata = {
   auroratestnet,
   moonbasealpha,
   moonbeam,
+  optimismgoerli,
+  arbitrumgoerli,
+  zksync2testnet,
   ...testChains,
 } as Record<ChainName, ChainMetadata>;

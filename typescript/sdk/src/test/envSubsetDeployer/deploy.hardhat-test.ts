@@ -60,7 +60,10 @@ describe('deploy app to test env subset', async () => {
   before(async () => {
     const testEnv = await initTestEnv(subsetTestConfigs);
     multiProvider = testEnv.multiProvider;
-    config = testEnv.config;
+    config = {
+      test1: testEnv.config.test1,
+      test2: testEnv.config.test2,
+    };
     deployer = testEnv.deployer;
   });
 

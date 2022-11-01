@@ -106,11 +106,11 @@ impl TryFrom<&RawCommittedMessage> for CommittedMessage {
 /// A full Abacus message between chains
 #[derive(Debug, Default, Clone)]
 pub struct AbacusMessage {
-    /// 4   SLIP-44 ID
+    /// 4   Hyperlane Domain ID
     pub origin: u32,
     /// 32  Address in Outbox convention
     pub sender: H256,
-    /// 4   SLIP-44 ID
+    /// 4   Hyperlane Domain ID
     pub destination: u32,
     /// 32  Address in destination convention
     pub recipient: H256,
@@ -121,7 +121,7 @@ pub struct AbacusMessage {
 /// A partial Abacus message between chains
 #[derive(Debug, Default, Clone)]
 pub struct Message {
-    /// 4   SLIP-44 ID
+    /// 4   Hyperlane Domain ID
     pub destination: u32,
     /// 32  Address in destination convention
     pub recipient: H256,
@@ -174,7 +174,7 @@ impl Decode for AbacusMessage {
 }
 
 impl AbacusMessage {
-    /// Convert the message to a leaf
+    /// Convert the message to a leaf. This is the message hash.
     pub fn to_leaf(&self, leaf_index: u32) -> H256 {
         let buffer = [0u8; 28];
         H256::from_slice(

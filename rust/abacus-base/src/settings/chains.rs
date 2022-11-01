@@ -1,20 +1,22 @@
 use ethers::signers::Signer;
+use eyre::Context;
 use serde::Deserialize;
 
 use abacus_core::{
-    AbacusAbi, ContractLocator, Inbox, InboxValidatorManager, InterchainGasPaymaster, Outbox,
-    Signers,
+    AbacusAbi, ContractLocator, Inbox, InboxIndexer, InboxValidatorManager, InterchainGasPaymaster,
+    InterchainGasPaymasterIndexer, Outbox, OutboxIndexer, Signers,
 };
 use abacus_ethereum::{
     Connection, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi, EthereumOutboxAbi,
-    InboxBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
-    MakeableWithProvider, OutboxBuilder,
+    InboxBuilder, InboxIndexerBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
+    InterchainGasPaymasterIndexerBuilder, MakeableWithProvider, OutboxBuilder,
+    OutboxIndexerBuilder,
 };
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 
-use crate::CoreMetrics;
+use crate::{CoreMetrics, IndexSettings};
 
 /// A connection to _some_ blockchain.
 ///
@@ -36,7 +38,8 @@ impl Default for ChainConf {
 #[derive(Copy, Clone, Debug, Default, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum TransactionSubmissionType {
-    /// Use the configured signer to sign and submit transactions in the "default" manner.
+    /// Use the configured signer to sign and submit transactions in the
+    /// "default" manner.
     #[default]
     Signer,
     /// Submit transactions via the Gelato relay.
@@ -107,6 +110,33 @@ impl<T> ChainSetup<T> {
             .parse::<u32>()
             .expect("could not parse finality_blocks")
     }
+
+    async fn build<B: MakeableWithProvider + Sync>(
+        &self,
+        address: &str,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+        metrics_conf: PrometheusMiddlewareConf,
+        builder: B,
+    ) -> eyre::Result<B::Output> {
+        match &self.chain {
+            ChainConf::Ethereum(conf) => {
+                builder
+                    .make_with_connection(
+                        conf.clone(),
+                        &ContractLocator {
+                            chain_name: self.name.clone(),
+                            domain: self.domain.parse().expect("invalid uint"),
+                            address: address.parse::<ethers::types::Address>()?.into(),
+                        },
+                        signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some((metrics.provider_metrics(), metrics_conf)),
+                    )
+                    .await
+            }
+        }
+    }
 }
 
 impl ChainSetup<OutboxAddresses> {
@@ -116,25 +146,26 @@ impl ChainSetup<OutboxAddresses> {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn Outbox>> {
-        match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(OutboxBuilder {}
-                .make_with_connection(
-                    conf.clone(),
-                    &ContractLocator {
-                        chain_name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: self
-                            .addresses
-                            .outbox
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    Some(|| metrics.json_rpc_client_metrics()),
-                    Some((metrics.provider_metrics(), self.metrics_conf())),
-                )
-                .await?),
-        }
+        let address = &self.addresses.outbox;
+        let builder = OutboxBuilder {};
+        self.build(address, signer, metrics, self.metrics_conf(), builder)
+            .await
+            .context("Building outbox")
+    }
+
+    /// Try to convert the chain settings into an Outbox contract indexer
+    pub async fn try_into_outbox_indexer(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn OutboxIndexer>> {
+        let address = &self.addresses.outbox;
+        let builder = OutboxIndexerBuilder {
+            finality_blocks: self.finality_blocks(),
+        };
+        self.build(address, signer, metrics, self.metrics_conf(), builder)
+            .await
+            .context("Building outbox indexer")
     }
 
     /// Try to convert the chain setting into an InterchainGasPaymaster contract
@@ -143,27 +174,37 @@ impl ChainSetup<OutboxAddresses> {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Option<Box<dyn InterchainGasPaymaster>>> {
-        let paymaster_address = if let Some(address) = &self.addresses.interchain_gas_paymaster {
-            address
+        if let Some(address) = &self.addresses.interchain_gas_paymaster {
+            let builder = InterchainGasPaymasterBuilder {};
+            self.build(address, signer, metrics, self.metrics_conf(), builder)
+                .await
+                .map(Some)
+                .context("Building interchain gas paymaster")
         } else {
-            return Ok(None);
-        };
-        match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(Some(
-                InterchainGasPaymasterBuilder {}
-                    .make_with_connection(
-                        conf.clone(),
-                        &ContractLocator {
-                            chain_name: self.name.clone(),
-                            domain: self.domain.parse().expect("invalid uint"),
-                            address: paymaster_address.parse::<ethers::types::Address>()?.into(),
-                        },
-                        signer,
-                        Some(|| metrics.json_rpc_client_metrics()),
-                        Some((metrics.provider_metrics(), self.metrics_conf())),
-                    )
-                    .await?,
-            )),
+            Ok(None)
+        }
+    }
+
+    /// Try to convert the chain settings into a IGP contract indexer
+    pub async fn try_into_interchain_gas_paymaster_indexer(
+        &self,
+        signer: Option<Signers>,
+        index: &IndexSettings,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Option<Box<dyn InterchainGasPaymasterIndexer>>> {
+        if let Some(address) = &self.addresses.interchain_gas_paymaster {
+            let builder = InterchainGasPaymasterIndexerBuilder {
+                outbox_address: self.addresses.outbox.parse::<ethers::types::Address>()?,
+                from_height: index.from(),
+                chunk_size: index.chunk_size(),
+                finality_blocks: self.finality_blocks(),
+            };
+            self.build(address, signer, metrics, self.metrics_conf(), builder)
+                .await
+                .map(Some)
+                .context("Building interchain gas paymaster indexer")
+        } else {
+            Ok(None)
         }
     }
 
@@ -204,25 +245,27 @@ impl ChainSetup<InboxAddresses> {
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn Inbox>> {
         let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
-        match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(InboxBuilder {}
-                .make_with_connection(
-                    conf.clone(),
-                    &ContractLocator {
-                        chain_name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: self
-                            .addresses
-                            .inbox
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    Some(|| metrics.json_rpc_client_metrics()),
-                    Some((metrics.provider_metrics(), metrics_conf)),
-                )
-                .await?),
-        }
+        let address = &self.addresses.inbox;
+        let builder = InboxBuilder {};
+        self.build(address, signer, metrics, metrics_conf, builder)
+            .await
+            .context("Building inbox")
+    }
+
+    /// Try to convert the chain settings into an inbox contract indexer.
+    pub async fn try_into_inbox_indexer(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn InboxIndexer>> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
+        let address = &self.addresses.inbox;
+        let builder = InboxIndexerBuilder {
+            finality_blocks: self.finality_blocks(),
+        };
+        self.build(address, signer, metrics, metrics_conf, builder)
+            .await
+            .context("Building inbox indexer")
     }
 
     /// Try to convert the chain setting into an InboxValidatorManager contract
@@ -231,27 +274,13 @@ impl ChainSetup<InboxAddresses> {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn InboxValidatorManager>> {
-        let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
         let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
-        match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(InboxValidatorManagerBuilder { inbox_address }
-                .make_with_connection(
-                    conf.clone(),
-                    &ContractLocator {
-                        chain_name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: self
-                            .addresses
-                            .validator_manager
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    Some(|| metrics.json_rpc_client_metrics()),
-                    Some((metrics.provider_metrics(), metrics_conf)),
-                )
-                .await?),
-        }
+        let address = &self.addresses.validator_manager;
+        let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
+        let builder = InboxValidatorManagerBuilder { inbox_address };
+        self.build(address, signer, metrics, metrics_conf, builder)
+            .await
+            .context("Building inbox validator manager")
     }
 
     /// Get a clone of the metrics conf with correctly configured contract

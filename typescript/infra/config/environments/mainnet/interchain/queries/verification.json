@@ -1,66 +1,66 @@
 {
   "bsc": [
     {
-      "name": "router",
-      "address": "0xbbaAD55AD524345C06596392ed569CB1618380C5",
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
       "isProxy": false,
       "constructorArguments": ""
     }
   ],
   "avalanche": [
     {
-      "name": "router",
-      "address": "0xbbaAD55AD524345C06596392ed569CB1618380C5",
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
       "isProxy": false,
       "constructorArguments": ""
     }
   ],
   "polygon": [
     {
-      "name": "router",
-      "address": "0xbbaAD55AD524345C06596392ed569CB1618380C5",
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
       "isProxy": false,
       "constructorArguments": ""
     }
   ],
   "celo": [
     {
-      "name": "router",
-      "address": "0xbbaAD55AD524345C06596392ed569CB1618380C5",
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
       "isProxy": false,
       "constructorArguments": ""
     }
   ],
   "arbitrum": [
     {
-      "name": "router",
-      "address": "0xbbaAD55AD524345C06596392ed569CB1618380C5",
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
       "isProxy": false,
       "constructorArguments": ""
     }
   ],
   "optimism": [
     {
-      "name": "router",
-      "address": "0xbbaAD55AD524345C06596392ed569CB1618380C5",
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
       "isProxy": false,
       "constructorArguments": ""
     }
   ],
   "ethereum": [
     {
-      "name": "router",
-      "address": "0xbbaAD55AD524345C06596392ed569CB1618380C5",
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
       "isProxy": false,
       "constructorArguments": ""
     }
   ],
   "moonbeam": [
     {
-      "name": "router",
-      "address": "0x441a01Fca2eD731C0Fc4633998332f9FEDB17575",
-      "constructorArguments": "",
-      "isProxy": false
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+      "isProxy": false,
+      "constructorArguments": ""
     }
   ]
 }

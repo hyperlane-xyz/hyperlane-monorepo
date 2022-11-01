@@ -12,22 +12,22 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x3582d1238cBC812165981E4fFaB0E8D9a4518910",
-        "validatorManager": "0x0AfCCF2ffc1D7A42b3F8616C4270Da27f2729F5F"
+        "inbox": "0x873B0085924096A2d52849A4F1B921C5aeE8Fb30",
+        "validatorManager": "0xFd05F650eaA877d315E8E010010f41C8106bfA2d"
       }
     },
     "fuji": {
       "domain": "43113",
       "name": "fuji",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "0",
+      "finalityBlocks": "3",
       "connection": {
         "type": "http",
         "url": ""
       },
       "addresses": {
-        "inbox": "0x4e49616d6f26C3080277b2fBDA242690AD403420",
-        "validatorManager": "0x15569bE4B03593A9eA93Bd519bB74928B1eF5fB2"
+        "inbox": "0xaFD9a7CDd0b9ddE3c7566514516543b77621531d",
+        "validatorManager": "0x17D3e0eC252EEc723af9da44A66D9A6C1ecB2776"
       }
     },
     "mumbai": {
@@ -40,8 +40,22 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0xFd9387BB1506F4Eb4Ac1a1f8c8128FB89b83e64c",
-        "validatorManager": "0x3572a9d808738922194921b275B2A55414BcDA57"
+        "inbox": "0x8eAaD1572d754f5b763Be93Bc86779AbfB3DdbC4",
+        "validatorManager": "0x611241eC593B5692180A6ce5CbD79445826f30Be"
+      }
+    },
+    "bsctestnet": {
+      "domain": "1651715444",
+      "name": "bsctestnet",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "9",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0xD3193A2383423c9E43C3bFafAE6e55D2a2E3752C",
+        "validatorManager": "0x63BDC6C7b473A9eb2ba00E2a48ADB38b71D1bfe9"
       }
     },
     "goerli": {
@@ -54,8 +68,8 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x7914A3349107A7295Bbf2374db5A973d73D1b324",
-        "validatorManager": "0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8"
+        "inbox": "0x6869beC919F8d79F53a695cD02B3f5424E94f82d",
+        "validatorManager": "0xFfA20C4c8e3b2A2C1220134684FEe23EEB8872d0"
       }
     },
     "moonbasealpha": {
@@ -68,22 +82,8 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0xef48bd850E5827B96B55C4D28FB32Bbaa73616F2",
-        "validatorManager": "0x666a24F62f7A97BA33c151776Eb3D9441a059eB8"
-      }
-    },
-    "optimismgoerli": {
-      "domain": "420",
-      "name": "optimismgoerli",
-      "rpcStyle": "ethereum",
-      "finalityBlocks": "1",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "addresses": {
-        "inbox": "0x0526E47C49742C15F8817ef8cf0d8FFc72139D4F",
-        "validatorManager": "0xfc8d0D2E15A36f1A3F3aE3Cb127B706c1f23Aadc"
+        "inbox": "0x9450181a7719dAb93483d43a45473Ac2373E25B0",
+        "validatorManager": "0x6cB503d97D1c900316583C8D55997A1f17b1ABd1"
       }
     },
     "arbitrumgoerli": {
@@ -96,20 +96,20 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
-        "validatorManager": "0x19Be55D859368e02d7b9C00803Eb677BDC1359Bd"
+        "inbox": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C",
+        "validatorManager": "0x1b33611fCc073aB0737011d5512EF673Bff74962"
       }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xE023239c8dfc172FF008D8087E7442d3eBEd9350",
-      "interchainGasPaymaster": "0x155b1F1801030Ea4dF038107d3cc1b4bA496916e"
+      "outbox": "0x54148470292C24345fb828B003461a9444414517",
+      "interchainGasPaymaster": "0xeb6f11189197223c656807a83B0DD374f9A6dF44"
     },
-    "domain": "1651715444",
-    "name": "bsctestnet",
+    "domain": "420",
+    "name": "optimismgoerli",
     "rpcStyle": "ethereum",
-    "finalityBlocks": "9",
+    "finalityBlocks": "1",
     "connection": {
       "type": "http",
       "url": ""
@@ -121,6 +121,6 @@
   },
   "db": "db_path",
   "index": {
-    "from": "20035396"
+    "from": "2304322"
   }
 }

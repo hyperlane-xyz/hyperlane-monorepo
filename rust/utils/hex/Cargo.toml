@@ -1,10 +1,9 @@
 [package]
-name = "abigen"
+name = "hex"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ethers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-10-28-01" }
-Inflector = "0.11"
+crunchy = "0.2"

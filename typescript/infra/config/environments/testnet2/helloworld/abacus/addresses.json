@@ -16,5 +16,11 @@
   },
   "moonbasealpha": {
     "router": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD"
+  },
+  "optimismgoerli": {
+    "router": "0x68311418D79fE8d96599384ED767d225635d88a8"
+  },
+  "arbitrumgoerli": {
+    "router": "0xB057Fb841027a8554521DcCdeC3c3474CaC99AB5"
   }
 }

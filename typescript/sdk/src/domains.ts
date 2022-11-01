@@ -3,7 +3,11 @@ import { AllChains } from './consts/chains';
 import { ChainName, CompleteChainMap } from './types';
 
 export const DomainIdToChainName = Object.fromEntries(
-  AllChains.map((chain) => [chainMetadata[chain].id, chain]),
+  AllChains.map((chain) => {
+    if (!chainMetadata[chain])
+      throw new Error(`Chain metadata for ${chain} could not be found`);
+    return [chainMetadata[chain].id, chain];
+  }),
 ) as Record<number, ChainName>;
 
 export const ChainNameToDomainId = Object.fromEntries(

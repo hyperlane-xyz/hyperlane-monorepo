@@ -89,11 +89,8 @@ use tracing::instrument;
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
-    AbacusContract, ContractLocator, InboxValidatorManager, InterchainGasPaymasterIndexer,
-    OutboxIndexer, Signers,
-};
-use abacus_ethereum::{
-    InterchainGasPaymasterIndexerBuilder, MakeableWithProvider, OutboxIndexerBuilder,
+    AbacusContract, Inbox, InboxIndexer, InboxValidatorManager, InterchainGasPaymasterIndexer,
+    Outbox, OutboxIndexer, Signers,
 };
 pub use chains::{ChainConf, ChainSetup, InboxAddresses, OutboxAddresses};
 
@@ -109,6 +106,75 @@ pub mod chains;
 pub mod trace;
 
 static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
+
+/// Load a settings object from the config locations.
+///
+/// Read settings from the config files and/or env
+/// The config will be located at `config/default` unless specified
+/// otherwise
+///
+/// Configs are loaded in the following precedence order:
+///
+/// 1. The file specified by the `RUN_ENV` and `BASE_CONFIG`
+///    env vars. `RUN_ENV/BASE_CONFIG`
+/// 2. The file specified by the `RUN_ENV` env var and the
+///    agent's name. `RUN_ENV/<agent_prefix>-partial.json`
+/// 3. Configuration env vars with the prefix `HYP_BASE` intended
+///    to be shared by multiple agents in the same environment
+/// 4. Configuration env vars with the prefix `HYP_<agent_prefix>`
+///    intended to be used by a specific agent.
+///
+/// Specify a configuration directory with the `RUN_ENV` env
+/// variable. Specify a configuration file with the `BASE_CONFIG`
+/// env variable.
+pub fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
+    agent_prefix: &str,
+    config_file_name: Option<&str>,
+    ignore_prefixes: &[S],
+) -> eyre::Result<T> {
+    let env = env::var("RUN_ENV").unwrap_or_else(|_| "default".into());
+
+    // Derive additional prefix from agent name
+    let prefix = format!("HYP_{}", agent_prefix).to_ascii_uppercase();
+
+    let filtered_env: HashMap<String, String> = env::vars()
+        .filter(|(k, _v)| {
+            !ignore_prefixes
+                .iter()
+                .any(|prefix| k.starts_with(prefix.as_ref()))
+        })
+        .collect();
+
+    let builder = Config::builder();
+    let builder = if let Some(fname) = config_file_name {
+        builder.add_source(File::with_name(&format!("./config/{}/{}", env, fname)))
+    } else {
+        builder
+    };
+    let config_deserializer = builder
+        .add_source(
+            File::with_name(&format!(
+                "./config/{}/{}-partial",
+                env,
+                agent_prefix.to_lowercase()
+            ))
+            .required(false),
+        )
+        // Use a base configuration env variable prefix
+        .add_source(
+            Environment::with_prefix("HYP_BASE")
+                .separator("_")
+                .source(Some(filtered_env.clone())),
+        )
+        .add_source(
+            Environment::with_prefix(&prefix)
+                .separator("_")
+                .source(Some(filtered_env)),
+        )
+        .build()?;
+
+    Ok(serde_path_to_error::deserialize(config_deserializer)?)
+}
 
 /// Ethereum signer types
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -192,37 +258,11 @@ impl IndexSettings {
     }
 }
 
-/// Settings. Usually this should be treated as a base config and used as
-/// follows:
-///
-/// ```
-/// use abacus_base::*;
-/// use serde::Deserialize;
-///
-/// pub struct OtherSettings { /* anything */ };
-///
-/// #[derive(Debug, Deserialize)]
-/// pub struct MySettings {
-///     #[serde(flatten)]
-///     base_settings: Settings,
-///     #[serde(flatten)]
-///     other_settings: (),
-/// }
-///
-/// // Make sure to define MySettings::new()
-/// impl MySettings {
-///     fn new() -> Self {
-///         unimplemented!()
-///     }
-/// }
-/// ```
+/// Settings specific to a given domain. This is the outbox + all of the inboxes
+/// it publishes to (on different chains).
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct Settings {
-    /// The path to use for the DB file
-    pub db: String,
-    /// Port to listen for prometheus scrape requests
-    pub metrics: Option<String>,
+pub struct DomainSettings {
     /// Settings for the outbox indexer
     #[serde(default)]
     pub index: IndexSettings,
@@ -230,32 +270,13 @@ pub struct Settings {
     pub outbox: ChainSetup<OutboxAddresses>,
     /// Configurations for contracts on inbox chains
     pub inboxes: HashMap<String, ChainSetup<InboxAddresses>>,
-    /// The tracing configuration
-    pub tracing: TracingConfig,
     /// Transaction signers
     pub signers: HashMap<String, SignerConf>,
     /// Gelato config
     pub gelato: Option<GelatoConf>,
 }
 
-impl Settings {
-    /// Private to preserve linearity of AgentCore::from_settings -- creating an
-    /// agent consumes the settings.
-    fn clone(&self) -> Self {
-        Self {
-            db: self.db.clone(),
-            metrics: self.metrics.clone(),
-            index: self.index.clone(),
-            outbox: self.outbox.clone(),
-            inboxes: self.inboxes.clone(),
-            tracing: self.tracing.clone(),
-            signers: self.signers.clone(),
-            gelato: self.gelato.clone(),
-        }
-    }
-}
-
-impl Settings {
+impl DomainSettings {
     /// Try to get a signer instance by name
     pub async fn get_signer(&self, name: &str) -> Option<Signers> {
         self.signers.get(name)?.try_into_signer().await.ok()
@@ -294,6 +315,16 @@ impl Settings {
         Ok(result)
     }
 
+    /// Try to get an inbox
+    pub async fn try_inbox(
+        &self,
+        chain_setup: &ChainSetup<InboxAddresses>,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn Inbox>> {
+        let signer = self.get_signer(&chain_setup.name).await;
+        chain_setup.try_into_inbox(signer, metrics).await
+    }
+
     /// Try to get a CachingInbox
     async fn try_caching_inbox(
         &self,
@@ -301,10 +332,19 @@ impl Settings {
         db: DB,
         metrics: &CoreMetrics,
     ) -> eyre::Result<CachingInbox> {
-        let signer = self.get_signer(&chain_setup.name).await;
-        let inbox = chain_setup.try_into_inbox(signer, metrics).await?;
+        let inbox = self.try_inbox(chain_setup, metrics).await?;
         let abacus_db = AbacusDB::new(inbox.chain_name(), db);
         Ok(CachingInbox::new(inbox.into(), abacus_db))
+    }
+
+    /// Try to get an InboxIndexer
+    pub async fn try_inbox_indexer(
+        &self,
+        chain_setup: &ChainSetup<InboxAddresses>,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn InboxIndexer>> {
+        let signer = self.get_signer(&chain_setup.name).await;
+        chain_setup.try_into_inbox_indexer(signer, metrics).await
     }
 
     /// Try to get an InboxValidatorManager
@@ -320,14 +360,19 @@ impl Settings {
             .await
     }
 
+    /// Try to get an Outbox
+    pub async fn try_outbox(&self, metrics: &CoreMetrics) -> eyre::Result<Box<dyn Outbox>> {
+        let signer = self.get_signer(&self.outbox.name).await;
+        self.outbox.try_into_outbox(signer, metrics).await
+    }
+
     /// Try to get a CachingOutbox
     pub async fn try_caching_outbox(
         &self,
         db: DB,
         metrics: &CoreMetrics,
     ) -> eyre::Result<CachingOutbox> {
-        let signer = self.get_signer(&self.outbox.name).await;
-        let outbox = self.outbox.try_into_outbox(signer, metrics).await?;
+        let outbox = self.try_outbox(metrics).await?;
         let indexer = self.try_outbox_indexer(metrics).await?;
         let abacus_db = AbacusDB::new(outbox.chain_name(), db);
         Ok(CachingOutbox::new(outbox.into(), abacus_db, indexer.into()))
@@ -364,27 +409,8 @@ impl Settings {
         metrics: &CoreMetrics,
         outbox: &ChainSetup<OutboxAddresses>,
     ) -> eyre::Result<Box<dyn OutboxIndexer>> {
-        match &outbox.chain {
-            ChainConf::Ethereum(conn) => Ok(OutboxIndexerBuilder {
-                finality_blocks: outbox.finality_blocks(),
-            }
-            .make_with_connection(
-                conn.clone(),
-                &ContractLocator {
-                    chain_name: outbox.name.clone(),
-                    domain: outbox.domain.parse().expect("invalid uint"),
-                    address: outbox
-                        .addresses
-                        .outbox
-                        .parse::<ethers::types::Address>()?
-                        .into(),
-                },
-                self.get_signer(&outbox.name).await,
-                Some(|| metrics.json_rpc_client_metrics()),
-                Some((metrics.provider_metrics(), outbox.metrics_conf())),
-            )
-            .await?),
-        }
+        let signer = self.get_signer(&outbox.name).await;
+        outbox.try_into_outbox_indexer(signer, metrics).await
     }
 
     /// Try to get an indexer object for the outbox
@@ -404,39 +430,27 @@ impl Settings {
         &self,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn InterchainGasPaymasterIndexer>> {
-        match &self.outbox.chain {
-            ChainConf::Ethereum(conn) => Ok(InterchainGasPaymasterIndexerBuilder {
-                outbox_address: self
-                    .outbox
-                    .addresses
-                    .outbox
-                    .parse::<ethers::types::Address>()?,
-                from_height: self.index.from(),
-                chunk_size: self.index.chunk_size(),
-                finality_blocks: self.outbox.finality_blocks(),
-            }
-            .make_with_connection(
-                conn.clone(),
-                &ContractLocator {
-                    chain_name: self.outbox.name.clone(),
-                    domain: self.outbox.domain.parse().expect("invalid uint"),
-                    address: self
-                        .outbox
-                        .addresses
-                        .interchain_gas_paymaster
-                        .as_ref()
-                        .expect("interchain_gas_paymaster not provided")
-                        .parse::<ethers::types::Address>()?
-                        .into(),
-                },
-                self.get_signer(&self.outbox.name).await,
-                Some(|| metrics.json_rpc_client_metrics()),
-                Some((metrics.provider_metrics(), self.outbox.metrics_conf())),
-            )
-            .await?),
-        }
+        let signer = self.get_signer(&self.outbox.name).await;
+        self.outbox
+            .try_into_interchain_gas_paymaster_indexer(signer, &self.index, metrics)
+            .await
+            .map(|inner| inner.expect("Missing interchain gas paymaster address"))
     }
+}
 
+/// Settings specific to the application.
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSettings {
+    /// The path to use for the DB file
+    pub db: String,
+    /// Port to listen for prometheus scrape requests
+    pub metrics: Option<String>,
+    /// The tracing configuration
+    pub tracing: TracingConfig,
+}
+
+impl AgentSettings {
     /// Create the core metrics from the settings given the name of the agent.
     pub fn try_into_metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
         Ok(Arc::new(CoreMetrics::new(
@@ -448,21 +462,92 @@ impl Settings {
             prometheus::Registry::new(),
         )?))
     }
+}
 
+/// Settings. Usually this should be treated as a base config and used as
+/// follows:
+///
+/// ```
+/// use abacus_base::*;
+/// use serde::Deserialize;
+///
+/// pub struct OtherSettings { /* anything */ };
+///
+/// #[derive(Debug, Deserialize)]
+/// pub struct MySettings {
+///     #[serde(flatten)]
+///     base_settings: Settings,
+///     #[serde(flatten)]
+///     other_settings: (),
+/// }
+///
+/// // Make sure to define MySettings::new()
+/// impl MySettings {
+///     fn new() -> Self {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Settings {
+    /// Settings specific to a given chain
+    #[serde(flatten)]
+    pub chain: DomainSettings,
+    /// Settings for the application as a whole
+    #[serde(flatten)]
+    pub app: AgentSettings,
+}
+
+impl Settings {
+    /// Private to preserve linearity of AgentCore::from_settings -- creating an
+    /// agent consumes the settings.
+    fn clone(&self) -> Self {
+        Self {
+            chain: DomainSettings {
+                index: self.chain.index.clone(),
+                outbox: self.chain.outbox.clone(),
+                inboxes: self.chain.inboxes.clone(),
+                signers: self.chain.signers.clone(),
+                gelato: self.chain.gelato.clone(),
+            },
+            app: AgentSettings {
+                db: self.app.db.clone(),
+                metrics: self.app.metrics.clone(),
+                tracing: self.app.tracing.clone(),
+            },
+        }
+    }
+}
+
+impl AsRef<AgentSettings> for Settings {
+    fn as_ref(&self) -> &AgentSettings {
+        &self.app
+    }
+}
+
+impl AsRef<DomainSettings> for Settings {
+    fn as_ref(&self) -> &DomainSettings {
+        &self.chain
+    }
+}
+
+impl Settings {
     /// Try to generate an agent core for a named agent
     pub async fn try_into_abacus_core(
         &self,
         metrics: Arc<CoreMetrics>,
         parse_inboxes: bool,
     ) -> eyre::Result<AbacusAgentCore> {
-        let db = DB::from_path(&self.db)?;
-        let outbox = self.try_caching_outbox(db.clone(), &metrics).await?;
+        let db = DB::from_path(&self.app.db)?;
+        let outbox = self.chain.try_caching_outbox(db.clone(), &metrics).await?;
         let interchain_gas_paymaster = self
+            .chain
             .try_caching_interchain_gas_paymaster(db.clone(), &metrics)
             .await?;
 
         let inbox_contracts = if parse_inboxes {
-            self.try_inbox_contracts(db.clone(), &metrics).await?
+            self.chain.try_inbox_contracts(db.clone(), &metrics).await?
         } else {
             HashMap::new()
         };
@@ -473,7 +558,7 @@ impl Settings {
             interchain_gas_paymaster,
             db,
             metrics,
-            indexer: self.index.clone(),
+            indexer: self.chain.index.clone(),
             settings: self.clone(),
         })
     }
