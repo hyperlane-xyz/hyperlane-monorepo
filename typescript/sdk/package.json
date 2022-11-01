@@ -1,11 +1,11 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "dependencies": {
     "@hyperlane-xyz/celo-ethers-provider": "^0.1.1",
-    "@hyperlane-xyz/core": "0.5.1",
-    "@hyperlane-xyz/utils": "0.5.1",
+    "@hyperlane-xyz/core": "0.5.2",
+    "@hyperlane-xyz/utils": "0.5.2",
     "@types/debug": "^4.1.7",
     "coingecko-api": "^1.0.10",
     "cross-fetch": "^3.1.5",
@@ -41,7 +41,7 @@
   "main": "dist/index.js",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
-    "build": "tsc --project tsconfig.build.json",
+    "build": "tsc",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
     "prepublishOnly": "yarn build",

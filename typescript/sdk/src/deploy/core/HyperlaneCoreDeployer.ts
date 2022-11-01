@@ -206,11 +206,11 @@ export class HyperlaneCoreDeployer<
     };
   }
 
-  static async transferOwnership<CoreNetworks extends ChainName>(
-    core: HyperlaneCore<CoreNetworks>,
-    owners: ChainMap<CoreNetworks, types.Address>,
-    multiProvider: MultiProvider<CoreNetworks>,
-  ): Promise<ChainMap<CoreNetworks, ethers.ContractReceipt[]>> {
+  static async transferOwnership<CoreChains extends ChainName>(
+    core: HyperlaneCore<CoreChains>,
+    owners: ChainMap<CoreChains, types.Address>,
+    multiProvider: MultiProvider<CoreChains>,
+  ): Promise<ChainMap<CoreChains, ethers.ContractReceipt[]>> {
     return promiseObjAll(
       objMap(core.contractsMap, async (chain, coreContracts) =>
         HyperlaneCoreDeployer.transferOwnershipOfChain(
