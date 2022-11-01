@@ -103,13 +103,13 @@ macro_rules! decl_settings {
                 }
             }
 
-            impl AsRef<abacus_base::ApplicationSettings> for [<$name Settings>] {
-                fn as_ref(&self) -> &abacus_base::ApplicationSettings {
+            impl AsRef<abacus_base::AgentSettings> for [<$name Settings>] {
+                fn as_ref(&self) -> &abacus_base::AgentSettings {
                     &self.base.app
                 }
             }
 
-            impl abacus_base::AgentSettings for [<$name Settings>] {
+            impl abacus_base::NewFromAgentSettings for [<$name Settings>] {
                 type Error = eyre::Report;
 
                 /// See `load_settings_object` for more information about how settings are loaded.

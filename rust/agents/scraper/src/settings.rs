@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::env;
 
 use abacus_base::load_settings_object;
-use abacus_base::{AgentSettings, ApplicationSettings, DomainSettings};
+use abacus_base::{NewFromAgentSettings, AgentSettings, DomainSettings};
 
 /// Scraper settings work a bit differently than other agents because we need to
 /// load the information for all of the chains.
@@ -27,16 +27,16 @@ use abacus_base::{AgentSettings, ApplicationSettings, DomainSettings};
 pub struct ScraperSettings {
     /// settings by domain id for each domain
     pub chains: HashMap<u32, DomainSettings>,
-    pub app: ApplicationSettings,
+    pub app: AgentSettings,
 }
 
-impl AsRef<ApplicationSettings> for ScraperSettings {
-    fn as_ref(&self) -> &ApplicationSettings {
+impl AsRef<AgentSettings> for ScraperSettings {
+    fn as_ref(&self) -> &AgentSettings {
         &self.app
     }
 }
 
-impl AgentSettings for ScraperSettings {
+impl NewFromAgentSettings for ScraperSettings {
     type Error = eyre::Report;
 
     fn new() -> Result<Self, Self::Error> {

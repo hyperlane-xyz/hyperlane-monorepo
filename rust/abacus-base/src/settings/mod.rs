@@ -441,7 +441,7 @@ impl DomainSettings {
 /// Settings specific to the application.
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct ApplicationSettings {
+pub struct AgentSettings {
     /// The path to use for the DB file
     pub db: String,
     /// Port to listen for prometheus scrape requests
@@ -450,7 +450,7 @@ pub struct ApplicationSettings {
     pub tracing: TracingConfig,
 }
 
-impl ApplicationSettings {
+impl AgentSettings {
     /// Create the core metrics from the settings given the name of the agent.
     pub fn try_into_metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
         Ok(Arc::new(CoreMetrics::new(
@@ -496,7 +496,7 @@ pub struct Settings {
     pub chain: DomainSettings,
     /// Settings for the application as a whole
     #[serde(flatten)]
-    pub app: ApplicationSettings,
+    pub app: AgentSettings,
 }
 
 impl Settings {
@@ -511,7 +511,7 @@ impl Settings {
                 signers: self.chain.signers.clone(),
                 gelato: self.chain.gelato.clone(),
             },
-            app: ApplicationSettings {
+            app: AgentSettings {
                 db: self.app.db.clone(),
                 metrics: self.app.metrics.clone(),
                 tracing: self.app.tracing.clone(),
@@ -520,8 +520,8 @@ impl Settings {
     }
 }
 
-impl AsRef<ApplicationSettings> for Settings {
-    fn as_ref(&self) -> &ApplicationSettings {
+impl AsRef<AgentSettings> for Settings {
+    fn as_ref(&self) -> &AgentSettings {
         &self.app
     }
 }
