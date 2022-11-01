@@ -2,15 +2,16 @@
 pragma solidity >=0.8.0;
 
 import {Call, IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract TestQuerySender {
+contract TestQuerySender is Initializable {
     IInterchainQueryRouter queryRouter;
 
     address public lastAddressResult;
     uint256 public lastUint256Result;
     bytes32 public lastBytes32Result;
 
-    constructor(address _queryRouterAddress) {
+    function initialize(address _queryRouterAddress) public initializer {
         queryRouter = IInterchainQueryRouter(_queryRouterAddress);
     }
 

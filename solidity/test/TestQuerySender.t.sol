@@ -20,9 +20,8 @@ contract TestQuerySenderTest is Test {
             destinationDomain
         );
 
-        sender = new TestQuerySender(
-            address(testEnvironment.queryRouters(originDomain))
-        );
+        sender = new TestQuerySender();
+        sender.initialize(address(testEnvironment.queryRouters(originDomain)));
     }
 
     function testSendAddressQuery(address owner) public {
