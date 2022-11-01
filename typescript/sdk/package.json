@@ -41,7 +41,7 @@
   "main": "dist/index.js",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
-    "build": "tsc --project tsconfig.build.json",
+    "build": "tsc",
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
     "prepublishOnly": "yarn build",
