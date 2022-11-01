@@ -160,15 +160,12 @@ export class TokenBridgeDeployer<
           );
 
           if (
-            (await circleBridgeAdapter.tokenSymbolToToken('USDC')) ===
+            (await circleBridgeAdapter.tokenSymbolToAddress('USDC')) ===
             ethers.constants.AddressZero
           ) {
             this.logger(`Set USDC token contract`);
             await cc.handleTx(
-              circleBridgeAdapter.addTokenAndTokenSymbol(
-                adapterConfig.usdcAddress,
-                'USDC',
-              ),
+              circleBridgeAdapter.addToken(adapterConfig.usdcAddress, 'USDC'),
             );
           }
 
@@ -186,10 +183,7 @@ export class TokenBridgeDeployer<
                 `Set circle domain ${circleDomain} for hyperlane domain ${hyperlaneDomain}`,
               );
               await cc.handleTx(
-                circleBridgeAdapter.setHyperlaneDomainToCircleDomain(
-                  hyperlaneDomain,
-                  circleDomain,
-                ),
+                circleBridgeAdapter.addDomain(hyperlaneDomain, circleDomain),
               );
             }
           }
