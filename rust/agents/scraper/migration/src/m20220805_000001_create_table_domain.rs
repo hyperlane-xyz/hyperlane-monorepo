@@ -144,6 +144,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "optimismgoerli",
+        token: "ETH",
+        domain: 420,
+        chain_id: 420,
+        is_test_net: true,
+        is_deprecated: false
+    },
+    RawDomain {
         name: "optimismkovan",
         token: "ETH",
         domain: 0x6f702d6b,
