@@ -134,7 +134,7 @@ impl BaseAgent for Scraper {
             .scrapers
             .iter()
             .map(|(name, scraper)| {
-                let span = info_span!("ChainContractSync", %name, self = ?scraper);
+                let span = info_span!("ChainContractSync", %name, chain = scraper.local.outbox.chain_name());
                 let syncer = scraper.clone().sync();
                 tokio::spawn(syncer).instrument(span)
             })
@@ -284,7 +284,7 @@ impl SqlChainScraper {
     /// TODO: merge duplicate logic?
     /// TODO: better handling for errors to auto-restart without bringing down
     /// the whole service?
-    #[instrument]
+    #[instrument(skip(self))]
     pub async fn sync(self) -> Result<()> {
         // TODO: pull this into a fn-like struct for ticks?
         let chain_name = self.chain_name();
@@ -874,7 +874,7 @@ impl SqlChainScraper {
 }
 
 /// Task-thread to link the delivered messages to the correct messages.
-#[instrument]
+#[instrument(skip_all)]
 async fn delivered_message_linker(db: DbConn) -> Result<()> {
     use sea_orm::{ConnectionTrait, DbBackend, Statement};
 
