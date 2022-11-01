@@ -37,7 +37,7 @@ const DOMAINS: &[RawDomain] = &[
         domain: 421613,
         chain_id: 421613,
         is_test_net: true,
-        is_deprecated: false
+        is_deprecated: false,
     },
     RawDomain {
         name: "arbitrumrinkeby",
@@ -157,7 +157,7 @@ const DOMAINS: &[RawDomain] = &[
         domain: 420,
         chain_id: 420,
         is_test_net: true,
-        is_deprecated: false
+        is_deprecated: false,
     },
     RawDomain {
         name: "optimismkovan",
@@ -205,7 +205,7 @@ const DOMAINS: &[RawDomain] = &[
         domain: 280,
         chain_id: 280,
         is_test_net: true,
-        is_deprecated: false
+        is_deprecated: false,
     },
 ];
 
