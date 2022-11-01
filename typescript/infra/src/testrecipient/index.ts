@@ -1,4 +1,9 @@
-import { TestRecipient, TestRecipient__factory } from '@hyperlane-xyz/core';
+import {
+  TestRecipient,
+  TestRecipient__factory,
+  TestTokenRecipient,
+  TestTokenRecipient__factory,
+} from '@hyperlane-xyz/core';
 import {
   ChainName,
   HyperlaneDeployer,
@@ -7,10 +12,12 @@ import {
 
 export const factories = {
   TestRecipient: new TestRecipient__factory(),
+  TestTokenRecipient: new TestTokenRecipient__factory(),
 };
 
 type Contracts = {
   TestRecipient: TestRecipient;
+  TestTokenRecipient: TestTokenRecipient;
 };
 
 export class TestRecipientDeployer<
@@ -30,8 +37,15 @@ export class TestRecipientDeployer<
       [],
       { create2Salt: 'testtest32' },
     );
+    const TestTokenRecipient = await this.deployContract(
+      chain,
+      'TestTokenRecipient',
+      [],
+      { create2Salt: 'testtest32' },
+    );
     return {
       TestRecipient,
+      TestTokenRecipient,
     };
   }
 }

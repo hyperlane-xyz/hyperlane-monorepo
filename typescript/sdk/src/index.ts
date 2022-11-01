@@ -116,9 +116,18 @@ export {
   InterchainQueryDeployer,
 } from './deploy/middleware/deploy';
 export {
+  TokenBridgeDeployer,
+  BridgeAdapterType,
+  BridgeAdapterConfig,
+  CircleBridgeAdapterConfig,
+} from './deploy/middleware/TokenBridgeRouterDeployer';
+export { TokenBridgeApp } from './deploy/middleware/TokenBridgeApp';
+
+export {
   interchainAccountFactories,
   interchainQueryFactories,
 } from './middleware';
+export { tokenBridgeFactories } from './tokenBridge';
 export { RouterConfig } from './deploy/router/types';
 export { getTestMultiProvider, getChainToOwnerMap } from './deploy/utils';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
