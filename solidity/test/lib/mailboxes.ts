@@ -62,7 +62,7 @@ export const inferMessageValues = async (
   destination: number,
   recipient: string,
   messageStr: string,
-  version: number = -1,
+  version = -1,
 ) => {
   const body = utils.ensure0x(
     Buffer.from(ethers.utils.toUtf8Bytes(messageStr)).toString('hex'),
