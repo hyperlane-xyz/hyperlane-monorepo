@@ -57,8 +57,8 @@ library MessageV2 {
      * @param _message ABI encoded Hyperlane message.
      * @return Version of `_message`
      */
-    function version(bytes calldata _message) internal pure returns (uint32) {
-        return uint32(bytes4(_message[0:1]));
+    function version(bytes calldata _message) internal pure returns (uint8) {
+        return uint8(bytes1(_message[0:1]));
     }
 
     /**
