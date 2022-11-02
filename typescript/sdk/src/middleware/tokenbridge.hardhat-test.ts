@@ -1,6 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { ethers } from 'hardhat';
 
 import {
   MockToken,
