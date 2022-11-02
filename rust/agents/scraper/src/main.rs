@@ -14,17 +14,16 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-use ethers::prelude::U256;
-use ethers::types::H256;
 use eyre::Result;
 
 use abacus_base::agent_main;
 
-use crate::scraper::Scraper;
+use scraper::Scraper;
 
 #[allow(clippy::all)]
 mod db;
 
+mod conversions;
 mod date_time;
 mod scraper;
 mod settings;
@@ -32,27 +31,4 @@ mod settings;
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     agent_main::<Scraper>().await
-}
-
-fn parse_h256<T: AsRef<[u8]>>(data: T) -> Result<H256> {
-    if data.as_ref().len() == 40 {
-        Ok(H256(hex::parse_h256_raw::<40>(
-            data.as_ref().try_into().unwrap(),
-        )?))
-    } else {
-        Ok(H256(hex::parse_h256_raw::<64>(data.as_ref().try_into()?)?))
-    }
-}
-
-fn format_h256(data: &H256) -> String {
-    if hex::is_h160(data.as_fixed_bytes()) {
-        hex::format_h160_raw(data.as_fixed_bytes()[12..32].try_into().unwrap())
-    } else {
-        hex::format_h256_raw(data.as_fixed_bytes())
-    }
-}
-
-/// Convert a u256 scaled integer value into the corresponding f64 value.
-fn u256_as_scaled_f64(value: U256, decimals: u8) -> f64 {
-    value.to_f64_lossy() / (10u64.pow(decimals as u32) as f64)
 }

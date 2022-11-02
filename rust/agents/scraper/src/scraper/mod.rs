@@ -3,218 +3,28 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_trait::async_trait;
 use ethers::types::H256;
 use eyre::{eyre, Context, Result};
 use sea_orm::prelude::TimeDateTime;
-use sea_orm::{Database, DbConn};
-use tokio::task::JoinHandle;
+use sea_orm::DbConn;
 use tokio::time::sleep;
-use tracing::instrument::Instrumented;
-use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
+use tracing::{debug, info, instrument, trace, warn, Instrument};
 
 use abacus_base::last_message::validate_message_continuity;
-use abacus_base::{
-    run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, DomainSettings,
-    InboxAddresses, IndexSettings,
-};
+use abacus_base::{BaseAgent, ContractSyncMetrics, IndexSettings};
 use abacus_core::{
     name_from_domain_id, AbacusContract, AbacusProvider, BlockInfo, CommittedMessage, Inbox,
     InboxIndexer, ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
+use crate::conversions::{format_h256, parse_h256, u256_as_scaled_f64};
+use crate::date_time;
 use crate::scraper::block_cursor::BlockCursor;
-use crate::settings::ScraperSettings;
-use crate::{date_time, format_h256, parse_h256, u256_as_scaled_f64};
+pub use scraper::Scraper;
 
 mod block_cursor;
-
-/// A message explorer scraper agent
-#[derive(Debug)]
-#[allow(unused)]
-pub struct Scraper {
-    db: DbConn,
-    metrics: Arc<CoreMetrics>,
-    /// A map of scrapers by domain.
-    scrapers: HashMap<u32, SqlChainScraper>,
-}
-
-#[async_trait]
-impl BaseAgent for Scraper {
-    const AGENT_NAME: &'static str = "scraper";
-    type Settings = ScraperSettings;
-
-    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let db = Database::connect(&settings.app.db).await?;
-
-        // so the challenge here is that the config files were written in a way that
-        // makes a lot of sense for relayers but not a lot of sense for scraping
-        // all data from a given chain at a time...
-        //
-        // Basically the format provided is Outbox + all destination Inboxes that
-        // messages from the outbox will get written to.
-        //
-        // Instead, we want the Outbox + all Inboxes that are on the same local chain.
-
-        // outboxes by their local_domain
-        let mut locals: HashMap<u32, Local> = HashMap::new();
-        // index settings for each domain
-        let mut index_settings: HashMap<u32, IndexSettings> = HashMap::new();
-        // inboxes by their local_domain, remote_domain
-        let mut remotes: HashMap<u32, HashMap<u32, Remote>> = HashMap::new();
-
-        for (outbox_domain, chain_config) in settings.chains.into_iter() {
-            let ctx = || format!("Loading chain {}", chain_config.outbox.name);
-            if let Some(local) = Self::load_local(&chain_config, &metrics)
-                .await
-                .with_context(ctx)?
-            {
-                trace!(domain = outbox_domain, "Created outbox and outbox indexer");
-                assert_eq!(local.outbox.local_domain(), outbox_domain);
-                locals.insert(outbox_domain, local);
-            }
-
-            for (_, inbox_config) in chain_config.inboxes.iter() {
-                if let Some(remote) = Self::load_remote(&chain_config, inbox_config, &metrics)
-                    .await
-                    .with_context(ctx)?
-                {
-                    let inbox_remote_domain = remote.inbox.remote_domain();
-                    let inbox_local_domain = remote.inbox.local_domain();
-                    assert_eq!(inbox_remote_domain, outbox_domain);
-                    assert_ne!(
-                        inbox_local_domain, outbox_domain,
-                        "Attempting to load inbox for the chain we are on"
-                    );
-
-                    trace!(
-                        local_domain = inbox_local_domain,
-                        remote_domain = inbox_remote_domain,
-                        "Created inbox and inbox indexer"
-                    );
-                    remotes
-                        .entry(inbox_local_domain)
-                        .or_default()
-                        .insert(inbox_remote_domain, remote);
-                }
-            }
-
-            index_settings.insert(outbox_domain, chain_config.index);
-        }
-
-        let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
-        let mut scrapers: HashMap<u32, SqlChainScraper> = HashMap::new();
-        for (local_domain, local) in locals.into_iter() {
-            let remotes = remotes.remove(&local_domain).unwrap_or_default();
-            let index_settings = index_settings
-                .remove(&local_domain)
-                .expect("Missing index settings for domain");
-
-            let scraper = SqlChainScraper::new(
-                db.clone(),
-                local,
-                remotes,
-                &index_settings,
-                contract_sync_metrics.clone(),
-            )
-            .await?;
-            scrapers.insert(local_domain, scraper);
-        }
-
-        trace!(domain_count = scrapers.len(), "Creating scraper");
-
-        Ok(Self {
-            db,
-            metrics,
-            scrapers,
-        })
-    }
-
-    #[allow(clippy::async_yields_async)]
-    async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let tasks = self
-            .scrapers
-            .iter()
-            .map(|(name, scraper)| {
-                let span = info_span!("ChainContractSync", %name, chain = scraper.local.outbox.chain_name());
-                let syncer = scraper.clone().sync();
-                tokio::spawn(syncer).instrument(span)
-            })
-            .chain(
-                // TODO: remove this during refactoring if we no longer need it
-                [tokio::spawn(delivered_message_linker(self.db.clone()))
-                    .instrument(info_span!("DeliveredMessageLinker"))]
-                .into_iter(),
-            )
-            .collect();
-
-        run_all(tasks)
-    }
-}
-
-impl Scraper {
-    async fn load_local(
-        config: &DomainSettings,
-        metrics: &Arc<CoreMetrics>,
-    ) -> Result<Option<Local>> {
-        Ok(
-            if config
-                .outbox
-                .disabled
-                .as_ref()
-                .and_then(|d| d.parse::<bool>().ok())
-                .unwrap_or(false)
-            {
-                None
-            } else {
-                let ctx = || format!("Loading local {}", config.outbox.name);
-                Some(Local {
-                    provider: config.try_provider(metrics).await.with_context(ctx)?.into(),
-                    outbox: config.try_outbox(metrics).await.with_context(ctx)?.into(),
-                    indexer: config
-                        .try_outbox_indexer(metrics)
-                        .await
-                        .with_context(ctx)?
-                        .into(),
-                })
-            },
-        )
-    }
-
-    async fn load_remote(
-        config: &DomainSettings,
-        inbox_config: &ChainSetup<InboxAddresses>,
-        metrics: &Arc<CoreMetrics>,
-    ) -> Result<Option<Remote>> {
-        Ok(
-            if inbox_config
-                .disabled
-                .as_ref()
-                .and_then(|d| d.parse::<bool>().ok())
-                .unwrap_or(false)
-            {
-                None
-            } else {
-                let ctx = || format!("Loading remote {}", inbox_config.name);
-                Some(Remote {
-                    inbox: config
-                        .try_inbox(inbox_config, metrics)
-                        .await
-                        .with_context(ctx)?
-                        .into(),
-                    indexer: config
-                        .try_inbox_indexer(inbox_config, metrics)
-                        .await
-                        .with_context(ctx)?
-                        .into(),
-                })
-            },
-        )
-    }
-}
+mod message_linker;
+mod scraper;
 
 #[derive(Debug, Clone)]
 struct Remote {
@@ -896,35 +706,5 @@ impl SqlChainScraper {
                 ),
             )
         }))
-    }
-}
-
-/// Task-thread to link the delivered messages to the correct messages.
-#[instrument(skip_all)]
-async fn delivered_message_linker(db: DbConn) -> Result<()> {
-    use sea_orm::{ConnectionTrait, DbBackend, Statement};
-
-    const QUERY: &str = r#"
-        UPDATE
-            "delivered_message" AS "delivered"
-        SET
-            "msg_id" = "message"."id"
-        FROM
-            "message"
-        WHERE
-            "delivered"."msg_id" IS NULL
-            AND "message"."hash" = "delivered"."hash"
-    "#;
-
-    loop {
-        let linked = db
-            .execute(Statement::from_string(
-                DbBackend::Postgres,
-                QUERY.to_owned(),
-            ))
-            .await?
-            .rows_affected();
-        info!(linked, "Linked message deliveries");
-        sleep(Duration::from_secs(10)).await;
     }
 }
