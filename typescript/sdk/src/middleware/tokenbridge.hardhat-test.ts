@@ -3,6 +3,10 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
 import {
+  MockCircleBridge,
+  MockCircleBridge__factory,
+  MockCircleMessageTransmitter,
+  MockCircleMessageTransmitter__factory,
   MockToken,
   MockToken__factory,
   TestTokenBridgeMessageRecipient__factory,
@@ -16,6 +20,7 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer';
 import { TokenBridgeApp } from '../deploy/middleware/TokenBridgeApp';
 import {
   BridgeAdapterType,
+  CircleBridgeAdapterConfig,
   TokenBridgeConfig,
   TokenBridgeDeployer,
 } from '../deploy/middleware/TokenBridgeRouterDeployer';
@@ -28,6 +33,7 @@ import { objMap } from '../utils/objects';
 describe('TokenBridgeRouter', async () => {
   const localChain = 'test1';
   const remoteChain = 'test2';
+  const localDomain = ChainNameToDomainId[localChain];
   const remoteDomain = ChainNameToDomainId[remoteChain];
 
   let signer: SignerWithAddress;
@@ -38,6 +44,8 @@ describe('TokenBridgeRouter', async () => {
   let tokenBridgeApp: TokenBridgeApp<TestChainNames>;
   let config: ChainMap<TestChainNames, TokenBridgeConfig>;
   let mockToken: MockToken;
+  let circleBridge: MockCircleBridge;
+  let messageTransmitter: MockCircleMessageTransmitter;
 
   before(async () => {
     [signer] = await ethers.getSigners();
@@ -50,6 +58,12 @@ describe('TokenBridgeRouter', async () => {
 
     const mockTokenF = new MockToken__factory(signer);
     mockToken = await mockTokenF.deploy();
+    const circleBridgeF = new MockCircleBridge__factory(signer);
+    circleBridge = await circleBridgeF.deploy(mockToken.address);
+    const messageTransmitterF = new MockCircleMessageTransmitter__factory(
+      signer,
+    );
+    messageTransmitter = await messageTransmitterF.deploy(mockToken.address);
 
     config = coreApp.extendWithConnectionClientConfig(
       objMap(
@@ -58,9 +72,21 @@ describe('TokenBridgeRouter', async () => {
           ...conf,
           bridgeAdapterConfigs: [
             {
-              type: BridgeAdapterType.Mock,
-              mockTokenAddress: mockToken.address,
-            },
+              type: BridgeAdapterType.Circle,
+              circleBridgeAddress: circleBridge.address,
+              messageTransmitterAddress: messageTransmitter.address,
+              usdcAddress: mockToken.address,
+              circleDomainMapping: [
+                {
+                  hyperlaneDomain: localDomain,
+                  circleDomain: localDomain,
+                },
+                {
+                  hyperlaneDomain: remoteDomain,
+                  circleDomain: remoteDomain,
+                },
+              ],
+            } as CircleBridgeAdapterConfig,
           ],
         }),
       ),
@@ -89,17 +115,20 @@ describe('TokenBridgeRouter', async () => {
       '0x00',
       mockToken.address,
       amount,
-      BridgeAdapterType.Mock,
+      BridgeAdapterType.Circle,
     );
 
-    const transferNonce = await tokenBridgeApp
-      .getContracts(localChain)
-      .mockBridgeAdapter!.nonce();
+    const transferNonce = await circleBridge.nextNonce();
+    const nonceId = await messageTransmitter.hashSourceAndNonce(
+      localDomain,
+      transferNonce,
+    );
 
-    await tokenBridgeApp
-      .getContracts(remoteChain)
-      .mockBridgeAdapter!.process(transferNonce);
-
+    await messageTransmitter.process(
+      nonceId,
+      tokenBridgeApp.getContracts(remoteChain).circleBridgeAdapter!.address,
+      amount,
+    );
     await coreApp.processMessages();
 
     expect((await mockToken.balanceOf(recipient.address)).toNumber()).to.eql(

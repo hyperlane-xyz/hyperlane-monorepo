@@ -41,7 +41,7 @@ export class TestRecipientDeployer<
       chain,
       'TestTokenRecipient',
       [],
-      { create2Salt: 'testtest32' },
+      { create2Salt: 'TestTokenRecipient' },
     );
     return {
       TestRecipient,

@@ -3,9 +3,11 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import {TokenBridgeRouter} from "../contracts/middleware/token-bridge/TokenBridgeRouter.sol";
+import {CircleBridgeAdapter} from "../contracts/middleware/token-bridge/adapters/CircleBridgeAdapter.sol";
 import {MockToken} from "../contracts/mock/MockToken.sol";
 import {TestTokenRecipient} from "../contracts/test/TestTokenRecipient.sol";
-import {MockTokenBridgeAdapter} from "../contracts/mock/MockTokenBridgeAdapter.sol";
+import {MockCircleMessageTransmitter} from "../contracts/mock/MockCircleMessageTransmitter.sol";
+import {MockCircleBridge} from "../contracts/mock/MockCircleBridge.sol";
 import {MockHyperlaneEnvironment} from "./MockHyperlaneEnvironment.sol";
 
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
@@ -16,8 +18,11 @@ contract TokenBridgeRouterTest is Test {
     TokenBridgeRouter originTokenBridgeRouter;
     TokenBridgeRouter destinationTokenBridgeRouter;
 
-    // Origin bridge adapter
-    MockTokenBridgeAdapter bridgeAdapter;
+    MockCircleMessageTransmitter messageTransmitter;
+    MockCircleBridge circleBridge;
+    CircleBridgeAdapter originBridgeAdapter;
+    CircleBridgeAdapter destinationBridgeAdapter;
+
     string bridge = "FooBridge";
 
     uint32 originDomain = 123;
@@ -32,7 +37,12 @@ contract TokenBridgeRouterTest is Test {
 
     function setUp() public {
         token = new MockToken();
-        bridgeAdapter = new MockTokenBridgeAdapter(token);
+
+        circleBridge = new MockCircleBridge(token);
+        messageTransmitter = new MockCircleMessageTransmitter(token);
+        originBridgeAdapter = new CircleBridgeAdapter();
+        destinationBridgeAdapter = new CircleBridgeAdapter();
+
         recipient = new TestTokenRecipient();
 
         originTokenBridgeRouter = new TokenBridgeRouter();
@@ -64,14 +74,40 @@ contract TokenBridgeRouterTest is Test {
             TypeCasts.addressToBytes32(address(originTokenBridgeRouter))
         );
 
+        originBridgeAdapter.initialize(
+            address(this),
+            address(circleBridge),
+            address(messageTransmitter),
+            address(originTokenBridgeRouter)
+        );
+
+        destinationBridgeAdapter.initialize(
+            address(this),
+            address(circleBridge),
+            address(messageTransmitter),
+            address(destinationTokenBridgeRouter)
+        );
+
+        originBridgeAdapter.addToken(address(token), "USDC");
+        destinationBridgeAdapter.addToken(address(token), "USDC");
+
+        originBridgeAdapter.enrollRemoteRouter(
+            destinationDomain,
+            TypeCasts.addressToBytes32(address(destinationBridgeAdapter))
+        );
+        destinationBridgeAdapter.enrollRemoteRouter(
+            destinationDomain,
+            TypeCasts.addressToBytes32(address(originBridgeAdapter))
+        );
+
         originTokenBridgeRouter.setTokenBridgeAdapter(
             bridge,
-            address(bridgeAdapter)
+            address(originBridgeAdapter)
         );
 
         destinationTokenBridgeRouter.setTokenBridgeAdapter(
             bridge,
-            address(bridgeAdapter)
+            address(destinationBridgeAdapter)
         );
 
         token.mint(address(this), amount);
@@ -81,18 +117,18 @@ contract TokenBridgeRouterTest is Test {
         // Expect the TokenBridgeAdapterSet event.
         // Expect topic0 & data to match
         vm.expectEmit(true, false, false, true);
-        emit TokenBridgeAdapterSet(bridge, address(bridgeAdapter));
+        emit TokenBridgeAdapterSet(bridge, address(originBridgeAdapter));
 
         // Set the token bridge adapter
         originTokenBridgeRouter.setTokenBridgeAdapter(
             bridge,
-            address(bridgeAdapter)
+            address(originBridgeAdapter)
         );
 
         // Expect the bridge adapter to have been set
         assertEq(
             originTokenBridgeRouter.tokenBridgeAdapters(bridge),
-            address(bridgeAdapter)
+            address(originBridgeAdapter)
         );
     }
 
@@ -136,9 +172,9 @@ contract TokenBridgeRouterTest is Test {
 
     function testDispatchWithTokensCallsAdapter() public {
         vm.expectCall(
-            address(bridgeAdapter),
+            address(originBridgeAdapter),
             abi.encodeWithSelector(
-                bridgeAdapter.sendTokens.selector,
+                originBridgeAdapter.sendTokens.selector,
                 destinationDomain,
                 TypeCasts.addressToBytes32(address(recipient)),
                 address(token),
@@ -167,7 +203,7 @@ contract TokenBridgeRouterTest is Test {
             bridge
         );
 
-        vm.expectRevert("Transfer has not been processed yet");
+        vm.expectRevert("Circle message not processed yet");
         testEnvironment.processNextPendingMessage();
     }
 
@@ -182,7 +218,18 @@ contract TokenBridgeRouterTest is Test {
             bridge
         );
 
-        bridgeAdapter.process(bridgeAdapter.nonce());
+        bytes32 nonceId = messageTransmitter.hashSourceAndNonce(
+            destinationBridgeAdapter.hyperlaneDomainToCircleDomain(
+                originDomain
+            ),
+            circleBridge.nextNonce()
+        );
+
+        messageTransmitter.process(
+            nonceId,
+            address(destinationBridgeAdapter),
+            amount
+        );
         testEnvironment.processNextPendingMessage();
         assertEq(recipient.lastData(), messageBody);
         assertEq(token.balanceOf(address(recipient)), amount);

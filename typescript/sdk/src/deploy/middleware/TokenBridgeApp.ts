@@ -1,5 +1,5 @@
 import { HyperlaneApp } from '../../HyperlaneApp';
-import { TokenBridgeContracts } from '../../tokenBridge';
+import { TokenBridgeContracts } from '../../middleware';
 import { ChainName } from '../../types';
 
 export class TokenBridgeApp<

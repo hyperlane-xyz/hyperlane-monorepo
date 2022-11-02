@@ -126,8 +126,8 @@ export { TokenBridgeApp } from './deploy/middleware/TokenBridgeApp';
 export {
   interchainAccountFactories,
   interchainQueryFactories,
+  tokenBridgeFactories,
 } from './middleware';
-export { tokenBridgeFactories } from './tokenBridge';
 export { RouterConfig } from './deploy/router/types';
 export { getTestMultiProvider, getChainToOwnerMap } from './deploy/utils';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';

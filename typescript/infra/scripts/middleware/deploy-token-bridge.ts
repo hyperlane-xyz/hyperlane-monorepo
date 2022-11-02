@@ -37,7 +37,7 @@ async function main() {
       ...ownerConfigMap[chain],
     })),
     core,
-    'asdssds',
+    'TokenBridgeDeploy',
   );
 
   await deployWithArtifacts(dir, tokenBridgeFactories, deployer);
