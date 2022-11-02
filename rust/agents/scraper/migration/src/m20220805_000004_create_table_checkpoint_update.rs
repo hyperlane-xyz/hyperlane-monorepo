@@ -25,7 +25,8 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(CheckpointUpdate::TimeCreated)
                             .timestamp()
-                            .not_null(),
+                            .not_null()
+                            .default("NOW()"),
                     )
                     .col(
                         ColumnDef::new(CheckpointUpdate::CheckpointId)

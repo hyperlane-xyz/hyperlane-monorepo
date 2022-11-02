@@ -25,7 +25,8 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(GasPayment::TimeCreated)
                             .timestamp()
-                            .not_null(),
+                            .not_null()
+                            .default("NOW()"),
                     )
                     .col(ColumnDef::new(GasPayment::Domain).unsigned().not_null())
                     .col(ColumnDef::new(GasPayment::LeafIndex).unsigned().not_null())

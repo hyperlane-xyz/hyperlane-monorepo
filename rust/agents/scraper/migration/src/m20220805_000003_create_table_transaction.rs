@@ -24,7 +24,8 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(Transaction::TimeCreated)
                             .timestamp()
-                            .not_null(),
+                            .not_null()
+                            .default("NOW()"),
                     )
                     .col(
                         ColumnDef::new_with_type(Transaction::Hash, Hash)
@@ -36,11 +37,23 @@ impl MigrationTrait for Migration {
                             .big_integer()
                             .not_null(),
                     )
-                    .col(ColumnDef::new(Transaction::GasUsed).double().not_null())
-                    .col(ColumnDef::new(Transaction::GasPrice).double().not_null())
+                    .col(ColumnDef::new(Transaction::GasLimit).double().not_null())
+                    .col(ColumnDef::new(Transaction::MaxPriorityFeePerGas).double())
+                    .col(ColumnDef::new(Transaction::MaxFeePerGas).double())
+                    .col(ColumnDef::new(Transaction::GasPrice).double())
+                    .col(ColumnDef::new(Transaction::EffectiveGasPrice).double())
                     .col(ColumnDef::new(Transaction::Nonce).big_unsigned().not_null())
                     .col(ColumnDef::new_with_type(Transaction::Sender, Address).not_null())
-                    .col(ColumnDef::new_with_type(Transaction::Recipient, Address).not_null())
+                    .col(&mut ColumnDef::new_with_type(
+                        Transaction::Recipient,
+                        Address,
+                    ))
+                    .col(ColumnDef::new(Transaction::GasUsed).double().not_null())
+                    .col(
+                        ColumnDef::new(Transaction::CumulativeGasUsed)
+                            .double()
+                            .not_null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Transaction::BlockId)
@@ -99,14 +112,21 @@ pub enum Transaction {
     Hash,
     /// Block this transaction was included in
     BlockId,
-    /// Total gas used by this transaction
-    GasUsed,
-    /// Price paid for gas on this txn.
+    /// Amount of gas which was allocated for running the transaction
+    GasLimit,
+    MaxPriorityFeePerGas,
+    MaxFeePerGas,
+    /// Price paid for gas on this txn. Null for type 2 txns.
     GasPrice,
+    EffectiveGasPrice,
     /// Nonce of this transaction by the sneder
     Nonce,
     /// Transaction signer
     Sender,
     /// Recipient or contract
     Recipient,
+    /// Amount of gas used by this transaction
+    GasUsed,
+    /// Cumulative gas used within the block after this was executed
+    CumulativeGasUsed,
 }

@@ -49,12 +49,12 @@ impl PrimaryKeyTrait for PrimaryKey {
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
+    Checkpoint,
+    Message,
     Block,
     Cursor,
     GasPayment,
     DeliveredMessage,
-    Checkpoint,
-    Message,
 }
 
 impl ColumnTrait for Column {
@@ -76,13 +76,25 @@ impl ColumnTrait for Column {
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
+            Self::Checkpoint => Entity::has_many(super::checkpoint::Entity).into(),
+            Self::Message => Entity::has_many(super::message::Entity).into(),
             Self::Block => Entity::has_many(super::block::Entity).into(),
             Self::Cursor => Entity::has_many(super::cursor::Entity).into(),
             Self::GasPayment => Entity::has_many(super::gas_payment::Entity).into(),
             Self::DeliveredMessage => Entity::has_many(super::delivered_message::Entity).into(),
-            Self::Checkpoint => Entity::has_many(super::checkpoint::Entity).into(),
-            Self::Message => Entity::has_many(super::message::Entity).into(),
         }
+    }
+}
+
+impl Related<super::checkpoint::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Checkpoint.def()
+    }
+}
+
+impl Related<super::message::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Message.def()
     }
 }
 
@@ -107,18 +119,6 @@ impl Related<super::gas_payment::Entity> for Entity {
 impl Related<super::delivered_message::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::DeliveredMessage.def()
-    }
-}
-
-impl Related<super::checkpoint::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Checkpoint.def()
-    }
-}
-
-impl Related<super::message::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Message.def()
     }
 }
 

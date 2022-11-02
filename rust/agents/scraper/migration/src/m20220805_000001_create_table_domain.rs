@@ -226,7 +226,12 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(Domain::TimeCreated).timestamp().not_null())
+                    .col(
+                        ColumnDef::new(Domain::TimeCreated)
+                            .timestamp()
+                            .not_null()
+                            .default("NOW()"),
+                    )
                     .col(ColumnDef::new(Domain::TimeUpdated).timestamp().not_null())
                     .col(ColumnDef::new(Domain::Name).text().not_null())
                     .col(ColumnDef::new(Domain::NativeToken).text().not_null())

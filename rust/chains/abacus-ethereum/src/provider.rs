@@ -3,10 +3,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use ethers::prelude::{Middleware, H256, U256};
-use eyre::eyre;
+use eyre::{eyre, Report};
 
 use crate::MakeableWithProvider;
-use abacus_core::{AbacusChain, AbacusProvider, BlockInfo, ContractLocator, TxnInfo};
+use abacus_core::{
+    AbacusChain, AbacusProvider, BlockInfo, ContractLocator, TxnInfo, TxnReceiptInfo,
+};
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
@@ -64,21 +66,34 @@ where
             .get_transaction(*hash)
             .await?
             .ok_or_else(|| eyre!("Could not find txn with hash {}", hash))?;
-        let receipt = self.provider.get_transaction_receipt(*hash).await?;
+        let receipt = self
+            .provider
+            .get_transaction_receipt(*hash)
+            .await?
+            .map(|r| -> eyre::Result<_> {
+                Ok(TxnReceiptInfo {
+                    gas_used: r
+                        .gas_used
+                        .ok_or_else(|| eyre!("Provider did not return gas used"))?,
+                    cumulative_gas_used: r.cumulative_gas_used,
+                    effective_gas_price: r.effective_gas_price,
+                })
+            })
+            .transpose()?;
 
         assert_eq!(&txn.hash, hash);
         debug_assert_eq!(U256::from(txn.nonce.as_u64()), txn.nonce);
 
         Ok(TxnInfo {
             hash: *hash,
-            gas_used: receipt.and_then(|r| r.gas_used).unwrap_or_default(),
-            gas_price: txn.gas_price.unwrap_or_default(),
+            max_fee_per_gas: txn.max_fee_per_gas,
+            max_priority_fee_per_gas: txn.max_priority_fee_per_gas,
+            gas_price: txn.gas_price,
+            gas_limit: txn.gas,
             nonce: txn.nonce.as_u64(),
             sender: txn.from.into(),
-            recipient: txn
-                .to
-                .ok_or_else(|| eyre!("No txn recipient {}", hash))?
-                .into(),
+            recipient: txn.to.map(Into::into),
+            receipt,
         })
     }
 }

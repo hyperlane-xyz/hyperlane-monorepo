@@ -21,7 +21,12 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(Block::TimeCreated).timestamp().not_null())
+                    .col(
+                        ColumnDef::new(Block::TimeCreated)
+                            .timestamp()
+                            .not_null()
+                            .default("NOW()"),
+                    )
                     .col(ColumnDef::new(Block::Domain).unsigned().not_null())
                     .col(
                         ColumnDef::new_with_type(Block::Hash, Hash)

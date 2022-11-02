@@ -728,19 +728,29 @@ impl SqlChainScraper {
             txns.iter_mut().filter(|(_, id)| id.0.is_none()).collect();
 
         let mut models: Vec<transaction::ActiveModel> = Vec::with_capacity(txns_to_insert.len());
+        let as_f64 = |v: ethers::types::U256| u256_as_scaled_f64(v, 18);
         for (hash, (_, block_id)) in txns_to_insert.iter() {
             let txn = self.local.provider.get_txn_by_hash(hash).await?;
+            let receipt = txn
+                .receipt
+                .as_ref()
+                .ok_or_else(|| eyre!("Transaction is not yet included"))?;
 
             models.push(transaction::ActiveModel {
                 id: NotSet,
                 block_id: Unchanged(*block_id),
+                gas_limit: Set(as_f64(txn.gas_limit)),
+                max_priority_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(as_f64)),
                 hash: Unchanged(format_h256(hash)),
-                time_created: Set(crate::date_time::now()),
-                gas_used: Set(u256_as_scaled_f64(txn.gas_used, 18)),
-                gas_price: Set(u256_as_scaled_f64(txn.gas_price, 18)),
+                time_created: Set(date_time::now()),
+                gas_used: Set(as_f64(receipt.gas_used)),
+                gas_price: Set(txn.gas_price.map(as_f64)),
+                effective_gas_price: Set(receipt.effective_gas_price.map(as_f64)),
                 nonce: Set(txn.nonce as i64),
                 sender: Set(format_h256(&txn.sender)),
-                recipient: Set(format_h256(&txn.recipient)),
+                recipient: Set(txn.recipient.as_ref().map(format_h256)),
+                max_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(as_f64)),
+                cumulative_gas_used: Set(as_f64(receipt.cumulative_gas_used)),
             });
         }
 
