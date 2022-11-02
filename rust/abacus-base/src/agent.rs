@@ -16,27 +16,16 @@ use crate::{
     cancel_task,
     metrics::CoreMetrics,
     settings::{IndexSettings, Settings},
-    CachingInbox, CachingInterchainGasPaymaster, CachingOutbox,
+    CachingInterchainGasPaymaster, CachingMailbox,
 };
-
-/// Contracts relating to an inbox chain
-#[derive(Clone, Debug)]
-pub struct InboxContracts {
-    /// A boxed Inbox
-    pub inbox: CachingInbox,
-    /// A boxed InboxValidatorManager
-    pub validator_manager: Arc<dyn InboxValidatorManager>,
-}
 
 /// Properties shared across all abacus agents
 #[derive(Debug)]
 pub struct AbacusAgentCore {
-    /// A boxed Outbox
-    pub outbox: CachingOutbox,
     /// A boxed InterchainGasPaymaster
     pub interchain_gas_paymaster: Option<CachingInterchainGasPaymaster>,
-    /// A map of Inbox contracts by name
-    pub inboxes: HashMap<String, InboxContracts>,
+    /// A map of mailbox contracts by name
+    pub mailboxes: HashMap<String, CachingMailbox>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics

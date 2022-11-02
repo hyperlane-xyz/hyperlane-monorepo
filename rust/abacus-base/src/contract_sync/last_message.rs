@@ -1,4 +1,4 @@
-use abacus_core::{ListValidity, RawCommittedMessage};
+use abacus_core::{ListValidity, RawAbacusMessage};
 
 /// Check if the list of sorted messages is a valid continuation of the
 /// OptLatestLeafIndex. If the latest index is Some, check the validity of the
@@ -12,7 +12,7 @@ use abacus_core::{ListValidity, RawCommittedMessage};
 /// previous messages (None case).
 pub fn validate_message_continuity(
     latest_message_leaf_index: Option<u32>,
-    sorted_messages: &[&RawCommittedMessage],
+    sorted_messages: &[&RawAbacusMessage],
 ) -> ListValidity {
     if sorted_messages.is_empty() {
         return ListValidity::Empty;

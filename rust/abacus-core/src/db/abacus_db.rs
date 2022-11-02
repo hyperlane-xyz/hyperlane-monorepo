@@ -1,7 +1,7 @@
 use crate::db::{DbError, TypedDB, DB};
 use crate::{
-    accumulator::merkle::Proof, AbacusMessage, CommittedMessage, Decode, InterchainGasPayment,
-    InterchainGasPaymentMeta, InterchainGasPaymentWithMeta, RawCommittedMessage,
+    accumulator::merkle::Proof, AbacusMessage, InterchainGasPayment,
+    InterchainGasPaymentMeta, InterchainGasPaymentWithMeta, RawAbacusMessage,
 };
 use ethers::core::types::{H256, U256};
 use eyre::Result;
@@ -23,7 +23,7 @@ static LEAF_PROCESS_STATUS: &str = "leaf_process_status_";
 static GAS_PAYMENT_FOR_LEAF: &str = "gas_payment_for_leaf_";
 static GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_";
 
-/// DB handle for storing data tied to a specific Outbox.
+/// DB handle for storing data tied to a specific Mailbox.
 ///
 /// Key structure: ```<entity>_<additional_prefix(es)>_<key>```
 #[derive(Debug, Clone)]
@@ -56,38 +56,33 @@ impl AbacusDB {
     }
 
     /// Store list of messages
-    pub fn store_messages(&self, messages: &[RawCommittedMessage]) -> Result<u32> {
-        let mut latest_leaf_index: u32 = 0;
+    pub fn store_messages(&self, messages: &[RawAbacusMessage]) -> Result<u32> {
+        let mut latest_nonce: u32 = 0;
         for message in messages {
             self.store_latest_message(message)?;
 
-            let committed_message: CommittedMessage = message.try_into()?;
-            info!(
-                leaf_index = &committed_message.leaf_index,
-                origin = &committed_message.message.origin,
-                destination = &committed_message.message.destination,
-                "Stored new message in db.",
-            );
-            latest_leaf_index = committed_message.leaf_index;
+            let parsed = AbacusMessage::from(message);
+            latest_nonce = parsed.nonce;
         }
 
-        Ok(latest_leaf_index)
+        Ok(latest_nonce)
     }
 
     /// Store a raw committed message building off of the latest leaf index
-    pub fn store_latest_message(&self, message: &RawCommittedMessage) -> Result<()> {
+    pub fn store_latest_message(&self, message: &RawAbacusMessage) -> Result<()> {
+        let parsed = AbacusMessage::from(message);
         // If this message is not building off the latest leaf index, log it.
-        if let Some(idx) = self.retrieve_latest_leaf_index()? {
-            if idx != message.leaf_index - 1 {
+        if let Some(nonce) = self.retrieve_latest_leaf_index()? {
+            if nonce != parsed.nonce - 1 {
                 debug!(
-                    "Attempted to store message not building off latest leaf index. Latest leaf index: {}. Attempted leaf index: {}.",
-                    idx,
-                    message.leaf_index,
+                    "Attempted to store message not building off latest nonce. Latest nonce: {}. Message nonce: {}.",
+                    nonce,
+                    parsed.nonce,
                 )
             }
         }
 
-        self.store_raw_committed_message(message)
+        self.store_message(message)
     }
 
     /// Store a raw committed message
@@ -95,19 +90,19 @@ impl AbacusDB {
     /// Keys --> Values:
     /// - `leaf_index` --> `leaf`
     /// - `leaf` --> `message`
-    pub fn store_raw_committed_message(&self, message: &RawCommittedMessage) -> Result<()> {
-        let parsed = AbacusMessage::read_from(&mut message.message.clone().as_slice())?;
+    pub fn store_message(&self, message: &RawAbacusMessage) -> Result<()> {
+        let parsed = AbacusMessage::from(message);
+        let id = parsed.id();
 
-        let leaf = message.leaf();
-
-        debug!(
-            leaf = ?leaf,
-            destination = parsed.destination,
-            leaf_index = message.leaf_index,
-            "storing raw committed message in db"
+        info!(
+            id = ?id,
+            nonce = &parsed.nonce,
+            origin = &parsed.origin,
+            destination = &parsed.destination,
+            "Storing new message in db.",
         );
-        self.store_leaf(message.leaf_index, parsed.destination, leaf)?;
-        self.store_keyed_encodable(MESSAGE, &leaf, message)?;
+        self.store_leaf(parsed.nonce, parsed.destination, id)?;
+        self.store_keyed_encodable(MESSAGE, &id, message)?;
         Ok(())
     }
 
@@ -165,7 +160,7 @@ impl AbacusDB {
     }
 
     /// Retrieve a raw committed message by its leaf hash
-    pub fn message_by_leaf(&self, leaf: H256) -> Result<Option<RawCommittedMessage>, DbError> {
+    pub fn message_by_leaf(&self, leaf: H256) -> Result<Option<RawAbacusMessage>, DbError> {
         self.retrieve_keyed_decodable(MESSAGE, &leaf)
     }
 
@@ -178,7 +173,7 @@ impl AbacusDB {
     pub fn message_by_leaf_index(
         &self,
         index: u32,
-    ) -> Result<Option<RawCommittedMessage>, DbError> {
+    ) -> Result<Option<RawAbacusMessage>, DbError> {
         let leaf: Option<H256> = self.leaf_by_leaf_index(index)?;
         match leaf {
             None => Ok(None),

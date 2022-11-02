@@ -4,13 +4,13 @@ use async_trait::async_trait;
 use eyre::Result;
 use mockall::*;
 
-use abacus_core::{Indexer, OutboxIndexer, *};
+use abacus_core::{Indexer, MailboxIndexer, *};
 
 mock! {
     pub Indexer {
         pub fn _get_finalized_block_number(&self) -> Result<u32> {}
 
-        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(RawCommittedMessage, LogMeta)>> {}
+        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(RawAbacusMessage, LogMeta)>> {}
     }
 }
 
@@ -24,9 +24,7 @@ mock! {
     pub AbacusIndexer {
         pub fn _get_finalized_block_number(&self) -> Result<u32> {}
 
-        pub fn _fetch_sorted_cached_checkpoints(&self, from: u32, to: u32) -> Result<Vec<(Checkpoint, LogMeta)>> {}
-
-        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(RawCommittedMessage, LogMeta)>> {}
+        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(RawAbacusMessage, LogMeta)>> {}
     }
 }
 
@@ -44,20 +42,12 @@ impl Indexer for MockAbacusIndexer {
 }
 
 #[async_trait]
-impl OutboxIndexer for MockAbacusIndexer {
+impl MailboxIndexer for MockAbacusIndexer {
     async fn fetch_sorted_messages(
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<(RawCommittedMessage, LogMeta)>> {
+    ) -> Result<Vec<(RawAbacusMessage, LogMeta)>> {
         self._fetch_sorted_messages(from, to)
-    }
-
-    async fn fetch_sorted_cached_checkpoints(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> Result<Vec<(Checkpoint, LogMeta)>> {
-        self._fetch_sorted_cached_checkpoints(from, to)
     }
 }

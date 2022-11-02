@@ -14,25 +14,17 @@ pub use retrying::{RetryingProvider, RetryingProviderError};
 
 use crate::abi::FunctionExt;
 #[cfg(not(doctest))]
-pub use crate::{inbox::*, interchain_gas::*, outbox::*, trait_builder::*, validator_manager::*};
+pub use crate::{interchain_gas::*, mailbox::*, trait_builder::*};
 
 #[cfg(not(doctest))]
 mod tx;
 
 /// Outbox abi
 #[cfg(not(doctest))]
-mod outbox;
+mod mailbox;
 
 #[cfg(not(doctest))]
 mod trait_builder;
-
-/// Inbox abi
-#[cfg(not(doctest))]
-mod inbox;
-
-/// InboxValidatorManager abi
-#[cfg(not(doctest))]
-mod validator_manager;
 
 /// InterchainGasPaymaster abi
 #[cfg(not(doctest))]

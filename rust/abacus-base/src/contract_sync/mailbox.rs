@@ -5,7 +5,7 @@ use tokio::time::sleep;
 use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
-use abacus_core::{name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer};
+use abacus_core::{name_from_domain_id, AbacusMessage, ListValidity, OutboxIndexer};
 
 use crate::contract_sync::last_message::validate_message_continuity;
 use crate::{contract_sync::schema::OutboxContractSyncDB, ContractSync};
@@ -146,7 +146,7 @@ where
 
                         // Report latest leaf index to gauge by dst
                         for raw_msg in sorted_messages.iter() {
-                            let dst = CommittedMessage::try_from(raw_msg)
+                            let dst = AbacusMessage::try_from(raw_msg)
                                 .ok()
                                 .and_then(|msg| name_from_domain_id(msg.message.destination))
                                 .unwrap_or_else(|| "unknown".into());
@@ -212,7 +212,7 @@ mod test {
     use tokio::select;
     use tokio::time::{interval, timeout};
 
-    use abacus_core::{db::AbacusDB, AbacusMessage, Encode, LogMeta, RawCommittedMessage};
+    use abacus_core::{db::AbacusDB, AbacusMessage, Encode, LogMeta, RawAbacusMessage};
     use abacus_test::mocks::indexer::MockAbacusIndexer;
     use abacus_test::test_utils;
     use mockall::predicate::eq;
@@ -244,32 +244,32 @@ mod test {
                 log_index: Default::default(),
             };
 
-            let m0 = RawCommittedMessage {
+            let m0 = RawAbacusMessage {
                 leaf_index: 0,
                 message: message_vec.clone(),
             };
 
-            let m1 = RawCommittedMessage {
+            let m1 = RawAbacusMessage {
                 leaf_index: 1,
                 message: message_vec.clone(),
             };
 
-            let m2 = RawCommittedMessage {
+            let m2 = RawAbacusMessage {
                 leaf_index: 2,
                 message: message_vec.clone(),
             };
 
-            let m3 = RawCommittedMessage {
+            let m3 = RawAbacusMessage {
                 leaf_index: 3,
                 message: message_vec.clone(),
             };
 
-            let m4 = RawCommittedMessage {
+            let m4 = RawAbacusMessage {
                 leaf_index: 4,
                 message: message_vec.clone(),
             };
 
-            let m5 = RawCommittedMessage {
+            let m5 = RawAbacusMessage {
                 leaf_index: 5,
                 message: message_vec.clone(),
             };
