@@ -36,11 +36,11 @@ describe('core', async () => {
     // This is kind of awkward and really these tests shouldn't live here
     multiProvider = getTestMultiProvider(signer, testConfig.transactionConfigs);
     coreConfig = testConfig.core;
-    deployer = new HyperlaneCoreInfraDeployer(multiProvider, coreConfig);
     owners = objMap(testConfig.transactionConfigs, () => owner.address);
   });
 
   it('deploys', async () => {
+    deployer = new HyperlaneCoreInfraDeployer(multiProvider, coreConfig);
     contracts = await deployer.deploy();
   });
 
@@ -58,6 +58,7 @@ describe('core', async () => {
 
   describe('failure modes', async () => {
     beforeEach(async () => {
+      deployer = new HyperlaneCoreInfraDeployer(multiProvider, coreConfig);
       const stub = sinon.stub(deployer, 'deployContracts');
       stub.withArgs('test3', sinon.match.any).rejects();
       // @ts-ignore
@@ -79,7 +80,6 @@ describe('core', async () => {
 
     it('can be resumed from partial (chain) failure', async () => {
       sinon.restore(); // restore normal deployer behavior and test3 will be deployed
-      console.log('redeploying');
       const result = await deployer.deploy();
       expect(result).to.have.keys(['test1', 'test2', 'test3']);
       expect(result.test3).to.have.keys(Object.keys(result.test2));
