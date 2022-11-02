@@ -13,7 +13,6 @@ export class HyperlaneCoreInfraDeployer<
   Chain extends ChainName,
 > extends HyperlaneCoreDeployer<Chain> {
   writeRustConfigs(environment: DeployEnvironment, directory: string) {
-    console.log(this.deployedContracts);
     const rustConfig: RustConfig<Chain> = {
       environment,
       chains: {},
@@ -21,8 +20,6 @@ export class HyperlaneCoreInfraDeployer<
     objMap(this.configMap, (chain) => {
       const contracts = this.deployedContracts[chain];
       const metadata = chainMetadata[chain];
-      console.log(contracts?.mailbox);
-      console.log(Object.keys(this.deployedContracts));
 
       const chainConfig: RustChainConfig = {
         name: chain,
