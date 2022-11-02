@@ -308,6 +308,7 @@ describe('MultisigModule', async () => {
   });
 
   // TODO: Update rust code to output v2 domain hashes
+  // TODO: Update rust code to output checkpoint digests
   describe.skip('#_getDomainHash', () => {
     it('matches Rust-produced domain hashes', async () => {
       // Compare Rust output in json file to solidity output (json file matches
@@ -323,10 +324,5 @@ describe('MultisigModule', async () => {
         expect(domainHash).to.equal(expectedDomainHash);
       }
     });
-  });
-
-  // TODO: Update rust code to output checkpoint digests
-  describe.skip('#_getCheckpointDigest', () => {
-    it('matches Rust-produced checkpoint digests', async () => {});
   });
 });
