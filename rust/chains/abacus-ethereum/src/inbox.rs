@@ -2,16 +2,17 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::fmt::Display;
+use std::fmt::{self, Debug, Display};
 use std::{error::Error as StdError, sync::Arc};
 
 use async_trait::async_trait;
 use ethers::prelude::*;
 use eyre::Result;
+use tracing::instrument;
 
 use abacus_core::{
     AbacusAbi, AbacusCommon, AbacusContract, Address, ChainCommunicationError, ContractLocator,
-    Inbox, MessageStatus, TxOutcome,
+    Inbox, InboxIndexer, Indexer, MessageStatus, TxOutcome,
 };
 
 use crate::contracts::inbox::{Inbox as EthereumInboxInternal, INBOX_ABI};
@@ -21,22 +22,110 @@ impl<M> Display for EthereumInboxInternal<M>
 where
     M: Middleware,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
 pub struct InboxBuilder {}
 
+#[async_trait]
 impl MakeableWithProvider for InboxBuilder {
     type Output = Box<dyn Inbox>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumInbox::new(Arc::new(provider), locator))
+        Box::new(EthereumInbox::new(Arc::new(provider), locator).await)
+    }
+}
+
+pub struct InboxIndexerBuilder {
+    pub finality_blocks: u32,
+}
+
+#[async_trait]
+impl MakeableWithProvider for InboxIndexerBuilder {
+    type Output = Box<dyn InboxIndexer>;
+
+    async fn make_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumInboxIndexer::new(
+            Arc::new(provider),
+            locator,
+            self.finality_blocks,
+        ))
+    }
+}
+
+#[derive(Debug)]
+pub struct EthereumInboxIndexer<M>
+where
+    M: Middleware,
+{
+    contract: Arc<EthereumInboxInternal<M>>,
+    provider: Arc<M>,
+    finality_blocks: u32,
+}
+
+impl<M> EthereumInboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
+        let contract = Arc::new(EthereumInboxInternal::new(
+            &locator.address,
+            provider.clone(),
+        ));
+        Self {
+            contract,
+            provider,
+            finality_blocks,
+        }
+    }
+}
+
+#[async_trait]
+impl<M> Indexer for EthereumInboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    async fn get_finalized_block_number(&self) -> Result<u32> {
+        Ok(self
+            .provider
+            .get_block_number()
+            .await?
+            .as_u32()
+            .saturating_sub(self.finality_blocks))
+    }
+}
+
+#[async_trait]
+impl<M> InboxIndexer for EthereumInboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument(err, skip(self))]
+    async fn fetch_processed_messages(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> Result<Vec<(H256, abacus_core::LogMeta)>> {
+        Ok(self
+            .contract
+            .process_filter()
+            .from_block(from)
+            .to_block(to)
+            .query_with_meta()
+            .await?
+            .into_iter()
+            .map(|(event, meta)| (H256::from(event.message_hash), meta.into()))
+            .collect())
     }
 }
 
@@ -47,8 +136,9 @@ where
     M: Middleware,
 {
     contract: Arc<EthereumInboxInternal<M>>,
-    domain: u32,
+    remote_domain: u32,
     chain_name: String,
+    local_domain: u32,
 }
 
 impl<M> EthereumInbox<M>
@@ -57,7 +147,7 @@ where
 {
     /// Create a reference to a inbox at a specific Ethereum address on some
     /// chain
-    pub fn new(
+    pub async fn new(
         provider: Arc<M>,
         ContractLocator {
             chain_name,
@@ -65,9 +155,24 @@ where
             address,
         }: &ContractLocator,
     ) -> Self {
+        let contract = Arc::new(EthereumInboxInternal::new(address, provider));
+        let remote_domain = contract
+            .remote_domain()
+            .call()
+            .await
+            .expect("Failed to get inbox's local_domain");
+        debug_assert_eq!(
+            contract
+                .local_domain()
+                .call()
+                .await
+                .expect("Failed to get inbox's remote_domain"),
+            *domain
+        );
         Self {
-            contract: Arc::new(EthereumInboxInternal::new(address, provider)),
-            domain: *domain,
+            contract,
+            remote_domain,
+            local_domain: *domain,
             chain_name: chain_name.to_owned(),
         }
     }
@@ -92,7 +197,7 @@ where
     M: Middleware + 'static,
 {
     fn local_domain(&self) -> u32 {
-        self.domain
+        self.local_domain
     }
 
     #[tracing::instrument(err)]
@@ -118,8 +223,8 @@ impl<M> Inbox for EthereumInbox<M>
 where
     M: Middleware + 'static,
 {
-    async fn remote_domain(&self) -> Result<u32, ChainCommunicationError> {
-        Ok(self.contract.remote_domain().call().await?)
+    fn remote_domain(&self) -> u32 {
+        self.remote_domain
     }
 
     #[tracing::instrument(err)]

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use crate::RELAY_URL;
+use crate::{parse_response, RELAY_URL};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize)]
 pub enum TaskState {
@@ -66,10 +66,10 @@ pub struct TaskStatusApiCall {
 
 impl TaskStatusApiCall {
     #[instrument]
-    pub async fn run(&self) -> Result<TaskStatusApiCallResult, reqwest::Error> {
+    pub async fn run(&self) -> eyre::Result<TaskStatusApiCallResult> {
         let url = format!("{}/tasks/status/{}", RELAY_URL, self.args.task_id);
         let res = self.http.get(url).send().await?;
-        let result: TaskStatusApiCallResult = res.json().await?;
+        let result: TaskStatusApiCallResult = parse_response(res).await?;
         Ok(result)
     }
 }

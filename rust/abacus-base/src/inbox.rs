@@ -41,8 +41,8 @@ impl CachingInbox {
 
 #[async_trait]
 impl Inbox for CachingInbox {
-    async fn remote_domain(&self) -> Result<u32, ChainCommunicationError> {
-        self.inbox.remote_domain().await
+    fn remote_domain(&self) -> u32 {
+        self.inbox.remote_domain()
     }
 
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
