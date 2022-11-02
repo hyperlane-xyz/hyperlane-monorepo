@@ -10,13 +10,13 @@ import {TypeCasts} from "./TypeCasts.sol";
 library MessageV2 {
     using TypeCasts for bytes32;
 
-    uint256 internal constant VERSION_START_INDEX = 0;
-    uint256 internal constant NONCE_START_INDEX = 1;
-    uint256 internal constant ORIGIN_START_INDEX = 33;
-    uint256 internal constant SENDER_START_INDEX = 37;
-    uint256 internal constant DESTINATION_START_INDEX = 69;
-    uint256 internal constant RECIPIENT_START_INDEX = 73;
-    uint256 internal constant BODY_START_INDEX = 105;
+    uint256 internal constant VERSION_OFFSET = 0;
+    uint256 internal constant NONCE_OFFSET = 1;
+    uint256 internal constant ORIGIN_OFFSET = 33;
+    uint256 internal constant SENDER_OFFSET = 37;
+    uint256 internal constant DESTINATION_OFFSET = 69;
+    uint256 internal constant RECIPIENT_OFFSET = 73;
+    uint256 internal constant BODY_OFFSET = 105;
 
     /**
      * @notice Returns formatted (packed) Hyperlane message with provided fields
@@ -66,7 +66,7 @@ library MessageV2 {
      * @return Version of `_message`
      */
     function version(bytes calldata _message) internal pure returns (uint8) {
-        return uint8(bytes1(_message[VERSION_START_INDEX:NONCE_START_INDEX]));
+        return uint8(bytes1(_message[VERSION_OFFSET:NONCE_OFFSET]));
     }
 
     /**
@@ -75,7 +75,7 @@ library MessageV2 {
      * @return Nonce of `_message`
      */
     function nonce(bytes calldata _message) internal pure returns (uint256) {
-        return uint256(bytes32(_message[NONCE_START_INDEX:ORIGIN_START_INDEX]));
+        return uint256(bytes32(_message[NONCE_OFFSET:ORIGIN_OFFSET]));
     }
 
     /**
@@ -84,7 +84,7 @@ library MessageV2 {
      * @return Origin domain of `_message`
      */
     function origin(bytes calldata _message) internal pure returns (uint32) {
-        return uint32(bytes4(_message[ORIGIN_START_INDEX:SENDER_START_INDEX]));
+        return uint32(bytes4(_message[ORIGIN_OFFSET:SENDER_OFFSET]));
     }
 
     /**
@@ -93,7 +93,7 @@ library MessageV2 {
      * @return Sender of `_message` as bytes32
      */
     function sender(bytes calldata _message) internal pure returns (bytes32) {
-        return bytes32(_message[SENDER_START_INDEX:DESTINATION_START_INDEX]);
+        return bytes32(_message[SENDER_OFFSET:DESTINATION_OFFSET]);
     }
 
     /**
@@ -119,10 +119,7 @@ library MessageV2 {
         pure
         returns (uint32)
     {
-        return
-            uint32(
-                bytes4(_message[DESTINATION_START_INDEX:RECIPIENT_START_INDEX])
-            );
+        return uint32(bytes4(_message[DESTINATION_OFFSET:RECIPIENT_OFFSET]));
     }
 
     /**
@@ -135,7 +132,7 @@ library MessageV2 {
         pure
         returns (bytes32)
     {
-        return bytes32(_message[RECIPIENT_START_INDEX:BODY_START_INDEX]);
+        return bytes32(_message[RECIPIENT_OFFSET:BODY_OFFSET]);
     }
 
     /**
@@ -161,6 +158,6 @@ library MessageV2 {
         pure
         returns (bytes calldata)
     {
-        return bytes(_message[BODY_START_INDEX:]);
+        return bytes(_message[BODY_OFFSET:]);
     }
 }
