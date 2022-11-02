@@ -11,6 +11,10 @@ contract TestQuerySender is Initializable {
     uint256 public lastUint256Result;
     bytes32 public lastBytes32Result;
 
+    event ReceivedAddressResult(address result);
+    event ReceivedUint256Result(uint256 result);
+    event ReceivedBytes32Result(bytes32 result);
+
     function initialize(address _queryRouterAddress) public initializer {
         queryRouter = IInterchainQueryRouter(_queryRouterAddress);
     }
@@ -28,6 +32,7 @@ contract TestQuerySender is Initializable {
     }
 
     function handleQueryAddressResult(address _result) public {
+        emit ReceivedAddressResult(_result);
         lastAddressResult = _result;
     }
 
@@ -44,6 +49,7 @@ contract TestQuerySender is Initializable {
     }
 
     function handleQueryUint256Result(uint256 _result) public {
+        emit ReceivedUint256Result(_result);
         lastUint256Result = _result;
     }
 
@@ -60,6 +66,7 @@ contract TestQuerySender is Initializable {
     }
 
     function handleQueryBytes32Result(bytes32 _result) public {
+        emit ReceivedBytes32Result(_result);
         lastBytes32Result = _result;
     }
 }
