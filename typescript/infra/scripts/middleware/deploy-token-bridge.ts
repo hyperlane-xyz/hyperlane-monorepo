@@ -10,6 +10,7 @@ import {
 import { circleBridgeAdapterConfig } from '../../config/environments/testnet2/token-bridge';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
+import { mergeWithSdkContractAddressArtifacts } from '../merge-sdk-contract-addresses';
 import {
   getCoreEnvironmentConfig,
   getEnvironment,
@@ -37,10 +38,11 @@ async function main() {
       ...ownerConfigMap[chain],
     })),
     core,
-    'TokenBridgeDeploy',
+    'TokenBridgeDeploy2',
   );
 
   await deployWithArtifacts(dir, tokenBridgeFactories, deployer);
+  await mergeWithSdkContractAddressArtifacts(environment);
 }
 
 main()

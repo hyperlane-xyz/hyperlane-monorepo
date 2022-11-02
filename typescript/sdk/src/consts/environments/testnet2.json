@@ -167,7 +167,8 @@
     "outboxValidatorManager": "0x41e1799D0249FbB3Fc9e467b813b7479c96a3Ec3",
     "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
     "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+    "tokenBridgeRouter": "0x952228cA63f85130534981844050c82b89f373E7"
   },
   "mumbai": {
     "upgradeBeaconController": "0xC81e6D1070aFA48DA4e4f35E744CC1aE43532a10",
@@ -422,7 +423,8 @@
     "outboxValidatorManager": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
     "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
     "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+    "tokenBridgeRouter": "0x952228cA63f85130534981844050c82b89f373E7"
   },
   "moonbasealpha": {
     "upgradeBeaconController": "0x6E7b29CB2A7617405B4d30C6f84bBD51b4Bb4be8",

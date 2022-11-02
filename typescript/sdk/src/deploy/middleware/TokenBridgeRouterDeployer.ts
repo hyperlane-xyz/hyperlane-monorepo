@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import {
+  CircleBridgeAdapter,
   CircleBridgeAdapter__factory,
   TokenBridgeRouter,
   TokenBridgeRouter__factory,
@@ -111,7 +112,7 @@ export class TokenBridgeDeployer<
     adapterConfig: CircleBridgeAdapterConfig,
     owner: string,
     router: TokenBridgeRouter,
-  ) {
+  ): Promise<CircleBridgeAdapter> {
     const cc = this.multiProvider.getChainConnection(chain);
     const initCalldata =
       CircleBridgeAdapter__factory.createInterface().encodeFunctionData(

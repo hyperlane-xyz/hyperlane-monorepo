@@ -17,6 +17,7 @@ const ARTIFACTS_TO_MERGE = [
   { pathSegment: 'interchain', targetKey: 'interchainAccountRouter' },
   { pathSegment: 'interchain/queries', targetKey: 'interchainQueryRouter' },
   { pathSegment: 'create2', targetKey: 'create2Factory' },
+  { pathSegment: 'middleware/token-bridge', targetKey: 'tokenBridgeRouter' },
 ];
 
 /**
@@ -43,7 +44,7 @@ export function mergeWithSdkContractAddressArtifacts(
     // Merge value into core addresses map
     for (const chain of Object.keys(addresses) as ChainName[]) {
       const chainValue = addresses[chain];
-      const addressToMerge = Object.values(chainValue)[0];
+      const addressToMerge = chainValue.router || Object.values(chainValue)[0];
       const coreChainValue = coreAddresses[chain];
       if (!coreChainValue || typeof coreChainValue !== 'object')
         throw new Error(`No core chain config for ${chain}`);

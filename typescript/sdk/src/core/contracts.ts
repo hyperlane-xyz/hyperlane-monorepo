@@ -14,6 +14,7 @@ import {
   OutboxValidatorManager,
   OutboxValidatorManager__factory,
   Outbox__factory,
+  TokenBridgeRouter__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
 } from '@hyperlane-xyz/core';
@@ -62,6 +63,7 @@ export const coreFactories = {
   interchainAccountRouter: new InterchainAccountRouter__factory(),
   interchainQueryRouter: new InterchainQueryRouter__factory(),
   create2Factory: new Create2Factory__factory(),
+  tokenBridgeRouter: new TokenBridgeRouter__factory(),
   connectionManager: new AbacusConnectionManager__factory(),
   upgradeBeaconController: new UpgradeBeaconController__factory(),
   interchainGasPaymaster: new InterchainGasPaymaster__factory(),
