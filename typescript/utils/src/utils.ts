@@ -1,4 +1,4 @@
-import { ethers, utils } from 'ethers';
+import { BigNumber, ethers, utils } from 'ethers';
 
 import { Checkpoint } from './types';
 import { Address, Domain, HexString, ParsedMessage } from './types';
@@ -54,6 +54,36 @@ export const formatMessage = (
     [localDomain, senderAddr, destinationDomain, recipientAddr, body],
   );
 };
+
+export const formatMessageV2 = (
+  version: number | BigNumber,
+  nonce: number | BigNumber,
+  originDomain: Domain,
+  senderAddr: Address,
+  destinationDomain: Domain,
+  recipientAddr: Address,
+  body: HexString,
+): string => {
+  senderAddr = addressToBytes32(senderAddr);
+  recipientAddr = addressToBytes32(recipientAddr);
+
+  return ethers.utils.solidityPack(
+    ['uint8', 'uint256', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
+    [
+      version,
+      nonce,
+      originDomain,
+      senderAddr,
+      destinationDomain,
+      recipientAddr,
+      body,
+    ],
+  );
+};
+
+export function messageIdV2(message: HexString): string {
+  return ethers.utils.solidityKeccak256(['bytes'], [message]);
+}
 
 /**
  * Parse a serialized Abacus message from raw bytes.
