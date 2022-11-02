@@ -92,7 +92,7 @@ export const formatMessage = (
 
 export const formatMessageV2 = (
   version: number | BigNumber,
-  nonce: number,
+  nonce: number | BigNumber,
   originDomain: Domain,
   senderAddr: Address,
   destinationDomain: Domain,
@@ -103,7 +103,7 @@ export const formatMessageV2 = (
   recipientAddr = addressToBytes32(recipientAddr);
 
   return ethers.utils.solidityPack(
-    ['uint32', 'uint256', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
+    ['uint8', 'uint256', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
     [
       version,
       nonce,
