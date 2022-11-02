@@ -42,6 +42,7 @@ pub struct TxnInfo {
     pub receipt: Option<TxnReceiptInfo>,
 }
 
+/// Information about the execution of a transaction.
 #[derive(Debug)]
 pub struct TxnReceiptInfo {
     /// Amount of gas which was used by this transaction

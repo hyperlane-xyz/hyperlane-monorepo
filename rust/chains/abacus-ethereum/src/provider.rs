@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use ethers::prelude::{Middleware, H256, U256};
-use eyre::{eyre, Report};
+use eyre::eyre;
 
 use crate::MakeableWithProvider;
 use abacus_core::{
