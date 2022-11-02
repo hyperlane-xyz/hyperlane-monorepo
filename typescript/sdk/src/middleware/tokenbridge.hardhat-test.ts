@@ -25,7 +25,7 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, TestChainNames } from '../types';
 import { objMap } from '../utils/objects';
 
-describe.only('TokenBridgeRouter', async () => {
+describe('TokenBridgeRouter', async () => {
   const localChain = 'test1';
   const remoteChain = 'test2';
   const remoteDomain = ChainNameToDomainId[remoteChain];
