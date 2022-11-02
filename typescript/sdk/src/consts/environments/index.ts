@@ -20,7 +20,6 @@ export const hyperlaneCoreAddresses = objMap(
     interchainAccountRouter: addresses.interchainAccountRouter,
     interchainQueryRouter: addresses.interchainQueryRouter,
     create2Factory: addresses.create2Factory,
-    tokenBridgeRouter: addresses.tokenBridgeRouter,
     inboxes: objMap(
       // @ts-ignore
       addresses.inboxes,
