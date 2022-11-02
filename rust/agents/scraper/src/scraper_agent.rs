@@ -1,18 +1,22 @@
-use crate::scraper::{message_linker, Local, Remote, SqlChainScraper, scraper};
-use crate::settings::ScraperSettings;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use eyre::WrapErr;
+use sea_orm::{Database, DbConn};
+use tokio::task::JoinHandle;
+use tracing::instrument::Instrumented;
+use tracing::{info_span, trace, Instrument};
+
 use abacus_base::{
     run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, DomainSettings,
     InboxAddresses, IndexSettings,
 };
 use abacus_core::{AbacusChain, Inbox};
-use async_trait::async_trait;
-use eyre::WrapErr;
-use sea_orm::{Database, DbConn};
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::task::JoinHandle;
-use tracing::instrument::Instrumented;
-use tracing::{info_span, trace, Instrument};
+
+use crate::chain_scraper::{Local, Remote, SqlChainScraper};
+use crate::message_linker::delivered_message_linker;
+use crate::settings::ScraperSettings;
 
 /// A message explorer scraper agent
 #[derive(Debug)]
@@ -127,13 +131,13 @@ impl BaseAgent for Scraper {
             .scrapers
             .iter()
             .map(|(name, scraper)| {
-                let span = info_span!("ChainContractSync", %name, chain = scraper.local.outbox.chain_name());
+                let span = info_span!("ChainContractSync", %name, chain = scraper.chain_name());
                 let syncer = scraper.clone().sync();
                 tokio::spawn(syncer).instrument(span)
             })
             .chain(
                 // TODO: remove this during refactoring if we no longer need it
-                [tokio::spawn(message_linker::delivered_message_linker(self.db.clone()))
+                [tokio::spawn(delivered_message_linker(self.db.clone()))
                     .instrument(info_span!("DeliveredMessageLinker"))]
                 .into_iter(),
             )

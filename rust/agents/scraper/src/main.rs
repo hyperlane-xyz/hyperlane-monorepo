@@ -17,15 +17,17 @@
 use eyre::Result;
 
 use abacus_base::agent_main;
-
-use scraper::Scraper;
+use scraper_agent::Scraper;
 
 #[allow(clippy::all)]
 mod db;
 
+mod block_cursor;
+mod chain_scraper;
 mod conversions;
 mod date_time;
-mod scraper;
+mod message_linker;
+mod scraper_agent;
 mod settings;
 
 #[tokio::main(flavor = "current_thread")]

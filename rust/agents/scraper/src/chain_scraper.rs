@@ -4,36 +4,31 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ethers::types::H256;
-use eyre::{eyre, Context, Result};
+use eyre::{eyre, Result};
 use sea_orm::prelude::TimeDateTime;
 use sea_orm::DbConn;
 use tokio::time::sleep;
-use tracing::{debug, info, instrument, trace, warn, Instrument};
+use tracing::{debug, info, instrument, trace, warn};
 
 use abacus_base::last_message::validate_message_continuity;
-use abacus_base::{BaseAgent, ContractSyncMetrics, IndexSettings};
+use abacus_base::{ContractSyncMetrics, IndexSettings};
 use abacus_core::{
     name_from_domain_id, AbacusContract, AbacusProvider, BlockInfo, CommittedMessage, Inbox,
     InboxIndexer, ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
+use crate::block_cursor::BlockCursor;
 use crate::conversions::{format_h256, parse_h256, u256_as_scaled_f64};
 use crate::date_time;
-use crate::scraper::block_cursor::BlockCursor;
-pub use scraper::Scraper;
-
-mod block_cursor;
-mod message_linker;
-mod scraper;
 
 #[derive(Debug, Clone)]
-struct Remote {
+pub struct Remote {
     pub inbox: Arc<dyn Inbox>,
     pub indexer: Arc<dyn InboxIndexer>,
 }
 
 #[derive(Debug, Clone)]
-struct Local {
+pub struct Local {
     pub outbox: Arc<dyn Outbox>,
     pub indexer: Arc<dyn OutboxIndexer>,
     pub provider: Arc<dyn AbacusProvider>,
@@ -47,7 +42,7 @@ struct Delivery {
 }
 
 #[derive(Debug, Clone)]
-struct SqlChainScraper {
+pub struct SqlChainScraper {
     db: DbConn,
     /// Contracts on this chain representing this chain (e.g. outbox)
     local: Local,
@@ -86,19 +81,19 @@ impl SqlChainScraper {
         })
     }
 
-    fn chain_name(&self) -> &str {
+    pub fn chain_name(&self) -> &str {
         self.local.outbox.chain_name()
     }
 
-    fn local_domain(&self) -> u32 {
+    pub fn local_domain(&self) -> u32 {
         self.local.outbox.local_domain()
     }
 
-    fn remote_domains(&self) -> impl Iterator<Item = u32> + '_ {
+    pub fn remote_domains(&self) -> impl Iterator<Item = u32> + '_ {
         self.remotes.keys().copied()
     }
 
-    async fn get_finalized_block_number(&self) -> Result<u32> {
+    pub async fn get_finalized_block_number(&self) -> Result<u32> {
         self.local.indexer.get_finalized_block_number().await
     }
 
@@ -309,9 +304,9 @@ impl SqlChainScraper {
     /// Returns the highest message leaf index which was provided to this
     /// function.
     #[instrument(
-        level = "debug",
-        skip_all,
-        fields(messages = ?messages.iter().map(|(_, meta)| meta).collect::<Vec<_>>())
+    level = "debug",
+    skip_all,
+    fields(messages = ?messages.iter().map(|(_, meta)| meta).collect::<Vec<_>>())
     )]
     async fn store_messages(
         &self,
