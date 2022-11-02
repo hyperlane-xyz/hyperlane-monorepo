@@ -1,0 +1,10 @@
+{
+  "goerli": {
+    "circleBridgeAdapter": "0xc262a656c99B3a2f1B196dc5BeDa8f4f80D4a878",
+    "router": "0x952228cA63f85130534981844050c82b89f373E7"
+  },
+  "fuji": {
+    "circleBridgeAdapter": "0xc262a656c99B3a2f1B196dc5BeDa8f4f80D4a878",
+    "router": "0x952228cA63f85130534981844050c82b89f373E7"
+  }
+}
