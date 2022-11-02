@@ -5,7 +5,7 @@ import "../contracts/mock/MockOutbox.sol";
 import "../contracts/mock/MockInbox.sol";
 import "../contracts/AbacusConnectionManager.sol";
 
-contract HyperlaneTestEnvironment {
+contract MockHyperlaneEnvironment {
     MockOutbox public outbox;
     MockInbox public inbox;
 

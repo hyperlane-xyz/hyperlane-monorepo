@@ -6,12 +6,12 @@ import {TokenBridgeRouter} from "../contracts/middleware/token-bridge/TokenBridg
 import {MockToken} from "../contracts/mock/MockToken.sol";
 import {TestTokenRecipient} from "../contracts/test/TestTokenRecipient.sol";
 import {MockTokenBridgeAdapter} from "../contracts/mock/MockTokenBridgeAdapter.sol";
-import {HyperlaneTestEnvironment} from "./HyperlaneTestEnvironment.sol";
+import {MockHyperlaneEnvironment} from "./MockHyperlaneEnvironment.sol";
 
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
 contract TokenBridgeRouterTest is Test {
-    HyperlaneTestEnvironment testEnvironment;
+    MockHyperlaneEnvironment testEnvironment;
 
     TokenBridgeRouter originTokenBridgeRouter;
     TokenBridgeRouter destinationTokenBridgeRouter;
@@ -38,7 +38,7 @@ contract TokenBridgeRouterTest is Test {
         originTokenBridgeRouter = new TokenBridgeRouter();
         destinationTokenBridgeRouter = new TokenBridgeRouter();
 
-        testEnvironment = new HyperlaneTestEnvironment(
+        testEnvironment = new MockHyperlaneEnvironment(
             originDomain,
             destinationDomain
         );

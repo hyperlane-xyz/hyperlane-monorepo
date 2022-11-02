@@ -40,7 +40,7 @@ contract TokenBridgeRouter is Router {
         uint256 _amount,
         string calldata _bridge
     ) external payable {
-        ITokenBridgeAdapter _adapter = getAdapter(_bridge);
+        ITokenBridgeAdapter _adapter = _getAdapter(_bridge);
 
         // Transfer the tokens to the adapter
         // TODO: use safeTransferFrom
@@ -98,7 +98,7 @@ contract TokenBridgeRouter is Router {
             );
 
         // Reverts if the adapter hasn't received the bridged tokens yet
-        (address _token, uint256 _sentAmount) = getAdapter(_bridge)
+        (address _token, uint256 _receivedAmount) = _getAdapter(_bridge)
             .receiveTokens(
                 _origin,
                 address(_userRecipient),
@@ -111,7 +111,7 @@ contract TokenBridgeRouter is Router {
             _originalSender,
             _userMessageBody,
             _token,
-            _sentAmount
+            _receivedAmount
         );
     }
 
@@ -123,7 +123,7 @@ contract TokenBridgeRouter is Router {
         emit TokenBridgeAdapterSet(_bridge, _adapter);
     }
 
-    function getAdapter(string memory _bridge)
+    function _getAdapter(string memory _bridge)
         internal
         view
         returns (ITokenBridgeAdapter _adapter)
