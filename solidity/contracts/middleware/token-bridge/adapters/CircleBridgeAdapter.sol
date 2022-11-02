@@ -121,8 +121,7 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
         );
 
         emit BridgedToken(_nonce);
-
-        return abi.encodePacked(_nonce, _tokenSymbol);
+        return abi.encode(_nonce, _tokenSymbol);
     }
 
     // Returns the token and amount sent

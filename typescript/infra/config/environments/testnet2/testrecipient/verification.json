@@ -5,12 +5,24 @@
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
       "isProxy": false,
       "constructorArguments": ""
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x36597C9C49F3c5887A86466398480ddB66aD0759",
+      "isProxy": false,
+      "constructorArguments": ""
     }
   ],
   "kovan": [
     {
       "name": "TestRecipient",
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x36597C9C49F3c5887A86466398480ddB66aD0759",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -21,12 +33,24 @@
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
       "isProxy": false,
       "constructorArguments": ""
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x36597C9C49F3c5887A86466398480ddB66aD0759",
+      "isProxy": false,
+      "constructorArguments": ""
     }
   ],
   "mumbai": [
     {
       "name": "TestRecipient",
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x36597C9C49F3c5887A86466398480ddB66aD0759",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -37,12 +61,24 @@
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
       "isProxy": false,
       "constructorArguments": ""
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x36597C9C49F3c5887A86466398480ddB66aD0759",
+      "isProxy": false,
+      "constructorArguments": ""
     }
   ],
   "arbitrumrinkeby": [
     {
       "name": "TestRecipient",
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x36597C9C49F3c5887A86466398480ddB66aD0759",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -53,12 +89,24 @@
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
       "isProxy": false,
       "constructorArguments": ""
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x36597C9C49F3c5887A86466398480ddB66aD0759",
+      "isProxy": false,
+      "constructorArguments": ""
     }
   ],
   "goerli": [
     {
       "name": "TestRecipient",
       "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x36597C9C49F3c5887A86466398480ddB66aD0759",
       "isProxy": false,
       "constructorArguments": ""
     }
