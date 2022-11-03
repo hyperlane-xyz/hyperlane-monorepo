@@ -23,6 +23,8 @@ async function check() {
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const dir = path.join(
+    __dirname,
+    '../',
     getEnvironmentDirectory(environment),
     'middleware/token-bridge',
   );
