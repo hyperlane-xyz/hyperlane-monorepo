@@ -9,8 +9,8 @@ import {
 
 import { HyperlaneApp } from '../../HyperlaneApp';
 import { Chains } from '../../consts/chains';
-import { MultiProvider } from '../../providers/MultiProvider';
 import { TokenBridgeContracts } from '../../middleware';
+import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
 import { objMap } from '../../utils/objects';
 
@@ -47,7 +47,7 @@ export class TokenBridgeApp<
     super(contractsMap, multiProvider);
   }
 
-  circleBridgeAdapterConfig() {
+  circleBridgeAdapterConfig(): ChainMap<Chain, CircleBridgeAdapterConfig> {
     return objMap(
       this.bridgeAdapterConfigs,
       (_chain, config) =>
@@ -119,7 +119,7 @@ export class TokenBridgeApp<
 
   async attemptCircleAttestationSubmission(
     message: CircleBridgeMessage<Chain>,
-  ) {
+  ): Promise<void> {
     const connection = this.multiProvider.getChainConnection(
       message.remoteChain,
     );
