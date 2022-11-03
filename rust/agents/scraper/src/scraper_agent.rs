@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::WrapErr;
-use sea_orm::{Database, DbConn};
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, trace, Instrument};
@@ -15,7 +14,7 @@ use abacus_base::{
 use abacus_core::{AbacusChain, Inbox};
 
 use crate::chain_scraper::{Local, Remote, SqlChainScraper};
-use crate::message_linker::delivered_message_linker;
+use crate::db::{delivered_message_linker, ScraperDb};
 use crate::settings::ScraperSettings;
 
 /// A message explorer scraper agent
@@ -40,7 +39,7 @@ impl BaseAgent for Scraper {
     where
         Self: Sized,
     {
-        let db = Database::connect(&settings.app.db).await?;
+        let db = ScraperDb::connect(&settings.app.db).await?;
 
         // so the challenge here is that the config files were written in a way that
         // makes a lot of sense for relayers but not a lot of sense for scraping

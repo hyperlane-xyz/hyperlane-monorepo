@@ -6,7 +6,6 @@ use std::time::Duration;
 use ethers::types::H256;
 use eyre::{eyre, Result};
 use sea_orm::prelude::TimeDateTime;
-use sea_orm::DbConn;
 use tokio::time::sleep;
 use tracing::{debug, info, instrument, trace, warn};
 
@@ -17,9 +16,9 @@ use abacus_core::{
     InboxIndexer, ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
-use crate::block_cursor::BlockCursor;
 use crate::conversions::{format_h256, parse_h256, u256_as_scaled_f64};
 use crate::date_time;
+use crate::db::{BlockCursor, Delivery, ScraperDb, StorableMessage};
 
 #[derive(Debug, Clone)]
 pub struct Remote {
@@ -35,15 +34,8 @@ pub struct Local {
 }
 
 #[derive(Debug, Clone)]
-struct Delivery {
-    pub inbox: H256,
-    pub message_hash: H256,
-    pub meta: LogMeta,
-}
-
-#[derive(Debug, Clone)]
 pub struct SqlChainScraper {
-    db: DbConn,
+    db: ScraperDb,
     /// Contracts on this chain representing this chain (e.g. outbox)
     local: Local,
     /// Contracts on this chain representing remote chains (e.g. inboxes) by
@@ -57,7 +49,7 @@ pub struct SqlChainScraper {
 #[allow(unused)]
 impl SqlChainScraper {
     pub async fn new(
-        db: DbConn,
+        db: ScraperDb,
         local: Local,
         remotes: HashMap<u32, Remote>,
         index_settings: &IndexSettings,
@@ -274,108 +266,52 @@ impl SqlChainScraper {
         }
     }
 
-    // TODO: move these database functions to a database wrapper type?
-
-    /// Get the highest message leaf index that is stored in the database.
-    #[instrument(skip(self))]
     async fn last_message_leaf_index(&self) -> Result<Option<u32>> {
-        use crate::db::message;
-        use sea_orm::{prelude::*, QueryOrder, QuerySelect};
-
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-        enum QueryAs {
-            LeafIndex,
-        }
-
-        Ok(message::Entity::find()
-            .filter(message::Column::Origin.eq(self.local_domain()))
-            .filter(message::Column::OutboxAddress.eq(format_h256(&self.local.outbox.address())))
-            .order_by_desc(message::Column::LeafIndex)
-            .select_only()
-            .column_as(message::Column::LeafIndex, QueryAs::LeafIndex)
-            .into_values::<i32, QueryAs>()
-            .one(&self.db)
-            .await?
-            .map(|idx| idx as u32))
+        self.db
+            .last_message_leaf_index(self.local_domain(), &self.local.outbox.address())
+            .await
     }
 
     /// Store messages from the outbox into the database.
     ///
     /// Returns the highest message leaf index which was provided to this
     /// function.
-    #[instrument(
-    level = "debug",
-    skip_all,
-    fields(messages = ?messages.iter().map(|(_, meta)| meta).collect::<Vec<_>>())
-    )]
     async fn store_messages(
         &self,
         messages: &[(RawCommittedMessage, LogMeta)],
         txns: &HashMap<H256, (i64, TimeDateTime)>,
     ) -> Result<u32> {
-        use crate::db::message;
-        use sea_orm::{sea_query::OnConflict, ActiveValue::*, Insert};
-
         debug_assert!(!messages.is_empty());
 
         let max_leaf_id = messages
             .iter()
             .map(|m| m.0.leaf_index)
             .max()
-            .ok_or_else(|| eyre!("Received empty list"));
-        let models = messages
+            .ok_or_else(|| eyre!("Received empty list"))?;
+        let parsed: Vec<(CommittedMessage, &LogMeta)> = messages
             .iter()
             .map(|(raw, meta)| {
                 let msg = CommittedMessage::try_from(raw)?;
-
                 debug_assert_eq!(self.local_domain(), msg.message.origin);
-                let (txn_id, txn_timestamp) = txns.get(&meta.transaction_hash).unwrap();
-                Ok(message::ActiveModel {
-                    id: NotSet,
-                    time_created: Set(crate::date_time::now()),
-                    hash: Unchanged(format_h256(&msg.to_leaf())),
-                    origin: Unchanged(msg.message.origin as i32),
-                    destination: Set(msg.message.destination as i32),
-                    leaf_index: Unchanged(msg.leaf_index as i32),
-                    sender: Set(format_h256(&msg.message.sender)),
-                    recipient: Set(format_h256(&msg.message.recipient)),
-                    msg_body: Set(if msg.message.body.is_empty() {
-                        None
-                    } else {
-                        Some(msg.message.body)
-                    }),
-                    outbox_address: Unchanged(format_h256(&self.local.outbox.address())),
-                    timestamp: Set(*txn_timestamp),
-                    origin_tx_id: Set(*txn_id),
-                })
+                Ok((msg, meta))
             })
-            .collect::<Result<Vec<message::ActiveModel>>>()?;
-
-        debug_assert!(!models.is_empty());
-        trace!(?models, "Writing messages to database");
-
-        Insert::many(models)
-            .on_conflict(
-                OnConflict::columns([
-                    message::Column::OutboxAddress,
-                    message::Column::Origin,
-                    message::Column::LeafIndex,
-                ])
-                .update_columns([
-                    message::Column::TimeCreated,
-                    message::Column::Destination,
-                    message::Column::Sender,
-                    message::Column::Recipient,
-                    message::Column::MsgBody,
-                    message::Column::Timestamp,
-                    message::Column::OriginTxId,
-                ])
-                .to_owned(),
+            .collect::<Result<_>>()?;
+        self.db
+            .store_messages(
+                &self.local.outbox.address(),
+                parsed.into_iter().map(|(msg, meta)| {
+                    let (txn_id, txn_timestamp) = txns.get(&meta.transaction_hash).unwrap();
+                    StorableMessage {
+                        msg,
+                        meta,
+                        txn_id: *txn_id,
+                        timestamp: *txn_timestamp,
+                    }
+                }),
             )
-            .exec(&self.db)
             .await?;
 
-        max_leaf_id
+        Ok(max_leaf_id)
     }
 
     /// Record that a message was delivered.
@@ -384,45 +320,13 @@ impl SqlChainScraper {
         deliveries: &[Delivery],
         txns: &HashMap<H256, (i64, TimeDateTime)>,
     ) -> Result<()> {
-        use crate::db::delivered_message;
-        use sea_orm::{sea_query::OnConflict, ActiveValue::*, Insert};
-
         if deliveries.is_empty() {
             return Ok(());
         }
 
-        // we have a race condition where a message may not have been scraped yet even
-        // though we have received news of delivery on this chain, so the
-        // message IDs are looked up in a separate "thread".
-
-        let models = deliveries
-            .iter()
-            .map(|delivery| delivered_message::ActiveModel {
-                id: NotSet,
-                time_created: Set(crate::date_time::now()),
-                msg_id: NotSet,
-                hash: Unchanged(format_h256(&delivery.message_hash)),
-                domain: Unchanged(self.local_domain() as i32),
-                inbox_address: Unchanged(format_h256(&delivery.inbox)),
-                tx_id: Set(txns.get(&delivery.meta.transaction_hash).unwrap().0),
-            })
-            .collect::<Vec<_>>();
-
-        debug_assert!(!models.is_empty());
-        trace!(?models, "Writing delivered messages to database");
-
-        Insert::many(models)
-            .on_conflict(
-                OnConflict::columns([delivered_message::Column::Hash])
-                    .update_columns([
-                        delivered_message::Column::TimeCreated,
-                        delivered_message::Column::TxId,
-                    ])
-                    .to_owned(),
-            )
-            .exec(&self.db)
-            .await?;
-        Ok(())
+        self.db
+            .record_deliveries(self.local_domain(), deliveries.iter())
+            .await
     }
 
     /// Takes a list of txn and block hashes and ensure they are all in the

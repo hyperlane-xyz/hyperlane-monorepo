@@ -19,7 +19,6 @@ use eyre::Result;
 use abacus_base::agent_main;
 use scraper_agent::Scraper;
 
-#[allow(clippy::all)]
 mod db;
 
 mod block_cursor;
