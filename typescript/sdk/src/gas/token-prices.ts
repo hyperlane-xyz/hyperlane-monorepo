@@ -25,7 +25,7 @@ class TokenPriceCache {
   protected cache: Map<ChainName, TokenPriceCacheEntry>;
   protected expirySeconds: number;
 
-  constructor(expirySeconds = 60 * 60) {
+  constructor(expirySeconds = 3 * 60 * 60) {
     this.cache = new Map<ChainName, TokenPriceCacheEntry>();
     this.expirySeconds = expirySeconds;
   }
