@@ -8,14 +8,14 @@ use eyre::Result;
 use crate::{
     traits::{ChainCommunicationError, TxOutcome},
     utils::domain_hash,
-    Checkpoint, RawAbacusMessage,
+    Checkpoint, RawAbacusMessage, AbacusContract,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
 /// chains
 #[async_trait]
 #[auto_impl(Box, Arc)]
-pub trait Mailbox: Send + Sync + Debug {
+pub trait Mailbox: AbacusContract + Send + Sync + Debug {
     /// Return the domain ID
     fn local_domain(&self) -> u32;
 

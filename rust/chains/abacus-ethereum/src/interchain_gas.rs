@@ -30,9 +30,7 @@ where
 }
 
 pub struct InterchainGasPaymasterIndexerBuilder {
-    pub outbox_address: H160,
-    pub from_height: u32,
-    pub chunk_size: u32,
+    pub mailbox_address: H160,
     pub finality_blocks: u32,
 }
 
@@ -47,9 +45,7 @@ impl MakeableWithProvider for InterchainGasPaymasterIndexerBuilder {
         Box::new(EthereumInterchainGasPaymasterIndexer::new(
             Arc::new(provider),
             locator,
-            self.outbox_address,
-            self.from_height,
-            self.chunk_size,
+            self.mailbox_address,
             self.finality_blocks,
         ))
     }
@@ -63,11 +59,7 @@ where
 {
     contract: Arc<EthereumInterchainGasPaymasterInternal<M>>,
     provider: Arc<M>,
-    outbox_address: H160,
-    #[allow(unused)]
-    from_height: u32,
-    #[allow(unused)]
-    chunk_size: u32,
+    mailbox_address: H160,
     finality_blocks: u32,
 }
 
@@ -79,9 +71,7 @@ where
     pub fn new(
         provider: Arc<M>,
         locator: &ContractLocator,
-        outbox_address: H160,
-        from_height: u32,
-        chunk_size: u32,
+        mailbox_address: H160,
         finality_blocks: u32,
     ) -> Self {
         Self {
@@ -90,9 +80,7 @@ where
                 provider.clone(),
             )),
             provider,
-            outbox_address,
-            from_height,
-            chunk_size,
+            mailbox_address,
             finality_blocks,
         }
     }
@@ -128,7 +116,7 @@ where
         let events = self
             .contract
             .gas_payment_filter()
-            .topic1(self.outbox_address)
+            .topic1(self.mailbox_address)
             .from_block(from_block)
             .to_block(to_block)
             .query_with_meta()

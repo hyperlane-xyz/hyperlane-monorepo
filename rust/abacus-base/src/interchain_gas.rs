@@ -10,7 +10,8 @@ use tracing::{info_span, Instrument};
 use abacus_core::db::AbacusDB;
 use abacus_core::{AbacusContract, InterchainGasPaymaster, InterchainGasPaymasterIndexer};
 
-use crate::{ContractSync, ContractSyncMetrics, IndexSettings};
+use crate::chains::IndexSettings;
+use crate::{ContractSync, ContractSyncMetrics};
 
 /// Caching InterchainGasPaymaster type
 #[derive(Debug, Clone)]

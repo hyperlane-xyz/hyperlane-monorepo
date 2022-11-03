@@ -10,28 +10,25 @@ use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
 use abacus_core::db::DB;
-use abacus_core::InboxValidatorManager;
 
 use crate::{
     cancel_task,
     metrics::CoreMetrics,
-    settings::{IndexSettings, Settings},
+    settings::Settings,
     CachingInterchainGasPaymaster, CachingMailbox,
 };
 
 /// Properties shared across all abacus agents
 #[derive(Debug)]
 pub struct AbacusAgentCore {
-    /// A boxed InterchainGasPaymaster
-    pub interchain_gas_paymaster: Option<CachingInterchainGasPaymaster>,
-    /// A map of mailbox contracts by name
+    /// A map of mailbox contracts by chain name
     pub mailboxes: HashMap<String, CachingMailbox>,
+    /// A map of interchain gas paymaster contracts by chain name
+    pub interchain_gas_paymasters: HashMap<String, CachingInterchainGasPaymaster>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
     pub metrics: Arc<CoreMetrics>,
-    /// The height at which to start indexing the Outbox
-    pub indexer: IndexSettings,
     /// Settings this agent was created with
     pub settings: Settings,
 }
@@ -76,16 +73,10 @@ pub trait Agent: BaseAgent {
     fn db(&self) -> &DB;
 
     /// Return a reference to an Outbox contract
-    fn outbox(&self) -> &CachingOutbox;
+    fn mailbox(&self, chain_name: String) -> &CachingMailbox;
 
     /// Return a reference to an InterchainGasPaymaster contract
-    fn interchain_gas_paymaster(&self) -> Option<&CachingInterchainGasPaymaster>;
-
-    /// Get a reference to the inboxes map
-    fn inboxes(&self) -> &HashMap<String, InboxContracts>;
-
-    /// Get a reference to an inbox's contracts by its name
-    fn inbox_by_name(&self, name: &str) -> Option<&InboxContracts>;
+    fn interchain_gas_paymaster(&self, chain_name: String) -> &CachingInterchainGasPaymaster;
 }
 
 #[async_trait]
@@ -97,20 +88,12 @@ where
         &self.as_ref().db
     }
 
-    fn outbox(&self) -> &CachingOutbox {
-        &self.as_ref().outbox
+    fn mailbox(&self, chain_name: String) -> &CachingMailbox {
+        &self.as_ref().mailboxes[&chain_name]
     }
 
-    fn interchain_gas_paymaster(&self) -> Option<&CachingInterchainGasPaymaster> {
-        self.as_ref().interchain_gas_paymaster.as_ref()
-    }
-
-    fn inboxes(&self) -> &HashMap<String, InboxContracts> {
-        &self.as_ref().inboxes
-    }
-
-    fn inbox_by_name(&self, name: &str) -> Option<&InboxContracts> {
-        self.inboxes().get(name)
+    fn interchain_gas_paymaster(&self, chain_name: String) -> &CachingInterchainGasPaymaster {
+        &self.as_ref().interchain_gas_paymasters[&chain_name]
     }
 }
 

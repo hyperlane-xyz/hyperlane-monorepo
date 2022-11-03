@@ -1,4 +1,3 @@
-use ethers::signers::Signer;
 use serde::Deserialize;
 
 use abacus_core::{
@@ -11,7 +10,7 @@ use abacus_ethereum::{
     MakeableWithProvider,
 };
 use ethers_prometheus::middleware::{
-    ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
+    ChainInfo, ContractInfo, PrometheusMiddlewareConf,
 };
 
 use crate::CoreMetrics;
@@ -60,7 +59,36 @@ pub struct CoreContractAddresses {
     /// Address of the MultisigModule contract
     pub multisig_module: String,
     /// Address of the InterchainGasPaymaster contract
-    pub interchain_gas_paymaster: Option<String>,
+    pub interchain_gas_paymaster: String,
+}
+
+/// Outbox indexing settings
+#[derive(Debug, Deserialize, Default, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexSettings {
+    /// The height at which to start indexing the Outbox contract
+    pub from: Option<String>,
+    /// The number of blocks to query at once at which to start indexing the
+    /// Outbox contract
+    pub chunk: Option<String>,
+}
+
+impl IndexSettings {
+    /// Get the `from` setting
+    pub fn from(&self) -> u32 {
+        self.from
+            .as_ref()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or_default()
+    }
+
+    /// Get the `chunk_size` setting
+    pub fn chunk_size(&self) -> u32 {
+        self.chunk
+            .as_ref()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(1999)
+    }
 }
 
 /// A chain setup is a domain ID, an address on that chain (where the outbox or
@@ -87,6 +115,10 @@ pub struct ChainSetup {
     /// Use `metrics_conf()` to get the metrics.
     #[serde(default)]
     pub metrics_conf: PrometheusMiddlewareConf,
+    /// Settings for event indexing
+    #[serde(default)]
+    pub index: IndexSettings,
+
 }
 
 impl ChainSetup {
@@ -131,28 +163,25 @@ impl ChainSetup {
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<Option<Box<dyn InterchainGasPaymaster>>> {
-        let paymaster_address = if let Some(address) = &self.addresses.interchain_gas_paymaster {
-            address
-        } else {
-            return Ok(None);
-        };
+    ) -> eyre::Result<Box<dyn InterchainGasPaymaster>> {
         match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(Some(
-                InterchainGasPaymasterBuilder {}
-                    .make_with_connection(
-                        conf.clone(),
-                        &ContractLocator {
-                            chain_name: self.name.clone(),
-                            domain: self.domain.parse().expect("invalid uint"),
-                            address: paymaster_address.parse::<ethers::types::Address>()?.into(),
-                        },
-                        signer,
-                        Some(|| metrics.json_rpc_client_metrics()),
-                        Some((metrics.provider_metrics(), self.metrics_conf())),
-                    )
-                    .await?,
-            )),
+            ChainConf::Ethereum(conf) => Ok(InterchainGasPaymasterBuilder {}
+                .make_with_connection(
+                    conf.clone(),
+                    &ContractLocator {
+                        chain_name: self.name.clone(),
+                        domain: self.domain.parse().expect("invalid uint"),
+                        address: self
+                            .addresses
+                            .interchain_gas_paymaster
+                            .parse::<ethers::types::Address>()?
+                            .into(),
+                    },
+                    signer,
+                    Some(|| metrics.json_rpc_client_metrics()),
+                    Some((metrics.provider_metrics(), self.metrics_conf())),
+                )
+                .await?),
         }
     }
 
@@ -173,13 +202,11 @@ impl ChainSetup {
                 functions: EthereumMailboxAbi::fn_map_owned(),
             });
         }
-        if let Some(igp) = &self.addresses.interchain_gas_paymaster {
-            if let Ok(addr) = igp.parse() {
-                cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
-                    name: Some("igp".into()),
-                    functions: EthereumInterchainGasPaymasterAbi::fn_map_owned(),
-                });
-            }
+        if let Ok(addr) = self.addresses.interchain_gas_paymaster.parse() {
+            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
+                name: Some("igp".into()),
+                functions: EthereumInterchainGasPaymasterAbi::fn_map_owned(),
+            });
         }
         cfg
     }

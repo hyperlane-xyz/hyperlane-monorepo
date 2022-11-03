@@ -8,6 +8,15 @@ const ABACUS_MESSAGE_PREFIX_LEN: usize = 105;
 /// A Stamped message that has been committed at some leaf index
 pub type RawAbacusMessage = Vec<u8>;
 
+impl From<&AbacusMessage> for RawAbacusMessage {
+    fn from(m: &AbacusMessage) -> Self {
+        let mut message_vec = vec![];
+        m.write_to(&mut message_vec)
+        .expect("!write_to");
+        message_vec
+    }
+}
+
 impl Encode for RawAbacusMessage {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where

@@ -13,10 +13,11 @@ use tracing::{info_span, Instrument};
 use abacus_core::db::AbacusDB;
 use abacus_core::{
     AbacusContract, ChainCommunicationError, Checkpoint, Mailbox,
-    MailboxEvents, MailboxIndexer, RawAbacusMessage,
+    MailboxEvents, MailboxIndexer, RawAbacusMessage, TxOutcome,
 };
 
-use crate::{ContractSync, ContractSyncMetrics, IndexSettings};
+use crate::chains::IndexSettings;
+use crate::{ContractSync, ContractSyncMetrics};
 
 /// Caching Mailbox type
 #[derive(Debug, Clone)]
@@ -70,7 +71,7 @@ impl CachingMailbox {
         );
 
         tokio::spawn(async move {
-            let tasks = vec![sync.sync_mailbox_messages()];
+            let tasks = vec![sync.sync_dispatched_messages()];
 
             let (_, _, remaining) = select_all(tasks).await;
             for task in remaining.into_iter() {
@@ -85,6 +86,29 @@ impl CachingMailbox {
 
 #[async_trait]
 impl Mailbox for CachingMailbox {
+    fn local_domain(&self) -> u32 {
+        self.mailbox.local_domain()
+    }
+
+    fn local_domain_hash(&self) -> H256 {
+        self.mailbox.local_domain_hash()
+    }
+
+    /// Fetch the status of a message
+    async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
+        self.mailbox.delivered(id).await
+    }
+
+    /// Get the status of a transaction.
+    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
+        self.mailbox.status(txid).await
+    }
+
+    /// Fetch the current default interchain security module value
+    async fn default_module(&self) -> Result<H256, ChainCommunicationError> {
+        self.mailbox.default_module().await
+    }
+
     async fn count(&self) -> Result<u32, ChainCommunicationError> {
         self.mailbox.count().await
     }
@@ -105,7 +129,7 @@ impl MailboxEvents for CachingMailbox {
         id: H256,
     ) -> Result<Option<RawAbacusMessage>, ChainCommunicationError> {
         loop {
-            if let Some(message) = self.db.message_by_id(id)? {
+            if let Some(message) = self.db.message_by_leaf(id)? {
                 return Ok(Some(message));
             }
             sleep(Duration::from_millis(500)).await;

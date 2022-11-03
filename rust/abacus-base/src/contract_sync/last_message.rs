@@ -1,4 +1,4 @@
-use abacus_core::{ListValidity, RawAbacusMessage};
+use abacus_core::{ListValidity, RawAbacusMessage, AbacusMessage};
 
 /// Check if the list of sorted messages is a valid continuation of the
 /// OptLatestLeafIndex. If the latest index is Some, check the validity of the
@@ -23,7 +23,7 @@ pub fn validate_message_continuity(
     if let Some(last_seen) = latest_message_leaf_index {
         let has_desired_message = sorted_messages
             .iter()
-            .any(|message| last_seen == message.leaf_index - 1);
+            .any(|message| last_seen == AbacusMessage::from(*message).nonce);
         if !has_desired_message {
             return ListValidity::InvalidContinuation;
         }
@@ -31,7 +31,7 @@ pub fn validate_message_continuity(
 
     // Ensure no gaps in new batch of leaves
     for pair in sorted_messages.windows(2) {
-        if pair[0].leaf_index != pair[1].leaf_index - 1 {
+        if AbacusMessage::from(pair[0]).nonce != AbacusMessage::from(pair[1]).nonce - 1 {
             return ListValidity::ContainsGaps;
         }
     }

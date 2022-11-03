@@ -16,7 +16,6 @@ use abacus_core::{
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, MAILBOX_ABI};
 use crate::trait_builder::MakeableWithProvider;
-use crate::tx::report_tx;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -56,7 +55,6 @@ where
     contract: Arc<EthereumMailboxInternal<M>>,
     provider: Arc<M>,
     finality_blocks: u32,
-    mailbox_domain: u32,
 }
 
 impl<M> EthereumMailboxIndexer<M>
@@ -73,7 +71,6 @@ where
             contract,
             provider,
             finality_blocks,
-            mailbox_domain: locator.domain,
         }
     }
 }

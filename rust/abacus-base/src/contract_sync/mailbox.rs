@@ -5,7 +5,7 @@ use tokio::time::sleep;
 use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
-use abacus_core::{name_from_domain_id, AbacusMessage, ListValidity, OutboxIndexer};
+use abacus_core::{name_from_domain_id, AbacusMessage, ListValidity, MailboxIndexer};
 
 use crate::contract_sync::last_message::validate_message_continuity;
 use crate::{contract_sync::schema::OutboxContractSyncDB, ContractSync};
@@ -14,10 +14,10 @@ const MESSAGES_LABEL: &str = "messages";
 
 impl<I> ContractSync<I>
 where
-    I: OutboxIndexer + Clone + 'static,
+    I: MailboxIndexer + Clone + 'static,
 {
-    /// Sync outbox messages
-    pub fn sync_outbox_messages(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
+    /// Sync dispatched messages
+    pub fn sync_dispatched_messages(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
         let span = info_span!("MessageContractSync");
 
         let db = self.db.clone();
@@ -125,7 +125,7 @@ where
                 // Filter out any messages that have already been successfully indexed and stored.
                 // This is necessary if we're re-indexing blocks in hope of finding missing messages.
                 if let Some(min_index) = last_leaf_index {
-                    sorted_messages = sorted_messages.into_iter().filter(|m| m.leaf_index > min_index).collect();
+                    sorted_messages = sorted_messages.into_iter().filter(|m| AbacusMessage::from(m).nonce > min_index).collect();
                 }
 
                 debug!(
@@ -148,7 +148,7 @@ where
                         for raw_msg in sorted_messages.iter() {
                             let dst = AbacusMessage::try_from(raw_msg)
                                 .ok()
-                                .and_then(|msg| name_from_domain_id(msg.message.destination))
+                                .and_then(|msg| name_from_domain_id(msg.destination))
                                 .unwrap_or_else(|| "unknown".into());
                             message_leaf_index
                                 .with_label_values(&["dispatch", &chain_name, &dst])
@@ -224,16 +224,19 @@ mod test {
     #[tokio::test]
     async fn handles_missing_rpc_messages() {
         test_utils::run_test_db(|db| async move {
-            let mut message_vec = vec![];
-            AbacusMessage {
-                origin: 1000,
-                destination: 2000,
-                sender: H256::from([10; 32]),
-                recipient: H256::from([11; 32]),
-                body: [10u8; 5].to_vec(),
-            }
-            .write_to(&mut message_vec)
-            .expect("!write_to");
+            let message_gen = |nonce: u32| -> AbacusMessage {
+                AbacusMessage {
+                    version: 0,
+                    nonce,
+                    origin: 1000,
+                    destination: 2000,
+                    sender: H256::from([10; 32]),
+                    recipient: H256::from([11; 32]),
+                    body: [10u8; 5].to_vec(),
+                }
+            };
+
+            let messages = (1..10).map(message_gen).collect::<Vec<AbacusMessage>>();
 
             let meta = || LogMeta {
                 address: Default::default(),
@@ -244,36 +247,6 @@ mod test {
                 log_index: Default::default(),
             };
 
-            let m0 = RawAbacusMessage {
-                leaf_index: 0,
-                message: message_vec.clone(),
-            };
-
-            let m1 = RawAbacusMessage {
-                leaf_index: 1,
-                message: message_vec.clone(),
-            };
-
-            let m2 = RawAbacusMessage {
-                leaf_index: 2,
-                message: message_vec.clone(),
-            };
-
-            let m3 = RawAbacusMessage {
-                leaf_index: 3,
-                message: message_vec.clone(),
-            };
-
-            let m4 = RawAbacusMessage {
-                leaf_index: 4,
-                message: message_vec.clone(),
-            };
-
-            let m5 = RawAbacusMessage {
-                leaf_index: 5,
-                message: message_vec.clone(),
-            };
-
             let latest_valid_message_range_start_block = 100;
 
             let mut mock_indexer = MockAbacusIndexer::new();
@@ -281,7 +254,7 @@ mod test {
                 let mut seq = Sequence::new();
 
                 // Return m0.
-                let m0_clone = m0.clone();
+                let m0 = RawAbacusMessage::from(&messages[0]);
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -292,10 +265,10 @@ mod test {
                     .times(1)
                     .with(eq(91), eq(110))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m0_clone, meta())]));
+                    .return_once(move |_, _| Ok(vec![(m0, meta())]));
 
                 // Return m1, miss m2.
-                let m1_clone = m1.clone();
+                let m1 = RawAbacusMessage::from(&messages[1]);
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -306,7 +279,7 @@ mod test {
                     .times(1)
                     .with(eq(101), eq(120))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m1_clone, meta())]));
+                    .return_once(move |_, _| Ok(vec![(m1, meta())]));
 
                 // Miss m3.
                 mock_indexer
@@ -341,7 +314,7 @@ mod test {
                     .return_once(|| Ok(140));
 
                 // m1 --> m5 seen as an invalid continuation
-                let m5_clone = m5.clone();
+                let m5 = RawAbacusMessage::from(&messages[5]);
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -352,13 +325,13 @@ mod test {
                     .times(1)
                     .with(eq(131), eq(150))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m5_clone, meta())]));
+                    .return_once(move |_, _| Ok(vec![(m5, meta())]));
 
                 // Indexer goes back to the last valid message range start block
                 // and indexes the range based off the chunk size of 19.
                 // This time it gets m1 and m2 (which was previously skipped)
-                let m1_clone = m1.clone();
-                let m2_clone = m2.clone();
+                let m1 = RawAbacusMessage::from(&messages[1]);
+                let m2 = RawAbacusMessage::from(&messages[2]);
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -369,12 +342,12 @@ mod test {
                     .times(1)
                     .with(eq(101), eq(120))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m1_clone, meta()), (m2_clone, meta())]));
+                    .return_once(move |_, _| Ok(vec![(m1, meta()), (m2, meta())]));
 
                 // Indexer continues, this time getting m3 and m5 message, but skipping m4,
                 // which means this range contains gaps
-                let m3_clone = m3.clone();
-                let m5_clone = m5.clone();
+                let m3 = RawAbacusMessage::from(&messages[3]);
+                let m5 = RawAbacusMessage::from(&messages[5]);
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -385,7 +358,7 @@ mod test {
                     .times(1)
                     .with(eq(121), eq(140))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m3_clone, meta()), (m5_clone, meta())]));
+                    .return_once(move |_, _| Ok(vec![(m3, meta()), (m5, meta())]));
 
                 // Indexer retries, the same range in hope of filling the gap,
                 // which it now does successfully
@@ -461,7 +434,7 @@ mod test {
                 sync_metrics,
             );
 
-            let sync_task = contract_sync.sync_outbox_messages();
+            let sync_task = contract_sync.sync_dispatched_messages();
             let test_pass_fut = timeout(Duration::from_secs(30), async move {
                 let mut interval = interval(Duration::from_millis(20));
                 loop {
