@@ -1,7 +1,5 @@
 import CoinGecko from 'coingecko-api';
 
-import { utils } from '@hyperlane-xyz/utils';
-
 import { chainMetadata } from '../consts/chainMetadata';
 import { Mainnets } from '../consts/chains';
 import { ChainName } from '../types';
@@ -97,15 +95,10 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
       (chain) => chainMetadata[chain].gasCurrencyCoinGeckoId || chain,
     );
     try {
-      const response = await utils.retryAsync(
-        () =>
-          this.coinGecko.simple.price({
-            ids,
-            vs_currencies: [currency],
-          }),
-        3, // num attempts
-        500, // backoff base ms
-      );
+      const response = await this.coinGecko.simple.price({
+        ids,
+        vs_currencies: [currency],
+      });
       const prices = ids.map((id) => response.data[id][currency]);
       // Update the cache with the newly fetched prices
       chains.map((chain, i) => this.cache.put(chain, prices[i]));
