@@ -2,12 +2,10 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use abacus_base::CoreMetrics;
-use abacus_base::InboxContracts;
+use abacus_base::CachingMailbox;
 use abacus_core::db::AbacusDB;
 use abacus_core::AbacusContract;
-use abacus_core::Inbox;
-use abacus_core::InboxValidatorManager;
-use abacus_core::MessageStatus;
+use abacus_core::Mailbox;
 use eyre::{bail, Result};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc;
@@ -121,8 +119,8 @@ pub(crate) struct SerialSubmitter {
     /// to be dispatched. The SerialSubmitter can only dispatch one message at a time, so this
     /// queue could grow.
     run_queue: VecDeque<SubmitMessageArgs>,
-    /// Inbox / InboxValidatorManager on the destination chain.
-    inbox_contracts: InboxContracts,
+    /// Mailbox on the destination chain.
+    mailbox: CachingMailbox,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
     /// Metrics for serial submitter.
@@ -134,7 +132,7 @@ pub(crate) struct SerialSubmitter {
 impl SerialSubmitter {
     pub(crate) fn new(
         rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-        inbox_contracts: InboxContracts,
+        mailbox: CachingMailbox,
         db: AbacusDB,
         metrics: SerialSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -143,7 +141,7 @@ impl SerialSubmitter {
             rx,
             wait_queue: Vec::new(),
             run_queue: VecDeque::new(),
-            inbox_contracts,
+            mailbox,
             db,
             metrics,
             gas_payment_enforcer,
@@ -155,7 +153,7 @@ impl SerialSubmitter {
             .instrument(info_span!("serial submitter work loop"))
     }
 
-    #[instrument(skip_all, fields(ibx=self.inbox_contracts.inbox.inbox().chain_name()))]
+    #[instrument(skip_all, fields(mbx=self.mailbox.chain_name()))]
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.tick().await?;
@@ -212,18 +210,18 @@ impl SerialSubmitter {
         };
 
         match self.process_message(&msg).await {
-            Ok(MessageStatus::Processed) => {
-                info!(msg=?msg, msg_leaf_index=msg.leaf_index, "Message processed");
+            Ok(true) => {
+                info!(msg=?msg, id=msg.message.id(), nonce=msg.message.nonce, "Message processed");
                 self.record_message_process_success(&msg)?;
                 return Ok(());
             }
-            Ok(MessageStatus::None) => {
-                info!(msg=?msg, msg_leaf_index=msg.leaf_index, "Message not processed");
+            Ok(false) => {
+                info!(msg=?msg, id=msg.message.id(), nonce=msg.message.nonce, "Message not processed");
             }
             // We expect this branch to be hit when there is unexpected behavior -
             // defined behavior like gas estimation failing will not hit this branch.
             Err(err) => {
-                warn!(msg=?msg, msg_leaf_index=msg.leaf_index, error=?err, "Error occurred when attempting to process message");
+                warn!(msg=?msg, nonce=msg.message.nonce, id=msg.message.id(), error=?err, "Error occurred when attempting to process message");
             }
         }
 
@@ -240,46 +238,44 @@ impl SerialSubmitter {
     /// been processed, Ok(MessageStatus::Processed) is returned. If this message is unable to
     /// be processed, either due to failed gas estimation or an insufficient gas payment,
     /// Ok(MessageStatus::None) is returned.
-    #[instrument(skip(self, msg), fields(msg_leaf_index=msg.leaf_index))]
-    async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<MessageStatus> {
+    #[instrument(skip(self, msg), fields(msg_nonce=msg.message.nonce))]
+    async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<bool> {
         // If the message has already been processed according to message_status call on
         // inbox, e.g. due to another relayer having already processed, then mark it as
         // already-processed, and move on to the next tick.
         // TODO(webbhorn): Make this robust to re-orgs on inbox.
-        if let MessageStatus::Processed = self
-            .inbox_contracts
-            .inbox
-            .message_status(msg.committed_message.to_leaf())
+        if self
+            .mailbox
+            .delivered(msg.message.id())
             .await?
         {
             info!("Message already processed");
-            return Ok(MessageStatus::Processed);
+            return Ok(true);
         }
 
         // Estimate transaction costs for the process call. If there are issues, it's likely
         // that gas estimation has failed because the message is reverting. This is defined behavior,
         // so we just log the error and move onto the next tick.
         let tx_cost_estimate = match self
-            .inbox_contracts
-            .validator_manager
-            .process_estimate_costs(&msg.checkpoint, &msg.committed_message.message, &msg.proof)
+            .mailbox
+            .process_estimate_costs(&msg.checkpoint, &msg.message, &msg.proof)
             .await
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
             Err(err) => {
                 info!(msg=?msg, error=?err, "Error estimating process costs");
-                return Ok(MessageStatus::None);
+                return Ok(false);
             }
         };
 
         // If the gas payment requirement hasn't been met, move to the next tick.
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&msg.committed_message, &tx_cost_estimate)
+            .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
             .await?;
         if !meets_gas_requirement {
             tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
-            return Ok(MessageStatus::None);
+            return Ok(false);
         }
 
         // Go ahead and attempt processing of message to destination chain.
@@ -293,11 +289,10 @@ impl SerialSubmitter {
         // We use the estimated gas limit from the prior call to `process_estimate_costs` to
         // avoid a second gas estimation.
         let process_result = self
-            .inbox_contracts
-            .validator_manager
+            .mailbox
             .process(
                 &msg.checkpoint,
-                &msg.committed_message.message,
+                &msg.message,
                 &msg.proof,
                 Some(tx_cost_estimate.gas_limit),
             )
@@ -312,11 +307,11 @@ impl SerialSubmitter {
                 info!(hash=?outcome.txid,
                     wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
                     "Message successfully processed by transaction");
-                Ok(MessageStatus::Processed)
+                Ok(true)
             }
             Ok(outcome) => {
                 info!(hash=?outcome.txid, "Transaction attempting to process transaction reverted");
-                Ok(MessageStatus::None)
+                Ok(false)
             }
             Err(e) => Err(e.into()),
         }

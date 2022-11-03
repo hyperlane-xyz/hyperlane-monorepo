@@ -128,6 +128,11 @@ impl From<&Vec<u8>> for AbacusMessage {
     }
 }
 
+impl From<Vec<u8>> for AbacusMessage {
+    fn from(m: Vec<u8>) -> Self {
+        AbacusMessage::from(&m)
+    }
+}
 
 impl Encode for AbacusMessage {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>

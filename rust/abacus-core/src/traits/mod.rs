@@ -14,7 +14,7 @@ pub use encode::*;
 pub use indexer::*;
 pub use interchain_gas::*;
 pub use mailbox::*;
-pub use validator_manager::*;
+pub use multisig_module::*;
 
 use crate::{db::DbError, AbacusError};
 
@@ -22,7 +22,7 @@ mod encode;
 mod indexer;
 mod interchain_gas;
 mod mailbox;
-mod validator_manager;
+mod multisig_module;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]

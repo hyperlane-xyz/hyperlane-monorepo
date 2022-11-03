@@ -4,18 +4,21 @@
 use std::collections::HashMap;
 use std::{error::Error as StdError, sync::Arc};
 
+use ethers::abi::AbiEncode;
 use async_trait::async_trait;
 use ethers::prelude::*;
-use eyre::Result;
+use ethers_contract::builders::ContractCall;
+use eyre::{eyre, Result};
 use tracing::instrument;
 
 use abacus_core::{
     AbacusAbi, AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, ContractLocator,
-    Indexer, LogMeta, Mailbox, MailboxIndexer, RawAbacusMessage, TxOutcome,
+    Indexer, LogMeta, Mailbox, MailboxIndexer, RawAbacusMessage, TxOutcome, TxCostEstimate,
 };
 
-use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, MAILBOX_ABI};
+use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, MAILBOX_ABI, ProcessCall};
 use crate::trait_builder::MakeableWithProvider;
+use crate::tx::report_tx;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -165,6 +168,28 @@ where
             provider,
         }
     }
+
+    /// Returns a ContractCall that processes the provided message.
+    /// If the provided tx_gas_limit is None, gas estimation occurs.
+    async fn process_contract_call(
+        &self,
+        message: &AbacusMessage,
+        metadata: &Vec<u8>,
+        tx_gas_limit: Option<U256>,
+    ) -> Result<ContractCall<M, ()>, ChainCommunicationError> {
+        let tx = self.contract.process(
+            metadata.to_vec().into(),
+            RawAbacusMessage::from(message).to_vec().into(),
+        );
+
+        let gas_limit = if let Some(gas_limit) = tx_gas_limit {
+            gas_limit
+        } else {
+            tx.estimate_gas().await?.saturating_add(U256::from(100000))
+        };
+        Ok(tx.gas(gas_limit))
+    }
+
 }
 
 impl<M> AbacusContract for EthereumMailbox<M>
@@ -210,6 +235,7 @@ where
         };
         let (root, index) = call_with_lag.call().await?;
         Ok(Checkpoint {
+            mailbox_address: self.address(),
             mailbox_domain: self.domain,
             root: root.into(),
             index: index.as_u32(),
@@ -241,6 +267,54 @@ where
     async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
         Ok(self.contract.delivered(id.into()).call().await?.into())
     }
+
+    #[tracing::instrument(skip(self))]
+    async fn process(
+        &self,
+        message: &AbacusMessage,
+        metadata: &Vec<u8>,
+        tx_gas_limit: Option<U256>,
+    ) -> Result<TxOutcome, ChainCommunicationError> {
+        let contract_call = self
+            .process_contract_call(message, metadata, tx_gas_limit)
+            .await?;
+        let receipt = report_tx(contract_call).await?;
+        Ok(receipt.into())
+    }
+
+    async fn process_estimate_costs(
+        &self,
+        message: &AbacusMessage,
+        metadata: &Vec<u8>,
+    ) -> Result<TxCostEstimate> {
+        let contract_call = self
+            .process_contract_call(message, metadata, None)
+            .await?;
+
+        let gas_limit = contract_call
+            .tx
+            .gas()
+            .ok_or_else(|| eyre!("Expected gas limit for process contract call"))?;
+        let gas_price = self.provider.get_gas_price().await?;
+
+        Ok(TxCostEstimate {
+            gas_limit: *gas_limit,
+            gas_price,
+        })
+    }
+
+    fn process_calldata(
+        &self,
+        message: &AbacusMessage,
+        metadata: &Vec<u8>,
+    ) -> Vec<u8> {
+        let process_call = ProcessCall {
+            message: RawAbacusMessage::from(message).to_vec().into(),
+            metadata: metadata.to_vec().into(),
+        };
+        process_call.encode()
+    }
+
 }
 
 pub struct EthereumMailboxAbi;

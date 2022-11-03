@@ -4,8 +4,7 @@ use std::{
     time::Duration,
 };
 
-use abacus_base::InboxContracts;
-use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
+use abacus_core::{ChainCommunicationError, Mailbox};
 use eyre::Result;
 use gelato::{
     sponsored_call::{SponsoredCallApiCall, SponsoredCallApiCallResult, SponsoredCallArgs},
@@ -29,7 +28,7 @@ pub struct SponsoredCallOpArgs {
     pub http: reqwest::Client,
 
     pub message: SubmitMessageArgs,
-    pub inbox_contracts: InboxContracts,
+    pub mailbox: CachingMailbox,
     pub sponsor_api_key: String,
     pub destination_chain: Chain,
 

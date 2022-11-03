@@ -2,10 +2,10 @@ use std::fmt::Debug;
 
 use abacus_core::{
     db::{AbacusDB, DbError},
-    CommittedMessage, TxCostEstimate,
+    AbacusMessage, TxCostEstimate,
 };
 use async_trait::async_trait;
-use ethers::types::U256;
+use ethers::types::{U256, H256};
 use eyre::Result;
 
 use crate::settings::GasPaymentEnforcementPolicy;
@@ -20,7 +20,7 @@ mod policies;
 pub trait GasPaymentPolicy: Debug + Send + Sync {
     async fn message_meets_gas_payment_requirement(
         &self,
-        message: &CommittedMessage,
+        message: &AbacusMessage,
         current_payment: &U256,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<bool>;
@@ -52,10 +52,10 @@ impl GasPaymentEnforcer {
     /// Returns (gas payment requirement met, current payment according to the DB)
     pub async fn message_meets_gas_payment_requirement(
         &self,
-        message: &CommittedMessage,
+        message: &AbacusMessage,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<(bool, U256)> {
-        let current_payment = self.get_message_gas_payment(message.leaf_index)?;
+        let current_payment = self.get_message_gas_payment(message.id())?;
 
         let meets_requirement = self
             .policy
@@ -65,7 +65,7 @@ impl GasPaymentEnforcer {
         Ok((meets_requirement, current_payment))
     }
 
-    fn get_message_gas_payment(&self, msg_leaf_index: u32) -> Result<U256, DbError> {
-        self.db.retrieve_gas_payment_for_leaf(msg_leaf_index)
+    fn get_message_gas_payment(&self, msg_id: H256) -> Result<U256, DbError> {
+        self.db.retrieve_gas_payment_for_leaf(msg_id)
     }
 }

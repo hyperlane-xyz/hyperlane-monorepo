@@ -30,6 +30,10 @@ mod trait_builder;
 #[cfg(not(doctest))]
 mod interchain_gas;
 
+/// MultisigModule abi
+#[cfg(not(doctest))]
+mod multisig_module;
+
 /// Generated contract bindings.
 #[cfg(not(doctest))]
 mod contracts;

@@ -2,13 +2,13 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use ethers::core::types::H256;
+use ethers::{core::types::H256, types::U256};
 use eyre::Result;
 
 use crate::{
     traits::{ChainCommunicationError, TxOutcome},
     utils::domain_hash,
-    Checkpoint, RawAbacusMessage, AbacusContract,
+    Checkpoint, RawAbacusMessage, AbacusContract, AbacusMessage, TxCostEstimate,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
@@ -21,7 +21,7 @@ pub trait Mailbox: AbacusContract + Send + Sync + Debug {
 
     /// Return the domain hash
     fn local_domain_hash(&self) -> H256 {
-        domain_hash(self.local_domain())
+        domain_hash(self.address(), self.local_domain())
     }
 
     /// Gets the current leaf count of the merkle tree
@@ -41,6 +41,29 @@ pub trait Mailbox: AbacusContract + Send + Sync + Debug {
 
     /// Fetch the current default interchain security module value
     async fn default_module(&self) -> Result<H256, ChainCommunicationError>;
+
+    /// Process a message with a proof against the provided signed checkpoint
+    async fn process(
+        &self,
+        message: &AbacusMessage,
+        metadata: &Vec<u8>,
+        tx_gas_limit: Option<U256>,
+    ) -> Result<TxOutcome, ChainCommunicationError>;
+
+    /// Estimate transaction costs to process a message.
+    async fn process_estimate_costs(
+        &self,
+        message: &AbacusMessage,
+        metadata: &Vec<u8>,
+    ) -> Result<TxCostEstimate>;
+
+    /// Get the calldata for a transaction to process a message with a proof
+    /// against the provided signed checkpoint
+    fn process_calldata(
+        &self,
+        message: &AbacusMessage,
+        metadata: &Vec<u8>,
+    ) -> Vec<u8>;
 }
 
 /// Interface for retrieving event data emitted specifically by the outbox

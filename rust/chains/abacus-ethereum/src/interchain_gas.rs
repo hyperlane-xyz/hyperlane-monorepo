@@ -126,7 +126,7 @@ where
             .into_iter()
             .map(|(log, log_meta)| InterchainGasPaymentWithMeta {
                 payment: InterchainGasPayment {
-                    leaf_index: log.leaf_index.as_u32(),
+                    message_id: H256::from(log.message_id),
                     amount: log.amount,
                 },
                 meta: InterchainGasPaymentMeta {

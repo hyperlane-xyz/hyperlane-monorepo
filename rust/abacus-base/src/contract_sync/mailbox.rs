@@ -120,11 +120,11 @@ where
 
                 // Get the latest known leaf index. All messages whose indices are <= this index
                 // have been stored in the DB.
-                let last_leaf_index = db.retrieve_latest_leaf_index()?;
+                let last_nonce = db.retrieve_latest_nonce()?;
 
                 // Filter out any messages that have already been successfully indexed and stored.
                 // This is necessary if we're re-indexing blocks in hope of finding missing messages.
-                if let Some(min_index) = last_leaf_index {
+                if let Some(min_index) = last_nonce {
                     sorted_messages = sorted_messages.into_iter().filter(|m| AbacusMessage::from(m).nonce > min_index).collect();
                 }
 
@@ -135,8 +135,8 @@ where
                     "[Messages]: filtered any messages already indexed"
                 );
 
-                // Ensure the sorted messages are a valid continuation of last_leaf_index
-                match validate_message_continuity(last_leaf_index, &sorted_messages.iter().collect::<Vec<_>>()) {
+                // Ensure the sorted messages are a valid continuation of last_nonce
+                match validate_message_continuity(last_nonce, &sorted_messages.iter().collect::<Vec<_>>()) {
                     ListValidity::Valid => {
                         // Store messages
                         let max_leaf_index_of_batch = db.store_messages(&sorted_messages)?;
@@ -163,12 +163,12 @@ where
                         from = to + 1;
                     }
                     // The index of the first message in sorted_messages is not the
-                    // `last_leaf_index+1`.
+                    // `last_nonce+1`.
                     ListValidity::InvalidContinuation => {
                         missed_messages.inc();
 
                         warn!(
-                            last_leaf_index = ?last_leaf_index,
+                            last_nonce = ?last_nonce,
                             start_block = from,
                             end_block = to,
                             last_valid_range_start_block,
@@ -181,7 +181,7 @@ where
                         missed_messages.inc();
 
                         warn!(
-                            last_leaf_index = ?last_leaf_index,
+                            last_nonce = ?last_nonce,
                             start_block = from,
                             end_block = to,
                             "[Messages]: Found gaps in the messages in range, re-indexing the same range.",

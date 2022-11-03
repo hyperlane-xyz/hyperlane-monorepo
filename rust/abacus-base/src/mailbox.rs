@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::core::types::H256;
+use ethers::types::U256;
 use eyre::Result;
 use futures_util::future::select_all;
 use tokio::task::JoinHandle;
@@ -13,7 +14,7 @@ use tracing::{info_span, Instrument};
 use abacus_core::db::AbacusDB;
 use abacus_core::{
     AbacusContract, ChainCommunicationError, Checkpoint, Mailbox,
-    MailboxEvents, MailboxIndexer, RawAbacusMessage, TxOutcome,
+    MailboxEvents, MailboxIndexer, RawAbacusMessage, TxOutcome, AbacusMessage, TxCostEstimate,
 };
 
 use crate::chains::IndexSettings;
@@ -119,6 +120,31 @@ impl Mailbox for CachingMailbox {
     ) -> Result<Checkpoint, ChainCommunicationError> {
         self.mailbox.latest_checkpoint(maybe_lag).await
     }
+
+    async fn process(
+        &self,
+        message: &AbacusMessage,
+        metadata: &Vec<u8>,
+        tx_gas_limit: Option<U256>,
+    ) -> Result<TxOutcome, ChainCommunicationError> {
+        self.mailbox.process(message, metadata, tx_gas_limit).await
+    }
+
+    async fn process_estimate_costs(
+        &self,
+        message: &AbacusMessage,
+        metadata: &Vec<u8>,
+    ) -> Result<TxCostEstimate> {
+        self.mailbox.process_estimate_costs(message, metadata).await
+    }
+
+    fn process_calldata(
+        &self,
+        message: &AbacusMessage,
+        metadata: &Vec<u8>,
+    ) -> Vec<u8> {
+        self.mailbox.process_calldata(message, metadata)
+    }
 }
 
 #[async_trait]
@@ -129,7 +155,7 @@ impl MailboxEvents for CachingMailbox {
         id: H256,
     ) -> Result<Option<RawAbacusMessage>, ChainCommunicationError> {
         loop {
-            if let Some(message) = self.db.message_by_leaf(id)? {
+            if let Some(message) = self.db.message_by_id(id)? {
                 return Ok(Some(message));
             }
             sleep(Duration::from_millis(500)).await;
@@ -141,7 +167,7 @@ impl MailboxEvents for CachingMailbox {
         nonce: usize,
     ) -> Result<Option<H256>, ChainCommunicationError> {
         loop {
-            if let Some(id) = self.db.leaf_by_leaf_index(nonce as u32)? {
+            if let Some(id) = self.db.message_id_by_nonce(nonce as u32)? {
                 return Ok(Some(id));
             }
             sleep(Duration::from_millis(500)).await;

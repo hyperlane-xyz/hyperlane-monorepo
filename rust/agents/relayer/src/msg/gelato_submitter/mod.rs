@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use abacus_base::chains::GelatoConf;
-use abacus_base::{CoreMetrics, InboxContracts};
+use abacus_base::{CoreMetrics, CachingMailbox};
 use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusCommon, AbacusDomain};
+use abacus_core::{AbacusDomain, Mailbox};
 use eyre::{bail, Result};
 use gelato::types::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
@@ -29,10 +29,10 @@ pub(crate) struct GelatoSubmitter {
     gelato_config: GelatoConf,
     /// Source of messages to submit.
     message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-    /// Inbox / InboxValidatorManager on the destination chain.
-    inbox_contracts: InboxContracts,
-    /// The inbox chain in the format expected by the Gelato crate.
-    inbox_gelato_chain: Chain,
+    /// Mailbox on the destination chain.
+    mailbox: CachingMailbox,
+    /// The destination chain in the format expected by the Gelato crate.
+    destination_gelato_chain: Chain,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
@@ -50,7 +50,7 @@ pub(crate) struct GelatoSubmitter {
 impl GelatoSubmitter {
     pub fn new(
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-        inbox_contracts: InboxContracts,
+        mailbox: CachingMailbox,
         abacus_db: AbacusDB,
         gelato_config: GelatoConf,
         metrics: GelatoSubmitterMetrics,
@@ -64,11 +64,11 @@ impl GelatoSubmitter {
             .unwrap();
         Self {
             message_receiver,
-            inbox_gelato_chain: abacus_domain_id_to_gelato_chain(
-                inbox_contracts.inbox.local_domain(),
+            destination_gelato_chain: abacus_domain_id_to_gelato_chain(
+                mailbox.local_domain(),
             )
             .unwrap(),
-            inbox_contracts,
+            mailbox,
             db: abacus_db,
             gelato_config,
             http_client,

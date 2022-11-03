@@ -72,7 +72,7 @@ pub trait Agent: BaseAgent {
     /// Return a handle to the DB
     fn db(&self) -> &DB;
 
-    /// Return a reference to an Outbox contract
+    /// Return a reference to a Mailbox contract
     fn mailbox(&self, chain_name: String) -> &CachingMailbox;
 
     /// Return a reference to an InterchainGasPaymaster contract
@@ -105,8 +105,8 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     crate::oneline_eyre::install()?;
     #[cfg(all(feature = "color_eyre", not(feature = "oneline-errors")))]
     color_eyre::install()?;
-    #[cfg(not(any(feature = "color-eyre", feature = "oneline-eyre")))]
-    eyre::install()?;
+    //#[cfg(not(any(feature = "color-eyre", feature = "oneline-eyre")))]
+    //eyre::install()?;
 
     let settings = A::Settings::new()?;
     let core_settings: &Settings = settings.as_ref();
