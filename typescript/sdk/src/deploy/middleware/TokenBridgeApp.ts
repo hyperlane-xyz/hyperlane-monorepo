@@ -24,6 +24,10 @@ const CircleBridgeInterface = ICircleBridge__factory.createInterface();
 const CircleBridgeAdapterInterface =
   CircleBridgeAdapter__factory.createInterface();
 
+const BridgedTokenTopic = CircleBridgeAdapterInterface.getEventTopic(
+  CircleBridgeAdapterInterface.getEvent('BridgedToken'),
+);
+
 interface CircleBridgeMessage<Chain> {
   chain: Chain;
   remoteChain: Chain;
@@ -63,9 +67,7 @@ export class TokenBridgeApp<
       module: 'logs',
       action: 'getLogs',
       address: this.getContracts(chain).circleBridgeAdapter!.address,
-      topic0: CircleBridgeAdapterInterface.getEventTopic(
-        CircleBridgeAdapterInterface.getEvent('BridgedToken'),
-      ),
+      topic0: BridgedTokenTopic,
     });
     const req = await fetch(`${cc.getApiUrl()}?${params}`);
     const response = await req.json();
@@ -156,6 +158,6 @@ export class TokenBridgeApp<
     );
 
     console.log(`Submitted attestations in ${await connection.getTxUrl(tx)}`);
-    await tx.wait(1);
+    await connection.handleTx(tx);
   }
 }

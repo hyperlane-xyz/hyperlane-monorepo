@@ -100,7 +100,7 @@ describe('TokenBridgeRouter', async () => {
     tokenBridgeApp = new TokenBridgeApp(
       contracts,
       multiProvider,
-      objMap(contracts, () => []),
+      objMap(config, (_chain, conf) => conf.bridgeAdapterConfigs),
     );
 
     local = tokenBridgeApp.getContracts(localChain).router;
