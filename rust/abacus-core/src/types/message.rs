@@ -107,15 +107,15 @@ pub struct AbacusMessage {
     pub body: Vec<u8>,
 }
 
-impl From<&Vec<u8>> for AbacusMessage {
-    fn from(m: &Vec<u8>) -> Self {
+impl From<Vec<u8>> for AbacusMessage {
+    fn from(m: Vec<u8>) -> Self {
         let version = m[0];
         let nonce: [u8; 4] = m[1..5].try_into().unwrap();
         let origin: [u8; 4] = m[5..9].try_into().unwrap();
-        let sender: [u8; 32] = m[9..43].try_into().unwrap();
-        let destination: [u8; 4] = m[43..47].try_into().unwrap();
-        let recipient: [u8; 32] = m[47..79].try_into().unwrap();
-        let body=  m[79..].try_into().unwrap();
+        let sender: [u8; 32] = m[9..41].try_into().unwrap();
+        let destination: [u8; 4] = m[41..45].try_into().unwrap();
+        let recipient: [u8; 32] = m[45..77].try_into().unwrap();
+        let body=  m[77..].try_into().unwrap();
         Self {
             version,
             nonce: u32::from_be_bytes(nonce),
@@ -125,12 +125,6 @@ impl From<&Vec<u8>> for AbacusMessage {
             recipient: H256::from(recipient),
             body,
         }
-    }
-}
-
-impl From<Vec<u8>> for AbacusMessage {
-    fn from(m: Vec<u8>) -> Self {
-        AbacusMessage::from(&m)
     }
 }
 

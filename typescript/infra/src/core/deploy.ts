@@ -5,7 +5,7 @@ import {
   objMap,
 } from '@hyperlane-xyz/sdk';
 
-import { DeployEnvironment, RustChainConfig, RustConfig } from '../config';
+import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';
 import { ConnectionType } from '../config/agent';
 import { writeJSON } from '../utils/utils';
 
@@ -16,12 +16,18 @@ export class HyperlaneCoreInfraDeployer<
     const rustConfig: RustConfig<Chain> = {
       environment,
       chains: {},
+      signers: {},
+      db: 'db_path',
+      tracing: {
+        level: 'debug',
+        fmt: 'json',
+      },
     };
     objMap(this.configMap, (chain) => {
       const contracts = this.deployedContracts[chain];
       const metadata = chainMetadata[chain];
 
-      const chainConfig: RustChainConfig = {
+      const chainConfig: RustChainSetup = {
         name: chain,
         domain: metadata.id.toString(),
         addresses: {
@@ -35,11 +41,6 @@ export class HyperlaneCoreInfraDeployer<
           type: ConnectionType.Http,
           url: '',
         },
-        tracing: {
-          level: 'debug',
-          fmt: 'json',
-        },
-        db: 'db_path',
       };
 
       const startingBlockNumber = this.startingBlockNumbers[chain];
@@ -49,6 +50,6 @@ export class HyperlaneCoreInfraDeployer<
       }
       rustConfig.chains[chain] = chainConfig;
     });
-    writeJSON(directory, 'rust_config.json', rustConfig);
+    writeJSON(directory, `${environment}_config.json`, rustConfig);
   }
 }

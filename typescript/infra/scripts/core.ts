@@ -58,6 +58,7 @@ async function main() {
     deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
   );
 
+  console.log('rust dir', getCoreRustDirectory(environment));
   deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
 }
 

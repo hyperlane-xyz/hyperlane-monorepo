@@ -23,7 +23,7 @@ pub fn validate_message_continuity(
     if let Some(last_seen) = latest_message_leaf_index {
         let has_desired_message = sorted_messages
             .iter()
-            .any(|message| last_seen == AbacusMessage::from(*message).nonce);
+            .any(|message| last_seen == AbacusMessage::from((*message).clone()).nonce);
         if !has_desired_message {
             return ListValidity::InvalidContinuation;
         }
@@ -31,7 +31,7 @@ pub fn validate_message_continuity(
 
     // Ensure no gaps in new batch of leaves
     for pair in sorted_messages.windows(2) {
-        if AbacusMessage::from(pair[0]).nonce != AbacusMessage::from(pair[1]).nonce - 1 {
+        if AbacusMessage::from((*pair[0]).clone()).nonce != AbacusMessage::from((*pair[1]).clone()).nonce - 1 {
             return ListValidity::ContainsGaps;
         }
     }

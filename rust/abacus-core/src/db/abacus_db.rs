@@ -61,7 +61,7 @@ impl AbacusDB {
         for message in messages {
             self.store_latest_message(message)?;
 
-            let parsed = AbacusMessage::from(message);
+            let parsed = AbacusMessage::from(message.clone());
             latest_nonce = parsed.nonce;
         }
 
@@ -70,7 +70,7 @@ impl AbacusDB {
 
     /// Store a raw committed message building off of the latest leaf index
     pub fn store_latest_message(&self, message: &RawAbacusMessage) -> Result<()> {
-        let parsed = AbacusMessage::from(message);
+        let parsed = AbacusMessage::from(message.clone());
         // If this message is not building off the latest nonce, log it.
         if let Some(nonce) = self.retrieve_latest_nonce()? {
             if nonce != parsed.nonce - 1 {
@@ -91,7 +91,7 @@ impl AbacusDB {
     /// - `nonce` --> `id`
     /// - `id` --> `message`
     pub fn store_message(&self, message: &RawAbacusMessage) -> Result<()> {
-        let parsed = AbacusMessage::from(message);
+        let parsed = AbacusMessage::from(message.clone());
         let id = parsed.id();
 
         info!(

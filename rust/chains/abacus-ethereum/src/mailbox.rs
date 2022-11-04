@@ -120,7 +120,8 @@ where
                 )
             })
             .collect();
-        events.sort_by(|a, b| AbacusMessage::from(&a.0).nonce.cmp(&AbacusMessage::from(&b.0).nonce));
+        
+        events.sort_by(|a, b| AbacusMessage::from(a.0.clone()).nonce.cmp(&AbacusMessage::from(b.0.clone()).nonce));
         Ok(events)
     }
 }

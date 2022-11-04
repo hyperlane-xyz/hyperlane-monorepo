@@ -125,7 +125,7 @@ where
                 // Filter out any messages that have already been successfully indexed and stored.
                 // This is necessary if we're re-indexing blocks in hope of finding missing messages.
                 if let Some(min_index) = last_nonce {
-                    sorted_messages = sorted_messages.into_iter().filter(|m| AbacusMessage::from(m).nonce > min_index).collect();
+                    sorted_messages = sorted_messages.into_iter().filter(|m| AbacusMessage::from((*m).clone()).nonce > min_index).collect();
                 }
 
                 debug!(
@@ -146,7 +146,7 @@ where
 
                         // Report latest leaf index to gauge by dst
                         for raw_msg in sorted_messages.iter() {
-                            let dst = AbacusMessage::try_from(raw_msg)
+                            let dst = AbacusMessage::try_from((*raw_msg).clone())
                                 .ok()
                                 .and_then(|msg| name_from_domain_id(msg.destination))
                                 .unwrap_or_else(|| "unknown".into());
@@ -362,6 +362,7 @@ mod test {
 
                 // Indexer retries, the same range in hope of filling the gap,
                 // which it now does successfully
+                let m4 = RawAbacusMessage::from(&messages[4]);
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)

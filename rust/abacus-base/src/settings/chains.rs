@@ -119,7 +119,6 @@ pub struct ChainSetup {
     /// Settings for event indexing
     #[serde(default)]
     pub index: IndexSettings,
-
 }
 
 impl ChainSetup {

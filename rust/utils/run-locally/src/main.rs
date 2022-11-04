@@ -140,17 +140,17 @@ fn main() -> ExitCode {
     };
 
     let relayer_env = hashmap! {
-        "HYP_BASE_OUTBOX_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_OUTBOX_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_INBOXES_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_INBOXES_TEST2_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_INBOXES_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "HYP_BASE_INBOXES_TEST3_CONNECTION_TYPE" => "http",
-        "BASE_CONFIG" => "test1_config.json",
+        "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST3_CONNECTION_TYPE" => "http",
+        "BASE_CONFIG" => "test_config.json",
         "RUN_ENV" => "test",
         "HYP_BASE_METRICS" => "9092",
         "HYP_BASE_TRACING_FMT" => "pretty",
-        "HYP_BASE_TRACING_LEVEL" => "info",
+        "HYP_BASE_TRACING_LEVEL" => "debug",
         "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
         "HYP_BASE_SIGNERS_TEST1_KEY" => "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
         "HYP_BASE_SIGNERS_TEST1_TYPE" => "hexKey",
@@ -159,6 +159,7 @@ fn main() -> ExitCode {
         "HYP_BASE_SIGNERS_TEST3_KEY" => "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
         "HYP_BASE_SIGNERS_TEST3_TYPE" => "hexKey",
         "HYP_RELAYER_GASPAYMENTENFORCEMENTPOLICY_TYPE" => "none",
+        "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
         "HYP_RELAYER_WHITELIST" => r#"[{"sourceAddress": "*", "destinationDomain": ["13372", "13373"], "destinationAddress": "*"}]"#,
         "HYP_RELAYER_SIGNEDCHECKPOINTPOLLINGINTERVAL" => "5",
         "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_THRESHOLD" => "1",
@@ -167,18 +168,19 @@ fn main() -> ExitCode {
     };
 
     let validator_env = hashmap! {
-        "HYP_BASE_OUTBOX_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_OUTBOX_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_INBOXES_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_INBOXES_TEST2_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_INBOXES_TEST3_CONNECTION_URLS" => "http://127.0.0.1:8545",
-        "HYP_BASE_INBOXES_TEST3_CONNECTION_TYPE" => "http",
-        "BASE_CONFIG" => "test1_config.json",
+        "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST3_CONNECTION_URLS" => "http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST3_CONNECTION_TYPE" => "http",
+        "BASE_CONFIG" => "test_config.json",
         "RUN_ENV" => "test",
         "HYP_BASE_METRICS" => "9091",
         "HYP_BASE_TRACING_FMT" => "pretty",
         "HYP_BASE_TRACING_LEVEL" => "info",
         "HYP_BASE_DB" => validator_db.to_str().unwrap(),
+        "HYP_VALIDATOR_ORIGINCHAINNAME" => "test1",
         "HYP_VALIDATOR_VALIDATOR_KEY" => "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
         "HYP_VALIDATOR_VALIDATOR_TYPE" => "hexKey",
         "HYP_VALIDATOR_REORGPERIOD" => "0",
@@ -197,6 +199,7 @@ fn main() -> ExitCode {
 
     println!("Building typescript...");
     build_cmd(&["yarn", "install"], &build_log, log_all, Some("../"));
+    build_cmd(&["yarn", "clean"], &build_log, log_all, Some("../"));
     build_cmd(&["yarn", "build"], &build_log, log_all, Some("../"));
 
     println!("Building relayer...");
@@ -325,7 +328,7 @@ fn main() -> ExitCode {
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())
         .spawn()
-        .expect("Failed tp start kathy");
+        .expect("Failed to start kathy");
     let kathy_stdout = kathy.stdout.take().unwrap();
     state.watchers.push(spawn(move || {
         if log_all {
@@ -558,5 +561,5 @@ fn build_cmd(cmd: &[&str], log: impl AsRef<Path>, log_all: bool, wd: Option<&str
         c.current_dir(wd);
     }
     let status = c.status().expect("Failed to run command");
-    assert!(status.success(), "Command returned non-zero exit code");
+    assert!(status.success(), "Command returned non-zero exit code: {}", cmd.join(" "));
 }

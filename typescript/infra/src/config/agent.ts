@@ -255,25 +255,27 @@ export type RustCoreAddresses = {
   multisigModule: types.Address;
 };
 
-export type RustChainConfig = {
+export type RustChainSetup = {
   name: ChainName;
   domain: string;
+  finalityBlocks: string;
   addresses: RustCoreAddresses;
   rpcStyle: 'ethereum';
-  finalityBlocks: string;
   connection: RustConnection;
-  tracing: {
-    level: string;
-    fmt: 'json';
-  };
-  db: string;
   index?: { from: string };
-  signer?: RustSigner;
 };
 
 export type RustConfig<Chain extends ChainName> = {
   environment: DeployEnvironment;
-  chains: Partial<ChainMap<Chain, RustChainConfig>>;
+  chains: Partial<ChainMap<Chain, RustChainSetup>>;
+  // TODO: Separate DBs for each chain (fold into RustChainSetup)
+  db: string;
+  // TODO: Fold this into RustChainSetup
+  signers?: Partial<ChainMap<Chain, RustSigner>>;
+  tracing: {
+    level: string;
+    fmt: 'json';
+  };
 };
 
 // Helper to get chain-specific agent configurations

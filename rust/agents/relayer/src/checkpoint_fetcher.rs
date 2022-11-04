@@ -51,7 +51,7 @@ impl CheckpointFetcher {
             .fetch_checkpoint(signed_checkpoint_index)
             .await?
         {
-            debug!(
+            info!(
                 signed_checkpoint_index = signed_checkpoint_index,
                 "Sending a newly fetched signed checkpoint via channel"
             );

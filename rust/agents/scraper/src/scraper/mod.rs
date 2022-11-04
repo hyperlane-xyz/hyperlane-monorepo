@@ -231,7 +231,7 @@ impl SqlOutboxScraper {
             // Difference 2
             sorted_messages = sorted_messages
                 .into_iter()
-                .filter(|m| AbacusMessage::from(&m.0).nonce > last_leaf_index)
+                .filter(|m| AbacusMessage::from(m.0.clone()).nonce > last_leaf_index)
                 .collect();
 
             debug!(
@@ -255,7 +255,7 @@ impl SqlOutboxScraper {
                     stored_messages.inc_by(sorted_messages.len() as u64);
 
                     for (raw_msg, _) in sorted_messages.iter() {
-                        let dst = AbacusMessage::try_from(raw_msg)
+                        let dst = AbacusMessage::try_from((*raw_msg).clone())
                             .ok()
                             .and_then(|msg| name_from_domain_id(msg.destination))
                             .unwrap_or_else(|| "unknown".into());
@@ -342,7 +342,7 @@ impl SqlOutboxScraper {
 
         let messages = messages
             .iter()
-            .map(|(raw, meta)| AbacusMessage::try_from(raw).map(|parsed| (parsed, meta)))
+            .map(|(raw, meta)| AbacusMessage::try_from((*raw).clone()).map(|parsed| (parsed, meta)))
             .collect::<Result<Vec<(AbacusMessage, &LogMeta)>, _>>()
             .context("Failed to parse a message")?;
 
