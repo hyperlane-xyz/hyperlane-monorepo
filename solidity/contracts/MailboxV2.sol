@@ -7,7 +7,7 @@ import {MerkleLib} from "./libs/Merkle.sol";
 import {MessageV2} from "./libs/MessageV2.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
-import {IInterchainSecurityModule, IUsesInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
+import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {IMailboxV2} from "../interfaces/IMailboxV2.sol";
 
 // ============ External Imports ============
@@ -130,7 +130,7 @@ contract MailboxV2 is
      * @notice Attempts to deliver `_message` to its recipient. Verifies
      * `_message` via the recipient's ISM using the provided `_metadata`.
      * @param _metadata Metadata used by the ISM to verify `_message`.
-     * @param _message Formatted Hyperlane message (see Message.sol).
+     * @param _message Formatted Hyperlane message (refer to Message.sol).
      */
     function process(bytes calldata _metadata, bytes calldata _message)
         external
@@ -148,7 +148,7 @@ contract MailboxV2 is
 
         // Verify the message via the ISM.
         IInterchainSecurityModule _ism = _recipientModule(
-            IUsesInterchainSecurityModule(_message.recipientAddress())
+            ISpecifiesInterchainSecurityModule(_message.recipientAddress())
         );
         require(_ism.verify(_metadata, _message), "!module");
 
@@ -205,14 +205,15 @@ contract MailboxV2 is
      * @param _recipient The message recipient whose ISM should be returned.
      * @return The ISM to use for `_recipient`.
      */
-    function _recipientModule(IUsesInterchainSecurityModule _recipient)
+    function _recipientModule(ISpecifiesInterchainSecurityModule _recipient)
         internal
         view
         returns (IInterchainSecurityModule)
     {
-        // For backwards compatibility, use a default
-        // interchainSecurityModule if one is not specified by the
+        // Use a default interchainSecurityModule if one is not specified by the
         // recipient.
+        // This is useful for backwards compatibility and for convenience as
+        // recipients are not mandated to specify an ISM.
         try _recipient.interchainSecurityModule() returns (
             IInterchainSecurityModule _val
         ) {

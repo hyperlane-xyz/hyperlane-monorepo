@@ -118,16 +118,16 @@ contract MultisigModule is IMultisigModule, Ownable {
         onlyOwner
     {
         require(validatorSet[_domain].remove(_validator), "!enrolled");
-        uint256 _numValidators = validatorCount(_domain);
+        uint256 _validatorCount = validatorCount(_domain);
         require(
-            _numValidators >= threshold[_domain],
+            _validatorCount >= threshold[_domain],
             "violates quorum threshold"
         );
         bytes32 _commitment = _updateCommitment(_domain);
         emit ValidatorUnenrolled(
             _domain,
             _validator,
-            _numValidators,
+            _validatorCount,
             _commitment
         );
     }
@@ -191,13 +191,13 @@ contract MultisigModule is IMultisigModule, Ownable {
      */
     function validators(uint32 _domain) public view returns (address[] memory) {
         EnumerableSet.AddressSet storage _validatorSet = validatorSet[_domain];
-        uint256 _numValidators = _validatorSet.length();
-        address[] memory _validators = new address[](_numValidators);
-        // Max address
+        uint256 _validatorCount = _validatorSet.length();
+        address[] memory _validators = new address[](_validatorCount);
         address _prev = address(0);
-        for (uint256 i = 0; i < _numValidators; i++) {
+        for (uint256 i = 0; i < _validatorCount; i++) {
+            // Max address
             address _next = address(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF);
-            for (uint256 j = 0; j < _numValidators; j++) {
+            for (uint256 j = 0; j < _validatorCount; j++) {
                 address _validator = _validatorSet.at(j);
                 if (_prev < _validator && _validator < _next) {
                     _next = _validator;

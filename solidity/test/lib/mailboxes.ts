@@ -57,36 +57,6 @@ export const dispatchMessageAndReturnProof = async (
   };
 };
 
-export const inferMessageValues = async (
-  mailbox: TestMailboxV2,
-  sender: string,
-  destination: number,
-  recipient: string,
-  messageStr: string,
-) => {
-  const body = utils.ensure0x(
-    Buffer.from(ethers.utils.toUtf8Bytes(messageStr)).toString('hex'),
-  );
-  const nonce = await mailbox.count();
-  const version = await mailbox.VERSION();
-  const localDomain = await mailbox.localDomain();
-  const message = utils.formatMessageV2(
-    nonce,
-    version,
-    localDomain,
-    sender,
-    destination,
-    recipient,
-    body,
-  );
-  const id = utils.messageIdV2(message);
-  return {
-    message,
-    id,
-    body,
-  };
-};
-
 // Signs a checkpoint with the provided validators and returns
 // the signatures sorted by validator addresses in ascending order
 export async function signCheckpoint(
@@ -155,3 +125,33 @@ export function getCommitment(
   );
   return ethers.utils.solidityKeccak256(['bytes'], [packed]);
 }
+
+export const inferMessageValues = async (
+  mailbox: TestMailboxV2,
+  sender: string,
+  destination: number,
+  recipient: string,
+  messageStr: string,
+  version?: number,
+) => {
+  const body = utils.ensure0x(
+    Buffer.from(ethers.utils.toUtf8Bytes(messageStr)).toString('hex'),
+  );
+  const nonce = await mailbox.count();
+  const localDomain = await mailbox.localDomain();
+  const message = utils.formatMessageV2(
+    version ?? (await mailbox.VERSION()),
+    nonce,
+    localDomain,
+    sender,
+    destination,
+    recipient,
+    body,
+  );
+  const id = utils.messageIdV2(message);
+  return {
+    message,
+    id,
+    body,
+  };
+};
