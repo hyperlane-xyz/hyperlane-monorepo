@@ -246,8 +246,8 @@ impl AbacusDB {
         // Set the gas payment as processed
         self.store_gas_payment_meta_processed(meta)?;
 
-        // Update the total gas payment for the leaf to include the payment
-        self.update_gas_payment_for_leaf(&gas_payment_with_meta.payment)?;
+        // Update the total gas payment for the message to include the payment
+        self.update_gas_payment_for_message_id(&gas_payment_with_meta.payment)?;
 
         // Return true to indicate the gas payment was processed for the first time
         Ok(true)
@@ -271,13 +271,13 @@ impl AbacusDB {
             .unwrap_or(false))
     }
 
-    /// Update the total gas payment for a leaf index to include gas_payment
-    fn update_gas_payment_for_leaf(
+    /// Update the total gas payment for a message to include gas_payment
+    fn update_gas_payment_for_message_id(
         &self,
         gas_payment: &InterchainGasPayment,
     ) -> Result<(), DbError> {
         let InterchainGasPayment { message_id, amount } = gas_payment;
-        let existing_payment = self.retrieve_gas_payment_for_id(*message_id)?;
+        let existing_payment = self.retrieve_gas_payment_for_message_id(*message_id)?;
         let total = existing_payment + amount;
 
         info!(message_id=?message_id, gas_payment_amount=?amount, new_total_gas_payment=?total, "Storing gas payment");
@@ -287,7 +287,7 @@ impl AbacusDB {
     }
 
     /// Retrieve the total gas payment for a message
-    pub fn retrieve_gas_payment_for_id(&self, message_id: H256) -> Result<U256, DbError> {
+    pub fn retrieve_gas_payment_for_message_id(&self, message_id: H256) -> Result<U256, DbError> {
         Ok(self
             .retrieve_keyed_decodable(GAS_PAYMENT_FOR_MESSAGE_ID, &message_id)?
             .unwrap_or(U256::zero()))

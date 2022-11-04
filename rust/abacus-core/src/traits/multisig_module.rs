@@ -16,11 +16,11 @@ use crate::{
 #[auto_impl(Box, Arc)]
 pub trait MultisigModule: AbacusContract + Send + Sync + Debug {
     /// Returns the metadata needed by the contract's verify function
-    async fn format_metadata(&self, checkpoint: MultisigSignedCheckpoint, proof: Proof) -> Result<Vec<u8>, ChainCommunicationError>;
+    async fn format_metadata(&self, checkpoint: &MultisigSignedCheckpoint, proof: Proof) -> Result<Vec<u8>, ChainCommunicationError>;
 
-    /// Gets the threshold for the provided domain
+    /// Fetch the threshold for the provided domain
     async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError>;
 
-    /// Fetch the status of a message
+    /// Fetch the validators for the provided domain
     async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError>;
 }

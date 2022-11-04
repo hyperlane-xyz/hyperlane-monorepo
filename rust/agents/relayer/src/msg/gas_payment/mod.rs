@@ -66,6 +66,6 @@ impl GasPaymentEnforcer {
     }
 
     fn get_message_gas_payment(&self, msg_id: H256) -> Result<U256, DbError> {
-        self.db.retrieve_gas_payment_for_leaf(msg_id)
+        self.db.retrieve_gas_payment_for_message_id(msg_id)
     }
 }

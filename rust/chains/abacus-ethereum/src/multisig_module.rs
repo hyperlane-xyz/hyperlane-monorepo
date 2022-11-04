@@ -6,7 +6,7 @@ use std::{sync::Arc};
 
 use abacus_core::accumulator::merkle::Proof;
 use async_trait::async_trait;
-use ethers::abi::{Token, Uint};
+use ethers::abi::{Token};
 use ethers::providers::Middleware;
 use ethers::types::{H160, U256, H256, Selector};
 use eyre::{Result};
@@ -109,7 +109,7 @@ where
 
 
     /// Returns the metadata needed by the contract's verify function
-    async fn format_metadata(&self, checkpoint: MultisigSignedCheckpoint, proof: Proof) -> Result<Vec<u8>, ChainCommunicationError> {
+    async fn format_metadata(&self, checkpoint: &MultisigSignedCheckpoint, proof: Proof) -> Result<Vec<u8>, ChainCommunicationError> {
         let threshold = self.threshold(checkpoint.checkpoint.mailbox_domain).await?;
         let validators: Vec<H256> = self.validators(checkpoint.checkpoint.mailbox_domain).await?.iter().map(|&x| H256::from(x)).collect();
         let proof_tokens: Vec<Token> = proof.path.iter().map(|&x| Token::FixedBytes(x.to_fixed_bytes().into())).collect();

@@ -9,9 +9,9 @@ use tokio::{
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
-use abacus_base::{CoreMetrics};
+use abacus_base::{CoreMetrics, CachingMailbox};
 use abacus_core::{
-    db::AbacusDB, AbacusContract, AbacusMessage, MultisigSignedCheckpoint,
+    db::AbacusDB, AbacusContract, AbacusMessage, Mailbox, MultisigSignedCheckpoint,
 };
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
@@ -60,7 +60,7 @@ impl MessageProcessor {
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 
-    #[instrument(ret, err, skip(self), fields(inbox_name=self.mailbox.inbox.chain_name(), local_domain=?self.mailbox.inbox.local_domain()), level = "info")]
+    #[instrument(ret, err, skip(self), fields(chain=self.mailbox.chain_name(), domain=?self.mailbox.local_domain()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
         // Ensure that there is at least one valid, known checkpoint before starting
         // work loop.
@@ -93,9 +93,9 @@ impl MessageProcessor {
             .is_some()
         {
             debug!(
-                inbox_name=?self.mailbox.inbox.chain_name(),
-                local_domain=?self.mailbox.inbox.local_domain(),
-                idx=?self.message_nonce,
+                chain=?self.mailbox.chain_name(),
+                domain=?self.mailbox.local_domain(),
+                nonce=?self.message_nonce,
                 "Skipping since message_index already in DB");
             self.message_nonce += 1;
             return Ok(());
@@ -124,39 +124,40 @@ impl MessageProcessor {
         };
 
         // Skip if for different inbox.
-        if message.message.destination != self.mailbox.inbox.local_domain() {
+        if message.destination != self.mailbox.local_domain() {
             debug!(
-                inbox_name=?self.mailbox.inbox.chain_name(),
-                local_domain=?self.mailbox.inbox.local_domain(),
-                dst=?message.message.destination,
-                msg=?message,
-                "Message not for local domain, skipping idx {}", self.message_nonce);
+                chain=?self.mailbox.chain_name(),
+                domain=?self.mailbox.local_domain(),
+                destination=?message.destination,
+                id=?message.id(),
+                nonce=self.message_nonce,
+                "Message destined for other domain, skipping nonce {}", self.message_nonce);
             self.message_nonce += 1;
             return Ok(());
         }
 
         // Skip if not whitelisted.
-        if !self.whitelist.msg_matches(&message.message, true) {
+        if !self.whitelist.msg_matches(&message, true) {
             debug!(
-                inbox_name=?self.mailbox.inbox.chain_name(),
-                local_domain=?self.mailbox.inbox.local_domain(),
-                dst=?message.message.destination,
+                chain=?self.mailbox.chain_name(),
+                domain=?self.mailbox.local_domain(),
+                destination=?message.destination,
+                id=?message.id(),
                 whitelist=?self.whitelist,
-                msg=?message,
-                "Message not whitelisted, skipping idx {}", self.message_nonce);
+                "Message not whitelisted, skipping nonce {}", self.message_nonce);
             self.message_nonce += 1;
             return Ok(());
         }
 
-        // skip if the message is blacklisted
-        if self.blacklist.msg_matches(&message.message, false) {
+        // Skip if the message is blacklisted
+        if self.blacklist.msg_matches(&message, false) {
             debug!(
-                inbox_name=?self.mailbox.inbox.chain_name(),
-                local_domain=?self.mailbox.inbox.local_domain(),
-                dst=?message.message.destination,
+                chain=?self.mailbox.chain_name(),
+                domain=?self.mailbox.local_domain(),
+                destination=?message.destination,
+                id=?message.id(),
                 blacklist=?self.blacklist,
-                msg=?message,
-                "Message blacklisted, skipping idx {}", self.message_nonce);
+                "Message blacklisted, skipping nonce {}", self.message_nonce);
             self.message_nonce += 1;
             return Ok(());
         }
@@ -191,7 +192,7 @@ impl MessageProcessor {
 
         if self
             .db
-            .leaf_by_leaf_index(self.message_nonce)?
+            .message_id_by_nonce(self.message_nonce)?
             .is_some()
         {
             debug!(
@@ -200,7 +201,6 @@ impl MessageProcessor {
             );
             // Finally, build the submit arg and dispatch it to the submitter.
             let submit_args = SubmitMessageArgs::new(
-                self.message_nonce,
                 message,
                 checkpoint,
                 proof,
@@ -210,9 +210,9 @@ impl MessageProcessor {
             self.message_nonce += 1;
         } else {
             warn!(
-                idx=self.message_nonce,
-                inbox_name=?self.mailbox.inbox.chain_name(),
-                "Unexpected missing leaf_by_leaf_index");
+                nonce=self.message_nonce,
+                chain=?self.mailbox.chain_name(),
+                "Unexpected missing message_id_by_nonce");
         }
         Ok(())
     }
@@ -224,12 +224,12 @@ pub(crate) struct MessageProcessorMetrics {
 }
 
 impl MessageProcessorMetrics {
-    pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
+    pub fn new(metrics: &CoreMetrics, origin_chain: &str, destination_chain: &str) -> Self {
         Self {
             processor_loop_gauge: metrics.last_known_message_nonce().with_label_values(&[
                 "processor_loop",
-                outbox_chain,
-                inbox_chain,
+                origin_chain,
+                destination_chain,
             ]),
         }
     }

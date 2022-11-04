@@ -83,7 +83,7 @@ impl PartialOrd for SubmitMessageArgs {
 
 impl PartialEq for SubmitMessageArgs {
     fn eq(&self, other: &Self) -> bool {
-        self.num_retries == other.num_retries && self.leaf_index == other.leaf_index
+        self.num_retries == other.num_retries && self.message.nonce == other.message.nonce
     }
 }
 

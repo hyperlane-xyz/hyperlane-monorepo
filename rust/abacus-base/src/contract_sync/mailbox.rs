@@ -37,7 +37,7 @@ where
             .missed_events
             .with_label_values(&[MESSAGES_LABEL, &self.chain_name]);
 
-        let message_leaf_index = self.metrics.message_leaf_index.clone();
+        let message_nonce = self.metrics.message_nonce.clone();
         let chain_name = self.chain_name.clone();
 
         let config_from = self.index_settings.from();
@@ -139,7 +139,7 @@ where
                 match validate_message_continuity(last_nonce, &sorted_messages.iter().collect::<Vec<_>>()) {
                     ListValidity::Valid => {
                         // Store messages
-                        let max_leaf_index_of_batch = db.store_messages(&sorted_messages)?;
+                        let max_nonce_of_batch = db.store_messages(&sorted_messages)?;
 
                         // Report amount of messages stored into db
                         stored_messages.inc_by(sorted_messages.len() as u64);
@@ -150,9 +150,9 @@ where
                                 .ok()
                                 .and_then(|msg| name_from_domain_id(msg.destination))
                                 .unwrap_or_else(|| "unknown".into());
-                            message_leaf_index
+                            message_nonce
                                 .with_label_values(&["dispatch", &chain_name, &dst])
-                                .set(max_leaf_index_of_batch as i64);
+                                .set(max_nonce_of_batch as i64);
                         }
 
                         // Update the latest valid start block.
@@ -438,12 +438,12 @@ mod test {
             let test_pass_fut = timeout(Duration::from_secs(30), async move {
                 let mut interval = interval(Duration::from_millis(20));
                 loop {
-                    if abacus_db.message_by_leaf_index(0).expect("!db").is_some()
-                        && abacus_db.message_by_leaf_index(1).expect("!db").is_some()
-                        && abacus_db.message_by_leaf_index(2).expect("!db").is_some()
-                        && abacus_db.message_by_leaf_index(3).expect("!db").is_some()
-                        && abacus_db.message_by_leaf_index(4).expect("!db").is_some()
-                        && abacus_db.message_by_leaf_index(5).expect("!db").is_some()
+                    if abacus_db.message_by_nonce(0).expect("!db").is_some()
+                        && abacus_db.message_by_nonce(1).expect("!db").is_some()
+                        && abacus_db.message_by_nonce(2).expect("!db").is_some()
+                        && abacus_db.message_by_nonce(3).expect("!db").is_some()
+                        && abacus_db.message_by_nonce(4).expect("!db").is_some()
+                        && abacus_db.message_by_nonce(5).expect("!db").is_some()
                     {
                         break;
                     }

@@ -11,6 +11,7 @@ use tracing::{info_span, Instrument};
 
 use abacus_core::db::DB;
 
+use crate::CachingMultisigModule;
 use crate::{
     cancel_task,
     metrics::CoreMetrics,
@@ -25,6 +26,8 @@ pub struct AbacusAgentCore {
     pub mailboxes: HashMap<String, CachingMailbox>,
     /// A map of interchain gas paymaster contracts by chain name
     pub interchain_gas_paymasters: HashMap<String, CachingInterchainGasPaymaster>,
+    /// A map of interchain gas paymaster contracts by chain name
+    pub multisig_modules: HashMap<String, CachingMultisigModule>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -77,6 +80,9 @@ pub trait Agent: BaseAgent {
 
     /// Return a reference to an InterchainGasPaymaster contract
     fn interchain_gas_paymaster(&self, chain_name: String) -> &CachingInterchainGasPaymaster;
+
+    /// Return a reference to a Multisig Module contract
+    fn multisig_module(&self, chain_name: String) -> &CachingMultisigModule;
 }
 
 #[async_trait]
@@ -94,6 +100,10 @@ where
 
     fn interchain_gas_paymaster(&self, chain_name: String) -> &CachingInterchainGasPaymaster {
         &self.as_ref().interchain_gas_paymasters[&chain_name]
+    }
+
+    fn multisig_module(&self, chain_name: String) -> &CachingMultisigModule {
+        &self.as_ref().multisig_modules[&chain_name]
     }
 }
 

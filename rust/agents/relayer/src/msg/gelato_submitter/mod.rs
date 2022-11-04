@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use abacus_base::chains::GelatoConf;
-use abacus_base::{CoreMetrics, CachingMailbox};
+use abacus_base::{CoreMetrics, CachingMailbox, CachingMultisigModule};
 use abacus_core::db::AbacusDB;
 use abacus_core::{AbacusDomain, Mailbox};
 use eyre::{bail, Result};
@@ -31,6 +31,8 @@ pub(crate) struct GelatoSubmitter {
     message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
+    /// Mailbox on the destination chain.
+    multisig_module: CachingMultisigModule,
     /// The destination chain in the format expected by the Gelato crate.
     destination_gelato_chain: Chain,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
@@ -51,6 +53,7 @@ impl GelatoSubmitter {
     pub fn new(
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
+        multisig_module: CachingMultisigModule,
         abacus_db: AbacusDB,
         gelato_config: GelatoConf,
         metrics: GelatoSubmitterMetrics,
@@ -69,6 +72,7 @@ impl GelatoSubmitter {
             )
             .unwrap(),
             mailbox,
+            multisig_module,
             db: abacus_db,
             gelato_config,
             http_client,
@@ -116,9 +120,10 @@ impl GelatoSubmitter {
                 opts: SponsoredCallOptions::default(),
                 http: self.http_client.clone(),
                 message: msg,
-                inbox_contracts: self.inbox_contracts.clone(),
+                mailbox: self.mailbox.clone(),
+                multisig_module: self.multisig_module.clone(),
                 sponsor_api_key: self.gelato_config.sponsorapikey.clone(),
-                destination_chain: self.inbox_gelato_chain,
+                destination_chain: self.destination_gelato_chain,
                 message_processed_sender: self.message_processed_sender.clone(),
                 gas_payment_enforcer: self.gas_payment_enforcer.clone(),
             });
@@ -152,17 +157,17 @@ impl GelatoSubmitter {
     /// this message again, even after the relayer restarts.
     fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         tracing::info!(msg=?msg, "Recording message as successfully processed");
-        self.db.mark_leaf_as_processed(msg.leaf_index)?;
+        self.db.mark_nonce_as_processed(msg.message.nonce)?;
 
         self.metrics.active_sponsored_call_ops_gauge.sub(1);
         self.metrics
             .queue_duration_hist
             .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
-        self.metrics.highest_submitted_leaf_index =
-            std::cmp::max(self.metrics.highest_submitted_leaf_index, msg.leaf_index);
+        self.metrics.highest_submitted_nonce =
+            std::cmp::max(self.metrics.highest_submitted_nonce, msg.message.nonce);
         self.metrics
             .processed_gauge
-            .set(self.metrics.highest_submitted_leaf_index as i64);
+            .set(self.metrics.highest_submitted_nonce as i64);
         self.metrics.messages_processed_count.inc();
         Ok(())
     }
@@ -175,29 +180,29 @@ pub(crate) struct GelatoSubmitterMetrics {
     messages_processed_count: IntCounter,
     active_sponsored_call_ops_gauge: IntGauge,
     /// Private state used to update actual metrics each tick.
-    highest_submitted_leaf_index: u32,
+    highest_submitted_nonce: u32,
 }
 
 impl GelatoSubmitterMetrics {
-    pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
+    pub fn new(metrics: &CoreMetrics, origin_chain: &str, destination_chain: &str) -> Self {
         Self {
             queue_duration_hist: metrics
                 .submitter_queue_duration_histogram()
-                .with_label_values(&[outbox_chain, inbox_chain]),
+                .with_label_values(&[origin_chain, destination_chain]),
             messages_processed_count: metrics
                 .messages_processed_count()
-                .with_label_values(&[outbox_chain, inbox_chain]),
-            processed_gauge: metrics.last_known_message_leaf_index().with_label_values(&[
+                .with_label_values(&[origin_chain, destination_chain]),
+            processed_gauge: metrics.last_known_message_nonce().with_label_values(&[
                 "message_processed",
-                outbox_chain,
-                inbox_chain,
+                origin_chain,
+                destination_chain,
             ]),
             active_sponsored_call_ops_gauge: metrics.submitter_queue_length().with_label_values(&[
-                outbox_chain,
-                inbox_chain,
+                origin_chain,
+                destination_chain,
                 "active_sponsored_call_ops",
             ]),
-            highest_submitted_leaf_index: 0,
+            highest_submitted_nonce: 0,
         }
     }
 }

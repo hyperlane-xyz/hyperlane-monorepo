@@ -97,7 +97,7 @@ use abacus_ethereum::{
 };
 pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 
-use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
+use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster, CachingMultisigModule};
 use crate::{AbacusAgentCore, CachingMailbox, CoreMetrics};
 
 use self::chains::GelatoConf;
@@ -267,6 +267,27 @@ impl Settings {
         Ok(result)
     }
 
+    /// Try to get a map of chain name -> multisig module contract
+    pub async fn try_into_multisig_modules(
+        &self,
+        db: DB,
+        metrics: &CoreMetrics,
+        chain_names: &[&String],
+    ) -> eyre::Result<HashMap<String, CachingMultisigModule>> {
+        let mut result = HashMap::new();
+        for chain_name in chain_names {
+            let setup = self.chains.get(*chain_name);
+            match setup {
+                Some(x) => {
+                    let multisig_module = self.try_caching_multisig_module(x, db.clone(), metrics).await?;
+                    result.insert((*chain_name).clone(), multisig_module);
+                },
+                None => bail!("No chain setup found for {}", chain_name)
+            }
+        }
+        Ok(result)
+    }
+
     /// Try to get a CachingMailbox
     async fn try_caching_mailbox(
         &self,
@@ -295,8 +316,20 @@ impl Settings {
         Ok(CachingInterchainGasPaymaster::new(interchain_gas_paymaster.into(), abacus_db, indexer.into()))
     }
 
+    /// Try to get a CachingMultisigModule
+    async fn try_caching_multisig_module(
+        &self,
+        chain_setup: &ChainSetup,
+        db: DB,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<CachingMultisigModule> {
+        let signer = self.get_signer(&chain_setup.name).await;
+        let multisig_module = chain_setup.try_into_multisig_module(signer, metrics).await?;
+        Ok(CachingMultisigModule::new(multisig_module.into()))
+    }
+
     /// Try to get an indexer object for a given mailbox
-    async fn try_mailbox_indexer(
+    pub async fn try_mailbox_indexer(
         &self,
         metrics: &CoreMetrics,
         chain_setup: &ChainSetup,
@@ -421,10 +454,12 @@ impl Settings {
 
         let mailboxes = self.try_into_mailboxes(db.clone(), &metrics, chain_names.as_slice()).await?;
         let interchain_gas_paymasters = self.try_into_interchain_gas_paymasters(db.clone(), &metrics, chain_names.as_slice()).await?;
+        let multisig_modules = self.try_into_multisig_modules(db.clone(), &metrics, chain_names.as_slice()).await?;
 
         Ok(AbacusAgentCore {
             mailboxes, 
             interchain_gas_paymasters,
+            multisig_modules,
             db,
             metrics,
             settings: self.clone(),

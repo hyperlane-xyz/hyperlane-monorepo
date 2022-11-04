@@ -136,7 +136,6 @@ impl ValidatorSubmitter {
 }
 
 pub(crate) struct ValidatorSubmitterMetrics {
-    mailbox_state: IntGauge,
     latest_checkpoint_observed: IntGauge,
     latest_checkpoint_processed: IntGauge,
 }

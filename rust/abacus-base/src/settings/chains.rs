@@ -2,11 +2,12 @@ use serde::Deserialize;
 
 use abacus_core::{
     AbacusAbi, ContractLocator, InterchainGasPaymaster, Mailbox,
-    Signers,
+    Signers, MultisigModule,
 };
 use abacus_ethereum::{
     Connection, EthereumMailboxAbi, EthereumInterchainGasPaymasterAbi,
     MailboxBuilder, InterchainGasPaymasterBuilder,
+    MultisigModuleBuilder,
     MakeableWithProvider,
 };
 use ethers_prometheus::middleware::{
@@ -131,6 +132,8 @@ impl ChainSetup {
 }
 
 impl ChainSetup {
+
+    // TODO: Dedup with try_into_contract
     /// Try to convert the chain setting into an Outbox contract
     pub async fn try_into_mailbox(
         &self,
@@ -185,6 +188,31 @@ impl ChainSetup {
         }
     }
 
+    pub async fn try_into_multisig_module(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn MultisigModule>> {
+        match &self.chain {
+            ChainConf::Ethereum(conf) => Ok(MultisigModuleBuilder {}
+                .make_with_connection(
+                    conf.clone(),
+                    &ContractLocator {
+                        chain_name: self.name.clone(),
+                        domain: self.domain.parse().expect("invalid uint"),
+                        address: self
+                            .addresses
+                            .multisig_module
+                            .parse::<ethers::types::Address>()?
+                            .into(),
+                    },
+                    signer,
+                    Some(|| metrics.json_rpc_client_metrics()),
+                    Some((metrics.provider_metrics(), self.metrics_conf())),
+                )
+                .await?),
+        }
+    }
     /// Get a clone of the metrics conf with correctly configured contract
     /// information.
     pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {

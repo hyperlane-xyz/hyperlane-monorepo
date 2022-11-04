@@ -3,6 +3,8 @@
 use abacus_base::decl_settings;
 
 decl_settings!(Validator {
+    // The name of the origin chain
+    originchainname: String,
     /// The validator attestation signer
     validator: abacus_base::SignerConf,
     /// The checkpoint syncer configuration
