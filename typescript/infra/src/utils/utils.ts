@@ -162,18 +162,19 @@ export function writeJSON(directory: string, filename: string, obj: any) {
   );
 }
 
-export function readJSON(directory: string, filename: string) {
-  if (!fs.existsSync(directory)) {
-    throw Error("directory doesn't exist");
+export function readFileAtPath(filepath: string) {
+  if (!fs.existsSync(filepath)) {
+    throw Error(`file doesn't exist at ${filepath}`);
   }
-  return readJSONAtPath(path.join(directory, filename));
+  return fs.readFileSync(filepath, 'utf8');
 }
 
 export function readJSONAtPath(filepath: string) {
-  if (!fs.existsSync(filepath)) {
-    throw Error("file doesn't exist");
-  }
-  return JSON.parse(fs.readFileSync(filepath, 'utf8'));
+  return JSON.parse(readFileAtPath(filepath));
+}
+
+export function readJSON(directory: string, filename: string) {
+  return readJSONAtPath(path.join(directory, filename));
 }
 
 export function assertRole(roleStr: string) {

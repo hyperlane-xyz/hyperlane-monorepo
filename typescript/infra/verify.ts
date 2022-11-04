@@ -8,33 +8,27 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { fetchGCPSecret } from '../src/utils/gcloud';
-import { execCmd, readJSON } from '../src/utils/utils';
+import { execCmd, readFileAtPath, readJSONAtPath } from '../src/utils/utils';
 
-import {
-  getCoreEnvironmentConfig,
-  getCoreVerificationDirectory,
-  getEnvironment,
-} from './utils';
+import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from './utils';
 
 async function main() {
-  const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment) as any;
+  const argv = await getArgs()
+    .describe('source', 'flattened solidity source file')
+    .string('source')
+    .alias('s', 'source')
+    .describe('artifacts', 'verification artifacts JSON file')
+    .string('artifacts')
+    .alias('a', 'artifacts').argv;
+
+  const environment = assertEnvironment(argv.e!);
+  const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  const verification = readJSON(
-    getCoreVerificationDirectory(environment),
-    'verification.json',
-  );
+  const verification = readJSONAtPath(argv.artifacts!);
 
-  const sourcePath = path.join(
-    getCoreVerificationDirectory(environment),
-    'flattened.sol',
-  );
-  if (!existsSync(sourcePath)) {
-    throw new Error(
-      `Could not find flattened source at ${sourcePath}, run 'yarn hardhat flatten' in 'solidity/core'`,
-    );
-  }
+  const sourcePath = argv.source!;
+  const flattenedSource = readFileAtPath(sourcePath);
 
   // from solidity/core/hardhat.config.ts
   const compilerOptions: CompilerOptions = {
@@ -56,7 +50,6 @@ async function main() {
   await execCmd(`solc-select use ${matches[1]}`);
   await execCmd(`solc ${sourcePath}`);
 
-  const flattenedSource = readFileSync(sourcePath, { encoding: 'utf8' });
   const apiKeys: CompleteChainMap<string> = await fetchGCPSecret(
     'explorer-api-keys',
     true,

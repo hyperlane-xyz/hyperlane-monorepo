@@ -25,13 +25,12 @@ import { assertContext } from '../src/utils/utils';
 
 export function getArgs() {
   return yargs(process.argv.slice(2))
-    .alias('e', 'env')
-    .describe('e', 'deploy environment')
-    .string('e')
-    .describe('context', 'deploy context')
+    .string('environment')
+    .describe('environment', 'deploy environment')
+    .alias('e', 'environment')
     .string('context')
-    .help('h')
-    .alias('h', 'help');
+    .describe('context', 'deploy context')
+    .alias('c', 'context');
 }
 
 export async function getEnvironmentFromArgs(): Promise<string> {
