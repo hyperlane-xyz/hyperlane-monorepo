@@ -173,6 +173,21 @@ describe('Mailbox', async () => {
       );
     });
 
+    it('Fails to process message with wrong version', async () => {
+      const version = await mailbox.VERSION();
+      ({ message } = await inferMessageValues(
+        mailbox,
+        signer.address,
+        originDomain,
+        recipient,
+        'message',
+        version + 1,
+      ));
+      await expect(mailbox.process('0x', message)).to.be.revertedWith(
+        '!version',
+      );
+    });
+
     it('Fails to process message sent to a non-existent contract address', async () => {
       ({ message } = await inferMessageValues(
         mailbox,

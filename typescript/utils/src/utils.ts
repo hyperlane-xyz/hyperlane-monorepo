@@ -46,32 +46,6 @@ export function formatCallData<
   );
 }
 
-export const formatMessage = (
-  version: number | BigNumber,
-  nonce: number,
-  originDomain: Domain,
-  senderAddr: Address,
-  destinationDomain: Domain,
-  recipientAddr: Address,
-  body: HexString,
-): string => {
-  senderAddr = addressToBytes32(senderAddr);
-  recipientAddr = addressToBytes32(recipientAddr);
-
-  return ethers.utils.solidityPack(
-    ['uint32', 'uint256', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
-    [
-      version,
-      nonce,
-      originDomain,
-      senderAddr,
-      destinationDomain,
-      recipientAddr,
-      body,
-    ],
-  );
-};
-
 export const formatMultisigModuleMetadata = (
   checkpoint: Checkpoint,
   originMailbox: Address,
@@ -101,6 +75,32 @@ export const formatMultisigModuleMetadata = (
   );
 };
 
+export const formatMessage = (
+  version: number | BigNumber,
+  nonce: number | BigNumber,
+  originDomain: Domain,
+  senderAddr: Address,
+  destinationDomain: Domain,
+  recipientAddr: Address,
+  body: HexString,
+): string => {
+  senderAddr = addressToBytes32(senderAddr);
+  recipientAddr = addressToBytes32(recipientAddr);
+
+  return ethers.utils.solidityPack(
+    ['uint8', 'uint256', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
+    [
+      version,
+      nonce,
+      originDomain,
+      senderAddr,
+      destinationDomain,
+      recipientAddr,
+      body,
+    ],
+  );
+};
+
 /**
  * Parse a serialized Abacus message from raw bytes.
  *
@@ -109,13 +109,13 @@ export const formatMultisigModuleMetadata = (
  */
 export function parseMessage(message: string): ParsedMessage {
   const buf = Buffer.from(utils.arrayify(message));
-  const version = buf.readUInt32BE(0);
-  const nonce = BigNumber.from(utils.hexlify(buf.slice(4, 36)));
-  const origin = buf.readUInt32BE(36);
-  const sender = utils.hexlify(buf.slice(40, 72));
-  const destination = buf.readUInt32BE(72);
-  const recipient = utils.hexlify(buf.slice(40, 72));
-  const body = utils.hexlify(buf.slice(72));
+  const version = buf.readUint8(0);
+  const nonce = BigNumber.from(utils.hexlify(buf.slice(1, 33)));
+  const origin = buf.readUInt32BE(33);
+  const sender = utils.hexlify(buf.slice(37, 69));
+  const destination = buf.readUInt32BE(69);
+  const recipient = utils.hexlify(buf.slice(73, 105));
+  const body = utils.hexlify(buf.slice(105));
   return { version, nonce, origin, sender, destination, recipient, body };
 }
 

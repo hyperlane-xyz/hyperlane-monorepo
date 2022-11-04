@@ -10,6 +10,14 @@ import {TypeCasts} from "./TypeCasts.sol";
 library Message {
     using TypeCasts for bytes32;
 
+    uint256 private constant VERSION_OFFSET = 0;
+    uint256 private constant NONCE_OFFSET = 1;
+    uint256 private constant ORIGIN_OFFSET = 33;
+    uint256 private constant SENDER_OFFSET = 37;
+    uint256 private constant DESTINATION_OFFSET = 69;
+    uint256 private constant RECIPIENT_OFFSET = 73;
+    uint256 private constant BODY_OFFSET = 105;
+
     /**
      * @notice Returns formatted (packed) Hyperlane message with provided fields
      * @dev This function should only be used in memory message construction.
@@ -23,7 +31,7 @@ library Message {
      * @return Formatted message
      */
     function formatMessage(
-        uint32 _version,
+        uint8 _version,
         uint256 _nonce,
         uint32 _originDomain,
         bytes32 _sender,
@@ -57,8 +65,8 @@ library Message {
      * @param _message ABI encoded Hyperlane message.
      * @return Version of `_message`
      */
-    function version(bytes calldata _message) internal pure returns (uint32) {
-        return uint32(bytes4(_message[0:4]));
+    function version(bytes calldata _message) internal pure returns (uint8) {
+        return uint8(bytes1(_message[VERSION_OFFSET:NONCE_OFFSET]));
     }
 
     /**
@@ -67,7 +75,7 @@ library Message {
      * @return Nonce of `_message`
      */
     function nonce(bytes calldata _message) internal pure returns (uint256) {
-        return uint256(bytes32(_message[4:36]));
+        return uint256(bytes32(_message[NONCE_OFFSET:ORIGIN_OFFSET]));
     }
 
     /**
@@ -76,7 +84,7 @@ library Message {
      * @return Origin domain of `_message`
      */
     function origin(bytes calldata _message) internal pure returns (uint32) {
-        return uint32(bytes4(_message[36:40]));
+        return uint32(bytes4(_message[ORIGIN_OFFSET:SENDER_OFFSET]));
     }
 
     /**
@@ -85,7 +93,7 @@ library Message {
      * @return Sender of `_message` as bytes32
      */
     function sender(bytes calldata _message) internal pure returns (bytes32) {
-        return bytes32(_message[40:72]);
+        return bytes32(_message[SENDER_OFFSET:DESTINATION_OFFSET]);
     }
 
     /**
@@ -111,7 +119,7 @@ library Message {
         pure
         returns (uint32)
     {
-        return uint32(bytes4(_message[72:76]));
+        return uint32(bytes4(_message[DESTINATION_OFFSET:RECIPIENT_OFFSET]));
     }
 
     /**
@@ -124,7 +132,7 @@ library Message {
         pure
         returns (bytes32)
     {
-        return bytes32(_message[76:108]);
+        return bytes32(_message[RECIPIENT_OFFSET:BODY_OFFSET]);
     }
 
     /**
@@ -150,6 +158,6 @@ library Message {
         pure
         returns (bytes calldata)
     {
-        return bytes(_message[108:]);
+        return bytes(_message[BODY_OFFSET:]);
     }
 }
