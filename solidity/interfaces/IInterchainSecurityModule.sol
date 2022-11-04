@@ -8,7 +8,7 @@ interface IInterchainSecurityModule {
         returns (bool);
 }
 
-interface IUsesInterchainSecurityModule {
+interface ISpecifiesInterchainSecurityModule {
     function interchainSecurityModule()
         external
         view

@@ -12,13 +12,21 @@ pragma solidity >=0.8.0;
  * [????:????] Validator addresses
  */
 library MultisigModuleMetadata {
+    uint256 private constant MERKLE_ROOT_OFFSET = 0;
+    uint256 private constant MERKLE_INDEX_OFFSET = 32;
+    uint256 private constant ORIGIN_MAILBOX_OFFSET = 64;
+    uint256 private constant MERKLE_PROOF_OFFSET = 96;
+    uint256 private constant THRESHOLD_OFFSET = 1120;
+    uint256 private constant SIGNATURES_OFFSET = 1152;
+    uint256 private constant SIGNATURE_LENGTH = 65;
+
     /**
      * @notice Returns the merkle root of the signed checkpoint.
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return Merkle root of the signed checkpoint
      */
     function root(bytes calldata _metadata) internal pure returns (bytes32) {
-        return bytes32(_metadata[0:32]);
+        return bytes32(_metadata[MERKLE_ROOT_OFFSET:MERKLE_INDEX_OFFSET]);
     }
 
     /**
@@ -27,7 +35,10 @@ library MultisigModuleMetadata {
      * @return Index of the signed checkpoint
      */
     function index(bytes calldata _metadata) internal pure returns (uint256) {
-        return uint256(bytes32(_metadata[32:64]));
+        return
+            uint256(
+                bytes32(_metadata[MERKLE_INDEX_OFFSET:ORIGIN_MAILBOX_OFFSET])
+            );
     }
 
     /**
@@ -40,7 +51,7 @@ library MultisigModuleMetadata {
         pure
         returns (bytes32)
     {
-        return bytes32(_metadata[64:96]);
+        return bytes32(_metadata[ORIGIN_MAILBOX_OFFSET:MERKLE_PROOF_OFFSET]);
     }
 
     /**
@@ -55,7 +66,11 @@ library MultisigModuleMetadata {
         pure
         returns (bytes32[32] memory)
     {
-        return abi.decode(_metadata[96:1120], (bytes32[32]));
+        return
+            abi.decode(
+                _metadata[MERKLE_PROOF_OFFSET:THRESHOLD_OFFSET],
+                (bytes32[32])
+            );
     }
 
     /**
@@ -69,7 +84,7 @@ library MultisigModuleMetadata {
         pure
         returns (uint256)
     {
-        return uint256(bytes32(_metadata[1120:1152]));
+        return uint256(bytes32(_metadata[THRESHOLD_OFFSET:SIGNATURES_OFFSET]));
     }
 
     /**
@@ -85,8 +100,8 @@ library MultisigModuleMetadata {
         pure
         returns (bytes calldata)
     {
-        uint256 _start = 1152 + (_index * 65);
-        uint256 _end = _start + 65;
+        uint256 _start = SIGNATURES_OFFSET + (_index * SIGNATURE_LENGTH);
+        uint256 _end = _start + SIGNATURE_LENGTH;
         return _metadata[_start:_end];
     }
 
@@ -104,11 +119,7 @@ library MultisigModuleMetadata {
     {
         // Validator addresses are left padded to bytes32 in order to match
         // abi.encodePacked(address[]).
-        uint256 _start = 1152 +
-            (threshold(_metadata)) *
-            65 +
-            (_index * 32) +
-            12;
+        uint256 _start = _validatorsOffset(_metadata) + (_index * 32) + 12;
         uint256 _end = _start + 20;
         return address(bytes20(_metadata[_start:_end]));
     }
@@ -126,8 +137,20 @@ library MultisigModuleMetadata {
         pure
         returns (bytes calldata)
     {
-        uint256 _start = 1152 + (threshold(_metadata)) * 65;
-        uint256 _end = _metadata.length;
-        return _metadata[_start:_end];
+        return _metadata[_validatorsOffset(_metadata):];
+    }
+
+    /**
+     * @notice Returns the offset in bytes of the list of validators within
+     * `_metadata`.
+     * @param _metadata ABI encoded Multisig ISM metadata.
+     * @return The index at which the list of validators starts
+     */
+    function _validatorsOffset(bytes calldata _metadata)
+        private
+        pure
+        returns (uint256)
+    {
+        return SIGNATURES_OFFSET + (threshold(_metadata)) * 65;
     }
 }
