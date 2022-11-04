@@ -23,6 +23,7 @@ enum ExplorerApiActions {
 
 enum ExplorerApiErrors {
   ALREADY_VERIFIED = 'Contract source code already verified',
+  ALREADY_VERIFIED2 = 'Already Verified',
   VERIFICATION_PENDING = 'Pending in queue',
   PROXY_FAILED = 'A corresponding implementation contract was unfortunately not detected for the proxy address.',
 }
@@ -99,6 +100,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
           await utils.sleep(5000);
           return this.submitForm(chain, action, options);
         case ExplorerApiErrors.ALREADY_VERIFIED:
+        case ExplorerApiErrors.ALREADY_VERIFIED2:
           return;
         case ExplorerApiErrors.PROXY_FAILED:
         default:

@@ -27,6 +27,16 @@ export enum Chains { // must be string type to be used with Object.keys
   test3 = 'test3',
 }
 
+export enum DeprecatedChains {
+  rinkeby = 'rinkeby',
+  optimismrinkeby = 'optimismrinkeby',
+  arbitrumrinkeby = 'arbitrumrinkeby',
+  kovan = 'kovan',
+  optimismkovan = 'optimismkovan',
+  arbitrumkovan = 'arbitrumkovan',
+}
+export const AllDeprecatedChains = Object.keys(DeprecatedChains) as string[];
+
 export const Mainnets = [
   Chains.arbitrum,
   Chains.avalanche,
