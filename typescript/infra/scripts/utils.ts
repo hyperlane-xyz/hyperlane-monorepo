@@ -25,17 +25,19 @@ import { assertContext } from '../src/utils/utils';
 
 export function getArgs() {
   return yargs(process.argv.slice(2))
-    .string('environment')
     .describe('environment', 'deploy environment')
+    .coerce('environment', assertEnvironment)
+    .demandOption('environment')
     .alias('e', 'environment')
-    .string('context')
     .describe('context', 'deploy context')
+    .coerce('context', assertContext)
+    .demandOption('context')
     .alias('c', 'context');
 }
 
 export async function getEnvironmentFromArgs(): Promise<string> {
   const argv = await getArgs().argv;
-  return argv.e!;
+  return argv.environment!;
 }
 
 export function assertEnvironment(env: string): DeployEnvironment {

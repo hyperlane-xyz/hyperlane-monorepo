@@ -14,13 +14,8 @@ import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { ConnectionType } from '../../src/config/agent';
 import { startMetricsServer } from '../../src/utils/metrics';
-import {
-  assertChain,
-  assertContext,
-  diagonalize,
-  sleep,
-} from '../../src/utils/utils';
-import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from '../utils';
+import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
+import { getArgs, getCoreEnvironmentConfig } from '../utils';
 
 import { getApp } from './utils';
 
@@ -69,12 +64,6 @@ const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
 
 function getKathyArgs() {
   return getArgs()
-    .coerce('e', assertEnvironment)
-    .demandOption('e')
-
-    .coerce('context', assertContext)
-    .demandOption('context')
-
     .boolean('cycle-once')
     .describe(
       'cycle-once',
@@ -125,7 +114,7 @@ function getKathyArgs() {
 // Returns whether an error occurred
 async function main(): Promise<boolean> {
   const {
-    e: environment,
+    environment,
     context,
     chainsToSkip,
     cycleOnce,

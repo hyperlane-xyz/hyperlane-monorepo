@@ -1,6 +1,3 @@
-import { existsSync, readFileSync } from 'fs';
-import path from 'path';
-
 import {
   CompilerOptions,
   CompleteChainMap,
@@ -14,12 +11,12 @@ import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from './utils';
 
 async function main() {
   const argv = await getArgs()
-    .describe('source', 'flattened solidity source file')
     .string('source')
-    .alias('s', 'source')
-    .describe('artifacts', 'verification artifacts JSON file')
+    .describe('source', 'flattened solidity source file')
+    .demandOption('source')
     .string('artifacts')
-    .alias('a', 'artifacts').argv;
+    .describe('artifacts', 'verification artifacts JSON file')
+    .demandOption('artifacts').argv;
 
   const environment = assertEnvironment(argv.e!);
   const config = getCoreEnvironmentConfig(environment);
