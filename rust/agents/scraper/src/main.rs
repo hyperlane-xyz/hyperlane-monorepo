@@ -21,11 +21,9 @@ use scraper_agent::Scraper;
 
 mod db;
 
-mod block_cursor;
 mod chain_scraper;
 mod conversions;
 mod date_time;
-mod message_linker;
 mod scraper_agent;
 mod settings;
 

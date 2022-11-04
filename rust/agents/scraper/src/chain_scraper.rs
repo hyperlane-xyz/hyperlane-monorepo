@@ -18,7 +18,7 @@ use abacus_core::{
 
 use crate::conversions::{format_h256, parse_h256, u256_as_scaled_f64};
 use crate::date_time;
-use crate::db::{BlockCursor, Delivery, ScraperDb, StorableMessage};
+use crate::db::{BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn};
 
 #[derive(Debug, Clone)]
 pub struct Remote {
@@ -31,6 +31,24 @@ pub struct Local {
     pub outbox: Arc<dyn Outbox>,
     pub indexer: Arc<dyn OutboxIndexer>,
     pub provider: Arc<dyn AbacusProvider>,
+}
+
+#[derive(Debug, Clone)]
+struct Delivery {
+    pub inbox: H256,
+    pub message_hash: H256,
+    pub meta: LogMeta,
+}
+
+impl Delivery {
+    fn as_storable(&self, txn_id: i64) -> StorableDelivery {
+        StorableDelivery {
+            inbox: self.inbox,
+            message_hash: self.message_hash,
+            meta: &self.meta,
+            txn_id,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -324,8 +342,13 @@ impl SqlChainScraper {
             return Ok(());
         }
 
+        let storable = deliveries.iter().map(|delivery| {
+            let txn_id = txns.get(&delivery.meta.transaction_hash).unwrap().0;
+            delivery.as_storable(txn_id)
+        });
+
         self.db
-            .record_deliveries(self.local_domain(), deliveries.iter())
+            .record_deliveries(self.local_domain(), storable)
             .await
     }
 
@@ -388,46 +411,23 @@ impl SqlChainScraper {
         &self,
         txns: impl Iterator<Item = (H256, i64)>,
     ) -> Result<impl Iterator<Item = (H256, i64)>> {
-        use crate::db::transaction;
-        use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect};
-
         // mapping of txn hash to (txn_id, block_id).
         let mut txns: HashMap<H256, (Option<i64>, i64)> = txns
             .map(|(txn_hash, block_id)| (txn_hash, (None, block_id)))
             .collect();
 
-        let db_txns: Vec<(i64, String)> = if !txns.is_empty() {
-            #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-            enum QueryAs {
-                Id,
-                Hash,
-            }
-
-            // check database to see which txns we already know and fetch their IDs
-            transaction::Entity::find()
-                .filter(
-                    txns.iter()
-                        .map(|(txn, _)| transaction::Column::Hash.eq(format_h256(txn)))
-                        .reduce(|acc, i| acc.or(i))
-                        .unwrap(),
-                )
-                .select_only()
-                .column_as(transaction::Column::Id, QueryAs::Id)
-                .column_as(transaction::Column::Hash, QueryAs::Hash)
-                .into_values::<_, QueryAs>()
-                .all(&self.db)
-                .await?
+        let db_txns = if !txns.is_empty() {
+            self.db.get_txn_ids(txns.keys()).await?
         } else {
-            vec![]
+            HashMap::new()
         };
-        for txn in db_txns {
-            let hash = parse_h256(&txn.1)?;
+        for (hash, id) in db_txns {
             // insert the txn id now that we have it to the Option value in txns
             let _ = txns
                 .get_mut(&hash)
                 .expect("We found a txn that we did not request")
                 .0
-                .insert(txn.0);
+                .insert(id);
         }
 
         // insert any txns that were not known and get their IDs
@@ -436,37 +436,17 @@ impl SqlChainScraper {
         let mut txns_to_insert: Vec<(&H256, &mut (Option<i64>, i64))> =
             txns.iter_mut().filter(|(_, id)| id.0.is_none()).collect();
 
-        let mut models: Vec<transaction::ActiveModel> = Vec::with_capacity(txns_to_insert.len());
+        let mut storable: Vec<StorableTxn> = Vec::with_capacity(txns_to_insert.len());
         let as_f64 = |v: ethers::types::U256| u256_as_scaled_f64(v, 18);
         for (hash, (_, block_id)) in txns_to_insert.iter() {
-            let txn = self.local.provider.get_txn_by_hash(hash).await?;
-            let receipt = txn
-                .receipt
-                .as_ref()
-                .ok_or_else(|| eyre!("Transaction is not yet included"))?;
-
-            models.push(transaction::ActiveModel {
-                id: NotSet,
-                block_id: Unchanged(*block_id),
-                gas_limit: Set(as_f64(txn.gas_limit)),
-                max_priority_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(as_f64)),
-                hash: Unchanged(format_h256(hash)),
-                time_created: Set(date_time::now()),
-                gas_used: Set(as_f64(receipt.gas_used)),
-                gas_price: Set(txn.gas_price.map(as_f64)),
-                effective_gas_price: Set(receipt.effective_gas_price.map(as_f64)),
-                nonce: Set(txn.nonce as i64),
-                sender: Set(format_h256(&txn.sender)),
-                recipient: Set(txn.recipient.as_ref().map(format_h256)),
-                max_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(as_f64)),
-                cumulative_gas_used: Set(as_f64(receipt.cumulative_gas_used)),
+            storable.push(StorableTxn {
+                info: self.local.provider.get_txn_by_hash(hash).await?,
+                block_id: *block_id,
             });
         }
 
-        if !models.is_empty() {
-            trace!(?models, "Writing txns to database");
-            // this is actually the ID that was first inserted for postgres
-            let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
+        if !storable.is_empty() {
+            let mut cur_id = self.db.record_txns(storable.into_iter()).await?;
             for (_hash, (txn_id, _block_id)) in txns_to_insert.iter_mut() {
                 debug_assert!(cur_id > 0);
                 let _ = txn_id.insert(cur_id);

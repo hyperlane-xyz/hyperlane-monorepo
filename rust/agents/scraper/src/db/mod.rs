@@ -1,17 +1,21 @@
+use std::collections::HashMap;
+use std::ops::Deref;
+
 use ethers::prelude::H256;
-use eyre::Result;
+use eyre::{eyre, Result};
 use sea_orm::sea_query::OnConflict;
 use sea_orm::ActiveValue::*;
 use sea_orm::{prelude::*, Insert, QueryOrder, QuerySelect};
 use sea_orm::{Database, SelectorTrait};
 use tracing::{instrument, trace};
 
-use abacus_core::{CommittedMessage, LogMeta};
+use abacus_core::{CommittedMessage, LogMeta, TxnInfo};
 pub use block_cursor::BlockCursor;
 use generated::*;
 pub use message_linker::delivered_message_linker;
 
-use crate::conversions::format_h256;
+use crate::conversions::{format_h256, parse_h256, u256_as_scaled_f64};
+use crate::date_time;
 
 #[allow(clippy::all)]
 mod generated;
@@ -22,16 +26,31 @@ mod message_linker;
 pub struct StorableMessage<'a> {
     pub msg: CommittedMessage,
     pub meta: &'a LogMeta,
-    /// The database id of the transaction
+    /// The database id of the transaction the message was sent in
     pub txn_id: i64,
     pub timestamp: TimeDateTime,
 }
 
 #[derive(Debug, Clone)]
-pub struct Delivery {
+pub struct StorableDelivery<'a> {
     pub inbox: H256,
     pub message_hash: H256,
-    pub meta: LogMeta,
+    pub meta: &'a LogMeta,
+    /// The database id of the transaction the delivery event occurred in
+    pub txn_id: i64,
+}
+
+pub struct StorableTxn {
+    pub info: TxnInfo,
+    pub block_id: i64,
+}
+
+impl Deref for StorableTxn {
+    type Target = TxnInfo;
+
+    fn deref(&self) -> &Self::Target {
+        &self.info
+    }
 }
 
 #[derive(Clone)]
@@ -40,7 +59,7 @@ pub struct ScraperDb(DbConn);
 impl ScraperDb {
     #[instrument]
     pub async fn connect(url: &str) -> Result<Self> {
-        let db = Database::connect(&url).await?;
+        let db = Database::connect(url).await?;
         Ok(Self(db))
     }
 
@@ -128,13 +147,12 @@ impl ScraperDb {
     pub async fn record_deliveries(
         &self,
         domain: u32,
-        deliveries: impl Iterator<Item = &Delivery>,
+        deliveries: impl Iterator<Item = StorableDelivery<'_>>,
     ) -> Result<()> {
         // we have a race condition where a message may not have been scraped yet even
         // though we have received news of delivery on this chain, so the
         // message IDs are looked up in a separate "thread".
         let models = deliveries
-            .iter()
             .map(|delivery| delivered_message::ActiveModel {
                 id: NotSet,
                 time_created: Set(crate::date_time::now()),
@@ -142,7 +160,7 @@ impl ScraperDb {
                 hash: Unchanged(format_h256(&delivery.message_hash)),
                 domain: Unchanged(domain as i32),
                 inbox_address: Unchanged(format_h256(&delivery.inbox)),
-                tx_id: Set(txns.get(&delivery.meta.transaction_hash).unwrap().0),
+                tx_id: Set(delivery.txn_id),
             })
             .collect::<Vec<_>>();
 
@@ -158,8 +176,73 @@ impl ScraperDb {
                     ])
                     .to_owned(),
             )
-            .exec(&self.db)
+            .exec(&self.0)
             .await?;
         Ok(())
+    }
+
+    pub async fn get_txn_ids(
+        &self,
+        hashes: impl Iterator<Item = &H256>,
+    ) -> Result<HashMap<H256, i64>> {
+        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+        enum QueryAs {
+            Id,
+            Hash,
+        }
+
+        // check database to see which txns we already know and fetch their IDs
+        transaction::Entity::find()
+            .filter(
+                hashes
+                    .map(|txn| transaction::Column::Hash.eq(format_h256(txn)))
+                    .reduce(|acc, i| acc.or(i))
+                    .expect("Expected one or more hashes"),
+            )
+            .select_only()
+            .column_as(transaction::Column::Id, QueryAs::Id)
+            .column_as(transaction::Column::Hash, QueryAs::Hash)
+            .into_values::<(i64, String), QueryAs>()
+            .all(&self.0)
+            .await?
+            .into_iter()
+            .map(|(id, hash)| Ok((parse_h256(&hash)?, id)))
+            .collect::<Result<_>>()
+    }
+
+    #[instrument(skip_all)]
+    pub async fn record_txns(&self, txns: impl Iterator<Item = StorableTxn>) -> Result<i64> {
+        let as_f64 = |v: ethers::types::U256| u256_as_scaled_f64(v, 18);
+        let models = txns
+            .map(|txn| {
+                let receipt = txn
+                    .receipt
+                    .as_ref()
+                    .ok_or_else(|| eyre!("Transaction is not yet included"))?;
+
+                transaction::ActiveModel {
+                    id: NotSet,
+                    block_id: Unchanged(txn.block_id),
+                    gas_limit: Set(as_f64(txn.gas_limit)),
+                    max_priority_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(as_f64)),
+                    hash: Unchanged(format_h256(&txn.hash)),
+                    time_created: Set(date_time::now()),
+                    gas_used: Set(as_f64(receipt.gas_used)),
+                    gas_price: Set(txn.gas_price.map(as_f64)),
+                    effective_gas_price: Set(receipt.effective_gas_price.map(as_f64)),
+                    nonce: Set(txn.nonce as i64),
+                    sender: Set(format_h256(&txn.sender)),
+                    recipient: Set(txn.recipient.as_ref().map(format_h256)),
+                    max_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(as_f64)),
+                    cumulative_gas_used: Set(as_f64(receipt.cumulative_gas_used)),
+                }
+            })
+            .collect::<Vec<_>>();
+
+        debug_assert!(!models.is_empty());
+        trace!(?models, "Writing txns to database");
+        // this is actually the ID that was first inserted for postgres
+        let first_id = Insert::many(models).exec(&self.0).await?.last_insert_id;
+        Ok(first_id)
     }
 }
