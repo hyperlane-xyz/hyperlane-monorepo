@@ -131,33 +131,13 @@ impl ChainSetup {
 }
 
 impl ChainSetup {
-
-    // TODO: Dedup with try_into_contract
-    /// Try to convert the chain setting into an Outbox contract
+    /// Try to convert the chain setting into a Mailbox contract
     pub async fn try_into_mailbox(
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn Mailbox>> {
-        match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(MailboxBuilder {}
-                .make_with_connection(
-                    conf.clone(),
-                    &ContractLocator {
-                        chain_name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: self
-                            .addresses
-                            .mailbox
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    Some(|| metrics.json_rpc_client_metrics()),
-                    Some((metrics.provider_metrics(), self.metrics_conf())),
-                )
-                .await?),
-        }
+        self.try_into_contract(signer, metrics, MailboxBuilder {}, self.addresses.mailbox.clone()).await
     }
 
     /// Try to convert the chain setting into an InterchainGasPaymaster contract
@@ -166,18 +146,34 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn InterchainGasPaymaster>> {
+        self.try_into_contract(signer, metrics, InterchainGasPaymasterBuilder {}, self.addresses.interchain_gas_paymaster.clone()).await
+    }
+
+    /// Try to convert the chain setting into a Multisig Module contract
+    pub async fn try_into_multisig_module(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn MultisigModule>> {
+        self.try_into_contract(signer, metrics, MultisigModuleBuilder {}, self.addresses.multisig_module.clone()).await
+    }
+
+    /// Try to convert the chain setting into a contract
+    async fn try_into_contract<T: MakeableWithProvider>(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+        builder: T,
+        address: String,
+    ) -> eyre::Result<T::Output> {
         match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(InterchainGasPaymasterBuilder {}
+            ChainConf::Ethereum(conf) => Ok(builder
                 .make_with_connection(
                     conf.clone(),
                     &ContractLocator {
                         chain_name: self.name.clone(),
                         domain: self.domain.parse().expect("invalid uint"),
-                        address: self
-                            .addresses
-                            .interchain_gas_paymaster
-                            .parse::<ethers::types::Address>()?
-                            .into(),
+                        address: address.parse::<ethers::types::Address>()?.into(),
                     },
                     signer,
                     Some(|| metrics.json_rpc_client_metrics()),
@@ -187,32 +183,6 @@ impl ChainSetup {
         }
     }
 
-    /// Try to convert the chain setting into a Multisig Module contract
-    pub async fn try_into_multisig_module(
-        &self,
-        signer: Option<Signers>,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn MultisigModule>> {
-        match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(MultisigModuleBuilder {}
-                .make_with_connection(
-                    conf.clone(),
-                    &ContractLocator {
-                        chain_name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: self
-                            .addresses
-                            .multisig_module
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    Some(|| metrics.json_rpc_client_metrics()),
-                    Some((metrics.provider_metrics(), self.metrics_conf())),
-                )
-                .await?),
-        }
-    }
     /// Get a clone of the metrics conf with correctly configured contract
     /// information.
     pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
