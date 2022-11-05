@@ -3,7 +3,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::{AbacusError, Decode, Encode};
 
-const ABACUS_MESSAGE_PREFIX_LEN: usize = 105;
+const ABACUS_MESSAGE_PREFIX_LEN: usize = 77;
 
 /// A Stamped message that has been committed at some leaf index
 pub type RawAbacusMessage = Vec<u8>;
@@ -185,13 +185,13 @@ impl Decode for AbacusMessage {
 */
 
 impl AbacusMessage {
+    // TODO: It looks like this may not match the solidity produced id!
+    // Gas payments return a different id.
     /// Convert the message to a leaf
     pub fn id(&self) -> H256 {
-        let buffer = [0u8; 28];
         H256::from_slice(
             Keccak256::new()
                 .chain(&self.to_vec())
-                .chain(buffer)
                 .finalize()
                 .as_slice(),
         )

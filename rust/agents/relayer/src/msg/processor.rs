@@ -7,7 +7,7 @@ use tokio::{
     task::JoinHandle,
     time::Instant,
 };
-use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
+use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use abacus_base::{CoreMetrics, CachingMailbox};
 use abacus_core::{
@@ -126,12 +126,10 @@ impl MessageProcessor {
         // Skip if for different inbox.
         if message.destination != self.mailbox.local_domain() {
             debug!(
-                chain=?self.mailbox.chain_name(),
-                domain=?self.mailbox.local_domain(),
-                destination=?message.destination,
                 id=?message.id(),
-                nonce=self.message_nonce,
-                "Message destined for other domain, skipping nonce {}", self.message_nonce);
+                destination=message.destination,
+                nonce=message.nonce,
+                "Message destined for other domain, skipping");
             self.message_nonce += 1;
             return Ok(());
         }
@@ -139,12 +137,11 @@ impl MessageProcessor {
         // Skip if not whitelisted.
         if !self.whitelist.msg_matches(&message, true) {
             debug!(
-                chain=?self.mailbox.chain_name(),
-                domain=?self.mailbox.local_domain(),
-                destination=?message.destination,
                 id=?message.id(),
+                destination=message.destination,
+                nonce=message.nonce,
                 whitelist=?self.whitelist,
-                "Message not whitelisted, skipping nonce {}", self.message_nonce);
+                "Message not whitelisted, skipping");
             self.message_nonce += 1;
             return Ok(());
         }
@@ -152,12 +149,11 @@ impl MessageProcessor {
         // Skip if the message is blacklisted
         if self.blacklist.msg_matches(&message, false) {
             debug!(
-                chain=?self.mailbox.chain_name(),
-                domain=?self.mailbox.local_domain(),
-                destination=?message.destination,
                 id=?message.id(),
+                destination=message.destination,
+                nonce=message.nonce,
                 blacklist=?self.blacklist,
-                "Message blacklisted, skipping nonce {}", self.message_nonce);
+                "Message blacklisted, skipping");
             self.message_nonce += 1;
             return Ok(());
         }
@@ -179,6 +175,11 @@ impl MessageProcessor {
         }
         let checkpoint = ckpt.unwrap();
         assert!(checkpoint.checkpoint.index >= self.message_nonce);
+        info!(
+            id=?message.id(),
+            nonce=message.nonce,
+            "Found signed checkpoint for message"
+        );
 
         // Include proof against checkpoint for message in the args provided to the
         // submitter.
@@ -196,8 +197,9 @@ impl MessageProcessor {
             .is_some()
         {
             debug!(
-                "Sending message at idx {} to submitter",
-                self.message_nonce
+                id=?message.id(),
+                nonce=message.nonce,
+                "Sending message to submitter"
             );
             // Finally, build the submit arg and dispatch it to the submitter.
             let submit_args = SubmitMessageArgs::new(

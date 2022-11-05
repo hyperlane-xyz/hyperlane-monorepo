@@ -21,8 +21,8 @@ pub fn strip_0x_prefix(s: &str) -> &str {
 pub fn domain_hash(address: H256, domain: u32) -> H256 {
     H256::from_slice(
         Keccak256::new()
-            .chain(address.as_ref())
             .chain(domain.to_be_bytes())
+            .chain(address.as_ref())
             .chain("HYPERLANE".as_bytes())
             .finalize()
             .as_slice(),

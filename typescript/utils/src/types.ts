@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 /********* BASIC TYPES *********/
 export type Domain = number;
@@ -37,7 +37,7 @@ export type CallData = {
 
 export type ParsedMessage = {
   version: number;
-  nonce: BigNumber;
+  nonce: number;
   origin: number;
   sender: string;
   destination: number;

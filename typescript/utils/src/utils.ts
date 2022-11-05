@@ -88,7 +88,7 @@ export const formatMessage = (
   recipientAddr = addressToBytes32(recipientAddr);
 
   return ethers.utils.solidityPack(
-    ['uint8', 'uint256', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
+    ['uint8', 'uint32', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
     [
       version,
       nonce,
@@ -110,12 +110,12 @@ export const formatMessage = (
 export function parseMessage(message: string): ParsedMessage {
   const buf = Buffer.from(utils.arrayify(message));
   const version = buf.readUint8(0);
-  const nonce = BigNumber.from(utils.hexlify(buf.slice(1, 33)));
-  const origin = buf.readUInt32BE(33);
-  const sender = utils.hexlify(buf.slice(37, 69));
-  const destination = buf.readUInt32BE(69);
-  const recipient = utils.hexlify(buf.slice(73, 105));
-  const body = utils.hexlify(buf.slice(105));
+  const nonce = buf.readUInt32BE(1);
+  const origin = buf.readUInt32BE(5);
+  const sender = utils.hexlify(buf.slice(9, 41));
+  const destination = buf.readUInt32BE(41);
+  const recipient = utils.hexlify(buf.slice(45, 77));
+  const body = utils.hexlify(buf.slice(77));
   return { version, nonce, origin, sender, destination, recipient, body };
 }
 

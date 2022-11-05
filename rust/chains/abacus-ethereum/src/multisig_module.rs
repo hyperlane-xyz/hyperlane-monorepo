@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 use std::{sync::Arc};
+use tracing::{info};
 
 use abacus_core::accumulator::merkle::Proof;
 use async_trait::async_trait;
@@ -112,19 +113,25 @@ where
     async fn format_metadata(&self, checkpoint: &MultisigSignedCheckpoint, proof: Proof) -> Result<Vec<u8>, ChainCommunicationError> {
         let threshold = self.threshold(checkpoint.checkpoint.mailbox_domain).await?;
         let validators: Vec<H256> = self.validators(checkpoint.checkpoint.mailbox_domain).await?.iter().map(|&x| H256::from(x)).collect();
-        let proof_tokens: Vec<Token> = proof.path.iter().map(|&x| Token::FixedBytes(x.to_fixed_bytes().into())).collect();
         let validator_tokens: Vec<Token> = validators.iter().map(|&x| Token::FixedBytes(x.to_fixed_bytes().into())).collect();
-        // TODO: This will not result in tight packing. May need to have a FixedArray of bytes1
-        let signature_tokens: Vec<Token> = checkpoint.signatures.iter().map(|&x| Token::FixedBytes(x.to_vec())).collect();
-        Ok(ethers::abi::encode(&[
+        let proof_tokens: Vec<Token> = proof.path.iter().map(|&x| Token::FixedBytes(x.to_fixed_bytes().into())).collect();
+        let prefix = ethers::abi::encode(&[
             Token::FixedBytes(checkpoint.checkpoint.root.to_fixed_bytes().into()),
             Token::Uint(U256::from(checkpoint.checkpoint.index)),
             Token::FixedBytes(checkpoint.checkpoint.mailbox_address.to_fixed_bytes().into()),
             Token::FixedArray(proof_tokens),
             Token::Uint(threshold),
-            Token::FixedArray(signature_tokens),
+        ]);
+        let suffix = ethers::abi::encode(&[
             Token::FixedArray(validator_tokens)
-        ]))
+        ]);
+        // The ethers encoder likes to zero-pad non word-aligned byte arrays.
+        // Thus, we pack the signatures, which are not word-aligned, ourselves.
+        let signature_vecs: Vec<Vec<u8>> = checkpoint.signatures.iter().map(|&x| x.to_vec()).collect();
+        let signature_bytes = signature_vecs.concat();
+        let metadata = [prefix, signature_bytes, suffix].concat();
+        info!("Encoded metadata {:x?}", metadata);
+        Ok(metadata)
     }
 }
 

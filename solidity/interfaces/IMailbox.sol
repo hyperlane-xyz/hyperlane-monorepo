@@ -13,7 +13,7 @@ interface IMailbox {
     function process(bytes calldata _metadata, bytes calldata _message)
         external;
 
-    function count() external view returns (uint256);
+    function count() external view returns (uint32);
 
     function root() external view returns (bytes32);
 

@@ -150,7 +150,7 @@ fn main() -> ExitCode {
         "RUN_ENV" => "test",
         "HYP_BASE_METRICS" => "9092",
         "HYP_BASE_TRACING_FMT" => "pretty",
-        "HYP_BASE_TRACING_LEVEL" => "debug",
+        "HYP_BASE_TRACING_LEVEL" => "info",
         "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
         "HYP_BASE_SIGNERS_TEST1_KEY" => "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
         "HYP_BASE_SIGNERS_TEST1_TYPE" => "hexKey",
