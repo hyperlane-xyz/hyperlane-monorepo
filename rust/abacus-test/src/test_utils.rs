@@ -31,7 +31,7 @@ mod test {
     use ethers::types::H256;
 
     use abacus_core::{
-        accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage,
+        accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, RawAbacusMessage,
     };
 
     use super::*;
@@ -42,8 +42,9 @@ mod test {
             let outbox_name = "outbox_1".to_owned();
             let db = AbacusDB::new(outbox_name, db);
 
-            let leaf_index = 100;
             let m = AbacusMessage {
+                nonce: 100,
+                version: 0,
                 origin: 10,
                 sender: H256::from_low_u64_be(4),
                 destination: 12,
@@ -51,20 +52,15 @@ mod test {
                 body: vec![1, 2, 3],
             };
 
-            let message = RawCommittedMessage {
-                leaf_index,
-                message: m.to_vec(),
-            };
+            let message = RawAbacusMessage::from(&m);
 
-            assert_eq!(m.to_leaf(leaf_index), message.leaf());
+            db.store_message(&message).unwrap();
 
-            db.store_raw_committed_message(&message).unwrap();
-
-            let by_leaf = db.message_by_leaf(message.leaf()).unwrap().unwrap();
+            let by_leaf = db.message_by_id(m.id()).unwrap().unwrap();
             assert_eq!(by_leaf, message);
 
             let by_index = db
-                .message_by_leaf_index(message.leaf_index)
+                .message_by_nonce(m.nonce)
                 .unwrap()
                 .unwrap();
             assert_eq!(by_index, message);
@@ -85,7 +81,7 @@ mod test {
             };
             db.store_proof(13, &proof).unwrap();
 
-            let by_index = db.proof_by_leaf_index(13).unwrap().unwrap();
+            let by_index = db.proof_by_nonce(13).unwrap().unwrap();
             assert_eq!(by_index, proof);
         })
         .await;

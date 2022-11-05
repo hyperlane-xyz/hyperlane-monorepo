@@ -212,14 +212,15 @@ mod test {
     use tokio::select;
     use tokio::time::{interval, timeout};
 
-    use abacus_core::{db::AbacusDB, AbacusMessage, Encode, LogMeta, RawAbacusMessage};
+    use abacus_core::{db::AbacusDB, AbacusMessage, LogMeta, RawAbacusMessage};
     use abacus_test::mocks::indexer::MockAbacusIndexer;
     use abacus_test::test_utils;
     use mockall::predicate::eq;
 
+    use crate::chains::IndexSettings;
     use crate::contract_sync::schema::OutboxContractSyncDB;
     use crate::ContractSync;
-    use crate::{settings::IndexSettings, ContractSyncMetrics, CoreMetrics};
+    use crate::{ContractSyncMetrics, CoreMetrics};
 
     #[tokio::test]
     async fn handles_missing_rpc_messages() {
@@ -236,7 +237,7 @@ mod test {
                 }
             };
 
-            let messages = (1..10).map(message_gen).collect::<Vec<AbacusMessage>>();
+            let messages = (0..10).map(message_gen).collect::<Vec<AbacusMessage>>();
 
             let meta = || LogMeta {
                 address: Default::default(),
@@ -362,7 +363,9 @@ mod test {
 
                 // Indexer retries, the same range in hope of filling the gap,
                 // which it now does successfully
+                let m3 = RawAbacusMessage::from(&messages[3]);
                 let m4 = RawAbacusMessage::from(&messages[4]);
+                let m5 = RawAbacusMessage::from(&messages[5]);
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
