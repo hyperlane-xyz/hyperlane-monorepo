@@ -96,7 +96,7 @@ impl BaseAgent for Relayer {
         ));
 
         for chain_name in self.core.mailboxes.keys() {
-            if (chain_name.eq(&self.origin_chain_name)) {
+            if chain_name.eq(&self.origin_chain_name) {
                 continue;
             }
             let signer = self

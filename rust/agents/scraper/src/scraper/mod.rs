@@ -118,15 +118,6 @@ impl Scraper {
         Ok(outboxes)
     }
 
-    async fn load_inboxes(
-        _db: &DbConn,
-        _core_settings: &Settings,
-        _metrics: &Arc<CoreMetrics>,
-    ) -> Result<HashMap<String, ()>> {
-        // TODO
-        Ok(HashMap::new())
-    }
-
     async fn load_gas_paymasters(
         _db: &DbConn,
         _core_settings: &Settings,

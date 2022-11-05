@@ -187,6 +187,7 @@ impl ChainSetup {
         }
     }
 
+    /// Try to convert the chain setting into a Multisig Module contract
     pub async fn try_into_multisig_module(
         &self,
         signer: Option<Signers>,

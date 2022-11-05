@@ -3,7 +3,6 @@
 
 use std::collections::HashMap;
 use std::{sync::Arc};
-use tracing::{info};
 
 use abacus_core::accumulator::merkle::Proof;
 use async_trait::async_trait;
@@ -50,8 +49,10 @@ where
     M: Middleware,
 {
     contract: Arc<EthereumMultisigModuleInternal<M>>,
+    #[allow(dead_code)]
     domain: u32,
     chain_name: String,
+    #[allow(dead_code)]
     provider: Arc<M>,
 }
 
@@ -130,7 +131,6 @@ where
         let signature_vecs: Vec<Vec<u8>> = checkpoint.signatures.iter().map(|&x| x.to_vec()).collect();
         let signature_bytes = signature_vecs.concat();
         let metadata = [prefix, signature_bytes, suffix].concat();
-        info!("Encoded metadata {:x?}", metadata);
         Ok(metadata)
     }
 }

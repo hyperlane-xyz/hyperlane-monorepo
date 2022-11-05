@@ -194,7 +194,7 @@ pub struct Settings {
     pub db: String,
     /// Port to listen for prometheus scrape requests
     pub metrics: Option<String>,
-    // Configuration for contracts on each chain
+    /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainSetup>,
     /// The tracing configuration
     pub tracing: TracingConfig,
@@ -320,7 +320,7 @@ impl Settings {
     async fn try_caching_multisig_module(
         &self,
         chain_setup: &ChainSetup,
-        db: DB,
+        _db: DB,
         metrics: &CoreMetrics,
     ) -> eyre::Result<CachingMultisigModule> {
         let signer = self.get_signer(&chain_setup.name).await;
