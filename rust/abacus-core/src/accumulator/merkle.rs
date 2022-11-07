@@ -173,9 +173,7 @@ impl MerkleTree {
                     // Tree is full
                     (Leaf(_), Leaf(_)) => return Err(MerkleTreeError::MerkleTreeFull),
                     // There is a right node so insert in right node
-                    (Node(_, _, _), Node(_, _, _)) => {
-                        right.push_leaf(elem, depth - 1)?
-                    }
+                    (Node(_, _, _), Node(_, _, _)) => right.push_leaf(elem, depth - 1)?,
                     // Both branches are zero, insert in left one
                     (Zero(_), Zero(_)) => {
                         *left = MerkleTree::create(&[elem], depth - 1);

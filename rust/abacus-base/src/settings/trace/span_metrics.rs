@@ -28,13 +28,12 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
     fn on_new_span(&self, _: &span::Attributes<'_>, id: &span::Id, ctx: Context<'_, S>) {
-        if let Some(span) = ctx.span(id) {
-            span.extensions_mut().insert(SpanTiming {
-                start: Instant::now(),
-            })
-        } else {
+        let Some(span) = ctx.span(id) else {
             unreachable!()
-        }
+        };
+        span.extensions_mut().insert(SpanTiming {
+            start: Instant::now(),
+        });
     }
 
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
@@ -50,9 +49,7 @@ where
 
     fn on_close(&self, id: span::Id, ctx: Context<S>) {
         let now = Instant::now();
-        let span = if let Some(span) = ctx.span(&id) {
-            span
-        } else {
+        let Some(span) = ctx.span(&id) else {
             unreachable!()
         };
 

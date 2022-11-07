@@ -113,7 +113,7 @@ pub trait MakeableWithProvider {
                         } else {
                             None
                         }
-                    },
+               k      },
                 }),
                 // steal the chain info from the middleware conf
                 chain: middleware_metrics

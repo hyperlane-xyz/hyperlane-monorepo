@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use eyre::Result;
-use sea_orm::{ActiveValue, Insert, Order, QueryOrder, QuerySelect, prelude::*};
+use sea_orm::{prelude::*, ActiveValue, Insert, Order, QueryOrder, QuerySelect};
 use tokio::sync::RwLock;
 use tracing::{debug, instrument, trace, warn};
 

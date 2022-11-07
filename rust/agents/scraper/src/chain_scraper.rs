@@ -149,9 +149,7 @@ impl SqlChainScraper {
             indexed_message_height.set(from as i64);
             indexed_deliveries_height.set(from as i64);
 
-            let tip = if let Ok(num) = self.get_finalized_block_number().await {
-                num
-            } else {
+            let Ok(tip) = self.get_finalized_block_number().await else {
                 continue;
             };
             if tip <= from {

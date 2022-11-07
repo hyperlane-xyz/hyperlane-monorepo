@@ -2,7 +2,10 @@ use std::hash::{Hash, Hasher};
 
 use ethers::prelude::H256;
 use eyre::{Context, Result};
-use sea_orm::{prelude::*, ActiveValue::*, DbErr, EntityTrait, FromQueryResult, Insert, QueryResult, QuerySelect};
+use sea_orm::{
+    prelude::*, ActiveValue::*, DbErr, EntityTrait, FromQueryResult, Insert, QueryResult,
+    QuerySelect,
+};
 use tracing::trace;
 
 use abacus_core::BlockInfo;
