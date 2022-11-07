@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import { Inbox, Outbox, Outbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
@@ -173,7 +173,8 @@ export class HyperlaneCore<
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
       const parsed = utils.parseMessage(message);
-      return { leafIndex: log.args['leafIndex'], message, parsed };
+      const leafIndex = BigNumber.from(log.args['leafIndex']).toNumber();
+      return { leafIndex, message, parsed };
     });
   }
 
