@@ -59,7 +59,6 @@ impl PrimaryKeyTrait for PrimaryKey {
 pub enum Relation {
     Domain,
     Transaction,
-    DeliveredMessage,
     MessageState,
 }
 
@@ -94,7 +93,6 @@ impl RelationTrait for Relation {
                 .from(Column::OriginTxId)
                 .to(super::transaction::Column::Id)
                 .into(),
-            Self::DeliveredMessage => Entity::has_one(super::delivered_message::Entity).into(),
             Self::MessageState => Entity::has_many(super::message_state::Entity).into(),
         }
     }
@@ -109,12 +107,6 @@ impl Related<super::domain::Entity> for Entity {
 impl Related<super::transaction::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Transaction.def()
-    }
-}
-
-impl Related<super::delivered_message::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::DeliveredMessage.def()
     }
 }
 

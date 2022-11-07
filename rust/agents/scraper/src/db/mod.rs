@@ -3,18 +3,17 @@ use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
 use ethers::prelude::H256;
-use eyre::{Context, eyre, Result};
-use sea_orm::{FromQueryResult, Insert, prelude::*, QueryOrder, QuerySelect};
-use sea_orm::{Database, SelectorTrait};
+use eyre::{eyre, Context, Result};
+use sea_orm::sea_query::OnConflict;
 use sea_orm::ActiveValue::*;
 use sea_orm::DbErr;
-use sea_orm::sea_query::OnConflict;
+use sea_orm::{prelude::*, FromQueryResult, Insert, QueryOrder, QuerySelect};
+use sea_orm::{Database};
 use tracing::{instrument, trace};
 
 use abacus_core::{BlockInfo, CommittedMessage, LogMeta, TxnInfo};
 pub use block_cursor::BlockCursor;
 use generated::*;
-pub use message_linker::delivered_message_linker;
 
 use crate::conversions::{format_h256, parse_h256, u256_as_scaled_f64};
 use crate::date_time;
@@ -23,7 +22,6 @@ use crate::date_time;
 mod generated;
 
 mod block_cursor;
-mod message_linker;
 
 pub struct StorableMessage<'a> {
     pub msg: CommittedMessage,
@@ -82,7 +80,7 @@ impl Deref for StorableTxn {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ScraperDb(DbConn);
 
 impl ScraperDb {
@@ -90,6 +88,10 @@ impl ScraperDb {
     pub async fn connect(url: &str) -> Result<Self> {
         let db = Database::connect(url).await?;
         Ok(Self(db))
+    }
+
+    pub async fn block_cursor(&self, domain: u32, default_height: u64) -> Result<BlockCursor> {
+        BlockCursor::new(self.0.clone(), domain, default_height).await
     }
 
     /// Get the highest message leaf index that is stored in the database.
@@ -184,8 +186,7 @@ impl ScraperDb {
         let models = deliveries
             .map(|delivery| delivered_message::ActiveModel {
                 id: NotSet,
-                time_created: Set(crate::date_time::now()),
-                msg_id: NotSet,
+                time_created: Set(date_time::now()),
                 hash: Unchanged(format_h256(&delivery.message_hash)),
                 domain: Unchanged(domain as i32),
                 inbox_address: Unchanged(format_h256(&delivery.inbox)),
@@ -298,17 +299,23 @@ impl ScraperDb {
             .context("When fetching blocks")
     }
 
-    pub async fn record_blocks(&self, domain: u32, blocks: impl Iterator<Item = BlockInfo>) -> Result<i64> {
-        let models = blocks.map(|info| block::ActiveModel {
-            id: NotSet,
-            hash: Set(format_h256(&info.hash)),
-            time_created: Set(date_time::now()),
-            domain: Unchanged(domain as i32),
-            height: Unchanged(info.number as i64),
-            timestamp: Set(date_time::from_unix_timestamp_s(info.timestamp)),
-            gas_used: Set(as_f64(info.gas_used)),
-            gas_limit: Set(as_f64(info.gas_limit)),
-        }).collect::<Vec<_>>();
+    pub async fn record_blocks(
+        &self,
+        domain: u32,
+        blocks: impl Iterator<Item = BlockInfo>,
+    ) -> Result<i64> {
+        let models = blocks
+            .map(|info| block::ActiveModel {
+                id: NotSet,
+                hash: Set(format_h256(&info.hash)),
+                time_created: Set(date_time::now()),
+                domain: Unchanged(domain as i32),
+                height: Unchanged(info.number as i64),
+                timestamp: Set(date_time::from_unix_timestamp_s(info.timestamp)),
+                gas_used: Set(as_f64(info.gas_used)),
+                gas_limit: Set(as_f64(info.gas_limit)),
+            })
+            .collect::<Vec<_>>();
 
         debug_assert!(!models.is_empty());
         trace!(?models, "Writing blocks to database");

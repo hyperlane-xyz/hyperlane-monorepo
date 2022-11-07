@@ -14,14 +14,14 @@ use abacus_base::{
 use abacus_core::{AbacusChain, Inbox};
 
 use crate::chain_scraper::{Local, Remote, SqlChainScraper};
-use crate::db::{delivered_message_linker, ScraperDb};
+use crate::db::ScraperDb;
 use crate::settings::ScraperSettings;
 
 /// A message explorer scraper agent
 #[derive(Debug)]
 #[allow(unused)]
 pub struct Scraper {
-    db: DbConn,
+    db: ScraperDb,
     metrics: Arc<CoreMetrics>,
     /// A map of scrapers by domain.
     scrapers: HashMap<u32, SqlChainScraper>,
@@ -134,12 +134,6 @@ impl BaseAgent for Scraper {
                 let syncer = scraper.clone().sync();
                 tokio::spawn(syncer).instrument(span)
             })
-            .chain(
-                // TODO: remove this during refactoring if we no longer need it
-                [tokio::spawn(delivered_message_linker(self.db.clone()))
-                    .instrument(info_span!("DeliveredMessageLinker"))]
-                .into_iter(),
-            )
             .collect();
 
         run_all(tasks)

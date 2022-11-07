@@ -1,6 +1,5 @@
 use std::cmp::min;
 use std::collections::HashMap;
-use std::hash::Hash;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -54,7 +53,7 @@ impl Delivery {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SqlChainScraper {
     db: ScraperDb,
     /// Contracts on this chain representing this chain (e.g. outbox)
@@ -77,12 +76,8 @@ impl SqlChainScraper {
         metrics: ContractSyncMetrics,
     ) -> Result<Self> {
         let cursor = Arc::new(
-            BlockCursor::new(
-                db.clone(),
-                local.outbox.local_domain(),
-                index_settings.from() as u64,
-            )
-            .await?,
+            db.block_cursor(local.outbox.local_domain(), index_settings.from() as u64)
+                .await?,
         );
         Ok(Self {
             db,
@@ -372,7 +367,8 @@ impl SqlChainScraper {
         let blocks: HashMap<_, _> = self
             .ensure_blocks(block_hash_by_txn_hash.values().copied())
             .await?
-            .into_iter().map(|block| (block.hash, block))
+            .into_iter()
+            .map(|block| (block.hash, block))
             .collect();
         trace!(?blocks, "Ensured blocks");
 
