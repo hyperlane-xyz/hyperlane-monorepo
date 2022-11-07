@@ -125,7 +125,7 @@ where
                 // Filter out any messages that have already been successfully indexed and stored.
                 // This is necessary if we're re-indexing blocks in hope of finding missing messages.
                 if let Some(min_index) = last_leaf_index {
-                    sorted_messages = sorted_messages.into_iter().filter(|m| m.leaf_index > min_index).collect();
+                    sorted_messages.retain(|m| m.leaf_index > min_index);
                 }
 
                 debug!(

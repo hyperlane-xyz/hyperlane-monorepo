@@ -197,10 +197,7 @@ impl SqlChainScraper {
                 "Indexed block range for chain"
             );
 
-            sorted_messages = sorted_messages
-                .into_iter()
-                .filter(|m| m.0.leaf_index > last_leaf_index)
-                .collect();
+            sorted_messages.retain(|m| m.0.leaf_index > last_leaf_index);
 
             debug!(
                 from = full_chunk_from,
