@@ -1,5 +1,6 @@
 use std::cmp::min;
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,9 +17,11 @@ use abacus_core::{
     InboxIndexer, ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
-use crate::conversions::{format_h256, parse_h256, u256_as_scaled_f64};
+use crate::conversions::u256_as_scaled_f64;
 use crate::date_time;
-use crate::db::{BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn};
+use crate::db::{
+    BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn,
+};
 
 #[derive(Debug, Clone)]
 pub struct Remote {
@@ -51,7 +54,7 @@ impl Delivery {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SqlChainScraper {
     db: ScraperDb,
     /// Contracts on this chain representing this chain (e.g. outbox)
@@ -369,6 +372,7 @@ impl SqlChainScraper {
         let blocks: HashMap<_, _> = self
             .ensure_blocks(block_hash_by_txn_hash.values().copied())
             .await?
+            .into_iter().map(|block| (block.hash, block))
             .collect();
         trace!(?blocks, "Ensured blocks");
 
@@ -383,9 +387,9 @@ impl SqlChainScraper {
             self.ensure_txns(block_hash_by_txn_hash.into_iter().map(
                 move |(txn_hash, block_hash)| {
                     let mut block_timestamps_by_txn = block_timestamps_by_txn_clone.lock().unwrap();
-                    let block_info = *blocks.get(&block_hash).unwrap();
-                    block_timestamps_by_txn.insert(txn_hash, block_info.1);
-                    (txn_hash, block_info.0)
+                    let block_info = *blocks.get(&block_hash).as_ref().unwrap();
+                    block_timestamps_by_txn.insert(txn_hash, block_info.timestamp);
+                    (txn_hash, block_info.id)
                 },
             ))
             .await?;
@@ -469,121 +473,74 @@ impl SqlChainScraper {
     async fn ensure_blocks(
         &self,
         block_hashes: impl Iterator<Item = H256>,
-    ) -> Result<impl Iterator<Item = (H256, (i64, TimeDateTime))>> {
-        use crate::db::block;
-        use sea_orm::{prelude::*, ActiveValue::*, FromQueryResult, Insert, QuerySelect};
-
-        type OptionalBlockInfo = Option<(Option<i64>, BlockInfo)>;
+    ) -> Result<impl Iterator<Item = BasicBlock>> {
+        type OptionalBlockInfo = Option<BasicBlock>;
         // mapping of block hash to the database id and block timestamp. Optionals are
         // in place because we will find the timestamp first if the block was not
         // already in the db.
         let mut blocks: HashMap<H256, OptionalBlockInfo> =
             block_hashes.map(|b| (b, None)).collect();
 
-        #[derive(FromQueryResult)]
-        struct Block {
-            id: i64,
-            hash: String,
-            timestamp: TimeDateTime,
-        }
-
-        let db_blocks: Vec<Block> = if !blocks.is_empty() {
+        let db_blocks: Vec<BasicBlock> = if !blocks.is_empty() {
             // check database to see which blocks we already know and fetch their IDs
-            block::Entity::find()
-                .filter(
-                    blocks
-                        .iter()
-                        .map(|(block, _)| block::Column::Hash.eq(format_h256(block)))
-                        .reduce(|acc, i| acc.or(i))
-                        .unwrap(),
-                )
-                .select_only()
-                .column_as(block::Column::Id, "id")
-                .column_as(block::Column::Hash, "hash")
-                .column_as(block::Column::Timestamp, "timestamp")
-                .into_model::<Block>()
-                .all(&self.db)
+            self.db
+                .get_block_basic(blocks.iter().map(|(hash, _)| hash))
                 .await?
         } else {
             vec![]
         };
 
         for block in db_blocks {
-            let hash = parse_h256(&block.hash)?;
             let _ = blocks
-                .get_mut(&hash)
+                .get_mut(&block.hash)
                 .expect("We found a block that we did not request")
-                .insert((
-                    Some(block.id),
-                    BlockInfo {
-                        hash,
-                        timestamp: date_time::to_unix_timestamp_s(&block.timestamp),
-                        // TODO: we don't actually use these below, we should make sure to clean
-                        // this out
-                        number: 0,
-                        gas_used: Default::default(),
-                        gas_limit: Default::default(),
-                    },
-                ));
-        }
-
-        let blocks_to_fetch = blocks
-            .iter_mut()
-            .inspect(|(_, info)| {
-                // info being defined implies the id has been set (at this point)
-                debug_assert!(info.is_none() || info.as_ref().unwrap().0.is_some())
-            })
-            .filter(|(_, block_info)| block_info.is_none());
-        for (hash, block_info) in blocks_to_fetch {
-            let info = self.local.provider.get_block_by_hash(hash).await?;
-            let _ = block_info.insert((None, info));
+                .insert(block);
         }
 
         // insert any blocks that were not known and get their IDs
-        // use this vec as temporary list of mut refs so we can update once we get back
-        // the ids.
-        let mut blocks_to_insert: Vec<(&H256, &mut OptionalBlockInfo)> = blocks
+        // use this vec as temporary list of mut refs so we can update their ids once we
+        // have inserted them into the database.
+        // Block info is an option so we can move it, must always be Some before
+        // inserted into db.
+        let mut blocks_to_insert: Vec<(&mut BasicBlock, Option<BlockInfo>)> = vec![];
+        let blocks_to_fetch = blocks
             .iter_mut()
-            .filter(|(_, info)| info.as_ref().unwrap().0.is_none())
-            .collect();
-
-        let mut models: Vec<block::ActiveModel> = blocks_to_insert
-            .iter()
-            .map(|(hash, block_info)| {
-                let block_info = block_info.as_ref().unwrap();
-                block::ActiveModel {
-                    id: NotSet,
-                    hash: Set(format_h256(hash)),
-                    time_created: Set(date_time::now()),
-                    domain: Unchanged(self.local_domain() as i32),
-                    height: Unchanged(block_info.1.number as i64),
-                    timestamp: Set(date_time::from_unix_timestamp_s(block_info.1.timestamp)),
-                    gas_used: Set(u256_as_scaled_f64(block_info.1.gas_used, 18)),
-                    gas_limit: Set(u256_as_scaled_f64(block_info.1.gas_limit, 18)),
-                }
-            })
-            .collect();
-
-        if !models.is_empty() {
-            trace!(?models, "Writing blocks to database");
-            // `last_insert_id` is actually the ID that was first inserted for postgres
-            let mut cur_id = Insert::many(models).exec(&self.db).await?.last_insert_id;
-            for (_hash, block_info) in blocks_to_insert.iter_mut() {
-                debug_assert!(cur_id > 0);
-                let _ = block_info.as_mut().unwrap().0.insert(cur_id);
-                cur_id += 1;
-            }
+            .filter(|(_, block_info)| block_info.is_none());
+        for (hash, block_info) in blocks_to_fetch {
+            let info = self.local.provider.get_block_by_hash(hash).await?;
+            let basic_info_ref = block_info.insert(BasicBlock {
+                id: -1,
+                hash: *hash,
+                timestamp: date_time::from_unix_timestamp_s(info.timestamp),
+            });
+            blocks_to_insert.push((basic_info_ref, Some(info)));
         }
 
-        Ok(blocks.into_iter().map(|(hash, block_info)| {
-            let block_info = block_info.unwrap();
-            (
-                hash,
-                (
-                    block_info.0.unwrap(),
-                    date_time::from_unix_timestamp_s(block_info.1.timestamp),
-                ),
+        let mut cur_id = self
+            .db
+            .record_blocks(
+                self.local_domain(),
+                blocks_to_insert
+                    .iter_mut()
+                    .map(|(_, info)| info.take().unwrap()),
             )
-        }))
+            .await?;
+        for (block_ref, _) in blocks_to_insert.into_iter() {
+            block_ref.id = cur_id;
+            cur_id += 1;
+        }
+
+        // ensure we have updated all the block ids and that we have info for all of
+        // them.
+        #[cfg(debug_assertions)]
+        for (hash, block) in blocks.iter() {
+            let block = block.as_ref().unwrap();
+            assert_eq!(hash, &block.hash);
+            assert!(block.id > 0);
+        }
+
+        Ok(blocks
+            .into_iter()
+            .map(|(hash, block_info)| block_info.unwrap()))
     }
 }

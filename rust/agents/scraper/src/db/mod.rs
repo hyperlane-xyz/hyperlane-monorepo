@@ -1,15 +1,17 @@
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
 use ethers::prelude::H256;
-use eyre::{eyre, Result};
-use sea_orm::sea_query::OnConflict;
-use sea_orm::ActiveValue::*;
-use sea_orm::{prelude::*, Insert, QueryOrder, QuerySelect};
+use eyre::{Context, eyre, Result};
+use sea_orm::{FromQueryResult, Insert, prelude::*, QueryOrder, QuerySelect};
 use sea_orm::{Database, SelectorTrait};
+use sea_orm::ActiveValue::*;
+use sea_orm::DbErr;
+use sea_orm::sea_query::OnConflict;
 use tracing::{instrument, trace};
 
-use abacus_core::{CommittedMessage, LogMeta, TxnInfo};
+use abacus_core::{BlockInfo, CommittedMessage, LogMeta, TxnInfo};
 pub use block_cursor::BlockCursor;
 use generated::*;
 pub use message_linker::delivered_message_linker;
@@ -40,9 +42,36 @@ pub struct StorableDelivery<'a> {
     pub txn_id: i64,
 }
 
+#[derive(Debug, Clone)]
 pub struct StorableTxn {
     pub info: TxnInfo,
     pub block_id: i64,
+}
+
+/// A stripped down block model.
+#[derive(Debug, Clone)]
+pub struct BasicBlock {
+    /// the database id of this block
+    pub id: i64,
+    pub hash: H256,
+    pub timestamp: TimeDateTime,
+}
+
+impl FromQueryResult for BasicBlock {
+    fn from_query_result(res: &QueryResult, pre: &str) -> std::result::Result<Self, DbErr> {
+        Ok(Self {
+            id: res.try_get::<i64>(pre, "id")?,
+            hash: parse_h256(res.try_get::<String>(pre, "hash")?)
+                .map_err(|e| DbErr::Type(e.to_string()))?,
+            timestamp: res.try_get::<TimeDateTime>(pre, "timestamp")?,
+        })
+    }
+}
+
+impl Hash for BasicBlock {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.hash.hash(state);
+    }
 }
 
 impl Deref for StorableTxn {
@@ -204,7 +233,8 @@ impl ScraperDb {
             .column_as(transaction::Column::Hash, QueryAs::Hash)
             .into_values::<(i64, String), QueryAs>()
             .all(&self.0)
-            .await?
+            .await
+            .context("When fetching transactions")?
             .into_iter()
             .map(|(id, hash)| Ok((parse_h256(&hash)?, id)))
             .collect::<Result<_>>()
@@ -212,7 +242,6 @@ impl ScraperDb {
 
     #[instrument(skip_all)]
     pub async fn record_txns(&self, txns: impl Iterator<Item = StorableTxn>) -> Result<i64> {
-        let as_f64 = |v: ethers::types::U256| u256_as_scaled_f64(v, 18);
         let models = txns
             .map(|txn| {
                 let receipt = txn
@@ -220,7 +249,7 @@ impl ScraperDb {
                     .as_ref()
                     .ok_or_else(|| eyre!("Transaction is not yet included"))?;
 
-                transaction::ActiveModel {
+                Ok(transaction::ActiveModel {
                     id: NotSet,
                     block_id: Unchanged(txn.block_id),
                     gas_limit: Set(as_f64(txn.gas_limit)),
@@ -235,9 +264,9 @@ impl ScraperDb {
                     recipient: Set(txn.recipient.as_ref().map(format_h256)),
                     max_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(as_f64)),
                     cumulative_gas_used: Set(as_f64(receipt.cumulative_gas_used)),
-                }
+                })
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>>>()?;
 
         debug_assert!(!models.is_empty());
         trace!(?models, "Writing txns to database");
@@ -245,4 +274,49 @@ impl ScraperDb {
         let first_id = Insert::many(models).exec(&self.0).await?.last_insert_id;
         Ok(first_id)
     }
+
+    pub async fn get_block_basic(
+        &self,
+        hashes: impl Iterator<Item = &H256>,
+    ) -> Result<Vec<BasicBlock>> {
+        // check database to see which blocks we already know and fetch their IDs
+        block::Entity::find()
+            .filter(
+                hashes
+                    .map(|hash| block::Column::Hash.eq(format_h256(hash)))
+                    .reduce(|acc, i| acc.or(i))
+                    .unwrap(),
+            )
+            .select_only()
+            // these must align with the custom impl of FromQueryResult
+            .column_as(block::Column::Id, "id")
+            .column_as(block::Column::Hash, "hash")
+            .column_as(block::Column::Timestamp, "timestamp")
+            .into_model::<BasicBlock>()
+            .all(&self.0)
+            .await
+            .context("When fetching blocks")
+    }
+
+    pub async fn record_blocks(&self, domain: u32, blocks: impl Iterator<Item = BlockInfo>) -> Result<i64> {
+        let models = blocks.map(|info| block::ActiveModel {
+            id: NotSet,
+            hash: Set(format_h256(&info.hash)),
+            time_created: Set(date_time::now()),
+            domain: Unchanged(domain as i32),
+            height: Unchanged(info.number as i64),
+            timestamp: Set(date_time::from_unix_timestamp_s(info.timestamp)),
+            gas_used: Set(as_f64(info.gas_used)),
+            gas_limit: Set(as_f64(info.gas_limit)),
+        }).collect::<Vec<_>>();
+
+        debug_assert!(!models.is_empty());
+        trace!(?models, "Writing blocks to database");
+        let first_id = Insert::many(models).exec(&self.0).await?.last_insert_id;
+        Ok(first_id)
+    }
+}
+
+fn as_f64(v: ethers::types::U256) -> f64 {
+    u256_as_scaled_f64(v, 18)
 }
