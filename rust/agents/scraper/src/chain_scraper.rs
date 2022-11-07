@@ -107,10 +107,6 @@ impl SqlChainScraper {
 
     /// Sync outbox messages.
     ///
-    /// This code is very similar to the outbox contract sync code in
-    /// abacus-base.
-    ///
-    /// TODO: merge duplicate logic?
     /// TODO: better handling for errors to auto-restart without bringing down
     /// the whole service?
     #[instrument(skip(self))]

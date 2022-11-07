@@ -1,12 +1,13 @@
 use std::time::{Duration, Instant};
 
 use eyre::Result;
-use sea_orm::prelude::*;
-use sea_orm::{ActiveValue, Insert, Order, QueryOrder, QuerySelect};
+use sea_orm::{ActiveValue, Insert, Order, QueryOrder, QuerySelect, prelude::*};
 use tokio::sync::RwLock;
 use tracing::{debug, instrument, trace, warn};
 
-use crate::db::cursor;
+use crate::db::ScraperDb;
+
+use super::generated::cursor;
 
 const MAX_WRITE_BACK_FREQUENCY: Duration = Duration::from_secs(10);
 
@@ -27,7 +28,7 @@ pub struct BlockCursor {
 }
 
 impl BlockCursor {
-    pub(super) async fn new(db: DbConn, domain: u32, default_height: u64) -> Result<Self> {
+    async fn new(db: DbConn, domain: u32, default_height: u64) -> Result<Self> {
         #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
         enum QueryAs {
             Height,
@@ -86,5 +87,11 @@ impl BlockCursor {
                 debug!(cursor = ?*inner, "Updated cursor")
             }
         }
+    }
+}
+
+impl ScraperDb {
+    pub async fn block_cursor(&self, domain: u32, default_height: u64) -> Result<BlockCursor> {
+        BlockCursor::new(self.0.clone(), domain, default_height).await
     }
 }
