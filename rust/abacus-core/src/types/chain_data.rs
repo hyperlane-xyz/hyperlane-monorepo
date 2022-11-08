@@ -9,10 +9,6 @@ pub struct BlockInfo {
     pub timestamp: u64,
     /// Block height or the nth block in the chain
     pub number: u64,
-    /// Total used gas by transactions in this block
-    pub gas_used: U256,
-    /// Maximum amount of gas allowed in this block
-    pub gas_limit: U256,
 }
 
 /// Information about a given transaction in the chain.

@@ -832,8 +832,6 @@ impl SqlChainScraper {
                         // TODO: we don't actually use these below, we should make sure to clean
                         // this out
                         number: 0,
-                        gas_used: Default::default(),
-                        gas_limit: Default::default(),
                     },
                 ));
         }
@@ -869,8 +867,6 @@ impl SqlChainScraper {
                     domain: Unchanged(self.local_domain() as i32),
                     height: Unchanged(block_info.1.number as i64),
                     timestamp: Set(date_time::from_unix_timestamp_s(block_info.1.timestamp)),
-                    gas_used: Set(u256_as_scaled_f64(block_info.1.gas_used, 18)),
-                    gas_limit: Set(u256_as_scaled_f64(block_info.1.gas_limit, 18)),
                 }
             })
             .collect();

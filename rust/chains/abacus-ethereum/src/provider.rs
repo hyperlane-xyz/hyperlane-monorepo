@@ -55,8 +55,6 @@ where
                 .number
                 .ok_or_else(|| eyre!("Block is not part of the chain yet {}", hash))?
                 .as_u64(),
-            gas_used: block.gas_used,
-            gas_limit: block.gas_limit,
         })
     }
 

@@ -19,8 +19,6 @@ pub struct Model {
     pub hash: String,
     pub height: i64,
     pub timestamp: TimeDateTime,
-    pub gas_used: f64,
-    pub gas_limit: f64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -31,8 +29,6 @@ pub enum Column {
     Hash,
     Height,
     Timestamp,
-    GasUsed,
-    GasLimit,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
@@ -63,8 +59,6 @@ impl ColumnTrait for Column {
             Self::Hash => ColumnType::String(Some(64u32)).def().unique(),
             Self::Height => ColumnType::BigInteger.def(),
             Self::Timestamp => ColumnType::DateTime.def(),
-            Self::GasUsed => ColumnType::Double.def(),
-            Self::GasLimit => ColumnType::Double.def(),
         }
     }
 }
