@@ -9,24 +9,34 @@ import "../contracts/middleware/InterchainQueryRouter.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
 contract MockHyperlaneEnvironment {
-    MockOutbox public originOutbox;
-    MockInbox public originInbox;
+    uint32 originDomain;
+    uint32 destinationDomain;
 
-    MockOutbox public destinationOutbox;
-    MockInbox public destinationInbox;
-
+    mapping(uint32 => MockOutbox) public outboxes;
+    mapping(uint32 => MockInbox) public inboxes;
     mapping(uint32 => AbacusConnectionManager) public connectionManagers;
     mapping(uint32 => InterchainQueryRouter) public queryRouters;
 
     constructor(uint32 _originDomain, uint32 _destinationDomain) {
-        originInbox = new MockInbox();
-        originOutbox = new MockOutbox(_originDomain, address(originInbox));
+        originDomain = _originDomain;
+        destinationDomain = _destinationDomain;
 
-        destinationInbox = new MockInbox();
-        destinationOutbox = new MockOutbox(
+        MockInbox originInbox = new MockInbox();
+        MockOutbox originOutbox = new MockOutbox(
+            _originDomain,
+            address(originInbox)
+        );
+
+        MockInbox destinationInbox = new MockInbox();
+        MockOutbox destinationOutbox = new MockOutbox(
             _destinationDomain,
             address(destinationInbox)
         );
+
+        outboxes[_originDomain] = originOutbox;
+        outboxes[_destinationDomain] = destinationOutbox;
+        inboxes[_originDomain] = destinationInbox;
+        inboxes[_destinationDomain] = originInbox;
 
         AbacusConnectionManager originManager = new AbacusConnectionManager();
         AbacusConnectionManager destinationManager = new AbacusConnectionManager();
@@ -78,10 +88,10 @@ contract MockHyperlaneEnvironment {
     }
 
     function processNextPendingMessage() public {
-        originInbox.processNextPendingMessage();
+        inboxes[destinationDomain].processNextPendingMessage();
     }
 
     function processNextPendingMessageFromDestination() public {
-        destinationInbox.processNextPendingMessage();
+        inboxes[originDomain].processNextPendingMessage();
     }
 }

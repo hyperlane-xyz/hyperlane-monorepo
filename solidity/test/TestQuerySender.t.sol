@@ -4,18 +4,18 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import {InterchainQueryRouter} from "../contracts/middleware/InterchainQueryRouter.sol";
 import {TestQuerySender} from "../contracts/test/TestQuerySender.sol";
-import {HyperlaneTestEnvironment} from "./HyperlaneTestEnvironment.sol";
+import {MockHyperlaneEnvironment} from "./MockHyperlaneEnvironment.sol";
 
 import {MockToken} from "../contracts/mock/MockToken.sol";
 
 contract TestQuerySenderTest is Test {
-    HyperlaneTestEnvironment testEnvironment;
+    MockHyperlaneEnvironment testEnvironment;
     TestQuerySender sender;
     uint32 originDomain = 123;
     uint32 destinationDomain = 321;
 
     function setUp() public {
-        testEnvironment = new HyperlaneTestEnvironment(
+        testEnvironment = new MockHyperlaneEnvironment(
             originDomain,
             destinationDomain
         );
