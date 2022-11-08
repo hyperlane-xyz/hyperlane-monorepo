@@ -1,6 +1,7 @@
 import { BigNumber, ethers } from 'ethers';
 
 import { Inbox, Outbox, Outbox__factory } from '@hyperlane-xyz/core';
+import { DispatchEvent } from '@hyperlane-xyz/core/dist/contracts/Outbox';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
@@ -157,23 +158,23 @@ export class HyperlaneCore<
 
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
     const outbox = Outbox__factory.createInterface();
-    const describedLogs = sourceTx.logs.map((log) => {
-      try {
-        return outbox.parseLog(log);
-      } catch (e) {
-        return undefined;
-      }
-    });
-    const dispatchLogs = describedLogs.filter(
-      (log) => log && log.name === 'Dispatch',
-    ) as ethers.utils.LogDescription[];
-    if (dispatchLogs.length === 0) {
-      throw new Error('Dispatch logs not found');
-    }
+    const dispatchLogs = sourceTx.logs
+      .map((log) => {
+        try {
+          return outbox.decodeEventLog(
+            'Dispatch',
+            log.data,
+            log.topics,
+          ) as unknown as DispatchEvent;
+        } catch (e) {
+          return undefined;
+        }
+      })
+      .filter((log): log is DispatchEvent => !!log);
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
+      const leafIndex = log.args['leafIndex'].toNumber();
       const parsed = utils.parseMessage(message);
-      const leafIndex = BigNumber.from(log.args['leafIndex']).toNumber();
       return { leafIndex, message, parsed };
     });
   }
