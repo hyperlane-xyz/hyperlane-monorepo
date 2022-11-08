@@ -33,7 +33,7 @@ const DOMAINS: &[RawDomain] = &[
     },
     RawDomain {
         name: "arbitrumgoerli",
-        token: "AGOR",
+        token: "ETH",
         domain: 421613,
         chain_id: 421613,
         is_test_net: true,
