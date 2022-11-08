@@ -1,7 +1,6 @@
 import { BigNumber, ethers } from 'ethers';
 
 import { Inbox, Outbox, Outbox__factory } from '@hyperlane-xyz/core';
-import { DispatchEvent } from '@hyperlane-xyz/core/dist/contracts/Outbox';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
@@ -15,6 +14,7 @@ import { ChainMap, ChainName, Remotes } from '../types';
 import { objMap, pick } from '../utils/objects';
 
 import { CoreContracts, coreFactories } from './contracts';
+import { DispatchEvent } from './events';
 
 export type CoreEnvironment = keyof typeof environments;
 export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
@@ -173,7 +173,7 @@ export class HyperlaneCore<
       .filter((log): log is DispatchEvent => !!log);
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
-      const leafIndex = log.args['leafIndex'].toNumber();
+      const leafIndex = BigNumber.from(log.args['leafIndex']).toNumber();
       const parsed = utils.parseMessage(message);
       return { leafIndex, message, parsed };
     });
