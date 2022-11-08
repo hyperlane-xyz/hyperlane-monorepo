@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Display};
-use std::{error::Error as StdError, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::prelude::*;
@@ -12,7 +12,7 @@ use tracing::instrument;
 
 use abacus_core::{
     AbacusAbi, AbacusChain, AbacusCommon, AbacusContract, Address, ChainCommunicationError,
-    ContractLocator, Inbox, InboxIndexer, Indexer, MessageStatus, TxOutcome,
+    ContractLocator, Inbox, InboxIndexer, Indexer, MessageStatus,
 };
 
 use crate::contracts::inbox::{Inbox as EthereumInboxInternal, INBOX_ABI};
@@ -205,18 +205,6 @@ impl<M> AbacusCommon for EthereumInbox<M>
 where
     M: Middleware + 'static,
 {
-    #[tracing::instrument(err)]
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
-        let receipt_opt = self
-            .contract
-            .client()
-            .get_transaction_receipt(txid)
-            .await
-            .map_err(|e| Box::new(e) as Box<dyn StdError + Send + Sync>)?;
-
-        Ok(receipt_opt.map(Into::into))
-    }
-
     #[tracing::instrument(err)]
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
         Ok(self.contract.validator_manager().call().await?.into())

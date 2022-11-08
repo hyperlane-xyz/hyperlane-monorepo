@@ -163,10 +163,6 @@ impl AbacusContract for CachingOutbox {
 
 #[async_trait]
 impl AbacusCommon for CachingOutbox {
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
-        self.outbox.status(txid).await
-    }
-
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
         self.outbox.validator_manager().await
     }

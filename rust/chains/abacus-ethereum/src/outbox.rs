@@ -2,7 +2,7 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::{error::Error as StdError, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::prelude::*;
@@ -232,18 +232,6 @@ impl<M> AbacusCommon for EthereumOutbox<M>
 where
     M: Middleware + 'static,
 {
-    #[tracing::instrument(err, skip(self))]
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
-        let receipt_opt = self
-            .contract
-            .client()
-            .get_transaction_receipt(txid)
-            .await
-            .map_err(|e| Box::new(e) as Box<dyn StdError + Send + Sync>)?;
-
-        Ok(receipt_opt.map(Into::into))
-    }
-
     #[tracing::instrument(err, skip(self))]
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
         Ok(self.contract.validator_manager().call().await?.into())
