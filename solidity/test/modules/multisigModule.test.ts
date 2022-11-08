@@ -205,10 +205,9 @@ describe('MultisigModule', async () => {
       }
     });
 
-    it('returns the validators sorted in ascending order', async () => {
-      const expected = utils.sortAddresses(validators.map((v) => v.address));
+    it('returns the validators', async () => {
       expect(await multisigModule.validators(ORIGIN_DOMAIN)).to.deep.equal(
-        expected,
+        validators.map((v) => v.address),
       );
     });
   });
@@ -232,7 +231,8 @@ describe('MultisigModule', async () => {
     let recipient;
     let metadata: string, message: string;
     beforeEach(async () => {
-      // Must be done sequentially so gas estimation is correct.
+      // Must be done sequentially so gas estimation is correct
+      // and so that signatures are produced in the same order.
       for (const v of validators) {
         await multisigModule.enrollValidator(ORIGIN_DOMAIN, v.address);
       }
@@ -264,24 +264,41 @@ describe('MultisigModule', async () => {
       await destinationMailbox.process(metadata, message);
     });
 
-    it.skip('reverts when not enough signatures are provided', async () => {
-      const modifiedMetadata = metadata;
-      expect(
-        await multisigModule.verify(modifiedMetadata, message),
+    it('reverts when invalid signatures are provided', async () => {
+      const parsedMetadata = utils.parseMultisigModuleMetadata(metadata);
+      const invalidSignature = utils.ensure0x(
+        parsedMetadata.signatures[0].toString().slice(8).padStart(130, '0'),
+      );
+      parsedMetadata.signatures.push(invalidSignature);
+      const modifiedMetadata = utils.formatMultisigModuleMetadata({
+        ...parsedMetadata,
+        signatures: parsedMetadata.signatures.slice(1),
+      });
+      await expect(
+        multisigModule.verify(modifiedMetadata, message),
       ).to.be.revertedWith('!threshold');
+      console.log();
     });
 
-    it.skip('reverts the provided validator set does not match the stored commitment', async () => {
-      const modifiedMetadata = metadata;
-      expect(
-        await multisigModule.verify(modifiedMetadata, message),
+    it('reverts the provided validator set does not match the stored commitment', async () => {
+      const parsedMetadata = utils.parseMultisigModuleMetadata(metadata);
+      const modifiedMetadata = utils.formatMultisigModuleMetadata({
+        ...parsedMetadata,
+        validators: parsedMetadata.validators.slice(1),
+      });
+      await expect(
+        multisigModule.verify(modifiedMetadata, message),
       ).to.be.revertedWith('!commitment');
     });
 
-    it.skip('reverts when an invalid merkle proof is provided', async () => {
-      const modifiedMetadata = metadata;
-      expect(
-        await multisigModule.verify(modifiedMetadata, message),
+    it('reverts when an invalid merkle proof is provided', async () => {
+      const parsedMetadata = utils.parseMultisigModuleMetadata(metadata);
+      const modifiedMetadata = utils.formatMultisigModuleMetadata({
+        ...parsedMetadata,
+        proof: parsedMetadata.proof.reverse(),
+      });
+      await expect(
+        multisigModule.verify(modifiedMetadata, message),
       ).to.be.revertedWith('!merkle');
     });
   });

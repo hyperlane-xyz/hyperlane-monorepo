@@ -185,7 +185,7 @@ contract MultisigModule is IMultisigModule, Ownable {
     }
 
     /**
-     * @notice Gets the current validator set, sorted by ascending address.
+     * @notice Gets the current validator set
      * @param _domain The remote domain of the validator set.
      * @return The addresses of the validator set.
      */
@@ -193,18 +193,8 @@ contract MultisigModule is IMultisigModule, Ownable {
         EnumerableSet.AddressSet storage _validatorSet = validatorSet[_domain];
         uint256 _validatorCount = _validatorSet.length();
         address[] memory _validators = new address[](_validatorCount);
-        address _prev = address(0);
         for (uint256 i = 0; i < _validatorCount; i++) {
-            // Max address
-            address _next = address(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF);
-            for (uint256 j = 0; j < _validatorCount; j++) {
-                address _validator = _validatorSet.at(j);
-                if (_prev < _validator && _validator < _next) {
-                    _next = _validator;
-                }
-            }
-            _validators[i] = _next;
-            _prev = _next;
+            _validators[i] = _validatorSet.at(i);
         }
         return _validators;
     }
@@ -249,8 +239,6 @@ contract MultisigModule is IMultisigModule, Ownable {
         bytes32 _calculatedRoot = MerkleLib.branchRoot(
             _message.id(),
             _metadata.proof(),
-            // TODO: The leaf index may not be the same as the nonce if we choose to go
-            // with modular storage for outbound messages.
             _message.nonce()
         );
         return _calculatedRoot == _metadata.root();
@@ -273,26 +261,24 @@ contract MultisigModule is IMultisigModule, Ownable {
             bytes32 _commitment = keccak256(
                 abi.encodePacked(_threshold, _metadata.validators())
             );
-            // Ensures _validators is sorted by ascending address.
+            // Ensures the validator set encoded in the metadata matches
+            // what we've stored on chain.
             require(_commitment == commitment[_origin], "!commitment");
             _digest = _getCheckpointDigest(_metadata, _origin);
         }
         uint256 _validatorIndex = 0;
-        // looking for signers within validators
-        // assuming that both validators and signatures are sorted
+        // Assumes that signatures are ordered by validator
         for (uint256 i = 0; i < _threshold; ++i) {
             address _signer = ECDSA.recover(_digest, _metadata.signatureAt(i));
-            // looping through remaining validators to find a match
+            // Loop through remaining validators until we find a match
             for (
                 ;
                 _validatorIndex < _threshold &&
                     _signer != _metadata.validatorAt(_validatorIndex);
                 ++_validatorIndex
             ) {}
-            // checking if we are out of validators
+            // Fail if we never found a match
             require(_validatorIndex < _threshold, "!threshold");
-            // emit CheckpointSignature(_signature);
-            // increasing validators index if match was found
             ++_validatorIndex;
         }
         return true;

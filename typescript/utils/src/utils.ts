@@ -5,8 +5,8 @@ import {
   Checkpoint,
   Domain,
   HexString,
-  MerkleProof,
   ParsedMessage,
+  ParsedMultisigModuleMetadata,
 } from './types';
 
 export function assert(predicate: any, errorMessage?: string) {
@@ -45,12 +45,39 @@ export function formatCallData<
   );
 }
 
+export const parseMultisigModuleMetadata = (
+  metadata: string,
+): ParsedMultisigModuleMetadata => {
+  const buf = Buffer.from(utils.arrayify(metadata));
+  const checkpointRoot = utils.hexlify(buf.slice(0, 32));
+  const checkpointIndex = BigNumber.from(
+    utils.hexlify(buf.slice(32, 64)),
+  ).toNumber();
+  const originMailbox = utils.hexlify(buf.slice(64, 96));
+  const parseBytesArray = (start: number, count: number, size: number) => {
+    return [...Array(count).keys()].map((i) =>
+      utils.hexlify(buf.slice(start + size * i, start + size * (i + 1))),
+    );
+  };
+  const proof = parseBytesArray(96, 32, 32);
+  const threshold = BigNumber.from(
+    utils.hexlify(buf.slice(1120, 1152)),
+  ).toNumber();
+  const signatures = parseBytesArray(1152, threshold, 65);
+  const addressesCount = buf.slice(1152 + 65 * threshold).length / 32;
+  const validators = parseBytesArray(1152 + 65 * threshold, addressesCount, 32);
+  return {
+    checkpointRoot,
+    checkpointIndex: BigNumber.from(checkpointIndex).toNumber(),
+    originMailbox,
+    proof,
+    signatures,
+    validators,
+  };
+};
+
 export const formatMultisigModuleMetadata = (
-  checkpoint: Checkpoint,
-  originMailbox: Address,
-  proof: MerkleProof,
-  signatures: string[],
-  addresses: Address[],
+  metadata: ParsedMultisigModuleMetadata,
 ): string => {
   return ethers.utils.solidityPack(
     [
@@ -63,13 +90,13 @@ export const formatMultisigModuleMetadata = (
       'address[]',
     ],
     [
-      checkpoint.root,
-      checkpoint.index,
-      addressToBytes32(originMailbox),
-      proof.branch,
-      signatures.length,
-      ethers.utils.hexConcat(signatures),
-      addresses,
+      metadata.checkpointRoot,
+      metadata.checkpointIndex,
+      addressToBytes32(metadata.originMailbox),
+      metadata.proof,
+      metadata.signatures.length,
+      ethers.utils.hexConcat(metadata.signatures),
+      metadata.validators,
     ],
   );
 };

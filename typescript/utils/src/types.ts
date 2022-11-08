@@ -53,3 +53,12 @@ export type ParsedMessage = {
   recipient: string;
   body: string;
 };
+
+export type ParsedMultisigModuleMetadata = {
+  checkpointRoot: string;
+  checkpointIndex: number;
+  originMailbox: string;
+  proof: ethers.utils.BytesLike[];
+  signatures: ethers.utils.BytesLike[];
+  validators: ethers.utils.BytesLike[];
+};

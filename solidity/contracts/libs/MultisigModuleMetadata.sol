@@ -89,8 +89,9 @@ library MultisigModuleMetadata {
 
     /**
      * @notice Returns the validator ECDSA signature at `_index`.
-     * @dev Assumes signatures are sorted by ascending validator address.
+     * @dev Assumes signatures are sorted by validator
      * @dev Assumes `_metadata` encodes `threshold` signatures.
+     * @dev Assumes `_index` is less than `threshold`
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @param _index The index of the signature to return.
      * @return The validator ECDSA signature at `_index`.
@@ -107,7 +108,7 @@ library MultisigModuleMetadata {
 
     /**
      * @notice Returns the validator address at `_index`.
-     * @dev Assumes validators are sorted by ascending validator address.
+     * @dev Assumes `_index` is less less than the number of validators
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @param _index The index of the validator to return.
      * @return The validator address at `_index`.
@@ -128,7 +129,7 @@ library MultisigModuleMetadata {
      * @notice Returns the validator set encoded as bytes. Verified against the
      * commitment stored in the module.
      * @dev Validator addresses are encoded as tightly packed array of bytes32,
-     * sorted in ascending order.
+     * sorted to match the enumerable set stored by the module.
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return The validator set encoded as bytes.
      */
