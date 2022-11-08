@@ -165,7 +165,10 @@ export class HyperlaneCore<
           return undefined;
         }
       })
-      .filter((log): log is ethers.utils.LogDescription => !!log);
+      .filter(
+        (log): log is ethers.utils.LogDescription =>
+          !!log && log.name === 'Dispatch',
+      );
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
       const leafIndex = BigNumber.from(log.args['leafIndex']).toNumber();
