@@ -68,7 +68,7 @@ where
     /// Create new EthereumOutboxIndexer
     pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         let contract = Arc::new(EthereumOutboxInternal::new(
-            locator.address.as_ref().expect("An address is required"),
+            &locator.address,
             provider.clone(),
         ));
         Self {
@@ -195,7 +195,7 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(EthereumOutboxInternal::new(
-                locator.address.as_ref().expect("An address is required"),
+                &locator.address,
                 provider.clone(),
             )),
             domain: locator.domain,

@@ -79,7 +79,7 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator, inbox_address: Address) -> Self {
         Self {
             contract: Arc::new(EthereumInboxValidatorManagerInternal::new(
-                locator.address.as_ref().expect("An address is required"),
+                &locator.address,
                 provider.clone(),
             )),
             domain: locator.domain,

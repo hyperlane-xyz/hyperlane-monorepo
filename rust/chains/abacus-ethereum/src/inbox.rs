@@ -79,7 +79,7 @@ where
 {
     pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         let contract = Arc::new(EthereumInboxInternal::new(
-            locator.address.as_ref().expect("An address is required"),
+            &locator.address,
             provider.clone(),
         ));
         Self {
@@ -155,10 +155,7 @@ where
             address,
         }: &ContractLocator,
     ) -> Self {
-        let contract = Arc::new(EthereumInboxInternal::new(
-            address.as_ref().expect("An address is required"),
-            provider,
-        ));
+        let contract = Arc::new(EthereumInboxInternal::new(address, provider));
         let remote_domain = contract
             .remote_domain()
             .call()
