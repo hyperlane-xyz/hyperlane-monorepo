@@ -14,7 +14,6 @@ import { ChainMap, ChainName, Remotes } from '../types';
 import { objMap, pick } from '../utils/objects';
 
 import { CoreContracts, coreFactories } from './contracts';
-import { DispatchEvent } from './events';
 
 export type CoreEnvironment = keyof typeof environments;
 export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
@@ -161,16 +160,12 @@ export class HyperlaneCore<
     const dispatchLogs = sourceTx.logs
       .map((log) => {
         try {
-          return outbox.decodeEventLog(
-            'Dispatch',
-            log.data,
-            log.topics,
-          ) as unknown as DispatchEvent;
+          return outbox.parseLog(log);
         } catch (e) {
           return undefined;
         }
       })
-      .filter((log): log is DispatchEvent => !!log);
+      .filter((log): log is ethers.utils.LogDescription => !!log);
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
       const leafIndex = BigNumber.from(log.args['leafIndex']).toNumber();
@@ -183,7 +178,6 @@ export class HyperlaneCore<
     sourceTx: ethers.ContractReceipt,
   ): Promise<ethers.ContractReceipt[]> {
     const messages = this.getDispatchedMessages(sourceTx);
-
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
   }
 }
