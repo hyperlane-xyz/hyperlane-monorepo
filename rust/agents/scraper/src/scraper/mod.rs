@@ -749,7 +749,7 @@ impl SqlChainScraper {
                 nonce: Set(txn.nonce as i64),
                 sender: Set(format_h256(&txn.sender)),
                 recipient: Set(txn.recipient.as_ref().map(format_h256)),
-                max_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(as_f64)),
+                max_fee_per_gas: Set(txn.max_fee_per_gas.map(as_f64)),
                 cumulative_gas_used: Set(as_f64(receipt.cumulative_gas_used)),
             });
         }
