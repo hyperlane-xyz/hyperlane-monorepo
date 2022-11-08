@@ -14,7 +14,6 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-use ethers::prelude::U256;
 use ethers::types::H256;
 use eyre::Result;
 
@@ -50,9 +49,4 @@ fn format_h256(data: &H256) -> String {
     } else {
         hex::format_h256_raw(data.as_fixed_bytes())
     }
-}
-
-/// Convert a u256 scaled integer value into the corresponding f64 value.
-fn u256_as_scaled_f64(value: U256, decimals: u8) -> f64 {
-    value.to_f64_lossy() / (10u64.pow(decimals as u32) as f64)
 }

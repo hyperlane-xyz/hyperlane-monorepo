@@ -25,7 +25,7 @@ use abacus_core::{
 
 use crate::scraper::block_cursor::BlockCursor;
 use crate::settings::ScraperSettings;
-use crate::{date_time, format_h256, parse_h256, u256_as_scaled_f64};
+use crate::{date_time, format_h256, parse_h256};
 
 mod block_cursor;
 
@@ -728,7 +728,7 @@ impl SqlChainScraper {
             txns.iter_mut().filter(|(_, id)| id.0.is_none()).collect();
 
         let mut models: Vec<transaction::ActiveModel> = Vec::with_capacity(txns_to_insert.len());
-        let as_f64 = |v: ethers::types::U256| u256_as_scaled_f64(v, 18);
+        let as_f64 = ethers::types::U256::to_f64_lossy;
         for (hash, (_, block_id)) in txns_to_insert.iter() {
             let txn = self.local.provider.get_txn_by_hash(hash).await?;
             let receipt = txn
