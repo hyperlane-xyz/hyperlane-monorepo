@@ -24,8 +24,10 @@ pub mod output_functions {
     use super::*;
 
     /// Output proof to /vector/message.json
-    pub fn output_message_and_leaf() {
+    pub fn output_message() {
         let abacus_message = AbacusMessage {
+            nonce: 0,
+            version: 0,
             origin: 1000,
             sender: H256::from(
                 H160::from_str("0x1111111111111111111111111111111111111111").unwrap(),
@@ -38,12 +40,14 @@ pub mod output_functions {
         };
 
         let message_json = json!({
+            "nonce": abacus_message.nonce, 
+            "version": abacus_message.version, 
             "origin": abacus_message.origin,
             "sender": abacus_message.sender,
             "destination": abacus_message.destination,
             "recipient": abacus_message.recipient,
             "body": abacus_message.body,
-            "messageHash": abacus_message.to_leaf(0),
+            "id": abacus_message.id(),
         });
         let json = json!([message_json]).to_string();
 
@@ -64,7 +68,7 @@ pub mod output_functions {
 
         let index = 1;
 
-        // kludge. this is a manual entry of the hash of the messages sent by the cross-chain governance upgrade tests
+        // kludge. these are random message ids
         tree.push_leaf(
             "0xd89959d277019eee21f1c3c270a125964d63b71876880724d287fbb8b8de55f1"
                 .parse()
@@ -97,11 +101,14 @@ pub mod output_functions {
 
     /// Outputs domain hash test cases in /vector/domainHash.json
     pub fn output_domain_hashes() {
+        let mailbox = H256::from(
+                H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
         let test_cases: Vec<Value> = (1..=3)
             .map(|i| {
                 json!({
-                    "outboxDomain": i,
-                    "expectedDomainHash": domain_hash(i)
+                    "domain": i,
+                    "mailbox": mailbox,
+                    "expectedDomainHash": domain_hash(mailbox, i)
                 })
             })
             .collect();
@@ -121,6 +128,8 @@ pub mod output_functions {
 
     /// Outputs signed checkpoint test cases in /vector/signedCheckpoint.json
     pub fn output_signed_checkpoints() {
+        let mailbox = H256::from(
+                H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
         let t = async {
             let signer: ethers::signers::LocalWallet =
                 "1111111111111111111111111111111111111111111111111111111111111111"
@@ -132,7 +141,8 @@ pub mod output_functions {
             // test suite
             for i in 1..=3 {
                 let signed_checkpoint = Checkpoint {
-                    outbox_domain: 1000,
+                    mailbox_address: mailbox,
+                    mailbox_domain: 1000,
                     root: H256::repeat_byte(i + 1),
                     index: i as u32,
                 }
@@ -141,7 +151,8 @@ pub mod output_functions {
                 .expect("!sign_with");
 
                 test_cases.push(json!({
-                    "outboxDomain": signed_checkpoint.checkpoint.outbox_domain,
+                    "mailbox": signed_checkpoint.checkpoint.mailbox_address,
+                    "domain": signed_checkpoint.checkpoint.mailbox_domain,
                     "root": signed_checkpoint.checkpoint.root,
                     "index": signed_checkpoint.checkpoint.index,
                     "signature": signed_checkpoint.signature,
