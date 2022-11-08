@@ -11,8 +11,7 @@ pub type RawAbacusMessage = Vec<u8>;
 impl From<&AbacusMessage> for RawAbacusMessage {
     fn from(m: &AbacusMessage) -> Self {
         let mut message_vec = vec![];
-        m.write_to(&mut message_vec)
-        .expect("!write_to");
+        m.write_to(&mut message_vec).expect("!write_to");
         message_vec
     }
 }
@@ -115,7 +114,7 @@ impl From<Vec<u8>> for AbacusMessage {
         let sender: [u8; 32] = m[9..41].try_into().unwrap();
         let destination: [u8; 4] = m[41..45].try_into().unwrap();
         let recipient: [u8; 32] = m[45..77].try_into().unwrap();
-        let body=  m[77..].try_into().unwrap();
+        let body = m[77..].try_into().unwrap();
         Self {
             version,
             nonce: u32::from_be_bytes(nonce),
@@ -144,7 +143,7 @@ impl Encode for AbacusMessage {
     }
 }
 
-/* 
+/*
 impl Decode for AbacusMessage {
     fn read_from<R>(reader: &mut R) -> Result<Self, AbacusError>
     where
@@ -189,12 +188,7 @@ impl AbacusMessage {
     // Gas payments return a different id.
     /// Convert the message to a leaf
     pub fn id(&self) -> H256 {
-        H256::from_slice(
-            Keccak256::new()
-                .chain(&self.to_vec())
-                .finalize()
-                .as_slice(),
-        )
+        H256::from_slice(Keccak256::new().chain(&self.to_vec()).finalize().as_slice())
     }
 }
 

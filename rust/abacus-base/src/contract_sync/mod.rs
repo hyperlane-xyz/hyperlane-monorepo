@@ -3,17 +3,16 @@
 
 use abacus_core::db::AbacusDB;
 pub use interchain_gas::*;
-pub use metrics::ContractSyncMetrics;
 pub use mailbox::*;
+pub use metrics::ContractSyncMetrics;
 
 use crate::chains::IndexSettings;
-
 
 mod interchain_gas;
 /// Tools for working with message continuity.
 pub mod last_message;
-mod metrics;
 mod mailbox;
+mod metrics;
 mod schema;
 
 /// Entity that drives the syncing of an agent's db with on-chain data.

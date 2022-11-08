@@ -13,8 +13,8 @@ use tracing::{info_span, Instrument};
 
 use abacus_core::db::AbacusDB;
 use abacus_core::{
-    AbacusContract, ChainCommunicationError, Checkpoint, Mailbox,
-    MailboxEvents, MailboxIndexer, RawAbacusMessage, TxOutcome, AbacusMessage, TxCostEstimate,
+    AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, Mailbox, MailboxEvents,
+    MailboxIndexer, RawAbacusMessage, TxCostEstimate, TxOutcome,
 };
 
 use crate::chains::IndexSettings;
@@ -138,11 +138,7 @@ impl Mailbox for CachingMailbox {
         self.mailbox.process_estimate_costs(message, metadata).await
     }
 
-    fn process_calldata(
-        &self,
-        message: &AbacusMessage,
-        metadata: &Vec<u8>,
-    ) -> Vec<u8> {
+    fn process_calldata(&self, message: &AbacusMessage, metadata: &Vec<u8>) -> Vec<u8> {
         self.mailbox.process_calldata(message, metadata)
     }
 }
@@ -162,10 +158,7 @@ impl MailboxEvents for CachingMailbox {
         }
     }
 
-    async fn id_by_nonce(
-        &self,
-        nonce: usize,
-    ) -> Result<Option<H256>, ChainCommunicationError> {
+    async fn id_by_nonce(&self, nonce: usize) -> Result<Option<H256>, ChainCommunicationError> {
         loop {
             if let Some(id) = self.db.message_id_by_nonce(nonce as u32)? {
                 return Ok(Some(id));

@@ -4,12 +4,11 @@ use std::sync::Arc;
 use abacus_core::accumulator::merkle::Proof;
 use async_trait::async_trait;
 use ethers::core::types::H256;
-use ethers::types::{U256, H160};
+use ethers::types::{H160, U256};
 use eyre::Result;
 
 use abacus_core::{
-    AbacusContract, ChainCommunicationError, MultisigModule,
-    MultisigSignedCheckpoint,
+    AbacusContract, ChainCommunicationError, MultisigModule, MultisigSignedCheckpoint,
 };
 
 /// Caching MultisigModule type
@@ -27,9 +26,7 @@ impl std::fmt::Display for CachingMultisigModule {
 impl CachingMultisigModule {
     /// Instantiate new CachingMultisigModule
     pub fn new(multisig_module: Arc<dyn MultisigModule>) -> Self {
-        Self {
-            multisig_module,
-        }
+        Self { multisig_module }
     }
 
     /// Return handle on multisig_module object
@@ -48,9 +45,14 @@ impl MultisigModule for CachingMultisigModule {
         self.multisig_module.validators(domain).await
     }
 
-    async fn format_metadata(&self, checkpoint: &MultisigSignedCheckpoint, proof: Proof) -> Result<Vec<u8>, ChainCommunicationError> {
-        self.multisig_module.format_metadata(checkpoint, proof).await
-
+    async fn format_metadata(
+        &self,
+        checkpoint: &MultisigSignedCheckpoint,
+        proof: Proof,
+    ) -> Result<Vec<u8>, ChainCommunicationError> {
+        self.multisig_module
+            .format_metadata(checkpoint, proof)
+            .await
     }
 }
 

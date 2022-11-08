@@ -9,10 +9,8 @@ use tokio::{
 };
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
-use abacus_base::{CoreMetrics, CachingMailbox};
-use abacus_core::{
-    db::AbacusDB, AbacusContract, AbacusMessage, Mailbox, MultisigSignedCheckpoint,
-};
+use abacus_base::{CachingMailbox, CoreMetrics};
+use abacus_core::{db::AbacusDB, AbacusContract, AbacusMessage, Mailbox, MultisigSignedCheckpoint};
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
 
@@ -108,10 +106,7 @@ impl MessageProcessor {
             debug!(msg=?msg, "Working on msg");
             msg
         } else {
-            debug!(
-                "Leaf in db without message idx: {}",
-                self.message_nonce
-            );
+            debug!("Leaf in db without message idx: {}", self.message_nonce);
             // Not clear what the best thing to do here is, but there is seemingly an
             // existing race wherein an indexer might non-atomically write leaf
             // info to rocksdb across a few records, so we might see the leaf
@@ -191,23 +186,14 @@ impl MessageProcessor {
         assert_eq!(checkpoint.checkpoint.index + 1, self.prover_sync.count());
         let proof = self.prover_sync.get_proof(self.message_nonce)?;
 
-        if self
-            .db
-            .message_id_by_nonce(self.message_nonce)?
-            .is_some()
-        {
+        if self.db.message_id_by_nonce(self.message_nonce)?.is_some() {
             debug!(
                 id=?message.id(),
                 nonce=message.nonce,
                 "Sending message to submitter"
             );
             // Finally, build the submit arg and dispatch it to the submitter.
-            let submit_args = SubmitMessageArgs::new(
-                message,
-                checkpoint,
-                proof,
-                Instant::now(),
-            );
+            let submit_args = SubmitMessageArgs::new(message, checkpoint, proof, Instant::now());
             self.tx_msg.send(submit_args)?;
             self.message_nonce += 1;
         } else {

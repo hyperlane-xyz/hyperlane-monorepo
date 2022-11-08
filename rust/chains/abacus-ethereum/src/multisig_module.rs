@@ -2,21 +2,23 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::{sync::Arc};
+use std::sync::Arc;
 
 use abacus_core::accumulator::merkle::Proof;
 use async_trait::async_trait;
-use ethers::abi::{Token};
+use ethers::abi::Token;
 use ethers::providers::Middleware;
-use ethers::types::{H160, U256, H256, Selector};
-use eyre::{Result};
+use ethers::types::{Selector, H160, H256, U256};
+use eyre::Result;
 
 use abacus_core::{
-    AbacusAbi, AbacusContract, ChainCommunicationError, ContractLocator,
-    MultisigModule, MultisigSignedCheckpoint,
+    AbacusAbi, AbacusContract, ChainCommunicationError, ContractLocator, MultisigModule,
+    MultisigSignedCheckpoint,
 };
 
-use crate::contracts::multisig_module::{MultisigModule as EthereumMultisigModuleInternal, MULTISIGMODULE_ABI};
+use crate::contracts::multisig_module::{
+    MultisigModule as EthereumMultisigModuleInternal, MULTISIGMODULE_ABI,
+};
 use crate::trait_builder::MakeableWithProvider;
 
 impl<M> std::fmt::Display for EthereumMultisigModuleInternal<M>
@@ -94,41 +96,55 @@ where
     M: Middleware + 'static,
 {
     #[tracing::instrument(err, skip(self))]
-    async fn threshold(
-        &self,
-        domain: u32
-    ) -> Result<U256, ChainCommunicationError> {
+    async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
         Ok(self.contract.threshold(domain).call().await?)
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn validators(
-        &self,
-        domain: u32
-    ) -> Result<Vec<H160>, ChainCommunicationError> {
+    async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
         Ok(self.contract.validators(domain).call().await?)
     }
 
-
     /// Returns the metadata needed by the contract's verify function
-    async fn format_metadata(&self, checkpoint: &MultisigSignedCheckpoint, proof: Proof) -> Result<Vec<u8>, ChainCommunicationError> {
+    async fn format_metadata(
+        &self,
+        checkpoint: &MultisigSignedCheckpoint,
+        proof: Proof,
+    ) -> Result<Vec<u8>, ChainCommunicationError> {
         let threshold = self.threshold(checkpoint.checkpoint.mailbox_domain).await?;
-        let validators: Vec<H256> = self.validators(checkpoint.checkpoint.mailbox_domain).await?.iter().map(|&x| H256::from(x)).collect();
-        let validator_tokens: Vec<Token> = validators.iter().map(|&x| Token::FixedBytes(x.to_fixed_bytes().into())).collect();
-        let proof_tokens: Vec<Token> = proof.path.iter().map(|&x| Token::FixedBytes(x.to_fixed_bytes().into())).collect();
+        let validators: Vec<H256> = self
+            .validators(checkpoint.checkpoint.mailbox_domain)
+            .await?
+            .iter()
+            .map(|&x| H256::from(x))
+            .collect();
+        let validator_tokens: Vec<Token> = validators
+            .iter()
+            .map(|&x| Token::FixedBytes(x.to_fixed_bytes().into()))
+            .collect();
+        let proof_tokens: Vec<Token> = proof
+            .path
+            .iter()
+            .map(|&x| Token::FixedBytes(x.to_fixed_bytes().into()))
+            .collect();
         let prefix = ethers::abi::encode(&[
             Token::FixedBytes(checkpoint.checkpoint.root.to_fixed_bytes().into()),
             Token::Uint(U256::from(checkpoint.checkpoint.index)),
-            Token::FixedBytes(checkpoint.checkpoint.mailbox_address.to_fixed_bytes().into()),
+            Token::FixedBytes(
+                checkpoint
+                    .checkpoint
+                    .mailbox_address
+                    .to_fixed_bytes()
+                    .into(),
+            ),
             Token::FixedArray(proof_tokens),
             Token::Uint(threshold),
         ]);
-        let suffix = ethers::abi::encode(&[
-            Token::FixedArray(validator_tokens)
-        ]);
+        let suffix = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
         // The ethers encoder likes to zero-pad non word-aligned byte arrays.
         // Thus, we pack the signatures, which are not word-aligned, ourselves.
-        let signature_vecs: Vec<Vec<u8>> = checkpoint.signatures.iter().map(|&x| x.to_vec()).collect();
+        let signature_vecs: Vec<Vec<u8>> =
+            checkpoint.signatures.iter().map(|&x| x.to_vec()).collect();
         let signature_bytes = signature_vecs.concat();
         let metadata = [prefix, signature_bytes, suffix].concat();
         Ok(metadata)

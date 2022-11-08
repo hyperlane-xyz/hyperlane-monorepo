@@ -1,7 +1,7 @@
 use crate::db::{DbError, TypedDB, DB};
 use crate::{
-    accumulator::merkle::Proof, AbacusMessage, InterchainGasPayment,
-    InterchainGasPaymentMeta, InterchainGasPaymentWithMeta, RawAbacusMessage,
+    accumulator::merkle::Proof, AbacusMessage, InterchainGasPayment, InterchainGasPaymentMeta,
+    InterchainGasPaymentWithMeta, RawAbacusMessage,
 };
 use ethers::core::types::{H256, U256};
 use eyre::Result;
@@ -170,10 +170,7 @@ impl AbacusDB {
     }
 
     /// Retrieve a message by its nonce
-    pub fn message_by_nonce(
-        &self,
-        nonce: u32,
-    ) -> Result<Option<RawAbacusMessage>, DbError> {
+    pub fn message_by_nonce(&self, nonce: u32) -> Result<Option<RawAbacusMessage>, DbError> {
         let id: Option<H256> = self.message_id_by_nonce(nonce)?;
         match id {
             None => Ok(None),
@@ -186,7 +183,7 @@ impl AbacusDB {
         PrefixIterator::new(self.0.as_ref().prefix_iterator(NONCE), NONCE.as_ref())
     }
 
-    /// Store a proof by its nonce 
+    /// Store a proof by its nonce
     ///
     /// Keys --> Values:
     /// - `nonce` --> `proof`
@@ -221,10 +218,7 @@ impl AbacusDB {
     }
 
     /// Retrieve nonce processed status
-    pub fn retrieve_message_processed(
-        &self,
-        nonce: u32,
-    ) -> Result<Option<bool>, DbError> {
+    pub fn retrieve_message_processed(&self, nonce: u32) -> Result<Option<bool>, DbError> {
         let value: Option<u32> = self.retrieve_keyed_decodable(NONCE_PROCESSED, &nonce)?;
         Ok(value.map(|x| x == 1))
     }

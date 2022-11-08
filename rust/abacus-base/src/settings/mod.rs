@@ -89,11 +89,10 @@ use tracing::instrument;
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
-    ContractLocator, InterchainGasPaymasterIndexer,
-    MailboxIndexer, Signers,
+    ContractLocator, InterchainGasPaymasterIndexer, MailboxIndexer, Signers,
 };
 use abacus_ethereum::{
-    InterchainGasPaymasterIndexerBuilder, MakeableWithProvider, MailboxIndexerBuilder,
+    InterchainGasPaymasterIndexerBuilder, MailboxIndexerBuilder, MakeableWithProvider,
 };
 pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 
@@ -239,8 +238,8 @@ impl Settings {
                 Some(x) => {
                     let mailbox = self.try_caching_mailbox(x, db.clone(), metrics).await?;
                     result.insert((*chain_name).clone(), mailbox);
-                },
-                None => bail!("No chain setup found for {}", chain_name)
+                }
+                None => bail!("No chain setup found for {}", chain_name),
             }
         }
         Ok(result)
@@ -258,10 +257,12 @@ impl Settings {
             let setup = self.chains.get(*chain_name);
             match setup {
                 Some(x) => {
-                    let mailbox = self.try_caching_interchain_gas_paymaster(x, db.clone(), metrics).await?;
+                    let mailbox = self
+                        .try_caching_interchain_gas_paymaster(x, db.clone(), metrics)
+                        .await?;
                     result.insert((*chain_name).clone(), mailbox);
-                },
-                None => bail!("No chain setup found for {}", chain_name)
+                }
+                None => bail!("No chain setup found for {}", chain_name),
             }
         }
         Ok(result)
@@ -279,10 +280,12 @@ impl Settings {
             let setup = self.chains.get(*chain_name);
             match setup {
                 Some(x) => {
-                    let multisig_module = self.try_caching_multisig_module(x, db.clone(), metrics).await?;
+                    let multisig_module = self
+                        .try_caching_multisig_module(x, db.clone(), metrics)
+                        .await?;
                     result.insert((*chain_name).clone(), multisig_module);
-                },
-                None => bail!("No chain setup found for {}", chain_name)
+                }
+                None => bail!("No chain setup found for {}", chain_name),
             }
         }
         Ok(result)
@@ -299,7 +302,11 @@ impl Settings {
         let mailbox = chain_setup.try_into_mailbox(signer, metrics).await?;
         let indexer = self.try_mailbox_indexer(metrics, chain_setup).await?;
         let abacus_db = AbacusDB::new(&chain_setup.name, db);
-        Ok(CachingMailbox::new(mailbox.into(), abacus_db, indexer.into()))
+        Ok(CachingMailbox::new(
+            mailbox.into(),
+            abacus_db,
+            indexer.into(),
+        ))
     }
 
     /// Try to get a CachingInterchainGasPaymaster
@@ -310,10 +317,18 @@ impl Settings {
         metrics: &CoreMetrics,
     ) -> eyre::Result<CachingInterchainGasPaymaster> {
         let signer = self.get_signer(&chain_setup.name).await;
-        let interchain_gas_paymaster = chain_setup.try_into_interchain_gas_paymaster(signer, metrics).await?;
-        let indexer = self.try_interchain_gas_paymaster_indexer(metrics, chain_setup).await?;
+        let interchain_gas_paymaster = chain_setup
+            .try_into_interchain_gas_paymaster(signer, metrics)
+            .await?;
+        let indexer = self
+            .try_interchain_gas_paymaster_indexer(metrics, chain_setup)
+            .await?;
         let abacus_db = AbacusDB::new(&chain_setup.name, db);
-        Ok(CachingInterchainGasPaymaster::new(interchain_gas_paymaster.into(), abacus_db, indexer.into()))
+        Ok(CachingInterchainGasPaymaster::new(
+            interchain_gas_paymaster.into(),
+            abacus_db,
+            indexer.into(),
+        ))
     }
 
     /// Try to get a CachingMultisigModule
@@ -324,7 +339,9 @@ impl Settings {
         metrics: &CoreMetrics,
     ) -> eyre::Result<CachingMultisigModule> {
         let signer = self.get_signer(&chain_setup.name).await;
-        let multisig_module = chain_setup.try_into_multisig_module(signer, metrics).await?;
+        let multisig_module = chain_setup
+            .try_into_multisig_module(signer, metrics)
+            .await?;
         Ok(CachingMultisigModule::new(multisig_module.into()))
     }
 
@@ -343,7 +360,9 @@ impl Settings {
                 &ContractLocator {
                     chain_name: chain_setup.name.clone(),
                     domain: chain_setup.domain.parse().expect("invalid uint"),
-                    address: chain_setup.addresses.mailbox
+                    address: chain_setup
+                        .addresses
+                        .mailbox
                         .parse::<ethers::types::Address>()?
                         .into(),
                 },
@@ -363,7 +382,10 @@ impl Settings {
     ) -> eyre::Result<Box<dyn InterchainGasPaymasterIndexer>> {
         match &chain_setup.chain {
             ChainConf::Ethereum(conn) => Ok(InterchainGasPaymasterIndexerBuilder {
-                mailbox_address: chain_setup.addresses.mailbox.parse::<ethers::types::Address>()?,
+                mailbox_address: chain_setup
+                    .addresses
+                    .mailbox
+                    .parse::<ethers::types::Address>()?,
                 finality_blocks: chain_setup.finality_blocks(),
             }
             .make_with_connection(
@@ -371,7 +393,9 @@ impl Settings {
                 &ContractLocator {
                     chain_name: chain_setup.name.clone(),
                     domain: chain_setup.domain.parse().expect("invalid uint"),
-                    address: chain_setup.addresses.interchain_gas_paymaster
+                    address: chain_setup
+                        .addresses
+                        .interchain_gas_paymaster
                         .parse::<ethers::types::Address>()?
                         .into(),
                 },
@@ -442,7 +466,7 @@ impl Settings {
     pub async fn try_into_abacus_core(
         &self,
         metrics: Arc<CoreMetrics>,
-        chain_names: Option<Vec<&String>>
+        chain_names: Option<Vec<&String>>,
     ) -> eyre::Result<AbacusAgentCore> {
         let db = DB::from_path(&self.db)?;
 
@@ -452,12 +476,18 @@ impl Settings {
             None => Vec::from_iter(self.chains.keys()),
         };
 
-        let mailboxes = self.try_into_mailboxes(db.clone(), &metrics, chain_names.as_slice()).await?;
-        let interchain_gas_paymasters = self.try_into_interchain_gas_paymasters(db.clone(), &metrics, chain_names.as_slice()).await?;
-        let multisig_modules = self.try_into_multisig_modules(db.clone(), &metrics, chain_names.as_slice()).await?;
+        let mailboxes = self
+            .try_into_mailboxes(db.clone(), &metrics, chain_names.as_slice())
+            .await?;
+        let interchain_gas_paymasters = self
+            .try_into_interchain_gas_paymasters(db.clone(), &metrics, chain_names.as_slice())
+            .await?;
+        let multisig_modules = self
+            .try_into_multisig_modules(db.clone(), &metrics, chain_names.as_slice())
+            .await?;
 
         Ok(AbacusAgentCore {
-            mailboxes, 
+            mailboxes,
             interchain_gas_paymasters,
             multisig_modules,
             db,

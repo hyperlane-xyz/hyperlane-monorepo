@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
-use abacus_base::{CachingMailbox, CachingMultisigModule};
 use abacus_base::chains::TransactionSubmissionType;
+use abacus_base::{CachingMailbox, CachingMultisigModule};
 use async_trait::async_trait;
 use eyre::Result;
 use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::{
-    chains::GelatoConf, run_all, AbacusAgentCore, Agent, BaseAgent,
-    ContractSyncMetrics, CoreMetrics, MultisigCheckpointSyncer,
+    chains::GelatoConf, run_all, AbacusAgentCore, Agent, BaseAgent, ContractSyncMetrics,
+    CoreMetrics, MultisigCheckpointSyncer,
 };
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers};
 
@@ -92,7 +92,9 @@ impl BaseAgent for Relayer {
 
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
             self.gas_payment_enforcement_policy.clone(),
-            self.mailbox(self.origin_chain_name.to_string()).db().clone(),
+            self.mailbox(self.origin_chain_name.to_string())
+                .db()
+                .clone(),
         ));
 
         for chain_name in self.core.mailboxes.keys() {
@@ -136,7 +138,12 @@ impl Relayer {
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let mailbox = self.mailbox(self.origin_chain_name.to_string());
-        let sync = mailbox.sync(self.as_ref().settings.chains[&self.origin_chain_name].index.clone(), sync_metrics);
+        let sync = mailbox.sync(
+            self.as_ref().settings.chains[&self.origin_chain_name]
+                .index
+                .clone(),
+            sync_metrics,
+        );
         sync
     }
 
@@ -145,7 +152,12 @@ impl Relayer {
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let paymaster = self.interchain_gas_paymaster(self.origin_chain_name.to_string());
-        let sync = paymaster.sync(self.as_ref().settings.chains[&self.origin_chain_name].index.clone(), sync_metrics);
+        let sync = paymaster.sync(
+            self.as_ref().settings.chains[&self.origin_chain_name]
+                .index
+                .clone(),
+            sync_metrics,
+        );
         sync
     }
 
@@ -178,13 +190,11 @@ impl Relayer {
             message_receiver,
             mailbox,
             multisig_module,
-            self.mailbox(self.origin_chain_name.to_string()).db().clone(),
+            self.mailbox(self.origin_chain_name.to_string())
+                .db()
+                .clone(),
             gelato_config,
-            GelatoSubmitterMetrics::new(
-                &self.core.metrics,
-                &self.origin_chain_name,
-                &chain_name,
-            ),
+            GelatoSubmitterMetrics::new(&self.core.metrics, &self.origin_chain_name, &chain_name),
             gas_payment_enforcer,
         )
     }
@@ -202,17 +212,17 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let origin_mailbox = self.mailbox(self.origin_chain_name.to_string());
         let destination = mailbox.chain_name();
-        let metrics = MessageProcessorMetrics::new(
-            &self.core.metrics,
-            &self.origin_chain_name,
-            destination,
-        );
+        let metrics =
+            MessageProcessorMetrics::new(&self.core.metrics, &self.origin_chain_name, destination);
         let (msg_send, msg_receive) = mpsc::unbounded_channel();
 
         let submit_fut = match tx_submission {
             TransactionSubmissionType::Gelato => {
                 let gelato_config = gelato_config.unwrap_or_else(|| {
-                    panic!("Expected GelatoConf for mailbox {} using Gelato", destination)
+                    panic!(
+                        "Expected GelatoConf for mailbox {} using Gelato",
+                        destination
+                    )
                 });
 
                 self.make_gelato_submitter(

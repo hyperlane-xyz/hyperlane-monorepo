@@ -4,8 +4,8 @@
 use std::collections::HashMap;
 use std::{error::Error as StdError, sync::Arc};
 
-use ethers::abi::AbiEncode;
 use async_trait::async_trait;
+use ethers::abi::AbiEncode;
 use ethers::prelude::*;
 use ethers_contract::builders::ContractCall;
 use eyre::{eyre, Result};
@@ -13,10 +13,10 @@ use tracing::instrument;
 
 use abacus_core::{
     AbacusAbi, AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, ContractLocator,
-    Indexer, LogMeta, Mailbox, MailboxIndexer, RawAbacusMessage, TxOutcome, TxCostEstimate,
+    Indexer, LogMeta, Mailbox, MailboxIndexer, RawAbacusMessage, TxCostEstimate, TxOutcome,
 };
 
-use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, MAILBOX_ABI, ProcessCall};
+use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
 use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
 
@@ -113,15 +113,14 @@ where
             .query_with_meta()
             .await?
             .into_iter()
-            .map(|(event, meta)| {
-                (
-                    event.message.to_vec(),
-                    meta.into(),
-                )
-            })
+            .map(|(event, meta)| (event.message.to_vec(), meta.into()))
             .collect();
-        
-        events.sort_by(|a, b| AbacusMessage::from(a.0.clone()).nonce.cmp(&AbacusMessage::from(b.0.clone()).nonce));
+
+        events.sort_by(|a, b| {
+            AbacusMessage::from(a.0.clone())
+                .nonce
+                .cmp(&AbacusMessage::from(b.0.clone()).nonce)
+        });
         Ok(events)
     }
 }
@@ -190,7 +189,6 @@ where
         };
         Ok(tx.gas(gas_limit))
     }
-
 }
 
 impl<M> AbacusContract for EthereumMailbox<M>
@@ -288,9 +286,7 @@ where
         message: &AbacusMessage,
         metadata: &Vec<u8>,
     ) -> Result<TxCostEstimate> {
-        let contract_call = self
-            .process_contract_call(message, metadata, None)
-            .await?;
+        let contract_call = self.process_contract_call(message, metadata, None).await?;
 
         let gas_limit = contract_call
             .tx
@@ -304,18 +300,13 @@ where
         })
     }
 
-    fn process_calldata(
-        &self,
-        message: &AbacusMessage,
-        metadata: &Vec<u8>,
-    ) -> Vec<u8> {
+    fn process_calldata(&self, message: &AbacusMessage, metadata: &Vec<u8>) -> Vec<u8> {
         let process_call = ProcessCall {
             message: RawAbacusMessage::from(message).to_vec().into(),
             metadata: metadata.to_vec().into(),
         };
         process_call.encode()
     }
-
 }
 
 pub struct EthereumMailboxAbi;

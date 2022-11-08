@@ -15,13 +15,10 @@ use tracing::instrument::Instrumented;
 use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
 
 use abacus_base::last_message::validate_message_continuity;
-use abacus_base::{
-    run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics,
-    Settings,
-};
+use abacus_base::{run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, Settings};
 use abacus_core::{
-    name_from_domain_id, AbacusContract, AbacusMessage, ListValidity, LogMeta,
-    RawAbacusMessage, Mailbox, MailboxIndexer,
+    name_from_domain_id, AbacusContract, AbacusMessage, ListValidity, LogMeta, Mailbox,
+    MailboxIndexer, RawAbacusMessage,
 };
 
 use crate::scraper::block_cursor::BlockCursor;

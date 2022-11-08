@@ -5,7 +5,7 @@ use abacus_core::{
     AbacusMessage, TxCostEstimate,
 };
 use async_trait::async_trait;
-use ethers::types::{U256, H256};
+use ethers::types::{H256, U256};
 use eyre::Result;
 
 use crate::settings::GasPaymentEnforcementPolicy;

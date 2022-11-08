@@ -13,10 +13,8 @@ use abacus_core::db::DB;
 
 use crate::CachingMultisigModule;
 use crate::{
-    cancel_task,
-    metrics::CoreMetrics,
-    settings::Settings,
-    CachingInterchainGasPaymaster, CachingMailbox,
+    cancel_task, metrics::CoreMetrics, settings::Settings, CachingInterchainGasPaymaster,
+    CachingMailbox,
 };
 
 /// Properties shared across all abacus agents

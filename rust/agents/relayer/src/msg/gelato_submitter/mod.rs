@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use abacus_base::chains::GelatoConf;
-use abacus_base::{CoreMetrics, CachingMailbox, CachingMultisigModule};
+use abacus_base::{CachingMailbox, CachingMultisigModule, CoreMetrics};
 use abacus_core::db::AbacusDB;
 use abacus_core::{AbacusDomain, Mailbox};
 use eyre::{bail, Result};
@@ -67,10 +67,8 @@ impl GelatoSubmitter {
             .unwrap();
         Self {
             message_receiver,
-            destination_gelato_chain: abacus_domain_id_to_gelato_chain(
-                mailbox.local_domain(),
-            )
-            .unwrap(),
+            destination_gelato_chain: abacus_domain_id_to_gelato_chain(mailbox.local_domain())
+                .unwrap(),
             mailbox,
             multisig_module,
             db: abacus_db,

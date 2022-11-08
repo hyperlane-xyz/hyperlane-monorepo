@@ -1,4 +1,4 @@
-use abacus_core::{ListValidity, RawAbacusMessage, AbacusMessage};
+use abacus_core::{AbacusMessage, ListValidity, RawAbacusMessage};
 
 /// Check if the list of sorted messages is a valid continuation of the
 /// OptLatestLeafIndex. If the latest index is Some, check the validity of the
@@ -31,7 +31,9 @@ pub fn validate_message_continuity(
 
     // Ensure no gaps in new batch of leaves
     for pair in sorted_messages.windows(2) {
-        if AbacusMessage::from((*pair[0]).clone()).nonce != AbacusMessage::from((*pair[1]).clone()).nonce - 1 {
+        if AbacusMessage::from((*pair[0]).clone()).nonce
+            != AbacusMessage::from((*pair[1]).clone()).nonce - 1
+        {
             return ListValidity::ContainsGaps;
         }
     }

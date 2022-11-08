@@ -98,17 +98,17 @@ impl SponsoredCallOp {
         if let Ok(true) = self.message_delivered().await {
             return Ok(true);
         }
-        let metadata = self.multisig_module.format_metadata(&self.message.checkpoint, self.message.proof).await?;
+        let metadata = self
+            .multisig_module
+            .format_metadata(&self.message.checkpoint, self.message.proof)
+            .await?;
 
         // Estimate transaction costs for the process call. If there are issues, it's likely
         // that gas estimation has failed because the message is reverting. This is defined behavior,
         // so we just log the error and move onto the next tick.
         let tx_cost_estimate = match self
             .mailbox
-            .process_estimate_costs(
-                &self.message.message,
-                &metadata
-            )
+            .process_estimate_costs(&self.message.message, &metadata)
             .await
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
@@ -121,10 +121,7 @@ impl SponsoredCallOp {
         // If the gas payment requirement hasn't been met, sleep briefly and wait for the next tick.
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(
-                &self.message.message,
-                &tx_cost_estimate,
-            )
+            .message_meets_gas_payment_requirement(&self.message.message, &tx_cost_estimate)
             .await?;
 
         if !meets_gas_requirement {
@@ -217,17 +214,16 @@ impl SponsoredCallOp {
     }
 
     async fn create_sponsored_call_args(&self) -> Result<SponsoredCallArgs> {
-        let metadata = self.multisig_module.format_metadata(&self.message.checkpoint, self.message.proof).await?;
-        let calldata = self.mailbox.process_calldata(
-            &self.message.message,
-            &metadata
-        );
+        let metadata = self
+            .multisig_module
+            .format_metadata(&self.message.checkpoint, self.message.proof)
+            .await?;
+        let calldata = self
+            .mailbox
+            .process_calldata(&self.message.message, &metadata);
         Ok(SponsoredCallArgs {
             chain_id: self.destination_chain,
-            target: self
-                .mailbox
-                .address()
-                .into(),
+            target: self.mailbox.address().into(),
             data: calldata.into(),
             gas_limit: None, // Gelato will handle gas estimation
             retries: None,   // Use Gelato's default of 5 retries, each ~5 seconds apart
@@ -235,9 +231,7 @@ impl SponsoredCallOp {
     }
 
     async fn message_delivered(&self) -> Result<bool, ChainCommunicationError> {
-        self.mailbox
-            .delivered(self.message.message.id())
-            .await
+        self.mailbox.delivered(self.message.message.id()).await
     }
 
     fn send_message_processed(

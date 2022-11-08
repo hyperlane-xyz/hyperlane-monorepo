@@ -17,7 +17,9 @@ where
     I: MailboxIndexer + Clone + 'static,
 {
     /// Sync dispatched messages
-    pub fn sync_dispatched_messages(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
+    pub fn sync_dispatched_messages(
+        &self,
+    ) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
         let span = info_span!("MessageContractSync");
 
         let db = self.db.clone();

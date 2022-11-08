@@ -6,7 +6,7 @@ use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
 use abacus_base::{run_all, AbacusAgentCore, Agent, BaseAgent, CheckpointSyncers, CoreMetrics};
-use abacus_core::{Signers};
+use abacus_core::Signers;
 
 use crate::submit::ValidatorSubmitterMetrics;
 use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
@@ -65,7 +65,7 @@ impl BaseAgent for Validator {
         let interval = settings.interval.parse().expect("invalid uint");
         let core = settings
             .as_ref()
-            .try_into_abacus_core(metrics,Some([origin_chain_name].into_iter().collect()))
+            .try_into_abacus_core(metrics, Some([origin_chain_name].into_iter().collect()))
             .await?;
         let checkpoint_syncer = settings.checkpointsyncer.try_into_checkpoint_syncer(None)?;
 

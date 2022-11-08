@@ -1,18 +1,13 @@
 use serde::Deserialize;
 
 use abacus_core::{
-    AbacusAbi, ContractLocator, InterchainGasPaymaster, Mailbox,
-    Signers, MultisigModule,
+    AbacusAbi, ContractLocator, InterchainGasPaymaster, Mailbox, MultisigModule, Signers,
 };
 use abacus_ethereum::{
-    Connection, EthereumMailboxAbi, EthereumInterchainGasPaymasterAbi,
-    MailboxBuilder, InterchainGasPaymasterBuilder,
-    MultisigModuleBuilder,
-    MakeableWithProvider,
+    Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
+    InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider, MultisigModuleBuilder,
 };
-use ethers_prometheus::middleware::{
-    ChainInfo, ContractInfo, PrometheusMiddlewareConf,
-};
+use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 
 use crate::CoreMetrics;
 
@@ -137,7 +132,13 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn Mailbox>> {
-        self.try_into_contract(signer, metrics, MailboxBuilder {}, self.addresses.mailbox.clone()).await
+        self.try_into_contract(
+            signer,
+            metrics,
+            MailboxBuilder {},
+            self.addresses.mailbox.clone(),
+        )
+        .await
     }
 
     /// Try to convert the chain setting into an InterchainGasPaymaster contract
@@ -146,7 +147,13 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn InterchainGasPaymaster>> {
-        self.try_into_contract(signer, metrics, InterchainGasPaymasterBuilder {}, self.addresses.interchain_gas_paymaster.clone()).await
+        self.try_into_contract(
+            signer,
+            metrics,
+            InterchainGasPaymasterBuilder {},
+            self.addresses.interchain_gas_paymaster.clone(),
+        )
+        .await
     }
 
     /// Try to convert the chain setting into a Multisig Module contract
@@ -155,7 +162,13 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn MultisigModule>> {
-        self.try_into_contract(signer, metrics, MultisigModuleBuilder {}, self.addresses.multisig_module.clone()).await
+        self.try_into_contract(
+            signer,
+            metrics,
+            MultisigModuleBuilder {},
+            self.addresses.multisig_module.clone(),
+        )
+        .await
     }
 
     /// Try to convert the chain setting into a contract

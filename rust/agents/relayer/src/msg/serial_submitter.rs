@@ -1,11 +1,11 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use abacus_base::CachingMailbox;
 use abacus_base::CachingMultisigModule;
 use abacus_base::CoreMetrics;
-use abacus_base::CachingMailbox;
 use abacus_core::db::AbacusDB;
-use abacus_core::{Mailbox, AbacusContract, MultisigModule};
+use abacus_core::{AbacusContract, Mailbox, MultisigModule};
 use eyre::{bail, Result};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc;
@@ -248,15 +248,14 @@ impl SerialSubmitter {
         // inbox, e.g. due to another relayer having already processed, then mark it as
         // already-processed, and move on to the next tick.
         // TODO(webbhorn): Make this robust to re-orgs on inbox.
-        if self
-            .mailbox
-            .delivered(msg.message.id())
-            .await?
-        {
+        if self.mailbox.delivered(msg.message.id()).await? {
             info!("Message already processed");
             return Ok(true);
         }
-        let metadata = self.multisig_module.format_metadata(&msg.checkpoint, msg.proof).await?;
+        let metadata = self
+            .multisig_module
+            .format_metadata(&msg.checkpoint, msg.proof)
+            .await?;
 
         // Estimate transaction costs for the process call. If there are issues, it's likely
         // that gas estimation has failed because the message is reverting. This is defined behavior,
@@ -295,11 +294,7 @@ impl SerialSubmitter {
         // avoid a second gas estimation.
         let process_result = self
             .mailbox
-            .process(
-                &msg.message,
-                &metadata,
-                Some(tx_cost_estimate.gas_limit),
-            )
+            .process(&msg.message, &metadata, Some(tx_cost_estimate.gas_limit))
             .await;
         match process_result {
             // TODO(trevor): Instead of immediately marking as processed, move to a verification

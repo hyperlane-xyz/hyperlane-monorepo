@@ -1,12 +1,12 @@
 #![allow(non_snake_case)]
 
 use async_trait::async_trait;
-use mockall::*;
 use eyre::Result;
+use mockall::*;
 
 use ethers::{core::types::H256, types::U256};
 
-use abacus_core::{*};
+use abacus_core::*;
 
 mock! {
     pub MailboxContract {
@@ -113,11 +113,7 @@ impl Mailbox for MockMailboxContract {
         self.process_estimate_costs(message, metadata)
     }
 
-    fn process_calldata(
-        &self,
-        message: &AbacusMessage,
-        metadata: &Vec<u8>,
-    ) -> Vec<u8> {
+    fn process_calldata(&self, message: &AbacusMessage, metadata: &Vec<u8>) -> Vec<u8> {
         self.process_calldata(message, metadata)
     }
 }

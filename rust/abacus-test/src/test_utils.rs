@@ -30,9 +30,7 @@ where
 mod test {
     use ethers::types::H256;
 
-    use abacus_core::{
-        accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, RawAbacusMessage,
-    };
+    use abacus_core::{accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, RawAbacusMessage};
 
     use super::*;
 
@@ -59,10 +57,7 @@ mod test {
             let by_leaf = db.message_by_id(m.id()).unwrap().unwrap();
             assert_eq!(by_leaf, message);
 
-            let by_index = db
-                .message_by_nonce(m.nonce)
-                .unwrap()
-                .unwrap();
+            let by_index = db.message_by_nonce(m.nonce).unwrap().unwrap();
             assert_eq!(by_index, message);
         })
         .await;

@@ -564,5 +564,9 @@ fn build_cmd(cmd: &[&str], log: impl AsRef<Path>, log_all: bool, wd: Option<&str
         c.current_dir(wd);
     }
     let status = c.status().expect("Failed to run command");
-    assert!(status.success(), "Command returned non-zero exit code: {}", cmd.join(" "));
+    assert!(
+        status.success(),
+        "Command returned non-zero exit code: {}",
+        cmd.join(" ")
+    );
 }
