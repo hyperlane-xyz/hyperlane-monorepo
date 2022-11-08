@@ -3653,6 +3653,7 @@ dependencies = [
  "config",
  "ethers",
  "eyre",
+ "futures",
  "hex 0.1.0",
  "itertools",
  "migration",

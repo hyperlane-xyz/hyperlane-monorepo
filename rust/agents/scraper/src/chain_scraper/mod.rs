@@ -1,26 +1,27 @@
-use std::cmp::min;
 use std::collections::HashMap;
+use std::future::Future;
 use std::sync::Arc;
-use std::time::Duration;
 
 use ethers::types::H256;
 use eyre::{eyre, Result};
+use futures::TryFutureExt;
 use sea_orm::prelude::TimeDateTime;
-use tokio::time::sleep;
-use tracing::{debug, info, instrument, trace, warn};
+use tracing::{instrument, trace};
 
-use abacus_base::last_message::validate_message_continuity;
 use abacus_base::{ContractSyncMetrics, IndexSettings};
 use abacus_core::{
-    name_from_domain_id, AbacusContract, AbacusProvider, BlockInfo, CommittedMessage, Inbox,
-    InboxIndexer, ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
+    AbacusContract, AbacusProvider, BlockInfo, CommittedMessage, Inbox, InboxIndexer, LogMeta,
+    Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
+use crate::chain_scraper::sync::Syncer;
 use crate::conversions::u256_as_scaled_f64;
 use crate::date_time;
 use crate::db::{
     BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn,
 };
+
+mod sync;
 
 #[derive(Debug, Clone)]
 pub struct Remote {
@@ -110,167 +111,8 @@ impl SqlChainScraper {
     /// TODO: better handling for errors to auto-restart without bringing down
     /// the whole service?
     #[instrument(skip(self))]
-    pub async fn sync(self) -> Result<()> {
-        // TODO: pull this into a fn-like struct for ticks?
-        let chain_name = self.chain_name();
-        let message_labels = ["messages", chain_name];
-        let deliveries_labels = ["deliveries", chain_name];
-
-        let indexed_message_height = self
-            .metrics
-            .indexed_height
-            .with_label_values(&message_labels);
-        let indexed_deliveries_height = self
-            .metrics
-            .indexed_height
-            .with_label_values(&deliveries_labels);
-        let stored_messages = self
-            .metrics
-            .stored_events
-            .with_label_values(&message_labels);
-        let stored_deliveries = self
-            .metrics
-            .stored_events
-            .with_label_values(&deliveries_labels);
-        let missed_messages = self
-            .metrics
-            .missed_events
-            .with_label_values(&message_labels);
-        let message_leaf_index = self.metrics.message_leaf_index.clone();
-
-        let chunk_size = self.chunk_size;
-        let mut from = self.cursor.height().await as u32;
-        let mut last_valid_range_start_block = from;
-        let mut last_leaf_index = self.last_message_leaf_index().await?.unwrap_or(0);
-
-        info!(from, chunk_size, chain_name, "Resuming chain sync");
-
-        loop {
-            indexed_message_height.set(from as i64);
-            indexed_deliveries_height.set(from as i64);
-
-            let Ok(tip) = self.get_finalized_block_number().await else {
-                continue;
-            };
-            if tip <= from {
-                sleep(Duration::from_secs(1)).await;
-                continue;
-            }
-
-            let to = min(tip, from + chunk_size);
-            let full_chunk_from = to.checked_sub(chunk_size).unwrap_or_default();
-            debug_assert_eq!(self.local.outbox.local_domain(), self.local_domain());
-            let mut sorted_messages = self
-                .local
-                .indexer
-                .fetch_sorted_messages(full_chunk_from, to)
-                .await?;
-
-            let deliveries: Vec<Delivery> = {
-                let mut delivered = vec![];
-                for (_, remote) in self.remotes.iter() {
-                    debug_assert_eq!(remote.inbox.local_domain(), self.local_domain());
-                    delivered.extend(
-                        remote
-                            .indexer
-                            .fetch_processed_messages(full_chunk_from, to)
-                            .await?
-                            .into_iter()
-                            .map(|(message_hash, meta)| Delivery {
-                                inbox: remote.inbox.address(),
-                                message_hash,
-                                meta,
-                            }),
-                    )
-                }
-                delivered
-            };
-
-            info!(
-                from = full_chunk_from,
-                to,
-                message_count = sorted_messages.len(),
-                deliveries_count = deliveries.len(),
-                chain_name,
-                "Indexed block range for chain"
-            );
-
-            sorted_messages.retain(|m| m.0.leaf_index > last_leaf_index);
-
-            debug!(
-                from = full_chunk_from,
-                to,
-                message_count = sorted_messages.len(),
-                chain_name,
-                "Filtered any messages already indexed for outbox."
-            );
-
-            match validate_message_continuity(
-                Some(last_leaf_index),
-                &sorted_messages
-                    .iter()
-                    .map(|(msg, _)| msg)
-                    .collect::<Vec<_>>(),
-            ) {
-                ListValidity::Valid => {
-                    // transaction (database_id, timestamp) by transaction hash
-                    let txns: HashMap<H256, (i64, TimeDateTime)> = self
-                        .ensure_blocks_and_txns(
-                            sorted_messages
-                                .iter()
-                                .map(|(_, meta)| meta)
-                                .chain(deliveries.iter().map(|d| &d.meta)),
-                        )
-                        .await?
-                        .collect();
-
-                    let max_leaf_index_of_batch =
-                        self.store_messages(&sorted_messages, &txns).await?;
-                    stored_messages.inc_by(sorted_messages.len() as u64);
-                    self.record_deliveries(&deliveries, &txns).await?;
-                    stored_deliveries.inc_by(deliveries.len() as u64);
-
-                    for (raw_msg, _) in sorted_messages.iter() {
-                        let dst = CommittedMessage::try_from(raw_msg)
-                            .ok()
-                            .and_then(|msg| name_from_domain_id(msg.message.destination))
-                            .unwrap_or_else(|| "unknown".into());
-                        message_leaf_index
-                            .with_label_values(&["dispatch", chain_name, &dst])
-                            .set(max_leaf_index_of_batch as i64);
-                    }
-
-                    self.cursor.update(full_chunk_from as u64).await;
-                    last_leaf_index = max_leaf_index_of_batch;
-                    last_valid_range_start_block = full_chunk_from;
-                    from = to + 1;
-                }
-                ListValidity::InvalidContinuation => {
-                    missed_messages.inc();
-                    warn!(
-                        ?last_leaf_index,
-                        start_block = from,
-                        end_block = to,
-                        last_valid_range_start_block,
-                        chain_name,
-                        "Found invalid continuation in range. Re-indexing from the start block of the last successful range."
-                    );
-                    from = last_valid_range_start_block;
-                }
-                ListValidity::ContainsGaps => {
-                    missed_messages.inc();
-                    warn!(
-                        ?last_leaf_index,
-                        start_block = from,
-                        end_block = to,
-                        last_valid_range_start_block,
-                        chain_name,
-                        "Found gaps in the message in range, re-indexing the same range."
-                    );
-                }
-                ListValidity::Empty => from = to + 1,
-            }
-        }
+    pub fn sync(self) -> impl Future<Output = Result<()>> + Send + 'static {
+        Syncer::new(self).and_then(|syncer| syncer.run())
     }
 
     async fn last_message_leaf_index(&self) -> Result<Option<u32>> {

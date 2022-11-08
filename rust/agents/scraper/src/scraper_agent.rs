@@ -131,8 +131,7 @@ impl BaseAgent for Scraper {
             .iter()
             .map(|(name, scraper)| {
                 let span = info_span!("ChainContractSync", %name, chain = scraper.chain_name());
-                let syncer = scraper.clone().sync();
-                tokio::spawn(syncer).instrument(span)
+                tokio::spawn(scraper.clone().sync()).instrument(span)
             })
             .collect();
 
