@@ -18,15 +18,15 @@ pub struct Balance(pub num::BigInt);
 pub struct ContractLocator {
     pub chain_name: String,
     pub domain: u32,
-    pub address: Address,
+    pub address: Option<Address>,
 }
 impl std::fmt::Display for ContractLocator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}[@{}]+contract:0x{:x}",
-            self.chain_name, self.domain, self.address.0
-        )
+        write!(f, "{}[@{}]", self.chain_name, self.domain)?;
+        if let Some(addr) = &self.address {
+            write!(f, "+contract:0x{:x}", addr.0)?;
+        }
+        Ok(())
     }
 }
 

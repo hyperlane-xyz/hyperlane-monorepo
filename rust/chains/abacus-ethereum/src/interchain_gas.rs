@@ -87,7 +87,7 @@ where
     ) -> Self {
         Self {
             contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
-                &locator.address,
+                locator.address.as_ref().expect("An address is required"),
                 provider.clone(),
             )),
             provider,
@@ -193,7 +193,7 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
-                &locator.address,
+                locator.address.as_ref().expect("An address is required"),
                 provider.clone(),
             )),
             domain: locator.domain,

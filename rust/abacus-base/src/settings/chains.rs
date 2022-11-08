@@ -129,19 +129,12 @@ impl<T> ChainSetup<T> {
             cfg
         };
 
-        self.build(
-            "0x0000000000000000000000000000000000000000",
-            None,
-            metrics,
-            metrics_conf,
-            builder,
-        )
-        .await
+        self.build(None, None, metrics, metrics_conf, builder).await
     }
 
     async fn build<B: MakeableWithProvider + Sync>(
         &self,
-        address: &str,
+        address: Option<&str>,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
         metrics_conf: PrometheusMiddlewareConf,
@@ -155,7 +148,13 @@ impl<T> ChainSetup<T> {
                         &ContractLocator {
                             chain_name: self.name.clone(),
                             domain: self.domain.parse().expect("invalid uint"),
-                            address: address.parse::<ethers::types::Address>()?.into(),
+                            address: address
+                                .map(|a| {
+                                    Ok::<_, eyre::Report>(
+                                        a.parse::<ethers::types::Address>()?.into(),
+                                    )
+                                })
+                                .transpose()?,
                         },
                         signer,
                         Some(|| metrics.json_rpc_client_metrics()),
@@ -176,7 +175,7 @@ impl ChainSetup<OutboxAddresses> {
     ) -> eyre::Result<Box<dyn Outbox>> {
         let address = &self.addresses.outbox;
         let builder = OutboxBuilder {};
-        self.build(address, signer, metrics, self.metrics_conf(), builder)
+        self.build(Some(address), signer, metrics, self.metrics_conf(), builder)
             .await
             .context("Building outbox")
     }
@@ -191,7 +190,7 @@ impl ChainSetup<OutboxAddresses> {
         let builder = OutboxIndexerBuilder {
             finality_blocks: self.finality_blocks(),
         };
-        self.build(address, signer, metrics, self.metrics_conf(), builder)
+        self.build(Some(address), signer, metrics, self.metrics_conf(), builder)
             .await
             .context("Building outbox indexer")
     }
@@ -204,7 +203,7 @@ impl ChainSetup<OutboxAddresses> {
     ) -> eyre::Result<Option<Box<dyn InterchainGasPaymaster>>> {
         if let Some(address) = &self.addresses.interchain_gas_paymaster {
             let builder = InterchainGasPaymasterBuilder {};
-            self.build(address, signer, metrics, self.metrics_conf(), builder)
+            self.build(Some(address), signer, metrics, self.metrics_conf(), builder)
                 .await
                 .map(Some)
                 .context("Building interchain gas paymaster")
@@ -227,7 +226,7 @@ impl ChainSetup<OutboxAddresses> {
                 chunk_size: index.chunk_size(),
                 finality_blocks: self.finality_blocks(),
             };
-            self.build(address, signer, metrics, self.metrics_conf(), builder)
+            self.build(Some(address), signer, metrics, self.metrics_conf(), builder)
                 .await
                 .map(Some)
                 .context("Building interchain gas paymaster indexer")
@@ -275,7 +274,7 @@ impl ChainSetup<InboxAddresses> {
         let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         let address = &self.addresses.inbox;
         let builder = InboxBuilder {};
-        self.build(address, signer, metrics, metrics_conf, builder)
+        self.build(Some(address), signer, metrics, metrics_conf, builder)
             .await
             .context("Building inbox")
     }
@@ -291,7 +290,7 @@ impl ChainSetup<InboxAddresses> {
         let builder = InboxIndexerBuilder {
             finality_blocks: self.finality_blocks(),
         };
-        self.build(address, signer, metrics, metrics_conf, builder)
+        self.build(Some(address), signer, metrics, metrics_conf, builder)
             .await
             .context("Building inbox indexer")
     }
@@ -306,7 +305,7 @@ impl ChainSetup<InboxAddresses> {
         let address = &self.addresses.validator_manager;
         let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
         let builder = InboxValidatorManagerBuilder { inbox_address };
-        self.build(address, signer, metrics, metrics_conf, builder)
+        self.build(Some(address), signer, metrics, metrics_conf, builder)
             .await
             .context("Building inbox validator manager")
     }
