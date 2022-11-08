@@ -80,7 +80,6 @@ where
             .transpose()?;
 
         assert_eq!(&txn.hash, hash);
-        debug_assert_eq!(U256::from(txn.nonce.as_u64()), txn.nonce);
 
         Ok(TxnInfo {
             hash: *hash,
