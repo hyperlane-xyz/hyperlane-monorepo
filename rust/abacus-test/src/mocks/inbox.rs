@@ -75,10 +75,6 @@ impl AbacusContract for MockInboxContract {
 
 #[async_trait]
 impl AbacusCommon for MockInboxContract {
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
-        self._status(txid)
-    }
-
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
         self._validator_manager()
     }

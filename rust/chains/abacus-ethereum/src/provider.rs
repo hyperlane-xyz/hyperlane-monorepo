@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use ethers::prelude::{Middleware, H256, U256};
+use ethers::prelude::{Middleware, H256};
 use eyre::eyre;
 
 use crate::MakeableWithProvider;
@@ -46,8 +46,6 @@ where
             .get_block(*hash)
             .await?
             .ok_or_else(|| eyre!("Could not find block with hash {}", hash))?;
-        assert_eq!(block.hash.as_ref().unwrap(), hash);
-        debug_assert_eq!(U256::from(block.timestamp.as_u64()), block.timestamp);
         Ok(BlockInfo {
             hash: *hash,
             timestamp: block.timestamp.as_u64(),
@@ -55,8 +53,6 @@ where
                 .number
                 .ok_or_else(|| eyre!("Block is not part of the chain yet {}", hash))?
                 .as_u64(),
-            gas_used: block.gas_used,
-            gas_limit: block.gas_limit,
         })
     }
 
@@ -80,9 +76,6 @@ where
                 })
             })
             .transpose()?;
-
-        assert_eq!(&txn.hash, hash);
-        debug_assert_eq!(U256::from(txn.nonce.as_u64()), txn.nonce);
 
         Ok(TxnInfo {
             hash: *hash,

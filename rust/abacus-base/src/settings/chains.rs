@@ -1,3 +1,4 @@
+use ethers::abi::AbiEncode;
 use ethers::signers::Signer;
 use eyre::Context;
 use serde::Deserialize;
@@ -129,14 +130,11 @@ impl<T> ChainSetup<T> {
             cfg
         };
 
-        self.build(
-            "0x0000000000000000000000000000000000000000",
-            None,
-            metrics,
-            metrics_conf,
-            builder,
-        )
-        .await
+        let address = match &self.chain {
+            ChainConf::Ethereum(_) => ethers::types::Address::zero().encode_hex(),
+        };
+        self.build(&address, None, metrics, metrics_conf, builder)
+            .await
     }
 
     async fn build<B: MakeableWithProvider + Sync>(

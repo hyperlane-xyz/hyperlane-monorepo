@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import { Inbox, Outbox, Outbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
@@ -157,23 +157,23 @@ export class HyperlaneCore<
 
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
     const outbox = Outbox__factory.createInterface();
-    const describedLogs = sourceTx.logs.map((log) => {
-      try {
-        return outbox.parseLog(log);
-      } catch (e) {
-        return undefined;
-      }
-    });
-    const dispatchLogs = describedLogs.filter(
-      (log) => log && log.name === 'Dispatch',
-    ) as ethers.utils.LogDescription[];
-    if (dispatchLogs.length === 0) {
-      throw new Error('Dispatch logs not found');
-    }
+    const dispatchLogs = sourceTx.logs
+      .map((log) => {
+        try {
+          return outbox.parseLog(log);
+        } catch (e) {
+          return undefined;
+        }
+      })
+      .filter(
+        (log): log is ethers.utils.LogDescription =>
+          !!log && log.name === 'Dispatch',
+      );
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
+      const leafIndex = BigNumber.from(log.args['leafIndex']).toNumber();
       const parsed = utils.parseMessage(message);
-      return { leafIndex: log.args['leafIndex'], message, parsed };
+      return { leafIndex, message, parsed };
     });
   }
 
@@ -181,7 +181,6 @@ export class HyperlaneCore<
     sourceTx: ethers.ContractReceipt,
   ): Promise<ethers.ContractReceipt[]> {
     const messages = this.getDispatchedMessages(sourceTx);
-
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
   }
 }

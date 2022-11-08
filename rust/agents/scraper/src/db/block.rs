@@ -12,7 +12,7 @@ use abacus_core::BlockInfo;
 
 use crate::conversions::{format_h256, parse_h256};
 use crate::date_time;
-use crate::db::{as_f64, ScraperDb};
+use crate::db::ScraperDb;
 
 use super::generated::block;
 
@@ -79,8 +79,6 @@ impl ScraperDb {
                 domain: Unchanged(domain as i32),
                 height: Unchanged(info.number as i64),
                 timestamp: Set(date_time::from_unix_timestamp_s(info.timestamp)),
-                gas_used: Set(as_f64(info.gas_used)),
-                gas_limit: Set(as_f64(info.gas_limit)),
             })
             .collect::<Vec<_>>();
 

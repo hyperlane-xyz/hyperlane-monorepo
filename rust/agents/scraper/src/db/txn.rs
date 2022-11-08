@@ -9,7 +9,7 @@ use abacus_core::TxnInfo;
 
 use crate::conversions::{format_h256, parse_h256};
 use crate::date_time;
-use crate::db::{as_f64, ScraperDb};
+use crate::db::ScraperDb;
 
 use super::generated::transaction;
 
@@ -52,6 +52,7 @@ impl ScraperDb {
 
     #[instrument(skip_all)]
     pub async fn record_txns(&self, txns: impl Iterator<Item = StorableTxn>) -> Result<i64> {
+        let as_f64 = ethers::types::U256::to_f64_lossy;
         let models = txns
             .map(|txn| {
                 let receipt = txn
@@ -72,7 +73,7 @@ impl ScraperDb {
                     nonce: Set(txn.nonce as i64),
                     sender: Set(format_h256(&txn.sender)),
                     recipient: Set(txn.recipient.as_ref().map(format_h256)),
-                    max_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(as_f64)),
+                    max_fee_per_gas: Set(txn.max_fee_per_gas.map(as_f64)),
                     cumulative_gas_used: Set(as_f64(receipt.cumulative_gas_used)),
                 })
             })

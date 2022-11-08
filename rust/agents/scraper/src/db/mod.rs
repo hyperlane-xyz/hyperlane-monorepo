@@ -10,8 +10,6 @@ pub use block_cursor::BlockCursor;
 pub use message::*;
 pub use txn::*;
 
-use crate::conversions::u256_as_scaled_f64;
-
 #[allow(clippy::all)]
 mod generated;
 
@@ -38,8 +36,4 @@ impl ScraperDb {
         let db = Database::connect(url).await?;
         Ok(Self(db))
     }
-}
-
-fn as_f64(v: ethers::types::U256) -> f64 {
-    u256_as_scaled_f64(v, 18)
 }

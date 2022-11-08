@@ -6,7 +6,7 @@ use ethers::types::H256;
 use eyre::{eyre, Result};
 use futures::TryFutureExt;
 use sea_orm::prelude::TimeDateTime;
-use tracing::{instrument, trace};
+use tracing::trace;
 
 use abacus_base::{ContractSyncMetrics, IndexSettings};
 use abacus_core::{
@@ -15,7 +15,6 @@ use abacus_core::{
 };
 
 use crate::chain_scraper::sync::Syncer;
-use crate::conversions::u256_as_scaled_f64;
 use crate::date_time;
 use crate::db::{
     BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn,
@@ -266,7 +265,7 @@ impl SqlChainScraper {
             txns.iter_mut().filter(|(_, id)| id.0.is_none()).collect();
 
         let mut storable: Vec<StorableTxn> = Vec::with_capacity(txns_to_insert.len());
-        let as_f64 = |v: ethers::types::U256| u256_as_scaled_f64(v, 18);
+        let as_f64 = ethers::types::U256::to_f64_lossy;
         for (hash, (_, block_id)) in txns_to_insert.iter() {
             storable.push(StorableTxn {
                 info: self.local.provider.get_txn_by_hash(hash).await?,

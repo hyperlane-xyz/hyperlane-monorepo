@@ -35,8 +35,6 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Block::Height).big_unsigned().not_null())
                     .col(ColumnDef::new(Block::Timestamp).timestamp().not_null())
-                    .col(ColumnDef::new(Block::GasUsed).double().not_null())
-                    .col(ColumnDef::new(Block::GasLimit).double().not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Block::Domain)
@@ -87,8 +85,4 @@ pub enum Block {
     Height,
     /// Time the block was created at
     Timestamp,
-    /// Total used gas by transactions in this block
-    GasUsed,
-    /// Maximum amount of gas allowed in this block
-    GasLimit,
 }

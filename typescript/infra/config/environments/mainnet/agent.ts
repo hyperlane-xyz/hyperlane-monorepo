@@ -23,7 +23,7 @@ export const abacus: AgentConfig<MainnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-329d259',
+    tag: 'sha-53bd2c8',
   },
   aws: {
     region: 'us-east-1',
@@ -37,8 +37,7 @@ export const abacus: AgentConfig<MainnetChains> = {
       // 'ethereum',
       // 'polygon',
       // 'avalanche',
-      // // Gelato is having issues with Arbitrum, so not using for now.
-      // // 'arbitrum',
+      // 'arbitrum',
       // 'optimism',
     ],
   },
@@ -94,7 +93,7 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-329d259',
+    tag: 'sha-53bd2c8',
   },
   aws: {
     region: 'us-east-1',
@@ -104,12 +103,12 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   validatorSets: validators,
   gelato: {
     enabledChains: [
-      'bsc',
-      'ethereum',
-      'polygon',
-      'avalanche',
-      'arbitrum',
-      'optimism',
+      // 'bsc',
+      // 'ethereum',
+      // 'polygon',
+      // 'avalanche',
+      // 'arbitrum',
+      // 'optimism',
     ],
   },
   connectionType: ConnectionType.HttpQuorum,

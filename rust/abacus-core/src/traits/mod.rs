@@ -117,9 +117,6 @@ pub trait AbacusContract: AbacusChain {
 #[async_trait]
 #[auto_impl(Box, Arc)]
 pub trait AbacusCommon: AbacusContract + Sync + Send + Debug {
-    /// Get the status of a transaction.
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError>;
-
     /// Fetch the current validator manager value
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError>;
 }
