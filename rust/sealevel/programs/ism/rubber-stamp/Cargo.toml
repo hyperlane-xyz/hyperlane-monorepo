@@ -1,0 +1,14 @@
+[package]
+name = "hyperlane-sealevel-ism-rubber-stamp"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+solana-program = "=1.14.3"
+hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
+
+[lib]
+crate-type = ["cdylib", "lib"]

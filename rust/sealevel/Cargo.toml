@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "hyperlane-core",
+    "client",
+    "programs/mailbox",
+    "programs/recipient/echo",
+    "programs/ism/rubber-stamp",
+]

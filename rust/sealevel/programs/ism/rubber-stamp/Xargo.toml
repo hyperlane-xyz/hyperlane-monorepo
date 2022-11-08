@@ -1,0 +1,3 @@
+# FIXME do we need this?
+[target.bpfel-unknown-unknown.dependencies.std]
+features = []
