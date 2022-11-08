@@ -4,17 +4,20 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
+use std::collections::HashMap;
+
 use ethers::prelude::*;
 use eyre::Result;
 use num::Num;
-use std::collections::HashMap;
 
 use abacus_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
 use crate::abi::FunctionExt;
 #[cfg(not(doctest))]
-pub use crate::{inbox::*, interchain_gas::*, outbox::*, trait_builder::*, validator_manager::*};
+pub use crate::{
+    inbox::*, interchain_gas::*, outbox::*, provider::*, trait_builder::*, validator_manager::*,
+};
 
 #[cfg(not(doctest))]
 mod tx;
@@ -29,6 +32,10 @@ mod trait_builder;
 /// Inbox abi
 #[cfg(not(doctest))]
 mod inbox;
+
+/// Provider abi
+#[cfg(not(doctest))]
+mod provider;
 
 /// InboxValidatorManager abi
 #[cfg(not(doctest))]

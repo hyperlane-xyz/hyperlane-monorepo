@@ -2,7 +2,7 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::{error::Error as StdError, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::prelude::*;
@@ -10,8 +10,9 @@ use eyre::Result;
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusAbi, AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, ContractLocator,
-    Indexer, LogMeta, Message, Outbox, OutboxIndexer, OutboxState, RawCommittedMessage, TxOutcome,
+    AbacusAbi, AbacusChain, AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint,
+    ContractLocator, Indexer, LogMeta, Message, Outbox, OutboxIndexer, OutboxState,
+    RawCommittedMessage, TxOutcome,
 };
 
 use crate::contracts::outbox::{Outbox as EthereumOutboxInternal, OUTBOX_ABI};
@@ -204,7 +205,7 @@ where
     }
 }
 
-impl<M> AbacusContract for EthereumOutbox<M>
+impl<M> AbacusChain for EthereumOutbox<M>
 where
     M: Middleware + 'static,
 {
@@ -212,6 +213,15 @@ where
         &self.chain_name
     }
 
+    fn local_domain(&self) -> u32 {
+        self.domain
+    }
+}
+
+impl<M> AbacusContract for EthereumOutbox<M>
+where
+    M: Middleware + 'static,
+{
     fn address(&self) -> H256 {
         self.contract.address().into()
     }
@@ -222,22 +232,6 @@ impl<M> AbacusCommon for EthereumOutbox<M>
 where
     M: Middleware + 'static,
 {
-    fn local_domain(&self) -> u32 {
-        self.domain
-    }
-
-    #[tracing::instrument(err, skip(self))]
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
-        let receipt_opt = self
-            .contract
-            .client()
-            .get_transaction_receipt(txid)
-            .await
-            .map_err(|e| Box::new(e) as Box<dyn StdError + Send + Sync>)?;
-
-        Ok(receipt_opt.map(Into::into))
-    }
-
     #[tracing::instrument(err, skip(self))]
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
         Ok(self.contract.validator_manager().call().await?.into())

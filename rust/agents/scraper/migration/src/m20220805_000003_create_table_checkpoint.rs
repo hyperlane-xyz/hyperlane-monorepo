@@ -24,7 +24,8 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(Checkpoint::TimeCreated)
                             .timestamp()
-                            .not_null(),
+                            .not_null()
+                            .default("NOW()"),
                     )
                     .col(ColumnDef::new(Checkpoint::Timestamp).timestamp().not_null())
                     .col(ColumnDef::new(Checkpoint::Signature).binary().not_null())

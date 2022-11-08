@@ -21,7 +21,12 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(Block::TimeCreated).timestamp().not_null())
+                    .col(
+                        ColumnDef::new(Block::TimeCreated)
+                            .timestamp()
+                            .not_null()
+                            .default("NOW()"),
+                    )
                     .col(ColumnDef::new(Block::Domain).unsigned().not_null())
                     .col(
                         ColumnDef::new_with_type(Block::Hash, Hash)
@@ -35,13 +40,12 @@ impl MigrationTrait for Migration {
                             .from_col(Block::Domain)
                             .to(Domain::Table, Domain::Id),
                     )
-                    // TODO: re-include this constraint once we fetch the block height data from
-                    // ethers .index(
-                    //     Index::create()
-                    //         .col(Block::Domain)
-                    //         .col(Block::Height)
-                    //         .unique(),
-                    // )
+                    .index(
+                        Index::create()
+                            .col(Block::Domain)
+                            .col(Block::Height)
+                            .unique(),
+                    )
                     .to_owned(),
             )
             .await?;

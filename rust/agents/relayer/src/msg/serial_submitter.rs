@@ -4,7 +4,6 @@ use std::sync::Arc;
 use abacus_base::CoreMetrics;
 use abacus_base::InboxContracts;
 use abacus_core::db::AbacusDB;
-use abacus_core::AbacusContract;
 use abacus_core::Inbox;
 use abacus_core::InboxValidatorManager;
 use abacus_core::MessageStatus;

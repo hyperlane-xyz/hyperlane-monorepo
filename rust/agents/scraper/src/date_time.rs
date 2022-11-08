@@ -2,7 +2,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use chrono::{Datelike, NaiveDateTime, Timelike};
+use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use sea_orm::prelude::{TimeDate, TimeDateTime, TimeTime};
 
 pub fn from_date_time_like(dt: &(impl Datelike + Timelike)) -> TimeDateTime {
@@ -27,6 +27,24 @@ pub fn from_system_time(sys: &SystemTime) -> TimeDateTime {
     let dur = sys.duration_since(UNIX_EPOCH).unwrap();
     let naive = NaiveDateTime::from_timestamp(dur.as_secs() as i64, dur.subsec_nanos());
     from_date_time_like(&naive)
+}
+
+/// Convert from a unix timestamp in seconds to a TimeDateTime object.
+pub fn from_unix_timestamp_s(timestamp: u64) -> TimeDateTime {
+    let naive = NaiveDateTime::from_timestamp(timestamp as i64, 0);
+    from_date_time_like(&naive)
+}
+
+pub fn to_date_time_like(datetime: &TimeDateTime) -> NaiveDateTime {
+    let hms = datetime.time().as_hms();
+    let time = NaiveTime::from_hms(hms.0 as u32, hms.1 as u32, hms.2 as u32);
+    let yord = datetime.date().to_ordinal_date();
+    let date = NaiveDate::from_yo_opt(yord.0, yord.1 as u32).unwrap();
+    NaiveDateTime::new(date, time)
+}
+
+pub fn to_unix_timestamp_s(datetime: &TimeDateTime) -> u64 {
+    to_date_time_like(datetime).timestamp() as u64
 }
 
 pub fn now() -> TimeDateTime {

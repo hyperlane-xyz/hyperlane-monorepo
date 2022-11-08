@@ -10,7 +10,7 @@ use eyre::Result;
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusAbi, AbacusContract, ContractLocator, Indexer, InterchainGasPaymaster,
+    AbacusAbi, AbacusChain, AbacusContract, ContractLocator, Indexer, InterchainGasPaymaster,
     InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentMeta,
     InterchainGasPaymentWithMeta,
 };
@@ -203,7 +203,7 @@ where
     }
 }
 
-impl<M> AbacusContract for EthereumInterchainGasPaymaster<M>
+impl<M> AbacusChain for EthereumInterchainGasPaymaster<M>
 where
     M: Middleware + 'static,
 {
@@ -211,6 +211,15 @@ where
         &self.chain_name
     }
 
+    fn local_domain(&self) -> u32 {
+        self.domain
+    }
+}
+
+impl<M> AbacusContract for EthereumInterchainGasPaymaster<M>
+where
+    M: Middleware + 'static,
+{
     fn address(&self) -> H256 {
         self.contract.address().into()
     }
