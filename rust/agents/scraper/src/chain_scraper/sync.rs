@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -28,9 +27,9 @@ pub(super) struct Syncer {
     message_leaf_index: IntGaugeVec,
     chunk_size: u32,
 
-    from: Cell<u32>,
-    last_valid_range_start_block: Cell<u32>,
-    last_leaf_index: Cell<u32>,
+    from: u32,
+    last_valid_range_start_block: u32,
+    last_leaf_index: u32,
 }
 
 impl Deref for Syncer {
@@ -71,9 +70,9 @@ impl Syncer {
         let message_leaf_index = scraper.metrics.message_leaf_index.clone();
 
         let chunk_size = scraper.chunk_size;
-        let from = Cell::new(scraper.cursor.height().await as u32);
-        let last_valid_range_start_block = Cell::new(from.get());
-        let last_leaf_index = Cell::new(scraper.last_message_leaf_index().await?.unwrap_or(0));
+        let from = scraper.cursor.height().await as u32;
+        let last_valid_range_start_block = from;
+        let last_leaf_index = scraper.last_message_leaf_index().await?.unwrap_or(0);
 
         Ok(Self {
             scraper,
@@ -96,34 +95,27 @@ impl Syncer {
     /// the whole service?
     #[instrument(skip(self), fields(chain_name = self.chain_name(), chink_size = self.chunk_size))]
     pub async fn run(mut self) -> Result<()> {
-        // we need `Send` without `Sync` so we have to move self into functions and then
-        // accept it back when done to prove to the compiler that we are not
-        // sharing it between threads (which would happen if we held a reference
-        // across an await).
-
-        info!(from = self.from.get(), "Resuming chain sync");
+        info!(from = self.from, "Resuming chain sync");
 
         loop {
-            self.indexed_message_height.set(self.from.get() as i64);
-            self.indexed_deliveries_height.set(self.from.get() as i64);
+            self.indexed_message_height.set(self.from as i64);
+            self.indexed_deliveries_height.set(self.from as i64);
 
             let Ok(tip) = self.get_finalized_block_number().await else {
                 continue;
             };
-            if tip <= self.from.get() {
+            if tip <= self.from {
                 sleep(Duration::from_secs(1)).await;
                 continue;
             }
 
-            let to = min(tip, self.from.get() + self.chunk_size);
+            let to = min(tip, self.from + self.chunk_size);
             let full_chunk_from = to.checked_sub(self.chunk_size).unwrap_or_default();
             debug_assert_eq!(self.local.outbox.local_domain(), self.local_domain());
-            let (zelf, sorted_messages, deliveries) =
-                self.scrape_range(full_chunk_from, to).await?;
-            self = zelf;
+            let (sorted_messages, deliveries) = self.scrape_range(full_chunk_from, to).await?;
 
             let validation = validate_message_continuity(
-                Some(self.last_leaf_index.get()),
+                Some(self.last_leaf_index),
                 &sorted_messages
                     .iter()
                     .map(|(msg, _)| msg)
@@ -131,52 +123,50 @@ impl Syncer {
             );
             match validation {
                 ListValidity::Valid => {
-                    let (zelf, max_leaf_index_of_batch) =
+                    let max_leaf_index_of_batch =
                         self.record_data(sorted_messages, deliveries).await?;
-                    self = zelf;
 
                     self.cursor.update(full_chunk_from as u64).await;
-                    self.last_leaf_index.set(max_leaf_index_of_batch);
-                    self.last_valid_range_start_block.set(full_chunk_from);
-                    self.from.set(to + 1);
+                    self.last_leaf_index = max_leaf_index_of_batch;
+                    self.last_valid_range_start_block = full_chunk_from;
+                    self.from = to + 1;
                 }
                 ListValidity::InvalidContinuation => {
                     self.missed_messages.inc();
                     warn!(
-                        last_leaf_index = self.last_leaf_index.get(),
-                        start_block = self.from.get(),
+                        last_leaf_index = self.last_leaf_index,
+                        start_block = self.from,
                         end_block = to,
-                        last_valid_range_start_block = self.last_valid_range_start_block.get(),
+                        last_valid_range_start_block = self.last_valid_range_start_block,
                         "Found invalid continuation in range. Re-indexing from the start block of the last successful range."
                     );
-                    self.from.set(self.last_valid_range_start_block.get());
+                    self.from = self.last_valid_range_start_block;
                 }
                 ListValidity::ContainsGaps => {
                     self.missed_messages.inc();
                     warn!(
-                        last_leaf_index = self.last_leaf_index.get(),
-                        start_block = self.from.get(),
+                        last_leaf_index = self.last_leaf_index,
+                        start_block = self.from,
                         end_block = to,
-                        last_valid_range_start_block = self.last_valid_range_start_block.get(),
+                        last_valid_range_start_block = self.last_valid_range_start_block,
                         "Found gaps in the message in range, re-indexing the same range."
                     );
                 }
                 ListValidity::Empty => {
-                    self.from.set(to + 1);
+                    self.from = to + 1;
                 }
             }
         }
     }
 
     async fn scrape_range(
-        mut self,
+        &self,
         from: u32,
         to: u32,
-    ) -> Result<(Self, Vec<(RawCommittedMessage, LogMeta)>, Vec<Delivery>)> {
+    ) -> Result<(Vec<(RawCommittedMessage, LogMeta)>, Vec<Delivery>)> {
         let mut sorted_messages = self.local.indexer.fetch_sorted_messages(from, to).await?;
 
-        let (zelf, deliveries) = self.deliveries(from, to).await?;
-        self = zelf;
+        let deliveries = self.deliveries(from, to).await?;
 
         info!(
             from,
@@ -186,7 +176,7 @@ impl Syncer {
             "Indexed block range for chain"
         );
 
-        sorted_messages.retain(|m| m.0.leaf_index > self.last_leaf_index.get());
+        sorted_messages.retain(|m| m.0.leaf_index > self.last_leaf_index);
 
         debug!(
             from,
@@ -195,11 +185,11 @@ impl Syncer {
             "Filtered any messages already indexed for outbox."
         );
 
-        Ok((self, sorted_messages, deliveries))
+        Ok((sorted_messages, deliveries))
     }
 
     /// get the deliveries for a given range from the inboxes.
-    async fn deliveries(self, from: u32, to: u32) -> Result<(Self, Vec<Delivery>)> {
+    async fn deliveries(&self, from: u32, to: u32) -> Result<Vec<Delivery>> {
         let mut delivered = vec![];
         for (_, remote) in self.remotes.iter() {
             debug_assert_eq!(remote.inbox.local_domain(), self.local_domain());
@@ -216,14 +206,14 @@ impl Syncer {
                     }),
             )
         }
-        Ok((self, delivered))
+        Ok(delivered)
     }
 
     async fn record_data(
-        self,
+        &self,
         sorted_messages: Vec<(RawCommittedMessage, LogMeta)>,
         deliveries: Vec<Delivery>,
-    ) -> Result<(Self, u32)> {
+    ) -> Result<u32> {
         // transaction (database_id, timestamp) by transaction hash
         let txns: HashMap<H256, (i64, TimeDateTime)> = self
             .ensure_blocks_and_txns(
@@ -250,6 +240,6 @@ impl Syncer {
                 .set(max_leaf_index_of_batch as i64);
         }
 
-        Ok((self, max_leaf_index_of_batch))
+        Ok(max_leaf_index_of_batch)
     }
 }
