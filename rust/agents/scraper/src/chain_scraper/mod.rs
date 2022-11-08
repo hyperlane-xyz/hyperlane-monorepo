@@ -107,9 +107,6 @@ impl SqlChainScraper {
     }
 
     /// Sync outbox messages.
-    ///
-    /// TODO: better handling for errors to auto-restart without bringing down
-    /// the whole service?
     pub fn sync(self) -> impl Future<Output = Result<()>> + Send + 'static {
         Syncer::new(self).and_then(|syncer| syncer.run())
     }
