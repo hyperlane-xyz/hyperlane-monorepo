@@ -40,8 +40,8 @@ pub mod output_functions {
         };
 
         let message_json = json!({
-            "nonce": abacus_message.nonce, 
-            "version": abacus_message.version, 
+            "nonce": abacus_message.nonce,
+            "version": abacus_message.version,
             "origin": abacus_message.origin,
             "sender": abacus_message.sender,
             "destination": abacus_message.destination,
@@ -101,8 +101,8 @@ pub mod output_functions {
 
     /// Outputs domain hash test cases in /vector/domainHash.json
     pub fn output_domain_hashes() {
-        let mailbox = H256::from(
-                H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
+        let mailbox =
+            H256::from(H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
         let test_cases: Vec<Value> = (1..=3)
             .map(|i| {
                 json!({
@@ -128,8 +128,8 @@ pub mod output_functions {
 
     /// Outputs signed checkpoint test cases in /vector/signedCheckpoint.json
     pub fn output_signed_checkpoints() {
-        let mailbox = H256::from(
-                H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
+        let mailbox =
+            H256::from(H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
         let t = async {
             let signer: ethers::signers::LocalWallet =
                 "1111111111111111111111111111111111111111111111111111111111111111"
