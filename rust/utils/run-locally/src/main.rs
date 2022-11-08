@@ -434,7 +434,7 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
         .unwrap()
         .lines()
         .filter(|l| l.contains(r#"phase="message_processed""#))
-        .filter(|l| l.starts_with("abacus_last_known_message_leaf_index"))
+        .filter(|l| l.starts_with("abacus_last_known_message_nonce"))
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
         .collect();
     assert!(
