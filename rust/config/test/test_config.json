@@ -1,0 +1,65 @@
+{
+  "environment": "test",
+  "chains": {
+    "test1": {
+      "name": "test1",
+      "domain": "13371",
+      "addresses": {
+        "mailbox": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+        "interchainGasPaymaster": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+        "multisigModule": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "0",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "4"
+      }
+    },
+    "test2": {
+      "name": "test2",
+      "domain": "13372",
+      "addresses": {
+        "mailbox": "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44",
+        "interchainGasPaymaster": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+        "multisigModule": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "16"
+      }
+    },
+    "test3": {
+      "name": "test3",
+      "domain": "13373",
+      "addresses": {
+        "mailbox": "0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8",
+        "interchainGasPaymaster": "0x09635F643e140090A9A8Dcd712eD6285858ceBef",
+        "multisigModule": "0xc5a5C42992dECbae36851359345FE25997F5C42d"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "2",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "29"
+      }
+    }
+  },
+  "signers": {},
+  "db": "db_path",
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  }
+}
