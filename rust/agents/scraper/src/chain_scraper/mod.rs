@@ -110,7 +110,6 @@ impl SqlChainScraper {
     ///
     /// TODO: better handling for errors to auto-restart without bringing down
     /// the whole service?
-    #[instrument(skip(self))]
     pub fn sync(self) -> impl Future<Output = Result<()>> + Send + 'static {
         Syncer::new(self).and_then(|syncer| syncer.run())
     }

@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use eyre::WrapErr;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
-use tracing::{info_span, trace, Instrument};
+use tracing::{info_span, instrument, trace, Instrument};
 
 use abacus_base::{
     run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, DomainSettings,

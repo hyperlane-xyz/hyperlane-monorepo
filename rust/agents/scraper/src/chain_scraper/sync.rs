@@ -159,6 +159,7 @@ impl Syncer {
         }
     }
 
+    #[instrument(skip(self))]
     async fn scrape_range(
         &self,
         from: u32,
@@ -189,6 +190,7 @@ impl Syncer {
     }
 
     /// get the deliveries for a given range from the inboxes.
+    #[instrument(skip(self))]
     async fn deliveries(&self, from: u32, to: u32) -> Result<Vec<Delivery>> {
         let mut delivered = vec![];
         for (_, remote) in self.remotes.iter() {
@@ -209,6 +211,7 @@ impl Syncer {
         Ok(delivered)
     }
 
+    #[instrument(skip(self))]
     async fn record_data(
         &self,
         sorted_messages: Vec<(RawCommittedMessage, LogMeta)>,
