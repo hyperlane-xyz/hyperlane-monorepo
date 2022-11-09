@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::types::H256;
-use eyre::{eyre, Result};
+use eyre::{eyre, Context, Result};
 use sea_orm::prelude::TimeDateTime;
 use sea_orm::{Database, DbConn};
 use tokio::task::JoinHandle;
@@ -19,13 +19,13 @@ use abacus_base::{
     InboxAddresses, IndexSettings,
 };
 use abacus_core::{
-    name_from_domain_id, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxIndexer,
-    ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
+    name_from_domain_id, AbacusContract, AbacusProvider, BlockInfo, CommittedMessage, Inbox,
+    InboxIndexer, ListValidity, LogMeta, Outbox, OutboxIndexer, RawCommittedMessage,
 };
 
 use crate::scraper::block_cursor::BlockCursor;
 use crate::settings::ScraperSettings;
-use crate::{format_h256, parse_h256};
+use crate::{date_time, format_h256, parse_h256};
 
 mod block_cursor;
 
@@ -67,15 +67,20 @@ impl BaseAgent for Scraper {
         let mut remotes: HashMap<u32, HashMap<u32, Remote>> = HashMap::new();
 
         for (outbox_domain, chain_config) in settings.chains.into_iter() {
-            if let Some(local) = Self::load_outbox(&chain_config, &metrics).await? {
+            let ctx = || format!("Loading chain {}", chain_config.outbox.name);
+            if let Some(local) = Self::load_local(&chain_config, &metrics)
+                .await
+                .with_context(ctx)?
+            {
                 trace!(domain = outbox_domain, "Created outbox and outbox indexer");
                 assert_eq!(local.outbox.local_domain(), outbox_domain);
                 locals.insert(outbox_domain, local);
             }
 
             for (_, inbox_config) in chain_config.inboxes.iter() {
-                if let Some(remote) =
-                    Self::load_inbox(&chain_config, inbox_config, &metrics).await?
+                if let Some(remote) = Self::load_remote(&chain_config, inbox_config, &metrics)
+                    .await
+                    .with_context(ctx)?
                 {
                     let inbox_remote_domain = remote.inbox.remote_domain();
                     let inbox_local_domain = remote.inbox.local_domain();
@@ -134,7 +139,7 @@ impl BaseAgent for Scraper {
             .scrapers
             .iter()
             .map(|(name, scraper)| {
-                let span = info_span!("ChainContractSync", %name, self = ?scraper);
+                let span = info_span!("ChainContractSync", %name, chain = scraper.local.outbox.chain_name());
                 let syncer = scraper.clone().sync();
                 tokio::spawn(syncer).instrument(span)
             })
@@ -151,7 +156,7 @@ impl BaseAgent for Scraper {
 }
 
 impl Scraper {
-    async fn load_outbox(
+    async fn load_local(
         config: &DomainSettings,
         metrics: &Arc<CoreMetrics>,
     ) -> Result<Option<Local>> {
@@ -165,15 +170,21 @@ impl Scraper {
             {
                 None
             } else {
+                let ctx = || format!("Loading local {}", config.outbox.name);
                 Some(Local {
-                    outbox: config.try_outbox(metrics).await?.into(),
-                    indexer: config.try_outbox_indexer(metrics).await?.into(),
+                    provider: config.try_provider(metrics).await.with_context(ctx)?.into(),
+                    outbox: config.try_outbox(metrics).await.with_context(ctx)?.into(),
+                    indexer: config
+                        .try_outbox_indexer(metrics)
+                        .await
+                        .with_context(ctx)?
+                        .into(),
                 })
             },
         )
     }
 
-    async fn load_inbox(
+    async fn load_remote(
         config: &DomainSettings,
         inbox_config: &ChainSetup<InboxAddresses>,
         metrics: &Arc<CoreMetrics>,
@@ -187,11 +198,17 @@ impl Scraper {
             {
                 None
             } else {
+                let ctx = || format!("Loading remote {}", inbox_config.name);
                 Some(Remote {
-                    inbox: config.try_inbox(inbox_config, metrics).await?.into(),
+                    inbox: config
+                        .try_inbox(inbox_config, metrics)
+                        .await
+                        .with_context(ctx)?
+                        .into(),
                     indexer: config
                         .try_inbox_indexer(inbox_config, metrics)
-                        .await?
+                        .await
+                        .with_context(ctx)?
                         .into(),
                 })
             },
@@ -209,6 +226,7 @@ struct Remote {
 struct Local {
     pub outbox: Arc<dyn Outbox>,
     pub indexer: Arc<dyn OutboxIndexer>,
+    pub provider: Arc<dyn AbacusProvider>,
 }
 
 #[derive(Debug, Clone)]
@@ -282,7 +300,7 @@ impl SqlChainScraper {
     /// TODO: merge duplicate logic?
     /// TODO: better handling for errors to auto-restart without bringing down
     /// the whole service?
-    #[instrument]
+    #[instrument(skip(self))]
     pub async fn sync(self) -> Result<()> {
         // TODO: pull this into a fn-like struct for ticks?
         let chain_name = self.chain_name();
@@ -703,27 +721,38 @@ impl SqlChainScraper {
                 .insert(txn.0);
         }
 
-        let txns_to_fetch = txns.iter_mut().filter(|(_, id)| id.0.is_none());
-        for (_hash, _txn_info) in txns_to_fetch {
-            // TODO: fetch txn data from ethers
-        }
-
         // insert any txns that were not known and get their IDs
         // use this vec as temporary list of mut refs so we can update once we get back
         // the ids.
         let mut txns_to_insert: Vec<(&H256, &mut (Option<i64>, i64))> =
             txns.iter_mut().filter(|(_, id)| id.0.is_none()).collect();
-        let models: Vec<transaction::ActiveModel> = txns_to_insert
-            .iter()
-            .map(|(hash, (_, block_id))| transaction::ActiveModel {
+
+        let mut models: Vec<transaction::ActiveModel> = Vec::with_capacity(txns_to_insert.len());
+        let as_f64 = ethers::types::U256::to_f64_lossy;
+        for (hash, (_, block_id)) in txns_to_insert.iter() {
+            let txn = self.local.provider.get_txn_by_hash(hash).await?;
+            let receipt = txn
+                .receipt
+                .as_ref()
+                .ok_or_else(|| eyre!("Transaction is not yet included"))?;
+
+            models.push(transaction::ActiveModel {
                 id: NotSet,
                 block_id: Unchanged(*block_id),
+                gas_limit: Set(as_f64(txn.gas_limit)),
+                max_priority_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(as_f64)),
                 hash: Unchanged(format_h256(hash)),
-                time_created: Set(crate::date_time::now()),
-                gas_used: Set(Default::default()), // TODO: get this from ethers
-                sender: Set("00".to_owned()),      // TODO: get this from ethers
-            })
-            .collect();
+                time_created: Set(date_time::now()),
+                gas_used: Set(as_f64(receipt.gas_used)),
+                gas_price: Set(txn.gas_price.map(as_f64)),
+                effective_gas_price: Set(receipt.effective_gas_price.map(as_f64)),
+                nonce: Set(txn.nonce as i64),
+                sender: Set(format_h256(&txn.sender)),
+                recipient: Set(txn.recipient.as_ref().map(format_h256)),
+                max_fee_per_gas: Set(txn.max_fee_per_gas.map(as_f64)),
+                cumulative_gas_used: Set(as_f64(receipt.cumulative_gas_used)),
+            });
+        }
 
         if !models.is_empty() {
             trace!(?models, "Writing txns to database");
@@ -755,7 +784,7 @@ impl SqlChainScraper {
         use crate::db::block;
         use sea_orm::{prelude::*, ActiveValue::*, FromQueryResult, Insert, QuerySelect};
 
-        type OptionalBlockInfo = Option<(Option<i64>, TimeDateTime)>;
+        type OptionalBlockInfo = Option<(Option<i64>, BlockInfo)>;
         // mapping of block hash to the database id and block timestamp. Optionals are
         // in place because we will find the timestamp first if the block was not
         // already in the db.
@@ -795,20 +824,28 @@ impl SqlChainScraper {
             let _ = blocks
                 .get_mut(&hash)
                 .expect("We found a block that we did not request")
-                .insert((Some(block.id), block.timestamp));
+                .insert((
+                    Some(block.id),
+                    BlockInfo {
+                        hash,
+                        timestamp: date_time::to_unix_timestamp_s(&block.timestamp),
+                        // TODO: we don't actually use these below, we should make sure to clean
+                        // this out
+                        number: 0,
+                    },
+                ));
         }
 
         let blocks_to_fetch = blocks
             .iter_mut()
             .inspect(|(_, info)| {
                 // info being defined implies the id has been set (at this point)
-                debug_assert!(info.is_none() || info.unwrap().0.is_some())
+                debug_assert!(info.is_none() || info.as_ref().unwrap().0.is_some())
             })
             .filter(|(_, block_info)| block_info.is_none());
-        for (_hash, block_info) in blocks_to_fetch {
-            // TODO: fetch block data from ethers
-            // (timestamps are not included in LogMeta)
-            let _ = block_info.insert((None, crate::date_time::now()));
+        for (hash, block_info) in blocks_to_fetch {
+            let info = self.local.provider.get_block_by_hash(hash).await?;
+            let _ = block_info.insert((None, info));
         }
 
         // insert any blocks that were not known and get their IDs
@@ -816,18 +853,20 @@ impl SqlChainScraper {
         // the ids.
         let mut blocks_to_insert: Vec<(&H256, &mut OptionalBlockInfo)> = blocks
             .iter_mut()
-            .filter(|(_, info)| info.unwrap().0.is_none())
+            .filter(|(_, info)| info.as_ref().unwrap().0.is_none())
             .collect();
-        let models: Vec<block::ActiveModel> = blocks_to_insert
-            .iter_mut()
+
+        let mut models: Vec<block::ActiveModel> = blocks_to_insert
+            .iter()
             .map(|(hash, block_info)| {
+                let block_info = block_info.as_ref().unwrap();
                 block::ActiveModel {
                     id: NotSet,
                     hash: Set(format_h256(hash)),
-                    time_created: Set(crate::date_time::now()),
+                    time_created: Set(date_time::now()),
                     domain: Unchanged(self.local_domain() as i32),
-                    height: Unchanged(0), // TODO: get this from ethers
-                    timestamp: Set(block_info.unwrap().1),
+                    height: Unchanged(block_info.1.number as i64),
+                    timestamp: Set(date_time::from_unix_timestamp_s(block_info.1.timestamp)),
                 }
             })
             .collect();
@@ -845,13 +884,19 @@ impl SqlChainScraper {
 
         Ok(blocks.into_iter().map(|(hash, block_info)| {
             let block_info = block_info.unwrap();
-            (hash, (block_info.0.unwrap(), block_info.1))
+            (
+                hash,
+                (
+                    block_info.0.unwrap(),
+                    date_time::from_unix_timestamp_s(block_info.1.timestamp),
+                ),
+            )
         }))
     }
 }
 
 /// Task-thread to link the delivered messages to the correct messages.
-#[instrument]
+#[instrument(skip_all)]
 async fn delivered_message_linker(db: DbConn) -> Result<()> {
     use sea_orm::{ConnectionTrait, DbBackend, Statement};
 

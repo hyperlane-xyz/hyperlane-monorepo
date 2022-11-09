@@ -1,16 +1,17 @@
+use ethers::abi::AbiEncode;
 use ethers::signers::Signer;
 use eyre::Context;
 use serde::Deserialize;
 
 use abacus_core::{
-    AbacusAbi, ContractLocator, Inbox, InboxIndexer, InboxValidatorManager, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Outbox, OutboxIndexer, Signers,
+    AbacusAbi, AbacusProvider, ContractLocator, Inbox, InboxIndexer, InboxValidatorManager,
+    InterchainGasPaymaster, InterchainGasPaymasterIndexer, Outbox, OutboxIndexer, Signers,
 };
 use abacus_ethereum::{
-    Connection, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi, EthereumOutboxAbi,
-    InboxBuilder, InboxIndexerBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
-    InterchainGasPaymasterIndexerBuilder, MakeableWithProvider, OutboxBuilder,
-    OutboxIndexerBuilder,
+    AbacusProviderBuilder, Connection, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi,
+    EthereumOutboxAbi, InboxBuilder, InboxIndexerBuilder, InboxValidatorManagerBuilder,
+    InterchainGasPaymasterBuilder, InterchainGasPaymasterIndexerBuilder, MakeableWithProvider,
+    OutboxBuilder, OutboxIndexerBuilder,
 };
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
@@ -109,6 +110,31 @@ impl<T> ChainSetup<T> {
         self.finality_blocks
             .parse::<u32>()
             .expect("could not parse finality_blocks")
+    }
+
+    /// Try to convert the chain settings into an AbacusProvider.
+    pub async fn try_into_provider(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn AbacusProvider>> {
+        let builder = AbacusProviderBuilder {};
+        let metrics_conf = {
+            let mut cfg = self.metrics_conf.clone();
+
+            if cfg.chain.is_none() {
+                cfg.chain = Some(ChainInfo {
+                    name: Some(self.name.clone()),
+                });
+            }
+
+            cfg
+        };
+
+        let address = match &self.chain {
+            ChainConf::Ethereum(_) => ethers::types::Address::zero().encode_hex(),
+        };
+        self.build(&address, None, metrics, metrics_conf, builder)
+            .await
     }
 
     async fn build<B: MakeableWithProvider + Sync>(

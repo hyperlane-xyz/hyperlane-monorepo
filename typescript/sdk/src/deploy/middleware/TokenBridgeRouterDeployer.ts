@@ -6,7 +6,6 @@ import {
   TokenBridgeRouter,
   TokenBridgeRouter__factory,
 } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/sdk/src/utils/objects';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import {
@@ -16,6 +15,7 @@ import {
 } from '../../middleware';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
+import { objMap } from '../../utils/objects';
 import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
 import { RouterConfig } from '../router/types';
 

@@ -97,7 +97,11 @@ describe('TokenBridgeRouter', async () => {
     const TokenBridge = new TokenBridgeDeployer(multiProvider, config, coreApp);
     const contracts = await TokenBridge.deploy();
 
-    tokenBridgeApp = new TokenBridgeApp(contracts, multiProvider);
+    tokenBridgeApp = new TokenBridgeApp(
+      contracts,
+      multiProvider,
+      objMap(config, (_chain, conf) => conf.bridgeAdapterConfigs),
+    );
 
     local = tokenBridgeApp.getContracts(localChain).router;
   });

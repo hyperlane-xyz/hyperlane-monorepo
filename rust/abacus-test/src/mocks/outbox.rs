@@ -1,9 +1,8 @@
 #![allow(non_snake_case)]
 
 use async_trait::async_trait;
-use mockall::*;
-
 use ethers::core::types::H256;
+use mockall::*;
 
 use abacus_core::*;
 
@@ -39,8 +38,6 @@ mock! {
         pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
 
         // AbacusCommon
-        pub fn _status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {}
-
         pub fn _validator_manager(&self) -> Result<H256, ChainCommunicationError> {}
 
         pub fn _state(&self) -> Result<OutboxState, ChainCommunicationError> {}
@@ -90,11 +87,17 @@ impl Outbox for MockOutboxContract {
     }
 }
 
-impl AbacusContract for MockOutboxContract {
+impl AbacusChain for MockOutboxContract {
     fn chain_name(&self) -> &str {
         self._chain_name()
     }
 
+    fn local_domain(&self) -> u32 {
+        self._local_domain()
+    }
+}
+
+impl AbacusContract for MockOutboxContract {
     fn address(&self) -> H256 {
         self._address()
     }
@@ -102,14 +105,6 @@ impl AbacusContract for MockOutboxContract {
 
 #[async_trait]
 impl AbacusCommon for MockOutboxContract {
-    fn local_domain(&self) -> u32 {
-        self._local_domain()
-    }
-
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
-        self._status(txid)
-    }
-
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
         self._validator_manager()
     }
