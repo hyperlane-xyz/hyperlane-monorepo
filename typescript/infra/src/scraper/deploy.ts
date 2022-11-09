@@ -87,8 +87,7 @@ async function scraperHelmValues<Chain extends ChainName>(
       runEnv: agentConfig.environment,
       context: agentConfig.context,
       // Expects an array
-      inboxChains: chains,
-      outboxChains: chains,
+      chains,
       scraper: {
         config: {},
       },

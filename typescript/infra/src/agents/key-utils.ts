@@ -147,7 +147,7 @@ async function persistAddresses(
   );
 }
 
-// This function returns all keys for a given outbox chain in a dictionary where the key is the identifier
+// This function returns all keys for a given chain in a dictionary where the key is the identifier
 export async function fetchKeysForChain<Chain extends ChainName>(
   agentConfig: AgentConfig<Chain>,
   chainName: Chain,

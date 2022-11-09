@@ -11,11 +11,8 @@ data:
   HYP_BASE_DB: {{ .Values.abacus.dbPath }}
   HYP_BASE_TRACING_FMT: {{ .Values.abacus.tracing.format }}
   HYP_BASE_TRACING_LEVEL: {{ .Values.abacus.tracing.level }}
-  {{- if .Values.abacus.outboxChain.connection.type }}
-  HYP_BASE_OUTBOX_CONNECTION_TYPE: {{ .Values.abacus.outboxChain.connection.type }}
-  {{- end }}
-  {{- range .Values.abacus.inboxChains }}
-{{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "INBOXES_%s_" (.name | upper)) "format" "config_map") | indent 2 }}
+  {{- range .Values.abacus.chains }}
+{{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "CHAINS_%s_" (.name | upper)) "format" "config_map") | indent 2 }}
   {{- end }}
   {{- if .Values.abacus.tracing.uri }}
   HYP_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.abacus.tracing.uri }}

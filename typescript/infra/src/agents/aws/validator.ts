@@ -22,7 +22,7 @@ interface CheckpointMetric {
  */
 interface S3Checkpoint {
   checkpoint: {
-    outbox_domain: number;
+    mailbox_domain: number;
     root: string;
     index: number;
   };
