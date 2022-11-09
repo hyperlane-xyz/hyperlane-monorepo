@@ -15,6 +15,7 @@ import {
 import {
   dispatchMessageAndReturnMetadata,
   getCommitment,
+  signCheckpoint,
 } from '../lib/mailboxes';
 
 const ORIGIN_DOMAIN = 1234;
@@ -228,26 +229,27 @@ describe('MultisigModule', async () => {
   });
 
   describe('#verify', () => {
-    let recipient;
-    let metadata: string, message: string;
+    let metadata: string, message: string, recipient: string;
+    before(async () => {
+      const recipientF = new TestRecipient__factory(signer);
+      recipient = (await recipientF.deploy()).address;
+    });
+
     beforeEach(async () => {
       // Must be done sequentially so gas estimation is correct
       // and so that signatures are produced in the same order.
       for (const v of validators) {
         await multisigModule.enrollValidator(ORIGIN_DOMAIN, v.address);
       }
-      await multisigModule.setThreshold(ORIGIN_DOMAIN, validators.length);
-    });
+      await multisigModule.setThreshold(ORIGIN_DOMAIN, validators.length - 1);
 
-    before(async () => {
-      const recipientF = new TestRecipient__factory(signer);
-      recipient = (await recipientF.deploy()).address;
       ({ message, metadata } = await dispatchMessageAndReturnMetadata(
         mailbox,
+        multisigModule,
         DESTINATION_DOMAIN,
         recipient,
         'hello world',
-        validators,
+        validators.slice(1),
       ));
     });
 
@@ -264,12 +266,18 @@ describe('MultisigModule', async () => {
       await destinationMailbox.process(metadata, message);
     });
 
-    it('reverts when invalid signatures are provided', async () => {
+    it('reverts when non-validator signatures are provided', async () => {
+      const nonValidator = await Validator.fromSigner(signer, ORIGIN_DOMAIN);
       const parsedMetadata = utils.parseMultisigModuleMetadata(metadata);
-      const invalidSignature = utils.ensure0x(
-        parsedMetadata.signatures[0].toString().slice(8).padStart(130, '0'),
-      );
-      parsedMetadata.signatures.push(invalidSignature);
+      const nonValidatorSignature = (
+        await signCheckpoint(
+          parsedMetadata.checkpointRoot,
+          parsedMetadata.checkpointIndex,
+          mailbox.address,
+          [nonValidator],
+        )
+      )[0];
+      parsedMetadata.signatures.push(nonValidatorSignature);
       const modifiedMetadata = utils.formatMultisigModuleMetadata({
         ...parsedMetadata,
         signatures: parsedMetadata.signatures.slice(1),
@@ -277,10 +285,9 @@ describe('MultisigModule', async () => {
       await expect(
         multisigModule.verify(modifiedMetadata, message),
       ).to.be.revertedWith('!threshold');
-      console.log();
     });
 
-    it('reverts the provided validator set does not match the stored commitment', async () => {
+    it('reverts when the provided validator set does not match the stored commitment', async () => {
       const parsedMetadata = utils.parseMultisigModuleMetadata(metadata);
       const modifiedMetadata = utils.formatMultisigModuleMetadata({
         ...parsedMetadata,

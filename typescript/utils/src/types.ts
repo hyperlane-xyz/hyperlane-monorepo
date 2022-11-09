@@ -46,6 +46,16 @@ export enum MessageStatus {
   PROCESSED,
 }
 
+export type ParsedMessageV2 = {
+  version: number;
+  nonce: number;
+  origin: number;
+  sender: string;
+  destination: number;
+  recipient: string;
+  body: string;
+};
+
 export type ParsedMessage = {
   origin: number;
   sender: string;

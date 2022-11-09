@@ -14,7 +14,7 @@ contract TestMultisigModule is MultisigModule {
     }
 
     function getCheckpointDigest(bytes calldata _metadata, uint32 _origin)
-        internal
+        external
         pure
         returns (bytes32)
     {

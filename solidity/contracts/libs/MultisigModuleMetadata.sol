@@ -8,8 +8,8 @@ pragma solidity >=0.8.0;
  * [  64:  96] Origin mailbox address
  * [  96:1120] Merkle proof
  * [1120:1152] Threshold
- * [1152:????] Validator signatures
- * [????:????] Validator addresses
+ * [1152:????] Validator signatures, 65 bytes each, length == Threshold
+ * [????:????] Addresses of the entire validator set, left padded to bytes32
  */
 library MultisigModuleMetadata {
     uint256 private constant MERKLE_ROOT_OFFSET = 0;
@@ -108,7 +108,7 @@ library MultisigModuleMetadata {
 
     /**
      * @notice Returns the validator address at `_index`.
-     * @dev Assumes `_index` is less less than the number of validators
+     * @dev Assumes `_index` is less than the number of validators
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @param _index The index of the validator to return.
      * @return The validator address at `_index`.
@@ -142,6 +142,36 @@ library MultisigModuleMetadata {
     }
 
     /**
+     * @notice Returns the size of the validator set encoded in the metadata
+     * @dev Validator addresses are encoded as tightly packed array of bytes32,
+     * sorted to match the enumerable set stored by the module.
+     * @param _metadata ABI encoded Multisig ISM metadata.
+     * @return The size of the validator set encoded in the metadata
+     */
+    function commitment(bytes calldata _metadata)
+        internal
+        pure
+        returns (uint256)
+    {
+        return (_metadata.length - _validatorsOffset(_metadata)) / 32;
+    }
+
+    /**
+     * @notice Returns the size of the validator set encoded in the metadata
+     * @dev Validator addresses are encoded as tightly packed array of bytes32,
+     * sorted to match the enumerable set stored by the module.
+     * @param _metadata ABI encoded Multisig ISM metadata.
+     * @return The size of the validator set encoded in the metadata
+     */
+    function validatorCount(bytes calldata _metadata)
+        internal
+        pure
+        returns (uint256)
+    {
+        return (_metadata.length - _validatorsOffset(_metadata)) / 32;
+    }
+
+    /**
      * @notice Returns the offset in bytes of the list of validators within
      * `_metadata`.
      * @param _metadata ABI encoded Multisig ISM metadata.
@@ -152,6 +182,6 @@ library MultisigModuleMetadata {
         pure
         returns (uint256)
     {
-        return SIGNATURES_OFFSET + (threshold(_metadata)) * 65;
+        return SIGNATURES_OFFSET + (threshold(_metadata) * SIGNATURE_LENGTH);
     }
 }

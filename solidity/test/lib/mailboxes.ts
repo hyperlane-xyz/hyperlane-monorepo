@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
-import { TestMailboxV2 } from '../../types';
+import { MultisigModule, TestMailboxV2 } from '../../types';
 import { DispatchEvent } from '../../types/contracts/MailboxV2';
 
 export type MessageAndProof = {
@@ -77,11 +77,15 @@ export async function signCheckpoint(
 
 export async function dispatchMessageAndReturnMetadata(
   mailbox: TestMailboxV2,
+  multisigModule: MultisigModule,
   destination: number,
   recipient: string,
   messageStr: string,
   orderedValidators: Validator[],
 ): Promise<MessageAndMetadata> {
+  // Checkpoint indices are 0 indexed, so we pull the count before
+  // we dispatch the message.
+  const index = await mailbox.count();
   const proofAndMessage = await dispatchMessageAndReturnProof(
     mailbox,
     destination,
@@ -89,22 +93,20 @@ export async function dispatchMessageAndReturnMetadata(
     messageStr,
   );
   const root = await mailbox.root();
-  const index = await mailbox.count();
-  const validatorAddresses = orderedValidators.map((v) => v.address);
   const signatures = await signCheckpoint(
     root,
     index.toNumber(),
     mailbox.address,
     orderedValidators,
   );
-  const checkpoint = { root, index: index.toNumber(), signature: '' };
+  const origin = utils.parseMessageV2(proofAndMessage.message).origin;
   const metadata = utils.formatMultisigModuleMetadata({
-    checkpointRoot: checkpoint.root,
-    checkpointIndex: checkpoint.index,
+    checkpointRoot: root,
+    checkpointIndex: index.toNumber(),
     originMailbox: mailbox.address,
-    proof: proofAndMessage.proof.branch, // The merkle proof is unused
+    proof: proofAndMessage.proof.branch,
     signatures,
-    validators: validatorAddresses,
+    validators: await multisigModule.validators(origin),
   });
   return { metadata, message: proofAndMessage.message };
 }

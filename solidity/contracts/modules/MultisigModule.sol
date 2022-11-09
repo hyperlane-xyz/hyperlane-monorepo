@@ -27,14 +27,14 @@ contract MultisigModule is IMultisigModule, Ownable {
 
     // ============ Mutable Storage ============
 
-    // The validator threshold for each remote domain.
+    /// @notice The validator threshold for each remote domain.
     mapping(uint32 => uint256) public threshold;
 
-    // The validator set for each remote domain.
+    /// @notice The validator set for each remote domain.
     mapping(uint32 => EnumerableSet.AddressSet) private validatorSet;
 
-    // A succinct commitment to the validator set and threshold for each remote
-    // domain.
+    /// @notice A succinct commitment to the validator set and threshold for each remote
+    /// domain.
     mapping(uint32 => bytes32) public commitment;
 
     // ============ Events ============
@@ -258,14 +258,19 @@ contract MultisigModule is IMultisigModule, Ownable {
         bytes32 _digest;
         {
             uint32 _origin = _message.origin();
+
             bytes32 _commitment = keccak256(
                 abi.encodePacked(_threshold, _metadata.validators())
             );
             // Ensures the validator set encoded in the metadata matches
             // what we've stored on chain.
+            // NB: An empty validator set in `_metadata` will result in a
+            // non-zero computed commitment, and this check will fail
+            // as the commitment in storage will be zero.
             require(_commitment == commitment[_origin], "!commitment");
             _digest = _getCheckpointDigest(_metadata, _origin);
         }
+        uint256 _validatorCount = _metadata.validatorCount();
         uint256 _validatorIndex = 0;
         // Assumes that signatures are ordered by validator
         for (uint256 i = 0; i < _threshold; ++i) {
@@ -273,12 +278,12 @@ contract MultisigModule is IMultisigModule, Ownable {
             // Loop through remaining validators until we find a match
             for (
                 ;
-                _validatorIndex < _threshold &&
+                _validatorIndex < _validatorCount &&
                     _signer != _metadata.validatorAt(_validatorIndex);
                 ++_validatorIndex
             ) {}
             // Fail if we never found a match
-            require(_validatorIndex < _threshold, "!threshold");
+            require(_validatorIndex < _validatorCount, "!threshold");
             ++_validatorIndex;
         }
         return true;
