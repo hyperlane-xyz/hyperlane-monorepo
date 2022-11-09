@@ -1,3 +1,6 @@
+import { Address } from '@hyperlane-xyz/utils/dist/src/types';
+
+import { ForgivingCompleteChainMap } from '../../types';
 import { objMap } from '../../utils/objects';
 
 import mainnet from './mainnet.json';
@@ -26,4 +29,12 @@ export const hyperlaneCoreAddresses = objMap(
       (_remoteChain, inboxAddresses) => inboxAddresses.inbox.proxy,
     ),
   }),
-);
+) as ForgivingCompleteChainMap<{
+  outbox: Address;
+  connectionManager: Address;
+  interchainGasPaymaster: Address;
+  interchainAccountRouter: Address;
+  interchainQueryRouter: Address;
+  create2Factory: Address;
+  inboxes: Record<string, Address>;
+}>;
