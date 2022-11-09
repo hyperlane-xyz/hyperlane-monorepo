@@ -132,6 +132,10 @@ impl Syncer {
                     self.last_valid_range_start_block = full_chunk_from;
                     self.from = to + 1;
                 }
+                ListValidity::Empty => {
+                    let _ = self.record_data(sorted_messages, deliveries).await?;
+                    self.from = to + 1;
+                }
                 ListValidity::InvalidContinuation => {
                     self.missed_messages.inc();
                     warn!(
@@ -152,9 +156,6 @@ impl Syncer {
                         last_valid_range_start_block = self.last_valid_range_start_block,
                         "Found gaps in the message in range, re-indexing the same range."
                     );
-                }
-                ListValidity::Empty => {
-                    self.from = to + 1;
                 }
             }
         }
