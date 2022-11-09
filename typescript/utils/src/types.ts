@@ -64,7 +64,7 @@ export type ParsedMessage = {
   body: string;
 };
 
-export type ParsedMultisigModuleMetadata = {
+export type ParsedMultisigIsmMetadata = {
   checkpointRoot: string;
   checkpointIndex: number;
   originMailbox: string;

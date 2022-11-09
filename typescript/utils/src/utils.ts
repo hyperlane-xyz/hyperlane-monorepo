@@ -7,7 +7,7 @@ import {
   HexString,
   ParsedMessage,
   ParsedMessageV2,
-  ParsedMultisigModuleMetadata,
+  ParsedMultisigIsmMetadata,
 } from './types';
 
 export function assert(predicate: any, errorMessage?: string) {
@@ -46,9 +46,9 @@ export function formatCallData<
   );
 }
 
-export const parseMultisigModuleMetadata = (
+export const parseMultisigIsmMetadata = (
   metadata: string,
-): ParsedMultisigModuleMetadata => {
+): ParsedMultisigIsmMetadata => {
   const MERKLE_ROOT_OFFSET = 0;
   const MERKLE_INDEX_OFFSET = 32;
   const ORIGIN_MAILBOX_OFFSET = 64;
@@ -94,8 +94,8 @@ export const parseMultisigModuleMetadata = (
   };
 };
 
-export const formatMultisigModuleMetadata = (
-  metadata: ParsedMultisigModuleMetadata,
+export const formatMultisigIsmMetadata = (
+  metadata: ParsedMultisigIsmMetadata,
 ): string => {
   return ethers.utils.solidityPack(
     [

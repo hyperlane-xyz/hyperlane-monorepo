@@ -7,22 +7,22 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 // ============ Internal Imports ============
-import {IMultisigModule} from "../../interfaces/IMultisigModule.sol";
+import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
 import {MessageV2} from "../libs/MessageV2.sol";
-import {MultisigModuleMetadata} from "../libs/MultisigModuleMetadata.sol";
+import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 
 /**
- * @title MultisigModule
+ * @title MultisigIsm
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
  * reach a quorum.
  */
-contract MultisigModule is IMultisigModule, Ownable {
+contract MultisigIsm is IMultisigIsm, Ownable {
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
     using MessageV2 for bytes;
-    using MultisigModuleMetadata for bytes;
+    using MultisigIsmMetadata for bytes;
     using MerkleLib for MerkleLib.Tree;
 
     // ============ Mutable Storage ============
@@ -171,7 +171,7 @@ contract MultisigModule is IMultisigModule, Ownable {
      * @notice Verifies that a quorum of the origin domain's validators signed
      * a checkpoint, and verifies the merkle proof of `_message` against that
      * checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigModuleMetadata.sol)
+     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function verify(bytes calldata _metadata, bytes calldata _message)
@@ -228,7 +228,7 @@ contract MultisigModule is IMultisigModule, Ownable {
     /**
      * @notice Verifies the merkle proof of `_message` against the provided
      * checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigModuleMetadata.sol)
+     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function _verifyMerkleProof(
@@ -247,7 +247,7 @@ contract MultisigModule is IMultisigModule, Ownable {
     /**
      * @notice Verifies that a quorum of the origin domain's validators signed
      * the provided checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigModuleMetadata.sol)
+     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function _verifyValidatorSignatures(
@@ -313,7 +313,7 @@ contract MultisigModule is IMultisigModule, Ownable {
 
     /**
      * @notice Returns the digest validators are expected to sign when signing checkpoints.
-     * @param _metadata ABI encoded module metadata (see MultisigModuleMetadata.sol)
+     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _origin The origin domain of the checkpoint.
      * @return The digest of the checkpoint.
      */

@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
-import { MultisigModule, TestMailboxV2 } from '../../types';
+import { MultisigIsm, TestMailboxV2 } from '../../types';
 import { DispatchEvent } from '../../types/contracts/MailboxV2';
 
 export type MessageAndProof = {
@@ -77,7 +77,7 @@ export async function signCheckpoint(
 
 export async function dispatchMessageAndReturnMetadata(
   mailbox: TestMailboxV2,
-  multisigModule: MultisigModule,
+  multisigIsm: MultisigIsm,
   destination: number,
   recipient: string,
   messageStr: string,
@@ -100,13 +100,13 @@ export async function dispatchMessageAndReturnMetadata(
     orderedValidators,
   );
   const origin = utils.parseMessageV2(proofAndMessage.message).origin;
-  const metadata = utils.formatMultisigModuleMetadata({
+  const metadata = utils.formatMultisigIsmMetadata({
     checkpointRoot: root,
     checkpointIndex: index.toNumber(),
     originMailbox: mailbox.address,
     proof: proofAndMessage.proof.branch,
     signatures,
-    validators: await multisigModule.validators(origin),
+    validators: await multisigIsm.validators(origin),
   });
   return { metadata, message: proofAndMessage.message };
 }

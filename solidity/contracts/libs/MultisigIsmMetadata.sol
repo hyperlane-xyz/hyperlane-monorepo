@@ -11,7 +11,7 @@ pragma solidity >=0.8.0;
  * [1152:????] Validator signatures, 65 bytes each, length == Threshold
  * [????:????] Addresses of the entire validator set, left padded to bytes32
  */
-library MultisigModuleMetadata {
+library MultisigIsmMetadata {
     uint256 private constant MERKLE_ROOT_OFFSET = 0;
     uint256 private constant MERKLE_INDEX_OFFSET = 32;
     uint256 private constant ORIGIN_MAILBOX_OFFSET = 64;
