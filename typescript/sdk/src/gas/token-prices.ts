@@ -23,11 +23,13 @@ type TokenPriceCacheEntry = {
 
 class TokenPriceCache {
   protected cache: Map<ChainName, TokenPriceCacheEntry>;
-  protected expirySeconds: number;
+  protected freshSeconds: number;
+  protected evictionSeconds: number;
 
-  constructor(expirySeconds = 3 * 60 * 60) {
+  constructor(freshSeconds = 60, evictionSeconds = 3 * 60 * 60) {
     this.cache = new Map<ChainName, TokenPriceCacheEntry>();
-    this.expirySeconds = expirySeconds;
+    this.freshSeconds = freshSeconds;
+    this.evictionSeconds = evictionSeconds;
   }
 
   put(chain: ChainName, price: number): void {
@@ -35,17 +37,28 @@ class TokenPriceCache {
     this.cache.set(chain, { timestamp: now, price });
   }
 
-  fetch(chain: ChainName): number {
+  isFresh(chain: ChainName): boolean {
+    const entry = this.cache.get(chain);
+    if (!entry) return false;
+
+    const expiryTime = new Date(
+      entry.timestamp.getTime() + 1000 * this.freshSeconds,
+    );
     const now = new Date();
+    return now < expiryTime;
+  }
+
+  fetch(chain: ChainName): number {
     const entry = this.cache.get(chain);
     if (!entry) {
       throw new Error(`no entry found for ${chain} in token price cache`);
     }
-    const expiry = new Date(
-      entry.timestamp.getTime() + 1000 * this.expirySeconds,
+    const evictionTime = new Date(
+      entry.timestamp.getTime() + 1000 * this.evictionSeconds,
     );
-    if (now > expiry) {
-      throw new Error(`expired entry found for ${chain} in token price cache`);
+    const now = new Date();
+    if (now > evictionTime) {
+      throw new Error(`evicted entry found for ${chain} in token price cache`);
     }
     return entry.price;
   }
@@ -55,9 +68,9 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   protected coinGecko: CoinGeckoInterface;
   protected cache: TokenPriceCache;
 
-  constructor(coinGecko: CoinGeckoInterface, cacheExpirySeconds?: number) {
+  constructor(coinGecko: CoinGeckoInterface, expirySeconds?: number) {
     this.coinGecko = coinGecko;
-    this.cache = new TokenPriceCache(cacheExpirySeconds);
+    this.cache = new TokenPriceCache(expirySeconds);
   }
 
   async getTokenPrice(chain: ChainName): Promise<number> {
@@ -88,27 +101,27 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
       );
     }
 
+    const toQuery = chains.filter((c) => !this.cache.isFresh(c));
+    try {
+      await this.queryTokenPrices(toQuery);
+    } finally {
+      return chains.map((chain) => this.cache.fetch(chain));
+    }
+  }
+
+  private async queryTokenPrices(chains: ChainName[]): Promise<void> {
     const currency = 'usd';
     // The CoinGecko API expects, in some cases, IDs that do not match
     // ChainNames.
     const ids = chains.map(
       (chain) => chainMetadata[chain].gasCurrencyCoinGeckoId || chain,
     );
-    try {
-      const response = await this.coinGecko.simple.price({
-        ids,
-        vs_currencies: [currency],
-      });
-      const prices = ids.map((id) => response.data[id][currency]);
-      // Update the cache with the newly fetched prices
-      chains.map((chain, i) => this.cache.put(chain, prices[i]));
-      return prices;
-    } catch (e) {
-      console.warn(
-        `Unable to fetch prices for ${chains}, attempting to use cache: "${e}"`,
-      );
-      // Fall back to looking up prices in the cache.
-      return chains.map((chain) => this.cache.fetch(chain));
-    }
+    const response = await this.coinGecko.simple.price({
+      ids,
+      vs_currencies: [currency],
+    });
+    const prices = ids.map((id) => response.data[id][currency]);
+    // Update the cache with the newly fetched prices
+    chains.map((chain, i) => this.cache.put(chain, prices[i]));
   }
 }
