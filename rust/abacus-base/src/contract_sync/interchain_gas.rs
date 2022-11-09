@@ -42,8 +42,8 @@ where
             info!(from = from, "[GasPayments]: resuming indexer from {from}");
 
             loop {
-                sleep(Duration::from_secs(2)).await;
                 indexed_height.set(from.into());
+                sleep(Duration::from_secs(2)).await;
 
                 // Only index blocks considered final.
                 // If there's an error getting the block number, just start the loop over

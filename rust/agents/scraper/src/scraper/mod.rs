@@ -337,9 +337,9 @@ impl SqlChainScraper {
         info!(from, chunk_size, chain_name, "Resuming chain sync");
 
         loop {
-            sleep(Duration::from_secs(2)).await;
             indexed_message_height.set(from as i64);
             indexed_deliveries_height.set(from as i64);
+            sleep(Duration::from_secs(2)).await;
 
             let tip = if let Ok(num) = self.get_finalized_block_number().await {
                 num
