@@ -802,7 +802,7 @@ impl SqlChainScraper {
             // check database to see which blocks we already know and fetch their IDs
             block::Entity::find()
                 .filter(
-                    block::Column::Hash.is_in(blocks.iter().map(|(block, _)| format_h256(block)))
+                    block::Column::Hash.is_in(blocks.iter().map(|(block, _)| format_h256(block))),
                 )
                 .select_only()
                 .column_as(block::Column::Id, "id")
