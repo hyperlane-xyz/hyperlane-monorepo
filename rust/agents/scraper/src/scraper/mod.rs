@@ -346,7 +346,7 @@ impl SqlChainScraper {
             } else {
                 continue;
             };
-            if tip / 2 <= from {
+            if tip <= from {
                 // Sleep if caught up to tip
                 sleep(Duration::from_secs(20)).await;
                 continue;
