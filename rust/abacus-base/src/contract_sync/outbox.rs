@@ -98,9 +98,8 @@ where
                 } else {
                     continue;
                 };
-                if tip.saturating_sub(chunk_size) / 2 <= from {
-                    // we are within half a chunk of the tip, go ahead and sleep for a little bit
-                    // longer
+                if tip <= from {
+                    // Sleep if caught up to tip
                     sleep(Duration::from_secs(20)).await;
                     continue;
                 }
