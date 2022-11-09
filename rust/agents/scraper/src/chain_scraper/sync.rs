@@ -6,16 +6,15 @@ use std::time::Duration;
 use ethers::prelude::H256;
 use eyre::Result;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
-use sea_orm::prelude::TimeDateTime;
 use tokio::time::sleep;
 use tracing::{debug, info, instrument, warn};
 
 use abacus_base::last_message::validate_message_continuity;
 use abacus_core::{
-    name_from_domain_id, CommittedMessage, ListValidity, LogMeta, RawCommittedMessage,
+    name_from_domain_id, CommittedMessage, ListValidity,
 };
 
-use crate::chain_scraper::{Delivery, SqlChainScraper};
+use crate::chain_scraper::{Delivery, RawMsgWithMeta, SqlChainScraper, TxnWithIdAndTime};
 
 pub(super) struct Syncer {
     scraper: SqlChainScraper,
@@ -119,7 +118,7 @@ impl Syncer {
                 Some(self.last_leaf_index),
                 &sorted_messages
                     .iter()
-                    .map(|(msg, _)| msg)
+                    .map(|r| &r.raw)
                     .collect::<Vec<_>>(),
             );
             match validation {
@@ -166,8 +165,8 @@ impl Syncer {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<(Vec<(RawCommittedMessage, LogMeta)>, Vec<Delivery>)> {
-        let mut sorted_messages = self.local.indexer.fetch_sorted_messages(from, to).await?;
+    ) -> Result<(Vec<RawMsgWithMeta>, Vec<Delivery>)> {
+        let sorted_messages = self.local.indexer.fetch_sorted_messages(from, to).await?;
 
         let deliveries = self.deliveries(from, to).await?;
 
@@ -179,7 +178,11 @@ impl Syncer {
             "Indexed block range for chain"
         );
 
-        sorted_messages.retain(|m| m.0.leaf_index > self.last_leaf_index);
+        let sorted_messages = sorted_messages
+            .into_iter()
+            .map(|(raw, meta)| RawMsgWithMeta { raw, meta })
+            .filter(|m| m.raw.leaf_index > self.last_leaf_index)
+            .collect::<Vec<_>>();
 
         debug!(
             from,
@@ -216,18 +219,19 @@ impl Syncer {
     #[instrument(skip(self))]
     async fn record_data(
         &self,
-        sorted_messages: Vec<(RawCommittedMessage, LogMeta)>,
+        sorted_messages: Vec<RawMsgWithMeta>,
         deliveries: Vec<Delivery>,
     ) -> Result<u32> {
         // transaction (database_id, timestamp) by transaction hash
-        let txns: HashMap<H256, (i64, TimeDateTime)> = self
+        let txns: HashMap<H256, TxnWithIdAndTime> = self
             .ensure_blocks_and_txns(
                 sorted_messages
                     .iter()
-                    .map(|(_, meta)| meta)
+                    .map(|r| &r.meta)
                     .chain(deliveries.iter().map(|d| &d.meta)),
             )
             .await?
+            .map(|t| (t.hash, t))
             .collect();
 
         let max_leaf_index_of_batch = self.store_messages(&sorted_messages, &txns).await?;
@@ -235,8 +239,8 @@ impl Syncer {
         self.record_deliveries(&deliveries, &txns).await?;
         self.stored_deliveries.inc_by(deliveries.len() as u64);
 
-        for (raw_msg, _) in sorted_messages.iter() {
-            let dst = CommittedMessage::try_from(raw_msg)
+        for m in sorted_messages.iter() {
+            let dst = CommittedMessage::try_from(&m.raw)
                 .ok()
                 .and_then(|msg| name_from_domain_id(msg.message.destination))
                 .unwrap_or_else(|| "unknown".into());
