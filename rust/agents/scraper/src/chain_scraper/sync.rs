@@ -100,12 +100,13 @@ impl Syncer {
         loop {
             self.indexed_message_height.set(self.from as i64);
             self.indexed_deliveries_height.set(self.from as i64);
+            sleep(Duration::from_secs(5)).await;
 
             let Ok(tip) = self.get_finalized_block_number().await else {
                 continue;
             };
             if tip <= self.from {
-                sleep(Duration::from_secs(1)).await;
+                sleep(Duration::from_secs(10)).await;
                 continue;
             }
 
