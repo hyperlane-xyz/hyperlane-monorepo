@@ -131,10 +131,11 @@ impl<T> ChainSetup<T> {
         };
 
         let address = match &self.chain {
-            ChainConf::Ethereum(_) => ethers::types::Address::zero().encode_hex(),
+            ChainConf::Ethereum(_) => "0x0000000000000000000000000000000000000000",
         };
         self.build(&address, None, metrics, metrics_conf, builder)
             .await
+            .context("Building provider")
     }
 
     async fn build<B: MakeableWithProvider + Sync>(
