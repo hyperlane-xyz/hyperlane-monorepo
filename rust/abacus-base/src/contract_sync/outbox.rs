@@ -463,7 +463,7 @@ mod test {
             );
 
             let sync_task = contract_sync.sync_outbox_messages();
-            let test_pass_fut = timeout(Duration::from_secs(30), async move {
+            let test_pass_fut = timeout(Duration::from_secs(90), async move {
                 let mut interval = interval(Duration::from_millis(20));
                 loop {
                     if abacus_db.message_by_leaf_index(0).expect("!db").is_some()
