@@ -5,16 +5,26 @@ import {OwnableMulticall, Call} from "../OwnableMulticall.sol";
 import {IInterchainAccountRouter} from "../../interfaces/IInterchainAccountRouter.sol";
 
 // ============ External Imports ============
-import {Router} from "../Router.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /*
  * @title The Hello World App
  * @dev You can use this simple app as a starting point for your own application.
  */
-contract InterchainAccountRouter is Router, IInterchainAccountRouter {
+contract MockInterchainAccountRouter is IInterchainAccountRouter {
+    struct PendingCall {
+        uint32 originDomain;
+        address sender;
+        bytes serializedCalls;
+    }
+
+    uint32 public originDomain;
+
+    mapping(uint256 => PendingCall) pendingCalls;
+    uint256 totalCalls = 0;
+    uint256 callsProcessed = 0;
+
     bytes constant bytecode = type(OwnableMulticall).creationCode;
     bytes32 constant bytecodeHash = bytes32(keccak256(bytecode));
 
@@ -24,24 +34,21 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         address account
     );
 
-    function initialize(
-        address _owner,
-        address _abacusConnectionManager,
-        address _interchainGasPaymaster
-    ) public initializer {
-        // Transfer ownership of the contract to deployer
-        _transferOwnership(_owner);
-        // Set the addresses for the ACM and IGP
-        // Alternatively, this could be done later in an initialize method
-        _setAbacusConnectionManager(_abacusConnectionManager);
-        _setInterchainGasPaymaster(_interchainGasPaymaster);
+    constructor(uint32 _originDomain) {
+        originDomain = _originDomain;
     }
 
-    function dispatch(uint32 _destinationDomain, Call[] calldata calls)
+    function dispatch(uint32, Call[] calldata calls)
         external
         returns (uint256)
     {
-        return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
+        pendingCalls[totalCalls] = PendingCall(
+            originDomain,
+            msg.sender,
+            abi.encode(calls)
+        );
+        totalCalls += 1;
+        return totalCalls;
     }
 
     function getInterchainAccount(uint32 _origin, address _sender)
@@ -81,15 +88,11 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         return Create2.computeAddress(salt, bytecodeHash);
     }
 
-    function _handle(
-        uint32 _origin,
-        bytes32, // router sender
-        bytes calldata _message
-    ) internal override {
-        (address sender, Call[] memory calls) = abi.decode(
-            _message,
-            (address, Call[])
-        );
-        getDeployedInterchainAccount(_origin, sender).proxyCalls(calls);
+    function processNextPendingCall() public {
+        PendingCall memory pendingCall = pendingCalls[callsProcessed];
+        Call[] memory calls = abi.decode(pendingCall.serializedCalls, (Call[]));
+
+        getDeployedInterchainAccount(originDomain, pendingCall.sender)
+            .proxyCalls(calls);
     }
 }
