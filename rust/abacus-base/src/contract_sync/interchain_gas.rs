@@ -42,6 +42,7 @@ where
             info!(from = from, "[GasPayments]: resuming indexer from {from}");
 
             loop {
+                sleep(Duration::from_secs(2)).await;
                 indexed_height.set(from.into());
 
                 // Only index blocks considered final.
@@ -51,10 +52,11 @@ where
                 } else {
                     continue;
                 };
-                if tip <= from {
+                if tip.saturating_sub(chunk_size) / 2 <= from {
+                    // we are within half a chunk of the tip, go ahead and sleep for a little bit
+                    // longer
                     debug!(tip=?tip, from=?from, "[GasPayments]: caught up to tip, waiting for new block");
-                    // Sleep if caught up to tip
-                    sleep(Duration::from_secs(1)).await;
+                    sleep(Duration::from_secs(20)).await;
                     continue;
                 }
 

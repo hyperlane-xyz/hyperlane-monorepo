@@ -88,6 +88,7 @@ where
             info!(from = from, "[Messages]: resuming indexer from latest valid message range start block");
 
             loop {
+                sleep(Duration::from_secs(2)).await;
                 indexed_height.set(from as i64);
 
                 // Only index blocks considered final.
@@ -97,9 +98,10 @@ where
                 } else {
                     continue;
                 };
-                if tip <= from {
-                    // Sleep if caught up to tip
-                    sleep(Duration::from_secs(1)).await;
+                if tip.saturating_sub(chunk_size) / 2 <= from {
+                    // we are within half a chunk of the tip, go ahead and sleep for a little bit
+                    // longer
+                    sleep(Duration::from_secs(20)).await;
                     continue;
                 }
 

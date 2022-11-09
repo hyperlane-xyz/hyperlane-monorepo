@@ -337,6 +337,7 @@ impl SqlChainScraper {
         info!(from, chunk_size, chain_name, "Resuming chain sync");
 
         loop {
+            sleep(Duration::from_secs(2)).await;
             indexed_message_height.set(from as i64);
             indexed_deliveries_height.set(from as i64);
 
@@ -345,8 +346,10 @@ impl SqlChainScraper {
             } else {
                 continue;
             };
-            if tip <= from {
-                sleep(Duration::from_secs(1)).await;
+            if tip.saturating_sub(chunk_size) / 2 <= from {
+                // we are within half a chunk of the tip, go ahead and sleep for a little bit
+                // longer
+                sleep(Duration::from_secs(20)).await;
                 continue;
             }
 
