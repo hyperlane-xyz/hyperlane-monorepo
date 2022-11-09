@@ -43,6 +43,7 @@ where
 
             loop {
                 indexed_height.set(from.into());
+                sleep(Duration::from_secs(5)).await;
 
                 // Only index blocks considered final.
                 // If there's an error getting the block number, just start the loop over
@@ -52,9 +53,9 @@ where
                     continue;
                 };
                 if tip <= from {
-                    debug!(tip=?tip, from=?from, "[GasPayments]: caught up to tip, waiting for new block");
                     // Sleep if caught up to tip
-                    sleep(Duration::from_secs(1)).await;
+                    debug!(tip=?tip, from=?from, "[GasPayments]: caught up to tip, waiting for new block");
+                    sleep(Duration::from_secs(10)).await;
                     continue;
                 }
 
