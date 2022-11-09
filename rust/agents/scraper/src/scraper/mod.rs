@@ -337,6 +337,7 @@ impl SqlChainScraper {
         info!(from, chunk_size, chain_name, "Resuming chain sync");
 
         loop {
+            sleep(Duration::from_secs(5)).await;
             indexed_message_height.set(from as i64);
             indexed_deliveries_height.set(from as i64);
 
