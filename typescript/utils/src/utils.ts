@@ -5,8 +5,9 @@ import {
   Checkpoint,
   Domain,
   HexString,
-  MerkleProof,
   ParsedMessage,
+  ParsedMessageV2,
+  ParsedMultisigIsmMetadata,
 } from './types';
 
 export function assert(predicate: any, errorMessage?: string) {
@@ -45,12 +46,56 @@ export function formatCallData<
   );
 }
 
-export const formatMultisigModuleMetadata = (
-  checkpoint: Checkpoint,
-  originMailbox: Address,
-  proof: MerkleProof,
-  signatures: string[],
-  addresses: Address[],
+export const parseMultisigIsmMetadata = (
+  metadata: string,
+): ParsedMultisigIsmMetadata => {
+  const MERKLE_ROOT_OFFSET = 0;
+  const MERKLE_INDEX_OFFSET = 32;
+  const ORIGIN_MAILBOX_OFFSET = 64;
+  const MERKLE_PROOF_OFFSET = 96;
+  const THRESHOLD_OFFSET = 1120;
+  const SIGNATURES_OFFSET = 1152;
+  const SIGNATURE_LENGTH = 65;
+
+  const buf = Buffer.from(utils.arrayify(metadata));
+  const checkpointRoot = utils.hexlify(
+    buf.slice(MERKLE_ROOT_OFFSET, MERKLE_INDEX_OFFSET),
+  );
+  const checkpointIndex = BigNumber.from(
+    utils.hexlify(buf.slice(MERKLE_INDEX_OFFSET, ORIGIN_MAILBOX_OFFSET)),
+  ).toNumber();
+  const originMailbox = utils.hexlify(
+    buf.slice(ORIGIN_MAILBOX_OFFSET, MERKLE_PROOF_OFFSET),
+  );
+  const parseBytesArray = (start: number, count: number, size: number) => {
+    return [...Array(count).keys()].map((i) =>
+      utils.hexlify(buf.slice(start + size * i, start + size * (i + 1))),
+    );
+  };
+  const proof = parseBytesArray(MERKLE_PROOF_OFFSET, 32, 32);
+  const threshold = BigNumber.from(
+    utils.hexlify(buf.slice(THRESHOLD_OFFSET, SIGNATURES_OFFSET)),
+  ).toNumber();
+  const signatures = parseBytesArray(
+    SIGNATURES_OFFSET,
+    threshold,
+    SIGNATURE_LENGTH,
+  );
+  const VALIDATORS_OFFSET = SIGNATURES_OFFSET + threshold * SIGNATURE_LENGTH;
+  const addressesCount = buf.slice(VALIDATORS_OFFSET).length / 32;
+  const validators = parseBytesArray(VALIDATORS_OFFSET, addressesCount, 32);
+  return {
+    checkpointRoot,
+    checkpointIndex,
+    originMailbox,
+    proof,
+    signatures,
+    validators,
+  };
+};
+
+export const formatMultisigIsmMetadata = (
+  metadata: ParsedMultisigIsmMetadata,
 ): string => {
   return ethers.utils.solidityPack(
     [
@@ -63,13 +108,13 @@ export const formatMultisigModuleMetadata = (
       'address[]',
     ],
     [
-      checkpoint.root,
-      checkpoint.index,
-      addressToBytes32(originMailbox),
-      proof.branch,
-      signatures.length,
-      ethers.utils.hexConcat(signatures),
-      addresses,
+      metadata.checkpointRoot,
+      metadata.checkpointIndex,
+      addressToBytes32(metadata.originMailbox),
+      metadata.proof,
+      metadata.signatures.length,
+      ethers.utils.hexConcat(metadata.signatures),
+      metadata.validators,
     ],
   );
 };
@@ -120,6 +165,28 @@ export function messageIdV2(message: HexString): string {
   return ethers.utils.solidityKeccak256(['bytes'], [message]);
 }
 
+export function parseMessageV2(message: string): ParsedMessageV2 {
+  const VERSION_OFFSET = 0;
+  const NONCE_OFFSET = 1;
+  const ORIGIN_OFFSET = 33;
+  const SENDER_OFFSET = 37;
+  const DESTINATION_OFFSET = 69;
+  const RECIPIENT_OFFSET = 73;
+  const BODY_OFFSET = 105;
+
+  const buf = Buffer.from(utils.arrayify(message));
+  const version = buf.readUint8(VERSION_OFFSET);
+  const nonce = BigNumber.from(
+    utils.hexlify(buf.slice(NONCE_OFFSET, ORIGIN_OFFSET)),
+  ).toNumber();
+  const origin = buf.readUInt32BE(ORIGIN_OFFSET);
+  const sender = utils.hexlify(buf.slice(SENDER_OFFSET, DESTINATION_OFFSET));
+  const destination = buf.readUInt32BE(DESTINATION_OFFSET);
+  const recipient = utils.hexlify(buf.slice(RECIPIENT_OFFSET, BODY_OFFSET));
+  const body = utils.hexlify(buf.slice(BODY_OFFSET));
+  return { version, nonce, origin, sender, destination, recipient, body };
+}
+
 /**
  * Parse a serialized Hyperlane message from raw bytes.
  *
@@ -141,18 +208,6 @@ export function messageHash(message: HexString, leafIndex: number): string {
     ['bytes', 'uint256'],
     [message, leafIndex],
   );
-}
-
-export function destinationAndNonce(
-  destination: Domain,
-  sequence: number,
-): ethers.BigNumber {
-  assert(destination < Math.pow(2, 32) - 1);
-  assert(sequence < Math.pow(2, 32) - 1);
-
-  return ethers.BigNumber.from(destination)
-    .mul(ethers.BigNumber.from(2).pow(32))
-    .add(ethers.BigNumber.from(sequence));
 }
 
 export function domainHash(domain: number): string {

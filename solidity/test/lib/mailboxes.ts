@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
-import { TestMailboxV2 } from '../../types';
+import { MultisigIsm, TestMailboxV2 } from '../../types';
 import { DispatchEvent } from '../../types/contracts/MailboxV2';
 
 export type MessageAndProof = {
@@ -58,21 +58,15 @@ export const dispatchMessageAndReturnProof = async (
 };
 
 // Signs a checkpoint with the provided validators and returns
-// the signatures sorted by validator addresses in ascending order
+// the signatures ordered by validator index
 export async function signCheckpoint(
   root: types.HexString,
   index: number,
   mailbox: types.Address,
-  unsortedValidators: Validator[],
+  orderedValidators: Validator[],
 ): Promise<string[]> {
-  const validators = unsortedValidators.sort((a, b) => {
-    // Remove the checksums for accurate comparison
-    const aAddress = a.address.toLowerCase();
-    return aAddress.localeCompare(b.address.toLowerCase());
-  });
-
   const signedCheckpoints = await Promise.all(
-    validators.map((validator) =>
+    orderedValidators.map((validator) =>
       validator.signCheckpointV2(root, index, mailbox),
     ),
   );
@@ -83,11 +77,15 @@ export async function signCheckpoint(
 
 export async function dispatchMessageAndReturnMetadata(
   mailbox: TestMailboxV2,
+  multisigIsm: MultisigIsm,
   destination: number,
   recipient: string,
   messageStr: string,
-  validators: Validator[],
+  orderedValidators: Validator[],
 ): Promise<MessageAndMetadata> {
+  // Checkpoint indices are 0 indexed, so we pull the count before
+  // we dispatch the message.
+  const index = await mailbox.count();
   const proofAndMessage = await dispatchMessageAndReturnProof(
     mailbox,
     destination,
@@ -95,22 +93,21 @@ export async function dispatchMessageAndReturnMetadata(
     messageStr,
   );
   const root = await mailbox.root();
-  const index = await mailbox.count();
-  const addresses = utils.sortAddresses(validators.map((v) => v.address));
   const signatures = await signCheckpoint(
     root,
     index.toNumber(),
     mailbox.address,
-    validators,
+    orderedValidators,
   );
-  const checkpoint = { root, index: index.toNumber(), signature: '' };
-  const metadata = utils.formatMultisigModuleMetadata(
-    checkpoint,
-    mailbox.address,
-    proofAndMessage.proof, // The merkle proof is unused
+  const origin = utils.parseMessageV2(proofAndMessage.message).origin;
+  const metadata = utils.formatMultisigIsmMetadata({
+    checkpointRoot: root,
+    checkpointIndex: index.toNumber(),
+    originMailbox: mailbox.address,
+    proof: proofAndMessage.proof.branch,
     signatures,
-    addresses,
-  );
+    validators: await multisigIsm.validators(origin),
+  });
   return { metadata, message: proofAndMessage.message };
 }
 
@@ -118,10 +115,9 @@ export function getCommitment(
   threshold: number,
   validators: types.Address[],
 ): string {
-  const sortedValidators = utils.sortAddresses(validators);
   const packed = ethers.utils.solidityPack(
     ['uint256', 'address[]'],
-    [threshold, sortedValidators],
+    [threshold, validators],
   );
   return ethers.utils.solidityKeccak256(['bytes'], [packed]);
 }
