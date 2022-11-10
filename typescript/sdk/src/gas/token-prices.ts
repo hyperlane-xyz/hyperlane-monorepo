@@ -1,5 +1,7 @@
 import CoinGecko from 'coingecko-api';
 
+import { warn } from '@hyperlane-xyz/utils';
+
 import { chainMetadata } from '../consts/chainMetadata';
 import { Mainnets } from '../consts/chains';
 import { ChainName } from '../types';
@@ -104,9 +106,10 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     const toQuery = chains.filter((c) => !this.cache.isFresh(c));
     try {
       await this.queryTokenPrices(toQuery);
-    } finally {
-      return chains.map((chain) => this.cache.fetch(chain));
+    } catch (e) {
+      warn('Failed to query token prices', e);
     }
+    return chains.map((chain) => this.cache.fetch(chain));
   }
 
   private async queryTokenPrices(chains: ChainName[]): Promise<void> {
