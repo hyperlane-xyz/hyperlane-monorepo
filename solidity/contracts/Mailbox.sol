@@ -147,7 +147,7 @@ contract Mailbox is
         delivered[_id] = true;
 
         // Verify the message via the ISM.
-        IInterchainSecurityModule _ism = _receipientIsm(
+        IInterchainSecurityModule _ism = _recipientIsm(
             ISpecifiesInterchainSecurityModule(_message.recipientAddress())
         );
         require(_ism.verify(_metadata, _message), "!module");
@@ -205,7 +205,7 @@ contract Mailbox is
      * @param _recipient The message recipient whose ISM should be returned.
      * @return The ISM to use for `_recipient`.
      */
-    function _receipientIsm(ISpecifiesInterchainSecurityModule _recipient)
+    function _recipientIsm(ISpecifiesInterchainSecurityModule _recipient)
         internal
         view
         returns (IInterchainSecurityModule)

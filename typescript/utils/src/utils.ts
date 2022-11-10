@@ -1,4 +1,3 @@
-import { types } from '..';
 import { BigNumber, ethers, utils } from 'ethers';
 
 import {
@@ -307,11 +306,4 @@ export function symmetricDifference<T>(a: Set<T>, b: Set<T>) {
 
 export function setEquality<T>(a: Set<T>, b: Set<T>) {
   return symmetricDifference(a, b).size === 0;
-}
-
-export function sortAddresses(addresses: types.Address[]): types.Address[] {
-  return addresses.sort((a, b) => {
-    // Remove the checksums for accurate comparison
-    return a.toLowerCase().localeCompare(b.toLowerCase());
-  });
 }
