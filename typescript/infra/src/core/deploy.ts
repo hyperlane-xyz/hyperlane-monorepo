@@ -33,7 +33,7 @@ export class HyperlaneCoreInfraDeployer<
         addresses: {
           mailbox: contracts?.mailbox?.contract.address!,
           interchainGasPaymaster: contracts?.interchainGasPaymaster?.address!,
-          multisigModule: contracts?.multisigModule?.address!,
+          multisigIsm: contracts?.multisigIsm?.address!,
         },
         rpcStyle: 'ethereum',
         finalityBlocks: metadata.finalityBlocks.toString(),

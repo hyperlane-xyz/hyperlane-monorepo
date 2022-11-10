@@ -90,8 +90,8 @@ export {
   CoreConfig,
   CoreViolationType,
   EnrolledValidatorsViolation,
-  MultisigModuleViolation,
-  MultisigModuleViolationType,
+  MultisigIsmViolation,
+  MultisigIsmViolationType,
 } from './deploy/core/types';
 export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export { UpgradeBeaconViolation } from './deploy/proxy';
