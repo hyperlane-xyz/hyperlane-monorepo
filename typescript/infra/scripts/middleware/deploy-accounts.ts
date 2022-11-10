@@ -8,6 +8,7 @@ import {
 
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
+import { mergeWithSdkContractAddressArtifacts } from '../merge-sdk-contract-addresses';
 import {
   getCoreEnvironmentConfig,
   getEnvironment,
@@ -31,9 +32,11 @@ async function main() {
     multiProvider,
     configMap,
     core,
+    'ica2',
   );
 
   await deployWithArtifacts(dir, interchainAccountFactories, deployer);
+  await mergeWithSdkContractAddressArtifacts(environment);
 }
 
 main()

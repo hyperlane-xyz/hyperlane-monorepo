@@ -11,7 +11,7 @@ use abacus_base::{
     chains::GelatoConf, run_all, AbacusAgentCore, Agent, BaseAgent, ContractSyncMetrics,
     CoreMetrics, MultisigCheckpointSyncer,
 };
-use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers};
+use abacus_core::{AbacusChain, MultisigSignedCheckpoint, Signers};
 
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
@@ -51,10 +51,14 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
+<<<<<<< HEAD
         let core = settings
             .as_ref()
             .try_into_abacus_core(metrics, None)
             .await?;
+=======
+        let core = settings.try_into_abacus_core(metrics, true).await?;
+>>>>>>> main
 
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer

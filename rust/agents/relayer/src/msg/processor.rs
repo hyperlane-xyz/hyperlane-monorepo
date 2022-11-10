@@ -9,8 +9,8 @@ use tokio::{
 };
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
-use abacus_base::{CachingMailbox, CoreMetrics};
-use abacus_core::{db::AbacusDB, AbacusContract, AbacusMessage, Mailbox, MultisigSignedCheckpoint};
+use abacus_base::{CoreMetrics, InboxContracts};
+use abacus_core::{db::AbacusDB, AbacusChain, CommittedMessage, MultisigSignedCheckpoint};
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
 

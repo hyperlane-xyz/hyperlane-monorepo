@@ -91,6 +91,7 @@ where
 
             loop {
                 indexed_height.set(from as i64);
+                sleep(Duration::from_secs(5)).await;
 
                 // Only index blocks considered final.
                 // If there's an error getting the block number, just start the loop over
@@ -101,7 +102,7 @@ where
                 };
                 if tip <= from {
                     // Sleep if caught up to tip
-                    sleep(Duration::from_secs(1)).await;
+                    sleep(Duration::from_secs(10)).await;
                     continue;
                 }
 
@@ -441,7 +442,7 @@ mod test {
             );
 
             let sync_task = contract_sync.sync_dispatched_messages();
-            let test_pass_fut = timeout(Duration::from_secs(30), async move {
+            let test_pass_fut = timeout(Duration::from_secs(90), async move {
                 let mut interval = interval(Duration::from_millis(20));
                 loop {
                     if abacus_db.message_by_nonce(0).expect("!db").is_some()

@@ -2,10 +2,12 @@ import path from 'path';
 
 import {
   HyperlaneCore,
-  InterchainQueryDeployer,
-  interchainQueryFactories,
+  TokenBridgeDeployer,
+  objMap,
+  tokenBridgeFactories,
 } from '@hyperlane-xyz/sdk';
 
+import { circleBridgeAdapterConfig } from '../../config/environments/testnet2/token-bridge';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import {
@@ -14,8 +16,6 @@ import {
   getEnvironmentDirectory,
 } from '../utils';
 
-// similar to hello world deploy script but uses freshly funded account for consistent addresses across chains
-// should eventually be deduped
 async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
@@ -24,20 +24,23 @@ async function main() {
 
   const dir = path.join(
     getEnvironmentDirectory(environment),
-    'interchain/queries',
+    'middleware/token-bridge',
   );
 
   // config gcp deployer key as owner
-  const configMap = await getConfiguration(environment, multiProvider);
+  const ownerConfigMap = await getConfiguration(environment, multiProvider);
 
-  const deployer = new InterchainQueryDeployer(
+  const deployer = new TokenBridgeDeployer(
     multiProvider,
-    configMap,
+    objMap(circleBridgeAdapterConfig, (chain, conf) => ({
+      bridgeAdapterConfigs: [conf],
+      ...ownerConfigMap[chain],
+    })),
     core,
-    'IQS-SALT-2',
+    'TokenBridgeDeploy2',
   );
 
-  await deployWithArtifacts(dir, interchainQueryFactories, deployer);
+  await deployWithArtifacts(dir, tokenBridgeFactories, deployer);
 }
 
 main()

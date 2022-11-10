@@ -6,7 +6,6 @@ use sea_orm::{ActiveValue, Insert, Order, QueryOrder, QuerySelect};
 use tokio::sync::RwLock;
 use tracing::{debug, instrument, trace, warn};
 
-use crate::date_time;
 use crate::db::cursor;
 
 const MAX_WRITE_BACK_FREQUENCY: Duration = Duration::from_secs(10);
@@ -77,7 +76,7 @@ impl BlockCursor {
             let model = cursor::ActiveModel {
                 id: ActiveValue::NotSet,
                 domain: ActiveValue::Set(self.domain as i32),
-                time_updated: ActiveValue::Set(date_time::now()),
+                time_created: ActiveValue::NotSet,
                 height: ActiveValue::Set(height as i64),
             };
             trace!(?model, "Inserting cursor");

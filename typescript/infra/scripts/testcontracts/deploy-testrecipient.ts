@@ -1,7 +1,10 @@
 import path from 'path';
 
 import { deployWithArtifacts } from '../../src/deploy';
-import { TestRecipientDeployer, factories } from '../../src/testrecipient';
+import {
+  TestRecipientDeployer,
+  factories,
+} from '../../src/testcontracts/testrecipient';
 import {
   getCoreEnvironmentConfig,
   getEnvironment,

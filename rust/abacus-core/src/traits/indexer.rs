@@ -11,6 +11,7 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
+use ethers::types::H256;
 use eyre::Result;
 
 use crate::{InterchainGasPaymentWithMeta, LogMeta, RawAbacusMessage};
@@ -27,7 +28,7 @@ pub trait Indexer: Send + Sync + Debug {
 /// entities to retrieve chain-specific data from an mailbox.
 #[async_trait]
 #[auto_impl(Box, Arc)]
-pub trait MailboxIndexer: Indexer + Send + Sync + Debug {
+pub trait MailboxIndexer: Indexer {
     /// Fetch list of messages between blocks `from` and `to`.
     async fn fetch_sorted_messages(
         &self,
@@ -36,10 +37,19 @@ pub trait MailboxIndexer: Indexer + Send + Sync + Debug {
     ) -> Result<Vec<(RawAbacusMessage, LogMeta)>>;
 }
 
+/// Interface for Inbox contract indexer. Interface for allowing other entities
+/// to retrieve chain-specific data from an inbox.
+#[async_trait]
+#[auto_impl(Box, Arc)]
+pub trait InboxIndexer: Indexer {
+    /// Fetch a list of processed message hashes between blocks `from` and `to`.
+    async fn fetch_processed_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>>;
+}
+
 /// Interface for InterchainGasPaymaster contract indexer.
 #[async_trait]
 #[auto_impl(Box, Arc)]
-pub trait InterchainGasPaymasterIndexer: Indexer + Send + Sync + Debug {
+pub trait InterchainGasPaymasterIndexer: Indexer {
     /// Fetch list of gas payments between `from_block` and `to_block`,
     /// inclusive
     async fn fetch_gas_payments(

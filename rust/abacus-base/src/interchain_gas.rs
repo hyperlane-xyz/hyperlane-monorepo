@@ -8,7 +8,7 @@ use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
 use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusContract, InterchainGasPaymaster, InterchainGasPaymasterIndexer};
+use abacus_core::{InterchainGasPaymaster, InterchainGasPaymasterIndexer};
 
 use crate::chains::IndexSettings;
 use crate::{ContractSync, ContractSyncMetrics};

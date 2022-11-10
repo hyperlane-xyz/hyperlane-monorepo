@@ -15,7 +15,7 @@ impl EntityName for Entity {
 pub struct Model {
     pub id: i64,
     pub domain: i32,
-    pub time_updated: TimeDateTime,
+    pub time_created: TimeDateTime,
     pub height: i64,
 }
 
@@ -23,7 +23,7 @@ pub struct Model {
 pub enum Column {
     Id,
     Domain,
-    TimeUpdated,
+    TimeCreated,
     Height,
 }
 
@@ -50,7 +50,7 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::Domain => ColumnType::Integer.def(),
-            Self::TimeUpdated => ColumnType::DateTime.def(),
+            Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Height => ColumnType::BigInteger.def(),
         }
     }

@@ -15,4 +15,5 @@ members = [
     "utils/abigen",
     "utils/backtrace-oneline",
     "utils/run-locally",
+    "utils/hex",
 ]

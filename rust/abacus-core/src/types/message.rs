@@ -94,11 +94,11 @@ pub struct AbacusMessage {
     pub version: u8,
     /// 4   Message nonce
     pub nonce: u32,
-    /// 4   SLIP-44 ID
+    /// 4   Hyperlane Domain ID
     pub origin: u32,
     /// 32  Address in origin convention
     pub sender: H256,
-    /// 4   SLIP-44 ID
+    /// 4   Hyperlane Domain ID
     pub destination: u32,
     /// 32  Address in destination convention
     pub recipient: H256,

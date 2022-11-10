@@ -24,7 +24,8 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(MessageState::TimeCreated)
                             .timestamp()
-                            .not_null(),
+                            .not_null()
+                            .default("NOW()"),
                     )
                     .col(ColumnDef::new(MessageState::MsgId).big_integer().not_null())
                     .col(

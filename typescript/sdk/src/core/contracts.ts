@@ -1,6 +1,9 @@
 import {
+  Create2Factory__factory,
+  InterchainAccountRouter__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
+  InterchainQueryRouter__factory,
   Mailbox,
   Mailbox__factory,
   MultisigIsm,
@@ -25,6 +28,9 @@ export type CoreContracts = ConnectionClientContracts & {
 };
 
 export const coreFactories = {
+  interchainAccountRouter: new InterchainAccountRouter__factory(),
+  interchainQueryRouter: new InterchainQueryRouter__factory(),
+  create2Factory: new Create2Factory__factory(),
   upgradeBeaconController: new UpgradeBeaconController__factory(),
   interchainGasPaymaster: new InterchainGasPaymaster__factory(),
   multisigIsm: new MultisigIsm__factory(),

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 use serde::Deserialize;
 
 use abacus_core::{
@@ -6,10 +7,28 @@ use abacus_core::{
 use abacus_ethereum::{
     Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
     InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider, MultisigModuleBuilder,
+=======
+use ethers::signers::Signer;
+use eyre::Context;
+use serde::Deserialize;
+
+use abacus_core::{
+    AbacusAbi, AbacusProvider, ContractLocator, Inbox, InboxIndexer, InboxValidatorManager,
+    InterchainGasPaymaster, InterchainGasPaymasterIndexer, Outbox, OutboxIndexer, Signers,
+};
+use abacus_ethereum::{
+    AbacusProviderBuilder, Connection, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi,
+    EthereumOutboxAbi, InboxBuilder, InboxIndexerBuilder, InboxValidatorManagerBuilder,
+    InterchainGasPaymasterBuilder, InterchainGasPaymasterIndexerBuilder, MakeableWithProvider,
+    OutboxBuilder, OutboxIndexerBuilder,
+};
+use ethers_prometheus::middleware::{
+    ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
+>>>>>>> main
 };
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 
-use crate::CoreMetrics;
+use crate::{CoreMetrics, IndexSettings};
 
 /// A connection to _some_ blockchain.
 ///
@@ -31,7 +50,8 @@ impl Default for ChainConf {
 #[derive(Copy, Clone, Debug, Default, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum TransactionSubmissionType {
-    /// Use the configured signer to sign and submit transactions in the "default" manner.
+    /// Use the configured signer to sign and submit transactions in the
+    /// "default" manner.
     #[default]
     Signer,
     /// Submit transactions via the Gelato relay.
@@ -123,13 +143,11 @@ impl ChainSetup {
             .parse::<u32>()
             .expect("could not parse finality_blocks")
     }
-}
 
 impl ChainSetup {
     /// Try to convert the chain setting into a Mailbox contract
     pub async fn try_into_mailbox(
         &self,
-        signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn Mailbox>> {
         self.try_into_contract(
@@ -141,9 +159,9 @@ impl ChainSetup {
         .await
     }
 
-    /// Try to convert the chain setting into an InterchainGasPaymaster contract
-    pub async fn try_into_interchain_gas_paymaster(
+    async fn build<B: MakeableWithProvider + Sync>(
         &self,
+        address: &str,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn InterchainGasPaymaster>> {

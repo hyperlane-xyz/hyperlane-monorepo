@@ -4,10 +4,11 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
+use std::collections::HashMap;
+
 use ethers::prelude::*;
 use eyre::Result;
 use num::Num;
-use std::collections::HashMap;
 
 use abacus_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
@@ -25,6 +26,10 @@ mod mailbox;
 
 #[cfg(not(doctest))]
 mod trait_builder;
+
+/// Provider abi
+#[cfg(not(doctest))]
+mod provider;
 
 /// InterchainGasPaymaster abi
 #[cfg(not(doctest))]

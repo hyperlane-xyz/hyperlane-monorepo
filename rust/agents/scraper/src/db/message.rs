@@ -15,6 +15,7 @@ impl EntityName for Entity {
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
+    pub hash: String,
     pub origin: i32,
     pub destination: i32,
     pub leaf_index: i32,
@@ -30,6 +31,7 @@ pub struct Model {
 pub enum Column {
     Id,
     TimeCreated,
+    Hash,
     Origin,
     Destination,
     LeafIndex,
@@ -57,8 +59,8 @@ impl PrimaryKeyTrait for PrimaryKey {
 pub enum Relation {
     Domain,
     Transaction,
-    MessageState,
     DeliveredMessage,
+    MessageState,
 }
 
 impl ColumnTrait for Column {
@@ -67,6 +69,7 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
+            Self::Hash => ColumnType::String(Some(64u32)).def().unique(),
             Self::Origin => ColumnType::Integer.def(),
             Self::Destination => ColumnType::Integer.def(),
             Self::LeafIndex => ColumnType::Integer.def(),
@@ -91,8 +94,8 @@ impl RelationTrait for Relation {
                 .from(Column::OriginTxId)
                 .to(super::transaction::Column::Id)
                 .into(),
-            Self::MessageState => Entity::has_many(super::message_state::Entity).into(),
             Self::DeliveredMessage => Entity::has_one(super::delivered_message::Entity).into(),
+            Self::MessageState => Entity::has_many(super::message_state::Entity).into(),
         }
     }
 }
@@ -109,15 +112,15 @@ impl Related<super::transaction::Entity> for Entity {
     }
 }
 
-impl Related<super::message_state::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::MessageState.def()
-    }
-}
-
 impl Related<super::delivered_message::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::DeliveredMessage.def()
+    }
+}
+
+impl Related<super::message_state::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MessageState.def()
     }
 }
 
