@@ -1,9 +1,9 @@
 import { ethers } from 'ethers';
 
 import {
+  TestIsm__factory,
   TestMailbox,
   TestMailbox__factory,
-  TestModule__factory,
 } from '@hyperlane-xyz/core';
 
 import { chainMetadata } from '../consts/chainMetadata';
@@ -19,8 +19,8 @@ import { coreFactories } from './contracts';
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ValidatorManager
-const testMultisigModuleConfig: CoreConfig = {
-  multisigModule: {
+const testMultisigIsmConfig: CoreConfig = {
+  multisigIsm: {
     validators: [nonZeroAddress],
     threshold: 1,
   },
@@ -29,7 +29,7 @@ const testMultisigModuleConfig: CoreConfig = {
 const testCoreFactories = {
   ...coreFactories,
   mailbox: new TestMailbox__factory(),
-  testModule: new TestModule__factory(),
+  testIsm: new TestIsm__factory(),
 };
 
 export class TestCoreDeployer<
@@ -43,9 +43,9 @@ export class TestCoreDeployer<
     const configs =
       configMap ??
       ({
-        test1: testMultisigModuleConfig,
-        test2: testMultisigModuleConfig,
-        test3: testMultisigModuleConfig,
+        test1: testMultisigIsmConfig,
+        test2: testMultisigIsmConfig,
+        test3: testMultisigIsmConfig,
       } as ChainMap<TestChain, CoreConfig>); // cast so param can be optional
 
     super(multiProvider, configs, testCoreFactories);
@@ -57,16 +57,16 @@ export class TestCoreDeployer<
   ): Promise<ProxiedContract<TestMailbox, BeaconProxyAddresses>> {
     const localDomain = chainMetadata[chain].id;
 
-    const testModule = await this.deployContractFromFactory(
+    const testIsm = await this.deployContractFromFactory(
       chain,
-      testCoreFactories.testModule,
-      'testModule',
+      testCoreFactories.testIsm,
+      'testIsm',
       [],
     );
-    await testModule.setAccept(true);
+    await testIsm.setAccept(true);
 
     const mailbox = await this.deployContract(chain, 'mailbox', [localDomain]);
-    await mailbox.initialize(testModule.address);
+    await mailbox.initialize(testIsm.address);
     return new ProxiedContract(mailbox, {
       kind: ProxyKind.UpgradeBeacon,
       proxy: mailbox.address,

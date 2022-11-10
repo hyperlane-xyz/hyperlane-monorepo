@@ -13,7 +13,7 @@
       "implementation": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
       "beacon": "0x0165878A594ca255338adfa4d48449f69242Eb8F"
     },
-    "multisigModule": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+    "multisigIsm": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
   },
   "test2": {
     "upgradeBeaconController": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
@@ -29,7 +29,7 @@
       "implementation": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
       "beacon": "0x9A676e781A523b5d0C0e43731313A708CB607508"
     },
-    "multisigModule": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0"
+    "multisigIsm": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0"
   },
   "test3": {
     "upgradeBeaconController": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
@@ -45,6 +45,6 @@
       "implementation": "0x59b670e9fA9D0A427751Af201D676719a970857b",
       "beacon": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1"
     },
-    "multisigModule": "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d"
+    "multisigIsm": "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d"
   }
 }

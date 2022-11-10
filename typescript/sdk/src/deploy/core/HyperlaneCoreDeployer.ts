@@ -1,7 +1,7 @@
 import debug from 'debug';
 import { ethers } from 'ethers';
 
-import { Mailbox, MultisigModule, Ownable } from '@hyperlane-xyz/core';
+import { Mailbox, MultisigIsm, Ownable } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
@@ -55,10 +55,10 @@ export class HyperlaneCoreDeployer<
     return mailbox;
   }
 
-  async deployMultisigModule<LocalChain extends Chain>(
+  async deployMultisigIsm<LocalChain extends Chain>(
     chain: LocalChain,
-  ): Promise<MultisigModule> {
-    const module = await this.deployContract(chain, 'multisigModule', []);
+  ): Promise<MultisigIsm> {
+    const module = await this.deployContract(chain, 'multisigIsm', []);
     const configChains = Object.keys(this.configMap) as Chain[];
     const remotes = this.multiProvider
       .intersect(configChains, false)
@@ -66,7 +66,7 @@ export class HyperlaneCoreDeployer<
     await super.runIfOwner(chain, module, async () => {
       // TODO: Remove extraneous validators
       for (const remote of remotes) {
-        const moduleConfig = this.configMap[remote].multisigModule;
+        const moduleConfig = this.configMap[remote].multisigIsm;
         const domain = ChainNameToDomainId[remote];
         for (const validator of moduleConfig.validators) {
           const isValidator = await module.isEnrolled(domain, validator);
@@ -118,11 +118,11 @@ export class HyperlaneCoreDeployer<
       [],
     );
 
-    const multisigModule = await this.deployMultisigModule(chain);
+    const multisigIsm = await this.deployMultisigIsm(chain);
 
     const mailbox = await this.deployMailbox(
       chain,
-      multisigModule.address,
+      multisigIsm.address,
       upgradeBeaconController.address,
     );
 
@@ -130,7 +130,7 @@ export class HyperlaneCoreDeployer<
       upgradeBeaconController,
       interchainGasPaymaster,
       mailbox,
-      multisigModule,
+      multisigIsm,
     };
   }
 
@@ -157,7 +157,7 @@ export class HyperlaneCoreDeployer<
   ): Promise<ethers.ContractReceipt[]> {
     const ownables: Ownable[] = [
       coreContracts.mailbox.contract,
-      coreContracts.multisigModule,
+      coreContracts.multisigIsm,
       coreContracts.upgradeBeaconController,
     ];
     return Promise.all(
