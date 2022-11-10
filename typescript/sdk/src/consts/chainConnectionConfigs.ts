@@ -115,16 +115,6 @@ export const arbitrumgoerli: IChainConnection = {
   apiPrefix: 'api-',
 };
 
-export const zksync2testnet: IChainConnection = {
-  provider: new ethers.providers.JsonRpcProvider(
-    'https://zksync2-testnet.zksync.dev',
-    280,
-  ),
-  confirmations: 1,
-  blockExplorerUrl: 'https://zksync2-testnet.zkscan.io/',
-  apiPrefix: 'api-',
-};
-
 export const mumbai: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'https://rpc-mumbai.maticvigil.com',
@@ -206,7 +196,6 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   moonbeam,
   optimismgoerli,
   arbitrumgoerli,
-  zksync2testnet,
   test1,
   test2,
   test3,

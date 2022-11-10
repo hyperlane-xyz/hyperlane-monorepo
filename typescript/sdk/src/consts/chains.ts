@@ -20,7 +20,6 @@ export enum Chains { // must be string type to be used with Object.keys
   moonbeam = 'moonbeam',
   optimismgoerli = 'optimismgoerli',
   arbitrumgoerli = 'arbitrumgoerli',
-  zksync2testnet = 'zksync2testnet',
   test1 = 'test1',
   test2 = 'test2',
   test3 = 'test3',

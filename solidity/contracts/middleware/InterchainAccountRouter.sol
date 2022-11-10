@@ -39,7 +39,7 @@ contract InterchainAccountRouter is Router {
 
     function dispatch(uint32 _destinationDomain, Call[] calldata calls)
         external
-        returns (uint256)
+        returns (bytes32)
     {
         return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
     }

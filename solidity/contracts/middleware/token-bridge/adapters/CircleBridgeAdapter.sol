@@ -74,8 +74,7 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
 
-        // Set the addresses for the ACM and IGP to address(0) - they aren't used.
-        _setAbacusConnectionManager(address(0));
+        // Set the addresses for the IGP to address(0) - it's not used.
         _setInterchainGasPaymaster(address(0));
 
         circleBridge = ICircleBridge(_circleBridge);

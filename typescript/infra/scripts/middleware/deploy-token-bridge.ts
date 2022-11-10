@@ -7,7 +7,7 @@ import {
   tokenBridgeFactories,
 } from '@hyperlane-xyz/sdk';
 
-import { circleBridgeAdapterConfig } from '../../config/environments/testnet2/token-bridge';
+import { circleBridgeAdapterConfig } from '../../config/environments/test/token-bridge';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import {
