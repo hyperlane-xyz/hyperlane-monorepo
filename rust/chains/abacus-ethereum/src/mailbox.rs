@@ -174,7 +174,7 @@ where
     async fn process_contract_call(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> Result<ContractCall<M, ()>, ChainCommunicationError> {
         let tx = self.contract.process(
@@ -271,7 +271,7 @@ where
     async fn process(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         let contract_call = self
@@ -284,7 +284,7 @@ where
     async fn process_estimate_costs(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
     ) -> Result<TxCostEstimate> {
         let contract_call = self.process_contract_call(message, metadata, None).await?;
 
@@ -300,7 +300,7 @@ where
         })
     }
 
-    fn process_calldata(&self, message: &AbacusMessage, metadata: &Vec<u8>) -> Vec<u8> {
+    fn process_calldata(&self, message: &AbacusMessage, metadata: &[u8]) -> Vec<u8> {
         let process_call = ProcessCall {
             message: RawAbacusMessage::from(message).to_vec().into(),
             metadata: metadata.to_vec().into(),

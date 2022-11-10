@@ -4,7 +4,7 @@ use abacus_core::{
     AbacusAbi, ContractLocator, InterchainGasPaymaster, Mailbox, MultisigModule, Signers,
 };
 use abacus_ethereum::{
-    Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
+    Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi, EthereumMultisigModuleAbi,
     InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider, MultisigModuleBuilder,
 };
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
@@ -217,6 +217,12 @@ impl ChainSetup {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("igp".into()),
                 functions: EthereumInterchainGasPaymasterAbi::fn_map_owned(),
+            });
+        }
+        if let Ok(addr) = self.addresses.multisig_module.parse() {
+            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
+                name: Some("msm".into()),
+                functions: EthereumMultisigModuleAbi::fn_map_owned(),
             });
         }
         cfg

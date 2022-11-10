@@ -27,7 +27,7 @@ pub trait Indexer: Send + Sync + Debug {
 /// entities to retrieve chain-specific data from an mailbox.
 #[async_trait]
 #[auto_impl(Box, Arc)]
-pub trait MailboxIndexer: Indexer + Send + Sync + Debug {
+pub trait MailboxIndexer: Indexer {
     /// Fetch list of messages between blocks `from` and `to`.
     async fn fetch_sorted_messages(
         &self,
@@ -39,7 +39,7 @@ pub trait MailboxIndexer: Indexer + Send + Sync + Debug {
 /// Interface for InterchainGasPaymaster contract indexer.
 #[async_trait]
 #[auto_impl(Box, Arc)]
-pub trait InterchainGasPaymasterIndexer: Indexer + Send + Sync + Debug {
+pub trait InterchainGasPaymasterIndexer: Indexer {
     /// Fetch list of gas payments between `from_block` and `to_block`,
     /// inclusive
     async fn fetch_gas_payments(

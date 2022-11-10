@@ -46,7 +46,7 @@ pub trait Mailbox: AbacusContract + Send + Sync + Debug {
     async fn process(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> Result<TxOutcome, ChainCommunicationError>;
 
@@ -54,12 +54,12 @@ pub trait Mailbox: AbacusContract + Send + Sync + Debug {
     async fn process_estimate_costs(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
     ) -> Result<TxCostEstimate>;
 
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint
-    fn process_calldata(&self, message: &AbacusMessage, metadata: &Vec<u8>) -> Vec<u8>;
+    fn process_calldata(&self, message: &AbacusMessage, metadata: &[u8]) -> Vec<u8>;
 }
 
 /// Interface for retrieving event data emitted specifically by the outbox

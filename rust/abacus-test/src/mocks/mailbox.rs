@@ -40,20 +40,20 @@ mock! {
         pub fn process(
             &self,
             message: &AbacusMessage,
-            metadata: &Vec<u8>,
+            metadata: &[u8],
             tx_gas_limit: Option<U256>,
         ) -> Result<TxOutcome, ChainCommunicationError> {}
 
         pub fn process_estimate_costs(
             &self,
             message: &AbacusMessage,
-            metadata: &Vec<u8>,
+            metadata: &[u8],
         ) -> Result<TxCostEstimate> {}
 
         pub fn process_calldata(
             &self,
             message: &AbacusMessage,
-            metadata: &Vec<u8>,
+            metadata: &[u8],
         ) -> Vec<u8> {}
 
         // AbacusContract
@@ -99,7 +99,7 @@ impl Mailbox for MockMailboxContract {
     async fn process(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         self.process(message, metadata, tx_gas_limit)
@@ -108,12 +108,12 @@ impl Mailbox for MockMailboxContract {
     async fn process_estimate_costs(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
     ) -> Result<TxCostEstimate> {
         self.process_estimate_costs(message, metadata)
     }
 
-    fn process_calldata(&self, message: &AbacusMessage, metadata: &Vec<u8>) -> Vec<u8> {
+    fn process_calldata(&self, message: &AbacusMessage, metadata: &[u8]) -> Vec<u8> {
         self.process_calldata(message, metadata)
     }
 }
