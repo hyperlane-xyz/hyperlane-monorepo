@@ -88,7 +88,7 @@ describe('core', async () => {
     it('can be resumed from partial contracts', async () => {
       sinon.restore(); // restore normal deployer behavior
 
-      delete deployer.deployedContracts.test2!.multisigModule;
+      delete deployer.deployedContracts.test2!.multisigIsm;
       delete deployer.deployedContracts.test2!.mailbox;
 
       const result = await deployer.deploy();

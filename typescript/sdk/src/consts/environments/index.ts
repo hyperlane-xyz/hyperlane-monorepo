@@ -11,7 +11,7 @@ export const hyperlaneCoreAddresses = objMap(
   { ...test, ...testnet2, ...mainnet },
   (_chain, addresses) => ({
     mailbox: addresses.mailbox.proxy,
-    multisigModule: addresses.multisigModule,
+    multisigIsm: addresses.multisigIsm,
     interchainGasPaymaster: addresses.interchainGasPaymaster.proxy,
   }),
 );

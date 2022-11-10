@@ -252,7 +252,7 @@ export type RustConnection =
 export type RustCoreAddresses = {
   mailbox: types.Address;
   interchainGasPaymaster: types.Address;
-  multisigModule: types.Address;
+  multisigIsm: types.Address;
 };
 
 export type RustChainConfig = {

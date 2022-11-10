@@ -7,34 +7,34 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 // ============ Internal Imports ============
-import {IMultisigModule} from "../../interfaces/IMultisigModule.sol";
+import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
 import {Message} from "../libs/MessageV2.sol";
-import {MultisigModuleMetadata} from "../libs/MultisigModuleMetadata.sol";
+import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 
 /**
- * @title MultisigModule
+ * @title MultisigIsm
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
  * reach a quorum.
  */
-contract MultisigModule is IMultisigModule, Ownable {
+contract MultisigIsm is IMultisigIsm, Ownable {
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
     using Message for bytes;
-    using MultisigModuleMetadata for bytes;
+    using MultisigIsmMetadata for bytes;
     using MerkleLib for MerkleLib.Tree;
 
     // ============ Mutable Storage ============
 
-    // The validator threshold for each remote domain.
+    /// @notice The validator threshold for each remote domain.
     mapping(uint32 => uint256) public threshold;
 
-    // The validator set for each remote domain.
+    /// @notice The validator set for each remote domain.
     mapping(uint32 => EnumerableSet.AddressSet) private validatorSet;
 
-    // A succinct commitment to the validator set and threshold for each remote
-    // domain.
+    /// @notice A succinct commitment to the validator set and threshold for each remote
+    /// domain.
     mapping(uint32 => bytes32) public commitment;
 
     // ============ Events ============
@@ -171,7 +171,7 @@ contract MultisigModule is IMultisigModule, Ownable {
      * @notice Verifies that a quorum of the origin domain's validators signed
      * a checkpoint, and verifies the merkle proof of `_message` against that
      * checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigModuleMetadata.sol)
+     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function verify(bytes calldata _metadata, bytes calldata _message)
@@ -185,7 +185,7 @@ contract MultisigModule is IMultisigModule, Ownable {
     }
 
     /**
-     * @notice Gets the current validator set, sorted by ascending address.
+     * @notice Gets the current validator set
      * @param _domain The remote domain of the validator set.
      * @return The addresses of the validator set.
      */
@@ -193,18 +193,8 @@ contract MultisigModule is IMultisigModule, Ownable {
         EnumerableSet.AddressSet storage _validatorSet = validatorSet[_domain];
         uint256 _validatorCount = _validatorSet.length();
         address[] memory _validators = new address[](_validatorCount);
-        address _prev = address(0);
         for (uint256 i = 0; i < _validatorCount; i++) {
-            // Max address
-            address _next = address(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF);
-            for (uint256 j = 0; j < _validatorCount; j++) {
-                address _validator = _validatorSet.at(j);
-                if (_prev < _validator && _validator < _next) {
-                    _next = _validator;
-                }
-            }
-            _validators[i] = _next;
-            _prev = _next;
+            _validators[i] = _validatorSet.at(i);
         }
         return _validators;
     }
@@ -238,7 +228,7 @@ contract MultisigModule is IMultisigModule, Ownable {
     /**
      * @notice Verifies the merkle proof of `_message` against the provided
      * checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigModuleMetadata.sol)
+     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function _verifyMerkleProof(
@@ -249,8 +239,6 @@ contract MultisigModule is IMultisigModule, Ownable {
         bytes32 _calculatedRoot = MerkleLib.branchRoot(
             _message.id(),
             _metadata.proof(),
-            // TODO: The leaf index may not be the same as the nonce if we choose to go
-            // with modular storage for outbound messages.
             _message.nonce()
         );
         return _calculatedRoot == _metadata.root();
@@ -259,7 +247,7 @@ contract MultisigModule is IMultisigModule, Ownable {
     /**
      * @notice Verifies that a quorum of the origin domain's validators signed
      * the provided checkpoint.
-     * @param _metadata ABI encoded module metadata (see MultisigModuleMetadata.sol)
+     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function _verifyValidatorSignatures(
@@ -270,29 +258,32 @@ contract MultisigModule is IMultisigModule, Ownable {
         bytes32 _digest;
         {
             uint32 _origin = _message.origin();
+
             bytes32 _commitment = keccak256(
                 abi.encodePacked(_threshold, _metadata.validators())
             );
-            // Ensures _validators is sorted by ascending address.
+            // Ensures the validator set encoded in the metadata matches
+            // what we've stored on chain.
+            // NB: An empty validator set in `_metadata` will result in a
+            // non-zero computed commitment, and this check will fail
+            // as the commitment in storage will be zero.
             require(_commitment == commitment[_origin], "!commitment");
             _digest = _getCheckpointDigest(_metadata, _origin);
         }
+        uint256 _validatorCount = _metadata.validatorCount();
         uint256 _validatorIndex = 0;
-        // looking for signers within validators
-        // assuming that both validators and signatures are sorted
+        // Assumes that signatures are ordered by validator
         for (uint256 i = 0; i < _threshold; ++i) {
             address _signer = ECDSA.recover(_digest, _metadata.signatureAt(i));
-            // looping through remaining validators to find a match
+            // Loop through remaining validators until we find a match
             for (
                 ;
-                _validatorIndex < _threshold &&
+                _validatorIndex < _validatorCount &&
                     _signer != _metadata.validatorAt(_validatorIndex);
                 ++_validatorIndex
             ) {}
-            // checking if we are out of validators
-            require(_validatorIndex < _threshold, "!threshold");
-            // emit CheckpointSignature(_signature);
-            // increasing validators index if match was found
+            // Fail if we never found a match
+            require(_validatorIndex < _validatorCount, "!threshold");
             ++_validatorIndex;
         }
         return true;
@@ -322,7 +313,7 @@ contract MultisigModule is IMultisigModule, Ownable {
 
     /**
      * @notice Returns the digest validators are expected to sign when signing checkpoints.
-     * @param _metadata ABI encoded module metadata (see MultisigModuleMetadata.sol)
+     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _origin The origin domain of the checkpoint.
      * @return The digest of the checkpoint.
      */
