@@ -339,6 +339,7 @@ impl SqlChainScraper {
         loop {
             indexed_message_height.set(from as i64);
             indexed_deliveries_height.set(from as i64);
+            sleep(Duration::from_secs(5)).await;
 
             let tip = if let Ok(num) = self.get_finalized_block_number().await {
                 num
@@ -346,7 +347,8 @@ impl SqlChainScraper {
                 continue;
             };
             if tip <= from {
-                sleep(Duration::from_secs(1)).await;
+                // Sleep if caught up to tip
+                sleep(Duration::from_secs(10)).await;
                 continue;
             }
 
