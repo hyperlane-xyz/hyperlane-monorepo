@@ -1,6 +1,6 @@
 import { chainMetadata } from './consts/chainMetadata';
 import { AllChains } from './consts/chains';
-import { ChainName, ForgivingCompleteChainMap } from './types';
+import { ChainName, LooseChainMap } from './types';
 
 export const DomainIdToChainName = Object.fromEntries(
   AllChains.map((chain) => {
@@ -12,4 +12,4 @@ export const DomainIdToChainName = Object.fromEntries(
 
 export const ChainNameToDomainId = Object.fromEntries(
   AllChains.map((chain) => [chain, chainMetadata[chain].id]),
-) as ForgivingCompleteChainMap<number>;
+) as LooseChainMap<number>;

@@ -6,10 +6,7 @@ import type { Chains } from './consts/chains';
 export type ChainName = keyof typeof Chains;
 // A full object map of all chains to a value type
 export type CompleteChainMap<Value> = Record<ChainName, Value>;
-export type ForgivingCompleteChainMap<Value> = Record<
-  ChainName | string,
-  Value
->;
+export type LooseChainMap<Value> = Record<ChainName | string, Value>;
 // A partial object map of some chains to a value type
 export type PartialChainMap<Value> = Partial<CompleteChainMap<Value>>;
 // A map of some specific subset of chains to a value type
