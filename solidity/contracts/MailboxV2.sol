@@ -38,7 +38,7 @@ contract MailboxV2 is
     // ============ Public Storage ============
 
     // The default ISM, used if the recipient fails to specify one.
-    IInterchainSecurityModule public defaultModule;
+    IInterchainSecurityModule public defaultIsm;
     // An incremental merkle tree used to store outbound message IDs.
     MerkleLib.Tree public tree;
     // Mapping of message ID to whether or not that message has been delivered.
@@ -55,7 +55,7 @@ contract MailboxV2 is
      * @notice Emitted when the default ISM is updated
      * @param module The new default ISM
      */
-    event DefaultModuleSet(address indexed module);
+    event DefaultIsmSet(address indexed module);
 
     /**
      * @notice Emitted when a new message is dispatched via Hyperlane
@@ -79,10 +79,10 @@ contract MailboxV2 is
 
     // ============ Initializer ============
 
-    function initialize(address _defaultModule) external initializer {
+    function initialize(address _defaultIsm) external initializer {
         __ReentrancyGuard_init();
         __Ownable_init();
-        _setDefaultModule(_defaultModule);
+        _setDefaultIsm(_defaultIsm);
     }
 
     // ============ External Functions ============
@@ -91,8 +91,8 @@ contract MailboxV2 is
      * @notice Sets the default ISM for the Mailbox.
      * @param _module The new default ISM. Must be a contract.
      */
-    function setDefaultModule(address _module) external onlyOwner {
-        _setDefaultModule(_module);
+    function setDefaultIsm(address _module) external onlyOwner {
+        _setDefaultIsm(_module);
     }
 
     /**
@@ -147,7 +147,7 @@ contract MailboxV2 is
         delivered[_id] = true;
 
         // Verify the message via the ISM.
-        IInterchainSecurityModule _ism = _recipientModule(
+        IInterchainSecurityModule _ism = _recipientIsm(
             ISpecifiesInterchainSecurityModule(_message.recipientAddress())
         );
         require(_ism.verify(_metadata, _message), "!module");
@@ -193,10 +193,10 @@ contract MailboxV2 is
      * @notice Sets the default ISM for the Mailbox.
      * @param _module The new default ISM. Must be a contract.
      */
-    function _setDefaultModule(address _module) internal {
+    function _setDefaultIsm(address _module) internal {
         require(Address.isContract(_module), "!contract");
-        defaultModule = IInterchainSecurityModule(_module);
-        emit DefaultModuleSet(_module);
+        defaultIsm = IInterchainSecurityModule(_module);
+        emit DefaultIsmSet(_module);
     }
 
     /**
@@ -205,7 +205,7 @@ contract MailboxV2 is
      * @param _recipient The message recipient whose ISM should be returned.
      * @return The ISM to use for `_recipient`.
      */
-    function _recipientModule(ISpecifiesInterchainSecurityModule _recipient)
+    function _recipientIsm(ISpecifiesInterchainSecurityModule _recipient)
         internal
         view
         returns (IInterchainSecurityModule)
@@ -219,7 +219,7 @@ contract MailboxV2 is
         ) {
             return _val;
         } catch {
-            return defaultModule;
+            return defaultIsm;
         }
     }
 }
