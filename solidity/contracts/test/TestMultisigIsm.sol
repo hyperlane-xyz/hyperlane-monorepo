@@ -2,9 +2,9 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {MultisigModule} from "../modules/MultisigModule.sol";
+import {MultisigIsm} from "../isms/MultisigIsm.sol";
 
-contract TestMultisigModule is MultisigModule {
+contract TestMultisigIsm is MultisigIsm {
     function getDomainHash(uint32 _origin, bytes32 _originMailbox)
         external
         pure
@@ -14,7 +14,7 @@ contract TestMultisigModule is MultisigModule {
     }
 
     function getCheckpointDigest(bytes calldata _metadata, uint32 _origin)
-        internal
+        external
         pure
         returns (bytes32)
     {

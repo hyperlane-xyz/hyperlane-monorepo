@@ -26,7 +26,7 @@ async function check() {
   // For each VM contract, on each chain:
   //   1 threshold violation
   //   1 enrolled validators violation
-  coreChecker.expectViolations([CoreViolationType.MultisigModule], [2 * 7 * 7]);
+  coreChecker.expectViolations([CoreViolationType.MultisigIsm], [2 * 7 * 7]);
 
   const governor = new HyperlaneCoreGovernor(coreChecker);
   await governor.govern();

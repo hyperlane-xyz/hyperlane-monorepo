@@ -3,13 +3,7 @@ pragma solidity >=0.6.0;
 
 import {IInterchainSecurityModule} from "./IInterchainSecurityModule.sol";
 
-interface IMultisigModule is IInterchainSecurityModule {
-    function enrollValidator(uint32 _domain, address _validator) external;
-
-    function unenrollValidator(uint32 _domain, address _validator) external;
-
-    function setThreshold(uint32 _domain, uint256 _threshold) external;
-
+interface IMultisigIsm is IInterchainSecurityModule {
     function isEnrolled(uint32 _domain, address _validator)
         external
         view

@@ -1,4 +1,3 @@
-import { types } from '..';
 import { BigNumber, ethers, utils } from 'ethers';
 
 import {
@@ -6,8 +5,8 @@ import {
   Checkpoint,
   Domain,
   HexString,
-  MerkleProof,
   ParsedMessage,
+  ParsedMultisigIsmMetadata,
 } from './types';
 
 export function assert(predicate: any, errorMessage?: string) {
@@ -46,12 +45,56 @@ export function formatCallData<
   );
 }
 
-export const formatMultisigModuleMetadata = (
-  checkpoint: Checkpoint,
-  originMailbox: Address,
-  proof: MerkleProof,
-  signatures: string[],
-  addresses: Address[],
+export const parseMultisigIsmMetadata = (
+  metadata: string,
+): ParsedMultisigIsmMetadata => {
+  const MERKLE_ROOT_OFFSET = 0;
+  const MERKLE_INDEX_OFFSET = 32;
+  const ORIGIN_MAILBOX_OFFSET = 64;
+  const MERKLE_PROOF_OFFSET = 96;
+  const THRESHOLD_OFFSET = 1120;
+  const SIGNATURES_OFFSET = 1152;
+  const SIGNATURE_LENGTH = 65;
+
+  const buf = Buffer.from(utils.arrayify(metadata));
+  const checkpointRoot = utils.hexlify(
+    buf.slice(MERKLE_ROOT_OFFSET, MERKLE_INDEX_OFFSET),
+  );
+  const checkpointIndex = BigNumber.from(
+    utils.hexlify(buf.slice(MERKLE_INDEX_OFFSET, ORIGIN_MAILBOX_OFFSET)),
+  ).toNumber();
+  const originMailbox = utils.hexlify(
+    buf.slice(ORIGIN_MAILBOX_OFFSET, MERKLE_PROOF_OFFSET),
+  );
+  const parseBytesArray = (start: number, count: number, size: number) => {
+    return [...Array(count).keys()].map((i) =>
+      utils.hexlify(buf.slice(start + size * i, start + size * (i + 1))),
+    );
+  };
+  const proof = parseBytesArray(MERKLE_PROOF_OFFSET, 32, 32);
+  const threshold = BigNumber.from(
+    utils.hexlify(buf.slice(THRESHOLD_OFFSET, SIGNATURES_OFFSET)),
+  ).toNumber();
+  const signatures = parseBytesArray(
+    SIGNATURES_OFFSET,
+    threshold,
+    SIGNATURE_LENGTH,
+  );
+  const VALIDATORS_OFFSET = SIGNATURES_OFFSET + threshold * SIGNATURE_LENGTH;
+  const addressesCount = buf.slice(VALIDATORS_OFFSET).length / 32;
+  const validators = parseBytesArray(VALIDATORS_OFFSET, addressesCount, 32);
+  return {
+    checkpointRoot,
+    checkpointIndex,
+    originMailbox,
+    proof,
+    signatures,
+    validators,
+  };
+};
+
+export const formatMultisigIsmMetadata = (
+  metadata: ParsedMultisigIsmMetadata,
 ): string => {
   return ethers.utils.solidityPack(
     [
@@ -64,13 +107,13 @@ export const formatMultisigModuleMetadata = (
       'address[]',
     ],
     [
-      checkpoint.root,
-      checkpoint.index,
-      addressToBytes32(originMailbox),
-      proof.branch,
-      signatures.length,
-      ethers.utils.hexConcat(signatures),
-      addresses,
+      metadata.checkpointRoot,
+      metadata.checkpointIndex,
+      addressToBytes32(metadata.originMailbox),
+      metadata.proof,
+      metadata.signatures.length,
+      ethers.utils.hexConcat(metadata.signatures),
+      metadata.validators,
     ],
   );
 };
@@ -101,6 +144,10 @@ export const formatMessage = (
   );
 };
 
+export function messageId(message: HexString): string {
+  return ethers.utils.solidityKeccak256(['bytes'], [message]);
+}
+
 /**
  * Parse a serialized Abacus message from raw bytes.
  *
@@ -108,19 +155,23 @@ export const formatMessage = (
  * @returns
  */
 export function parseMessage(message: string): ParsedMessage {
-  const buf = Buffer.from(utils.arrayify(message));
-  const version = buf.readUint8(0);
-  const nonce = buf.readUInt32BE(1);
-  const origin = buf.readUInt32BE(5);
-  const sender = utils.hexlify(buf.slice(9, 41));
-  const destination = buf.readUInt32BE(41);
-  const recipient = utils.hexlify(buf.slice(45, 77));
-  const body = utils.hexlify(buf.slice(77));
-  return { version, nonce, origin, sender, destination, recipient, body };
-}
+  const VERSION_OFFSET = 0;
+  const NONCE_OFFSET = 1;
+  const ORIGIN_OFFSET = 5;
+  const SENDER_OFFSET = 9;
+  const DESTINATION_OFFSET = 41;
+  const RECIPIENT_OFFSET = 45;
+  const BODY_OFFSET = 77;
 
-export function messageId(message: HexString): string {
-  return ethers.utils.solidityKeccak256(['bytes'], [message]);
+  const buf = Buffer.from(utils.arrayify(message));
+  const version = buf.readUint8(VERSION_OFFSET);
+  const nonce = buf.readUInt32BE(NONCE_OFFSET);
+  const origin = buf.readUInt32BE(ORIGIN_OFFSET);
+  const sender = utils.hexlify(buf.slice(SENDER_OFFSET, DESTINATION_OFFSET));
+  const destination = buf.readUInt32BE(DESTINATION_OFFSET);
+  const recipient = utils.hexlify(buf.slice(RECIPIENT_OFFSET, BODY_OFFSET));
+  const body = utils.hexlify(buf.slice(BODY_OFFSET));
+  return { version, nonce, origin, sender, destination, recipient, body };
 }
 
 export function domainHash(domain: number, mailbox: string): string {
@@ -253,11 +304,4 @@ export function symmetricDifference<T>(a: Set<T>, b: Set<T>) {
 
 export function setEquality<T>(a: Set<T>, b: Set<T>) {
   return symmetricDifference(a, b).size === 0;
-}
-
-export function sortAddresses(addresses: types.Address[]): types.Address[] {
-  return addresses.sort((a, b) => {
-    // Remove the checksums for accurate comparison
-    return a.toLowerCase().localeCompare(b.toLowerCase());
-  });
 }

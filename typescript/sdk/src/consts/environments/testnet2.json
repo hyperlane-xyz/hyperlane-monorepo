@@ -1,7 +1,7 @@
 {
   "alfajores": {
     "upgradeBeaconController": "0x15e07BD101dfB4e8C2D0B368AbFeE3524e541277",
-    "multisigModule": "0xc41169650335Ad274157Ea5116Cdf227430A68a3",
+    "multisigIsm": "0xc41169650335Ad274157Ea5116Cdf227430A68a3",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x1Fb165396FB26AC4178ca4240b3724039F75EED7",
@@ -17,7 +17,7 @@
   },
   "fuji": {
     "upgradeBeaconController": "0x97Bbc6bBaFa5Ce3b2FA966c121Af63bD09e940f8",
-    "multisigModule": "0x33AbaF6708be03Bdf0595DA0745A7111b01dB8c7",
+    "multisigIsm": "0x33AbaF6708be03Bdf0595DA0745A7111b01dB8c7",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x4834a491f78BBF48e983F9Ce0E20D1E4DbE013D8",
@@ -33,7 +33,7 @@
   },
   "mumbai": {
     "upgradeBeaconController": "0xC81e6D1070aFA48DA4e4f35E744CC1aE43532a10",
-    "multisigModule": "0xb636B2c65A75d41F0dBe98fB33eb563d245a241a",
+    "multisigIsm": "0xb636B2c65A75d41F0dBe98fB33eb563d245a241a",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x9A27744C249A11f68B3B56f09D280599585DFBb8",
@@ -49,7 +49,7 @@
   },
   "bsctestnet": {
     "upgradeBeaconController": "0x638A831b4d11Be6a72AcB97d1aE79DA05Ae9B1D3",
-    "multisigModule": "0xe403E16db1f5997bC62Dc611A8d42836364A7f01",
+    "multisigIsm": "0xe403E16db1f5997bC62Dc611A8d42836364A7f01",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x155b1F1801030Ea4dF038107d3cc1b4bA496916e",
@@ -65,7 +65,7 @@
   },
   "goerli": {
     "upgradeBeaconController": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
-    "multisigModule": "0x01812D60958798695391dacF092BAc4a715B1718",
+    "multisigIsm": "0x01812D60958798695391dacF092BAc4a715B1718",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0x44b764045BfDC68517e10e783E69B376cef196B2",
@@ -81,7 +81,7 @@
   },
   "moonbasealpha": {
     "upgradeBeaconController": "0x6E7b29CB2A7617405B4d30C6f84bBD51b4Bb4be8",
-    "multisigModule": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
+    "multisigIsm": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
     "interchainGasPaymaster": {
       "kind": "UpgradeBeacon",
       "proxy": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
