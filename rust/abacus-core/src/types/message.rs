@@ -21,7 +21,7 @@ impl Encode for RawAbacusMessage {
     where
         W: std::io::Write,
     {
-        writer.write_all(&self)?;
+        writer.write_all(self)?;
         Ok(4 + self.len())
     }
 }

@@ -264,7 +264,7 @@ where
 
     #[tracing::instrument(err)]
     async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
-        Ok(self.contract.delivered(id.into()).call().await?.into())
+        Ok(self.contract.delivered(id.into()).call().await?)
     }
 
     #[tracing::instrument(skip(self))]

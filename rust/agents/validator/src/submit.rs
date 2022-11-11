@@ -39,11 +39,7 @@ impl ValidatorSubmitter {
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("ValidatorSubmitter");
-        tokio::spawn(async move {
-            let res = self.main_task().await;
-            res
-        })
-        .instrument(span)
+        tokio::spawn(async move { self.main_task().await }).instrument(span)
     }
 
     async fn main_task(self) -> Result<()> {

@@ -124,7 +124,7 @@ impl BaseAgent for Relayer {
         let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());
         tasks.push(self.run_mailbox_sync(sync_metrics.clone()));
 
-        tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics.clone()));
+        tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics));
 
         run_all(tasks)
     }
@@ -197,6 +197,7 @@ impl Relayer {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(fields(destination=%mailbox.chain_name()))]
     fn run_mailbox(
         &self,
@@ -226,7 +227,7 @@ impl Relayer {
                 self.make_gelato_submitter(
                     msg_receive,
                     mailbox.clone(),
-                    multisig_module.clone(),
+                    multisig_module,
                     gelato_config.clone(),
                     gas_payment_enforcer,
                 )
@@ -236,7 +237,7 @@ impl Relayer {
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
                     mailbox.clone(),
-                    multisig_module.clone(),
+                    multisig_module,
                     origin_mailbox.db().clone(),
                     SerialSubmitterMetrics::new(
                         &self.core.metrics,
