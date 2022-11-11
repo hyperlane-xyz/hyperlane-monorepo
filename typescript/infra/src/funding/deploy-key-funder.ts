@@ -50,6 +50,8 @@ function getKeyFunderHelmValues<Chain extends ChainName>(
       chains: agentConfig.contextChainNames,
       contextFundingFrom: keyFunderConfig.contextFundingFrom,
       contextsAndRolesToFund: keyFunderConfig.contextsAndRolesToFund,
+      cyclesBetweenEthereumMessages:
+        keyFunderConfig.cyclesBetweenEthereumMessages,
       connectionType: keyFunderConfig.connectionType,
     },
     image: {
