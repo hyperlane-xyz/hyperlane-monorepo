@@ -35,17 +35,6 @@ pub struct Local {
     pub provider: Arc<dyn AbacusProvider>,
 }
 
-impl Delivery {
-    fn as_storable(&self, txn_id: i64) -> StorableDelivery {
-        StorableDelivery {
-            inbox: self.inbox,
-            message_hash: self.message_hash,
-            meta: &self.meta,
-            txn_id,
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct SqlChainScraper {
     db: ScraperDb,
@@ -370,6 +359,17 @@ struct Delivery {
     inbox: H256,
     message_hash: H256,
     meta: LogMeta,
+}
+
+impl Delivery {
+    fn as_storable(&self, txn_id: i64) -> StorableDelivery {
+        StorableDelivery {
+            inbox: self.inbox,
+            message_hash: self.message_hash,
+            meta: &self.meta,
+            txn_id,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
