@@ -16,7 +16,9 @@ async function main() {
     .demandOption('source')
     .string('artifacts')
     .describe('artifacts', 'verification artifacts JSON file')
-    .demandOption('artifacts').argv;
+    .demandOption('artifacts')
+    .string('network')
+    .describe('network', 'optional target network').argv;
 
   const environment = assertEnvironment(argv.e!);
   const config = getCoreEnvironmentConfig(environment);
@@ -30,7 +32,7 @@ async function main() {
   // from solidity/core/hardhat.config.ts
   const compilerOptions: CompilerOptions = {
     codeformat: 'solidity-single-file',
-    compilerversion: 'v0.8.16+commit.07a7930e',
+    compilerversion: 'v0.8.13+commit.07a7930e',
     optimizationUsed: '1',
     runs: '999999',
   };
@@ -60,7 +62,7 @@ async function main() {
     compilerOptions,
   );
 
-  return verifier.verify();
+  return verifier.verify(argv.network ? [argv.network] : undefined);
 }
 
 main().then(console.log).catch(console.error);

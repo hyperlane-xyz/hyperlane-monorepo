@@ -23,7 +23,7 @@ enum ExplorerApiActions {
 
 enum ExplorerApiErrors {
   ALREADY_VERIFIED = 'Contract source code already verified',
-  ALREADY_VERIFIED2 = 'Already Verified',
+  ALREADY_VERIFIED_ALT = 'Already Verified',
   VERIFICATION_PENDING = 'Pending in queue',
   PROXY_FAILED = 'A corresponding implementation contract was unfortunately not detected for the proxy address.',
 }
@@ -45,9 +45,9 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     this.logger = debug('hyperlane:ContractVerifier');
   }
 
-  verify(): Promise<PromiseSettledResult<void>[]> {
+  verify(targets = this.chains()): Promise<PromiseSettledResult<void>[]> {
     return Promise.allSettled(
-      this.chains().map((chain) => this.verifyChain(chain, this.get(chain))),
+      targets.map((chain) => this.verifyChain(chain, this.get(chain))),
     );
   }
 
@@ -100,7 +100,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
           await utils.sleep(5000);
           return this.submitForm(chain, action, options);
         case ExplorerApiErrors.ALREADY_VERIFIED:
-        case ExplorerApiErrors.ALREADY_VERIFIED2:
+        case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
           return;
         case ExplorerApiErrors.PROXY_FAILED:
         default:
