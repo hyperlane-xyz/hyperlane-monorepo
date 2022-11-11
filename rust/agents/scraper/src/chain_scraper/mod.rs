@@ -295,11 +295,10 @@ impl SqlChainScraper {
         &self,
         block_hashes: impl Iterator<Item = H256>,
     ) -> Result<impl Iterator<Item = BasicBlock>> {
-        type OptionalBlockInfo = Option<BasicBlock>;
         // mapping of block hash to the database id and block timestamp. Optionals are
         // in place because we will find the timestamp first if the block was not
         // already in the db.
-        let mut blocks: HashMap<H256, OptionalBlockInfo> =
+        let mut blocks: HashMap<H256, Option<BasicBlock>> =
             block_hashes.map(|b| (b, None)).collect();
 
         let db_blocks: Vec<BasicBlock> = if !blocks.is_empty() {
