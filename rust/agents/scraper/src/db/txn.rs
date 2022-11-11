@@ -51,7 +51,7 @@ impl ScraperDb {
     }
 
     #[instrument(skip_all)]
-    pub async fn record_txns(&self, txns: impl Iterator<Item = StorableTxn>) -> Result<i64> {
+    pub async fn store_txns(&self, txns: impl Iterator<Item = StorableTxn>) -> Result<i64> {
         let as_f64 = ethers::types::U256::to_f64_lossy;
         let models = txns
             .map(|txn| {

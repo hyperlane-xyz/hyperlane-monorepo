@@ -152,7 +152,7 @@ impl SqlChainScraper {
     }
 
     /// Record that a message was delivered.
-    async fn record_deliveries(
+    async fn store_deliveries(
         &self,
         deliveries: &[Delivery],
         txns: &HashMap<H256, TxnWithIdAndTime>,
@@ -167,7 +167,7 @@ impl SqlChainScraper {
         });
 
         self.db
-            .record_deliveries(self.local_domain(), storable)
+            .store_deliveries(self.local_domain(), storable)
             .await
     }
 
@@ -268,7 +268,7 @@ impl SqlChainScraper {
         }
 
         if !storable.is_empty() {
-            let mut cur_id = self.db.record_txns(storable.into_iter()).await?;
+            let mut cur_id = self.db.store_txns(storable.into_iter()).await?;
             for (_hash, (txn_id, _block_id)) in txns_to_insert.iter_mut() {
                 debug_assert!(cur_id > 0);
                 let _ = txn_id.insert(cur_id);
@@ -339,7 +339,7 @@ impl SqlChainScraper {
 
         let mut cur_id = self
             .db
-            .record_blocks(
+            .store_blocks(
                 self.local_domain(),
                 blocks_to_insert
                     .iter_mut()

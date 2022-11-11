@@ -66,7 +66,7 @@ impl ScraperDb {
             .context("When fetching blocks")
     }
 
-    pub async fn record_blocks(
+    pub async fn store_blocks(
         &self,
         domain: u32,
         blocks: impl Iterator<Item = BlockInfo>,

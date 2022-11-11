@@ -57,7 +57,7 @@ impl ScraperDb {
     }
 
     #[instrument(skip_all)]
-    pub async fn record_deliveries(
+    pub async fn store_deliveries(
         &self,
         domain: u32,
         deliveries: impl Iterator<Item = StorableDelivery<'_>>,

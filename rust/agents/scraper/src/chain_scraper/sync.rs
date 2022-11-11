@@ -235,7 +235,7 @@ impl Syncer {
 
         let max_leaf_index_of_batch = self.store_messages(&sorted_messages, &txns).await?;
         self.stored_messages.inc_by(sorted_messages.len() as u64);
-        self.record_deliveries(&deliveries, &txns).await?;
+        self.store_deliveries(&deliveries, &txns).await?;
         self.stored_deliveries.inc_by(deliveries.len() as u64);
 
         for m in sorted_messages.iter() {
