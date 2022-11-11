@@ -146,7 +146,6 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         bytes32 _messageId = _dispatch(_destinationDomain, _messageBody);
         if (_gasPayment > 0) {
             interchainGasPaymaster.payGasFor{value: _gasPayment}(
-                address(mailbox),
                 _messageId,
                 _destinationDomain
             );

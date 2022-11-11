@@ -12,7 +12,6 @@ const MESSAGE_ID =
 const DESTINATION_DOMAIN = 1234;
 const PAYMENT_AMOUNT = 123456789;
 const OWNER = '0xdeadbeef00000000000000000000000000000000';
-const OUTBOX = '0x00000000000000000000000000000000DeaDBeef';
 
 describe('InterchainGasPaymaster', async () => {
   let paymaster: InterchainGasPaymaster, signer: SignerWithAddress;
@@ -38,7 +37,7 @@ describe('InterchainGasPaymaster', async () => {
         paymaster.address,
       );
 
-      await paymaster.payGasFor(OUTBOX, MESSAGE_ID, DESTINATION_DOMAIN, {
+      await paymaster.payGasFor(MESSAGE_ID, DESTINATION_DOMAIN, {
         value: PAYMENT_AMOUNT,
       });
 
@@ -53,19 +52,19 @@ describe('InterchainGasPaymaster', async () => {
 
     it('emits the GasPayment event', async () => {
       await expect(
-        paymaster.payGasFor(OUTBOX, MESSAGE_ID, DESTINATION_DOMAIN, {
+        paymaster.payGasFor(MESSAGE_ID, DESTINATION_DOMAIN, {
           value: PAYMENT_AMOUNT,
         }),
       )
         .to.emit(paymaster, 'GasPayment')
-        .withArgs(OUTBOX, MESSAGE_ID, PAYMENT_AMOUNT);
+        .withArgs(MESSAGE_ID, PAYMENT_AMOUNT);
     });
   });
 
   describe('#claim', async () => {
     it('sends the entire balance of the contract to the owner', async () => {
       // First pay some ether into the contract
-      await paymaster.payGasFor(OUTBOX, MESSAGE_ID, DESTINATION_DOMAIN, {
+      await paymaster.payGasFor(MESSAGE_ID, DESTINATION_DOMAIN, {
         value: PAYMENT_AMOUNT,
       });
 
