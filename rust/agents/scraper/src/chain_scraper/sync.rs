@@ -222,7 +222,6 @@ impl Syncer {
         sorted_messages: Vec<RawMsgWithMeta>,
         deliveries: Vec<Delivery>,
     ) -> Result<u32> {
-        // transaction (database_id, timestamp) by transaction hash
         let txns: HashMap<H256, TxnWithIdAndTime> = self
             .ensure_blocks_and_txns(
                 sorted_messages
