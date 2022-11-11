@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use ethers::prelude::H256;
 use eyre::{Context, Result};
 use sea_orm::{
-    ActiveValue::*, DbErr, EntityTrait, FromQueryResult, Insert, prelude::*, QueryResult,
+    prelude::*, ActiveValue::*, DbErr, EntityTrait, FromQueryResult, Insert, QueryResult,
     QuerySelect,
 };
 use tracing::trace;
