@@ -27,6 +27,8 @@ impl Deref for StorableTxn {
     }
 }
 
+/// Database interface to the message explorer database for the scraper. This is
+/// focused on writing data to the database.
 #[derive(Clone, Debug)]
 pub struct ScraperDb(DbConn);
 

@@ -56,6 +56,7 @@ impl ScraperDb {
             .map(|idx| idx as u32))
     }
 
+    /// Store deliveries from an inbox into the database (or update an existing one).
     #[instrument(skip_all)]
     pub async fn store_deliveries(
         &self,
@@ -93,7 +94,7 @@ impl ScraperDb {
         Ok(())
     }
 
-    /// Store messages from the outbox into the database.
+    /// Store messages from an outbox into the database (or update an existing one).
     #[instrument(skip_all)]
     pub async fn store_messages(
         &self,

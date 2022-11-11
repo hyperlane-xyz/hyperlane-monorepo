@@ -16,8 +16,9 @@ use crate::db::ScraperDb;
 
 use super::generated::block;
 
-/// A stripped down block model. This is so we can get just the information needed if the block is
-/// present in the Db already to inject into other models.
+/// A stripped down block model. This is so we can get just the information
+/// needed if the block is present in the Db already to inject into other
+/// models.
 #[derive(Debug, Clone)]
 pub struct BasicBlock {
     /// the database id of this block
@@ -44,6 +45,9 @@ impl Hash for BasicBlock {
 }
 
 impl ScraperDb {
+    /// Get basic block data that can be used to insert a transaction or
+    /// message. Any blocks which are not found will be excluded from the
+    /// response.
     pub async fn get_block_basic(
         &self,
         hashes: impl Iterator<Item = &H256>,
@@ -67,6 +71,7 @@ impl ScraperDb {
             .context("When fetching blocks")
     }
 
+    /// Store a new block (or update an existing one)
     pub async fn store_blocks(
         &self,
         domain: u32,

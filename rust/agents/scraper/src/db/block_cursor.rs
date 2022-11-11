@@ -19,6 +19,9 @@ struct BlockCursorInner {
     last_saved_at: Instant,
 }
 
+/// A tool to wrap the logic of fetching and updating the cursor position in the
+/// database. We may end up reading the same block range again later but this
+/// prevents us from starting from the beginning after a restart.
 #[derive(Debug)]
 pub struct BlockCursor {
     db: DbConn,

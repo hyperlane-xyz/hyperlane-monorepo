@@ -20,6 +20,8 @@ pub struct StorableTxn {
 }
 
 impl ScraperDb {
+    /// Lookup transactions and find their ids. Any transactions which are not
+    /// found be excluded from the hashmap.
     pub async fn get_txn_ids(
         &self,
         hashes: impl Iterator<Item = &H256>,
@@ -50,6 +52,7 @@ impl ScraperDb {
             .collect::<Result<_>>()
     }
 
+    /// Store a new transaction into the database (or update an existing one).
     #[instrument(skip_all)]
     pub async fn store_txns(&self, txns: impl Iterator<Item = StorableTxn>) -> Result<i64> {
         let as_f64 = ethers::types::U256::to_f64_lossy;

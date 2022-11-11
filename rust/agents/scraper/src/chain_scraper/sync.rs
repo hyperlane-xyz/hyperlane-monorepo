@@ -14,6 +14,14 @@ use abacus_core::{name_from_domain_id, CommittedMessage, ListValidity};
 
 use crate::chain_scraper::{Delivery, RawMsgWithMeta, SqlChainScraper, TxnWithIdAndTime};
 
+/// Workhorse of synchronization. This consumes a `SqlChainScraper` which has
+/// the needed connections and information to work and then adds additional
+/// running state that can be modified. This is a fn-like struct which allows us
+/// to pass a bunch of state around without having a lot of arguments to
+/// functions.
+///
+/// Conceptually this is *just* sync loop code with initial vars being
+/// configured but as a struct + multiple functions.
 pub(super) struct Syncer {
     scraper: SqlChainScraper,
     indexed_message_height: IntGauge,
@@ -38,6 +46,10 @@ impl Deref for Syncer {
 }
 
 impl Syncer {
+    /// Create a new syncer from the `SqlChainScraper` which holds the needed
+    /// information and connections to create the running state.
+    ///
+    /// **Note:** Run must be called for syncing to commence.
     #[instrument(skip_all)]
     pub async fn new(scraper: SqlChainScraper) -> Result<Self> {
         let chain_name = scraper.chain_name();
@@ -86,10 +98,7 @@ impl Syncer {
         })
     }
 
-    /// Sync outbox messages, inbox deliveries, and associated chain data.
-    ///
-    /// TODO: better handling for errors to auto-restart without bringing down
-    /// the whole service?
+    /// Sync contract and other blockchain data with the current chain state.
     #[instrument(skip(self), fields(chain_name = self.chain_name(), chink_size = self.chunk_size))]
     pub async fn run(mut self) -> Result<()> {
         info!(from = self.from, "Resuming chain sync");
@@ -155,6 +164,7 @@ impl Syncer {
         }
     }
 
+    /// Fetch contract data from a given block range.
     #[instrument(skip(self))]
     async fn scrape_range(
         &self,
@@ -211,6 +221,8 @@ impl Syncer {
         Ok(delivered)
     }
 
+    /// Record messages and deliveries, will fetch any extra data needed to do
+    /// so.
     #[instrument(skip(self))]
     async fn record_data(
         &self,

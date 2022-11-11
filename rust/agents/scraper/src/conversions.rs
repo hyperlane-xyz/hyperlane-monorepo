@@ -1,5 +1,7 @@
 use ethers::prelude::H256;
 
+/// Convert a hex string (without 0x prefix) to a H256. This handles the case where it is actually
+/// as H160 and will correctly return a H256 with the most significant bits as zero.
 pub fn parse_h256<T: AsRef<[u8]>>(data: T) -> eyre::Result<H256> {
     if data.as_ref().len() == 40 {
         Ok(H256(hex::parse_h256_raw::<40>(
@@ -10,6 +12,9 @@ pub fn parse_h256<T: AsRef<[u8]>>(data: T) -> eyre::Result<H256> {
     }
 }
 
+/// Formats a H256 as a lowercase hex string without a 0x prefix. This will correctly determine if
+/// the data fits within a H160 (enough of the most significant bits are zero) and will write it as
+/// such. This will pad with zeros to fit either a H256 of H160 depending.
 pub fn format_h256(data: &H256) -> String {
     if hex::is_h160(data.as_fixed_bytes()) {
         hex::format_h160_raw(data.as_fixed_bytes()[12..32].try_into().unwrap())

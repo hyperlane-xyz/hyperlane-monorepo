@@ -1,3 +1,6 @@
+//! This module (and children) are responsible for scraping blockchain data and
+//! keeping things updated.
+
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
@@ -22,12 +25,15 @@ use crate::db::{
 
 mod sync;
 
+/// Remote chain components which are on the current chain.
+/// (e.g. inbox for a remote chain deployed on the current chain).
 #[derive(Debug, Clone)]
 pub struct Remote {
     pub inbox: Arc<dyn Inbox>,
     pub indexer: Arc<dyn InboxIndexer>,
 }
 
+/// Local chain components like the outbox.
 #[derive(Debug, Clone)]
 pub struct Local {
     pub outbox: Arc<dyn Outbox>,
@@ -35,13 +41,12 @@ pub struct Local {
     pub provider: Arc<dyn AbacusProvider>,
 }
 
+/// A chain scraper is comprised of all the information and contract/provider
+/// connections needed to scrape the contracts on a single blockchain.
 #[derive(Clone, Debug)]
 pub struct SqlChainScraper {
     db: ScraperDb,
-    /// Contracts on this chain representing this chain (e.g. outbox)
     local: Local,
-    /// Contracts on this chain representing remote chains (e.g. inboxes) by
-    /// domain of the remote.
     remotes: HashMap<u32, Remote>,
     chunk_size: u32,
     metrics: ContractSyncMetrics,
@@ -87,11 +92,13 @@ impl SqlChainScraper {
         self.local.indexer.get_finalized_block_number().await
     }
 
-    /// Sync outbox messages.
+    /// Sync contract data and other blockchain with the current chain state.
+    /// This will create a long-running task that should be spawned.
     pub fn sync(self) -> impl Future<Output = Result<()>> + Send + 'static {
         Syncer::new(self).and_then(|syncer| syncer.run())
     }
 
+    /// Fetch the highest message leaf index we have seen for the local domain.
     async fn last_message_leaf_index(&self) -> Result<Option<u32>> {
         self.db
             .last_message_leaf_index(self.local_domain(), &self.local.outbox.address())

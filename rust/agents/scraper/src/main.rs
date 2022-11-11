@@ -17,14 +17,14 @@
 use eyre::Result;
 
 use abacus_base::agent_main;
-use scraper_agent::Scraper;
+use agent::Scraper;
 
 mod db;
 
 mod chain_scraper;
 mod conversions;
 mod date_time;
-mod scraper_agent;
+mod agent;
 mod settings;
 
 #[tokio::main(flavor = "current_thread")]
