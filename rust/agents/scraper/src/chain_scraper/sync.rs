@@ -10,9 +10,7 @@ use tokio::time::sleep;
 use tracing::{debug, info, instrument, warn};
 
 use abacus_base::last_message::validate_message_continuity;
-use abacus_core::{
-    name_from_domain_id, CommittedMessage, ListValidity,
-};
+use abacus_core::{name_from_domain_id, CommittedMessage, ListValidity};
 
 use crate::chain_scraper::{Delivery, RawMsgWithMeta, SqlChainScraper, TxnWithIdAndTime};
 
@@ -116,10 +114,7 @@ impl Syncer {
 
             let validation = validate_message_continuity(
                 Some(self.last_leaf_index),
-                &sorted_messages
-                    .iter()
-                    .map(|r| &r.raw)
-                    .collect::<Vec<_>>(),
+                &sorted_messages.iter().map(|r| &r.raw).collect::<Vec<_>>(),
             );
             match validation {
                 ListValidity::Valid => {
@@ -239,13 +234,14 @@ impl Syncer {
         self.stored_deliveries.inc_by(deliveries.len() as u64);
 
         for m in sorted_messages.iter() {
-            let dst = CommittedMessage::try_from(&m.raw)
-                .ok()
+            let parsed = CommittedMessage::try_from(&m.raw).ok();
+            let idx = m.raw.leaf_index;
+            let dst = parsed
                 .and_then(|msg| name_from_domain_id(msg.message.destination))
                 .unwrap_or_else(|| "unknown".into());
             self.message_leaf_index
                 .with_label_values(&["dispatch", self.chain_name(), &dst])
-                .set(max_leaf_index_of_batch as i64);
+                .set(idx as i64);
         }
 
         Ok(max_leaf_index_of_batch)
