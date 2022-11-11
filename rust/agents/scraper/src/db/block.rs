@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use ethers::prelude::H256;
 use eyre::{Context, Result};
 use sea_orm::{
-    prelude::*, ActiveValue::*, DbErr, EntityTrait, FromQueryResult, Insert, QueryResult,
+    ActiveValue::*, DbErr, EntityTrait, FromQueryResult, Insert, prelude::*, QueryResult,
     QuerySelect,
 };
 use tracing::trace;
@@ -16,7 +16,8 @@ use crate::db::ScraperDb;
 
 use super::generated::block;
 
-/// A stripped down block model.
+/// A stripped down block model. This is so we can get just the information needed if the block is
+/// present in the Db already to inject into other models.
 #[derive(Debug, Clone)]
 pub struct BasicBlock {
     /// the database id of this block

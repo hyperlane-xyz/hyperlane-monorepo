@@ -200,7 +200,7 @@ impl SqlChainScraper {
 
         let block_timestamps_by_txn_clone = block_timestamps_by_txn.clone();
         // all txns we care about
-        let ids =
+        let txns_with_ids =
             self.ensure_txns(block_hash_by_txn_hash.into_iter().map(
                 move |(txn_hash, block_hash)| {
                     let mut block_timestamps_by_txn = block_timestamps_by_txn_clone.lock().unwrap();
@@ -215,7 +215,7 @@ impl SqlChainScraper {
             .await?;
 
         Ok(
-            ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithIdAndTime {
+            txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithIdAndTime {
                 hash,
                 id: txn_id,
                 timestamp: *block_timestamps_by_txn.lock().unwrap().get(&hash).unwrap(),
