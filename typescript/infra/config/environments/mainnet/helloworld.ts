@@ -24,6 +24,7 @@ export const abacus: HelloWorldConfig<MainnetChains> = {
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
     connectionType: ConnectionType.Http,
+    cycleBetweenEthereumMessages: 3, // Skip 3 cycles of Ethereum, i.e. send/receive Ethereum messages once a day.
   },
 };
 
