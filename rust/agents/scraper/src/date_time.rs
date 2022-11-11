@@ -1,9 +1,5 @@
 //! A set of tools for working with the sea_orm date/time types.
 
-// want to support a the inverse functions even if they are not in use to make things
-// easy later
-#![allow(dead_code)]
-
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
@@ -40,6 +36,7 @@ pub fn from_unix_timestamp_s(timestamp: u64) -> TimeDateTime {
 }
 
 /// Convert a sql date time object to a more generic date time format
+#[allow(dead_code)]
 pub fn to_date_time_like(datetime: &TimeDateTime) -> NaiveDateTime {
     let hms = datetime.time().as_hms();
     let time = NaiveTime::from_hms(hms.0 as u32, hms.1 as u32, hms.2 as u32);
@@ -49,6 +46,7 @@ pub fn to_date_time_like(datetime: &TimeDateTime) -> NaiveDateTime {
 }
 
 /// Convert a sql date time object to a unix timestamp
+#[allow(dead_code)]
 pub fn to_unix_timestamp_s(datetime: &TimeDateTime) -> u64 {
     to_date_time_like(datetime).timestamp() as u64
 }
