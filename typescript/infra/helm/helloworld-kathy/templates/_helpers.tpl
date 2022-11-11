@@ -95,6 +95,10 @@ The helloworld-kathy container
   - --connection-type
   - {{ .Values.abacus.connectionType }}
 {{- end }}
+{{- if .Values.abacus.cyclesBetweenEthereumMessages }}
+  - --cycles-between-ethereum-messages
+  - "{{ .Values.abacus.cyclesBetweenEthereumMessages }}"
+{{- end }}
   envFrom:
   - secretRef:
       name: {{ include "abacus.fullname" . }}-secret
