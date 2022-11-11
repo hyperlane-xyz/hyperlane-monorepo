@@ -53,9 +53,8 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
   async verifyChain(chain: Chain, inputs: VerificationInput): Promise<void> {
     this.logger(`Verifying ${chain}...`);
-    const chainLogger = this.logger.extend(chain);
     for (const input of inputs) {
-      await this.verifyContract(chain, input, chainLogger);
+      await this.verifyContract(chain, input);
     }
   }
 
@@ -90,19 +89,19 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       });
     }
 
-    // avoid rate limiting (5 requests per second)
-    await utils.sleep(1000 / 5);
-
     const result = JSON.parse(await response.text());
     if (result.message === 'NOTOK') {
       switch (result.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
-          await utils.sleep(5000);
+          await utils.sleep(5000); // wait 5 seconds
           return this.submitForm(chain, action, options);
         case ExplorerApiErrors.ALREADY_VERIFIED:
         case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
+          this.logger(`Already verified at ${options!.contractaddress}#code`);
           return;
         case ExplorerApiErrors.PROXY_FAILED:
+          this.logger(`Proxy verification failed, try manually?`);
+          return;
         default:
           throw new Error(`Verification failed: ${result.result}`);
       }
@@ -114,13 +113,17 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
   async verifyContract(
     chain: Chain,
     input: ContractVerificationInput,
-    logger = this.logger,
   ): Promise<void> {
     if (input.address === ethers.constants.AddressZero) {
       return;
     }
 
-    logger(`Checking ${input.address} (${input.name})...`);
+    this.logger(`Checking ${chain} ${input.name} ${input.address} ...`);
+
+    if (Array.isArray(input.constructorArguments)) {
+      this.logger('Constructor arguments in legacy format, skipping');
+      return;
+    }
 
     const data = {
       sourceCode: this.flattenedSource,
@@ -144,8 +147,8 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     // poll for verified status
     if (guid) {
       await this.submitForm(chain, ExplorerApiActions.CHECK_STATUS, { guid });
+      this.logger(`Successfully verified ${addressUrl}#code`);
     }
-    logger(`Already verified at ${addressUrl}#code`);
 
     // mark as proxy (if applicable)
     if (input.isProxy) {
@@ -161,8 +164,10 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
         await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {
           guid: proxyGuid,
         });
+        this.logger(
+          `Successfully verified proxy ${addressUrl}#readProxyContract`,
+        );
       }
-      logger(`Already verified at ${addressUrl}#readProxyContract`);
     }
   }
 }
