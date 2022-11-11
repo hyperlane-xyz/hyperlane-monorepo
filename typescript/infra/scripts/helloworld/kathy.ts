@@ -243,8 +243,9 @@ async function main(): Promise<boolean> {
   // Use to move to the next message in a cycle.
   // Returns true if we should stop sending messages.
   const nextMessage = async () => {
-    // Print stats once every cycle through the pairings.
+    // If it's the end of a cycle...
     if (cycleMessageCount == pairings.length - 1) {
+      // Print stats
       for (const [origin, destinationStats] of Object.entries(
         await app.stats(),
       )) {
@@ -266,11 +267,12 @@ async function main(): Promise<boolean> {
         // Return true to signify messages should stop being sent.
         return true;
       }
+    } else {
+      cycleMessageCount++;
     }
 
     // Move on to the next index
     currentPairingIndex = (currentPairingIndex + 1) % pairings.length;
-    cycleMessageCount++;
     // Return false to signify messages should continue to be sent.
     return false;
   };
