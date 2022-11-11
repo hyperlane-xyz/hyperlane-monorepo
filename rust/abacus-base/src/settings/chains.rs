@@ -1,34 +1,17 @@
-<<<<<<< HEAD
+use ethers_prometheus::{middleware::PrometheusMiddlewareConf, ChainInfo};
 use serde::Deserialize;
 
 use abacus_core::{
-    AbacusAbi, ContractLocator, InterchainGasPaymaster, Mailbox, MultisigModule, Signers,
+    AbacusAbi, ContractLocator, 
+    InterchainGasPaymaster, Signers, AbacusProvider,
 };
 use abacus_ethereum::{
-    Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
-    InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider, MultisigModuleBuilder,
-=======
-use ethers::signers::Signer;
-use eyre::Context;
-use serde::Deserialize;
-
-use abacus_core::{
-    AbacusAbi, AbacusProvider, ContractLocator, Inbox, InboxIndexer, InboxValidatorManager,
-    InterchainGasPaymaster, InterchainGasPaymasterIndexer, Outbox, OutboxIndexer, Signers,
-};
-use abacus_ethereum::{
-    AbacusProviderBuilder, Connection, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi,
-    EthereumOutboxAbi, InboxBuilder, InboxIndexerBuilder, InboxValidatorManagerBuilder,
+    AbacusProviderBuilder, Connection, EthereumInterchainGasPaymasterAbi,
+    
     InterchainGasPaymasterBuilder, InterchainGasPaymasterIndexerBuilder, MakeableWithProvider,
-    OutboxBuilder, OutboxIndexerBuilder,
 };
-use ethers_prometheus::middleware::{
-    ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
->>>>>>> main
-};
-use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 
-use crate::{CoreMetrics, IndexSettings};
+use crate::{CoreMetrics};
 
 /// A connection to _some_ blockchain.
 ///
@@ -144,7 +127,33 @@ impl ChainSetup {
             .expect("could not parse finality_blocks")
     }
 
-impl ChainSetup {
+        /// Try to convert the chain settings into an AbacusProvider.
+        pub async fn try_into_provider(
+            &self,
+            metrics: &CoreMetrics,
+        ) -> eyre::Result<Box<dyn AbacusProvider>> {
+            let builder = AbacusProviderBuilder {};
+            let metrics_conf = {
+                let mut cfg = self.metrics_conf.clone();
+    
+                if cfg.chain.is_none() {
+                    cfg.chain = Some(ChainInfo {
+                        name: Some(self.name.clone()),
+                    });
+                }
+    
+                cfg
+            };
+    
+            let address = match &self.chain {
+                ChainConf::Ethereum(_) => "0x0000000000000000000000000000000000000000",
+            };
+            self.build(address, None, metrics, metrics_conf, builder)
+                .await
+                .context("Building provider")
+        }
+
+
     /// Try to convert the chain setting into a Mailbox contract
     pub async fn try_into_mailbox(
         &self,

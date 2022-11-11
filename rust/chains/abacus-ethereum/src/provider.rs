@@ -7,7 +7,7 @@ use eyre::eyre;
 
 use crate::MakeableWithProvider;
 use abacus_core::{
-    AbacusChain, AbacusProvider, BlockInfo, ContractLocator, TxnInfo, TxnReceiptInfo,
+    AbacusChain, BlockInfo, ContractLocator, TxnInfo, TxnReceiptInfo, AbacusProvider,
 };
 
 /// Connection to an ethereum provider. Useful for querying information about

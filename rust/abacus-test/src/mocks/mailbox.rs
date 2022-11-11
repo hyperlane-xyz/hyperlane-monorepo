@@ -80,10 +80,6 @@ impl Mailbox for MockMailboxContract {
         self._latest_checkpoint(maybe_lag)
     }
 
-    fn local_domain(&self) -> u32 {
-        self._local_domain()
-    }
-
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
         self._status(txid)
     }
@@ -118,11 +114,17 @@ impl Mailbox for MockMailboxContract {
     }
 }
 
-impl AbacusContract for MockMailboxContract {
+impl AbacusChain for MockMailboxContract {
+    fn local_domain(&self) -> u32 {
+        self._local_domain()
+    }
+
     fn chain_name(&self) -> &str {
         self._chain_name()
     }
+}
 
+impl AbacusContract for MockMailboxContract {
     fn address(&self) -> H256 {
         self._address()
     }

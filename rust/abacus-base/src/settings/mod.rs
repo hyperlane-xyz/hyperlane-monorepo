@@ -475,23 +475,7 @@ impl Settings {
             .await?),
         }
     }
-
-    /// Try to get an indexer object for an interchain gas paymaster.
-    /// This function is only expected to be called when it's already been
-    /// confirmed that the interchain gas paymaster address was provided in
-    /// settings.
-    /*
-    pub async fn try_interchain_gas_paymaster_indexer(
-        &self,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn InterchainGasPaymasterIndexer>> {
-        let signer = self.get_signer(&self.outbox.name).await;
-        self.outbox
-            .try_into_interchain_gas_paymaster_indexer(signer, &self.index, metrics)
-            .await
-            .map(|inner| inner.expect("Missing interchain gas paymaster address"))
-    }
-    */
+}
 
 impl AgentSettings {
     /// Create the core metrics from the settings given the name of the agent.

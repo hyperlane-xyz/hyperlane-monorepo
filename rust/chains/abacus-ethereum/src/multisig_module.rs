@@ -12,7 +12,7 @@ use ethers::types::{Selector, H160, H256, U256};
 use eyre::Result;
 
 use abacus_core::{
-    AbacusAbi, AbacusContract, ChainCommunicationError, ContractLocator, MultisigModule,
+    AbacusChain, AbacusAbi, AbacusContract, ChainCommunicationError, ContractLocator, MultisigModule,
     MultisigSignedCheckpoint,
 };
 
@@ -32,10 +32,11 @@ where
 
 pub struct MultisigModuleBuilder {}
 
+#[async_trait]
 impl MakeableWithProvider for MultisigModuleBuilder {
     type Output = Box<dyn MultisigModule>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -77,7 +78,7 @@ where
     }
 }
 
-impl<M> AbacusContract for EthereumMultisigModule<M>
+impl<M> AbacusChain for EthereumMultisigModule<M>
 where
     M: Middleware + 'static,
 {
@@ -85,6 +86,15 @@ where
         &self.chain_name
     }
 
+    fn local_domain(&self) -> u32 {
+        self.domain
+    }
+}
+
+impl<M> AbacusContract for EthereumMultisigModule<M>
+where
+    M: Middleware + 'static,
+{
     fn address(&self) -> H256 {
         self.contract.address().into()
     }

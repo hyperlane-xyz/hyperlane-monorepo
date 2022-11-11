@@ -14,12 +14,14 @@ pub use encode::*;
 pub use indexer::*;
 pub use interchain_gas::*;
 pub use mailbox::*;
+pub use provider::*;
 pub use multisig_module::*;
 
 use crate::{db::DbError, AbacusError};
 
 mod encode;
 mod indexer;
+mod provider;
 mod interchain_gas;
 mod mailbox;
 mod multisig_module;
@@ -89,11 +91,6 @@ pub trait AbacusChain {
 
     /// Return the domain ID
     fn local_domain(&self) -> u32;
-
-    /// Return the domain hash
-    fn local_domain_hash(&self) -> H256 {
-        domain_hash(self.local_domain())
-    }
 }
 
 /// Interface for a deployed contract.

@@ -13,7 +13,7 @@ use tracing::instrument;
 
 use abacus_core::{
     AbacusAbi, AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, ContractLocator,
-    Indexer, LogMeta, Mailbox, MailboxIndexer, RawAbacusMessage, TxCostEstimate, TxOutcome,
+    Indexer, LogMeta, Mailbox, MailboxIndexer, RawAbacusMessage, TxCostEstimate, TxOutcome, AbacusChain,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
@@ -33,10 +33,11 @@ pub struct MailboxIndexerBuilder {
     pub finality_blocks: u32,
 }
 
+#[async_trait]
 impl MakeableWithProvider for MailboxIndexerBuilder {
     type Output = Box<dyn MailboxIndexer>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -127,10 +128,11 @@ where
 
 pub struct MailboxBuilder {}
 
+#[async_trait]
 impl MakeableWithProvider for MailboxBuilder {
     type Output = Box<dyn Mailbox>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -191,7 +193,7 @@ where
     }
 }
 
-impl<M> AbacusContract for EthereumMailbox<M>
+impl<M> AbacusChain for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
@@ -199,6 +201,15 @@ where
         &self.chain_name
     }
 
+    fn local_domain(&self) -> u32 {
+        self.domain
+    }
+}
+
+impl<M> AbacusContract for EthereumMailbox<M>
+where
+    M: Middleware + 'static,
+{
     fn address(&self) -> H256 {
         self.contract.address().into()
     }
@@ -239,10 +250,6 @@ where
             root: root.into(),
             index: index.as_u32(),
         })
-    }
-
-    fn local_domain(&self) -> u32 {
-        self.domain
     }
 
     #[tracing::instrument(err, skip(self))]
