@@ -16,6 +16,7 @@ export interface KeyFunderConfig {
   namespace: string;
   contextFundingFrom: Contexts;
   contextsAndRolesToFund: ContextAndRolesMap;
+  cyclesBetweenEthereumMessages?: number;
   prometheusPushGateway: string;
   connectionType: ConnectionType.Http | ConnectionType.HttpQuorum;
 }

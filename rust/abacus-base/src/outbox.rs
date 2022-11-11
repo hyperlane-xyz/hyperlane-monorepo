@@ -12,8 +12,8 @@ use tracing::{info_span, Instrument};
 
 use abacus_core::db::AbacusDB;
 use abacus_core::{
-    AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, Message, Outbox,
-    OutboxEvents, OutboxIndexer, OutboxState, RawCommittedMessage, TxOutcome,
+    AbacusChain, AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, Message,
+    Outbox, OutboxEvents, OutboxIndexer, OutboxState, RawCommittedMessage, TxOutcome,
 };
 
 use crate::{ContractSync, ContractSyncMetrics, IndexSettings};
@@ -145,11 +145,17 @@ impl OutboxEvents for CachingOutbox {
     }
 }
 
-impl AbacusContract for CachingOutbox {
+impl AbacusChain for CachingOutbox {
     fn chain_name(&self) -> &str {
         self.outbox.chain_name()
     }
 
+    fn local_domain(&self) -> u32 {
+        self.outbox.local_domain()
+    }
+}
+
+impl AbacusContract for CachingOutbox {
     fn address(&self) -> H256 {
         self.outbox.address()
     }
@@ -157,14 +163,6 @@ impl AbacusContract for CachingOutbox {
 
 #[async_trait]
 impl AbacusCommon for CachingOutbox {
-    fn local_domain(&self) -> u32 {
-        self.outbox.local_domain()
-    }
-
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
-        self.outbox.status(txid).await
-    }
-
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
         self.outbox.validator_manager().await
     }

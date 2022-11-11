@@ -129,6 +129,7 @@ export {
 export { TokenBridgeApp } from './deploy/middleware/TokenBridgeApp';
 
 export {
+  TokenBridgeContracts,
   interchainAccountFactories,
   interchainQueryFactories,
   tokenBridgeFactories,

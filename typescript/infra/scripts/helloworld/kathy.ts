@@ -63,7 +63,7 @@ const walletBalance = new Gauge({
 const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
 
 function getKathyArgs() {
-  return getArgs()
+  const args = getArgs()
     .boolean('cycle-once')
     .describe(
       'cycle-once',
@@ -108,7 +108,17 @@ function getKathyArgs() {
       ConnectionType.Http,
       ConnectionType.HttpQuorum,
     ])
-    .demandOption('connection-type').argv;
+    .demandOption('connection-type');
+
+  // Splitting these args from the rest of them because TypeScript otherwise
+  // complains that the "Type instantiation is excessively deep and possibly infinite."
+  return args
+    .number('cycles-between-ethereum-messages')
+    .describe(
+      'cycles-between-ethereum-messages',
+      'How many cycles to skip between a cycles that send messages to/from Ethereum',
+    )
+    .default('cycles-between-ethereum-messages', 0).argv;
 }
 
 // Returns whether an error occurred
@@ -122,6 +132,7 @@ async function main(): Promise<boolean> {
     messageSendTimeout,
     messageReceiptTimeout,
     connectionType,
+    cyclesBetweenEthereumMessages,
   } = await getKathyArgs();
 
   let errorOccurred = false;
@@ -213,6 +224,48 @@ async function main(): Promise<boolean> {
 
   chains.map((chain) => updateWalletBalanceMetricFor(app, chain));
 
+  // Incremented each time an entire cycle has occurred
+  let currentCycle = 0;
+  // Within the current cycle, how many messages have been sent
+  let cycleMessageCount = 0;
+
+  // Use to move to the next message in a cycle.
+  // Returns true if we should stop sending messages.
+  const nextMessage = async () => {
+    // If it's the end of a cycle...
+    if (cycleMessageCount == pairings.length - 1) {
+      // Print stats
+      for (const [origin, destinationStats] of Object.entries(
+        await app.stats(),
+      )) {
+        for (const [destination, counts] of Object.entries(destinationStats)) {
+          debug('Message stats', {
+            origin,
+            destination,
+            currentCycle,
+            ...counts,
+          });
+        }
+      }
+      // Move to the next cycle and reset the # of messages in the cycle
+      currentCycle++;
+      cycleMessageCount = 0;
+
+      if (cycleOnce) {
+        log('Finished cycling through all pairs once');
+        // Return true to signify messages should stop being sent.
+        return true;
+      }
+    } else {
+      cycleMessageCount++;
+    }
+
+    // Move on to the next index
+    currentPairingIndex = (currentPairingIndex + 1) % pairings.length;
+    // Return false to signify messages should continue to be sent.
+    return false;
+  };
+
   while (true) {
     currentPairingIndexGauge.set(currentPairingIndex);
     const { origin, destination } = pairings[currentPairingIndex];
@@ -225,6 +278,26 @@ async function main(): Promise<boolean> {
       origin,
       destination,
     };
+
+    // Skip Ethereum if we've been configured to do so for this cycle
+    if (
+      (origin === 'ethereum' || destination === 'ethereum') &&
+      currentCycle % (cyclesBetweenEthereumMessages + 1) !== 0
+    ) {
+      debug('Skipping message to/from Ethereum', {
+        currentCycle,
+        origin,
+        destination,
+        cyclesBetweenEthereumMessages,
+      });
+      // Break if we should stop sending messages
+      if (await nextMessage()) {
+        break;
+      }
+      // Move to the next message
+      continue;
+    }
+
     // wait until we are allowed to send the message; we don't want to send on
     // the interval directly because low intervals could cause multiple to be
     // sent concurrently. Using allowedToSend creates a token-bucket system that
@@ -271,27 +344,10 @@ async function main(): Promise<boolean> {
       });
     });
 
-    // Print stats once every cycle through the pairings.
-    // For the cycle-once case, it's important this checks if the current index is
-    // the final index in pairings. For the long-running case, this index choice
-    // is arbitrary.
-    if (currentPairingIndex == pairings.length - 1) {
-      for (const [origin, destinationStats] of Object.entries(
-        await app.stats(),
-      )) {
-        for (const [destination, counts] of Object.entries(destinationStats)) {
-          debug('Message stats', { origin, destination, ...counts });
-        }
-      }
-
-      if (cycleOnce) {
-        log('Finished cycling through all pairs once');
-        break;
-      }
+    // Break if we should stop sending messages
+    if (await nextMessage()) {
+      break;
     }
-
-    // Move on to the next index
-    currentPairingIndex = (currentPairingIndex + 1) % pairings.length;
   }
   return errorOccurred;
 }

@@ -89,7 +89,7 @@ use tracing::instrument;
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
-    AbacusContract, Inbox, InboxIndexer, InboxValidatorManager, InterchainGasPaymasterIndexer,
+    AbacusProvider, Inbox, InboxIndexer, InboxValidatorManager, InterchainGasPaymasterIndexer,
     Outbox, OutboxIndexer, Signers,
 };
 pub use chains::{ChainConf, ChainSetup, InboxAddresses, OutboxAddresses};
@@ -358,6 +358,14 @@ impl DomainSettings {
         chain_setup
             .try_into_inbox_validator_manager(signer, metrics)
             .await
+    }
+
+    /// Try to get an AbacusProvider
+    pub async fn try_provider(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn AbacusProvider>> {
+        self.outbox.try_into_provider(metrics).await
     }
 
     /// Try to get an Outbox

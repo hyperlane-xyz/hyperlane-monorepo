@@ -3,7 +3,7 @@ use std::sync::Arc;
 use abacus_base::chains::GelatoConf;
 use abacus_base::{CoreMetrics, InboxContracts};
 use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusCommon, AbacusDomain};
+use abacus_core::{AbacusChain, AbacusDomain};
 use eyre::{bail, Result};
 use gelato::types::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
