@@ -97,7 +97,6 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
           return this.submitForm(chain, action, options);
         case ExplorerApiErrors.ALREADY_VERIFIED:
         case ExplorerApiErrors.ALREADY_VERIFIED_ALT:
-          this.logger(`Already verified at ${options!.contractaddress}#code`);
           return;
         case ExplorerApiErrors.PROXY_FAILED:
           this.logger(`Proxy verification failed, try manually?`);
@@ -117,8 +116,6 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     if (input.address === ethers.constants.AddressZero) {
       return;
     }
-
-    this.logger(`Checking ${chain} ${input.name} ${input.address} ...`);
 
     if (Array.isArray(input.constructorArguments)) {
       this.logger('Constructor arguments in legacy format, skipping');
@@ -152,6 +149,9 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
     // mark as proxy (if applicable)
     if (input.isProxy) {
+      this.logger('Skipping proxy verification');
+      return;
+
       const proxyGuid = await this.submitForm(
         chain,
         ExplorerApiActions.MARK_PROXY,
