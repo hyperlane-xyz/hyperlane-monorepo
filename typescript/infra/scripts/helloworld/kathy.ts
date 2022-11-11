@@ -240,6 +240,41 @@ async function main(): Promise<boolean> {
   // Within the current cycle, how many messages have been sent
   let cycleMessageCount = 0;
 
+  // Use to move to the next message in a cycle.
+  // Returns true if we should stop sending messages.
+  const nextMessage = async () => {
+    // Print stats once every cycle through the pairings.
+    if (cycleMessageCount == pairings.length - 1) {
+      for (const [origin, destinationStats] of Object.entries(
+        await app.stats(),
+      )) {
+        for (const [destination, counts] of Object.entries(destinationStats)) {
+          debug('Message stats', {
+            origin,
+            destination,
+            currentCycle,
+            ...counts,
+          });
+        }
+      }
+      // Move to the next cycle and reset the # of messages in the cycle
+      currentCycle++;
+      cycleMessageCount = 0;
+
+      if (cycleOnce) {
+        log('Finished cycling through all pairs once');
+        // Return true to signify messages should stop being sent.
+        return true;
+      }
+    }
+
+    // Move on to the next index
+    currentPairingIndex = (currentPairingIndex + 1) % pairings.length;
+    cycleMessageCount++;
+    // Return false to signify messages should continue to be sent.
+    return false;
+  };
+
   while (true) {
     currentPairingIndexGauge.set(currentPairingIndex);
     const { origin, destination } = pairings[currentPairingIndex];
@@ -256,7 +291,7 @@ async function main(): Promise<boolean> {
     // Skip Ethereum if we've been configured to do so for this cycle
     if (
       (origin === 'ethereum' || destination === 'ethereum') &&
-      currentCycle % (cyclesBetweenEthereumMessages + 1) === 0
+      currentCycle % (cyclesBetweenEthereumMessages + 1) !== 0
     ) {
       debug('Skipping message to/from Ethereum', {
         currentCycle,
@@ -264,6 +299,12 @@ async function main(): Promise<boolean> {
         destination,
         cyclesBetweenEthereumMessages,
       });
+      // Break if we should stop sending messages
+      if (await nextMessage()) {
+        break;
+      }
+      // Move to the next message
+      continue;
     }
 
     // wait until we are allowed to send the message; we don't want to send on
@@ -312,33 +353,10 @@ async function main(): Promise<boolean> {
       });
     });
 
-    // Print stats once every cycle through the pairings.
-    if (cycleMessageCount == pairings.length - 1) {
-      for (const [origin, destinationStats] of Object.entries(
-        await app.stats(),
-      )) {
-        for (const [destination, counts] of Object.entries(destinationStats)) {
-          debug('Message stats', {
-            origin,
-            destination,
-            currentCycle,
-            ...counts,
-          });
-        }
-      }
-      // Move to the next cycle and reset the # of messages in the cycle
-      currentCycle++;
-      cycleMessageCount = 0;
-
-      if (cycleOnce) {
-        log('Finished cycling through all pairs once');
-        break;
-      }
+    // Break if we should stop sending messages
+    if (await nextMessage()) {
+      break;
     }
-
-    // Move on to the next index
-    currentPairingIndex = (currentPairingIndex + 1) % pairings.length;
-    cycleMessageCount++;
   }
   return errorOccurred;
 }
