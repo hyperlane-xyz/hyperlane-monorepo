@@ -88,7 +88,7 @@ impl Syncer {
         })
     }
 
-    /// Sync outbox messages.
+    /// Sync outbox messages, inbox deliveries, and associated chain data.
     ///
     /// TODO: better handling for errors to auto-restart without bringing down
     /// the whole service?
