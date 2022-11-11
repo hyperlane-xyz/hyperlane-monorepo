@@ -225,7 +225,10 @@ impl Syncer {
 
     /// Record messages and deliveries, will fetch any extra data needed to do
     /// so. Returns the max leaf index or None if no messages were provided.
-    #[instrument(skip(self))]
+    #[instrument(
+        skip_all,
+        fields(sorted_messages = sorted_messages.len(), deliveries = deliveries.len())
+    )]
     async fn record_data(
         &self,
         sorted_messages: Vec<RawMsgWithMeta>,
