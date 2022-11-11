@@ -34,10 +34,6 @@ spec:
             - --connection-type
             - {{ .Values.abacus.connectionType }}
 {{- end }}
-{{- if .Values.abacus.cyclesBetweenEthereumMessages }}
-            - --cycles-between-ethereum-messages
-            - {{ .Values.abacus.cyclesBetweenEthereumMessages }}
-{{- end }}
             env:
             - name: PROMETHEUS_PUSH_GATEWAY
               value: {{ .Values.infra.prometheusPushGateway }}

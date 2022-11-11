@@ -31,7 +31,7 @@ export interface HelloWorldKathyConfig<Chain extends ChainName> {
   // Whether to use a single HTTP provider or a quorum of HTTP providers
   connectionType: ConnectionType.Http | ConnectionType.HttpQuorum;
   // How many cycles to skip between a cycles that send messages to/from Ethereum. Defaults to 0.
-  cycleBetweenEthereumMessages?: number;
+  cyclesBetweenEthereumMessages?: number;
 }
 
 export interface HelloWorldConfig<Chain extends ChainName> {
