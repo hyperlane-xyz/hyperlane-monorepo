@@ -131,7 +131,9 @@ impl Syncer {
                         self.record_data(sorted_messages, deliveries).await?;
 
                     self.cursor.update(full_chunk_from as u64).await;
-                    self.last_leaf_index = max_leaf_index_of_batch;
+                    if let Some(idx) = max_leaf_index_of_batch {
+                        self.last_leaf_index = idx;
+                    }
                     self.last_valid_range_start_block = full_chunk_from;
                     self.from = to + 1;
                 }
@@ -222,13 +224,13 @@ impl Syncer {
     }
 
     /// Record messages and deliveries, will fetch any extra data needed to do
-    /// so.
+    /// so. Returns the max leaf index or None if no messages were provided.
     #[instrument(skip(self))]
     async fn record_data(
         &self,
         sorted_messages: Vec<RawMsgWithMeta>,
         deliveries: Vec<Delivery>,
-    ) -> Result<u32> {
+    ) -> Result<Option<u32>> {
         let txns: HashMap<H256, TxnWithIdAndTime> = self
             .ensure_blocks_and_txns(
                 sorted_messages
@@ -240,22 +242,28 @@ impl Syncer {
             .map(|t| (t.hash, t))
             .collect();
 
-        let max_leaf_index_of_batch = self.store_messages(&sorted_messages, &txns).await?;
-        self.stored_messages.inc_by(sorted_messages.len() as u64);
-        self.store_deliveries(&deliveries, &txns).await?;
-        self.stored_deliveries.inc_by(deliveries.len() as u64);
-
-        for m in sorted_messages.iter() {
-            let parsed = CommittedMessage::try_from(&m.raw).ok();
-            let idx = m.raw.leaf_index;
-            let dst = parsed
-                .and_then(|msg| name_from_domain_id(msg.message.destination))
-                .unwrap_or_else(|| "unknown".into());
-            self.message_leaf_index
-                .with_label_values(&["dispatch", self.chain_name(), &dst])
-                .set(idx as i64);
+        if !deliveries.is_empty() {
+            self.store_deliveries(&deliveries, &txns).await?;
+            self.stored_deliveries.inc_by(deliveries.len() as u64);
         }
 
-        Ok(max_leaf_index_of_batch)
+        if !sorted_messages.is_empty() {
+            let max_leaf_index_of_batch = self.store_messages(&sorted_messages, &txns).await?;
+            self.stored_messages.inc_by(sorted_messages.len() as u64);
+
+            for m in sorted_messages.iter() {
+                let parsed = CommittedMessage::try_from(&m.raw).ok();
+                let idx = m.raw.leaf_index;
+                let dst = parsed
+                    .and_then(|msg| name_from_domain_id(msg.message.destination))
+                    .unwrap_or_else(|| "unknown".into());
+                self.message_leaf_index
+                    .with_label_values(&["dispatch", self.chain_name(), &dst])
+                    .set(idx as i64);
+            }
+            Ok(Some(max_leaf_index_of_batch))
+        } else {
+            Ok(None)
+        }
     }
 }

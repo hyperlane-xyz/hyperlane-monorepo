@@ -332,18 +332,20 @@ impl SqlChainScraper {
             blocks_to_insert.push((basic_info_ref, Some(info)));
         }
 
-        let mut cur_id = self
-            .db
-            .store_blocks(
-                self.local_domain(),
-                blocks_to_insert
-                    .iter_mut()
-                    .map(|(_, info)| info.take().unwrap()),
-            )
-            .await?;
-        for (block_ref, _) in blocks_to_insert.into_iter() {
-            block_ref.id = cur_id;
-            cur_id += 1;
+        if !blocks_to_insert.is_empty() {
+            let mut cur_id = self
+                .db
+                .store_blocks(
+                    self.local_domain(),
+                    blocks_to_insert
+                        .iter_mut()
+                        .map(|(_, info)| info.take().unwrap()),
+                )
+                .await?;
+            for (block_ref, _) in blocks_to_insert.into_iter() {
+                block_ref.id = cur_id;
+                cur_id += 1;
+            }
         }
 
         // ensure we have updated all the block ids and that we have info for all of
