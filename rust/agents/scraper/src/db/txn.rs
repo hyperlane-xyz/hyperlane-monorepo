@@ -34,12 +34,7 @@ impl ScraperDb {
 
         // check database to see which txns we already know and fetch their IDs
         transaction::Entity::find()
-            .filter(
-                hashes
-                    .map(|txn| transaction::Column::Hash.eq(format_h256(txn)))
-                    .reduce(|acc, i| acc.or(i))
-                    .expect("Expected one or more hashes"),
-            )
+            .filter(transaction::Column::Hash.is_in(hashes.map(format_h256)))
             .select_only()
             .column_as(transaction::Column::Id, QueryAs::Id)
             .column_as(transaction::Column::Hash, QueryAs::Hash)

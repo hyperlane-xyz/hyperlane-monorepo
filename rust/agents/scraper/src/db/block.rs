@@ -54,12 +54,7 @@ impl ScraperDb {
     ) -> Result<Vec<BasicBlock>> {
         // check database to see which blocks we already know and fetch their IDs
         block::Entity::find()
-            .filter(
-                hashes
-                    .map(|hash| block::Column::Hash.eq(format_h256(hash)))
-                    .reduce(|acc, i| acc.or(i))
-                    .unwrap(),
-            )
+            .filter(block::Column::Hash.is_in(hashes.map(format_h256)))
             .select_only()
             // these must align with the custom impl of FromQueryResult
             .column_as(block::Column::Id, "id")
