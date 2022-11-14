@@ -174,7 +174,7 @@ describe('Router', async () => {
           );
           await assertion
             .emit(interchainGasPaymaster, 'GasPayment')
-            .withArgs(mailbox.address, id, testInterchainGasPayment);
+            .withArgs(id, testInterchainGasPayment);
         });
 
         it('reverts when dispatching a message to an unenrolled remote router', async () => {
