@@ -17,17 +17,15 @@ type MockProxyAddresses = {
   implementation: string;
 };
 
-export type TestCoreContracts<Local extends TestChainNames> = CoreContracts & {
+export type TestCoreContracts = CoreContracts & {
   mailbox: ProxiedContract<TestMailbox, MockProxyAddresses>;
 };
 
 export class TestCoreApp<
   TestChain extends TestChainNames = TestChainNames,
 > extends HyperlaneCore<TestChain> {
-  getContracts<Local extends TestChain>(
-    chain: Local,
-  ): TestCoreContracts<Local> {
-    return super.getContracts(chain) as TestCoreContracts<Local>;
+  getContracts<Local extends TestChain>(chain: Local): TestCoreContracts {
+    return super.getContracts(chain) as TestCoreContracts;
   }
 
   async processMessages(): Promise<

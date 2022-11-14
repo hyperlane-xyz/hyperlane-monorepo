@@ -20,14 +20,23 @@ export class HyperlaneCoreInfraDeployer<
     objMap(this.configMap, (chain) => {
       const contracts = this.deployedContracts[chain];
       const metadata = chainMetadata[chain];
+      // Keeps the transpiler happy.
+      if (
+        contracts == undefined ||
+        contracts.mailbox == undefined ||
+        contracts.interchainGasPaymaster == undefined ||
+        contracts.multisigIsm == undefined
+      ) {
+        throw new Error(`Missing contracts for ${chain}`);
+      }
 
       const chainConfig: RustChainConfig = {
         name: chain,
         domain: metadata.id.toString(),
         addresses: {
-          mailbox: contracts?.mailbox?.contract.address!,
-          interchainGasPaymaster: contracts?.interchainGasPaymaster?.address!,
-          multisigIsm: contracts?.multisigIsm?.address!,
+          mailbox: contracts.mailbox.contract.address,
+          interchainGasPaymaster: contracts.interchainGasPaymaster.address,
+          multisigIsm: contracts.multisigIsm.address,
         },
         rpcStyle: 'ethereum',
         finalityBlocks: metadata.finalityBlocks.toString(),
