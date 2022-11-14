@@ -117,8 +117,8 @@ impl Mailbox for CachingMailbox {
     }
 
     /// Fetch the current default interchain security module value
-    async fn default_module(&self) -> Result<H256, ChainCommunicationError> {
-        self.mailbox.default_module().await
+    async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
+        self.mailbox.default_ism().await
     }
 
     async fn process(

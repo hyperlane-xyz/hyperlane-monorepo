@@ -11,7 +11,7 @@ use tracing::{info_span, Instrument};
 
 use abacus_core::db::DB;
 
-use crate::CachingMultisigModule;
+use crate::CachingMultisigIsm;
 use crate::{
     cancel_task, metrics::CoreMetrics, settings::Settings, CachingInterchainGasPaymaster,
     CachingMailbox,
@@ -25,7 +25,7 @@ pub struct AbacusAgentCore {
     /// A map of interchain gas paymaster contracts by chain name
     pub interchain_gas_paymasters: HashMap<String, CachingInterchainGasPaymaster>,
     /// A map of interchain gas paymaster contracts by chain name
-    pub multisig_modules: HashMap<String, CachingMultisigModule>,
+    pub multisig_isms: HashMap<String, CachingMultisigIsm>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -79,8 +79,8 @@ pub trait Agent: BaseAgent {
     /// Return a reference to an InterchainGasPaymaster contract
     fn interchain_gas_paymaster(&self, chain_name: &str) -> Option<&CachingInterchainGasPaymaster>;
 
-    /// Return a reference to a Multisig Module contract
-    fn multisig_module(&self, chain_name: &str) -> Option<&CachingMultisigModule>;
+    /// Return a reference to a Multisig Ism contract
+    fn multisig_ism(&self, chain_name: &str) -> Option<&CachingMultisigIsm>;
 }
 
 #[async_trait]
@@ -100,8 +100,8 @@ where
         self.as_ref().interchain_gas_paymasters.get(chain_name)
     }
 
-    fn multisig_module(&self, chain_name: &str) -> Option<&CachingMultisigModule> {
-        self.as_ref().multisig_modules.get(chain_name)
+    fn multisig_ism(&self, chain_name: &str) -> Option<&CachingMultisigIsm> {
+        self.as_ref().multisig_isms.get(chain_name)
     }
 }
 

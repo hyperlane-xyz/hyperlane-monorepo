@@ -96,7 +96,7 @@ use abacus_ethereum::{
 };
 pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 
-use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster, CachingMultisigModule};
+use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster, CachingMultisigIsm};
 use crate::{AbacusAgentCore, CachingMailbox, CoreMetrics};
 
 use self::chains::GelatoConf;
@@ -264,20 +264,20 @@ impl Settings {
         Ok(result)
     }
 
-    /// Try to get a map of chain name -> multisig module contract
-    pub async fn try_into_multisig_modules(
+    /// Try to get a map of chain name -> multisig ism contract
+    pub async fn try_into_multisig_isms(
         &self,
         db: DB,
         metrics: &CoreMetrics,
         chain_names: &[&str],
-    ) -> eyre::Result<HashMap<String, CachingMultisigModule>> {
+    ) -> eyre::Result<HashMap<String, CachingMultisigIsm>> {
         let mut result = HashMap::new();
         for &chain_name in chain_names {
             if let Some(x) = self.chains.get(chain_name) {
-                let multisig_module = self
-                    .try_caching_multisig_module(x, db.clone(), metrics)
+                let multisig_ism = self
+                    .try_caching_multisig_ism(x, db.clone(), metrics)
                     .await?;
-                result.insert(chain_name.into(), multisig_module);
+                result.insert(chain_name.into(), multisig_ism);
             } else {
                 bail!("No chain setup found for {}", chain_name)
             }
@@ -325,18 +325,18 @@ impl Settings {
         ))
     }
 
-    /// Try to get a CachingMultisigModule
-    async fn try_caching_multisig_module(
+    /// Try to get a CachingMultisigIsm
+    async fn try_caching_multisig_ism(
         &self,
         chain_setup: &ChainSetup,
         _db: DB,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<CachingMultisigModule> {
+    ) -> eyre::Result<CachingMultisigIsm> {
         let signer = self.get_signer(&chain_setup.name).await;
-        let multisig_module = chain_setup
-            .try_into_multisig_module(signer, metrics)
+        let multisig_ism = chain_setup
+            .try_into_multisig_ism(signer, metrics)
             .await?;
-        Ok(CachingMultisigModule::new(multisig_module.into()))
+        Ok(CachingMultisigIsm::new(multisig_ism.into()))
     }
 
     /// Try to get an indexer object for a given mailbox
@@ -476,14 +476,14 @@ impl Settings {
         let interchain_gas_paymasters = self
             .try_into_interchain_gas_paymasters(db.clone(), &metrics, chain_names.as_slice())
             .await?;
-        let multisig_modules = self
-            .try_into_multisig_modules(db.clone(), &metrics, chain_names.as_slice())
+        let multisig_isms = self
+            .try_into_multisig_isms(db.clone(), &metrics, chain_names.as_slice())
             .await?;
 
         Ok(AbacusAgentCore {
             mailboxes,
             interchain_gas_paymasters,
-            multisig_modules,
+            multisig_isms,
             db,
             metrics,
             settings: self.clone(),

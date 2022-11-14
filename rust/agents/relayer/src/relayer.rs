@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use abacus_base::chains::TransactionSubmissionType;
-use abacus_base::{CachingMailbox, CachingMultisigModule};
+use abacus_base::{CachingMailbox, CachingMultisigIsm};
 use async_trait::async_trait;
 use eyre::Result;
 use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
@@ -106,11 +106,11 @@ impl BaseAgent for Relayer {
                 .await
                 .expect("expected signer for mailbox");
             let mailbox = self.mailbox(chain_name).unwrap();
-            let multisig_module = self.multisig_module(chain_name).unwrap();
+            let multisig_ism = self.multisig_ism(chain_name).unwrap();
 
             tasks.push(self.run_mailbox(
                 mailbox.clone(),
-                multisig_module.clone(),
+                multisig_ism.clone(),
                 signed_checkpoint_receiver.clone(),
                 self.core.settings.chains[chain_name].txsubmission,
                 self.core.settings.gelato.as_ref(),
@@ -181,7 +181,7 @@ impl Relayer {
         &self,
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_module: CachingMultisigModule,
+        multisig_ism: CachingMultisigIsm,
         gelato_config: GelatoConf,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> GelatoSubmitter {
@@ -189,7 +189,7 @@ impl Relayer {
         GelatoSubmitter::new(
             message_receiver,
             mailbox,
-            multisig_module,
+            multisig_ism,
             self.mailbox(&self.origin_chain_name).unwrap().db().clone(),
             gelato_config,
             GelatoSubmitterMetrics::new(&self.core.metrics, &self.origin_chain_name, &chain_name),
@@ -202,7 +202,7 @@ impl Relayer {
     fn run_mailbox(
         &self,
         mailbox: CachingMailbox,
-        multisig_module: CachingMultisigModule,
+        multisig_ism: CachingMultisigIsm,
         signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
         tx_submission: TransactionSubmissionType,
         gelato_config: Option<&GelatoConf>,
@@ -227,7 +227,7 @@ impl Relayer {
                 self.make_gelato_submitter(
                     msg_receive,
                     mailbox.clone(),
-                    multisig_module,
+                    multisig_ism,
                     gelato_config.clone(),
                     gas_payment_enforcer,
                 )
@@ -237,7 +237,7 @@ impl Relayer {
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
                     mailbox.clone(),
-                    multisig_module,
+                    multisig_ism,
                     origin_mailbox.db().clone(),
                     SerialSubmitterMetrics::new(
                         &self.core.metrics,

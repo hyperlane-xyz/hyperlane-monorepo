@@ -40,7 +40,7 @@ pub trait Mailbox: AbacusContract + Send + Sync + Debug {
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError>;
 
     /// Fetch the current default interchain security module value
-    async fn default_module(&self) -> Result<H256, ChainCommunicationError>;
+    async fn default_ism(&self) -> Result<H256, ChainCommunicationError>;
 
     /// Process a message with a proof against the provided signed checkpoint
     async fn process(

@@ -258,8 +258,8 @@ where
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn default_module(&self) -> Result<H256, ChainCommunicationError> {
-        Ok(self.contract.default_module().call().await?.into())
+    async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
+        Ok(self.contract.default_ism().call().await?.into())
     }
 
     #[tracing::instrument(err)]

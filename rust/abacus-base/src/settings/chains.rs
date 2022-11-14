@@ -1,11 +1,11 @@
 use serde::Deserialize;
 
 use abacus_core::{
-    AbacusAbi, ContractLocator, InterchainGasPaymaster, Mailbox, MultisigModule, Signers,
+    AbacusAbi, ContractLocator, InterchainGasPaymaster, Mailbox, MultisigIsm, Signers,
 };
 use abacus_ethereum::{
-    Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi, EthereumMultisigModuleAbi,
-    InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider, MultisigModuleBuilder,
+    Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi, EthereumMultisigIsmAbi,
+    InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider, MultisigIsmBuilder,
 };
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 
@@ -52,8 +52,8 @@ pub struct GelatoConf {
 pub struct CoreContractAddresses {
     /// Address of the mailbox contract
     pub mailbox: String,
-    /// Address of the MultisigModule contract
-    pub multisig_module: String,
+    /// Address of the MultisigIsm contract
+    pub multisig_ism: String,
     /// Address of the InterchainGasPaymaster contract
     pub interchain_gas_paymaster: String,
 }
@@ -156,17 +156,17 @@ impl ChainSetup {
         .await
     }
 
-    /// Try to convert the chain setting into a Multisig Module contract
-    pub async fn try_into_multisig_module(
+    /// Try to convert the chain setting into a Multisig Ism contract
+    pub async fn try_into_multisig_ism(
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn MultisigModule>> {
+    ) -> eyre::Result<Box<dyn MultisigIsm>> {
         self.try_into_contract(
             signer,
             metrics,
-            MultisigModuleBuilder {},
-            self.addresses.multisig_module.clone(),
+            MultisigIsmBuilder {},
+            self.addresses.multisig_ism.clone(),
         )
         .await
     }
@@ -219,10 +219,10 @@ impl ChainSetup {
                 functions: EthereumInterchainGasPaymasterAbi::fn_map_owned(),
             });
         }
-        if let Ok(addr) = self.addresses.multisig_module.parse() {
+        if let Ok(addr) = self.addresses.multisig_ism.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("msm".into()),
-                functions: EthereumMultisigModuleAbi::fn_map_owned(),
+                functions: EthereumMultisigIsmAbi::fn_map_owned(),
             });
         }
         cfg

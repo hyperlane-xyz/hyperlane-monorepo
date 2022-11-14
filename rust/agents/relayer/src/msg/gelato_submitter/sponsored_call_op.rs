@@ -4,8 +4,8 @@ use std::{
     time::Duration,
 };
 
-use abacus_base::{CachingMailbox, CachingMultisigModule};
-use abacus_core::{AbacusContract, ChainCommunicationError, Mailbox, MultisigModule};
+use abacus_base::{CachingMailbox, CachingMultisigIsm};
+use abacus_core::{AbacusContract, ChainCommunicationError, Mailbox, MultisigIsm};
 use eyre::Result;
 use gelato::{
     sponsored_call::{SponsoredCallApiCall, SponsoredCallApiCallResult, SponsoredCallArgs},
@@ -30,7 +30,7 @@ pub struct SponsoredCallOpArgs {
 
     pub message: SubmitMessageArgs,
     pub mailbox: CachingMailbox,
-    pub multisig_module: CachingMultisigModule,
+    pub multisig_ism: CachingMultisigIsm,
     pub sponsor_api_key: String,
     pub destination_chain: Chain,
 
@@ -99,7 +99,7 @@ impl SponsoredCallOp {
             return Ok(true);
         }
         let metadata = self
-            .multisig_module
+            .multisig_ism
             .format_metadata(&self.message.checkpoint, self.message.proof)
             .await?;
 
@@ -215,7 +215,7 @@ impl SponsoredCallOp {
 
     async fn create_sponsored_call_args(&self) -> Result<SponsoredCallArgs> {
         let metadata = self
-            .multisig_module
+            .multisig_ism
             .format_metadata(&self.message.checkpoint, self.message.proof)
             .await?;
         let calldata = self

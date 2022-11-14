@@ -33,7 +33,7 @@ mock! {
 
         pub fn _status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {}
 
-        pub fn _default_module(&self) -> Result<H256, ChainCommunicationError> {}
+        pub fn _default_ism(&self) -> Result<H256, ChainCommunicationError> {}
 
         pub fn _delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {}
 
@@ -88,8 +88,8 @@ impl Mailbox for MockMailboxContract {
         self._status(txid)
     }
 
-    async fn default_module(&self) -> Result<H256, ChainCommunicationError> {
-        self._default_module()
+    async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
+        self._default_ism()
     }
 
     async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {

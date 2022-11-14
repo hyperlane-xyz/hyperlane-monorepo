@@ -8,60 +8,60 @@ use ethers::types::{H160, U256};
 use eyre::Result;
 
 use abacus_core::{
-    AbacusContract, ChainCommunicationError, MultisigModule, MultisigSignedCheckpoint,
+    AbacusContract, ChainCommunicationError, MultisigIsm, MultisigSignedCheckpoint,
 };
 
-/// Caching MultisigModule type
+/// Caching MultisigIsm type
 #[derive(Debug, Clone)]
-pub struct CachingMultisigModule {
-    multisig_module: Arc<dyn MultisigModule>,
+pub struct CachingMultisigIsm {
+    multisig_ism: Arc<dyn MultisigIsm>,
 }
 
-impl std::fmt::Display for CachingMultisigModule {
+impl std::fmt::Display for CachingMultisigIsm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
     }
 }
 
-impl CachingMultisigModule {
-    /// Instantiate new CachingMultisigModule
-    pub fn new(multisig_module: Arc<dyn MultisigModule>) -> Self {
-        Self { multisig_module }
+impl CachingMultisigIsm {
+    /// Instantiate new CachingMultisigIsm
+    pub fn new(multisig_ism: Arc<dyn MultisigIsm>) -> Self {
+        Self { multisig_ism }
     }
 
-    /// Return handle on multisig_module object
-    pub fn multisig_module(&self) -> &Arc<dyn MultisigModule> {
-        &self.multisig_module
+    /// Return handle on multisig_ism object
+    pub fn multisig_ism(&self) -> &Arc<dyn MultisigIsm> {
+        &self.multisig_ism
     }
 }
 
 #[async_trait]
-impl MultisigModule for CachingMultisigModule {
+impl MultisigIsm for CachingMultisigIsm {
     async fn format_metadata(
         &self,
         checkpoint: &MultisigSignedCheckpoint,
         proof: Proof,
     ) -> Result<Vec<u8>, ChainCommunicationError> {
-        self.multisig_module
+        self.multisig_ism
             .format_metadata(checkpoint, proof)
             .await
     }
 
     async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
-        self.multisig_module.threshold(domain).await
+        self.multisig_ism.threshold(domain).await
     }
 
     async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
-        self.multisig_module.validators(domain).await
+        self.multisig_ism.validators(domain).await
     }
 }
 
-impl AbacusContract for CachingMultisigModule {
+impl AbacusContract for CachingMultisigIsm {
     fn chain_name(&self) -> &str {
-        self.multisig_module.chain_name()
+        self.multisig_ism.chain_name()
     }
 
     fn address(&self) -> H256 {
-        self.multisig_module.address()
+        self.multisig_ism.address()
     }
 }
