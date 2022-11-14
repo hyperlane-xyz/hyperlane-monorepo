@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {OwnableMulticall, Call} from "../OwnableMulticall.sol";
+import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
 
 // ============ External Imports ============
 import {Router} from "../Router.sol";
@@ -9,7 +10,11 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract InterchainQueryRouter is Router, OwnableMulticall {
+contract InterchainQueryRouter is
+    Router,
+    OwnableMulticall,
+    IInterchainQueryRouter
+{
     enum Action {
         DISPATCH,
         RESOLVE
@@ -47,13 +52,13 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
         uint32 _destinationDomain,
         Call calldata call,
         bytes calldata callback
-    ) external {
+    ) external returns (uint256 leafIndex) {
         // TODO: fix this ugly arrayification
         Call[] memory calls = new Call[](1);
         calls[0] = call;
         bytes[] memory callbacks = new bytes[](1);
         callbacks[0] = callback;
-        query(_destinationDomain, calls, callbacks);
+        leafIndex = query(_destinationDomain, calls, callbacks);
     }
 
     /**
@@ -65,12 +70,12 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
         uint32 _destinationDomain,
         Call[] memory calls,
         bytes[] memory callbacks
-    ) public {
+    ) public returns (uint256 leafIndex) {
         require(
             calls.length == callbacks.length,
             "InterchainQueryRouter: calls and callbacks must be same length"
         );
-        _dispatch(
+        leafIndex = _dispatch(
             _destinationDomain,
             abi.encode(Action.DISPATCH, msg.sender, calls, callbacks)
         );

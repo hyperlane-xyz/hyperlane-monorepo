@@ -1,3 +1,6 @@
+import { types } from '@hyperlane-xyz/utils';
+
+import { LooseChainMap } from '../../types';
 import { objMap } from '../../utils/objects';
 
 import mainnet from './mainnet.json';
@@ -9,6 +12,16 @@ export const environments = {
   testnet2,
   mainnet,
 };
+
+type HyperlaneCoreAddressMap = LooseChainMap<{
+  outbox: types.Address;
+  connectionManager: types.Address;
+  interchainGasPaymaster: types.Address;
+  interchainAccountRouter: types.Address;
+  interchainQueryRouter: types.Address;
+  create2Factory: types.Address;
+  inboxes: Record<string, types.Address>;
+}>;
 
 // Export developer-relevant addresses
 export const hyperlaneCoreAddresses = objMap(
@@ -26,4 +39,4 @@ export const hyperlaneCoreAddresses = objMap(
       (_remoteChain, inboxAddresses) => inboxAddresses.inbox.proxy,
     ),
   }),
-);
+) as HyperlaneCoreAddressMap;
