@@ -441,7 +441,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                 .as_ref()
                 .map(|addr| match addr {
                     ValueOrArray::Value(v) => {
-                        let name = lookup_name(&v);
+                        let name = lookup_name(v);
                         let addr = v.encode_hex();
                         (addr, name)
                     }
@@ -461,7 +461,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                 })
                 .unwrap_or_else(|| ("*".to_owned(), "unknown".to_owned()));
             let topic_name = |v: &Option<H256>| -> String {
-                v.map(|h| h.encode_hex()).unwrap_or("*".to_owned())
+                v.map(|h| h.encode_hex()).unwrap_or_else(|| "*".to_owned())
             };
             let topic_str = |n: usize| -> String {
                 filter.topics[n]
