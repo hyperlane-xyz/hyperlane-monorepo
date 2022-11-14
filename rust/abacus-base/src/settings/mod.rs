@@ -229,17 +229,15 @@ impl Settings {
         &self,
         db: DB,
         metrics: &CoreMetrics,
-        chain_names: &[&String],
+        chain_names: &[&str],
     ) -> eyre::Result<HashMap<String, CachingMailbox>> {
         let mut result = HashMap::new();
-        for chain_name in chain_names {
-            let setup = self.chains.get(*chain_name);
-            match setup {
-                Some(x) => {
-                    let mailbox = self.try_caching_mailbox(x, db.clone(), metrics).await?;
-                    result.insert((*chain_name).clone(), mailbox);
-                }
-                None => bail!("No chain setup found for {}", chain_name),
+        for &chain_name in chain_names {
+            if let Some(x) = self.chains.get(chain_name) {
+                let mailbox = self.try_caching_mailbox(x, db.clone(), metrics).await?;
+                result.insert(chain_name.into(), mailbox);
+            } else {
+                bail!("No chain setup found for {}", chain_name)
             }
         }
         Ok(result)
@@ -250,19 +248,17 @@ impl Settings {
         &self,
         db: DB,
         metrics: &CoreMetrics,
-        chain_names: &[&String],
+        chain_names: &[&str],
     ) -> eyre::Result<HashMap<String, CachingInterchainGasPaymaster>> {
         let mut result = HashMap::new();
-        for chain_name in chain_names {
-            let setup = self.chains.get(*chain_name);
-            match setup {
-                Some(x) => {
-                    let mailbox = self
-                        .try_caching_interchain_gas_paymaster(x, db.clone(), metrics)
-                        .await?;
-                    result.insert((*chain_name).clone(), mailbox);
-                }
-                None => bail!("No chain setup found for {}", chain_name),
+        for &chain_name in chain_names {
+            if let Some(x) = self.chains.get(chain_name) {
+                let mailbox = self
+                    .try_caching_interchain_gas_paymaster(x, db.clone(), metrics)
+                    .await?;
+                result.insert(chain_name.into(), mailbox);
+            } else {
+                bail!("No chain setup found for {}", chain_name)
             }
         }
         Ok(result)
@@ -273,19 +269,17 @@ impl Settings {
         &self,
         db: DB,
         metrics: &CoreMetrics,
-        chain_names: &[&String],
+        chain_names: &[&str],
     ) -> eyre::Result<HashMap<String, CachingMultisigModule>> {
         let mut result = HashMap::new();
-        for chain_name in chain_names {
-            let setup = self.chains.get(*chain_name);
-            match setup {
-                Some(x) => {
-                    let multisig_module = self
-                        .try_caching_multisig_module(x, db.clone(), metrics)
-                        .await?;
-                    result.insert((*chain_name).clone(), multisig_module);
-                }
-                None => bail!("No chain setup found for {}", chain_name),
+        for &chain_name in chain_names {
+            if let Some(x) = self.chains.get(chain_name) {
+                let multisig_module = self
+                    .try_caching_multisig_module(x, db.clone(), metrics)
+                    .await?;
+                result.insert(chain_name.into(), multisig_module);
+            } else {
+                bail!("No chain setup found for {}", chain_name)
             }
         }
         Ok(result)
@@ -466,14 +460,14 @@ impl Settings {
     pub async fn try_into_abacus_core(
         &self,
         metrics: Arc<CoreMetrics>,
-        chain_names: Option<Vec<&String>>,
+        chain_names: Option<Vec<&str>>,
     ) -> eyre::Result<AbacusAgentCore> {
         let db = DB::from_path(&self.db)?;
 
         // If not provided, default to using every chain listed in self.chains.
         let chain_names = match chain_names {
             Some(x) => x,
-            None => Vec::from_iter(self.chains.keys()),
+            None => Vec::from_iter(self.chains.keys().map(String::as_str)),
         };
 
         let mailboxes = self

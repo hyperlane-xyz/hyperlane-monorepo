@@ -65,7 +65,7 @@ impl BaseAgent for Validator {
         let interval = settings.interval.parse().expect("invalid uint");
         let core = settings
             .as_ref()
-            .try_into_abacus_core(metrics, Some([origin_chain_name].into_iter().collect()))
+            .try_into_abacus_core(metrics, Some(vec![origin_chain_name]))
             .await?;
         let checkpoint_syncer = settings.checkpointsyncer.try_into_checkpoint_syncer(None)?;
 
@@ -84,7 +84,7 @@ impl BaseAgent for Validator {
         let submit = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,
-            self.mailbox(self.origin_chain_name.clone()).clone(),
+            self.mailbox(&self.origin_chain_name).unwrap().clone(),
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain_name),

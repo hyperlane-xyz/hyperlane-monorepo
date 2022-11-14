@@ -11,7 +11,7 @@ use abacus_core::{AbacusMessage, ListValidity, RawAbacusMessage};
 /// still validate the new messages in the case that we have not seen any
 /// previous messages (None case).
 pub fn validate_message_continuity(
-    latest_message_leaf_index: Option<u32>,
+    latest_message_nonce: Option<u32>,
     sorted_messages: &[&RawAbacusMessage],
 ) -> ListValidity {
     if sorted_messages.is_empty() {
@@ -20,10 +20,10 @@ pub fn validate_message_continuity(
 
     // If we have seen another leaf in a previous block range, ensure
     // the batch contains the consecutive next leaf
-    if let Some(last_seen) = latest_message_leaf_index {
+    if let Some(last_seen) = latest_message_nonce {
         let has_desired_message = sorted_messages
             .iter()
-            .any(|message| last_seen == AbacusMessage::from((*message).clone()).nonce - 1);
+            .any(|&message| last_seen == AbacusMessage::from(message).nonce - 1);
         if !has_desired_message {
             return ListValidity::InvalidContinuation;
         }
@@ -31,9 +31,7 @@ pub fn validate_message_continuity(
 
     // Ensure no gaps in new batch of leaves
     for pair in sorted_messages.windows(2) {
-        if AbacusMessage::from((*pair[0]).clone()).nonce
-            != AbacusMessage::from((*pair[1]).clone()).nonce - 1
-        {
+        if AbacusMessage::from(pair[0]).nonce != AbacusMessage::from(pair[1]).nonce - 1 {
             return ListValidity::ContainsGaps;
         }
     }

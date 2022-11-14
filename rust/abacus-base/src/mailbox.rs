@@ -30,7 +30,7 @@ pub struct CachingMailbox {
 
 impl std::fmt::Display for CachingMailbox {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -95,9 +95,20 @@ impl Mailbox for CachingMailbox {
         self.mailbox.local_domain_hash()
     }
 
+    async fn count(&self) -> Result<u32, ChainCommunicationError> {
+        self.mailbox.count().await
+    }
+
     /// Fetch the status of a message
     async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
         self.mailbox.delivered(id).await
+    }
+
+    async fn latest_checkpoint(
+        &self,
+        maybe_lag: Option<u64>,
+    ) -> Result<Checkpoint, ChainCommunicationError> {
+        self.mailbox.latest_checkpoint(maybe_lag).await
     }
 
     /// Get the status of a transaction.
@@ -110,21 +121,10 @@ impl Mailbox for CachingMailbox {
         self.mailbox.default_module().await
     }
 
-    async fn count(&self) -> Result<u32, ChainCommunicationError> {
-        self.mailbox.count().await
-    }
-
-    async fn latest_checkpoint(
-        &self,
-        maybe_lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError> {
-        self.mailbox.latest_checkpoint(maybe_lag).await
-    }
-
     async fn process(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         self.mailbox.process(message, metadata, tx_gas_limit).await
@@ -133,12 +133,12 @@ impl Mailbox for CachingMailbox {
     async fn process_estimate_costs(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
     ) -> Result<TxCostEstimate> {
         self.mailbox.process_estimate_costs(message, metadata).await
     }
 
-    fn process_calldata(&self, message: &AbacusMessage, metadata: &Vec<u8>) -> Vec<u8> {
+    fn process_calldata(&self, message: &AbacusMessage, metadata: &[u8]) -> Vec<u8> {
         self.mailbox.process_calldata(message, metadata)
     }
 }

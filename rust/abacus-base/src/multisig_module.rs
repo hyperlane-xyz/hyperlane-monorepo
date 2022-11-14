@@ -19,7 +19,7 @@ pub struct CachingMultisigModule {
 
 impl std::fmt::Display for CachingMultisigModule {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -37,14 +37,6 @@ impl CachingMultisigModule {
 
 #[async_trait]
 impl MultisigModule for CachingMultisigModule {
-    async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
-        self.multisig_module.threshold(domain).await
-    }
-
-    async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
-        self.multisig_module.validators(domain).await
-    }
-
     async fn format_metadata(
         &self,
         checkpoint: &MultisigSignedCheckpoint,
@@ -53,6 +45,14 @@ impl MultisigModule for CachingMultisigModule {
         self.multisig_module
             .format_metadata(checkpoint, proof)
             .await
+    }
+
+    async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
+        self.multisig_module.threshold(domain).await
+    }
+
+    async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
+        self.multisig_module.validators(domain).await
     }
 }
 

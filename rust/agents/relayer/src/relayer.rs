@@ -92,9 +92,7 @@ impl BaseAgent for Relayer {
 
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
             self.gas_payment_enforcement_policy.clone(),
-            self.mailbox(self.origin_chain_name.to_string())
-                .db()
-                .clone(),
+            self.mailbox(&self.origin_chain_name).unwrap().db().clone(),
         ));
 
         for chain_name in self.core.mailboxes.keys() {
@@ -104,11 +102,11 @@ impl BaseAgent for Relayer {
             let signer = self
                 .core
                 .settings
-                .get_signer(&chain_name)
+                .get_signer(chain_name)
                 .await
                 .expect("expected signer for mailbox");
-            let mailbox = self.mailbox(chain_name.to_string());
-            let multisig_module = self.multisig_module(chain_name.to_string());
+            let mailbox = self.mailbox(chain_name).unwrap();
+            let multisig_module = self.multisig_module(chain_name).unwrap();
 
             tasks.push(self.run_mailbox(
                 mailbox.clone(),
@@ -126,7 +124,7 @@ impl BaseAgent for Relayer {
         let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());
         tasks.push(self.run_mailbox_sync(sync_metrics.clone()));
 
-        tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics.clone()));
+        tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics));
 
         run_all(tasks)
     }
@@ -137,7 +135,7 @@ impl Relayer {
         &self,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let mailbox = self.mailbox(self.origin_chain_name.to_string());
+        let mailbox = self.mailbox(&self.origin_chain_name).unwrap();
         let sync = mailbox.sync(
             self.as_ref().settings.chains[&self.origin_chain_name]
                 .index
@@ -151,7 +149,9 @@ impl Relayer {
         &self,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let paymaster = self.interchain_gas_paymaster(self.origin_chain_name.to_string());
+        let paymaster = self
+            .interchain_gas_paymaster(&self.origin_chain_name)
+            .unwrap();
         let sync = paymaster.sync(
             self.as_ref().settings.chains[&self.origin_chain_name]
                 .index
@@ -166,7 +166,7 @@ impl Relayer {
         signed_checkpoint_sender: watch::Sender<Option<MultisigSignedCheckpoint>>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let checkpoint_fetcher = CheckpointFetcher::new(
-            self.mailbox(self.origin_chain_name.to_string()),
+            self.mailbox(&self.origin_chain_name).unwrap(),
             self.signed_checkpoint_polling_interval,
             self.multisig_checkpoint_syncer.clone(),
             signed_checkpoint_sender,
@@ -190,15 +190,14 @@ impl Relayer {
             message_receiver,
             mailbox,
             multisig_module,
-            self.mailbox(self.origin_chain_name.to_string())
-                .db()
-                .clone(),
+            self.mailbox(&self.origin_chain_name).unwrap().db().clone(),
             gelato_config,
             GelatoSubmitterMetrics::new(&self.core.metrics, &self.origin_chain_name, &chain_name),
             gas_payment_enforcer,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(fields(destination=%mailbox.chain_name()))]
     fn run_mailbox(
         &self,
@@ -210,7 +209,7 @@ impl Relayer {
         signer: Signers,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let origin_mailbox = self.mailbox(self.origin_chain_name.to_string());
+        let origin_mailbox = self.mailbox(&self.origin_chain_name).unwrap();
         let destination = mailbox.chain_name();
         let metrics =
             MessageProcessorMetrics::new(&self.core.metrics, &self.origin_chain_name, destination);
@@ -228,7 +227,7 @@ impl Relayer {
                 self.make_gelato_submitter(
                     msg_receive,
                     mailbox.clone(),
-                    multisig_module.clone(),
+                    multisig_module,
                     gelato_config.clone(),
                     gas_payment_enforcer,
                 )
@@ -238,7 +237,7 @@ impl Relayer {
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
                     mailbox.clone(),
-                    multisig_module.clone(),
+                    multisig_module,
                     origin_mailbox.db().clone(),
                     SerialSubmitterMetrics::new(
                         &self.core.metrics,

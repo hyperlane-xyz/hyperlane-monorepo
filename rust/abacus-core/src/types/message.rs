@@ -21,7 +21,7 @@ impl Encode for RawAbacusMessage {
     where
         W: std::io::Write,
     {
-        writer.write_all(&self)?;
+        writer.write_all(self)?;
         Ok(4 + self.len())
     }
 }
@@ -106,8 +106,14 @@ pub struct AbacusMessage {
     pub body: Vec<u8>,
 }
 
-impl From<Vec<u8>> for AbacusMessage {
-    fn from(m: Vec<u8>) -> Self {
+impl From<RawAbacusMessage> for AbacusMessage {
+    fn from(m: RawAbacusMessage) -> Self {
+        AbacusMessage::from(&m)
+    }
+}
+
+impl From<&RawAbacusMessage> for AbacusMessage {
+    fn from(m: &RawAbacusMessage) -> Self {
         let version = m[0];
         let nonce: [u8; 4] = m[1..5].try_into().unwrap();
         let origin: [u8; 4] = m[5..9].try_into().unwrap();

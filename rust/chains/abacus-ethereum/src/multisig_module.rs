@@ -95,16 +95,6 @@ impl<M> MultisigModule for EthereumMultisigModule<M>
 where
     M: Middleware + 'static,
 {
-    #[tracing::instrument(err, skip(self))]
-    async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
-        Ok(self.contract.threshold(domain).call().await?)
-    }
-
-    #[tracing::instrument(err, skip(self))]
-    async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
-        Ok(self.contract.validators(domain).call().await?)
-    }
-
     /// Returns the metadata needed by the contract's verify function
     async fn format_metadata(
         &self,
@@ -120,12 +110,12 @@ where
             .collect();
         let validator_tokens: Vec<Token> = validators
             .iter()
-            .map(|&x| Token::FixedBytes(x.to_fixed_bytes().into()))
+            .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
             .collect();
         let proof_tokens: Vec<Token> = proof
             .path
             .iter()
-            .map(|&x| Token::FixedBytes(x.to_fixed_bytes().into()))
+            .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
             .collect();
         let prefix = ethers::abi::encode(&[
             Token::FixedBytes(checkpoint.checkpoint.root.to_fixed_bytes().into()),
@@ -144,10 +134,20 @@ where
         // The ethers encoder likes to zero-pad non word-aligned byte arrays.
         // Thus, we pack the signatures, which are not word-aligned, ourselves.
         let signature_vecs: Vec<Vec<u8>> =
-            checkpoint.signatures.iter().map(|&x| x.to_vec()).collect();
+            checkpoint.signatures.iter().map(|x| x.to_vec()).collect();
         let signature_bytes = signature_vecs.concat();
         let metadata = [prefix, signature_bytes, suffix].concat();
         Ok(metadata)
+    }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
+        Ok(self.contract.threshold(domain).call().await?)
+    }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
+        Ok(self.contract.validators(domain).call().await?)
     }
 }
 
