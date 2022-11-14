@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ICircleMessageTransmitter} from "../middleware/token-bridge/interfaces/circle/ICircleMessageTransmitter.sol";
+import {ICircleMessageTransmitter} from "../middleware/liquidity-layer/interfaces/circle/ICircleMessageTransmitter.sol";
 import {MockToken} from "./MockToken.sol";
 
 contract MockCircleMessageTransmitter is ICircleMessageTransmitter {

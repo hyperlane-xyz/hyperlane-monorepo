@@ -121,18 +121,18 @@ export {
   InterchainQueryDeployer,
 } from './deploy/middleware/deploy';
 export {
-  TokenBridgeDeployer,
+  LiquidityLayerDeployer,
   BridgeAdapterType,
   BridgeAdapterConfig,
   CircleBridgeAdapterConfig,
-} from './deploy/middleware/TokenBridgeRouterDeployer';
-export { TokenBridgeApp } from './deploy/middleware/TokenBridgeApp';
+} from './deploy/middleware/LiquidityLayerRouterDeployer';
+export { LiquidityLayerApp } from './deploy/middleware/LiquidityLayerApp';
 
 export {
-  TokenBridgeContracts,
+  LiquidityLayerContracts,
   interchainAccountFactories,
   interchainQueryFactories,
-  tokenBridgeFactories,
+  liquidityLayerFactories,
 } from './middleware';
 export { RouterConfig } from './deploy/router/types';
 export { getTestMultiProvider, getChainToOwnerMap } from './deploy/utils';

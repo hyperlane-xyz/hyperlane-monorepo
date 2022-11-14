@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ICircleBridge} from "../middleware/token-bridge/interfaces/circle/ICircleBridge.sol";
+import {ICircleBridge} from "../middleware/liquidity-layer/interfaces/circle/ICircleBridge.sol";
 import {MockToken} from "./MockToken.sol";
 
 contract MockCircleBridge is ICircleBridge {

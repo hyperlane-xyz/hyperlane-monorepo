@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ITokenBridgeMessageRecipient} from "../middleware/token-bridge/interfaces/ITokenBridgeMessageRecipient.sol";
+import {ILiquidityLayerMessageRecipient} from "../middleware/liquidity-layer/interfaces/ILiquidityLayerMessageRecipient.sol";
 
-contract TestTokenBridgeMessageRecipient is ITokenBridgeMessageRecipient {
+contract TestLiquidityLayerMessageRecipient is ILiquidityLayerMessageRecipient {
     event HandledWithTokens(
         uint32 origin,
         bytes32 sender,
