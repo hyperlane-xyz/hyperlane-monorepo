@@ -1,5 +1,3 @@
-use std::hash::{Hash, Hasher};
-
 use ethers::prelude::H256;
 use eyre::{Context, Result};
 use sea_orm::{
@@ -35,12 +33,6 @@ impl FromQueryResult for BasicBlock {
                 .map_err(|e| DbErr::Type(e.to_string()))?,
             timestamp: res.try_get::<TimeDateTime>(pre, "timestamp")?,
         })
-    }
-}
-
-impl Hash for BasicBlock {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.hash.hash(state);
     }
 }
 
