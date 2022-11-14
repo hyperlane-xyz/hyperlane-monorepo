@@ -79,7 +79,6 @@ describe('core', async () => {
 
     it('can be resumed from partial (chain) failure', async () => {
       sinon.restore(); // restore normal deployer behavior and test3 will be deployed
-      console.log('redeploying');
       const result = await deployer.deploy();
       expect(result).to.have.keys(['test1', 'test2', 'test3']);
       expect(result.test3).to.have.keys(Object.keys(result.test2));
