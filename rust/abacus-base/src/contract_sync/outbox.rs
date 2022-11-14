@@ -93,9 +93,7 @@ where
 
                 // Only index blocks considered final.
                 // If there's an error getting the block number, just start the loop over
-                let tip = if let Ok(num) = indexer.get_finalized_block_number().await {
-                    num
-                } else {
+                let Ok(tip) = indexer.get_finalized_block_number().await else {
                     continue;
                 };
                 if tip <= from {
@@ -126,7 +124,7 @@ where
                 // Filter out any messages that have already been successfully indexed and stored.
                 // This is necessary if we're re-indexing blocks in hope of finding missing messages.
                 if let Some(min_index) = last_leaf_index {
-                    sorted_messages = sorted_messages.into_iter().filter(|m| m.leaf_index > min_index).collect();
+                    sorted_messages.retain(|m| m.leaf_index > min_index);
                 }
 
                 debug!(

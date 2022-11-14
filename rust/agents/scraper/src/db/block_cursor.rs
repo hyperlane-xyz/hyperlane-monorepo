@@ -1,12 +1,13 @@
 use std::time::{Duration, Instant};
 
 use eyre::Result;
-use sea_orm::prelude::*;
-use sea_orm::{ActiveValue, Insert, Order, QueryOrder, QuerySelect};
+use sea_orm::{prelude::*, ActiveValue, Insert, Order, QueryOrder, QuerySelect};
 use tokio::sync::RwLock;
 use tracing::{debug, instrument, trace, warn};
 
-use crate::db::cursor;
+use crate::db::ScraperDb;
+
+use super::generated::cursor;
 
 const MAX_WRITE_BACK_FREQUENCY: Duration = Duration::from_secs(10);
 
@@ -18,6 +19,9 @@ struct BlockCursorInner {
     last_saved_at: Instant,
 }
 
+/// A tool to wrap the logic of fetching and updating the cursor position in the
+/// database. We may end up reading the same block range again later but this
+/// prevents us from starting from the beginning after a restart.
 #[derive(Debug)]
 pub struct BlockCursor {
     db: DbConn,
@@ -27,7 +31,7 @@ pub struct BlockCursor {
 }
 
 impl BlockCursor {
-    pub async fn new(db: DbConn, domain: u32, default_height: u64) -> Result<Self> {
+    async fn new(db: DbConn, domain: u32, default_height: u64) -> Result<Self> {
         #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
         enum QueryAs {
             Height,
@@ -86,5 +90,11 @@ impl BlockCursor {
                 debug!(cursor = ?*inner, "Updated cursor")
             }
         }
+    }
+}
+
+impl ScraperDb {
+    pub async fn block_cursor(&self, domain: u32, default_height: u64) -> Result<BlockCursor> {
+        BlockCursor::new(self.0.clone(), domain, default_height).await
     }
 }
