@@ -15,7 +15,6 @@ impl EntityName for Entity {
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
-    pub msg_id: Option<i64>,
     pub hash: String,
     pub domain: i32,
     pub inbox_address: String,
@@ -26,7 +25,6 @@ pub struct Model {
 pub enum Column {
     Id,
     TimeCreated,
-    MsgId,
     Hash,
     Domain,
     InboxAddress,
@@ -48,7 +46,6 @@ impl PrimaryKeyTrait for PrimaryKey {
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
     Domain,
-    Message,
     Transaction,
 }
 
@@ -58,7 +55,6 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
-            Self::MsgId => ColumnType::BigInteger.def().null().unique(),
             Self::Hash => ColumnType::String(Some(64u32)).def().unique(),
             Self::Domain => ColumnType::Integer.def(),
             Self::InboxAddress => ColumnType::String(Some(64u32)).def(),
@@ -74,10 +70,6 @@ impl RelationTrait for Relation {
                 .from(Column::Domain)
                 .to(super::domain::Column::Id)
                 .into(),
-            Self::Message => Entity::belongs_to(super::message::Entity)
-                .from(Column::MsgId)
-                .to(super::message::Column::Id)
-                .into(),
             Self::Transaction => Entity::belongs_to(super::transaction::Entity)
                 .from(Column::TxId)
                 .to(super::transaction::Column::Id)
@@ -89,12 +81,6 @@ impl RelationTrait for Relation {
 impl Related<super::domain::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Domain.def()
-    }
-}
-
-impl Related<super::message::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Message.def()
     }
 }
 

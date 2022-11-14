@@ -45,7 +45,7 @@ impl DB {
     pub fn from_path(db_path: &str) -> eyre::Result<DB> {
         // Canonicalize ensures existence, so we have to do that, then extend
         let mut path = Path::new(".").canonicalize()?;
-        path.extend(&[db_path]);
+        path.extend([db_path]);
 
         match path.is_dir() {
             true => info!(

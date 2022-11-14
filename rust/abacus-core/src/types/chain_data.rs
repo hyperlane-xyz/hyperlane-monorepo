@@ -1,7 +1,7 @@
 use ethers::prelude::{H256, U256};
 
 /// Info about a given block in the chain.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockInfo {
     /// Hash of this block
     pub hash: H256,
@@ -12,7 +12,7 @@ pub struct BlockInfo {
 }
 
 /// Information about a given transaction in the chain.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TxnInfo {
     /// Hash of this transaction
     pub hash: H256,
@@ -39,7 +39,7 @@ pub struct TxnInfo {
 }
 
 /// Information about the execution of a transaction.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TxnReceiptInfo {
     /// Amount of gas which was used by this transaction
     pub gas_used: U256,

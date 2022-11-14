@@ -590,7 +590,7 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
                 Self::update_block_details(&*client, chain, block_height, gas_price_gwei).await;
             }
             if let Some(wallet_balance) = wallet_balance {
-                Self::update_wallet_balances(client.clone(), &*data, chain, wallet_balance).await;
+                Self::update_wallet_balances(client.clone(), &data, chain, wallet_balance).await;
             }
 
             // more metrics to come...
