@@ -254,7 +254,7 @@ describe('InterchainGasCalculator', () => {
         if (!thresholdStub) {
           thresholdStub = sinon
             .stub(multisigIsm, 'threshold')
-            .callsFake((_) => Promise.resolve(BigNumber.from(threshold)));
+            .callsFake(() => Promise.resolve(BigNumber.from(threshold)));
 
           contracts.multisigIsm = multisigIsm;
         }
