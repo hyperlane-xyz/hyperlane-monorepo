@@ -38,54 +38,6 @@ impl Decode for RawAbacusMessage {
         Ok(message)
     }
 }
-/*
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct RawAbacusMessage {
-    /// The fully detailed message that was committed
-    pub message: Vec<u8>,
-}
-
-impl RawAbacusMessage {
-    /// Return the `id` for this raw message
-    ///
-    /// The id is the keccak256 digest of the message, which is committed
-    /// in the message tree.
-    pub fn id(&self) -> H256 {
-        let buffer = [0u8; 28];
-        H256::from_slice(
-            Keccak256::new()
-                .chain(&self.message)
-                .finalize()
-                .as_slice(),
-        )
-    }
-}
-
-impl Encode for RawAbacusMessage {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        writer.write_all(&self.message)?;
-        Ok(4 + self.message.len())
-    }
-}
-
-impl Decode for RawAbacusMessage {
-    fn read_from<R>(reader: &mut R) -> Result<Self, AbacusError>
-    where
-        R: std::io::Read,
-        Self: Sized,
-    {
-        let mut message = vec![];
-        reader.read_to_end(&mut message)?;
-
-        Ok(Self {
-            message,
-        })
-    }
-}
-*/
 
 /// A full Abacus message between chains
 #[derive(Debug, Default, Clone)]
@@ -149,50 +101,8 @@ impl Encode for AbacusMessage {
     }
 }
 
-/*
-impl Decode for AbacusMessage {
-    fn read_from<R>(reader: &mut R) -> Result<Self, AbacusError>
-    where
-        R: std::io::Read,
-    {
-        let mut version = [0u8; 1];
-        reader.read_exact(&mut version)?;
-
-        let mut nonce = [0u8; 4];
-        reader.read_exact(&mut nonce)?;
-
-        let mut origin = [0u8; 4];
-        reader.read_exact(&mut origin)?;
-
-        let mut sender = H256::zero();
-        reader.read_exact(sender.as_mut())?;
-
-        let mut destination = [0u8; 4];
-        reader.read_exact(&mut destination)?;
-
-        let mut recipient = H256::zero();
-        reader.read_exact(recipient.as_mut())?;
-
-        let mut body = vec![];
-        reader.read_to_end(&mut body)?;
-
-        Ok(Self {
-            version: u8::from_be_bytes(version),
-            nonce: u32::from_be_bytes(nonce),
-            origin: u32::from_be_bytes(origin),
-            sender,
-            destination: u32::from_be_bytes(destination),
-            recipient,
-            body,
-        })
-    }
-}
-*/
-
 impl AbacusMessage {
-    // TODO: It looks like this may not match the solidity produced id!
-    // Gas payments return a different id.
-    /// Convert the message to a leaf
+    /// Convert the message to a message id
     pub fn id(&self) -> H256 {
         H256::from_slice(Keccak256::new().chain(&self.to_vec()).finalize().as_slice())
     }
