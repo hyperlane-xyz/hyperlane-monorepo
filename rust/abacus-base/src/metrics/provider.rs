@@ -26,6 +26,16 @@ pub(crate) fn create_provider_metrics(metrics: &CoreMetrics) -> Result<Middlewar
             CONTRACT_CALL_COUNT_HELP,
             CONTRACT_CALL_COUNT_LABELS,
         )?)
+        .logs_query_duration_seconds(metrics.new_counter(
+            "logs_query_duration_seconds",
+            LOGS_QUERY_DURATION_SECONDS_HELP,
+            LOGS_QUERY_DURATION_SECONDS_LABELS,
+        )?)
+        .logs_query_count(metrics.new_int_counter(
+            "logs_query_count",
+            LOG_QUERY_COUNT_HELP,
+            LOGS_QUERY_COUNT_LABELS,
+        )?)
         .transaction_send_duration_seconds(metrics.new_histogram(
             "transaction_send_duration_seconds",
             TRANSACTION_SEND_DURATION_SECONDS_HELP,
