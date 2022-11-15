@@ -16,7 +16,10 @@ async function main() {
   await assertCorrectKubeContext(coreConfig);
 
   const keyFunderConfig = getKeyFunderConfig(coreConfig);
-  const agentConfig = await getContextAgentConfig(coreConfig, Contexts.Abacus);
+  const agentConfig = await getContextAgentConfig(
+    coreConfig,
+    Contexts.Hyperlane,
+  );
 
   await runKeyFunderHelmCommand(
     HelmCommand.InstallOrUpgrade,

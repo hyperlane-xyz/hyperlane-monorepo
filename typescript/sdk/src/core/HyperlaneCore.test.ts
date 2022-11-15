@@ -9,9 +9,9 @@ describe('HyperlaneCore', () => {
       const multiProvider = new MultiProvider(chainConnectionConfigs);
       HyperlaneCore.fromEnvironment('mainnet', multiProvider);
     });
-    it('creates an object for testnet2', async () => {
+    it('creates an object for testnet3', async () => {
       const multiProvider = new MultiProvider(chainConnectionConfigs);
-      HyperlaneCore.fromEnvironment('testnet2', multiProvider);
+      HyperlaneCore.fromEnvironment('testnet3', multiProvider);
     });
   });
 });

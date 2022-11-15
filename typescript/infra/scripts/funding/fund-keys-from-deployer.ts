@@ -36,15 +36,15 @@ import {
 
 const constMetricLabels = {
   // this needs to get set in main because of async reasons
-  abacus_deployment: '',
-  abacus_context: 'abacus',
+  hyperlane_deployment: '',
+  hyperlane_context: 'hyperlane',
 };
 
 const metricsRegister = new Registry();
 
 const walletBalanceGauge = new Gauge({
   // Mirror the rust/ethers-prometheus `wallet_balance` gauge metric.
-  name: 'abacus_wallet_balance',
+  name: 'hyperlane_wallet_balance',
   help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
   registers: [metricsRegister],
   labelNames: [
@@ -100,7 +100,7 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
 // context provided in --contexts-and-roles, which requires the appropriate credentials.
 //
 // Example usage:
-//   ts-node ./scripts/funding/fund-keys-from-deployer.ts -e testnet2 --context abacus --contexts-and-roles abacus=relayer
+//   ts-node ./scripts/funding/fund-keys-from-deployer.ts -e testnet2 --context hyperlane --contexts-and-roles hyperlane=relayer
 async function main() {
   const argv = await getArgs()
     .string('f')
@@ -130,10 +130,10 @@ async function main() {
     .demandOption('connection-type').argv;
 
   const environment = assertEnvironment(argv.e as string);
-  constMetricLabels.abacus_deployment = environment;
+  constMetricLabels.hyperlane_deployment = environment;
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider(
-    Contexts.Abacus, // Always fund from the abacus context
+    Contexts.Hyperlane, // Always fund from the hyperlane context
     KEY_ROLE_ENUM.Deployer, // Always fund from the deployer
     argv.connectionType,
   );
@@ -465,7 +465,7 @@ function parseContextAndRolesMap(strs: string[]): ContextAndRolesMap {
 
 // Parses strings of the form <context>=<role>,<role>,<role>...
 // e.g.:
-//   abacus=relayer
+//   hyperlane=relayer
 //   flowcarbon=relayer,kathy
 function parseContextAndRoles(str: string): ContextAndRoles {
   const [contextStr, rolesStr] = str.split('=');
