@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-interface IMailboxV2 {
+interface IMailbox {
     function localDomain() external view returns (uint32);
 
     function dispatch(

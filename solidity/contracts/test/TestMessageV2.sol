@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import {MessageV2} from "../libs/MessageV2.sol";
+import {Message} from "../libs/MessageV2.sol";
 
-contract TestMessageV2 {
-    using MessageV2 for bytes;
+contract TestMessage {
+    using Message for bytes;
 
     function version(bytes calldata _message)
         external

@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import {Mailbox} from "../MailboxV2.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
+import {MerkleLib} from "../libs/Merkle.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
-import "../MailboxV2.sol";
 
-contract TestMailboxV2 is MailboxV2 {
-    constructor(uint32 _localDomain) MailboxV2(_localDomain) {} // solhint-disable-line no-empty-blocks
+contract TestMailbox is Mailbox {
+    using TypeCasts for bytes32;
+
+    constructor(uint32 _localDomain) Mailbox(_localDomain) {} // solhint-disable-line no-empty-blocks
 
     function proof() external view returns (bytes32[32] memory) {
         bytes32[32] memory _zeroes = MerkleLib.zeroHashes();
@@ -21,5 +25,18 @@ contract TestMailboxV2 is MailboxV2 {
             }
         }
         return _proof;
+    }
+
+    function testHandle(
+        uint32 _origin,
+        bytes32 _sender,
+        bytes32 _recipient,
+        bytes calldata _body
+    ) external {
+        IMessageRecipient(_recipient.bytes32ToAddress()).handle(
+            _origin,
+            _sender,
+            _body
+        );
     }
 }

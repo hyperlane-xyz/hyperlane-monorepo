@@ -12,8 +12,8 @@ import {
   BadRecipient6__factory,
   TestIsm,
   TestIsm__factory,
-  TestMailboxV2,
-  TestMailboxV2__factory,
+  TestMailbox,
+  TestMailbox__factory,
   TestRecipient__factory,
 } from '../types';
 
@@ -24,7 +24,7 @@ const destDomain = 2000;
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
 describe('Mailbox', async () => {
-  let mailbox: TestMailboxV2,
+  let mailbox: TestMailbox,
     module: TestIsm,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
@@ -33,7 +33,7 @@ describe('Mailbox', async () => {
     [signer, nonOwner] = await ethers.getSigners();
     const moduleFactory = new TestIsm__factory(signer);
     module = await moduleFactory.deploy();
-    const mailboxFactory = new TestMailboxV2__factory(signer);
+    const mailboxFactory = new TestMailbox__factory(signer);
     mailbox = await mailboxFactory.deploy(originDomain);
     await mailbox.initialize(module.address);
   });

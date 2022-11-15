@@ -4,19 +4,19 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {Versioned} from "./upgrade/Versioned.sol";
 import {MerkleLib} from "./libs/Merkle.sol";
-import {MessageV2} from "./libs/MessageV2.sol";
+import {Message} from "./libs/MessageV2.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
-import {IMailboxV2} from "../interfaces/IMailboxV2.sol";
+import {IMailbox} from "../interfaces/IMailboxV2.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
-contract MailboxV2 is
-    IMailboxV2,
+contract Mailbox is
+    IMailbox,
     OwnableUpgradeable,
     ReentrancyGuardUpgradeable,
     Versioned
@@ -24,7 +24,7 @@ contract MailboxV2 is
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
-    using MessageV2 for bytes;
+    using Message for bytes;
     using TypeCasts for bytes32;
     using TypeCasts for address;
 
@@ -109,7 +109,7 @@ contract MailboxV2 is
     ) external override returns (bytes32) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
         // Format the message into packed bytes.
-        bytes memory _message = MessageV2.formatMessage(
+        bytes memory _message = Message.formatMessage(
             VERSION,
             count(),
             localDomain,

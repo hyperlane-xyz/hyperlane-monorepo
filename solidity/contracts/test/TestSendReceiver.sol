@@ -5,7 +5,7 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 
 import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
-import {IOutbox} from "../../interfaces/IOutbox.sol";
+import {IMailbox} from "../../interfaces/IMailboxV2.sol";
 
 contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
@@ -13,12 +13,12 @@ contract TestSendReceiver is IMessageRecipient {
     event Handled(bytes32 blockHash);
 
     function dispatchToSelf(
-        IOutbox _outbox,
+        IMailbox _outbox,
         IInterchainGasPaymaster _paymaster,
         uint32 _destinationDomain,
         bytes calldata _messageBody
     ) external payable {
-        uint256 _leafIndex = _outbox.dispatch(
+        bytes32 _messageId = _outbox.dispatch(
             _destinationDomain,
             address(this).addressToBytes32(),
             _messageBody
@@ -28,23 +28,14 @@ contract TestSendReceiver is IMessageRecipient {
         if (_blockHashNum % 5 == 0) {
             // Pay in two separate calls, resulting in 2 distinct events
             uint256 _half = _value / 2;
-            _paymaster.payGasFor{value: _half}(
-                address(_outbox),
-                _leafIndex,
-                _destinationDomain
-            );
+            _paymaster.payGasFor{value: _half}(_messageId, _destinationDomain);
             _paymaster.payGasFor{value: _value - _half}(
-                address(_outbox),
-                _leafIndex,
+                _messageId,
                 _destinationDomain
             );
         } else {
             // Pay the entire msg.value in one call
-            _paymaster.payGasFor{value: _value}(
-                address(_outbox),
-                _leafIndex,
-                _destinationDomain
-            );
+            _paymaster.payGasFor{value: _value}(_messageId, _destinationDomain);
         }
     }
 

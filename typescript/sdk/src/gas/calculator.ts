@@ -274,10 +274,8 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     const provider = this.multiProvider.getChainConnection(message.destination)
       .provider!;
 
-    const { destinationInbox } = this.core.getMailboxPair<LocalChain>(
-      message.origin,
-      message.destination,
-    );
+    const mailbox = this.core.getContracts(message.destination).mailbox
+      .contract;
 
     const handlerInterface = new ethers.utils.Interface([
       'function handle(uint32,bytes32,bytes)',
@@ -287,7 +285,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     // This includes intrinsic gas.
     const directHandleCallGas = await provider.estimateGas({
       to: utils.bytes32ToAddress(message.recipient),
-      from: destinationInbox.address,
+      from: mailbox.address,
       data: handlerInterface.encodeFunctionData('handle', [
         chainMetadata[message.origin].id,
         utils.addressToBytes32(message.sender),
@@ -313,8 +311,9 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     origin: Remotes<Chain, Destination>,
     destination: Destination,
   ): Promise<BigNumber> {
-    const inboxes = this.core.getContracts(destination).inboxes;
-    const threshold = await inboxes[origin].inboxValidatorManager.threshold();
+    // TODO: Check the recipient module
+    const module = this.core.getContracts(destination).multisigIsm;
+    const threshold = await module.threshold(origin);
     return threshold.mul(GAS_OVERHEAD_PER_SIGNATURE).add(GAS_OVERHEAD_BASE);
   }
 

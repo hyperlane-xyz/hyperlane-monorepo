@@ -3,7 +3,7 @@ import { ethers } from 'hardhat';
 
 import { utils } from '@hyperlane-xyz/utils';
 
-import { TestMessageV2, TestMessageV2__factory } from '../types';
+import { TestMessage, TestMessage__factory } from '../types';
 
 const testCases = require('../../vectors/message.json');
 
@@ -12,13 +12,13 @@ const localDomain = 2000;
 const version = 0;
 const nonce = 11;
 
-describe('MessageV2', async () => {
-  let messageLib: TestMessageV2;
+describe('Message', async () => {
+  let messageLib: TestMessage;
 
   before(async () => {
     const [signer] = await ethers.getSigners();
 
-    const Message = new TestMessageV2__factory(signer);
+    const Message = new TestMessage__factory(signer);
     messageLib = await Message.deploy();
   });
 
@@ -26,7 +26,7 @@ describe('MessageV2', async () => {
     const [sender, recipient] = await ethers.getSigners();
     const body = ethers.utils.formatBytes32String('message');
 
-    const message = utils.formatMessageV2(
+    const message = utils.formatMessage(
       version,
       nonce,
       remoteDomain,
@@ -60,7 +60,7 @@ describe('MessageV2', async () => {
     const recipient = '0x2222222222222222222222222222222222222222';
     const body = '0x1234';
 
-    const hyperlaneMessage = utils.formatMessageV2(
+    const hyperlaneMessage = utils.formatMessage(
       version,
       nonce,
       origin,
@@ -90,6 +90,6 @@ describe('MessageV2', async () => {
     expect(await messageLib.body(hyperlaneMessage)).to.equal(
       ethers.utils.hexlify(testBody),
     );
-    expect(utils.messageIdV2(hyperlaneMessage)).to.equal(messageHash);
+    expect(utils.messageId(hyperlaneMessage)).to.equal(messageHash);
   });
 });

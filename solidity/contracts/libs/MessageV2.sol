@@ -7,7 +7,7 @@ import {TypeCasts} from "./TypeCasts.sol";
  * @title Hyperlane Message Library
  * @notice Library for formatted messages used by Mailbox
  **/
-library MessageV2 {
+library Message {
     using TypeCasts for bytes32;
 
     uint256 private constant VERSION_OFFSET = 0;

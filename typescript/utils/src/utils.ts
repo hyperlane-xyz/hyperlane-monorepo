@@ -6,7 +6,6 @@ import {
   Domain,
   HexString,
   ParsedMessage,
-  ParsedMessageV2,
   ParsedMultisigIsmMetadata,
 } from './types';
 
@@ -120,22 +119,6 @@ export const formatMultisigIsmMetadata = (
 };
 
 export const formatMessage = (
-  localDomain: Domain,
-  senderAddr: Address,
-  destinationDomain: Domain,
-  recipientAddr: Address,
-  body: HexString,
-): string => {
-  senderAddr = addressToBytes32(senderAddr);
-  recipientAddr = addressToBytes32(recipientAddr);
-
-  return ethers.utils.solidityPack(
-    ['uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
-    [localDomain, senderAddr, destinationDomain, recipientAddr, body],
-  );
-};
-
-export const formatMessageV2 = (
   version: number | BigNumber,
   nonce: number | BigNumber,
   originDomain: Domain,
@@ -161,11 +144,17 @@ export const formatMessageV2 = (
   );
 };
 
-export function messageIdV2(message: HexString): string {
+export function messageId(message: HexString): string {
   return ethers.utils.solidityKeccak256(['bytes'], [message]);
 }
 
-export function parseMessageV2(message: string): ParsedMessageV2 {
+/**
+ * Parse a serialized Abacus message from raw bytes.
+ *
+ * @param message
+ * @returns
+ */
+export function parseMessage(message: string): ParsedMessage {
   const VERSION_OFFSET = 0;
   const NONCE_OFFSET = 1;
   const ORIGIN_OFFSET = 33;
@@ -187,37 +176,7 @@ export function parseMessageV2(message: string): ParsedMessageV2 {
   return { version, nonce, origin, sender, destination, recipient, body };
 }
 
-/**
- * Parse a serialized Hyperlane message from raw bytes.
- *
- * @param message
- * @returns
- */
-export function parseMessage(message: string): ParsedMessage {
-  const buf = Buffer.from(utils.arrayify(message));
-  const origin = buf.readUInt32BE(0);
-  const sender = utils.hexlify(buf.slice(4, 36));
-  const destination = buf.readUInt32BE(36);
-  const recipient = utils.hexlify(buf.slice(40, 72));
-  const body = utils.hexlify(buf.slice(72));
-  return { origin, sender, destination, recipient, body };
-}
-
-export function messageHash(message: HexString, leafIndex: number): string {
-  return ethers.utils.solidityKeccak256(
-    ['bytes', 'uint256'],
-    [message, leafIndex],
-  );
-}
-
-export function domainHash(domain: number): string {
-  return ethers.utils.solidityKeccak256(
-    ['uint32', 'string'],
-    [domain, 'ABACUS'], // TODO rename
-  );
-}
-
-export function domainHashV2(domain: number, mailbox: string): string {
+export function domainHash(domain: number, mailbox: string): string {
   return ethers.utils.solidityKeccak256(
     ['uint32', 'bytes32', 'string'],
     [domain, addressToBytes32(mailbox), 'HYPERLANE'],

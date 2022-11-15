@@ -8,7 +8,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 
 // ============ Internal Imports ============
 import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
-import {MessageV2} from "../libs/MessageV2.sol";
+import {Message} from "../libs/MessageV2.sol";
 import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 
@@ -21,7 +21,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
-    using MessageV2 for bytes;
+    using Message for bytes;
     using MultisigIsmMetadata for bytes;
     using MerkleLib for MerkleLib.Tree;
 

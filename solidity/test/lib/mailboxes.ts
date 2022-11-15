@@ -3,8 +3,8 @@ import { ethers } from 'ethers';
 
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
-import { MultisigIsm, TestMailboxV2 } from '../../types';
-import { DispatchEvent } from '../../types/contracts/MailboxV2';
+import { MultisigIsm, TestMailbox } from '../../types';
+import { DispatchEvent } from '../../types/contracts/MailboxV2.sol/Mailbox';
 
 export type MessageAndProof = {
   proof: types.MerkleProof;
@@ -17,7 +17,7 @@ export type MessageAndMetadata = {
 };
 
 export const dispatchMessage = async (
-  mailbox: TestMailboxV2,
+  mailbox: TestMailbox,
   destination: number,
   recipient: string,
   messageStr: string,
@@ -34,7 +34,7 @@ export const dispatchMessage = async (
 };
 
 export const dispatchMessageAndReturnProof = async (
-  mailbox: TestMailboxV2,
+  mailbox: TestMailbox,
   destination: number,
   recipient: string,
   messageStr: string,
@@ -66,9 +66,7 @@ export async function signCheckpoint(
   orderedValidators: Validator[],
 ): Promise<string[]> {
   const signedCheckpoints = await Promise.all(
-    orderedValidators.map((validator) =>
-      validator.signCheckpointV2(root, index, mailbox),
-    ),
+    orderedValidators.map((validator) => validator.signCheckpoint(root, index)),
   );
   return signedCheckpoints.map(
     (signedCheckpoint) => signedCheckpoint.signature as string, // cast is safe because signCheckpoint serializes to hex
@@ -76,7 +74,7 @@ export async function signCheckpoint(
 }
 
 export async function dispatchMessageAndReturnMetadata(
-  mailbox: TestMailboxV2,
+  mailbox: TestMailbox,
   multisigIsm: MultisigIsm,
   destination: number,
   recipient: string,
@@ -99,7 +97,7 @@ export async function dispatchMessageAndReturnMetadata(
     mailbox.address,
     orderedValidators,
   );
-  const origin = utils.parseMessageV2(proofAndMessage.message).origin;
+  const origin = utils.parseMessage(proofAndMessage.message).origin;
   const metadata = utils.formatMultisigIsmMetadata({
     checkpointRoot: root,
     checkpointIndex: index.toNumber(),
@@ -123,7 +121,7 @@ export function getCommitment(
 }
 
 export const inferMessageValues = async (
-  mailbox: TestMailboxV2,
+  mailbox: TestMailbox,
   sender: string,
   destination: number,
   recipient: string,
@@ -135,7 +133,7 @@ export const inferMessageValues = async (
   );
   const nonce = await mailbox.count();
   const localDomain = await mailbox.localDomain();
-  const message = utils.formatMessageV2(
+  const message = utils.formatMessage(
     version ?? (await mailbox.VERSION()),
     nonce,
     localDomain,
@@ -144,7 +142,7 @@ export const inferMessageValues = async (
     recipient,
     body,
   );
-  const id = utils.messageIdV2(message);
+  const id = utils.messageId(message);
   return {
     message,
     id,

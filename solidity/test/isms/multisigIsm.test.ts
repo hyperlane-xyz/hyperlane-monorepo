@@ -6,8 +6,8 @@ import { ethers } from 'hardhat';
 import { Validator, utils } from '@hyperlane-xyz/utils';
 
 import {
-  TestMailboxV2,
-  TestMailboxV2__factory,
+  TestMailbox,
+  TestMailbox__factory,
   TestMultisigIsm,
   TestMultisigIsm__factory,
   TestRecipient__factory,
@@ -26,7 +26,7 @@ const domainHashTestCases = require('../../../vectors/domainHash.json');
 
 describe('MultisigIsm', async () => {
   let multisigIsm: TestMultisigIsm,
-    mailbox: TestMailboxV2,
+    mailbox: TestMailbox,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress,
     validators: Validator[];
@@ -34,12 +34,12 @@ describe('MultisigIsm', async () => {
   before(async () => {
     const signers = await ethers.getSigners();
     [signer, nonOwner] = signers;
-    const mailboxFactory = new TestMailboxV2__factory(signer);
+    const mailboxFactory = new TestMailbox__factory(signer);
     mailbox = await mailboxFactory.deploy(ORIGIN_DOMAIN);
     validators = await Promise.all(
       signers
         .filter((_, i) => i > 1)
-        .map((s) => Validator.fromSigner(s, ORIGIN_DOMAIN)),
+        .map((s) => Validator.fromSigner(s, ORIGIN_DOMAIN, mailbox.address)),
     );
   });
 
@@ -237,7 +237,7 @@ describe('MultisigIsm', async () => {
     });
 
     it('allows for message processing when valid metadata is provided', async () => {
-      const mailboxFactory = new TestMailboxV2__factory(signer);
+      const mailboxFactory = new TestMailbox__factory(signer);
       const destinationMailbox = await mailboxFactory.deploy(
         DESTINATION_DOMAIN,
       );
@@ -246,7 +246,11 @@ describe('MultisigIsm', async () => {
     });
 
     it('reverts when non-validator signatures are provided', async () => {
-      const nonValidator = await Validator.fromSigner(signer, ORIGIN_DOMAIN);
+      const nonValidator = await Validator.fromSigner(
+        signer,
+        ORIGIN_DOMAIN,
+        mailbox.address,
+      );
       const parsedMetadata = utils.parseMultisigIsmMetadata(metadata);
       const nonValidatorSignature = (
         await signCheckpoint(
