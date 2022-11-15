@@ -21,8 +21,8 @@ const message = '0xdeadbeef';
 
 describe('TestCoreDeployer', async () => {
   let testCoreApp: TestCoreApp,
-    localOutbox: TestMailbox,
-    remoteOutbox: TestMailbox,
+    localMailbox: TestMailbox,
+    remoteMailbox: TestMailbox,
     dispatchReceipt: ContractReceipt;
 
   beforeEach(async () => {
@@ -33,25 +33,25 @@ describe('TestCoreDeployer', async () => {
     testCoreApp = await deployer.deployApp();
 
     const recipient = await new TestRecipient__factory(signer).deploy();
-    localOutbox = testCoreApp.getContracts(localChain).mailbox.contract;
+    localMailbox = testCoreApp.getContracts(localChain).mailbox.contract;
 
-    const dispatchResponse = localOutbox.dispatch(
+    const dispatchResponse = localMailbox.dispatch(
       remoteDomain,
       utils.addressToBytes32(recipient.address),
       message,
     );
-    await expect(dispatchResponse).to.emit(localOutbox, 'Dispatch');
+    await expect(dispatchResponse).to.emit(localMailbox, 'Dispatch');
     dispatchReceipt = await testCoreApp.multiProvider
       .getChainConnection(localChain)
       .handleTx(dispatchResponse);
-    remoteOutbox = testCoreApp.getContracts(remoteChain).mailbox.contract;
+    remoteMailbox = testCoreApp.getContracts(remoteChain).mailbox.contract;
     await expect(
-      remoteOutbox.dispatch(
+      remoteMailbox.dispatch(
         localDomain,
         utils.addressToBytes32(recipient.address),
         message,
       ),
-    ).to.emit(remoteOutbox, 'Dispatch');
+    ).to.emit(remoteMailbox, 'Dispatch');
   });
 
   it('processes outbound messages for a single domain', async () => {
