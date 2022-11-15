@@ -49,13 +49,13 @@ export interface MultisigIsmViolation extends CheckerViolation {
 }
 
 export interface EnrolledValidatorsViolation extends MultisigIsmViolation {
-  validatorManagerType: MultisigIsmViolationType.EnrolledValidators;
+  subType: MultisigIsmViolationType.EnrolledValidators;
   actual: Set<types.Address>;
   expected: Set<types.Address>;
 }
 
 export interface ThresholdViolation extends MultisigIsmViolation {
-  validatorManagerType: MultisigIsmViolationType.Threshold;
+  subType: MultisigIsmViolationType.Threshold;
   actual: number;
   expected: number;
 }
