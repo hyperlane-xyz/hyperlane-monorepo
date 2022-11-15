@@ -202,6 +202,22 @@ fn main() -> ExitCode {
     build_cmd(&["yarn", "clean"], &build_log, log_all, Some("../"));
     build_cmd(&["yarn", "build"], &build_log, log_all, Some("../"));
 
+    println!("Building relayer...");
+    build_cmd(
+        &["cargo", "build", "--bin", "relayer"],
+        &build_log,
+        log_all,
+        None,
+    );
+
+    println!("Building validator...");
+    build_cmd(
+        &["cargo", "build", "--bin", "validator"],
+        &build_log,
+        log_all,
+        None,
+    );
+
     let mut state = State::default();
     println!("Launching hardhat...");
     let mut node = Command::new("yarn");
@@ -242,25 +258,6 @@ fn main() -> ExitCode {
         .current_dir("../")
         .status()
         .expect("Failed to run prettier from top level dir");
-
-    // The rust binaries should be built after contracts are deployed
-    // so that they can pick up the configs written during contract
-    // deployment
-    println!("Building relayer...");
-    build_cmd(
-        &["cargo", "build", "--bin", "relayer"],
-        &build_log,
-        log_all,
-        None,
-    );
-
-    println!("Building validator...");
-    build_cmd(
-        &["cargo", "build", "--bin", "validator"],
-        &build_log,
-        log_all,
-        None,
-    );
 
     println!("Spawning relayer...");
     let mut relayer = Command::new("target/debug/relayer")

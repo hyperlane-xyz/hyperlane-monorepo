@@ -36,7 +36,7 @@ impl Encode for Checkpoint {
     where
         W: std::io::Write,
     {
-        writer.write_all(&self.mailbox_address.as_ref())?;
+        writer.write_all(self.mailbox_address.as_ref())?;
         writer.write_all(&self.mailbox_domain.to_be_bytes())?;
         writer.write_all(self.root.as_ref())?;
         writer.write_all(&self.index.to_be_bytes())?;

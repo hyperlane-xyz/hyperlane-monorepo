@@ -1,6 +1,7 @@
 use std::cmp::min;
 use std::time::Duration;
 
+use eyre::Result;
 use tokio::time::sleep;
 use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
@@ -17,9 +18,7 @@ where
     I: MailboxIndexer + Clone + 'static,
 {
     /// Sync dispatched messages
-    pub fn sync_dispatched_messages(
-        &self,
-    ) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
+    pub fn sync_dispatched_messages(&self) -> Instrumented<tokio::task::JoinHandle<Result<()>>> {
         let span = info_span!("MessageContractSync");
 
         let db = self.db.clone();
@@ -128,7 +127,7 @@ where
                 // Filter out any messages that have already been successfully indexed and stored.
                 // This is necessary if we're re-indexing blocks in hope of finding missing messages.
                 if let Some(min_index) = last_nonce {
-                    sorted_messages = sorted_messages.into_iter().filter(|m| AbacusMessage::from((*m).clone()).nonce > min_index).collect();
+                    sorted_messages = sorted_messages.into_iter().filter(|m| AbacusMessage::from(m).nonce > min_index).collect();
                 }
 
                 debug!(
@@ -149,7 +148,7 @@ where
 
                         // Report latest leaf index to gauge by dst
                         for raw_msg in sorted_messages.iter() {
-                            let dst = AbacusMessage::try_from((*raw_msg).clone())
+                            let dst = AbacusMessage::try_from(raw_msg)
                                 .ok()
                                 .and_then(|msg| name_from_domain_id(msg.destination))
                                 .unwrap_or_else(|| "unknown".into());

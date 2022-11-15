@@ -54,6 +54,6 @@
     "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
     "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "multisigIsm": "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d"
+    "multisigIsm": "0xc5a5C42992dECbae36851359345FE25997F5C42d"
   }
 }

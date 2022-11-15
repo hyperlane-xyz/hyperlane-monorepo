@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use abacus_base::chains::GelatoConf;
-use abacus_base::{CachingMailbox, CachingMultisigModule, CoreMetrics};
+use abacus_base::{CachingMailbox, CachingMultisigIsm, CoreMetrics};
 use abacus_core::db::AbacusDB;
 use abacus_core::{AbacusChain, AbacusDomain};
 use eyre::{bail, Result};
@@ -31,8 +31,8 @@ pub(crate) struct GelatoSubmitter {
     message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
-    /// Mailbox on the destination chain.
-    multisig_module: CachingMultisigModule,
+    /// Multisig ISM on the destination chain.
+    multisig_ism: CachingMultisigIsm,
     /// The destination chain in the format expected by the Gelato crate.
     destination_gelato_chain: Chain,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
@@ -53,7 +53,7 @@ impl GelatoSubmitter {
     pub fn new(
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_module: CachingMultisigModule,
+        multisig_ism: CachingMultisigIsm,
         abacus_db: AbacusDB,
         gelato_config: GelatoConf,
         metrics: GelatoSubmitterMetrics,
@@ -70,7 +70,7 @@ impl GelatoSubmitter {
             destination_gelato_chain: abacus_domain_id_to_gelato_chain(mailbox.local_domain())
                 .unwrap(),
             mailbox,
-            multisig_module,
+            multisig_ism,
             db: abacus_db,
             gelato_config,
             http_client,
@@ -119,7 +119,7 @@ impl GelatoSubmitter {
                 http: self.http_client.clone(),
                 message: msg,
                 mailbox: self.mailbox.clone(),
-                multisig_module: self.multisig_module.clone(),
+                multisig_ism: self.multisig_ism.clone(),
                 sponsor_api_key: self.gelato_config.sponsorapikey.clone(),
                 destination_chain: self.destination_gelato_chain,
                 message_processed_sender: self.message_processed_sender.clone(),

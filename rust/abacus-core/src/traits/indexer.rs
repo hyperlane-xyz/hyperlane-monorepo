@@ -29,21 +29,16 @@ pub trait Indexer: Send + Sync + Debug {
 #[async_trait]
 #[auto_impl(Box, Arc)]
 pub trait MailboxIndexer: Indexer {
-    /// Fetch list of messages between blocks `from` and `to`.
+    /// Fetch list of outbound messages between blocks `from` and `to`, sorted by
+    /// nonce.
     async fn fetch_sorted_messages(
         &self,
         from: u32,
         to: u32,
     ) -> Result<Vec<(RawAbacusMessage, LogMeta)>>;
-}
 
-/// Interface for Inbox contract indexer. Interface for allowing other entities
-/// to retrieve chain-specific data from an inbox.
-#[async_trait]
-#[auto_impl(Box, Arc)]
-pub trait InboxIndexer: Indexer {
-    /// Fetch a list of processed message hashes between blocks `from` and `to`.
-    async fn fetch_processed_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>>;
+    /// Fetch a list of delivered message IDs between blocks `from` and `to`.
+    async fn fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>>;
 }
 
 /// Interface for InterchainGasPaymaster contract indexer.

@@ -15,7 +15,7 @@ pub use retrying::{RetryingProvider, RetryingProviderError};
 
 use crate::abi::FunctionExt;
 #[cfg(not(doctest))]
-pub use crate::{interchain_gas::*, mailbox::*, multisig_module::*, trait_builder::*};
+pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*};
 
 #[cfg(not(doctest))]
 mod tx;
@@ -35,9 +35,9 @@ mod provider;
 #[cfg(not(doctest))]
 mod interchain_gas;
 
-/// MultisigModule abi
+/// MultisigIsm abi
 #[cfg(not(doctest))]
-mod multisig_module;
+mod multisig_ism;
 
 /// Generated contract bindings.
 #[cfg(not(doctest))]

@@ -10,11 +10,11 @@ use crate::{
     MultisigSignedCheckpoint,
 };
 
-/// Interface for the MultisigModule chain contract. Allows abstraction over different
+/// Interface for the MultisigIsm chain contract. Allows abstraction over different
 /// chains
 #[async_trait]
 #[auto_impl(Box, Arc)]
-pub trait MultisigModule: AbacusContract + Send + Sync + Debug {
+pub trait MultisigIsm: AbacusContract + Send + Sync + Debug {
     /// Returns the metadata needed by the contract's verify function
     async fn format_metadata(
         &self,

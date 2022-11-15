@@ -60,7 +60,6 @@ async function main() {
       deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
     );
   }
-  console.log('writing rust configs', getCoreRustDirectory(environment));
   deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
 }
 

@@ -15,7 +15,7 @@ pub use indexer::*;
 pub use interchain_gas::*;
 pub use mailbox::*;
 pub use provider::*;
-pub use multisig_module::*;
+pub use multisig_ism::*;
 
 use crate::{db::DbError, AbacusError};
 
@@ -24,7 +24,7 @@ mod indexer;
 mod provider;
 mod interchain_gas;
 mod mailbox;
-mod multisig_module;
+mod multisig_ism;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]
