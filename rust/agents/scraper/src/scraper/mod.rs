@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use abacus_base::chains::IndexSettings;
+use hyperlane_base::chains::IndexSettings;
 use async_trait::async_trait;
 use ethers::types::H256;
 use eyre::{eyre, Context, Result};
@@ -14,13 +14,13 @@ use tokio::time::sleep;
 use tracing::instrument::Instrumented;
 use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
 
-use abacus_base::last_message::validate_message_continuity;
-use abacus_base::{
+use hyperlane_base::last_message::validate_message_continuity;
+use hyperlane_base::{
     run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, DomainSettings, decl_settings,
 };
-use abacus_core::{
-    name_from_domain_id, AbacusContract, AbacusProvider, BlockInfo, 
-    ListValidity, LogMeta, AbacusMessage, RawAbacusMessage, Mailbox, MailboxIndexer
+use hyperlane_core::{
+    name_from_domain_id, HyperlaneContract, HyperlaneProvider, BlockInfo, 
+    ListValidity, LogMeta, HyperlaneMessage, RawHyperlaneMessage, Mailbox, MailboxIndexer
 };
 
 use crate::scraper::block_cursor::BlockCursor;
@@ -34,7 +34,7 @@ mod block_cursor;
 pub struct Scraper {
     db: DbConn,
     metrics: Arc<CoreMetrics>,
-    // TODO: Use AbacusAgentCore
+    // TODO: Use HyperlaneAgentCore
     /// A map of scrapers by domain.
     scrapers: HashMap<u32, SqlChainScraper>,
 }
@@ -129,7 +129,7 @@ impl Scraper {
 struct Local {
     pub mailbox: Arc<dyn Mailbox>,
     pub indexer: Arc<dyn MailboxIndexer>,
-    pub provider: Arc<dyn AbacusProvider>,
+    pub provider: Arc<dyn HyperlaneProvider>,
 }
 
 #[derive(Debug, Clone)]
@@ -188,7 +188,7 @@ impl SqlChainScraper {
     /// Sync outbound messages.
     ///
     /// This code is very similar to the mailbox contract sync code in
-    /// abacus-base.
+    /// hyperlane-base.
     ///
     /// TODO: merge duplicate logic?
     /// TODO: better handling for errors to auto-restart without bringing down
@@ -281,7 +281,7 @@ impl SqlChainScraper {
 
             sorted_messages = sorted_messages
                 .into_iter()
-                .filter(|m| AbacusMessage::from(m.0.clone()).nonce > last_nonce)
+                .filter(|m| HyperlaneMessage::from(m.0.clone()).nonce > last_nonce)
                 .collect();
 
             debug!(
@@ -318,7 +318,7 @@ impl SqlChainScraper {
                     stored_deliveries.inc_by(deliveries.len() as u64);
 
                     for (raw_msg, _) in sorted_messages.iter() {
-                        let dst = AbacusMessage::try_from((*raw_msg).clone())
+                        let dst = HyperlaneMessage::try_from((*raw_msg).clone())
                             .ok()
                             .and_then(|msg| name_from_domain_id(msg.destination))
                             .unwrap_or_else(|| "unknown".into());
@@ -396,7 +396,7 @@ impl SqlChainScraper {
     )]
     async fn store_messages(
         &self,
-        messages: &[(RawAbacusMessage, LogMeta)],
+        messages: &[(RawHyperlaneMessage, LogMeta)],
         txns: &HashMap<H256, (i64, TimeDateTime)>,
     ) -> Result<u32> {
         use crate::db::message;
@@ -406,13 +406,13 @@ impl SqlChainScraper {
 
         let max_nonce = messages
             .iter()
-            .map(|m| AbacusMessage::from(&m.0).nonce)
+            .map(|m| HyperlaneMessage::from(&m.0).nonce)
             .max()
             .ok_or_else(|| eyre!("Received empty list"));
         let models = messages
             .iter()
             .map(|(raw, meta)| {
-                let msg = AbacusMessage::from(raw);
+                let msg = HyperlaneMessage::from(raw);
 
                 debug_assert_eq!(self.local_domain(), msg.origin);
                 let (txn_id, txn_timestamp) = txns.get(&meta.transaction_hash).unwrap();

@@ -13,124 +13,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "abacus-base"
-version = "0.1.0"
-dependencies = [
- "abacus-core",
- "abacus-ethereum",
- "abacus-test",
- "async-trait",
- "backtrace",
- "backtrace-oneline",
- "color-eyre",
- "config",
- "ethers",
- "ethers-prometheus",
- "eyre",
- "futures-util",
- "lazy_static",
- "mockall",
- "once_cell",
- "opentelemetry",
- "opentelemetry-jaeger",
- "opentelemetry-zipkin",
- "paste",
- "prometheus",
- "rocksdb",
- "rusoto_core",
- "rusoto_kms",
- "rusoto_s3",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-error",
- "tracing-futures",
- "tracing-opentelemetry",
- "tracing-subscriber",
- "warp",
-]
-
-[[package]]
-name = "abacus-core"
-version = "0.1.0"
-dependencies = [
- "abacus-base",
- "async-trait",
- "auto_impl 1.0.1",
- "bytes",
- "color-eyre",
- "config",
- "ethers",
- "ethers-providers",
- "ethers-signers",
- "eyre",
- "hex 0.4.3",
- "lazy_static",
- "maplit",
- "num",
- "num-derive",
- "num-traits",
- "rocksdb",
- "serde",
- "serde_json",
- "sha3 0.9.1",
- "strum",
- "strum_macros",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-futures",
- "walkdir",
-]
-
-[[package]]
-name = "abacus-ethereum"
-version = "0.1.0"
-dependencies = [
- "abacus-core",
- "abigen",
- "async-trait",
- "ethers",
- "ethers-contract",
- "ethers-prometheus",
- "ethers-signers",
- "eyre",
- "hex 0.4.3",
- "num",
- "reqwest",
- "rocksdb",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "abacus-test"
-version = "0.1.0"
-dependencies = [
- "abacus-core",
- "async-trait",
- "ethers",
- "eyre",
- "futures-util",
- "mockall",
- "rand",
- "rocksdb",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "abigen"
 version = "0.1.0"
 dependencies = [
@@ -2230,6 +2112,124 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-base"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "backtrace",
+ "backtrace-oneline",
+ "color-eyre",
+ "config",
+ "ethers",
+ "ethers-prometheus",
+ "eyre",
+ "futures-util",
+ "hyperlane-core",
+ "hyperlane-ethereum",
+ "hyperlane-test",
+ "lazy_static",
+ "mockall",
+ "once_cell",
+ "opentelemetry",
+ "opentelemetry-jaeger",
+ "opentelemetry-zipkin",
+ "paste",
+ "prometheus",
+ "rocksdb",
+ "rusoto_core",
+ "rusoto_kms",
+ "rusoto_s3",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-error",
+ "tracing-futures",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "warp",
+]
+
+[[package]]
+name = "hyperlane-core"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "auto_impl 1.0.1",
+ "bytes",
+ "color-eyre",
+ "config",
+ "ethers",
+ "ethers-providers",
+ "ethers-signers",
+ "eyre",
+ "hex 0.4.3",
+ "hyperlane-base",
+ "lazy_static",
+ "maplit",
+ "num",
+ "num-derive",
+ "num-traits",
+ "rocksdb",
+ "serde",
+ "serde_json",
+ "sha3 0.9.1",
+ "strum",
+ "strum_macros",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-futures",
+ "walkdir",
+]
+
+[[package]]
+name = "hyperlane-ethereum"
+version = "0.1.0"
+dependencies = [
+ "abigen",
+ "async-trait",
+ "ethers",
+ "ethers-contract",
+ "ethers-prometheus",
+ "ethers-signers",
+ "eyre",
+ "hex 0.4.3",
+ "hyperlane-core",
+ "num",
+ "reqwest",
+ "rocksdb",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "hyperlane-test"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "ethers",
+ "eyre",
+ "futures-util",
+ "hyperlane-core",
+ "mockall",
+ "rand",
+ "rocksdb",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2540,7 +2540,7 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 name = "migration"
 version = "0.1.0"
 dependencies = [
- "abacus-core",
+ "hyperlane-core",
  "sea-orm",
  "sea-orm-migration",
  "serde",
@@ -3516,10 +3516,6 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 name = "relayer"
 version = "0.1.0"
 dependencies = [
- "abacus-base",
- "abacus-core",
- "abacus-ethereum",
- "abacus-test",
  "async-trait",
  "coingecko",
  "config",
@@ -3528,6 +3524,10 @@ dependencies = [
  "eyre",
  "futures-util",
  "gelato",
+ "hyperlane-base",
+ "hyperlane-core",
+ "hyperlane-ethereum",
+ "hyperlane-test",
  "prometheus",
  "reqwest",
  "serde",
@@ -3907,15 +3907,15 @@ checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 name = "scraper"
 version = "0.1.0"
 dependencies = [
- "abacus-base",
- "abacus-core",
- "abacus-test",
  "async-trait",
  "chrono",
  "config",
  "ethers",
  "eyre",
  "hex 0.1.0",
+ "hyperlane-base",
+ "hyperlane-core",
+ "hyperlane-test",
  "itertools",
  "migration",
  "prometheus",
@@ -5164,15 +5164,15 @@ dependencies = [
 name = "validator"
 version = "0.1.0"
 dependencies = [
- "abacus-base",
- "abacus-core",
- "abacus-ethereum",
- "abacus-test",
  "async-trait",
  "config",
  "ethers",
  "eyre",
  "futures-util",
+ "hyperlane-base",
+ "hyperlane-core",
+ "hyperlane-ethereum",
+ "hyperlane-test",
  "prometheus",
  "rocksdb",
  "serde",

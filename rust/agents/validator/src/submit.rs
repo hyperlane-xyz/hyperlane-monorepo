@@ -6,8 +6,8 @@ use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
-use abacus_base::{CachingMailbox, CheckpointSyncer, CheckpointSyncers, CoreMetrics};
-use abacus_core::{Mailbox, Signers};
+use hyperlane_base::{CachingMailbox, CheckpointSyncer, CheckpointSyncers, CoreMetrics};
+use hyperlane_core::{Mailbox, Signers};
 
 pub(crate) struct ValidatorSubmitter {
     interval: u64,
@@ -53,7 +53,7 @@ impl ValidatorSubmitter {
         // call when we invoke the `mailbox.latest_checkpoint()` method,
         // which returns the **index** of the last element in the tree
         // rather than just the size.  See
-        // https://github.com/abacus-network/abacus-monorepo/issues/575 for
+        // https://github.com/abacus-network/hyperlane-monorepo/issues/575 for
         // more details.
         while self.mailbox.count().await? == 0 {
             info!("Waiting for non-zero mailbox size");

@@ -1,11 +1,11 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use abacus_base::CachingMailbox;
-use abacus_base::CachingMultisigIsm;
-use abacus_base::CoreMetrics;
-use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusChain, Mailbox, MultisigIsm};
+use hyperlane_base::CachingMailbox;
+use hyperlane_base::CachingMultisigIsm;
+use hyperlane_base::CoreMetrics;
+use hyperlane_core::db::HyperlaneDB;
+use hyperlane_core::{HyperlaneChain, Mailbox, MultisigIsm};
 use eyre::{bail, Result};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc;
@@ -38,7 +38,7 @@ use super::SubmitMessageArgs;
 /// SerialSubmitter, and will eventually be retried according to our prioritization rule.
 ///
 /// Finally, the SerialSubmitter ensures that message delivery is robust to destination chain
-/// re-orgs prior to committing delivery status to AbacusDB.
+/// re-orgs prior to committing delivery status to HyperlaneDB.
 ///
 ///
 /// Objectives
@@ -124,7 +124,7 @@ pub(crate) struct SerialSubmitter {
     /// Multisig ism on the destination chain.
     multisig_ism: CachingMultisigIsm,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
-    db: AbacusDB,
+    db: HyperlaneDB,
     /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
     /// Used to determine if messages have made sufficient gas payments.
@@ -136,7 +136,7 @@ impl SerialSubmitter {
         rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
         multisig_ism: CachingMultisigIsm,
-        db: AbacusDB,
+        db: HyperlaneDB,
         metrics: SerialSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> Self {
@@ -316,10 +316,10 @@ impl SerialSubmitter {
         }
     }
 
-    /// Record in AbacusDB and various metrics that this process has observed the successful
+    /// Record in HyperlaneDB and various metrics that this process has observed the successful
     /// processing of a message. An Ok(()) value returned by this function is the 'commit' point
     /// in a message's lifetime for final processing -- after this function has been seen to
-    /// return 'Ok(())', then without a wiped AbacusDB, we will never re-attempt processing for
+    /// return 'Ok(())', then without a wiped HyperlaneDB, we will never re-attempt processing for
     /// this message again, even after the relayer restarts.
     fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         self.db.mark_nonce_as_processed(msg.message.nonce)?;

@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
-use abacus_core::{
-    db::{AbacusDB, DbError},
-    AbacusMessage, TxCostEstimate,
+use hyperlane_core::{
+    db::{HyperlaneDB, DbError},
+    HyperlaneMessage, TxCostEstimate,
 };
 use async_trait::async_trait;
 use ethers::types::{H256, U256};
@@ -20,7 +20,7 @@ mod policies;
 pub trait GasPaymentPolicy: Debug + Send + Sync {
     async fn message_meets_gas_payment_requirement(
         &self,
-        message: &AbacusMessage,
+        message: &HyperlaneMessage,
         current_payment: &U256,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<bool>;
@@ -29,11 +29,11 @@ pub trait GasPaymentPolicy: Debug + Send + Sync {
 #[derive(Debug)]
 pub struct GasPaymentEnforcer {
     policy: Box<dyn GasPaymentPolicy>,
-    db: AbacusDB,
+    db: HyperlaneDB,
 }
 
 impl GasPaymentEnforcer {
-    pub fn new(policy_config: GasPaymentEnforcementPolicy, db: AbacusDB) -> Self {
+    pub fn new(policy_config: GasPaymentEnforcementPolicy, db: HyperlaneDB) -> Self {
         let policy: Box<dyn GasPaymentPolicy> = match policy_config {
             GasPaymentEnforcementPolicy::None => Box::new(GasPaymentPolicyNone::new()),
             GasPaymentEnforcementPolicy::Minimum { payment } => {
@@ -52,7 +52,7 @@ impl GasPaymentEnforcer {
     /// Returns (gas payment requirement met, current payment according to the DB)
     pub async fn message_meets_gas_payment_requirement(
         &self,
-        message: &AbacusMessage,
+        message: &HyperlaneMessage,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<(bool, U256)> {
         let current_payment = self.get_message_gas_payment(message.id())?;

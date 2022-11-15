@@ -3,8 +3,8 @@ use eyre::WrapErr;
 use std::collections::HashMap;
 use std::env;
 
-use abacus_base::load_settings_object;
-use abacus_base::{AgentSettings, DomainSettings, NewFromAgentSettings};
+use hyperlane_base::load_settings_object;
+use hyperlane_base::{AgentSettings, DomainSettings, NewFromAgentSettings};
 
 /// Scraper settings work a bit differently than other agents because we need to
 /// load the information for all of the chains.

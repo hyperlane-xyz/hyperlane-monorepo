@@ -4,8 +4,8 @@ use std::{
     time::Duration,
 };
 
-use abacus_base::{CachingMailbox, CachingMultisigIsm};
-use abacus_core::{AbacusContract, ChainCommunicationError, Mailbox, MultisigIsm};
+use hyperlane_base::{CachingMailbox, CachingMultisigIsm};
+use hyperlane_core::{HyperlaneContract, ChainCommunicationError, Mailbox, MultisigIsm};
 use eyre::Result;
 use gelato::{
     sponsored_call::{SponsoredCallApiCall, SponsoredCallApiCallResult, SponsoredCallArgs},

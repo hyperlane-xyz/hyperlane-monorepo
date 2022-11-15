@@ -82,7 +82,7 @@ async function scraperHelmValues<Chain extends ChainName>(
   }));
 
   const valueDict = {
-    abacus: {
+    hyperlane: {
       runEnv: agentConfig.environment,
       context: agentConfig.context,
       // Expects an array

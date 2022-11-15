@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use abacus_core::{AbacusDomain, AbacusMessage, TxCostEstimate};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TxCostEstimate};
 use async_trait::async_trait;
 use coingecko::CoinGeckoClient;
 use ethers::types::U256;
@@ -35,21 +35,21 @@ impl<T> From<T> for CachedValue<T> {
 /// Given a domain, gets the CoinGecko ID for the native token.
 /// If the domain isn't a mainnet (and therefore doesn't have a native
 /// token with a CoinGecko ID), an Err is returned.
-fn abacus_domain_id_to_native_token_coingecko_id(domain_id: u32) -> Result<&'static str> {
-    let abacus_domain = AbacusDomain::try_from(domain_id)?;
+fn hyperlane_domain_id_to_native_token_coingecko_id(domain_id: u32) -> Result<&'static str> {
+    let hyperlane_domain = HyperlaneDomain::try_from(domain_id)?;
 
-    Ok(match abacus_domain {
-        AbacusDomain::Ethereum => "ethereum",
-        AbacusDomain::Polygon => "matic-network",
-        AbacusDomain::Avalanche => "avalanche-2",
+    Ok(match hyperlane_domain {
+        HyperlaneDomain::Ethereum => "ethereum",
+        HyperlaneDomain::Polygon => "matic-network",
+        HyperlaneDomain::Avalanche => "avalanche-2",
         // Arbitrum's native token is Ethereum
-        AbacusDomain::Arbitrum => "ethereum",
+        HyperlaneDomain::Arbitrum => "ethereum",
         // Optimism's native token is Ethereum
-        AbacusDomain::Optimism => "ethereum",
-        AbacusDomain::BinanceSmartChain => "binancecoin",
-        AbacusDomain::Celo => "celo",
-        AbacusDomain::Moonbeam => "moonbeam",
-        _ => eyre::bail!("No CoinGecko ID for domain {abacus_domain}"),
+        HyperlaneDomain::Optimism => "ethereum",
+        HyperlaneDomain::BinanceSmartChain => "binancecoin",
+        HyperlaneDomain::Celo => "celo",
+        HyperlaneDomain::Moonbeam => "moonbeam",
+        _ => eyre::bail!("No CoinGecko ID for domain {hyperlane_domain}"),
     })
 }
 
@@ -148,7 +148,7 @@ impl GasPaymentPolicyMeetsEstimatedCost {
     }
 
     async fn get_native_token_usd_price(&self, domain: u32) -> Result<f64> {
-        let coingecko_id = abacus_domain_id_to_native_token_coingecko_id(domain)?;
+        let coingecko_id = hyperlane_domain_id_to_native_token_coingecko_id(domain)?;
         self.coingecko_price_getter
             .get_usd_price(coingecko_id)
             .await
@@ -181,7 +181,7 @@ impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
     /// Returns (gas payment requirement met, current payment according to the DB)
     async fn message_meets_gas_payment_requirement(
         &self,
-        message: &AbacusMessage,
+        message: &HyperlaneMessage,
         current_payment: &U256,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<bool> {
@@ -227,7 +227,7 @@ fn convert_tokens(amount: U256, from_price: f64, to_price: f64) -> Option<U256> 
 
 #[tokio::test]
 async fn test_gas_payment_policy_meets_estimated_cost() {
-    use abacus_core::AbacusMessage;
+    use hyperlane_core::HyperlaneMessage;
     use ethers::types::H256;
 
     // Using a fake message from Celo -> Polygon, based off
@@ -237,8 +237,8 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
 
     let celo_price = 5.5f64;
     let polygon_price = 11.0f64;
-    let celo_domain_id = u32::from(AbacusDomain::Celo);
-    let polygon_domain_id = u32::from(AbacusDomain::Polygon);
+    let celo_domain_id = u32::from(HyperlaneDomain::Celo);
+    let polygon_domain_id = u32::from(HyperlaneDomain::Polygon);
 
     // Take advantage of the coingecko_price_getter caching already-stored values
     // by just writing to them directly.
@@ -252,15 +252,15 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
             .write()
             .await;
         let celo_coingecko_id =
-            abacus_domain_id_to_native_token_coingecko_id(celo_domain_id).unwrap();
+            hyperlane_domain_id_to_native_token_coingecko_id(celo_domain_id).unwrap();
         let polygon_coingecko_id =
-            abacus_domain_id_to_native_token_coingecko_id(polygon_domain_id).unwrap();
+            hyperlane_domain_id_to_native_token_coingecko_id(polygon_domain_id).unwrap();
 
         usd_prices.insert(celo_coingecko_id, celo_price.into());
         usd_prices.insert(polygon_coingecko_id, polygon_price.into());
     }
 
-    let message = AbacusMessage {
+    let message = HyperlaneMessage {
         version: 0,
         nonce: 10u32,
         origin: celo_domain_id,
@@ -374,16 +374,16 @@ fn test_convert_tokens() {
 }
 
 #[test]
-fn test_abacus_domain_id_to_native_token_coingecko_id() {
-    use abacus_core::AbacusDomainType;
+fn test_hyperlane_domain_id_to_native_token_coingecko_id() {
+    use hyperlane_core::HyperlaneDomainType;
     use strum::IntoEnumIterator;
 
-    // Iterate through all AbacusDomains, ensuring all mainnet domains
-    // are included in abacus_domain_id_to_native_token_coingecko_id.
-    for abacus_domain in AbacusDomain::iter() {
-        if let AbacusDomainType::Mainnet = abacus_domain.domain_type() {
+    // Iterate through all HyperlaneDomains, ensuring all mainnet domains
+    // are included in hyperlane_domain_id_to_native_token_coingecko_id.
+    for hyperlane_domain in HyperlaneDomain::iter() {
+        if let HyperlaneDomainType::Mainnet = hyperlane_domain.domain_type() {
             assert!(
-                abacus_domain_id_to_native_token_coingecko_id(u32::from(abacus_domain)).is_ok()
+                hyperlane_domain_id_to_native_token_coingecko_id(u32::from(hyperlane_domain)).is_ok()
             );
         }
     }

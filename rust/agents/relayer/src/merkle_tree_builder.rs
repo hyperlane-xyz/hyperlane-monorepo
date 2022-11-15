@@ -4,9 +4,9 @@ use ethers::core::types::H256;
 use eyre::Result;
 use tracing::{debug, error, instrument};
 
-use abacus_core::{
+use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
-    db::{AbacusDB, DbError},
+    db::{HyperlaneDB, DbError},
     ChainCommunicationError, Checkpoint,
 };
 
@@ -15,7 +15,7 @@ use crate::prover::{Prover, ProverError};
 /// Struct to sync prover.
 #[derive(Debug)]
 pub struct MerkleTreeBuilder {
-    db: AbacusDB,
+    db: HyperlaneDB,
     prover: Prover,
     incremental: IncrementalMerkle,
 }
@@ -71,7 +71,7 @@ pub enum MerkleTreeBuilderError {
 }
 
 impl MerkleTreeBuilder {
-    pub fn new(db: AbacusDB) -> Self {
+    pub fn new(db: HyperlaneDB) -> Self {
         let prover = Prover::default();
         let incremental = IncrementalMerkle::default();
         Self {
