@@ -312,7 +312,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     destination: Destination,
   ): Promise<BigNumber> {
     // TODO: Check the recipient module
-    const module = this.core.getContracts(destination).multisigModule;
+    const module = this.core.getContracts(destination).multisigIsm;
     const threshold = await module.threshold(origin);
     return threshold.mul(GAS_OVERHEAD_PER_SIGNATURE).add(GAS_OVERHEAD_BASE);
   }

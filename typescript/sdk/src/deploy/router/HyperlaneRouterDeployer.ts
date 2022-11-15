@@ -65,7 +65,7 @@ export abstract class HyperlaneRouterDeployer<
   }
 
   async enrollRemoteRouters(
-    contractsMap: ChainMap<Chain, Contracts>,
+    contractsMap: ChainMap<Chain, RouterContracts>,
   ): Promise<void> {
     this.logger(
       `Enrolling deployed routers with each other (if not already)...`,

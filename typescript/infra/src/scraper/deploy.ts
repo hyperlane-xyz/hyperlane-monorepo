@@ -83,7 +83,6 @@ async function scraperHelmValues<Chain extends ChainName>(
 
   const valueDict = {
     abacus: {
-      baseConfig: 'scraper_config.json',
       runEnv: agentConfig.environment,
       context: agentConfig.context,
       // Expects an array

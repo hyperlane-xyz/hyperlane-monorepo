@@ -25,7 +25,7 @@ export class HyperlaneCoreChecker<
     await this.checkDomainOwnership(chain);
     await this.checkProxiedContracts(chain);
     await this.checkMailbox(chain);
-    // await this.checkDefaultModule(chain);
+    // await this.checkDefaultIsm(chain);
     await this.checkInterchainGasPaymaster(chain);
   }
 
@@ -36,7 +36,7 @@ export class HyperlaneCoreChecker<
       const ownables = [
         contracts.upgradeBeaconController,
         // contracts.mailbox.contract,
-        contracts.multisigModule,
+        contracts.multisigIsm,
       ];
       return this.checkOwnership(chain, config.owner, ownables);
     }
@@ -48,16 +48,16 @@ export class HyperlaneCoreChecker<
     const localDomain = await mailbox.localDomain();
     utils.assert(localDomain === ChainNameToDomainId[chain]);
 
-    const actualModule = await mailbox.defaultModule();
-    const expectedModule = contracts.multisigModule.address;
-    if (actualModule !== expectedModule) {
+    const actualIsm = await mailbox.defaultIsm();
+    const expectedIsm = contracts.multisigIsm.address;
+    if (actualIsm !== expectedIsm) {
       const violation: MailboxViolation = {
         type: CoreViolationType.Mailbox,
-        mailboxType: MailboxViolationType.DefaultModule,
+        mailboxType: MailboxViolationType.DefaultIsm,
         contract: mailbox,
         chain,
-        actual: actualModule,
-        expected: expectedModule,
+        actual: actualIsm,
+        expected: expectedIsm,
       };
       this.addViolation(violation);
     }

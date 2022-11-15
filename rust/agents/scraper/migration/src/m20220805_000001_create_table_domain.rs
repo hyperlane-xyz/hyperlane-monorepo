@@ -32,6 +32,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "arbitrumgoerli",
+        token: "ETH",
+        domain: 421613,
+        chain_id: 421613,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "arbitrumrinkeby",
         token: "ETH",
         domain: 0x61722d72,
@@ -120,6 +128,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "moonbeam",
+        token: "GLMR",
+        domain: 0x6d6f2d6d,
+        chain_id: 1284,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "mumbai",
         token: "MATIC",
         domain: 80001,
@@ -133,6 +149,14 @@ const DOMAINS: &[RawDomain] = &[
         domain: 28528,
         chain_id: 10,
         is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "optimismgoerli",
+        token: "ETH",
+        domain: 420,
+        chain_id: 420,
+        is_test_net: true,
         is_deprecated: false,
     },
     RawDomain {
@@ -175,6 +199,14 @@ const DOMAINS: &[RawDomain] = &[
         is_test_net: true,
         is_deprecated: false,
     },
+    RawDomain {
+        name: "zksync2testnet",
+        token: "ETH",
+        domain: 280,
+        chain_id: 280,
+        is_test_net: true,
+        is_deprecated: false,
+    },
 ];
 
 #[derive(DeriveMigrationName)]
@@ -194,7 +226,12 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(Domain::TimeCreated).timestamp().not_null())
+                    .col(
+                        ColumnDef::new(Domain::TimeCreated)
+                            .timestamp()
+                            .not_null()
+                            .default("NOW()"),
+                    )
                     .col(ColumnDef::new(Domain::TimeUpdated).timestamp().not_null())
                     .col(ColumnDef::new(Domain::Name).text().not_null())
                     .col(ColumnDef::new(Domain::NativeToken).text().not_null())

@@ -16,8 +16,7 @@ pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
     pub domain: i32,
-    pub leaf_index: i32,
-    pub outbox_address: String,
+    pub msg_id: i32,
     pub amount: Decimal,
     pub tx_id: i64,
 }
@@ -27,8 +26,7 @@ pub enum Column {
     Id,
     TimeCreated,
     Domain,
-    LeafIndex,
-    OutboxAddress,
+    MsgId,
     Amount,
     TxId,
 }
@@ -58,8 +56,7 @@ impl ColumnTrait for Column {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Domain => ColumnType::Integer.def(),
-            Self::LeafIndex => ColumnType::Integer.def(),
-            Self::OutboxAddress => ColumnType::String(Some(64u32)).def(),
+            Self::MsgId => ColumnType::String(Some(64u32)).def().unique(),
             Self::Amount => ColumnType::Decimal(Some((78u32, 18u32))).def(),
             Self::TxId => ColumnType::BigInteger.def(),
         }

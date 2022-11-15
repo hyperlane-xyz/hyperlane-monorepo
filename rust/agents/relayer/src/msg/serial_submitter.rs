@@ -2,10 +2,10 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use abacus_base::CachingMailbox;
-use abacus_base::CachingMultisigModule;
+use abacus_base::CachingMultisigIsm;
 use abacus_base::CoreMetrics;
 use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusContract, Mailbox, MultisigModule};
+use abacus_core::{AbacusChain, Mailbox, MultisigIsm};
 use eyre::{bail, Result};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc;
@@ -121,8 +121,8 @@ pub(crate) struct SerialSubmitter {
     run_queue: VecDeque<SubmitMessageArgs>,
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
-    /// Multisig module on the destination chain.
-    multisig_module: CachingMultisigModule,
+    /// Multisig ism on the destination chain.
+    multisig_ism: CachingMultisigIsm,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
     /// Metrics for serial submitter.
@@ -135,7 +135,7 @@ impl SerialSubmitter {
     pub(crate) fn new(
         rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_module: CachingMultisigModule,
+        multisig_ism: CachingMultisigIsm,
         db: AbacusDB,
         metrics: SerialSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -145,7 +145,7 @@ impl SerialSubmitter {
             wait_queue: Vec::new(),
             run_queue: VecDeque::new(),
             mailbox,
-            multisig_module,
+            multisig_ism,
             db,
             metrics,
             gas_payment_enforcer,
@@ -253,7 +253,7 @@ impl SerialSubmitter {
             return Ok(true);
         }
         let metadata = self
-            .multisig_module
+            .multisig_ism
             .format_metadata(&msg.checkpoint, msg.proof)
             .await?;
 

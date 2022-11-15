@@ -1,6 +1,7 @@
 use std::cmp::min;
 use std::time::Duration;
 
+use eyre::Result;
 use tokio::time::sleep;
 use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
@@ -17,9 +18,7 @@ where
     I: MailboxIndexer + Clone + 'static,
 {
     /// Sync dispatched messages
-    pub fn sync_dispatched_messages(
-        &self,
-    ) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
+    pub fn sync_dispatched_messages(&self) -> Instrumented<tokio::task::JoinHandle<Result<()>>> {
         let span = info_span!("MessageContractSync");
 
         let db = self.db.clone();
@@ -91,6 +90,7 @@ where
 
             loop {
                 indexed_height.set(from as i64);
+                sleep(Duration::from_secs(5)).await;
 
                 // Only index blocks considered final.
                 // If there's an error getting the block number, just start the loop over
@@ -101,7 +101,7 @@ where
                 };
                 if tip <= from {
                     // Sleep if caught up to tip
-                    sleep(Duration::from_secs(1)).await;
+                    sleep(Duration::from_secs(10)).await;
                     continue;
                 }
 
@@ -127,7 +127,7 @@ where
                 // Filter out any messages that have already been successfully indexed and stored.
                 // This is necessary if we're re-indexing blocks in hope of finding missing messages.
                 if let Some(min_index) = last_nonce {
-                    sorted_messages = sorted_messages.into_iter().filter(|m| AbacusMessage::from((*m).clone()).nonce > min_index).collect();
+                    sorted_messages = sorted_messages.into_iter().filter(|m| AbacusMessage::from(m).nonce > min_index).collect();
                 }
 
                 debug!(
@@ -148,7 +148,7 @@ where
 
                         // Report latest leaf index to gauge by dst
                         for raw_msg in sorted_messages.iter() {
-                            let dst = AbacusMessage::try_from((*raw_msg).clone())
+                            let dst = AbacusMessage::try_from(raw_msg)
                                 .ok()
                                 .and_then(|msg| name_from_domain_id(msg.destination))
                                 .unwrap_or_else(|| "unknown".into());
@@ -441,7 +441,7 @@ mod test {
             );
 
             let sync_task = contract_sync.sync_dispatched_messages();
-            let test_pass_fut = timeout(Duration::from_secs(30), async move {
+            let test_pass_fut = timeout(Duration::from_secs(90), async move {
                 let mut interval = interval(Duration::from_millis(20));
                 loop {
                     if abacus_db.message_by_nonce(0).expect("!db").is_some()

@@ -28,7 +28,7 @@ export const resolveId = (nameOrDomain: NameOrDomain): number =>
     ? ChainNameToDomainId[nameOrDomain]
     : nameOrDomain;
 
-export const resolveNetworks = (
+export const resolveChains = (
   message: types.ParsedMessage,
 ): { origin: ChainName; destination: ChainName } => {
   return {
@@ -78,12 +78,10 @@ export class HyperlaneMessage {
     this.message = utils.parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
 
-    const messageNetworks = resolveNetworks(this.message);
+    const messageChains = resolveChains(this.message);
 
-    this.outbox = core.getContracts(messageNetworks.origin).mailbox.contract;
-    this.inbox = core.getContracts(
-      messageNetworks.destination,
-    ).mailbox.contract;
+    this.outbox = core.getContracts(messageChains.origin).mailbox.contract;
+    this.inbox = core.getContracts(messageChains.destination).mailbox.contract;
     this.cache = {};
   }
 

@@ -6,7 +6,13 @@ metadata:
     {{- include "agent-common.labels" . | nindent 4 }}
 data:
   RUN_ENV: {{ .Values.abacus.runEnv | quote }}
-  BASE_CONFIG: {{ .Values.abacus.baseConfig }}
+  {{- define "runDomains" -}}
+  {{- range .Values.abacus.outboxChains}}{{ print .name }},{{ end }}
+  {{- end }}
+  RUN_DOMAINS: {{ include "runDomains" . | trimSuffix "," | quote }}
+  {{- range .Values.abacus.outboxChains }}
+  BASE_CONFIG_{{ .name | upper }}: {{ printf "%s_config.json" (.name | lower ) | quote }}
+  {{- end }}
   RUST_BACKTRACE: {{ .Values.abacus.rustBacktrace }}
   HYP_BASE_DB: {{ .Values.abacus.dbPath }}
   HYP_BASE_TRACING_FMT: {{ .Values.abacus.tracing.format }}
@@ -17,16 +23,16 @@ data:
 
   {{- range .Values.abacus.outboxChains }}
   {{- if not .disabled }}
-  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_DISABLED: "false"
-  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_CONNECTION_TYPE: {{ .connection.type }}
+  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_DISABLED: "false"
+  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_CONNECTION_TYPE: {{ .connection.type }}
   {{- if eq .connection.type "httpQuorum" }}
-  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_CONNECTION_URLS: ""
+  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_CONNECTION_URLS: ""
   {{- else }}
-  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_CONNECTION_URL: ""
+  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_CONNECTION_URL: ""
   {{- end }}
-  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_NAME: {{ .name | lower }}
+  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_NAME: {{ .name | lower }}
   {{- else}}
-  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_DISABLED: "true"
+  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_DISABLED: "true"
   {{- end }}
   {{- end }}
 

@@ -1,15 +1,22 @@
+use ethers::abi::AbiEncode;
+use eyre::Context;
 use serde::Deserialize;
 
 use abacus_core::{
-    AbacusAbi, ContractLocator, InterchainGasPaymaster, Mailbox, MultisigModule, Signers,
+    AbacusAbi, AbacusProvider, ContractLocator, 
+    InterchainGasPaymaster, Mailbox, MultisigIsm, Signers,
 };
 use abacus_ethereum::{
-    Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
-    InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider, MultisigModuleBuilder,
+    AbacusProviderBuilder, Connection, EthereumInterchainGasPaymasterAbi,
+    EthereumMailboxAbi,  EthereumMultisigIsmAbi,
+    InterchainGasPaymasterBuilder, MakeableWithProvider,
+    MailboxBuilder, MultisigIsmBuilder
 };
-use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
+use ethers_prometheus::middleware::{
+    ChainInfo, ContractInfo, PrometheusMiddlewareConf,
+};
 
-use crate::CoreMetrics;
+use crate::{CoreMetrics};
 
 /// A connection to _some_ blockchain.
 ///
@@ -31,7 +38,8 @@ impl Default for ChainConf {
 #[derive(Copy, Clone, Debug, Default, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum TransactionSubmissionType {
-    /// Use the configured signer to sign and submit transactions in the "default" manner.
+    /// Use the configured signer to sign and submit transactions in the
+    /// "default" manner.
     #[default]
     Signer,
     /// Submit transactions via the Gelato relay.
@@ -52,8 +60,8 @@ pub struct GelatoConf {
 pub struct CoreContractAddresses {
     /// Address of the mailbox contract
     pub mailbox: String,
-    /// Address of the MultisigModule contract
-    pub multisig_module: String,
+    /// Address of the MultisigIsm contract
+    pub multisig_ism: String,
     /// Address of the InterchainGasPaymaster contract
     pub interchain_gas_paymaster: String,
 }
@@ -123,77 +131,69 @@ impl ChainSetup {
             .parse::<u32>()
             .expect("could not parse finality_blocks")
     }
-}
 
-impl ChainSetup {
+    /// Try to convert the chain settings into an AbacusProvider.
+    pub async fn try_into_provider(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn AbacusProvider>> {
+        let builder = AbacusProviderBuilder {};
+        let metrics_conf = {
+            let mut cfg = self.metrics_conf.clone();
+
+            if cfg.chain.is_none() {
+                cfg.chain = Some(ChainInfo {
+                    name: Some(self.name.clone()),
+                });
+            }
+
+            cfg
+        };
+
+        let address = match &self.chain {
+            ChainConf::Ethereum(_) => ethers::types::Address::zero().encode_hex(),
+        };
+        self.build(&address, None, metrics, metrics_conf, builder)
+            .await
+    }
+
     /// Try to convert the chain setting into a Mailbox contract
     pub async fn try_into_mailbox(
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn Mailbox>> {
-        self.try_into_contract(
-            signer,
-            metrics,
-            MailboxBuilder {},
-            self.addresses.mailbox.clone(),
-        )
-        .await
+        let address = &self.addresses.mailbox;
+        let builder = MailboxBuilder {};
+        self.build(address, signer, metrics, self.metrics_conf(), builder)
+            .await
+            .context("Building outbox")
     }
-
-    /// Try to convert the chain setting into an InterchainGasPaymaster contract
+    
+    /// Try to convert the chain setting into an interchain gas paymaster contract
     pub async fn try_into_interchain_gas_paymaster(
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn InterchainGasPaymaster>> {
-        self.try_into_contract(
-            signer,
-            metrics,
-            InterchainGasPaymasterBuilder {},
-            self.addresses.interchain_gas_paymaster.clone(),
-        )
-        .await
+        let address = &&self.addresses.interchain_gas_paymaster;
+        let builder = InterchainGasPaymasterBuilder {};
+        self.build(address, signer, metrics, self.metrics_conf(), builder)
+            .await
+            .context("Building igp")
     }
 
-    /// Try to convert the chain setting into a Multisig Module contract
-    pub async fn try_into_multisig_module(
+    /// Try to convert the chain setting into a Multisig Ism contract
+    pub async fn try_into_multisig_ism(
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn MultisigModule>> {
-        self.try_into_contract(
-            signer,
-            metrics,
-            MultisigModuleBuilder {},
-            self.addresses.multisig_module.clone(),
-        )
-        .await
-    }
-
-    /// Try to convert the chain setting into a contract
-    async fn try_into_contract<T: MakeableWithProvider>(
-        &self,
-        signer: Option<Signers>,
-        metrics: &CoreMetrics,
-        builder: T,
-        address: String,
-    ) -> eyre::Result<T::Output> {
-        match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(builder
-                .make_with_connection(
-                    conf.clone(),
-                    &ContractLocator {
-                        chain_name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: address.parse::<ethers::types::Address>()?.into(),
-                    },
-                    signer,
-                    Some(|| metrics.json_rpc_client_metrics()),
-                    Some((metrics.provider_metrics(), self.metrics_conf())),
-                )
-                .await?),
-        }
+    ) -> eyre::Result<Box<dyn MultisigIsm>> {
+        let address = &&self.addresses.multisig_ism;
+        let builder = MultisigIsmBuilder {};
+        self.build(address, signer, metrics, self.metrics_conf(), builder)
+            .await
+            .context("Building multisig ISM")
     }
 
     /// Get a clone of the metrics conf with correctly configured contract
@@ -219,6 +219,39 @@ impl ChainSetup {
                 functions: EthereumInterchainGasPaymasterAbi::fn_map_owned(),
             });
         }
+        if let Ok(addr) = self.addresses.multisig_ism.parse() {
+            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
+                name: Some("msm".into()),
+                functions: EthereumMultisigIsmAbi::fn_map_owned(),
+            });
+        }
         cfg
+    }
+
+    async fn build<B: MakeableWithProvider + Sync>(
+        &self,
+        address: &str,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+        metrics_conf: PrometheusMiddlewareConf,
+        builder: B,
+    ) -> eyre::Result<B::Output> {
+        match &self.chain {
+            ChainConf::Ethereum(conf) => {
+                builder
+                    .make_with_connection(
+                        conf.clone(),
+                        &ContractLocator {
+                            chain_name: self.name.clone(),
+                            domain: self.domain.parse().expect("invalid uint"),
+                            address: address.parse::<ethers::types::Address>()?.into(),
+                        },
+                        signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some((metrics.provider_metrics(), metrics_conf)),
+                    )
+                    .await
+            }
+        }
     }
 }

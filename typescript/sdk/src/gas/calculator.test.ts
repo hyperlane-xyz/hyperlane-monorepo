@@ -234,9 +234,9 @@ describe('InterchainGasCalculator', () => {
 
   describe('estimateGasForProcess', () => {
     let threshold: number;
-    // Mock the return value of MultisigModule.threshold
+    // Mock the return value of MultisigIsm.threshold
     // to return `threshold`. Because the mocking involves a closure,
-    // changing `threshold` will change the return value of MultisigModule.threshold.
+    // changing `threshold` will change the return value of MultisigIsm.threshold.
     before(() => {
       const getContractsStub = sinon.stub(core, 'getContracts');
       let thresholdStub: sinon.SinonStub | undefined;
@@ -247,16 +247,16 @@ describe('InterchainGasCalculator', () => {
 
         // Ethers contracts are frozen using Object.freeze, so we make a copy
         // of the object so we can stub `threshold`.
-        const multisigModule = Object.assign({}, contracts.multisigModule);
+        const multisigIsm = Object.assign({}, contracts.multisigIsm);
 
         // Because we are stubbing vaidatorManager.threshold when core.getContracts gets called,
         // we must ensure we don't try to stub more than once or sinon will complain.
         if (!thresholdStub) {
           thresholdStub = sinon
-            .stub(multisigModule, 'threshold')
-            .callsFake((_) => Promise.resolve(BigNumber.from(threshold)));
+            .stub(multisigIsm, 'threshold')
+            .callsFake(() => Promise.resolve(BigNumber.from(threshold)));
 
-          contracts.multisigModule = multisigModule;
+          contracts.multisigIsm = multisigIsm;
         }
         return contracts;
       });

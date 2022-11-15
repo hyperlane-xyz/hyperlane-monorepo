@@ -27,7 +27,7 @@ const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
 /// A trait for dynamic trait creation with provider initialization.
 
 #[async_trait]
-pub trait MakeableWithProvider: Sync {
+pub trait MakeableWithProvider {
     /// The type that will be created.
     type Output;
 
@@ -162,11 +162,12 @@ pub trait MakeableWithProvider: Sync {
             self.make_with_provider(signing_provider, locator)
         } else {
             self.make_with_provider(provider, locator)
-        })
+        }
+        .await)
     }
 
     /// Construct a new instance of the associated trait using a provider.
-    fn make_with_provider<M>(&self, provider: M, locator: &ContractLocator) -> Self::Output
+    async fn make_with_provider<M>(&self, provider: M, locator: &ContractLocator) -> Self::Output
     where
         M: Middleware + 'static;
 }

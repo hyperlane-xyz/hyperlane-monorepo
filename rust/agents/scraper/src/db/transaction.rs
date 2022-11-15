@@ -17,8 +17,16 @@ pub struct Model {
     pub time_created: TimeDateTime,
     pub hash: String,
     pub block_id: i64,
-    pub gas_used: Decimal,
+    pub gas_limit: f64,
+    pub max_priority_fee_per_gas: Option<f64>,
+    pub max_fee_per_gas: Option<f64>,
+    pub gas_price: Option<f64>,
+    pub effective_gas_price: Option<f64>,
+    pub nonce: i64,
     pub sender: String,
+    pub recipient: Option<String>,
+    pub gas_used: f64,
+    pub cumulative_gas_used: f64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -27,8 +35,16 @@ pub enum Column {
     TimeCreated,
     Hash,
     BlockId,
-    GasUsed,
+    GasLimit,
+    MaxPriorityFeePerGas,
+    MaxFeePerGas,
+    GasPrice,
+    EffectiveGasPrice,
+    Nonce,
     Sender,
+    Recipient,
+    GasUsed,
+    CumulativeGasUsed,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
@@ -60,8 +76,16 @@ impl ColumnTrait for Column {
             Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Hash => ColumnType::String(Some(64u32)).def().unique(),
             Self::BlockId => ColumnType::BigInteger.def(),
-            Self::GasUsed => ColumnType::Decimal(Some((78u32, 18u32))).def(),
+            Self::GasLimit => ColumnType::Double.def(),
+            Self::MaxPriorityFeePerGas => ColumnType::Double.def().null(),
+            Self::MaxFeePerGas => ColumnType::Double.def().null(),
+            Self::GasPrice => ColumnType::Double.def().null(),
+            Self::EffectiveGasPrice => ColumnType::Double.def().null(),
+            Self::Nonce => ColumnType::BigInteger.def(),
             Self::Sender => ColumnType::String(Some(64u32)).def(),
+            Self::Recipient => ColumnType::String(Some(64u32)).def().null(),
+            Self::GasUsed => ColumnType::Double.def(),
+            Self::CumulativeGasUsed => ColumnType::Double.def(),
         }
     }
 }

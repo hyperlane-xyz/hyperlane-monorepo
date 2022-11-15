@@ -25,8 +25,8 @@ pub mod macros;
 mod mailbox;
 pub use mailbox::*;
 
-mod multisig_module;
-pub use multisig_module::*;
+mod multisig_ism;
+pub use multisig_ism::*;
 
 mod metrics;
 pub use metrics::*;

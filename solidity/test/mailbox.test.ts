@@ -10,10 +10,10 @@ import {
   BadRecipient3__factory,
   BadRecipient5__factory,
   BadRecipient6__factory,
+  TestIsm,
+  TestIsm__factory,
   TestMailbox,
   TestMailbox__factory,
-  TestModule,
-  TestModule__factory,
   TestRecipient__factory,
 } from '../types';
 
@@ -25,13 +25,13 @@ const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
 describe('Mailbox', async () => {
   let mailbox: TestMailbox,
-    module: TestModule,
+    module: TestIsm,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
 
   beforeEach(async () => {
     [signer, nonOwner] = await ethers.getSigners();
-    const moduleFactory = new TestModule__factory(signer);
+    const moduleFactory = new TestIsm__factory(signer);
     module = await moduleFactory.deploy();
     const mailboxFactory = new TestMailbox__factory(signer);
     mailbox = await mailboxFactory.deploy(originDomain);
@@ -200,28 +200,28 @@ describe('Mailbox', async () => {
     });
   });
 
-  describe('#setDefaultModule', async () => {
-    let newModule: TestModule;
+  describe('#setDefaultIsm', async () => {
+    let newIsm: TestIsm;
     before(async () => {
-      const moduleFactory = new TestModule__factory(signer);
-      newModule = await moduleFactory.deploy();
+      const moduleFactory = new TestIsm__factory(signer);
+      newIsm = await moduleFactory.deploy();
     });
 
     it('Allows owner to update the default ISM', async () => {
-      await expect(mailbox.setDefaultModule(newModule.address))
-        .to.emit(mailbox, 'DefaultModuleSet')
-        .withArgs(newModule.address);
-      expect(await mailbox.defaultModule()).to.equal(newModule.address);
+      await expect(mailbox.setDefaultIsm(newIsm.address))
+        .to.emit(mailbox, 'DefaultIsmSet')
+        .withArgs(newIsm.address);
+      expect(await mailbox.defaultIsm()).to.equal(newIsm.address);
     });
 
     it('Does not allow non-owner to update the default ISM', async () => {
       await expect(
-        mailbox.connect(nonOwner).setDefaultModule(newModule.address),
+        mailbox.connect(nonOwner).setDefaultIsm(newIsm.address),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
     });
 
     it('Reverts if the provided ISM is not a contract', async () => {
-      await expect(mailbox.setDefaultModule(signer.address)).to.be.revertedWith(
+      await expect(mailbox.setDefaultIsm(signer.address)).to.be.revertedWith(
         '!contract',
       );
     });

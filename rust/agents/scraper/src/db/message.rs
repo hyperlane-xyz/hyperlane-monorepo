@@ -15,13 +15,14 @@ impl EntityName for Entity {
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
+    pub msg_id: String,
     pub origin: i32,
     pub destination: i32,
-    pub leaf_index: i32,
+    pub nonce: i32,
     pub sender: String,
     pub recipient: String,
     pub msg_body: Option<Vec<u8>>,
-    pub outbox_address: String,
+    pub mailbox_address: String,
     pub timestamp: TimeDateTime,
     pub origin_tx_id: i64,
 }
@@ -30,13 +31,14 @@ pub struct Model {
 pub enum Column {
     Id,
     TimeCreated,
+    MsgId,
     Origin,
     Destination,
-    LeafIndex,
+    Nonce,
     Sender,
     Recipient,
     MsgBody,
-    OutboxAddress,
+    MailboxAddress,
     Timestamp,
     OriginTxId,
 }
@@ -57,8 +59,8 @@ impl PrimaryKeyTrait for PrimaryKey {
 pub enum Relation {
     Domain,
     Transaction,
-    MessageState,
     DeliveredMessage,
+    MessageState,
 }
 
 impl ColumnTrait for Column {
@@ -67,13 +69,14 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
+            Self::MsgId => ColumnType::String(Some(64u32)).def().unique(),
             Self::Origin => ColumnType::Integer.def(),
             Self::Destination => ColumnType::Integer.def(),
-            Self::LeafIndex => ColumnType::Integer.def(),
+            Self::Nonce => ColumnType::Integer.def(),
             Self::Sender => ColumnType::String(Some(64u32)).def(),
             Self::Recipient => ColumnType::String(Some(64u32)).def(),
             Self::MsgBody => ColumnType::Binary.def().null(),
-            Self::OutboxAddress => ColumnType::String(Some(64u32)).def(),
+            Self::MailboxAddress => ColumnType::String(Some(64u32)).def(),
             Self::Timestamp => ColumnType::DateTime.def(),
             Self::OriginTxId => ColumnType::BigInteger.def(),
         }
@@ -91,8 +94,8 @@ impl RelationTrait for Relation {
                 .from(Column::OriginTxId)
                 .to(super::transaction::Column::Id)
                 .into(),
-            Self::MessageState => Entity::has_many(super::message_state::Entity).into(),
             Self::DeliveredMessage => Entity::has_one(super::delivered_message::Entity).into(),
+            Self::MessageState => Entity::has_many(super::message_state::Entity).into(),
         }
     }
 }
@@ -109,15 +112,15 @@ impl Related<super::transaction::Entity> for Entity {
     }
 }
 
-impl Related<super::message_state::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::MessageState.def()
-    }
-}
-
 impl Related<super::delivered_message::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::DeliveredMessage.def()
+    }
+}
+
+impl Related<super::message_state::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MessageState.def()
     }
 }
 

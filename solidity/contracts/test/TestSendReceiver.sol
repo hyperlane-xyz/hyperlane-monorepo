@@ -28,23 +28,14 @@ contract TestSendReceiver is IMessageRecipient {
         if (_blockHashNum % 5 == 0) {
             // Pay in two separate calls, resulting in 2 distinct events
             uint256 _half = _value / 2;
-            _paymaster.payGasFor{value: _half}(
-                address(_outbox),
-                _messageId,
-                _destinationDomain
-            );
+            _paymaster.payGasFor{value: _half}(_messageId, _destinationDomain);
             _paymaster.payGasFor{value: _value - _half}(
-                address(_outbox),
                 _messageId,
                 _destinationDomain
             );
         } else {
             // Pay the entire msg.value in one call
-            _paymaster.payGasFor{value: _value}(
-                address(_outbox),
-                _messageId,
-                _destinationDomain
-            );
+            _paymaster.payGasFor{value: _value}(_messageId, _destinationDomain);
         }
     }
 

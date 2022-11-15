@@ -7,8 +7,8 @@ import {
   CoreViolationType,
   EnrolledValidatorsViolation,
   HyperlaneCoreChecker,
-  MultisigModuleViolation,
-  MultisigModuleViolationType,
+  MultisigIsmViolation,
+  MultisigIsmViolationType,
   OwnerViolation,
   ViolationType,
   objMap,
@@ -124,10 +124,8 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
   protected async mapViolationsToCalls() {
     for (const violation of this.checker.violations) {
       switch (violation.type) {
-        case CoreViolationType.MultisigModule: {
-          this.handleMultisigModuleViolation(
-            violation as MultisigModuleViolation,
-          );
+        case CoreViolationType.MultisigIsm: {
+          this.handleMultisigIsmViolation(violation as MultisigIsmViolation);
           break;
         }
         case ViolationType.Owner: {
@@ -213,25 +211,25 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
       );
   }
 
-  handleMultisigModuleViolation(violation: MultisigModuleViolation) {
-    const multisigModule = violation.contract;
+  handleMultisigIsmViolation(violation: MultisigIsmViolation) {
+    const multisigIsm = violation.contract;
     const remoteDomainId = ChainNameToDomainId[violation.remote];
     switch (violation.subType) {
-      case MultisigModuleViolationType.EnrolledValidators: {
+      case MultisigIsmViolationType.EnrolledValidators: {
         const baseDescription = `as ${violation.remote} validator on ${violation.chain}`;
         this.pushSetReconcilationCalls({
           ...(violation as EnrolledValidatorsViolation),
           add: (validator) => ({
-            to: multisigModule.address,
-            data: multisigModule.interface.encodeFunctionData(
-              'enrollValidator',
-              [remoteDomainId, validator],
-            ),
+            to: multisigIsm.address,
+            data: multisigIsm.interface.encodeFunctionData('enrollValidator', [
+              remoteDomainId,
+              validator,
+            ]),
             description: `Enroll ${validator} ${baseDescription}`,
           }),
           remove: (validator) => ({
-            to: multisigModule.address,
-            data: multisigModule.interface.encodeFunctionData(
+            to: multisigIsm.address,
+            data: multisigIsm.interface.encodeFunctionData(
               'unenrollValidator',
               [remoteDomainId, validator],
             ),
@@ -240,10 +238,10 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
         });
         break;
       }
-      case MultisigModuleViolationType.Threshold: {
+      case MultisigIsmViolationType.Threshold: {
         this.pushCall(violation.chain as Chain, {
-          to: multisigModule.address,
-          data: multisigModule.interface.encodeFunctionData('setThreshold', [
+          to: multisigIsm.address,
+          data: multisigIsm.interface.encodeFunctionData('setThreshold', [
             remoteDomainId,
             violation.expected,
           ]),

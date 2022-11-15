@@ -13,7 +13,7 @@ use tracing::{info_span, Instrument};
 
 use abacus_core::db::AbacusDB;
 use abacus_core::{
-    AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, Mailbox, MailboxEvents,
+    AbacusChain, AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, Mailbox, MailboxEvents,
     MailboxIndexer, RawAbacusMessage, TxCostEstimate, TxOutcome,
 };
 
@@ -30,7 +30,7 @@ pub struct CachingMailbox {
 
 impl std::fmt::Display for CachingMailbox {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -87,31 +87,17 @@ impl CachingMailbox {
 
 #[async_trait]
 impl Mailbox for CachingMailbox {
-    fn local_domain(&self) -> u32 {
-        self.mailbox.local_domain()
-    }
-
     fn local_domain_hash(&self) -> H256 {
         self.mailbox.local_domain_hash()
+    }
+
+    async fn count(&self) -> Result<u32, ChainCommunicationError> {
+        self.mailbox.count().await
     }
 
     /// Fetch the status of a message
     async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
         self.mailbox.delivered(id).await
-    }
-
-    /// Get the status of a transaction.
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
-        self.mailbox.status(txid).await
-    }
-
-    /// Fetch the current default interchain security module value
-    async fn default_module(&self) -> Result<H256, ChainCommunicationError> {
-        self.mailbox.default_module().await
-    }
-
-    async fn count(&self) -> Result<u32, ChainCommunicationError> {
-        self.mailbox.count().await
     }
 
     async fn latest_checkpoint(
@@ -121,10 +107,20 @@ impl Mailbox for CachingMailbox {
         self.mailbox.latest_checkpoint(maybe_lag).await
     }
 
+    /// Get the status of a transaction.
+    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
+        self.mailbox.status(txid).await
+    }
+
+    /// Fetch the current default interchain security module value
+    async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
+        self.mailbox.default_ism().await
+    }
+
     async fn process(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         self.mailbox.process(message, metadata, tx_gas_limit).await
@@ -133,12 +129,12 @@ impl Mailbox for CachingMailbox {
     async fn process_estimate_costs(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
     ) -> Result<TxCostEstimate> {
         self.mailbox.process_estimate_costs(message, metadata).await
     }
 
-    fn process_calldata(&self, message: &AbacusMessage, metadata: &Vec<u8>) -> Vec<u8> {
+    fn process_calldata(&self, message: &AbacusMessage, metadata: &[u8]) -> Vec<u8> {
         self.mailbox.process_calldata(message, metadata)
     }
 }
@@ -168,11 +164,17 @@ impl MailboxEvents for CachingMailbox {
     }
 }
 
-impl AbacusContract for CachingMailbox {
+impl AbacusChain for CachingMailbox {
     fn chain_name(&self) -> &str {
         self.mailbox.chain_name()
     }
 
+    fn local_domain(&self) -> u32 {
+        self.mailbox.local_domain()
+    }
+}
+
+impl AbacusContract for CachingMailbox {
     fn address(&self) -> H256 {
         self.mailbox.address()
     }

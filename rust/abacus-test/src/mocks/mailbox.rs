@@ -33,27 +33,27 @@ mock! {
 
         pub fn _status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {}
 
-        pub fn _default_module(&self) -> Result<H256, ChainCommunicationError> {}
+        pub fn _default_ism(&self) -> Result<H256, ChainCommunicationError> {}
 
         pub fn _delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {}
 
         pub fn process(
             &self,
             message: &AbacusMessage,
-            metadata: &Vec<u8>,
+            metadata: &[u8],
             tx_gas_limit: Option<U256>,
         ) -> Result<TxOutcome, ChainCommunicationError> {}
 
         pub fn process_estimate_costs(
             &self,
             message: &AbacusMessage,
-            metadata: &Vec<u8>,
+            metadata: &[u8],
         ) -> Result<TxCostEstimate> {}
 
         pub fn process_calldata(
             &self,
             message: &AbacusMessage,
-            metadata: &Vec<u8>,
+            metadata: &[u8],
         ) -> Vec<u8> {}
 
         // AbacusContract
@@ -80,16 +80,12 @@ impl Mailbox for MockMailboxContract {
         self._latest_checkpoint(maybe_lag)
     }
 
-    fn local_domain(&self) -> u32 {
-        self._local_domain()
-    }
-
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
         self._status(txid)
     }
 
-    async fn default_module(&self) -> Result<H256, ChainCommunicationError> {
-        self._default_module()
+    async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
+        self._default_ism()
     }
 
     async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
@@ -99,7 +95,7 @@ impl Mailbox for MockMailboxContract {
     async fn process(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         self.process(message, metadata, tx_gas_limit)
@@ -108,21 +104,27 @@ impl Mailbox for MockMailboxContract {
     async fn process_estimate_costs(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
     ) -> Result<TxCostEstimate> {
         self.process_estimate_costs(message, metadata)
     }
 
-    fn process_calldata(&self, message: &AbacusMessage, metadata: &Vec<u8>) -> Vec<u8> {
+    fn process_calldata(&self, message: &AbacusMessage, metadata: &[u8]) -> Vec<u8> {
         self.process_calldata(message, metadata)
     }
 }
 
-impl AbacusContract for MockMailboxContract {
+impl AbacusChain for MockMailboxContract {
+    fn local_domain(&self) -> u32 {
+        self._local_domain()
+    }
+
     fn chain_name(&self) -> &str {
         self._chain_name()
     }
+}
 
+impl AbacusContract for MockMailboxContract {
     fn address(&self) -> H256 {
         self._address()
     }

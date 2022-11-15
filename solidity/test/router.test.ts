@@ -9,9 +9,9 @@ import { utils } from '@hyperlane-xyz/utils';
 import {
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
+  TestIsm__factory,
   TestMailbox,
   TestMailbox__factory,
-  TestModule__factory,
   TestRouter,
   TestRouter__factory,
 } from '../types';
@@ -69,7 +69,7 @@ describe('Router', async () => {
   describe('when initialized', () => {
     beforeEach(async () => {
       await router.initialize(mailbox.address);
-      const ism = await new TestModule__factory(signer).deploy();
+      const ism = await new TestIsm__factory(signer).deploy();
       await ism.setAccept(true);
       await mailbox.initialize(ism.address);
     });
@@ -174,7 +174,7 @@ describe('Router', async () => {
           );
           await assertion
             .emit(interchainGasPaymaster, 'GasPayment')
-            .withArgs(mailbox.address, id, testInterchainGasPayment);
+            .withArgs(id, testInterchainGasPayment);
         });
 
         it('reverts when dispatching a message to an unenrolled remote router', async () => {

@@ -13,7 +13,7 @@ use tracing::instrument;
 
 use abacus_core::{
     AbacusAbi, AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, ContractLocator,
-    Indexer, LogMeta, Mailbox, MailboxIndexer, RawAbacusMessage, TxCostEstimate, TxOutcome,
+    Indexer, LogMeta, Mailbox, MailboxIndexer, RawAbacusMessage, TxCostEstimate, TxOutcome, AbacusChain,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
@@ -33,10 +33,11 @@ pub struct MailboxIndexerBuilder {
     pub finality_blocks: u32,
 }
 
+#[async_trait]
 impl MakeableWithProvider for MailboxIndexerBuilder {
     type Output = Box<dyn MailboxIndexer>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -123,14 +124,33 @@ where
         });
         Ok(events)
     }
+
+    #[instrument(err, skip(self))]
+    async fn fetch_delivered_messages(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> Result<Vec<(H256, abacus_core::LogMeta)>> {
+        Ok(self
+            .contract
+            .process_filter()
+            .from_block(from)
+            .to_block(to)
+            .query_with_meta()
+            .await?
+            .into_iter()
+            .map(|(event, meta)| (H256::from(event.message_id), meta.into()))
+            .collect())
+    }
 }
 
 pub struct MailboxBuilder {}
 
+#[async_trait]
 impl MakeableWithProvider for MailboxBuilder {
     type Output = Box<dyn Mailbox>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -174,7 +194,7 @@ where
     async fn process_contract_call(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> Result<ContractCall<M, ()>, ChainCommunicationError> {
         let tx = self.contract.process(
@@ -191,7 +211,7 @@ where
     }
 }
 
-impl<M> AbacusContract for EthereumMailbox<M>
+impl<M> AbacusChain for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
@@ -199,6 +219,15 @@ where
         &self.chain_name
     }
 
+    fn local_domain(&self) -> u32 {
+        self.domain
+    }
+}
+
+impl<M> AbacusContract for EthereumMailbox<M>
+where
+    M: Middleware + 'static,
+{
     fn address(&self) -> H256 {
         self.contract.address().into()
     }
@@ -241,10 +270,6 @@ where
         })
     }
 
-    fn local_domain(&self) -> u32 {
-        self.domain
-    }
-
     #[tracing::instrument(err, skip(self))]
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
         let receipt_opt = self
@@ -258,20 +283,20 @@ where
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn default_module(&self) -> Result<H256, ChainCommunicationError> {
-        Ok(self.contract.default_module().call().await?.into())
+    async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
+        Ok(self.contract.default_ism().call().await?.into())
     }
 
     #[tracing::instrument(err)]
     async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
-        Ok(self.contract.delivered(id.into()).call().await?.into())
+        Ok(self.contract.delivered(id.into()).call().await?)
     }
 
     #[tracing::instrument(skip(self))]
     async fn process(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         let contract_call = self
@@ -284,7 +309,7 @@ where
     async fn process_estimate_costs(
         &self,
         message: &AbacusMessage,
-        metadata: &Vec<u8>,
+        metadata: &[u8],
     ) -> Result<TxCostEstimate> {
         let contract_call = self.process_contract_call(message, metadata, None).await?;
 
@@ -300,7 +325,7 @@ where
         })
     }
 
-    fn process_calldata(&self, message: &AbacusMessage, metadata: &Vec<u8>) -> Vec<u8> {
+    fn process_calldata(&self, message: &AbacusMessage, metadata: &[u8]) -> Vec<u8> {
         let process_call = ProcessCall {
             message: RawAbacusMessage::from(message).to_vec().into(),
             metadata: metadata.to_vec().into(),

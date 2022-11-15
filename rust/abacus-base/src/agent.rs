@@ -4,14 +4,13 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
-use serde::ser::StdError;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
 use abacus_core::db::DB;
 
-use crate::CachingMultisigModule;
+use crate::{CachingMultisigIsm, AgentSettings};
 use crate::{
     cancel_task, metrics::CoreMetrics, settings::Settings, CachingInterchainGasPaymaster,
     CachingMailbox,
@@ -25,7 +24,7 @@ pub struct AbacusAgentCore {
     /// A map of interchain gas paymaster contracts by chain name
     pub interchain_gas_paymasters: HashMap<String, CachingInterchainGasPaymaster>,
     /// A map of interchain gas paymaster contracts by chain name
-    pub multisig_modules: HashMap<String, CachingMultisigModule>,
+    pub multisig_isms: HashMap<String, CachingMultisigIsm>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -35,9 +34,9 @@ pub struct AbacusAgentCore {
 }
 
 /// Settings of an agent.
-pub trait AgentSettings: AsRef<Settings> + Sized {
+pub trait NewFromAgentSettings: AsRef<AgentSettings> + Sized {
     /// The error type returned by new on failures to parse.
-    type Error: 'static + StdError + Send + Sync;
+    type Error: Into<Report>;
 
     /// Create a new instance of these settings by reading the configs and env
     /// vars.
@@ -52,7 +51,7 @@ pub trait BaseAgent: Send + Sync + Debug {
     const AGENT_NAME: &'static str;
 
     /// The settings object for this agent
-    type Settings: AgentSettings;
+    type Settings: NewFromAgentSettings;
 
     /// Instantiate the agent from the standard settings object
     async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
@@ -74,13 +73,13 @@ pub trait Agent: BaseAgent {
     fn db(&self) -> &DB;
 
     /// Return a reference to a Mailbox contract
-    fn mailbox(&self, chain_name: String) -> &CachingMailbox;
+    fn mailbox(&self, chain_name: &str) -> Option<&CachingMailbox>;
 
     /// Return a reference to an InterchainGasPaymaster contract
-    fn interchain_gas_paymaster(&self, chain_name: String) -> &CachingInterchainGasPaymaster;
+    fn interchain_gas_paymaster(&self, chain_name: &str) -> Option<&CachingInterchainGasPaymaster>;
 
-    /// Return a reference to a Multisig Module contract
-    fn multisig_module(&self, chain_name: String) -> &CachingMultisigModule;
+    /// Return a reference to a Multisig Ism contract
+    fn multisig_ism(&self, chain_name: &str) -> Option<&CachingMultisigIsm>;
 }
 
 #[async_trait]
@@ -92,16 +91,16 @@ where
         &self.as_ref().db
     }
 
-    fn mailbox(&self, chain_name: String) -> &CachingMailbox {
-        &self.as_ref().mailboxes[&chain_name]
+    fn mailbox(&self, chain_name: &str) -> Option<&CachingMailbox> {
+        self.as_ref().mailboxes.get(chain_name)
     }
 
-    fn interchain_gas_paymaster(&self, chain_name: String) -> &CachingInterchainGasPaymaster {
-        &self.as_ref().interchain_gas_paymasters[&chain_name]
+    fn interchain_gas_paymaster(&self, chain_name: &str) -> Option<&CachingInterchainGasPaymaster> {
+        self.as_ref().interchain_gas_paymasters.get(chain_name)
     }
 
-    fn multisig_module(&self, chain_name: String) -> &CachingMultisigModule {
-        &self.as_ref().multisig_modules[&chain_name]
+    fn multisig_ism(&self, chain_name: &str) -> Option<&CachingMultisigIsm> {
+        self.as_ref().multisig_isms.get(chain_name)
     }
 }
 
@@ -116,8 +115,8 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     //#[cfg(not(any(feature = "color-eyre", feature = "oneline-eyre")))]
     //eyre::install()?;
 
-    let settings = A::Settings::new()?;
-    let core_settings: &Settings = settings.as_ref();
+    let settings = A::Settings::new().map_err(|e| e.into())?;
+    let core_settings: &AgentSettings = settings.as_ref();
 
     let metrics = settings.as_ref().try_into_metrics(A::AGENT_NAME)?;
     core_settings.tracing.start_tracing(&metrics)?;
@@ -132,6 +131,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
 pub fn run_all(
     tasks: Vec<Instrumented<JoinHandle<Result<(), Report>>>>,
 ) -> Instrumented<JoinHandle<Result<()>>> {
+    debug_assert!(!tasks.is_empty(), "No tasks submitted");
     let span = info_span!("run_all");
     tokio::spawn(async move {
         let (res, _, remaining) = select_all(tasks).await;
