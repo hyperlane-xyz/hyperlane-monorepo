@@ -26,14 +26,14 @@ export class HyperlaneCoreInfraDeployer<
     objMap(this.configMap, (chain) => {
       const contracts = this.deployedContracts[chain];
       const metadata = chainMetadata[chain];
-      // Keeps the transpiler happy.
+      // Don't write config for undeployed chains
       if (
         contracts == undefined ||
         contracts.mailbox == undefined ||
         contracts.interchainGasPaymaster == undefined ||
         contracts.multisigIsm == undefined
       ) {
-        throw new Error(`Missing contracts for ${chain}`);
+        return;
       }
 
       const chainConfig: RustChainSetup = {
