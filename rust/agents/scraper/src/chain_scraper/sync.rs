@@ -102,10 +102,10 @@ impl Syncer {
     #[instrument(skip(self), fields(chain_name = self.chain_name(), chink_size = self.chunk_size))]
     pub async fn run(mut self) -> Result<()> {
         info!(from = self.from, "Resuming chain sync");
+        self.indexed_message_height.set(self.from as i64);
+        self.indexed_deliveries_height.set(self.from as i64);
 
         loop {
-            self.indexed_message_height.set(self.from as i64);
-            self.indexed_deliveries_height.set(self.from as i64);
             sleep(Duration::from_secs(5)).await;
 
             let Ok(tip) = self.get_finalized_block_number().await else {
@@ -136,10 +136,14 @@ impl Syncer {
                     }
                     self.last_valid_range_start_block = full_chunk_from;
                     self.from = to + 1;
+                    self.indexed_message_height.set(to as i64);
+                    self.indexed_deliveries_height.set(to as i64);
                 }
                 ListValidity::Empty => {
                     let _ = self.record_data(sorted_messages, deliveries).await?;
                     self.from = to + 1;
+                    self.indexed_message_height.set(to as i64);
+                    self.indexed_deliveries_height.set(to as i64);
                 }
                 ListValidity::InvalidContinuation => {
                     self.missed_messages.inc();
