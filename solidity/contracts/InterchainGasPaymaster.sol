@@ -19,7 +19,7 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
      * @param messageId The ID of the message to pay for.
      * @param amount The amount of native tokens paid.
      */
-    event GasPayment(bytes32 messageId, uint256 amount);
+    event GasPayment(bytes32 indexed messageId, uint256 amount);
 
     // ============ Constructor ============
 

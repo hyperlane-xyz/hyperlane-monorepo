@@ -28,15 +28,15 @@ contract TestMailbox is Mailbox {
     }
 
     function testHandle(
-        uint32 origin,
-        bytes32 sender,
-        bytes32 recipient,
-        bytes calldata body
+        uint32 _origin,
+        bytes32 _sender,
+        bytes32 _recipient,
+        bytes calldata _body
     ) external {
-        IMessageRecipient(recipient.bytes32ToAddress()).handle(
-            origin,
-            sender,
-            body
+        IMessageRecipient(_recipient.bytes32ToAddress()).handle(
+            _origin,
+            _sender,
+            _body
         );
     }
 }
