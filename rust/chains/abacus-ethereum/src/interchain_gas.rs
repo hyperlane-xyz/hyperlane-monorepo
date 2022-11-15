@@ -45,7 +45,6 @@ impl MakeableWithProvider for InterchainGasPaymasterIndexerBuilder {
         Box::new(EthereumInterchainGasPaymasterIndexer::new(
             Arc::new(provider),
             locator,
-            self.mailbox_address,
             self.finality_blocks,
         ))
     }
@@ -59,7 +58,6 @@ where
 {
     contract: Arc<EthereumInterchainGasPaymasterInternal<M>>,
     provider: Arc<M>,
-    mailbox_address: H160,
     finality_blocks: u32,
 }
 
@@ -71,7 +69,6 @@ where
     pub fn new(
         provider: Arc<M>,
         locator: &ContractLocator,
-        mailbox_address: H160,
         finality_blocks: u32,
     ) -> Self {
         Self {
@@ -80,7 +77,6 @@ where
                 provider.clone(),
             )),
             provider,
-            mailbox_address,
             finality_blocks,
         }
     }
@@ -116,7 +112,6 @@ where
         let events = self
             .contract
             .gas_payment_filter()
-            .topic1(self.mailbox_address)
             .from_block(from_block)
             .to_block(to_block)
             .query_with_meta()
