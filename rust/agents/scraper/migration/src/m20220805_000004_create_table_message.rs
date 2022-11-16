@@ -65,6 +65,15 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(Message::Table)
+                    .name("msg_tx_timestamp")
+                    .col(Message::Timestamp)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(Message::Table)
                     .name("message_tx_idx")
                     .col(Message::OriginTxId)
                     .to_owned(),

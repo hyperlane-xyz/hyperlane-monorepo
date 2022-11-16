@@ -59,8 +59,8 @@ const walletBalanceGauge = new Gauge({
 });
 metricsRegister.registerMetric(walletBalanceGauge);
 
-// Min delta is 1/10 of the desired balance
-const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(1);
+// Min delta is 50% of the desired balance
+const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 
 const desiredBalancePerChain: CompleteChainMap<string> = {
@@ -75,7 +75,7 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   arbitrum: '0.01',
   bsc: '0.01',
   bsctestnet: '1',
-  goerli: '0.1',
+  goerli: '0.5',
   moonbasealpha: '1',
   moonbeam: '0.1',
   optimismgoerli: '0.1',

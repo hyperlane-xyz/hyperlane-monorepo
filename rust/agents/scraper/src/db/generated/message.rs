@@ -7,7 +7,7 @@ pub struct Entity;
 
 impl EntityName for Entity {
     fn table_name(&self) -> &str {
-        "delivered_message"
+        "message"
     }
 }
 
@@ -15,20 +15,32 @@ impl EntityName for Entity {
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
-    pub msg_id: String,
-    pub domain: i32,
-    pub mailbox_address: String,
-    pub tx_id: i64,
+    pub message_id: String,
+    pub origin: i32,
+    pub destination: i32,
+    pub nonce: i32,
+    pub sender: String,
+    pub recipient: String,
+    pub msg_body: Option<Vec<u8>>,
+    pub origin_mailbox: String,
+    pub timestamp: TimeDateTime,
+    pub origin_tx_id: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
 pub enum Column {
     Id,
     TimeCreated,
-    MsgId,
-    Domain,
-    MailboxAddress,
-    TxId,
+    MessageId,
+    Origin,
+    Destination,
+    Nonce,
+    Sender,
+    Recipient,
+    MsgBody,
+    OriginMailbox,
+    Timestamp,
+    OriginTxId,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
@@ -46,8 +58,8 @@ impl PrimaryKeyTrait for PrimaryKey {
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
     Domain,
-    Message,
     Transaction,
+    MessageState,
 }
 
 impl ColumnTrait for Column {
@@ -56,10 +68,16 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
-            Self::MsgId => ColumnType::String(Some(64u32)).def().unique(),
-            Self::Domain => ColumnType::Integer.def(),
-            Self::MailboxAddress => ColumnType::String(Some(64u32)).def(),
-            Self::TxId => ColumnType::BigInteger.def(),
+            Self::MessageId => ColumnType::String(Some(64u32)).def().unique(),
+            Self::Origin => ColumnType::Integer.def(),
+            Self::Destination => ColumnType::Integer.def(),
+            Self::Nonce => ColumnType::Integer.def(),
+            Self::Sender => ColumnType::String(Some(64u32)).def(),
+            Self::Recipient => ColumnType::String(Some(64u32)).def(),
+            Self::MsgBody => ColumnType::Binary.def().null(),
+            Self::OriginMailbox => ColumnType::String(Some(64u32)).def(),
+            Self::Timestamp => ColumnType::DateTime.def(),
+            Self::OriginTxId => ColumnType::BigInteger.def(),
         }
     }
 }
@@ -68,17 +86,14 @@ impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
             Self::Domain => Entity::belongs_to(super::domain::Entity)
-                .from(Column::Domain)
+                .from(Column::Origin)
                 .to(super::domain::Column::Id)
                 .into(),
-            Self::Message => Entity::belongs_to(super::message::Entity)
-                .from(Column::MsgId)
-                .to(super::message::Column::Id)
-                .into(),
             Self::Transaction => Entity::belongs_to(super::transaction::Entity)
-                .from(Column::TxId)
+                .from(Column::OriginTxId)
                 .to(super::transaction::Column::Id)
                 .into(),
+            Self::MessageState => Entity::has_many(super::message_state::Entity).into(),
         }
     }
 }
@@ -89,15 +104,15 @@ impl Related<super::domain::Entity> for Entity {
     }
 }
 
-impl Related<super::message::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Message.def()
-    }
-}
-
 impl Related<super::transaction::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Transaction.def()
+    }
+}
+
+impl Related<super::message_state::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MessageState.def()
     }
 }
 

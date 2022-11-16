@@ -234,6 +234,7 @@ impl SponsoredCallOp {
         self.mailbox.delivered(self.message.message.id()).await
     }
 
+    #[allow(clippy::result_large_err)]
     fn send_message_processed(
         &self,
     ) -> Result<(), tokio::sync::mpsc::error::SendError<SubmitMessageArgs>> {

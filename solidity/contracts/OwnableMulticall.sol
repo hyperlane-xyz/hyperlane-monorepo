@@ -4,11 +4,7 @@ pragma solidity ^0.8.13;
 // ============ External Imports ============
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
-struct Call {
-    address to;
-    bytes data;
-}
+import {Call} from "./Call.sol";
 
 /*
  * @title OwnableMulticall

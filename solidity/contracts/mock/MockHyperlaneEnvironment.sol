@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import "../contracts/mock/MockOutbox.sol";
-import "../contracts/mock/MockInbox.sol";
-import "../contracts/AbacusConnectionManager.sol";
-import "../contracts/middleware/InterchainQueryRouter.sol";
+import "./MockOutbox.sol";
+import "./MockInbox.sol";
+import "../AbacusConnectionManager.sol";
+import "../middleware/InterchainQueryRouter.sol";
 
-import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 
 contract MockHyperlaneEnvironment {
     uint32 originDomain;

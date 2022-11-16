@@ -51,12 +51,14 @@ pub trait MakeableWithProvider {
                     let http_provider =
                         Http::new_with_client(url.parse::<Url>()?, http_client.clone());
                     // Wrap the inner providers as RetryingProviders rather than the QuorumProvider.
-                    // We've observed issues where the QuorumProvider will first get the latest block
-                    // number and then submit an RPC at that block height, sometimes resulting in the
-                    // second RPC getting serviced by a node that isn't aware of the requested block
-                    // height yet. Retrying at the QuorumProvider level will result in both those RPCs
-                    // being retried, while retrying at the inner provider level will result in only the
-                    // second RPC being retried (the one with the error), which is the desired behavior.
+                    // We've observed issues where the QuorumProvider will first get the latest
+                    // block number and then submit an RPC at that block height,
+                    // sometimes resulting in the second RPC getting serviced by
+                    // a node that isn't aware of the requested block
+                    // height yet. Retrying at the QuorumProvider level will result in both those
+                    // RPCs being retried, while retrying at the inner provider
+                    // level will result in only the second RPC being retried
+                    // (the one with the error), which is the desired behavior.
                     let retrying_provider =
                         RetryingProvider::new(http_provider, Some(5), Some(1000));
                     let metrics_provider = self.wrap_rpc_with_metrics(
