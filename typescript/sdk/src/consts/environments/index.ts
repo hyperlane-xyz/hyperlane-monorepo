@@ -10,13 +10,12 @@ import testnet2 from './testnet2.json';
 export const environments = { test, testnet2, mainnet };
 
 type HyperlaneCoreAddressMap = LooseChainMap<{
-  outbox: types.Address;
-  connectionManager: types.Address;
+  mailbox: types.Address;
+  multisigIsm: types.Address;
   interchainGasPaymaster: types.Address;
   interchainAccountRouter: types.Address;
   interchainQueryRouter: types.Address;
   create2Factory: types.Address;
-  inboxes: Record<string, types.Address>;
 }>;
 
 // Export developer-relevant addresses

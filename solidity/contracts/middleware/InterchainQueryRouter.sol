@@ -53,13 +53,13 @@ contract InterchainQueryRouter is
         uint32 _destinationDomain,
         Call calldata call,
         bytes calldata callback
-    ) external returns (uint256 leafIndex) {
+    ) external returns (bytes32 messageId) {
         // TODO: fix this ugly arrayification
         Call[] memory calls = new Call[](1);
         calls[0] = call;
         bytes[] memory callbacks = new bytes[](1);
         callbacks[0] = callback;
-        leafIndex = query(_destinationDomain, calls, callbacks);
+        messageId = query(_destinationDomain, calls, callbacks);
     }
 
     /**
@@ -71,12 +71,12 @@ contract InterchainQueryRouter is
         uint32 _destinationDomain,
         Call[] memory calls,
         bytes[] memory callbacks
-    ) public returns (uint256 leafIndex) {
+    ) public returns (bytes32 messageId) {
         require(
             calls.length == callbacks.length,
             "InterchainQueryRouter: calls and callbacks must be same length"
         );
-        leafIndex = _dispatch(
+        messageId = _dispatch(
             _destinationDomain,
             abi.encode(Action.DISPATCH, msg.sender, calls, callbacks)
         );

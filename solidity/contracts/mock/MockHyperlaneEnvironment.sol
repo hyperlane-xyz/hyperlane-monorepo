@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import "./MockOutbox.sol";
-import "./MockInbox.sol";
-import "../AbacusConnectionManager.sol";
+import "./MockMailbox.sol";
 import "../middleware/InterchainQueryRouter.sol";
 
 import {TypeCasts} from "../libs/TypeCasts.sol";
@@ -12,57 +10,30 @@ contract MockHyperlaneEnvironment {
     uint32 originDomain;
     uint32 destinationDomain;
 
-    mapping(uint32 => MockOutbox) public outboxes;
-    mapping(uint32 => MockInbox) public inboxes;
-    mapping(uint32 => AbacusConnectionManager) public connectionManagers;
+    mapping(uint32 => MockMailbox) public mailboxes;
     mapping(uint32 => InterchainQueryRouter) public queryRouters;
 
     constructor(uint32 _originDomain, uint32 _destinationDomain) {
         originDomain = _originDomain;
         destinationDomain = _destinationDomain;
 
-        MockInbox originInbox = new MockInbox();
-        MockOutbox originOutbox = new MockOutbox(
-            _originDomain,
-            address(originInbox)
-        );
+        MockMailbox originMailbox = new MockMailbox(_originDomain);
+        MockMailbox destinationMailbox = new MockMailbox(_destinationDomain);
 
-        MockInbox destinationInbox = new MockInbox();
-        MockOutbox destinationOutbox = new MockOutbox(
-            _destinationDomain,
-            address(destinationInbox)
-        );
-
-        outboxes[_originDomain] = originOutbox;
-        outboxes[_destinationDomain] = destinationOutbox;
-        inboxes[_originDomain] = destinationInbox;
-        inboxes[_destinationDomain] = originInbox;
-
-        AbacusConnectionManager originManager = new AbacusConnectionManager();
-        AbacusConnectionManager destinationManager = new AbacusConnectionManager();
-
-        originManager.setOutbox(address(originOutbox));
-        destinationManager.enrollInbox(
-            _destinationDomain,
-            address(originInbox)
-        );
-        destinationManager.setOutbox(address(destinationOutbox));
-        originManager.enrollInbox(_originDomain, address(destinationInbox));
-
-        connectionManagers[_originDomain] = originManager;
-        connectionManagers[_destinationDomain] = destinationManager;
+        mailboxes[_originDomain] = originMailbox;
+        mailboxes[_destinationDomain] = destinationMailbox;
 
         InterchainQueryRouter originQueryRouter = new InterchainQueryRouter();
         InterchainQueryRouter destinationQueryRouter = new InterchainQueryRouter();
 
         originQueryRouter.initialize(
             address(this),
-            address(originManager),
+            address(originMailbox),
             address(0)
         );
         destinationQueryRouter.initialize(
             address(this),
-            address(destinationManager),
+            address(destinationMailbox),
             address(0)
         );
 
@@ -79,19 +50,11 @@ contract MockHyperlaneEnvironment {
         queryRouters[_destinationDomain] = destinationQueryRouter;
     }
 
-    function connectionManager(uint32 _domain)
-        public
-        view
-        returns (AbacusConnectionManager)
-    {
-        return connectionManagers[_domain];
-    }
-
     function processNextPendingMessage() public {
-        inboxes[destinationDomain].processNextPendingMessage();
+        mailboxes[destinationDomain].processNextInboundMessage();
     }
 
     function processNextPendingMessageFromDestination() public {
-        inboxes[originDomain].processNextPendingMessage();
+        mailboxes[originDomain].processNextInboundMessage();
     }
 }

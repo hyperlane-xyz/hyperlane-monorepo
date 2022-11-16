@@ -40,7 +40,7 @@ contract MockInterchainAccountRouter is IInterchainAccountRouter {
 
     function dispatch(uint32, Call[] calldata calls)
         external
-        returns (uint256)
+        returns (bytes32)
     {
         pendingCalls[totalCalls] = PendingCall(
             originDomain,
@@ -48,7 +48,7 @@ contract MockInterchainAccountRouter is IInterchainAccountRouter {
             abi.encode(calls)
         );
         totalCalls += 1;
-        return totalCalls;
+        return keccak256(abi.encodePacked(totalCalls));
     }
 
     function getInterchainAccount(uint32 _origin, address _sender)
