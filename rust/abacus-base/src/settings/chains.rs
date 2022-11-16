@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use ethers::signers::Signer;
 
 use abacus_core::{
     AbacusAbi, ContractLocator, InterchainGasPaymaster, Mailbox, MultisigIsm, Signers,
@@ -7,7 +8,7 @@ use abacus_ethereum::{
     Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi, EthereumMultisigIsmAbi,
     InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider, MultisigIsmBuilder,
 };
-use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
+use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo};
 
 use crate::CoreMetrics;
 
@@ -172,13 +173,14 @@ impl ChainSetup {
     }
 
     /// Try to convert the chain setting into a contract
-    async fn try_into_contract<T: MakeableWithProvider>(
+    pub async fn try_into_contract<T: MakeableWithProvider>(
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
         builder: T,
         address: String,
     ) -> eyre::Result<T::Output> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(builder
                 .make_with_connection(
@@ -190,7 +192,7 @@ impl ChainSetup {
                     },
                     signer,
                     Some(|| metrics.json_rpc_client_metrics()),
-                    Some((metrics.provider_metrics(), self.metrics_conf())),
+                    Some((metrics.provider_metrics(), metrics_conf))
                 )
                 .await?),
         }
@@ -198,12 +200,24 @@ impl ChainSetup {
 
     /// Get a clone of the metrics conf with correctly configured contract
     /// information.
-    pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
+    pub fn metrics_conf(
+        &self,
+        agent_name: &str,
+        signer: &Option<Signers>,
+    ) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
 
         if cfg.chain.is_none() {
             cfg.chain = Some(ChainInfo {
                 name: Some(self.name.clone()),
+            });
+        }
+
+        if let Some(signer) = signer {
+            cfg.wallets
+            .entry(signer.address())
+            .or_insert_with(|| WalletInfo {
+                name: Some(agent_name.into()),
             });
         }
 

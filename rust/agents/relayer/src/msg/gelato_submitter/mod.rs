@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use abacus_base::chains::GelatoConf;
-use abacus_base::{CachingMailbox, CachingMultisigIsm, CoreMetrics};
+use abacus_base::{CachingMailbox, CoreMetrics};
 use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusDomain, Mailbox};
+use abacus_core::{AbacusDomain, Mailbox, MultisigIsm};
 use eyre::{bail, Result};
 use gelato::types::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
@@ -32,7 +32,7 @@ pub(crate) struct GelatoSubmitter {
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
     /// Multisig ISM on the destination chain.
-    multisig_ism: CachingMultisigIsm,
+    multisig_ism: Arc<dyn MultisigIsm>,
     /// The destination chain in the format expected by the Gelato crate.
     destination_gelato_chain: Chain,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
@@ -53,7 +53,7 @@ impl GelatoSubmitter {
     pub fn new(
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_ism: CachingMultisigIsm,
+        multisig_ism: Arc<dyn MultisigIsm>,
         abacus_db: AbacusDB,
         gelato_config: GelatoConf,
         metrics: GelatoSubmitterMetrics,

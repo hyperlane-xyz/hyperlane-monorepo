@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::{collections::HashMap, sync::Arc};
 
+use abacus_core::MultisigIsm;
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
@@ -11,7 +12,6 @@ use tracing::{info_span, Instrument};
 
 use abacus_core::db::DB;
 
-use crate::CachingMultisigIsm;
 use crate::{
     cancel_task, metrics::CoreMetrics, settings::Settings, CachingInterchainGasPaymaster,
     CachingMailbox,
@@ -25,7 +25,7 @@ pub struct AbacusAgentCore {
     /// A map of interchain gas paymaster contracts by chain name
     pub interchain_gas_paymasters: HashMap<String, CachingInterchainGasPaymaster>,
     /// A map of interchain gas paymaster contracts by chain name
-    pub multisig_isms: HashMap<String, CachingMultisigIsm>,
+    pub multisig_isms: HashMap<String, Arc<dyn MultisigIsm>>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -80,7 +80,7 @@ pub trait Agent: BaseAgent {
     fn interchain_gas_paymaster(&self, chain_name: &str) -> Option<&CachingInterchainGasPaymaster>;
 
     /// Return a reference to a Multisig Ism contract
-    fn multisig_ism(&self, chain_name: &str) -> Option<&CachingMultisigIsm>;
+    fn multisig_ism(&self, chain_name: &str) -> Option<&Arc<dyn MultisigIsm>>;
 }
 
 #[async_trait]
@@ -100,7 +100,7 @@ where
         self.as_ref().interchain_gas_paymasters.get(chain_name)
     }
 
-    fn multisig_ism(&self, chain_name: &str) -> Option<&CachingMultisigIsm> {
+    fn multisig_ism(&self, chain_name: &str) -> Option<&Arc<dyn MultisigIsm>> {
         self.as_ref().multisig_isms.get(chain_name)
     }
 }
@@ -113,8 +113,8 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     crate::oneline_eyre::install()?;
     #[cfg(all(feature = "color_eyre", not(feature = "oneline-errors")))]
     color_eyre::install()?;
-    //#[cfg(not(any(feature = "color-eyre", feature = "oneline-eyre")))]
-    //eyre::install()?;
+    #[cfg(not(any(feature = "color-eyre", feature = "oneline-eyre")))]
+    eyre::install()?;
 
     let settings = A::Settings::new()?;
     let core_settings: &Settings = settings.as_ref();

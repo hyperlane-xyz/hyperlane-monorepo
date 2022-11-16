@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use abacus_base::{CachingMailbox, CachingMultisigIsm};
+use abacus_base::{CachingMailbox};
 use abacus_core::{AbacusContract, ChainCommunicationError, Mailbox, MultisigIsm};
 use eyre::Result;
 use gelato::{
@@ -30,7 +30,7 @@ pub struct SponsoredCallOpArgs {
 
     pub message: SubmitMessageArgs,
     pub mailbox: CachingMailbox,
-    pub multisig_ism: CachingMultisigIsm,
+    pub multisig_ism: Arc<dyn MultisigIsm>,
     pub sponsor_api_key: String,
     pub destination_chain: Chain,
 

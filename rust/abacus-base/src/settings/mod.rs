@@ -89,14 +89,14 @@ use tracing::instrument;
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
-    ContractLocator, InterchainGasPaymasterIndexer, MailboxIndexer, Signers,
+    InterchainGasPaymasterIndexer, MailboxIndexer, Signers, MultisigIsm,
 };
 use abacus_ethereum::{
-    InterchainGasPaymasterIndexerBuilder, MailboxIndexerBuilder, MakeableWithProvider,
+    InterchainGasPaymasterIndexerBuilder, MailboxIndexerBuilder
 };
 pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 
-use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster, CachingMultisigIsm};
+use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
 use crate::{AbacusAgentCore, CachingMailbox, CoreMetrics};
 
 use self::chains::GelatoConf;
@@ -270,14 +270,14 @@ impl Settings {
         db: DB,
         metrics: &CoreMetrics,
         chain_names: &[&str],
-    ) -> eyre::Result<HashMap<String, CachingMultisigIsm>> {
-        let mut result = HashMap::new();
+    ) -> eyre::Result<HashMap<String, Arc<dyn MultisigIsm>>> {
+        let mut result: HashMap<String, Arc<dyn MultisigIsm>> = HashMap::new();
         for &chain_name in chain_names {
             if let Some(x) = self.chains.get(chain_name) {
                 let multisig_ism = self
-                    .try_caching_multisig_ism(x, db.clone(), metrics)
+                    .try_multisig_ism(x, db.clone(), metrics)
                     .await?;
-                result.insert(chain_name.into(), multisig_ism);
+                result.insert(chain_name.into(), multisig_ism.into());
             } else {
                 bail!("No chain setup found for {}", chain_name)
             }
@@ -325,18 +325,18 @@ impl Settings {
         ))
     }
 
-    /// Try to get a CachingMultisigIsm
-    async fn try_caching_multisig_ism(
+    /// Try to get a MultisigIsm
+    async fn try_multisig_ism(
         &self,
         chain_setup: &ChainSetup,
         _db: DB,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<CachingMultisigIsm> {
+    ) -> eyre::Result<Box<dyn MultisigIsm>> {
         let signer = self.get_signer(&chain_setup.name).await;
         let multisig_ism = chain_setup
             .try_into_multisig_ism(signer, metrics)
             .await?;
-        Ok(CachingMultisigIsm::new(multisig_ism.into()))
+        Ok(multisig_ism)
     }
 
     /// Try to get an indexer object for a given mailbox
@@ -345,27 +345,15 @@ impl Settings {
         metrics: &CoreMetrics,
         chain_setup: &ChainSetup,
     ) -> eyre::Result<Box<dyn MailboxIndexer>> {
-        match &chain_setup.chain {
-            ChainConf::Ethereum(conn) => Ok(MailboxIndexerBuilder {
+        chain_setup.try_into_contract(
+            self.get_signer(&chain_setup.name).await,
+            metrics,
+            MailboxIndexerBuilder {
                 finality_blocks: chain_setup.finality_blocks(),
-            }
-            .make_with_connection(
-                conn.clone(),
-                &ContractLocator {
-                    chain_name: chain_setup.name.clone(),
-                    domain: chain_setup.domain.parse().expect("invalid uint"),
-                    address: chain_setup
-                        .addresses
-                        .mailbox
-                        .parse::<ethers::types::Address>()?
-                        .into(),
-                },
-                self.get_signer(&chain_setup.name).await,
-                Some(|| metrics.json_rpc_client_metrics()),
-                Some((metrics.provider_metrics(), chain_setup.metrics_conf())),
-            )
-            .await?),
-        }
+            },
+            chain_setup.addresses.mailbox.clone(),
+        )
+        .await
     }
 
     /// Try to get an indexer object for a given interchain gas paymaster
@@ -374,75 +362,20 @@ impl Settings {
         metrics: &CoreMetrics,
         chain_setup: &ChainSetup,
     ) -> eyre::Result<Box<dyn InterchainGasPaymasterIndexer>> {
-        match &chain_setup.chain {
-            ChainConf::Ethereum(conn) => Ok(InterchainGasPaymasterIndexerBuilder {
+        chain_setup.try_into_contract(
+            self.get_signer(&chain_setup.name).await,
+            metrics,
+            InterchainGasPaymasterIndexerBuilder {
                 mailbox_address: chain_setup
                     .addresses
                     .mailbox
                     .parse::<ethers::types::Address>()?,
                 finality_blocks: chain_setup.finality_blocks(),
-            }
-            .make_with_connection(
-                conn.clone(),
-                &ContractLocator {
-                    chain_name: chain_setup.name.clone(),
-                    domain: chain_setup.domain.parse().expect("invalid uint"),
-                    address: chain_setup
-                        .addresses
-                        .interchain_gas_paymaster
-                        .parse::<ethers::types::Address>()?
-                        .into(),
-                },
-                self.get_signer(&chain_setup.name).await,
-                Some(|| metrics.json_rpc_client_metrics()),
-                Some((metrics.provider_metrics(), chain_setup.metrics_conf())),
-            )
-            .await?),
-        }
+            },
+            chain_setup.addresses.interchain_gas_paymaster.clone(),
+        )
+        .await
     }
-
-    /// Try to get an indexer object for an interchain gas paymaster.
-    /// This function is only expected to be called when it's already been
-    /// confirmed that the interchain gas paymaster address was provided in
-    /// settings.
-    /*
-    pub async fn try_interchain_gas_paymaster_indexer(
-        &self,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn InterchainGasPaymasterIndexer>> {
-        match &self.outbox.chain {
-            ChainConf::Ethereum(conn) => Ok(InterchainGasPaymasterIndexerBuilder {
-                outbox_address: self
-                    .outbox
-                    .addresses
-                    .outbox
-                    .parse::<ethers::types::Address>()?,
-                from_height: self.index.from(),
-                chunk_size: self.index.chunk_size(),
-                finality_blocks: self.outbox.finality_blocks(),
-            }
-            .make_with_connection(
-                conn.clone(),
-                &ContractLocator {
-                    chain_name: self.outbox.name.clone(),
-                    domain: self.outbox.domain.parse().expect("invalid uint"),
-                    address: self
-                        .outbox
-                        .addresses
-                        .interchain_gas_paymaster
-                        .as_ref()
-                        .expect("interchain_gas_paymaster not provided")
-                        .parse::<ethers::types::Address>()?
-                        .into(),
-                },
-                self.get_signer(&self.outbox.name).await,
-                Some(|| metrics.json_rpc_client_metrics()),
-                Some((metrics.provider_metrics(), self.outbox.metrics_conf())),
-            )
-            .await?),
-        }
-    }
-    */
 
     /// Create the core metrics from the settings given the name of the agent.
     pub fn try_into_metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {

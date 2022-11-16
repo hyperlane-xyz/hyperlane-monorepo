@@ -6,7 +6,7 @@ use tokio::time::sleep;
 use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
-use abacus_core::{name_from_domain_id, AbacusMessage, ListValidity, MailboxIndexer};
+use abacus_core::{name_from_domain_id, ListValidity, MailboxIndexer};
 
 use crate::contract_sync::last_message::validate_message_continuity;
 use crate::{contract_sync::schema::OutboxContractSyncDB, ContractSync};
@@ -126,7 +126,7 @@ where
                 // Filter out any messages that have already been successfully indexed and stored.
                 // This is necessary if we're re-indexing blocks in hope of finding missing messages.
                 if let Some(min_index) = last_nonce {
-                    sorted_messages = sorted_messages.into_iter().filter(|m| AbacusMessage::from(m).nonce > min_index).collect();
+                    sorted_messages = sorted_messages.into_iter().filter(|m| m.nonce > min_index).collect();
                 }
 
                 debug!(
@@ -146,11 +146,8 @@ where
                         stored_messages.inc_by(sorted_messages.len() as u64);
 
                         // Report latest leaf index to gauge by dst
-                        for raw_msg in sorted_messages.iter() {
-                            let dst = AbacusMessage::try_from(raw_msg)
-                                .ok()
-                                .and_then(|msg| name_from_domain_id(msg.destination))
-                                .unwrap_or_else(|| "unknown".into());
+                        for msg in sorted_messages.iter() {
+                            let dst = name_from_domain_id(msg.destination).unwrap_or_else(|| "unknown".into());
                             message_nonce
                                 .with_label_values(&["dispatch", &chain_name, &dst])
                                 .set(max_nonce_of_batch as i64);
@@ -256,7 +253,7 @@ mod test {
                 let mut seq = Sequence::new();
 
                 // Return m0.
-                let m0 = RawAbacusMessage::from(&messages[0]);
+                let m0 = messages[0].clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -270,7 +267,7 @@ mod test {
                     .return_once(move |_, _| Ok(vec![(m0, meta())]));
 
                 // Return m1, miss m2.
-                let m1 = RawAbacusMessage::from(&messages[1]);
+                let m1 = messages[1].clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -316,7 +313,7 @@ mod test {
                     .return_once(|| Ok(140));
 
                 // m1 --> m5 seen as an invalid continuation
-                let m5 = RawAbacusMessage::from(&messages[5]);
+                let m5 = messages[5].clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -332,8 +329,8 @@ mod test {
                 // Indexer goes back to the last valid message range start block
                 // and indexes the range based off the chunk size of 19.
                 // This time it gets m1 and m2 (which was previously skipped)
-                let m1 = RawAbacusMessage::from(&messages[1]);
-                let m2 = RawAbacusMessage::from(&messages[2]);
+                let m1 = messages[1].clone();
+                let m2 = messages[2].clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -348,8 +345,8 @@ mod test {
 
                 // Indexer continues, this time getting m3 and m5 message, but skipping m4,
                 // which means this range contains gaps
-                let m3 = RawAbacusMessage::from(&messages[3]);
-                let m5 = RawAbacusMessage::from(&messages[5]);
+                let m3 = messages[3].clone();
+                let m5 = messages[5].clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -364,9 +361,9 @@ mod test {
 
                 // Indexer retries, the same range in hope of filling the gap,
                 // which it now does successfully
-                let m3 = RawAbacusMessage::from(&messages[3]);
-                let m4 = RawAbacusMessage::from(&messages[4]);
-                let m5 = RawAbacusMessage::from(&messages[5]);
+                let m3 = messages[3].clone();
+                let m4 = messages[4].clone();
+                let m5 = messages[5].clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)

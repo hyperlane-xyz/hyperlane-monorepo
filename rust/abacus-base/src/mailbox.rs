@@ -7,14 +7,13 @@ use ethers::types::U256;
 use eyre::Result;
 use futures_util::future::select_all;
 use tokio::task::JoinHandle;
-use tokio::time::{sleep, Duration};
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
 use abacus_core::db::AbacusDB;
 use abacus_core::{
-    AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, Mailbox, MailboxEvents,
-    MailboxIndexer, RawAbacusMessage, TxCostEstimate, TxOutcome,
+    AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, Mailbox,
+    MailboxIndexer, TxCostEstimate, TxOutcome,
 };
 
 use crate::chains::IndexSettings;
@@ -111,11 +110,6 @@ impl Mailbox for CachingMailbox {
         self.mailbox.latest_checkpoint(maybe_lag).await
     }
 
-    /// Get the status of a transaction.
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
-        self.mailbox.status(txid).await
-    }
-
     /// Fetch the current default interchain security module value
     async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
         self.mailbox.default_ism().await
@@ -140,31 +134,6 @@ impl Mailbox for CachingMailbox {
 
     fn process_calldata(&self, message: &AbacusMessage, metadata: &[u8]) -> Vec<u8> {
         self.mailbox.process_calldata(message, metadata)
-    }
-}
-
-#[async_trait]
-impl MailboxEvents for CachingMailbox {
-    #[tracing::instrument(err, skip(self))]
-    async fn raw_message_by_id(
-        &self,
-        id: H256,
-    ) -> Result<Option<RawAbacusMessage>, ChainCommunicationError> {
-        loop {
-            if let Some(message) = self.db.message_by_id(id)? {
-                return Ok(Some(message));
-            }
-            sleep(Duration::from_millis(500)).await;
-        }
-    }
-
-    async fn id_by_nonce(&self, nonce: usize) -> Result<Option<H256>, ChainCommunicationError> {
-        loop {
-            if let Some(id) = self.db.message_id_by_nonce(nonce as u32)? {
-                return Ok(Some(id));
-            }
-            sleep(Duration::from_millis(500)).await;
-        }
     }
 }
 

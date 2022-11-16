@@ -31,8 +31,6 @@ mock! {
 
         pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
 
-        pub fn _status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {}
-
         pub fn _default_ism(&self) -> Result<H256, ChainCommunicationError> {}
 
         pub fn _delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {}
@@ -82,10 +80,6 @@ impl Mailbox for MockMailboxContract {
 
     fn local_domain(&self) -> u32 {
         self._local_domain()
-    }
-
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
-        self._status(txid)
     }
 
     async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {

@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use eyre::Result;
 
-use crate::{InterchainGasPaymentWithMeta, LogMeta, RawAbacusMessage};
+use crate::{InterchainGasPaymentWithMeta, LogMeta, AbacusMessage};
 
 /// Interface for an indexer.
 #[async_trait]
@@ -33,7 +33,7 @@ pub trait MailboxIndexer: Indexer {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<(RawAbacusMessage, LogMeta)>>;
+    ) -> Result<Vec<(AbacusMessage, LogMeta)>>;
 }
 
 /// Interface for InterchainGasPaymaster contract indexer.

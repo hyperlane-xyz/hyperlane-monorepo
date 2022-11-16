@@ -2,7 +2,6 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use abacus_base::CachingMailbox;
-use abacus_base::CachingMultisigIsm;
 use abacus_base::CoreMetrics;
 use abacus_core::db::AbacusDB;
 use abacus_core::{AbacusContract, Mailbox, MultisigIsm};
@@ -122,7 +121,7 @@ pub(crate) struct SerialSubmitter {
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
     /// Multisig ism on the destination chain.
-    multisig_ism: CachingMultisigIsm,
+    multisig_ism: Arc<dyn MultisigIsm>,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
     /// Metrics for serial submitter.
@@ -135,7 +134,7 @@ impl SerialSubmitter {
     pub(crate) fn new(
         rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_ism: CachingMultisigIsm,
+        multisig_ism: Arc<dyn MultisigIsm>,
         db: AbacusDB,
         metrics: SerialSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,

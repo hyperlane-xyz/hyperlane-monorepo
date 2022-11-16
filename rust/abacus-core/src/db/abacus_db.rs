@@ -11,9 +11,7 @@ use tracing::{debug, info, trace};
 use std::future::Future;
 use std::time::Duration;
 
-use crate::db::iterator::PrefixIterator;
 
-static NONCE: &str = "nonce_";
 static MESSAGE_ID: &str = "message_id_";
 static PROOF: &str = "proof_";
 static MESSAGE: &str = "message_";
@@ -56,28 +54,26 @@ impl AbacusDB {
     }
 
     /// Store list of messages
-    pub fn store_messages(&self, messages: &[RawAbacusMessage]) -> Result<u32> {
+    pub fn store_messages(&self, messages: &[AbacusMessage]) -> Result<u32> {
         let mut latest_nonce: u32 = 0;
         for message in messages {
             self.store_latest_message(message)?;
 
-            let parsed = AbacusMessage::from(message.clone());
-            latest_nonce = parsed.nonce;
+            latest_nonce = message.nonce;
         }
 
         Ok(latest_nonce)
     }
 
     /// Store a raw committed message building off of the latest leaf index
-    pub fn store_latest_message(&self, message: &RawAbacusMessage) -> Result<()> {
-        let parsed = AbacusMessage::from(message.clone());
+    pub fn store_latest_message(&self, message: &AbacusMessage) -> Result<()> {
         // If this message is not building off the latest nonce, log it.
         if let Some(nonce) = self.retrieve_latest_nonce()? {
-            if nonce != parsed.nonce - 1 {
+            if nonce != message.nonce - 1 {
                 debug!(
                     "Attempted to store message not building off latest nonce. Latest nonce: {}. Message nonce: {}.",
                     nonce,
-                    parsed.nonce,
+                    message.nonce,
                 )
             }
         }
@@ -90,18 +86,17 @@ impl AbacusDB {
     /// Keys --> Values:
     /// - `nonce` --> `id`
     /// - `id` --> `message`
-    pub fn store_message(&self, message: &RawAbacusMessage) -> Result<()> {
-        let parsed = AbacusMessage::from(message.clone());
-        let id = parsed.id();
+    pub fn store_message(&self, message: &AbacusMessage) -> Result<()> {
+        let id = message.id();
 
         info!(
             id = ?id,
-            nonce = &parsed.nonce,
-            origin = &parsed.origin,
-            destination = &parsed.destination,
+            nonce = &message.nonce,
+            origin = &message.origin,
+            destination = &message.destination,
             "Storing new message in db.",
         );
-        self.store_message_id(parsed.nonce, parsed.destination, id)?;
+        self.store_message_id(message.nonce, message.destination, id)?;
         self.store_keyed_encodable(MESSAGE, &id, message)?;
         Ok(())
     }
@@ -178,11 +173,6 @@ impl AbacusDB {
         }
     }
 
-    /// Iterate over all message IDs
-    pub fn message_id_iterator(&self) -> PrefixIterator<H256> {
-        PrefixIterator::new(self.0.as_ref().prefix_iterator(NONCE), NONCE.as_ref())
-    }
-
     /// Store a proof by its nonce
     ///
     /// Keys --> Values:
@@ -219,8 +209,8 @@ impl AbacusDB {
 
     /// Retrieve nonce processed status
     pub fn retrieve_message_processed(&self, nonce: u32) -> Result<Option<bool>, DbError> {
-        let value: Option<u32> = self.retrieve_keyed_decodable(NONCE_PROCESSED, &nonce)?;
-        Ok(value.map(|x| x == 1))
+        let value: Option<bool> = self.retrieve_keyed_decodable(NONCE_PROCESSED, &nonce)?;
+        Ok(value)
     }
 
     /// If the provided gas payment, identified by its metadata, has not been processed,

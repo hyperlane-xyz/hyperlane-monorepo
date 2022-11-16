@@ -6,7 +6,7 @@ use std::time::Duration;
 use abacus_base::chains::IndexSettings;
 use async_trait::async_trait;
 use ethers::types::H256;
-use eyre::{eyre, Context, Result};
+use eyre::{eyre, Result};
 use sea_orm::prelude::TimeDateTime;
 use sea_orm::{Database, DbConn};
 use tokio::task::JoinHandle;
@@ -18,7 +18,7 @@ use abacus_base::last_message::validate_message_continuity;
 use abacus_base::{run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, Settings};
 use abacus_core::{
     name_from_domain_id, AbacusContract, AbacusMessage, ListValidity, LogMeta, Mailbox,
-    MailboxIndexer, RawAbacusMessage,
+    MailboxIndexer,
 };
 
 use crate::scraper::block_cursor::BlockCursor;
@@ -322,23 +322,18 @@ impl SqlOutboxScraper {
         skip_all,
         fields(messages = ?messages.iter().map(|(_, meta)| meta).collect::<Vec<_>>())
     )]
-    async fn store_messages(&self, messages: &[(RawAbacusMessage, LogMeta)]) -> Result<u32> {
+    async fn store_messages(&self, messages: &[(AbacusMessage, LogMeta)]) -> Result<u32> {
         use crate::db::message;
         use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
 
         debug_assert!(!messages.is_empty());
 
-        let messages = messages
-            .iter()
-            .map(|(raw, meta)| AbacusMessage::try_from((*raw).clone()).map(|parsed| (parsed, meta)))
-            .collect::<Result<Vec<(AbacusMessage, &LogMeta)>, _>>()
-            .context("Failed to parse a message")?;
 
         // TODO: Look up txn info
         // TODO: Look up block info
 
         let txns: HashMap<H256, (i64, TimeDateTime)> = self
-            .ensure_blocks_and_txns(messages.iter().map(|(_, meta)| *meta))
+            .ensure_blocks_and_txns(messages.iter().map(|(_, meta)| meta))
             .await?
             .collect();
 
@@ -363,7 +358,7 @@ impl SqlOutboxScraper {
                     msg_body: Set(if msg.body.is_empty() {
                         None
                     } else {
-                        Some(msg.body)
+                        Some(msg.body.clone())
                     }),
                     outbox_address: Unchanged(format_h256(&self.outbox.address())),
                     timestamp: Set(*txn_timestamp),
