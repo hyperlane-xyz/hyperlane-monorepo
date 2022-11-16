@@ -12,8 +12,8 @@ use tracing::{info_span, Instrument};
 
 use abacus_core::db::AbacusDB;
 use abacus_core::{
-    AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, Mailbox,
-    MailboxIndexer, TxCostEstimate, TxOutcome,
+    AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, Mailbox, MailboxIndexer,
+    TxCostEstimate, TxOutcome,
 };
 
 use crate::chains::IndexSettings;

@@ -2,7 +2,7 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::{sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
@@ -116,9 +116,7 @@ where
             .map(|(event, meta)| (AbacusMessage::from(event.message.to_vec()), meta.into()))
             .collect();
 
-        events.sort_by(|a, b| {
-            a.0.nonce.cmp(&b.0.nonce)
-        });
+        events.sort_by(|a, b| a.0.nonce.cmp(&b.0.nonce));
         Ok(events)
     }
 }

@@ -1,4 +1,4 @@
-use abacus_core::{AbacusMessage, ListValidity };
+use abacus_core::{AbacusMessage, ListValidity};
 
 /// Check if the list of sorted messages is a valid continuation of the
 /// OptLatestLeafIndex. If the latest index is Some, check the validity of the

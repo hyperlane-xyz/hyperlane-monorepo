@@ -11,7 +11,6 @@ use tracing::{debug, info, trace};
 use std::future::Future;
 use std::time::Duration;
 
-
 static MESSAGE_ID: &str = "message_id_";
 static PROOF: &str = "proof_";
 static MESSAGE: &str = "message_";

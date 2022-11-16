@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use abacus_base::{CachingMailbox};
+use abacus_base::CachingMailbox;
 use abacus_core::{AbacusContract, ChainCommunicationError, Mailbox, MultisigIsm};
 use eyre::Result;
 use gelato::{

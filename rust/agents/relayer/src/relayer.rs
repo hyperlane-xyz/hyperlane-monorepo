@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use abacus_base::chains::TransactionSubmissionType;
-use abacus_base::{CachingMailbox};
+use abacus_base::CachingMailbox;
 use async_trait::async_trait;
 use eyre::Result;
 use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
@@ -11,7 +11,7 @@ use abacus_base::{
     chains::GelatoConf, run_all, AbacusAgentCore, Agent, BaseAgent, ContractSyncMetrics,
     CoreMetrics, MultisigCheckpointSyncer,
 };
-use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers, MultisigIsm};
+use abacus_core::{AbacusContract, MultisigIsm, MultisigSignedCheckpoint, Signers};
 
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};

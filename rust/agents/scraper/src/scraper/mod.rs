@@ -328,7 +328,6 @@ impl SqlOutboxScraper {
 
         debug_assert!(!messages.is_empty());
 
-
         // TODO: Look up txn info
         // TODO: Look up block info
 

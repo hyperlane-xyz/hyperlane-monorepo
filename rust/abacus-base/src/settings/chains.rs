@@ -1,5 +1,5 @@
-use serde::Deserialize;
 use ethers::signers::Signer;
+use serde::Deserialize;
 
 use abacus_core::{
     AbacusAbi, ContractLocator, InterchainGasPaymaster, Mailbox, MultisigIsm, Signers,
@@ -8,7 +8,9 @@ use abacus_ethereum::{
     Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi, EthereumMultisigIsmAbi,
     InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider, MultisigIsmBuilder,
 };
-use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo};
+use ethers_prometheus::middleware::{
+    ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
+};
 
 use crate::CoreMetrics;
 
@@ -192,7 +194,7 @@ impl ChainSetup {
                     },
                     signer,
                     Some(|| metrics.json_rpc_client_metrics()),
-                    Some((metrics.provider_metrics(), metrics_conf))
+                    Some((metrics.provider_metrics(), metrics_conf)),
                 )
                 .await?),
         }
@@ -215,10 +217,10 @@ impl ChainSetup {
 
         if let Some(signer) = signer {
             cfg.wallets
-            .entry(signer.address())
-            .or_insert_with(|| WalletInfo {
-                name: Some(agent_name.into()),
-            });
+                .entry(signer.address())
+                .or_insert_with(|| WalletInfo {
+                    name: Some(agent_name.into()),
+                });
         }
 
         if let Ok(addr) = self.addresses.mailbox.parse() {

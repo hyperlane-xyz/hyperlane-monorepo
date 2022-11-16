@@ -89,11 +89,9 @@ use tracing::instrument;
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
-    InterchainGasPaymasterIndexer, MailboxIndexer, Signers, MultisigIsm,
+    InterchainGasPaymasterIndexer, MailboxIndexer, MultisigIsm, Signers,
 };
-use abacus_ethereum::{
-    InterchainGasPaymasterIndexerBuilder, MailboxIndexerBuilder
-};
+use abacus_ethereum::{InterchainGasPaymasterIndexerBuilder, MailboxIndexerBuilder};
 pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
@@ -274,9 +272,7 @@ impl Settings {
         let mut result: HashMap<String, Arc<dyn MultisigIsm>> = HashMap::new();
         for &chain_name in chain_names {
             if let Some(x) = self.chains.get(chain_name) {
-                let multisig_ism = self
-                    .try_multisig_ism(x, db.clone(), metrics)
-                    .await?;
+                let multisig_ism = self.try_multisig_ism(x, db.clone(), metrics).await?;
                 result.insert(chain_name.into(), multisig_ism.into());
             } else {
                 bail!("No chain setup found for {}", chain_name)
@@ -333,9 +329,7 @@ impl Settings {
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn MultisigIsm>> {
         let signer = self.get_signer(&chain_setup.name).await;
-        let multisig_ism = chain_setup
-            .try_into_multisig_ism(signer, metrics)
-            .await?;
+        let multisig_ism = chain_setup.try_into_multisig_ism(signer, metrics).await?;
         Ok(multisig_ism)
     }
 
@@ -345,15 +339,16 @@ impl Settings {
         metrics: &CoreMetrics,
         chain_setup: &ChainSetup,
     ) -> eyre::Result<Box<dyn MailboxIndexer>> {
-        chain_setup.try_into_contract(
-            self.get_signer(&chain_setup.name).await,
-            metrics,
-            MailboxIndexerBuilder {
-                finality_blocks: chain_setup.finality_blocks(),
-            },
-            chain_setup.addresses.mailbox.clone(),
-        )
-        .await
+        chain_setup
+            .try_into_contract(
+                self.get_signer(&chain_setup.name).await,
+                metrics,
+                MailboxIndexerBuilder {
+                    finality_blocks: chain_setup.finality_blocks(),
+                },
+                chain_setup.addresses.mailbox.clone(),
+            )
+            .await
     }
 
     /// Try to get an indexer object for a given interchain gas paymaster
@@ -362,19 +357,20 @@ impl Settings {
         metrics: &CoreMetrics,
         chain_setup: &ChainSetup,
     ) -> eyre::Result<Box<dyn InterchainGasPaymasterIndexer>> {
-        chain_setup.try_into_contract(
-            self.get_signer(&chain_setup.name).await,
-            metrics,
-            InterchainGasPaymasterIndexerBuilder {
-                mailbox_address: chain_setup
-                    .addresses
-                    .mailbox
-                    .parse::<ethers::types::Address>()?,
-                finality_blocks: chain_setup.finality_blocks(),
-            },
-            chain_setup.addresses.interchain_gas_paymaster.clone(),
-        )
-        .await
+        chain_setup
+            .try_into_contract(
+                self.get_signer(&chain_setup.name).await,
+                metrics,
+                InterchainGasPaymasterIndexerBuilder {
+                    mailbox_address: chain_setup
+                        .addresses
+                        .mailbox
+                        .parse::<ethers::types::Address>()?,
+                    finality_blocks: chain_setup.finality_blocks(),
+                },
+                chain_setup.addresses.interchain_gas_paymaster.clone(),
+            )
+            .await
     }
 
     /// Create the core metrics from the settings given the name of the agent.

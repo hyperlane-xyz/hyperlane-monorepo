@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use eyre::Result;
 
-use crate::{InterchainGasPaymentWithMeta, LogMeta, AbacusMessage};
+use crate::{AbacusMessage, InterchainGasPaymentWithMeta, LogMeta};
 
 /// Interface for an indexer.
 #[async_trait]

@@ -16,9 +16,7 @@ use abacus_core::{
     MultisigSignedCheckpoint,
 };
 
-use crate::contracts::multisig_ism::{
-    MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI,
-};
+use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
 use crate::trait_builder::MakeableWithProvider;
 
 impl<M> std::fmt::Display for EthereumMultisigIsmInternal<M>

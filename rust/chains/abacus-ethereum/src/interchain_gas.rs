@@ -66,11 +66,7 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumInterchainGasPaymasterIndexer
-    pub fn new(
-        provider: Arc<M>,
-        locator: &ContractLocator,
-        finality_blocks: u32,
-    ) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         Self {
             contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
                 &locator.address,
