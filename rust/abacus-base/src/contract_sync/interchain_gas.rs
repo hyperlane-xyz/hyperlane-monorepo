@@ -40,9 +40,9 @@ where
                 .map_or_else(|| config_from, |b| b + 1);
 
             info!(from = from, "[GasPayments]: resuming indexer from {from}");
+            indexed_height.set(from as i64);
 
             loop {
-                indexed_height.set(from.into());
                 sleep(Duration::from_secs(5)).await;
 
                 // Only index blocks considered final.
@@ -84,6 +84,7 @@ where
 
                 db.store_latest_indexed_gas_payment_block(to)?;
                 from = to + 1;
+                indexed_height.set(to as i64);
             }
         })
         .instrument(span)
