@@ -283,7 +283,7 @@ mod tests {
         abacus_settings()
             .iter()
             .flat_map(|x: &Settings| {
-                x.chains.iter().map(|(_, v)| ChainCoordinate {
+                x.chain.chains.iter().map(|(_, v)| ChainCoordinate {
                     name: v.name.clone(),
                     domain: v.domain.parse().unwrap(),
                 })
