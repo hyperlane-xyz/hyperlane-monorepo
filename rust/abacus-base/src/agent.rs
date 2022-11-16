@@ -11,7 +11,7 @@ use tracing::{info_span, Instrument};
 
 use abacus_core::db::DB;
 
-use crate::{AgentSettings};
+use crate::AgentSettings;
 use crate::{
     cancel_task, metrics::CoreMetrics, settings::Settings, CachingInterchainGasPaymaster,
     CachingMailbox,

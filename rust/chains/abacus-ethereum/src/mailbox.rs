@@ -12,8 +12,9 @@ use eyre::{eyre, Result};
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusAbi, AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, ContractLocator,
-    Indexer, LogMeta, Mailbox, MailboxIndexer, RawAbacusMessage, TxCostEstimate, TxOutcome, AbacusChain,
+    AbacusAbi, AbacusChain, AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint,
+    ContractLocator, Indexer, LogMeta, Mailbox, MailboxIndexer, RawAbacusMessage, TxCostEstimate,
+    TxOutcome,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};

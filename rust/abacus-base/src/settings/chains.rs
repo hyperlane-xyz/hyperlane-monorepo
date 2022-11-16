@@ -3,20 +3,19 @@ use eyre::Context;
 use serde::Deserialize;
 
 use abacus_core::{
-    AbacusAbi, AbacusProvider, ContractLocator, 
-    InterchainGasPaymaster, Mailbox, MultisigIsm, Signers,
+    AbacusAbi, AbacusProvider, ContractLocator, InterchainGasPaymaster, Mailbox, MultisigIsm,
+    Signers,
 };
 use abacus_ethereum::{
-    AbacusProviderBuilder, Connection, EthereumInterchainGasPaymasterAbi,
-    EthereumMailboxAbi,  EthereumMultisigIsmAbi,
-    InterchainGasPaymasterBuilder, MakeableWithProvider,
-    MailboxBuilder, MultisigIsmBuilder
+    AbacusProviderBuilder, Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
+    EthereumMultisigIsmAbi, InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider,
+    MultisigIsmBuilder,
 };
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 
-use crate::{CoreMetrics};
+use crate::CoreMetrics;
 
 /// A connection to _some_ blockchain.
 ///
@@ -170,7 +169,7 @@ impl ChainSetup {
             .await
             .context("Building outbox")
     }
-    
+
     /// Try to convert the chain setting into an interchain gas paymaster contract
     pub async fn try_into_interchain_gas_paymaster(
         &self,

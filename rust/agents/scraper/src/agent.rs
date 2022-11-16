@@ -8,7 +8,7 @@ use tracing::instrument::Instrumented;
 use tracing::{info_span, trace, Instrument};
 
 use abacus_base::{
-    run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, DomainSettings, decl_settings,
+    decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, DomainSettings,
 };
 
 use crate::chain_scraper::{Local, SqlChainScraper};
@@ -32,7 +32,10 @@ impl BaseAgent for Scraper {
     const AGENT_NAME: &'static str = "scraper";
     type Settings = ScraperSettings;
 
-    async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> eyre::Result<Self>
+    async fn from_settings(
+        settings: Self::Settings,
+        metrics: Arc<CoreMetrics>,
+    ) -> eyre::Result<Self>
     where
         Self: Sized,
     {
@@ -44,7 +47,7 @@ impl BaseAgent for Scraper {
         for (chain_name, chain_setup) in settings.chain.chains.iter() {
             // let ctx = || format!("Loading chain {}", chain_name);
             let local = Self::load_chain(&settings.chain, &chain_name, &metrics).await?;
-                // .with_context(ctx)? TODO: Why doesn't this work anymore?
+            // .with_context(ctx)? TODO: Why doesn't this work anymore?
             {
                 trace!(chain_name = chain_name, "Created mailbox and indexer");
                 let scraper = SqlChainScraper::new(
@@ -90,16 +93,22 @@ impl Scraper {
         metrics: &Arc<CoreMetrics>,
     ) -> eyre::Result<Local> {
         let ctx = || format!("Loading chain {}", chain_name);
-        Ok(
-            Local {
-                provider: config.try_provider(chain_name, metrics).await.with_context(ctx)?.into(),
-                mailbox: config.try_mailbox(chain_name, metrics).await.with_context(ctx)?.into(),
-                indexer: config
-                    .try_mailbox_indexer(chain_name, metrics)
-                    .await
-                    .with_context(ctx)?
-                    .into(),
-            }
-        )
+        Ok(Local {
+            provider: config
+                .try_provider(chain_name, metrics)
+                .await
+                .with_context(ctx)?
+                .into(),
+            mailbox: config
+                .try_mailbox(chain_name, metrics)
+                .await
+                .with_context(ctx)?
+                .into(),
+            indexer: config
+                .try_mailbox_indexer(chain_name, metrics)
+                .await
+                .with_context(ctx)?
+                .into(),
+        })
     }
 }

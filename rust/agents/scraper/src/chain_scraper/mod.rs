@@ -12,10 +12,9 @@ use futures::TryFutureExt;
 use sea_orm::prelude::TimeDateTime;
 use tracing::trace;
 
-use abacus_base::{ContractSyncMetrics};
+use abacus_base::ContractSyncMetrics;
 use abacus_core::{
-    AbacusContract, AbacusProvider, BlockInfo, LogMeta,
-    AbacusMessage, MailboxIndexer, Mailbox,
+    AbacusContract, AbacusMessage, AbacusProvider, BlockInfo, LogMeta, Mailbox, MailboxIndexer,
 };
 
 use crate::chain_scraper::sync::Syncer;

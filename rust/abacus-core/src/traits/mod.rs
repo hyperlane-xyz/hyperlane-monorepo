@@ -14,17 +14,17 @@ pub use encode::*;
 pub use indexer::*;
 pub use interchain_gas::*;
 pub use mailbox::*;
-pub use provider::*;
 pub use multisig_ism::*;
+pub use provider::*;
 
 use crate::{db::DbError, AbacusError};
 
 mod encode;
 mod indexer;
-mod provider;
 mod interchain_gas;
 mod mailbox;
 mod multisig_ism;
+mod provider;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]

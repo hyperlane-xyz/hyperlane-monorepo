@@ -53,11 +53,7 @@ impl MailboxIndexer for MockAbacusIndexer {
         self._fetch_sorted_messages(from, to)
     }
 
-    async fn fetch_delivered_messages(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> Result<Vec<(H256, LogMeta)>> {
+    async fn fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>> {
         self._fetch_delivered_messages(from, to)
     }
 }

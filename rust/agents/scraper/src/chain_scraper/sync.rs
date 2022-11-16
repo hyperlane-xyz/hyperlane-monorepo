@@ -13,7 +13,7 @@ use tracing::{debug, info, instrument, warn};
 use abacus_base::last_message::validate_message_continuity;
 use abacus_core::{name_from_domain_id, ListValidity};
 
-use crate::chain_scraper::{Delivery, AbacusMessageWithMeta, SqlChainScraper, TxnWithIdAndTime};
+use crate::chain_scraper::{AbacusMessageWithMeta, Delivery, SqlChainScraper, TxnWithIdAndTime};
 
 /// Workhorse of synchronization. This consumes a `SqlChainScraper` which has
 /// the needed connections and information to work and then adds additional
@@ -124,7 +124,10 @@ impl Syncer {
 
             let validation = validate_message_continuity(
                 Some(self.last_nonce),
-                &sorted_messages.iter().map(|r| &r.message).collect::<Vec<_>>(),
+                &sorted_messages
+                    .iter()
+                    .map(|r| &r.message)
+                    .collect::<Vec<_>>(),
             );
             match validation {
                 ListValidity::Valid => {
@@ -176,12 +179,18 @@ impl Syncer {
     ) -> Result<(Vec<AbacusMessageWithMeta>, Vec<Delivery>)> {
         let sorted_messages = self.local.indexer.fetch_sorted_messages(from, to).await?;
 
-        let deliveries = self.local.indexer.fetch_delivered_messages(from, to).await?.into_iter()
+        let deliveries = self
+            .local
+            .indexer
+            .fetch_delivered_messages(from, to)
+            .await?
+            .into_iter()
             .map(|(message_id, meta)| Delivery {
                 destination_mailbox: self.local.mailbox.address(),
                 message_id,
                 meta,
-            }).collect_vec();
+            })
+            .collect_vec();
 
         info!(
             from,
@@ -240,8 +249,8 @@ impl Syncer {
 
             for m in sorted_messages.iter() {
                 let nonce = m.message.nonce;
-                let dst = name_from_domain_id(m.message.destination)
-                    .unwrap_or_else(|| "unknown".into());
+                let dst =
+                    name_from_domain_id(m.message.destination).unwrap_or_else(|| "unknown".into());
                 self.message_nonce
                     .with_label_values(&["dispatch", self.chain_name(), &dst])
                     .set(nonce as i64);
