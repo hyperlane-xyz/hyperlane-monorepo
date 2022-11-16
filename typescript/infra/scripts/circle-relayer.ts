@@ -3,13 +3,13 @@ import path from 'path';
 import {
   ChainMap,
   Chains,
-  TokenBridgeApp,
+  LiquidityLayerApp,
   buildContracts,
+  liquidityLayerFactories,
   objMap,
-  tokenBridgeFactories,
 } from '@hyperlane-xyz/sdk';
 
-import { circleBridgeAdapterConfig } from '../config/environments/testnet2/token-bridge';
+import { circleBridgeAdapterConfig } from '../config/environments/testnet2/liquidityLayer';
 import { readJSON, sleep } from '../src/utils/utils';
 
 import {
@@ -26,15 +26,15 @@ async function check() {
     __dirname,
     '../',
     getEnvironmentDirectory(environment),
-    'middleware/token-bridge',
+    'middleware/liquidity-layer',
   );
   const addresses = readJSON(dir, 'addresses.json');
   // @ts-ignore
-  const contracts: ChainMap<any, TokenBridgeContracts> = buildContracts(
+  const contracts: ChainMap<any, LiquidityLayerContracts> = buildContracts(
     addresses,
-    tokenBridgeFactories,
+    liquidityLayerFactories,
   );
-  const app = new TokenBridgeApp(
+  const app = new LiquidityLayerApp(
     contracts,
     multiProvider,
     objMap(circleBridgeAdapterConfig, (_chain, conf) => [conf]),

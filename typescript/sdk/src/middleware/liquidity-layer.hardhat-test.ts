@@ -3,46 +3,46 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
 import {
+  LiquidityLayerRouter,
   MockCircleBridge,
   MockCircleBridge__factory,
   MockCircleMessageTransmitter,
   MockCircleMessageTransmitter__factory,
   MockToken,
   MockToken__factory,
-  TestTokenBridgeMessageRecipient__factory,
-  TokenBridgeRouter,
+  TestLiquidityLayerMessageRecipient__factory,
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { testChainConnectionConfigs } from '../consts/chainConnectionConfigs';
 import { TestCoreApp } from '../core/TestCoreApp';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
-import { TokenBridgeApp } from '../deploy/middleware/TokenBridgeApp';
+import { LiquidityLayerApp } from '../deploy/middleware/LiquidityLayerApp';
 import {
   BridgeAdapterType,
   CircleBridgeAdapterConfig,
-  TokenBridgeConfig,
-  TokenBridgeDeployer,
-} from '../deploy/middleware/TokenBridgeRouterDeployer';
+  LiquidityLayerConfig,
+  LiquidityLayerDeployer,
+} from '../deploy/middleware/LiquidityLayerRouterDeployer';
 import { getChainToOwnerMap, getTestMultiProvider } from '../deploy/utils';
 import { ChainNameToDomainId } from '../domains';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, TestChainNames } from '../types';
 import { objMap } from '../utils/objects';
 
-describe('TokenBridgeRouter', async () => {
+describe('LiquidityLayerRouter', async () => {
   const localChain = 'test1';
   const remoteChain = 'test2';
   const localDomain = ChainNameToDomainId[localChain];
   const remoteDomain = ChainNameToDomainId[remoteChain];
 
   let signer: SignerWithAddress;
-  let local: TokenBridgeRouter;
+  let local: LiquidityLayerRouter;
   let multiProvider: MultiProvider<TestChainNames>;
   let coreApp: TestCoreApp;
 
-  let tokenBridgeApp: TokenBridgeApp<TestChainNames>;
-  let config: ChainMap<TestChainNames, TokenBridgeConfig>;
+  let liquidityLayerApp: LiquidityLayerApp<TestChainNames>;
+  let config: ChainMap<TestChainNames, LiquidityLayerConfig>;
   let mockToken: MockToken;
   let circleBridge: MockCircleBridge;
   let messageTransmitter: MockCircleMessageTransmitter;
@@ -94,20 +94,24 @@ describe('TokenBridgeRouter', async () => {
   });
 
   beforeEach(async () => {
-    const TokenBridge = new TokenBridgeDeployer(multiProvider, config, coreApp);
-    const contracts = await TokenBridge.deploy();
+    const LiquidityLayer = new LiquidityLayerDeployer(
+      multiProvider,
+      config,
+      coreApp,
+    );
+    const contracts = await LiquidityLayer.deploy();
 
-    tokenBridgeApp = new TokenBridgeApp(
+    liquidityLayerApp = new LiquidityLayerApp(
       contracts,
       multiProvider,
       objMap(config, (_chain, conf) => conf.bridgeAdapterConfigs),
     );
 
-    local = tokenBridgeApp.getContracts(localChain).router;
+    local = liquidityLayerApp.getContracts(localChain).router;
   });
 
   it('can transfer tokens', async () => {
-    const recipientF = new TestTokenBridgeMessageRecipient__factory(signer);
+    const recipientF = new TestLiquidityLayerMessageRecipient__factory(signer);
     const recipient = await recipientF.deploy();
 
     const amount = 1000;
@@ -130,7 +134,7 @@ describe('TokenBridgeRouter', async () => {
 
     await messageTransmitter.process(
       nonceId,
-      tokenBridgeApp.getContracts(remoteChain).circleBridgeAdapter!.address,
+      liquidityLayerApp.getContracts(remoteChain).circleBridgeAdapter!.address,
       amount,
     );
     await coreApp.processMessages();
