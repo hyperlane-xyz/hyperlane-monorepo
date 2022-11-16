@@ -155,6 +155,8 @@ impl Syncer {
                         "Found invalid continuation in range. Re-indexing from the start block of the last successful range."
                     );
                     self.from = self.last_valid_range_start_block;
+                    self.indexed_message_height.set(self.from as i64);
+                    self.indexed_deliveries_height.set(self.from as i64);
                 }
                 ListValidity::ContainsGaps => {
                     self.missed_messages.inc();

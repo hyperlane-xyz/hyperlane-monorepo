@@ -176,6 +176,7 @@ where
                         );
 
                         from = last_valid_range_start_block;
+                        indexed_height.set(from as i64);
                     }
                     ListValidity::ContainsGaps => {
                         missed_messages.inc();
