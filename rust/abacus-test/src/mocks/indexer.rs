@@ -11,7 +11,7 @@ mock! {
     pub Indexer {
         pub fn _get_finalized_block_number(&self) -> Result<u32> {}
 
-        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(RawAbacusMessage, LogMeta)>> {}
+        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(AbacusMessage, LogMeta)>> {}
     }
 }
 
@@ -25,7 +25,7 @@ mock! {
     pub AbacusIndexer {
         pub fn _get_finalized_block_number(&self) -> Result<u32> {}
 
-        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(RawAbacusMessage, LogMeta)>> {}
+        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(AbacusMessage, LogMeta)>> {}
         pub fn _fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>> {}
     }
 }
@@ -49,7 +49,7 @@ impl MailboxIndexer for MockAbacusIndexer {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<(RawAbacusMessage, LogMeta)>> {
+    ) -> Result<Vec<(AbacusMessage, LogMeta)>> {
         self._fetch_sorted_messages(from, to)
     }
 

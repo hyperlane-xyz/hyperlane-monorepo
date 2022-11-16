@@ -1,4 +1,4 @@
-use ethers::abi::AbiEncode;
+use ethers::{abi::AbiEncode, signers::Signer};
 use eyre::Context;
 use serde::Deserialize;
 
@@ -13,7 +13,7 @@ use abacus_ethereum::{
     MailboxBuilder, MultisigIsmBuilder
 };
 use ethers_prometheus::middleware::{
-    ChainInfo, ContractInfo, PrometheusMiddlewareConf,
+    ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 
 use crate::{CoreMetrics};
@@ -163,9 +163,10 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn Mailbox>> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         let address = &self.addresses.mailbox;
         let builder = MailboxBuilder {};
-        self.build(address, signer, metrics, self.metrics_conf(), builder)
+        self.build(address, signer, metrics, metrics_conf, builder)
             .await
             .context("Building outbox")
     }
@@ -176,9 +177,10 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn InterchainGasPaymaster>> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         let address = &&self.addresses.interchain_gas_paymaster;
         let builder = InterchainGasPaymasterBuilder {};
-        self.build(address, signer, metrics, self.metrics_conf(), builder)
+        self.build(address, signer, metrics, metrics_conf, builder)
             .await
             .context("Building igp")
     }
@@ -191,20 +193,33 @@ impl ChainSetup {
     ) -> eyre::Result<Box<dyn MultisigIsm>> {
         let address = &&self.addresses.multisig_ism;
         let builder = MultisigIsmBuilder {};
-        self.build(address, signer, metrics, self.metrics_conf(), builder)
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
+        self.build(address, signer, metrics, metrics_conf, builder)
             .await
             .context("Building multisig ISM")
     }
 
     /// Get a clone of the metrics conf with correctly configured contract
     /// information.
-    pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
+    pub fn metrics_conf(
+        &self,
+        agent_name: &str,
+        signer: &Option<Signers>,
+    ) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
 
         if cfg.chain.is_none() {
             cfg.chain = Some(ChainInfo {
                 name: Some(self.name.clone()),
             });
+        }
+
+        if let Some(signer) = signer {
+            cfg.wallets
+                .entry(signer.address())
+                .or_insert_with(|| WalletInfo {
+                    name: Some(agent_name.into()),
+                });
         }
 
         if let Ok(addr) = self.addresses.mailbox.parse() {
@@ -228,7 +243,8 @@ impl ChainSetup {
         cfg
     }
 
-    async fn build<B: MakeableWithProvider + Sync>(
+    /// Try to convert the chain setting into a contract
+    pub async fn build<B: MakeableWithProvider + Sync>(
         &self,
         address: &str,
         signer: Option<Signers>,

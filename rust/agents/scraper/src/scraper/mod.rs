@@ -6,7 +6,7 @@ use std::time::Duration;
 use abacus_base::chains::IndexSettings;
 use async_trait::async_trait;
 use ethers::types::H256;
-use eyre::{eyre, Context, Result};
+use eyre::{eyre, Result};
 use sea_orm::prelude::TimeDateTime;
 use sea_orm::{Database, DbConn};
 use tokio::task::JoinHandle;
@@ -20,7 +20,7 @@ use abacus_base::{
 };
 use abacus_core::{
     name_from_domain_id, AbacusContract, AbacusProvider, BlockInfo, 
-    ListValidity, LogMeta, AbacusMessage, RawAbacusMessage, Mailbox, MailboxIndexer
+    ListValidity, LogMeta, AbacusMessage, Mailbox, MailboxIndexer
 };
 
 use crate::scraper::block_cursor::BlockCursor;
@@ -396,7 +396,7 @@ impl SqlChainScraper {
     )]
     async fn store_messages(
         &self,
-        messages: &[(RawAbacusMessage, LogMeta)],
+        messages: &[(AbacusMessage, LogMeta)],
         txns: &HashMap<H256, (i64, TimeDateTime)>,
     ) -> Result<u32> {
         use crate::db::message;
@@ -406,13 +406,12 @@ impl SqlChainScraper {
 
         let max_nonce = messages
             .iter()
-            .map(|m| AbacusMessage::from(&m.0).nonce)
+            .map(|m| &m.0.nonce)
             .max()
             .ok_or_else(|| eyre!("Received empty list"));
         let models = messages
             .iter()
-            .map(|(raw, meta)| {
-                let msg = AbacusMessage::from(raw);
+            .map(|(msg, meta)| {
 
                 debug_assert_eq!(self.local_domain(), msg.origin);
                 let (txn_id, txn_timestamp) = txns.get(&meta.transaction_hash).unwrap();
@@ -428,7 +427,7 @@ impl SqlChainScraper {
                     msg_body: Set(if msg.body.is_empty() {
                         None
                     } else {
-                        Some(msg.body)
+                        Some(msg.body.clone())
                     }),
                     mailbox_address: Unchanged(format_h256(&self.local.mailbox.address())),
                     timestamp: Set(*txn_timestamp),

@@ -14,7 +14,7 @@ use auto_impl::auto_impl;
 use ethers::types::H256;
 use eyre::Result;
 
-use crate::{InterchainGasPaymentWithMeta, LogMeta, RawAbacusMessage};
+use crate::{AbacusMessage, InterchainGasPaymentWithMeta, LogMeta};
 
 /// Interface for an indexer.
 #[async_trait]
@@ -35,7 +35,7 @@ pub trait MailboxIndexer: Indexer {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<(RawAbacusMessage, LogMeta)>>;
+    ) -> Result<Vec<(AbacusMessage, LogMeta)>>;
 
     /// Fetch a list of delivered message IDs between blocks `from` and `to`.
     async fn fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>>;
