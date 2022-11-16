@@ -5,19 +5,19 @@ import {Router} from "../../../Router.sol";
 
 import {ICircleBridge} from "../interfaces/circle/ICircleBridge.sol";
 import {ICircleMessageTransmitter} from "../interfaces/circle/ICircleMessageTransmitter.sol";
-import {ITokenBridgeAdapter} from "../interfaces/ITokenBridgeAdapter.sol";
+import {ILiquidityLayerAdapter} from "../interfaces/ILiquidityLayerAdapter.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
+contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
     /// @notice The CircleBridge contract.
     ICircleBridge public circleBridge;
 
     /// @notice The Circle MessageTransmitter contract.
     ICircleMessageTransmitter public circleMessageTransmitter;
 
-    /// @notice The TokenBridgeRouter contract.
-    address public tokenBridgeRouter;
+    /// @notice The LiquidityLayerRouter contract.
+    address public liquidityLayerRouter;
 
     /// @notice Hyperlane domain => Circle domain.
     /// ATM, known Circle domains are Ethereum = 0 and Avalanche = 1.
@@ -54,8 +54,8 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
      */
     event TokenRemoved(address indexed token, string indexed symbol);
 
-    modifier onlyTokenBridgeRouter() {
-        require(msg.sender == tokenBridgeRouter, "!tokenBridgeRouter");
+    modifier onlyLiquidityLayerRouter() {
+        require(msg.sender == liquidityLayerRouter, "!liquidityLayerRouter");
         _;
     }
 
@@ -63,13 +63,13 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
      * @param _owner The new owner.
      * @param _circleBridge The CircleBridge contract.
      * @param _circleMessageTransmitter The Circle MessageTransmitter contract.
-     * @param _tokenBridgeRouter The TokenBridgeRouter contract.
+     * @param _liquidityLayerRouter The LiquidityLayerRouter contract.
      */
     function initialize(
         address _owner,
         address _circleBridge,
         address _circleMessageTransmitter,
-        address _tokenBridgeRouter
+        address _liquidityLayerRouter
     ) public initializer {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
@@ -82,7 +82,7 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
         circleMessageTransmitter = ICircleMessageTransmitter(
             _circleMessageTransmitter
         );
-        tokenBridgeRouter = _tokenBridgeRouter;
+        liquidityLayerRouter = _liquidityLayerRouter;
     }
 
     function sendTokens(
@@ -90,7 +90,7 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
         bytes32, // _recipientAddress, unused
         address _token,
         uint256 _amount
-    ) external onlyTokenBridgeRouter returns (bytes memory) {
+    ) external onlyLiquidityLayerRouter returns (bytes memory) {
         string memory _tokenSymbol = tokenAddressToSymbol[_token];
         require(
             bytes(_tokenSymbol).length > 0,
@@ -106,7 +106,7 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
             "CircleBridgeAdapter: No router for domain"
         );
 
-        // Approve the token to Circle. We assume that the TokenBridgeRouter
+        // Approve the token to Circle. We assume that the LiquidityLayerRouter
         // has already transferred the token to this contract.
         require(
             IERC20(_token).approve(address(circleBridge), _amount),
@@ -130,7 +130,7 @@ contract CircleBridgeAdapter is ITokenBridgeAdapter, Router {
         address _recipient,
         uint256 _amount,
         bytes calldata _adapterData // The adapter data from the message
-    ) external onlyTokenBridgeRouter returns (address, uint256) {
+    ) external onlyLiquidityLayerRouter returns (address, uint256) {
         // The origin Circle domain
         uint32 _originCircleDomain = hyperlaneDomainToCircleDomain[
             _originDomain

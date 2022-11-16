@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-interface ITokenBridgeAdapter {
+interface ILiquidityLayerAdapter {
     function sendTokens(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
