@@ -50,15 +50,13 @@ mod test {
                 body: vec![1, 2, 3],
             };
 
-            let message = RawAbacusMessage::from(&m);
+            db.store_message(&m).unwrap();
 
-            db.store_message(&message).unwrap();
+            let by_id = db.message_by_id(m.id()).unwrap().unwrap();
+            assert_eq!(by_id, RawAbacusMessage::from(&m));
 
-            let by_leaf = db.message_by_id(m.id()).unwrap().unwrap();
-            assert_eq!(by_leaf, message);
-
-            let by_index = db.message_by_nonce(m.nonce).unwrap().unwrap();
-            assert_eq!(by_index, message);
+            let by_nonce = db.message_by_nonce(m.nonce).unwrap().unwrap();
+            assert_eq!(by_nonce, RawAbacusMessage::from(&m));
         })
         .await;
     }

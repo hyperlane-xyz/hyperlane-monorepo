@@ -209,7 +209,7 @@ mod test {
     use tokio::select;
     use tokio::time::{interval, timeout};
 
-    use abacus_core::{db::AbacusDB, AbacusMessage, LogMeta, RawAbacusMessage};
+    use abacus_core::{db::AbacusDB, AbacusMessage, LogMeta};
     use abacus_test::mocks::indexer::MockAbacusIndexer;
     use abacus_test::test_utils;
     use mockall::predicate::eq;
