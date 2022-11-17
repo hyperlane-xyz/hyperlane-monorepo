@@ -11,7 +11,7 @@ use ethers::providers::Middleware;
 use ethers::types::{Selector, H160, H256, U256};
 use eyre::Result;
 use hyperlane_core::accumulator::merkle::Proof;
-use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::collections::hash_map::Entry::Occupied;
 use std::hash::Hash;
 use tokio::sync::Mutex;
 
@@ -49,7 +49,8 @@ where
 
 impl<Key, Value> ExpiringCache<Key, Value>
 where
-    Key: Copy + Eq + Hash,
+    Key: Copy + Eq + Hash + tracing::Value,
+    Value: Clone,
 {
     pub fn new(expiry: Duration) -> ExpiringCache<Key, Value> {
         ExpiringCache {
@@ -63,21 +64,19 @@ where
     }
 
     pub fn get(&mut self, key: Key) -> Option<&Value> {
-        match self.cache.entry(key) {
-            Occupied(entry) => {
-                if SystemTime::now()
-                    .duration_since(entry.get().t)
-                    .expect("Clock may have gone backwards")
-                    > self.expiry
-                {
-                    None
-                } else {
-                    Some(&entry.get().value)
-                }
+        if let Occupied(entry) = self.cache.entry(key) {
+            if SystemTime::now()
+                .duration_since(entry.get().t)
+                .expect("Clock may have gone backwards")
+                > self.expiry
+            {
+                None
+            } else {
+                Some(&self.cache[&key].value)
             }
-            Vacant(_) => None,
-        };
-        None
+        } else {
+            None
+        }
     }
 }
 
@@ -216,25 +215,24 @@ where
 
     #[tracing::instrument(err, skip(self))]
     async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
-        if let Some(threshold) = self.threshold_cache.lock().await.get(domain) {
+        let mut cache = self.threshold_cache.lock().await;
+        if let Some(threshold) = cache.get(domain) {
             Ok(*threshold)
         } else {
             let threshold = self.contract.threshold(domain).call().await?;
-            self.threshold_cache.lock().await.put(domain, threshold);
+            cache.put(domain, threshold);
             Ok(threshold)
         }
     }
 
     #[tracing::instrument(err, skip(self))]
     async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
-        if let Some(validators) = self.validators_cache.lock().await.get(domain) {
+        let mut cache = self.validators_cache.lock().await;
+        if let Some(validators) = cache.get(domain) {
             Ok(validators.clone())
         } else {
             let validators = self.contract.validators(domain).call().await?;
-            self.validators_cache
-                .lock()
-                .await
-                .put(domain, validators.clone());
+            cache.put(domain, validators.clone());
             Ok(validators)
         }
     }
