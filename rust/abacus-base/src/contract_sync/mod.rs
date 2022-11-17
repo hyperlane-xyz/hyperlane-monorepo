@@ -57,7 +57,7 @@ impl<I> ContractSync<I> {
 /// Tool for handling the logic of what the next block range that should be
 /// queried is and also handing rate limiting. Rate limiting is automatically
 /// performed by `next_range`.
-pub struct ContractSyncHelper<I> {
+pub struct SyncBlockRangeCursor<I> {
     indexer: I,
     tip: u32,
     last_tip_update: Instant,
@@ -65,7 +65,7 @@ pub struct ContractSyncHelper<I> {
     from: u32,
 }
 
-impl<I> ContractSyncHelper<I>
+impl<I> SyncBlockRangeCursor<I>
 where
     I: Indexer,
 {

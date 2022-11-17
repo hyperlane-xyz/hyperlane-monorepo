@@ -4,7 +4,7 @@ use tracing::{info, info_span, instrument::Instrumented, Instrument};
 use abacus_core::InterchainGasPaymasterIndexer;
 
 use crate::{
-    contract_sync::schema::InterchainGasPaymasterContractSyncDB, ContractSync, ContractSyncHelper,
+    contract_sync::schema::InterchainGasPaymasterContractSyncDB, ContractSync, SyncBlockRangeCursor,
 };
 
 const GAS_PAYMENTS_LABEL: &str = "gas_payments";
@@ -30,12 +30,12 @@ where
             .stored_events
             .with_label_values(&[GAS_PAYMENTS_LABEL, &self.chain_name]);
 
-        let sync_helper = {
+        let cursor = {
             let config_initial_height = self.index_settings.from();
             let initial_height = db
                 .retrieve_latest_indexed_gas_payment_block()
                 .map_or(config_initial_height, |b| b + 1);
-            ContractSyncHelper::new(
+            SyncBlockRangeCursor::new(
                 indexer.clone(),
                 self.index_settings.chunk_size(),
                 initial_height,
@@ -43,15 +43,15 @@ where
         };
 
         tokio::spawn(async move {
-            let mut sync_helper = sync_helper.await?;
+            let mut cursor = cursor.await?;
 
-            let start_block = sync_helper.current_position();
+            let start_block = cursor.current_position();
             info!(from = start_block, "[GasPayments]: resuming indexer");
             indexed_height.set(start_block as i64);
 
             loop {
-                let start_block = sync_helper.current_position();
-                let Ok((from, to)) = sync_helper.next_range().await else { continue };
+                let start_block = cursor.current_position();
+                let Ok((from, to)) = cursor.next_range().await else { continue };
 
                 let gas_payments = indexer.fetch_gas_payments(from, to).await?;
 

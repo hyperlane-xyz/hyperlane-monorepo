@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use abacus_base::ContractSyncHelper;
+use abacus_base::SyncBlockRangeCursor;
 use ethers::prelude::H256;
 use eyre::Result;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
@@ -29,7 +29,7 @@ pub(super) struct Syncer {
     stored_deliveries: IntCounter,
     missed_messages: IntCounter,
     message_leaf_index: IntGaugeVec,
-    sync_helper: ContractSyncHelper<Arc<dyn OutboxIndexer>>,
+    sync_cursor: SyncBlockRangeCursor<Arc<dyn OutboxIndexer>>,
 
     last_valid_range_start_block: u32,
     last_leaf_index: u32,
@@ -81,8 +81,8 @@ impl Syncer {
         let last_valid_range_start_block = initial_height;
         let last_leaf_index = scraper.last_message_leaf_index().await?.unwrap_or(0);
 
-        let sync_helper =
-            ContractSyncHelper::new(scraper.local.indexer.clone(), chunk_size, initial_height)
+        let sync_cursor =
+            SyncBlockRangeCursor::new(scraper.local.indexer.clone(), chunk_size, initial_height)
                 .await?;
 
         Ok(Self {
@@ -93,7 +93,7 @@ impl Syncer {
             stored_deliveries,
             missed_messages,
             message_leaf_index,
-            sync_helper,
+            sync_cursor,
             last_valid_range_start_block,
             last_leaf_index,
         })
@@ -102,15 +102,15 @@ impl Syncer {
     /// Sync contract and other blockchain data with the current chain state.
     #[instrument(skip(self), fields(chain_name = self.chain_name(), chink_size = self.chunk_size))]
     pub async fn run(mut self) -> Result<()> {
-        let start_block = self.sync_helper.current_position();
+        let start_block = self.sync_cursor.current_position();
         info!(from = start_block, "Resuming chain sync");
         self.indexed_message_height.set(start_block as i64);
         self.indexed_deliveries_height.set(start_block as i64);
 
         loop {
             debug_assert_eq!(self.local.outbox.local_domain(), self.local_domain());
-            let start_block = self.sync_helper.current_position();
-            let Ok((from, to)) = self.sync_helper.next_range().await else { continue };
+            let start_block = self.sync_cursor.current_position();
+            let Ok((from, to)) = self.sync_cursor.next_range().await else { continue };
 
             let (sorted_messages, deliveries) = self.scrape_range(from, to).await?;
 
@@ -145,7 +145,7 @@ impl Syncer {
                         last_valid_range_start_block = self.last_valid_range_start_block,
                         "Found invalid continuation in range. Re-indexing from the start block of the last successful range."
                     );
-                    self.sync_helper
+                    self.sync_cursor
                         .backtrack(self.last_valid_range_start_block);
                     self.indexed_message_height
                         .set(self.last_valid_range_start_block as i64);
@@ -154,7 +154,7 @@ impl Syncer {
                 }
                 ListValidity::ContainsGaps => {
                     self.missed_messages.inc();
-                    self.sync_helper.backtrack(start_block);
+                    self.sync_cursor.backtrack(start_block);
                     warn!(
                         last_leaf_index = self.last_leaf_index,
                         start_block = from,

@@ -4,7 +4,7 @@ use tracing::{instrument::Instrumented, Instrument};
 use abacus_core::{name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer};
 
 use crate::contract_sync::last_message::validate_message_continuity;
-use crate::{contract_sync::schema::OutboxContractSyncDB, ContractSync, ContractSyncHelper};
+use crate::{contract_sync::schema::OutboxContractSyncDB, ContractSync, SyncBlockRangeCursor};
 
 const MESSAGES_LABEL: &str = "messages";
 
@@ -36,12 +36,12 @@ where
         let message_leaf_index = self.metrics.message_leaf_index.clone();
         let chain_name = self.chain_name.clone();
 
-        let sync_helper = {
+        let cursor = {
             let config_initial_height = self.index_settings.from();
             let initial_height = db
                 .retrieve_latest_valid_message_range_start_block()
                 .map_or(config_initial_height, |b| b + 1);
-            ContractSyncHelper::new(
+            SyncBlockRangeCursor::new(
                 indexer.clone(),
                 self.index_settings.chunk_size(),
                 initial_height,
@@ -84,16 +84,16 @@ where
         //    Note this means we only handle this case upon observing messages in some range [C,D]
         //    that indicate a previously indexed range may have missed some messages.
         tokio::spawn(async move {
-            let mut sync_helper = sync_helper.await?;
+            let mut cursor = cursor.await?;
 
-            let start_block = sync_helper.current_position();
+            let start_block = cursor.current_position();
             let mut last_valid_range_start_block = start_block;
             info!(from = start_block, "[Messages]: resuming indexer from latest valid message range start block");
             indexed_height.set(start_block as i64);
 
             loop {
-                let start_block = sync_helper.current_position();
-                let Ok((from, to)) = sync_helper.next_range().await else { continue };
+                let start_block = cursor.current_position();
+                let Ok((from, to)) = cursor.next_range().await else { continue };
 
                 let mut sorted_messages: Vec<_> = indexer
                     .fetch_sorted_messages(from, to)
@@ -156,12 +156,12 @@ where
                             "[Messages]: Found invalid continuation in range. Re-indexing from the start block of the last successful range.",
                         );
 
-                        sync_helper.backtrack(last_valid_range_start_block);
+                        cursor.backtrack(last_valid_range_start_block);
                         indexed_height.set(last_valid_range_start_block as i64);
                     }
                     ListValidity::ContainsGaps => {
                         missed_messages.inc();
-                        sync_helper.backtrack(start_block);
+                        cursor.backtrack(start_block);
 
                         warn!(
                             last_leaf_index = ?last_leaf_index,
