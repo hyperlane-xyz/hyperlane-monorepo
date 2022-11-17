@@ -127,7 +127,7 @@ where
             Ok(())
         } else {
             // We are close to the tip.
-            if (Instant::now() - self.last_tip_update) < Duration::from_secs(30) {
+            if self.last_tip_update.elapsed() < Duration::from_secs(30) {
                 // Sleep a little longer because we have caught up.
                 sleep(Duration::from_secs(10)).await;
             } else {
