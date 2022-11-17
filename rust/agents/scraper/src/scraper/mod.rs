@@ -178,13 +178,13 @@ impl SqlOutboxScraper {
         let indexed_height = self.metrics.indexed_height.with_label_values(&labels);
         let stored_messages = self.metrics.stored_events.with_label_values(&labels);
         let missed_messages = self.metrics.missed_events.with_label_values(&labels);
-        let message_leaf_index = self.metrics.message_nonce.clone();
+        let message_nonce = self.metrics.message_nonce.clone();
 
         let chunk_size = self.chunk_size;
         // difference 1
         let mut from = self.cursor.height().await as u32;
         let mut last_valid_range_start_block = from;
-        let mut last_leaf_index = self.last_message_leaf_index().await?.unwrap_or(0);
+        let mut last_nonce = self.last_message_nonce().await?.unwrap_or(0);
 
         info!(from, chunk_size, chain_name, "Resuming outbox sync");
 
@@ -219,7 +219,7 @@ impl SqlOutboxScraper {
             // Difference 2
             sorted_messages = sorted_messages
                 .into_iter()
-                .filter(|m| AbacusMessage::from(m.0.clone()).nonce > last_leaf_index)
+                .filter(|m| m.0.nonce > last_nonce)
                 .collect();
 
             debug!(
@@ -231,7 +231,7 @@ impl SqlOutboxScraper {
             );
 
             match validate_message_continuity(
-                Some(last_leaf_index),
+                Some(last_nonce),
                 &sorted_messages
                     .iter()
                     .map(|(msg, _)| msg)
@@ -239,29 +239,27 @@ impl SqlOutboxScraper {
             ) {
                 ListValidity::Valid => {
                     // Difference 3
-                    let max_leaf_index_of_batch = self.store_messages(&sorted_messages).await?;
+                    let max_nonce_of_batch = self.store_messages(&sorted_messages).await?;
                     stored_messages.inc_by(sorted_messages.len() as u64);
 
-                    for (raw_msg, _) in sorted_messages.iter() {
-                        let dst = AbacusMessage::try_from((*raw_msg).clone())
-                            .ok()
-                            .and_then(|msg| name_from_domain_id(msg.destination))
+                    for (message, _) in sorted_messages.iter() {
+                        let dst = name_from_domain_id(message.destination)
                             .unwrap_or_else(|| "unknown".into());
-                        message_leaf_index
+                        message_nonce
                             .with_label_values(&["dispatch", chain_name, &dst])
-                            .set(max_leaf_index_of_batch as i64);
+                            .set(max_nonce_of_batch as i64);
                     }
 
                     // Difference 4
                     self.cursor.update(full_chunk_from as u64).await;
-                    last_leaf_index = max_leaf_index_of_batch;
+                    last_nonce = max_nonce_of_batch;
                     last_valid_range_start_block = full_chunk_from;
                     from = to + 1;
                 }
                 ListValidity::InvalidContinuation => {
                     missed_messages.inc();
                     warn!(
-                        ?last_leaf_index,
+                        ?last_nonce,
                         start_block = from,
                         end_block = to,
                         last_valid_range_start_block,
@@ -273,7 +271,7 @@ impl SqlOutboxScraper {
                 ListValidity::ContainsGaps => {
                     missed_messages.inc();
                     warn!(
-                        ?last_leaf_index,
+                        ?last_nonce,
                         start_block = from,
                         end_block = to,
                         last_valid_range_start_block,
@@ -290,7 +288,7 @@ impl SqlOutboxScraper {
 
     /// Get the highest message leaf index that is stored in the database.
     #[instrument(skip(self))]
-    async fn last_message_leaf_index(&self) -> Result<Option<u32>> {
+    async fn last_message_nonce(&self) -> Result<Option<u32>> {
         use crate::db::message;
         use sea_orm::{prelude::*, QueryOrder, QuerySelect};
 
@@ -342,7 +340,7 @@ impl SqlOutboxScraper {
             .max()
             .ok_or_else(|| eyre!("Received empty list"));
         let models: Vec<_> = messages
-            .into_iter()
+            .iter()
             .map(|(msg, meta)| {
                 debug_assert_eq!(self.outbox.local_domain(), msg.origin);
                 let (txn_id, txn_timestamp) = txns.get(&meta.transaction_hash).unwrap();

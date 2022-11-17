@@ -53,10 +53,13 @@ mod test {
             db.store_message(&m).unwrap();
 
             let by_id = db.message_by_id(m.id()).unwrap().unwrap();
-            assert_eq!(by_id, RawAbacusMessage::from(&m));
+            assert_eq!(RawAbacusMessage::from(&by_id), RawAbacusMessage::from(&m));
 
             let by_nonce = db.message_by_nonce(m.nonce).unwrap().unwrap();
-            assert_eq!(by_nonce, RawAbacusMessage::from(&m));
+            assert_eq!(
+                RawAbacusMessage::from(&by_nonce),
+                RawAbacusMessage::from(&m)
+            );
         })
         .await;
     }

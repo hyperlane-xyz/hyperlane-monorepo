@@ -16,29 +16,6 @@ impl From<&AbacusMessage> for RawAbacusMessage {
     }
 }
 
-impl Encode for RawAbacusMessage {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        writer.write_all(self)?;
-        Ok(4 + self.len())
-    }
-}
-
-impl Decode for RawAbacusMessage {
-    fn read_from<R>(reader: &mut R) -> Result<Self, AbacusError>
-    where
-        R: std::io::Read,
-        Self: Sized,
-    {
-        let mut message = vec![];
-        reader.read_to_end(&mut message)?;
-
-        Ok(message)
-    }
-}
-
 /// A full Abacus message between chains
 #[derive(Debug, Default, Clone)]
 pub struct AbacusMessage {
@@ -98,6 +75,44 @@ impl Encode for AbacusMessage {
         writer.write_all(self.recipient.as_ref())?;
         writer.write_all(&self.body)?;
         Ok(ABACUS_MESSAGE_PREFIX_LEN + self.body.len())
+    }
+}
+
+impl Decode for AbacusMessage {
+    fn read_from<R>(reader: &mut R) -> Result<Self, AbacusError>
+    where
+        R: std::io::Read,
+    {
+        let mut version = [0u8; 1];
+        reader.read_exact(&mut version)?;
+
+        let mut nonce = [0u8; 4];
+        reader.read_exact(&mut nonce)?;
+
+        let mut origin = [0u8; 4];
+        reader.read_exact(&mut origin)?;
+
+        let mut sender = H256::zero();
+        reader.read_exact(sender.as_mut())?;
+
+        let mut destination = [0u8; 4];
+        reader.read_exact(&mut destination)?;
+
+        let mut recipient = H256::zero();
+        reader.read_exact(recipient.as_mut())?;
+
+        let mut body = vec![];
+        reader.read_to_end(&mut body)?;
+
+        Ok(Self {
+            version: u8::from_be_bytes(version),
+            nonce: u32::from_be_bytes(nonce),
+            origin: u32::from_be_bytes(origin),
+            sender,
+            destination: u32::from_be_bytes(destination),
+            recipient,
+            body,
+        })
     }
 }
 
