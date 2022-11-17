@@ -1,12 +1,11 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use eyre::{bail, Result};
 use hyperlane_base::CachingMailbox;
-use hyperlane_base::CachingMultisigIsm;
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::db::HyperlaneDB;
 use hyperlane_core::{HyperlaneChain, Mailbox, MultisigIsm};
-use eyre::{bail, Result};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -122,7 +121,7 @@ pub(crate) struct SerialSubmitter {
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
     /// Multisig ism on the destination chain.
-    multisig_ism: CachingMultisigIsm,
+    multisig_ism: Arc<dyn MultisigIsm>,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: HyperlaneDB,
     /// Metrics for serial submitter.
@@ -135,7 +134,7 @@ impl SerialSubmitter {
     pub(crate) fn new(
         rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_ism: CachingMultisigIsm,
+        multisig_ism: Arc<dyn MultisigIsm>,
         db: HyperlaneDB,
         metrics: SerialSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,

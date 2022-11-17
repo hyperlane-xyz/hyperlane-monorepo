@@ -3,23 +3,83 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 
-use hyperlane_core::accumulator::merkle::Proof;
 use async_trait::async_trait;
 use ethers::abi::Token;
 use ethers::providers::Middleware;
 use ethers::types::{Selector, H160, H256, U256};
 use eyre::Result;
+use hyperlane_core::accumulator::merkle::Proof;
+use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::hash::Hash;
+use tokio::sync::Mutex;
 
 use hyperlane_core::{
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, ChainCommunicationError, ContractLocator, MultisigIsm,
-    MultisigSignedCheckpoint,
+    ChainCommunicationError, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    MultisigIsm, MultisigSignedCheckpoint,
 };
 
-use crate::contracts::multisig_ism::{
-    MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI,
-};
+use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
 use crate::trait_builder::MakeableWithProvider;
+
+#[derive(Debug)]
+struct Timestamped<Value> {
+    t: SystemTime,
+    value: Value,
+}
+
+impl<Value> Timestamped<Value> {
+    fn new(value: Value) -> Timestamped<Value> {
+        Timestamped {
+            t: SystemTime::now(),
+            value,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ExpiringCache<Key, Value>
+where
+    Key: Eq + Hash,
+{
+    expiry: Duration,                        // cache endurance
+    cache: HashMap<Key, Timestamped<Value>>, // hashmap containing references to cached items
+}
+
+impl<Key, Value> ExpiringCache<Key, Value>
+where
+    Key: Copy + Eq + Hash,
+{
+    pub fn new(expiry: Duration) -> ExpiringCache<Key, Value> {
+        ExpiringCache {
+            expiry,
+            cache: HashMap::new(),
+        }
+    }
+
+    pub fn put(&mut self, key: Key, value: Value) {
+        self.cache.insert(key, Timestamped::new(value));
+    }
+
+    pub fn get(&mut self, key: Key) -> Option<&Value> {
+        match self.cache.entry(key) {
+            Occupied(entry) => {
+                if SystemTime::now()
+                    .duration_since(entry.get().t)
+                    .expect("Clock may have gone backwards")
+                    > self.expiry
+                {
+                    None
+                } else {
+                    Some(&entry.get().value)
+                }
+            }
+            Vacant(_) => None,
+        };
+        None
+    }
+}
 
 impl<M> std::fmt::Display for EthereumMultisigIsmInternal<M>
 where
@@ -57,6 +117,8 @@ where
     chain_name: String,
     #[allow(dead_code)]
     provider: Arc<M>,
+    threshold_cache: Mutex<ExpiringCache<u32, U256>>,
+    validators_cache: Mutex<ExpiringCache<u32, Vec<H160>>>,
 }
 
 impl<M> EthereumMultisigIsm<M>
@@ -74,6 +136,8 @@ where
             domain: locator.domain,
             chain_name: locator.chain_name.to_owned(),
             provider,
+            threshold_cache: Mutex::new(ExpiringCache::new(Duration::from_secs(60))),
+            validators_cache: Mutex::new(ExpiringCache::new(Duration::from_secs(60))),
         }
     }
 }
@@ -152,12 +216,27 @@ where
 
     #[tracing::instrument(err, skip(self))]
     async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
-        Ok(self.contract.threshold(domain).call().await?)
+        if let Some(threshold) = self.threshold_cache.lock().await.get(domain) {
+            Ok(*threshold)
+        } else {
+            let threshold = self.contract.threshold(domain).call().await?;
+            self.threshold_cache.lock().await.put(domain, threshold);
+            Ok(threshold)
+        }
     }
 
     #[tracing::instrument(err, skip(self))]
     async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
-        Ok(self.contract.validators(domain).call().await?)
+        if let Some(validators) = self.validators_cache.lock().await.get(domain) {
+            Ok(validators.clone())
+        } else {
+            let validators = self.contract.validators(domain).call().await?;
+            self.validators_cache
+                .lock()
+                .await
+                .put(domain, validators.clone());
+            Ok(validators)
+        }
     }
 }
 

@@ -5,7 +5,9 @@ use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use hyperlane_base::{run_all, HyperlaneAgentCore, Agent, BaseAgent, CheckpointSyncers, CoreMetrics};
+use hyperlane_base::{
+    run_all, Agent, BaseAgent, CheckpointSyncers, CoreMetrics, HyperlaneAgentCore,
+};
 use hyperlane_core::Signers;
 
 use crate::submit::ValidatorSubmitterMetrics;

@@ -1,7 +1,7 @@
-use hyperlane_core::{HyperlaneMessage, TxCostEstimate};
 use async_trait::async_trait;
 use ethers::types::U256;
 use eyre::Result;
+use hyperlane_core::{HyperlaneMessage, TxCostEstimate};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 

@@ -10,9 +10,9 @@ use eyre::Result;
 use tracing::instrument;
 
 use hyperlane_core::{
-    HyperlaneAbi, HyperlaneChain, HyperlaneContract, ContractLocator, Indexer, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentMeta,
-    InterchainGasPaymentWithMeta,
+    ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, Indexer,
+    InterchainGasPaymaster, InterchainGasPaymasterIndexer, InterchainGasPayment,
+    InterchainGasPaymentMeta, InterchainGasPaymentWithMeta,
 };
 
 use crate::contracts::interchain_gas_paymaster::{
@@ -46,7 +46,6 @@ impl MakeableWithProvider for InterchainGasPaymasterIndexerBuilder {
         Box::new(EthereumInterchainGasPaymasterIndexer::new(
             Arc::new(provider),
             locator,
-            self.mailbox_address,
             self.finality_blocks,
         ))
     }
@@ -60,7 +59,6 @@ where
 {
     contract: Arc<EthereumInterchainGasPaymasterInternal<M>>,
     provider: Arc<M>,
-    mailbox_address: H160,
     finality_blocks: u32,
 }
 
@@ -69,19 +67,13 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumInterchainGasPaymasterIndexer
-    pub fn new(
-        provider: Arc<M>,
-        locator: &ContractLocator,
-        mailbox_address: H160,
-        finality_blocks: u32,
-    ) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         Self {
             contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
                 &locator.address,
                 provider.clone(),
             )),
             provider,
-            mailbox_address,
             finality_blocks,
         }
     }
@@ -117,7 +109,6 @@ where
         let events = self
             .contract
             .gas_payment_filter()
-            .topic1(self.mailbox_address)
             .from_block(from_block)
             .to_block(to_block)
             .query_with_meta()

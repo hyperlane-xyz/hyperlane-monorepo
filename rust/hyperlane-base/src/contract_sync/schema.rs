@@ -1,6 +1,6 @@
-use hyperlane_core::db::HyperlaneDB;
-use hyperlane_core::db::DbError;
 use eyre::Result;
+use hyperlane_core::db::DbError;
+use hyperlane_core::db::HyperlaneDB;
 
 /// The start block number of the latest "valid" message block range.
 /// This is an interval of block indexes where > 0 messages were indexed,

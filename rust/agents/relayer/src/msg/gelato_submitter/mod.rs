@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use hyperlane_base::chains::GelatoConf;
-use hyperlane_base::{CachingMailbox, CachingMultisigIsm, CoreMetrics};
-use hyperlane_core::db::HyperlaneDB;
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain};
 use eyre::{bail, Result};
 use gelato::types::Chain;
+use hyperlane_base::chains::GelatoConf;
+use hyperlane_base::{CachingMailbox, CoreMetrics};
+use hyperlane_core::db::HyperlaneDB;
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, MultisigIsm};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::time::{sleep, Duration, Instant};
@@ -32,7 +32,7 @@ pub(crate) struct GelatoSubmitter {
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
     /// Multisig ISM on the destination chain.
-    multisig_ism: CachingMultisigIsm,
+    multisig_ism: Arc<dyn MultisigIsm>,
     /// The destination chain in the format expected by the Gelato crate.
     destination_gelato_chain: Chain,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
@@ -53,7 +53,7 @@ impl GelatoSubmitter {
     pub fn new(
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_ism: CachingMultisigIsm,
+        multisig_ism: Arc<dyn MultisigIsm>,
         hyperlane_db: HyperlaneDB,
         gelato_config: GelatoConf,
         metrics: GelatoSubmitterMetrics,
@@ -253,7 +253,9 @@ fn test_hyperlane_domain_id_to_gelato_chain() {
     // Iterate through all HyperlaneDomains, ensuring all mainnet and testnet domains
     // are included in hyperlane_domain_id_to_gelato_chain.
     for hyperlane_domain in HyperlaneDomain::iter() {
-        if let HyperlaneDomainType::Mainnet | HyperlaneDomainType::Testnet = hyperlane_domain.domain_type() {
+        if let HyperlaneDomainType::Mainnet | HyperlaneDomainType::Testnet =
+            hyperlane_domain.domain_type()
+        {
             assert!(hyperlane_domain_id_to_gelato_chain(u32::from(hyperlane_domain)).is_ok());
         }
     }

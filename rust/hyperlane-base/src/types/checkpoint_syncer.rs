@@ -4,9 +4,9 @@ use prometheus::{IntGauge, IntGaugeVec};
 use std::collections::HashMap;
 use tracing::instrument;
 
-use hyperlane_core::SignedCheckpoint;
 use async_trait::async_trait;
 use eyre::{Report, Result};
+use hyperlane_core::SignedCheckpoint;
 
 use crate::S3Storage;
 use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer};

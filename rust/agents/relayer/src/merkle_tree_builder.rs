@@ -6,7 +6,7 @@ use tracing::{debug, error, instrument};
 
 use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
-    db::{HyperlaneDB, DbError},
+    db::{DbError, HyperlaneDB},
     ChainCommunicationError, Checkpoint,
 };
 

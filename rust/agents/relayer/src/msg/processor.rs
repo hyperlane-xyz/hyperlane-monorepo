@@ -7,10 +7,10 @@ use tokio::{
     task::JoinHandle,
     time::Instant,
 };
-use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
+use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
-use hyperlane_base::{CoreMetrics, CachingMailbox};
-use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, MultisigSignedCheckpoint, HyperlaneMessage};
+use hyperlane_base::{CachingMailbox, CoreMetrics};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneMessage, MultisigSignedCheckpoint};
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
 
@@ -19,7 +19,7 @@ use super::SubmitMessageArgs;
 #[derive(Debug)]
 pub(crate) struct MessageProcessor {
     db: HyperlaneDB,
-    mailbox: CachingMailbox,
+    destination_mailbox: CachingMailbox,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,
@@ -33,7 +33,7 @@ impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         db: HyperlaneDB,
-        mailbox: CachingMailbox,
+        destination_mailbox: CachingMailbox,
         whitelist: Arc<MatchingList>,
         blacklist: Arc<MatchingList>,
         metrics: MessageProcessorMetrics,
@@ -42,7 +42,7 @@ impl MessageProcessor {
     ) -> Self {
         Self {
             db: db.clone(),
-            mailbox,
+            destination_mailbox,
             whitelist,
             blacklist,
             metrics,
@@ -58,7 +58,7 @@ impl MessageProcessor {
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 
-    #[instrument(ret, err, skip(self), fields(chain=self.mailbox.chain_name(), domain=?self.mailbox.local_domain()), level = "info")]
+    #[instrument(ret, err, skip(self), fields(chain=self.destination_mailbox.chain_name(), domain=?self.destination_mailbox.local_domain()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
         // Ensure that there is at least one valid, known checkpoint before starting
         // work loop.
@@ -70,8 +70,8 @@ impl MessageProcessor {
         }
         // Forever, scan HyperlaneDB looking for new messages to send. When criteria are
         // satisfied or the message is disqualified, push the message onto
-        // self.tx_msg and then continue the scan at the next outbox highest
-        // leaf index.
+        // self.tx_msg and then continue the scan at the next highest
+        // nonce.
         loop {
             self.tick().await?;
         }
@@ -84,17 +84,17 @@ impl MessageProcessor {
             .processor_loop_gauge
             .set(self.message_nonce as i64);
 
-        // Scan until we find next index without delivery confirmation.
+        // Scan until we find next nonce without delivery confirmation.
         if self
             .db
             .retrieve_message_processed(self.message_nonce)?
             .is_some()
         {
             debug!(
-                chain=?self.mailbox.chain_name(),
-                domain=?self.mailbox.local_domain(),
+                chain=?self.destination_mailbox.chain_name(),
+                domain=?self.destination_mailbox.local_domain(),
                 nonce=?self.message_nonce,
-                "Skipping since message_index already in DB");
+                "Skipping since message_nonce already in DB");
             self.message_nonce += 1;
             return Ok(());
         }
@@ -106,7 +106,7 @@ impl MessageProcessor {
             debug!(msg=?msg, "Working on msg");
             msg
         } else {
-            debug!("Leaf in db without message idx: {}", self.message_nonce);
+            debug!("Leaf in db without message nonce: {}", self.message_nonce);
             // Not clear what the best thing to do here is, but there is seemingly an
             // existing race wherein an indexer might non-atomically write leaf
             // info to rocksdb across a few records, so we might see the leaf
@@ -119,7 +119,7 @@ impl MessageProcessor {
         };
 
         // Skip if for different inbox.
-        if message.destination != self.mailbox.local_domain() {
+        if message.destination != self.destination_mailbox.local_domain() {
             debug!(
                 id=?message.id(),
                 destination=message.destination,
@@ -170,11 +170,6 @@ impl MessageProcessor {
         }
         let checkpoint = ckpt.unwrap();
         assert!(checkpoint.checkpoint.index >= self.message_nonce);
-        info!(
-            id=?message.id(),
-            nonce=message.nonce,
-            "Found signed checkpoint for message"
-        );
 
         // Include proof against checkpoint for message in the args provided to the
         // submitter.
@@ -199,7 +194,7 @@ impl MessageProcessor {
         } else {
             warn!(
                 nonce=self.message_nonce,
-                chain=?self.mailbox.chain_name(),
+                chain=?self.destination_mailbox.chain_name(),
                 "Unexpected missing message_id_by_nonce");
         }
         Ok(())

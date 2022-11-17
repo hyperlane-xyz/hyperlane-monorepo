@@ -197,8 +197,8 @@ pub fn domain_id_from_name(name: &'static str) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use hyperlane_base::Settings;
     use config::{Config, File, FileFormat};
+    use hyperlane_base::Settings;
     use std::collections::BTreeSet;
     use std::fs::read_to_string;
     use std::path::Path;
@@ -283,7 +283,7 @@ mod tests {
         hyperlane_settings()
             .iter()
             .flat_map(|x: &Settings| {
-                x.chains.iter().map(|(_, v)| ChainCoordinate {
+                x.chain.chains.iter().map(|(_, v)| ChainCoordinate {
                     name: v.name.clone(),
                     domain: v.domain.parse().unwrap(),
                 })
@@ -323,7 +323,10 @@ mod tests {
             HyperlaneDomain::from_str("ethereum").unwrap(),
             HyperlaneDomain::Ethereum,
         );
-        assert_eq!(HyperlaneDomain::Ethereum.to_string(), "ethereum".to_string(),);
+        assert_eq!(
+            HyperlaneDomain::Ethereum.to_string(),
+            "ethereum".to_string(),
+        );
     }
 
     #[test]

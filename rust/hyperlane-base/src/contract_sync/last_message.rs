@@ -1,4 +1,4 @@
-use hyperlane_core::{HyperlaneMessage, ListValidity, RawHyperlaneMessage};
+use hyperlane_core::{HyperlaneMessage, ListValidity};
 
 /// Check if the list of sorted messages is a valid continuation of the
 /// OptLatestLeafIndex. If the latest index is Some, check the validity of the
@@ -12,7 +12,7 @@ use hyperlane_core::{HyperlaneMessage, ListValidity, RawHyperlaneMessage};
 /// previous messages (None case).
 pub fn validate_message_continuity(
     latest_message_nonce: Option<u32>,
-    sorted_messages: &[&RawHyperlaneMessage],
+    sorted_messages: &[&HyperlaneMessage],
 ) -> ListValidity {
     if sorted_messages.is_empty() {
         return ListValidity::Empty;
@@ -23,7 +23,7 @@ pub fn validate_message_continuity(
     if let Some(last_seen) = latest_message_nonce {
         let has_desired_message = sorted_messages
             .iter()
-            .any(|&message| last_seen == HyperlaneMessage::from(message).nonce - 1);
+            .any(|&message| last_seen == message.nonce - 1);
         if !has_desired_message {
             return ListValidity::InvalidContinuation;
         }
@@ -31,7 +31,7 @@ pub fn validate_message_continuity(
 
     // Ensure no gaps in new batch of leaves
     for pair in sorted_messages.windows(2) {
-        if HyperlaneMessage::from(pair[0]).nonce != HyperlaneMessage::from(pair[1]).nonce - 1 {
+        if pair[0].nonce != pair[1].nonce - 1 {
             return ListValidity::ContainsGaps;
         }
     }

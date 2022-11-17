@@ -3,11 +3,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TxCostEstimate};
 use async_trait::async_trait;
 use coingecko::CoinGeckoClient;
 use ethers::types::U256;
 use eyre::{eyre, Result};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TxCostEstimate};
 use tokio::{sync::RwLock, time::timeout};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
@@ -227,8 +227,8 @@ fn convert_tokens(amount: U256, from_price: f64, to_price: f64) -> Option<U256> 
 
 #[tokio::test]
 async fn test_gas_payment_policy_meets_estimated_cost() {
-    use hyperlane_core::HyperlaneMessage;
     use ethers::types::H256;
+    use hyperlane_core::HyperlaneMessage;
 
     // Using a fake message from Celo -> Polygon, based off
     // hardcoded tx cost estimates and prices, assert that a payment
@@ -383,7 +383,8 @@ fn test_hyperlane_domain_id_to_native_token_coingecko_id() {
     for hyperlane_domain in HyperlaneDomain::iter() {
         if let HyperlaneDomainType::Mainnet = hyperlane_domain.domain_type() {
             assert!(
-                hyperlane_domain_id_to_native_token_coingecko_id(u32::from(hyperlane_domain)).is_ok()
+                hyperlane_domain_id_to_native_token_coingecko_id(u32::from(hyperlane_domain))
+                    .is_ok()
             );
         }
     }

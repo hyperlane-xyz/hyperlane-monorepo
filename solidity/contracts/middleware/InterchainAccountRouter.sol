@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 // ============ Internal Imports ============
 import {OwnableMulticall, Call} from "../OwnableMulticall.sol";
 import {Router} from "../Router.sol";
+import {IInterchainAccountRouter} from "../../interfaces/IInterchainAccountRouter.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -14,7 +15,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title The Hello World App
  * @dev You can use this simple app as a starting point for your own application.
  */
-contract InterchainAccountRouter is Router {
+contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     bytes constant bytecode = type(OwnableMulticall).creationCode;
     bytes32 constant bytecodeHash = bytes32(keccak256(bytecode));
 

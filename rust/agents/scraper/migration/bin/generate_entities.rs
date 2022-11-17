@@ -10,7 +10,7 @@ use common::*;
 
 mod common;
 
-const RAW_DB_PATH: &str = "./agents/scraper/src/db";
+const RAW_DB_PATH: &str = "./agents/scraper/src/db/generated";
 const DOCKER_NAME: &str = "scraper-entity-generator";
 const CLI_VERSION: &str = "~0.9.3";
 

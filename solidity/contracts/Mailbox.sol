@@ -184,7 +184,7 @@ contract Mailbox is
      * @return root The root of the Outbox's merkle tree.
      * @return index The index of the last element in the tree.
      */
-    function latestCheckpoint() public view returns (bytes32, uint256) {
+    function latestCheckpoint() public view returns (bytes32, uint32) {
         return (root(), count() - 1);
     }
 

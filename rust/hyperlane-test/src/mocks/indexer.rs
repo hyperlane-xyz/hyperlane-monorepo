@@ -11,7 +11,7 @@ mock! {
     pub Indexer {
         pub fn _get_finalized_block_number(&self) -> Result<u32> {}
 
-        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(RawHyperlaneMessage, LogMeta)>> {}
+        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(HyperlaneMessage, LogMeta)>> {}
     }
 }
 
@@ -25,7 +25,7 @@ mock! {
     pub HyperlaneIndexer {
         pub fn _get_finalized_block_number(&self) -> Result<u32> {}
 
-        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(RawHyperlaneMessage, LogMeta)>> {}
+        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(HyperlaneMessage, LogMeta)>> {}
         pub fn _fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>> {}
     }
 }
@@ -49,15 +49,11 @@ impl MailboxIndexer for MockHyperlaneIndexer {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<(RawHyperlaneMessage, LogMeta)>> {
+    ) -> Result<Vec<(HyperlaneMessage, LogMeta)>> {
         self._fetch_sorted_messages(from, to)
     }
 
-    async fn fetch_delivered_messages(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> Result<Vec<(H256, LogMeta)>> {
+    async fn fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>> {
         self._fetch_delivered_messages(from, to)
     }
 }

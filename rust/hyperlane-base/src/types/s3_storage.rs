@@ -1,9 +1,9 @@
 use std::{fmt, time::Duration};
 
-use hyperlane_core::SignedCheckpoint;
 use async_trait::async_trait;
 use eyre::{bail, Result};
 use futures_util::TryStreamExt;
+use hyperlane_core::SignedCheckpoint;
 use once_cell::sync::OnceCell;
 use prometheus::IntGauge;
 use rusoto_core::{

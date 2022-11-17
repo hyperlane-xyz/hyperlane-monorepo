@@ -2,7 +2,7 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::{error::Error as StdError, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
@@ -12,8 +12,9 @@ use eyre::{eyre, Result};
 use tracing::instrument;
 
 use hyperlane_core::{
-    HyperlaneAbi, HyperlaneContract, HyperlaneMessage, ChainCommunicationError, Checkpoint, ContractLocator,
-    Indexer, LogMeta, Mailbox, MailboxIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome, HyperlaneChain,
+    ChainCommunicationError, Checkpoint, ContractLocator, HyperlaneAbi, HyperlaneChain,
+    HyperlaneContract, HyperlaneMessage, Indexer, LogMeta, Mailbox, MailboxIndexer,
+    RawHyperlaneMessage, TxCostEstimate, TxOutcome,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
@@ -105,8 +106,8 @@ where
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<(RawHyperlaneMessage, LogMeta)>> {
-        let mut events: Vec<(RawHyperlaneMessage, LogMeta)> = self
+    ) -> Result<Vec<(HyperlaneMessage, LogMeta)>> {
+        let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
             .contract
             .dispatch_filter()
             .from_block(from)
@@ -114,14 +115,10 @@ where
             .query_with_meta()
             .await?
             .into_iter()
-            .map(|(event, meta)| (event.message.to_vec(), meta.into()))
+            .map(|(event, meta)| (HyperlaneMessage::from(event.message.to_vec()), meta.into()))
             .collect();
 
-        events.sort_by(|a, b| {
-            HyperlaneMessage::from(a.0.clone())
-                .nonce
-                .cmp(&HyperlaneMessage::from(b.0.clone()).nonce)
-        });
+        events.sort_by(|a, b| a.0.nonce.cmp(&b.0.nonce));
         Ok(events)
     }
 
@@ -240,7 +237,7 @@ where
 {
     #[tracing::instrument(err, skip(self))]
     async fn count(&self) -> Result<u32, ChainCommunicationError> {
-        Ok(self.contract.count().call().await?.as_u32())
+        Ok(self.contract.count().call().await?)
     }
 
     #[tracing::instrument(err, skip(self))]
@@ -266,20 +263,8 @@ where
             mailbox_address: self.address(),
             mailbox_domain: self.domain,
             root: root.into(),
-            index: index.as_u32(),
+            index,
         })
-    }
-
-    #[tracing::instrument(err, skip(self))]
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
-        let receipt_opt = self
-            .contract
-            .client()
-            .get_transaction_receipt(txid)
-            .await
-            .map_err(|e| Box::new(e) as Box<dyn StdError + Send + Sync>)?;
-
-        Ok(receipt_opt.map(Into::into))
     }
 
     #[tracing::instrument(err, skip(self))]

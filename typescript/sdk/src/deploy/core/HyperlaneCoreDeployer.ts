@@ -40,7 +40,7 @@ export class HyperlaneCoreDeployer<
 
   async deployMailbox<LocalChain extends Chain>(
     chain: LocalChain,
-    moduleAddress: types.Address,
+    defaultIsmAddress: types.Address,
     ubcAddress: types.Address,
   ): Promise<ProxiedContract<Mailbox, BeaconProxyAddresses>> {
     const domain = chainMetadata[chain].id;
@@ -50,7 +50,7 @@ export class HyperlaneCoreDeployer<
       'mailbox',
       [domain],
       ubcAddress,
-      [moduleAddress],
+      [defaultIsmAddress],
     );
     return mailbox;
   }
@@ -58,36 +58,36 @@ export class HyperlaneCoreDeployer<
   async deployMultisigIsm<LocalChain extends Chain>(
     chain: LocalChain,
   ): Promise<MultisigIsm> {
-    const module = await this.deployContract(chain, 'multisigIsm', []);
+    const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
     const configChains = Object.keys(this.configMap) as Chain[];
     const remotes = this.multiProvider
       .intersect(configChains, false)
       .multiProvider.remoteChains(chain);
-    await super.runIfOwner(chain, module, async () => {
+    await super.runIfOwner(chain, multisigIsm, async () => {
       // TODO: Remove extraneous validators
       for (const remote of remotes) {
-        const moduleConfig = this.configMap[remote].multisigIsm;
+        const multisigIsmConfig = this.configMap[remote].multisigIsm;
         const domain = ChainNameToDomainId[remote];
-        for (const validator of moduleConfig.validators) {
-          const isValidator = await module.isEnrolled(domain, validator);
+        for (const validator of multisigIsmConfig.validators) {
+          const isValidator = await multisigIsm.isEnrolled(domain, validator);
           if (!isValidator) {
             this.logger(
               `Enrolling ${validator} as ${remote} validator on ${chain}`,
             );
-            await module.enrollValidator(domain, validator);
+            await multisigIsm.enrollValidator(domain, validator);
           }
         }
-        const threshold = await module.threshold(domain);
-        if (!threshold.eq(moduleConfig.threshold)) {
+        const threshold = await multisigIsm.threshold(domain);
+        if (!threshold.eq(multisigIsmConfig.threshold)) {
           this.logger(
-            `Setting ${remote} threshold to ${moduleConfig.threshold} on ${chain}`,
+            `Setting ${remote} threshold to ${multisigIsmConfig.threshold} on ${chain}`,
           );
-          await module.setThreshold(domain, moduleConfig.threshold);
+          await multisigIsm.setThreshold(domain, multisigIsmConfig.threshold);
         }
       }
     });
 
-    return module;
+    return multisigIsm;
   }
 
   async deployContracts<LocalChain extends Chain>(

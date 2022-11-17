@@ -14,7 +14,7 @@ pub use checkpoint::*;
 pub use log_metadata::*;
 pub use message::*;
 
-use crate::{HyperlaneError, Decode, Encode};
+use crate::{Decode, Encode, HyperlaneError};
 
 /// A payment of native tokens for a message
 #[derive(Debug)]

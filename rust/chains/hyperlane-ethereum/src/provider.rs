@@ -7,7 +7,7 @@ use eyre::eyre;
 
 use crate::MakeableWithProvider;
 use hyperlane_core::{
-    HyperlaneChain, BlockInfo, ContractLocator, TxnInfo, TxnReceiptInfo, HyperlaneProvider,
+    BlockInfo, ContractLocator, HyperlaneChain, HyperlaneProvider, TxnInfo, TxnReceiptInfo,
 };
 
 /// Connection to an ethereum provider. Useful for querying information about

@@ -14,7 +14,7 @@ pub use typed_db::*;
 mod hyperlane_db;
 pub use hyperlane_db::*;
 
-use crate::{HyperlaneError, Decode, Encode};
+use crate::{Decode, Encode, HyperlaneError};
 
 #[derive(Debug, Clone)]
 /// A KV Store
@@ -45,7 +45,7 @@ impl DB {
     pub fn from_path(db_path: &str) -> eyre::Result<DB> {
         // Canonicalize ensures existence, so we have to do that, then extend
         let mut path = Path::new(".").canonicalize()?;
-        path.extend(&[db_path]);
+        path.extend([db_path]);
 
         match path.is_dir() {
             true => info!(

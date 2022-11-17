@@ -78,6 +78,7 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
       cycleOnce,
       fullCycleTime,
       connectionType: kathyConfig.connectionType,
+      cyclesBetweenEthereumMessages: kathyConfig.cyclesBetweenEthereumMessages,
     },
     image: {
       repository: kathyConfig.docker.repo,

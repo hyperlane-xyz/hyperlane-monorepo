@@ -17,5 +17,5 @@ interface IMailbox {
 
     function root() external view returns (bytes32);
 
-    function latestCheckpoint() external view returns (bytes32, uint256);
+    function latestCheckpoint() external view returns (bytes32, uint32);
 }

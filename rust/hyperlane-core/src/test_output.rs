@@ -5,7 +5,7 @@ use crate::{
     },
     test_utils::find_vector,
     utils::domain_hash,
-    HyperlaneMessage, Checkpoint,
+    Checkpoint, HyperlaneMessage,
 };
 use ethers::{
     core::types::{H160, H256},

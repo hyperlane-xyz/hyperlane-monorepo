@@ -8,7 +8,7 @@ import {MockToken} from "../contracts/mock/MockToken.sol";
 import {TestTokenRecipient} from "../contracts/test/TestTokenRecipient.sol";
 import {MockCircleMessageTransmitter} from "../contracts/mock/MockCircleMessageTransmitter.sol";
 import {MockCircleBridge} from "../contracts/mock/MockCircleBridge.sol";
-import {MockHyperlaneEnvironment} from "./MockHyperlaneEnvironment.sol";
+import {MockHyperlaneEnvironment} from "../contracts/mock/MockHyperlaneEnvironment.sol";
 
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
