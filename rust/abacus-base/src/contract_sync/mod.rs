@@ -1,7 +1,13 @@
 // TODO: Reapply tip buffer
 // TODO: Reapply metrics
 
+use std::time::Duration;
+
+use eyre::Result;
+use tokio::time::sleep;
+
 use abacus_core::db::AbacusDB;
+use abacus_core::Indexer;
 pub use interchain_gas::*;
 pub use metrics::ContractSyncMetrics;
 pub use outbox::*;
@@ -44,6 +50,84 @@ impl<I> ContractSync<I> {
             indexer,
             index_settings,
             metrics,
+        }
+    }
+}
+
+/// Tool for handling the logic of what the next block range that should be
+/// queried is and also handing rate limiting. Rate limiting is automatically
+/// performed by `next_range`.
+pub struct ContractSyncHelper<I> {
+    indexer: I,ˆ
+    chunk_size: u32,
+    from: u32,
+}
+
+impl<I> ContractSyncHelper<I>
+where
+    I: Indexer,
+{
+    /// Construct a new contract sync helper.
+    pub fn new(indexer: I, chunk_size: u32, initial_height: u32) -> Self {
+        Self {
+            indexer,
+            chunk_size,
+            from: initial_height,
+        }
+    }
+
+    /// Returns the current `from` position of the scraper. Note that
+    /// `next_range` may return a `from` value that is lower than this in order
+    /// to have some overlap.
+    pub fn current_position(&self) -> u32 {
+        self.from
+    }
+
+    /// Get the next block range `(from, to)` which should be fetched (this
+    /// returns an inclusive range such as (0,50), (51,100), ...). This
+    /// will automatically rate limit based on how far we are from the
+    /// highest block we can scrape according to
+    /// `get_finalized_block_number`.
+    ///
+    /// In reality this will often return a from value that overlaps with the
+    /// previous range to help ensure that we scrape everything even if the
+    /// provider failed to respond in full previously.
+    ///
+    /// This assumes the caller will call next_range again automatically on Err,
+    /// but it returns the error to allow for tailored logging or different end
+    /// cases.
+    pub async fn next_range(&mut self) -> Result<(u32, u32)> {
+        let tip = self.rate_limit().await?;
+        let to = u32::min(tip, self.from + self.chunk_size);
+        let from = to.saturating_sub(self.chunk_size);
+        self.from = to + 1;
+        Ok((from, to))
+    }
+
+    /// If there was an issue when a range of data was fetched, this rolls back
+    /// so the next range fetched will be from `start_from`. Note that it is a
+    /// no-op if a later block value is specified.
+    pub fn backtrack(&mut self, start_from: u32) {
+        self.from = u32::min(start_from, self.from);
+    }
+
+    /// Wait based on how close we are to the tip and then return the new tip,
+    /// i.e. the highest block we may scrape.
+    async fn rate_limit(&self) -> Result<u32> {
+        let tip = match self.indexer.get_finalized_block_number().await {
+            Ok(tip) => tip,
+            Err(e) => {
+                // we are failing to make a basic query, we should wait before retrying.
+                sleep(Duration::from_secs(10)).await;
+                return Err(e);
+            }
+        };
+        if self.from + self.chunk_size < tip {
+            sleep(Duration::from_secs(1)).await;
+            Ok(tip)
+        } else {
+            sleep(Duration::from_secs(10)).await;
+            self.indexer.get_finalized_block_number().await
         }
     }
 }

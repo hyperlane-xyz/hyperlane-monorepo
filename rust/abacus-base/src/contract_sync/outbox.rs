@@ -1,14 +1,10 @@
-use std::cmp::min;
-use std::time::Duration;
-
-use tokio::time::sleep;
 use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
 use abacus_core::{name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer};
 
 use crate::contract_sync::last_message::validate_message_continuity;
-use crate::{contract_sync::schema::OutboxContractSyncDB, ContractSync};
+use crate::{contract_sync::schema::OutboxContractSyncDB, ContractSync, ContractSyncHelper};
 
 const MESSAGES_LABEL: &str = "messages";
 
@@ -40,8 +36,17 @@ where
         let message_leaf_index = self.metrics.message_leaf_index.clone();
         let chain_name = self.chain_name.clone();
 
-        let config_from = self.index_settings.from();
-        let chunk_size = self.index_settings.chunk_size();
+        let mut sync_helper = {
+            let config_initial_height = self.index_settings.from();
+            let initial_height = db
+                .retrieve_latest_valid_message_range_start_block()
+                .map_or(config_initial_height, |b| b + 1);
+            ContractSyncHelper::new(
+                indexer.clone(),
+                self.index_settings.chunk_size(),
+                initial_height,
+            )
+        };
 
         // Indexes messages by fetching messages in ranges of blocks.
         // We've observed occasional flakiness with providers where some events in
@@ -79,43 +84,23 @@ where
         //    Note this means we only handle this case upon observing messages in some range [C,D]
         //    that indicate a previously indexed range may have missed some messages.
         tokio::spawn(async move {
-            let mut from = db
-                .retrieve_latest_valid_message_range_start_block()
-                .unwrap_or(config_from);
+            let start_block = sync_helper.current_position();
+            let mut last_valid_range_start_block = start_block;
+            info!(from = start_block, "[Messages]: resuming indexer from latest valid message range start block");
+            indexed_height.set(start_block as i64);
 
-            let mut last_valid_range_start_block = from;
-
-            info!(from = from, "[Messages]: resuming indexer from latest valid message range start block");
-
-            indexed_height.set(from as i64);
             loop {
-                sleep(Duration::from_secs(5)).await;
+                let start_block = sync_helper.current_position();
+                let Ok((from, to)) = sync_helper.next_range().await else { continue };
 
-                // Only index blocks considered final.
-                // If there's an error getting the block number, just start the loop over
-                let Ok(tip) = indexer.get_finalized_block_number().await else {
-                    continue;
-                };
-                if tip <= from {
-                    // Sleep if caught up to tip
-                    sleep(Duration::from_secs(10)).await;
-                    continue;
-                }
+                let mut sorted_messages: Vec<_> = indexer
+                    .fetch_sorted_messages(from, to)
+                    .await?
+                    .into_iter()
+                    .map(|(msg, _)| msg)
+                    .collect();
 
-                // Index the chunk_size, capping at the tip.
-                let to = min(tip, from + chunk_size);
-
-                // Still search the full-size chunk size to possibly catch events that nodes have dropped "close to the tip"
-                let full_chunk_from = to.checked_sub(chunk_size).unwrap_or_default();
-
-                let mut sorted_messages: Vec<_> = indexer.fetch_sorted_messages(full_chunk_from, to).await?.into_iter().map(|(msg, _)| msg).collect();
-
-                info!(
-                    from = full_chunk_from,
-                    to = to,
-                    message_count = sorted_messages.len(),
-                    "[Messages]: indexed block range"
-                );
+                info!(from, to, message_count = sorted_messages.len(), "[Messages]: indexed block range");
 
                 // Get the latest known leaf index. All messages whose indices are <= this index
                 // have been stored in the DB.
@@ -127,12 +112,7 @@ where
                     sorted_messages.retain(|m| m.leaf_index > min_index);
                 }
 
-                debug!(
-                    from = full_chunk_from,
-                    to = to,
-                    message_count = sorted_messages.len(),
-                    "[Messages]: filtered any messages already indexed"
-                );
+                debug!(from, to, message_count = sorted_messages.len(), "[Messages]: filtered any messages already indexed");
 
                 // Ensure the sorted messages are a valid continuation of last_leaf_index
                 match validate_message_continuity(last_leaf_index, &sorted_messages.iter().collect::<Vec<_>>()) {
@@ -155,11 +135,10 @@ where
                         }
 
                         // Update the latest valid start block.
-                        db.store_latest_valid_message_range_start_block(full_chunk_from)?;
-                        last_valid_range_start_block = full_chunk_from;
+                        db.store_latest_valid_message_range_start_block(from)?;
+                        last_valid_range_start_block = from;
 
                         // Move forward to the next height
-                        from = to + 1;
                         indexed_height.set(to as i64);
                     }
                     // The index of the first message in sorted_messages is not the
@@ -175,11 +154,12 @@ where
                             "[Messages]: Found invalid continuation in range. Re-indexing from the start block of the last successful range.",
                         );
 
-                        from = last_valid_range_start_block;
-                        indexed_height.set(from as i64);
+                        sync_helper.backtrack(last_valid_range_start_block);
+                        indexed_height.set(last_valid_range_start_block as i64);
                     }
                     ListValidity::ContainsGaps => {
                         missed_messages.inc();
+                        sync_helper.backtrack(start_block);
 
                         warn!(
                             last_leaf_index = ?last_leaf_index,
@@ -193,7 +173,6 @@ where
                         // We don't update last_valid_range_start_block because we cannot extrapolate
                         // if the range was correctly indexed if there are no messages to observe their
                         // indices.
-                        from = to + 1;
                         indexed_height.set(to as i64);
                     }
                 };
