@@ -22,7 +22,7 @@ async function main() {
   }));
   const multiProvider = new MultiProvider(chainProviders);
 
-  const core = HyperlaneCore.fromEnvironment('testnet2', multiProvider);
+  const core = HyperlaneCore.fromEnvironment('testnet3', multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(prodConfigs, signer.address),
   );
