@@ -1,0 +1,30 @@
+{
+  "goerli": [
+    {
+      "name": "TokenBridgeRouter",
+      "address": "0x952228cA63f85130534981844050c82b89f373E7",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "CircleBridgeAdapter",
+      "address": "0xc262a656c99B3a2f1B196dc5BeDa8f4f80D4a878",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "fuji": [
+    {
+      "name": "TokenBridgeRouter",
+      "address": "0x952228cA63f85130534981844050c82b89f373E7",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "CircleBridgeAdapter",
+      "address": "0xc262a656c99B3a2f1B196dc5BeDa8f4f80D4a878",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ]
+}

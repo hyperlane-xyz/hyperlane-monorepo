@@ -2,12 +2,12 @@ import path from 'path';
 
 import {
   HyperlaneCore,
-  TokenBridgeDeployer,
+  LiquidityLayerDeployer,
+  liquidityLayerFactories,
   objMap,
-  tokenBridgeFactories,
 } from '@hyperlane-xyz/sdk';
 
-import { circleBridgeAdapterConfig } from '../../config/environments/test/token-bridge';
+import { circleBridgeAdapterConfig } from '../../config/environments/test/liquidityLayer';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import {
@@ -24,23 +24,23 @@ async function main() {
 
   const dir = path.join(
     getEnvironmentDirectory(environment),
-    'middleware/token-bridge',
+    'middleware/liquidity-layer',
   );
 
   // config gcp deployer key as owner
   const ownerConfigMap = await getConfiguration(environment, multiProvider);
 
-  const deployer = new TokenBridgeDeployer(
+  const deployer = new LiquidityLayerDeployer(
     multiProvider,
     objMap(circleBridgeAdapterConfig, (chain, conf) => ({
       bridgeAdapterConfigs: [conf],
       ...ownerConfigMap[chain],
     })),
     core,
-    'TokenBridgeDeploy2',
+    'LiquidityLayerDeploy2',
   );
 
-  await deployWithArtifacts(dir, tokenBridgeFactories, deployer);
+  await deployWithArtifacts(dir, liquidityLayerFactories, deployer);
 }
 
 main()

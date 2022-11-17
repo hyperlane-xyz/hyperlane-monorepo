@@ -3,15 +3,15 @@ import { ethers } from 'ethers';
 import {
   CircleBridgeAdapter,
   CircleBridgeAdapter__factory,
-  TokenBridgeRouter,
-  TokenBridgeRouter__factory,
+  LiquidityLayerRouter,
+  LiquidityLayerRouter__factory,
 } from '@hyperlane-xyz/core';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import {
-  TokenBridgeContracts,
-  TokenBridgeFactories,
-  tokenBridgeFactories,
+  LiquidityLayerContracts,
+  LiquidityLayerFactories,
+  liquidityLayerFactories,
 } from '../../middleware';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
@@ -36,31 +36,31 @@ export interface CircleBridgeAdapterConfig {
 
 export type BridgeAdapterConfig = CircleBridgeAdapterConfig;
 
-export type TokenBridgeConfig = RouterConfig & {
+export type LiquidityLayerConfig = RouterConfig & {
   bridgeAdapterConfigs: BridgeAdapterConfig[];
 };
 
-export class TokenBridgeDeployer<
+export class LiquidityLayerDeployer<
   Chain extends ChainName,
 > extends HyperlaneRouterDeployer<
   Chain,
-  TokenBridgeConfig,
-  TokenBridgeContracts,
-  TokenBridgeFactories
+  LiquidityLayerConfig,
+  LiquidityLayerContracts,
+  LiquidityLayerFactories
 > {
   constructor(
     multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, TokenBridgeConfig>,
+    configMap: ChainMap<Chain, LiquidityLayerConfig>,
     protected core: HyperlaneCore<Chain>,
-    protected create2salt = 'TokenBridgeDeployerSalt',
+    protected create2salt = 'LiquidityLayerDeployerSalt',
   ) {
-    super(multiProvider, configMap, tokenBridgeFactories, {});
+    super(multiProvider, configMap, liquidityLayerFactories, {});
   }
 
   async enrollRemoteRouters(
-    contractsMap: ChainMap<Chain, TokenBridgeContracts>,
+    contractsMap: ChainMap<Chain, LiquidityLayerContracts>,
   ): Promise<void> {
-    // Enroll the TokenBridgeRouter with each other
+    // Enroll the LiquidityLayerRouter with each other
     await super.enrollRemoteRouters(contractsMap);
 
     // Enroll the circle adapters with each other
@@ -75,10 +75,10 @@ export class TokenBridgeDeployer<
   // If no custom logic is needed, call deployContract for the router
   async deployContracts(
     chain: Chain,
-    config: TokenBridgeConfig,
-  ): Promise<TokenBridgeContracts> {
+    config: LiquidityLayerConfig,
+  ): Promise<LiquidityLayerContracts> {
     const initCalldata =
-      TokenBridgeRouter__factory.createInterface().encodeFunctionData(
+      LiquidityLayerRouter__factory.createInterface().encodeFunctionData(
         'initialize',
         [config.owner, config.mailbox, config.interchainGasPaymaster],
       );
@@ -87,7 +87,7 @@ export class TokenBridgeDeployer<
       initCalldata,
     });
 
-    const bridgeAdapters: Partial<TokenBridgeContracts> = {};
+    const bridgeAdapters: Partial<LiquidityLayerContracts> = {};
 
     for (const adapterConfig of config.bridgeAdapterConfigs) {
       if (adapterConfig.type === BridgeAdapterType.Circle) {
@@ -111,7 +111,7 @@ export class TokenBridgeDeployer<
     chain: Chain,
     adapterConfig: CircleBridgeAdapterConfig,
     owner: string,
-    router: TokenBridgeRouter,
+    router: LiquidityLayerRouter,
   ): Promise<CircleBridgeAdapter> {
     const cc = this.multiProvider.getChainConnection(chain);
     const initCalldata =
@@ -162,9 +162,9 @@ export class TokenBridgeDeployer<
       );
     }
 
-    this.logger('Set CircleTokenBridgeAdapter on Router');
+    this.logger('Set CircleLiquidityLayerAdapter on Router');
     await cc.handleTx(
-      router.setTokenBridgeAdapter(
+      router.setLiquidityLayerAdapter(
         adapterConfig.type,
         circleBridgeAdapter.address,
       ),

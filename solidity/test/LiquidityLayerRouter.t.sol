@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import {TokenBridgeRouter} from "../contracts/middleware/token-bridge/TokenBridgeRouter.sol";
-import {CircleBridgeAdapter} from "../contracts/middleware/token-bridge/adapters/CircleBridgeAdapter.sol";
+import {LiquidityLayerRouter} from "../contracts/middleware/liquidity-layer/LiquidityLayerRouter.sol";
+import {CircleBridgeAdapter} from "../contracts/middleware/liquidity-layer/adapters/CircleBridgeAdapter.sol";
 import {MockToken} from "../contracts/mock/MockToken.sol";
 import {TestTokenRecipient} from "../contracts/test/TestTokenRecipient.sol";
 import {MockCircleMessageTransmitter} from "../contracts/mock/MockCircleMessageTransmitter.sol";
@@ -12,11 +12,11 @@ import {MockHyperlaneEnvironment} from "../contracts/mock/MockHyperlaneEnvironme
 
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
-contract TokenBridgeRouterTest is Test {
+contract LiquidityLayerRouterTest is Test {
     MockHyperlaneEnvironment testEnvironment;
 
-    TokenBridgeRouter originTokenBridgeRouter;
-    TokenBridgeRouter destinationTokenBridgeRouter;
+    LiquidityLayerRouter originLiquidityLayerRouter;
+    LiquidityLayerRouter destinationLiquidityLayerRouter;
 
     MockCircleMessageTransmitter messageTransmitter;
     MockCircleBridge circleBridge;
@@ -33,7 +33,7 @@ contract TokenBridgeRouterTest is Test {
     bytes messageBody = hex"beefdead";
     uint256 amount = 420000;
 
-    event TokenBridgeAdapterSet(string indexed bridge, address adapter);
+    event LiquidityLayerAdapterSet(string indexed bridge, address adapter);
 
     function setUp() public {
         token = new MockToken();
@@ -45,8 +45,8 @@ contract TokenBridgeRouterTest is Test {
 
         recipient = new TestTokenRecipient();
 
-        originTokenBridgeRouter = new TokenBridgeRouter();
-        destinationTokenBridgeRouter = new TokenBridgeRouter();
+        originLiquidityLayerRouter = new LiquidityLayerRouter();
+        destinationLiquidityLayerRouter = new LiquidityLayerRouter();
 
         testEnvironment = new MockHyperlaneEnvironment(
             originDomain,
@@ -54,38 +54,38 @@ contract TokenBridgeRouterTest is Test {
         );
 
         // TODO: set IGP?
-        originTokenBridgeRouter.initialize(
+        originLiquidityLayerRouter.initialize(
             address(this),
             address(testEnvironment.connectionManager(originDomain)),
             address(0)
         );
-        destinationTokenBridgeRouter.initialize(
+        destinationLiquidityLayerRouter.initialize(
             address(this),
             address(testEnvironment.connectionManager(destinationDomain)),
             address(0)
         );
 
-        originTokenBridgeRouter.enrollRemoteRouter(
+        originLiquidityLayerRouter.enrollRemoteRouter(
             destinationDomain,
-            TypeCasts.addressToBytes32(address(destinationTokenBridgeRouter))
+            TypeCasts.addressToBytes32(address(destinationLiquidityLayerRouter))
         );
-        destinationTokenBridgeRouter.enrollRemoteRouter(
+        destinationLiquidityLayerRouter.enrollRemoteRouter(
             originDomain,
-            TypeCasts.addressToBytes32(address(originTokenBridgeRouter))
+            TypeCasts.addressToBytes32(address(originLiquidityLayerRouter))
         );
 
         originBridgeAdapter.initialize(
             address(this),
             address(circleBridge),
             address(messageTransmitter),
-            address(originTokenBridgeRouter)
+            address(originLiquidityLayerRouter)
         );
 
         destinationBridgeAdapter.initialize(
             address(this),
             address(circleBridge),
             address(messageTransmitter),
-            address(destinationTokenBridgeRouter)
+            address(destinationLiquidityLayerRouter)
         );
 
         originBridgeAdapter.addToken(address(token), "USDC");
@@ -100,12 +100,12 @@ contract TokenBridgeRouterTest is Test {
             TypeCasts.addressToBytes32(address(originBridgeAdapter))
         );
 
-        originTokenBridgeRouter.setTokenBridgeAdapter(
+        originLiquidityLayerRouter.setLiquidityLayerAdapter(
             bridge,
             address(originBridgeAdapter)
         );
 
-        destinationTokenBridgeRouter.setTokenBridgeAdapter(
+        destinationLiquidityLayerRouter.setLiquidityLayerAdapter(
             bridge,
             address(destinationBridgeAdapter)
         );
@@ -113,21 +113,21 @@ contract TokenBridgeRouterTest is Test {
         token.mint(address(this), amount);
     }
 
-    function testSetTokenBridgeAdapter() public {
-        // Expect the TokenBridgeAdapterSet event.
+    function testSetLiquidityLayerAdapter() public {
+        // Expect the LiquidityLayerAdapterSet event.
         // Expect topic0 & data to match
         vm.expectEmit(true, false, false, true);
-        emit TokenBridgeAdapterSet(bridge, address(originBridgeAdapter));
+        emit LiquidityLayerAdapterSet(bridge, address(originBridgeAdapter));
 
         // Set the token bridge adapter
-        originTokenBridgeRouter.setTokenBridgeAdapter(
+        originLiquidityLayerRouter.setLiquidityLayerAdapter(
             bridge,
             address(originBridgeAdapter)
         );
 
         // Expect the bridge adapter to have been set
         assertEq(
-            originTokenBridgeRouter.tokenBridgeAdapters(bridge),
+            originLiquidityLayerRouter.liquidityLayerAdapters(bridge),
             address(originBridgeAdapter)
         );
     }
@@ -136,7 +136,7 @@ contract TokenBridgeRouterTest is Test {
 
     function testDispatchWithTokensRevertsWithUnkownBridgeAdapter() public {
         vm.expectRevert("No adapter found for bridge");
-        originTokenBridgeRouter.dispatchWithTokens(
+        originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
@@ -148,7 +148,7 @@ contract TokenBridgeRouterTest is Test {
 
     function testDispatchWithTokensRevertsWithFailedTransferIn() public {
         vm.expectRevert("ERC20: insufficient allowance");
-        originTokenBridgeRouter.dispatchWithTokens(
+        originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
@@ -159,8 +159,8 @@ contract TokenBridgeRouterTest is Test {
     }
 
     function testDispatchWithTokenTransfersMovesTokens() public {
-        token.approve(address(originTokenBridgeRouter), amount);
-        originTokenBridgeRouter.dispatchWithTokens(
+        token.approve(address(originLiquidityLayerRouter), amount);
+        originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
@@ -181,8 +181,8 @@ contract TokenBridgeRouterTest is Test {
                 amount
             )
         );
-        token.approve(address(originTokenBridgeRouter), amount);
-        originTokenBridgeRouter.dispatchWithTokens(
+        token.approve(address(originLiquidityLayerRouter), amount);
+        originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
@@ -193,8 +193,8 @@ contract TokenBridgeRouterTest is Test {
     }
 
     function testProcessingRevertsIfBridgeAdapterReverts() public {
-        token.approve(address(originTokenBridgeRouter), amount);
-        originTokenBridgeRouter.dispatchWithTokens(
+        token.approve(address(originLiquidityLayerRouter), amount);
+        originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
@@ -208,8 +208,8 @@ contract TokenBridgeRouterTest is Test {
     }
 
     function testDispatchWithTokensTransfersOnDestination() public {
-        token.approve(address(originTokenBridgeRouter), amount);
-        originTokenBridgeRouter.dispatchWithTokens(
+        token.approve(address(originLiquidityLayerRouter), amount);
+        originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
