@@ -88,8 +88,8 @@ where
 
             info!(from = from, "[Messages]: resuming indexer from latest valid message range start block");
 
+            indexed_height.set(from as i64);
             loop {
-                indexed_height.set(from as i64);
                 sleep(Duration::from_secs(5)).await;
 
                 // Only index blocks considered final.
@@ -158,6 +158,7 @@ where
 
                         // Move forward to the next height
                         from = to + 1;
+                        indexed_height.set(to as i64);
                     }
                     // The index of the first message in sorted_messages is not the
                     // `last_nonce+1`.
@@ -173,6 +174,7 @@ where
                         );
 
                         from = last_valid_range_start_block;
+                        indexed_height.set(from as i64);
                     }
                     ListValidity::ContainsGaps => {
                         missed_messages.inc();
@@ -190,6 +192,7 @@ where
                         // if the range was correctly indexed if there are no messages to observe their
                         // indices.
                         from = to + 1;
+                        indexed_height.set(to as i64);
                     }
                 };
             }

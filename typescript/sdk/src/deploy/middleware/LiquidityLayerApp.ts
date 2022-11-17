@@ -9,7 +9,7 @@ import {
 
 import { HyperlaneApp } from '../../HyperlaneApp';
 import { Chains } from '../../consts/chains';
-import { TokenBridgeContracts } from '../../middleware';
+import { LiquidityLayerContracts } from '../../middleware';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
 import { objMap } from '../../utils/objects';
@@ -18,7 +18,7 @@ import {
   BridgeAdapterConfig,
   BridgeAdapterType,
   CircleBridgeAdapterConfig,
-} from './TokenBridgeRouterDeployer';
+} from './LiquidityLayerRouterDeployer';
 
 const CircleBridgeInterface = ICircleBridge__factory.createInterface();
 const CircleBridgeAdapterInterface =
@@ -37,11 +37,11 @@ interface CircleBridgeMessage<Chain> {
   domain: number;
   nonceHash: string;
 }
-export class TokenBridgeApp<
+export class LiquidityLayerApp<
   Chain extends ChainName = ChainName,
-> extends HyperlaneApp<TokenBridgeContracts, Chain> {
+> extends HyperlaneApp<LiquidityLayerContracts, Chain> {
   constructor(
-    public readonly contractsMap: ChainMap<Chain, TokenBridgeContracts>,
+    public readonly contractsMap: ChainMap<Chain, LiquidityLayerContracts>,
     public readonly multiProvider: MultiProvider<Chain>,
     public readonly bridgeAdapterConfigs: ChainMap<
       Chain,

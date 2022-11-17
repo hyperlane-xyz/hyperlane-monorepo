@@ -6,18 +6,18 @@ import {Router} from "../../Router.sol";
 import {IMessageRecipient} from "../../../interfaces/IMessageRecipient.sol";
 import {ICircleBridge} from "./interfaces/circle/ICircleBridge.sol";
 import {ICircleMessageTransmitter} from "./interfaces/circle/ICircleMessageTransmitter.sol";
-import {ITokenBridgeAdapter} from "./interfaces/ITokenBridgeAdapter.sol";
-import {ITokenBridgeMessageRecipient} from "./interfaces/ITokenBridgeMessageRecipient.sol";
+import {ILiquidityLayerAdapter} from "./interfaces/ILiquidityLayerAdapter.sol";
+import {ILiquidityLayerMessageRecipient} from "./interfaces/ILiquidityLayerMessageRecipient.sol";
 
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract TokenBridgeRouter is Router {
+contract LiquidityLayerRouter is Router {
     // Token bridge => adapter address
-    mapping(string => address) public tokenBridgeAdapters;
+    mapping(string => address) public liquidityLayerAdapters;
 
-    event TokenBridgeAdapterSet(string indexed bridge, address adapter);
+    event LiquidityLayerAdapterSet(string indexed bridge, address adapter);
 
     function initialize(
         address _owner,
@@ -39,7 +39,7 @@ contract TokenBridgeRouter is Router {
         uint256 _amount,
         string calldata _bridge
     ) external payable {
-        ITokenBridgeAdapter _adapter = _getAdapter(_bridge);
+        ILiquidityLayerAdapter _adapter = _getAdapter(_bridge);
 
         // Transfer the tokens to the adapter
         // TODO: use safeTransferFrom
@@ -69,11 +69,11 @@ contract TokenBridgeRouter is Router {
             _messageBody // The "user" message
         );
 
-        // Dispatch the _messageWithMetadata to the destination's TokenBridgeRouter.
+        // Dispatch the _messageWithMetadata to the destination's LiquidityLayerRouter.
         _dispatchWithGas(_destinationDomain, _messageWithMetadata, msg.value);
     }
 
-    // Handles a message from an enrolled remote TokenBridgeRouter
+    // Handles a message from an enrolled remote LiquidityLayerRouter
     function _handle(
         uint32 _origin,
         bytes32, // _sender, unused
@@ -92,7 +92,7 @@ contract TokenBridgeRouter is Router {
                 (bytes32, bytes32, uint256, string, bytes, bytes)
             );
 
-        ITokenBridgeMessageRecipient _userRecipient = ITokenBridgeMessageRecipient(
+        ILiquidityLayerMessageRecipient _userRecipient = ILiquidityLayerMessageRecipient(
                 TypeCasts.bytes32ToAddress(_userRecipientAddress)
             );
 
@@ -114,20 +114,20 @@ contract TokenBridgeRouter is Router {
         );
     }
 
-    function setTokenBridgeAdapter(string calldata _bridge, address _adapter)
+    function setLiquidityLayerAdapter(string calldata _bridge, address _adapter)
         external
         onlyOwner
     {
-        tokenBridgeAdapters[_bridge] = _adapter;
-        emit TokenBridgeAdapterSet(_bridge, _adapter);
+        liquidityLayerAdapters[_bridge] = _adapter;
+        emit LiquidityLayerAdapterSet(_bridge, _adapter);
     }
 
     function _getAdapter(string memory _bridge)
         internal
         view
-        returns (ITokenBridgeAdapter _adapter)
+        returns (ILiquidityLayerAdapter _adapter)
     {
-        _adapter = ITokenBridgeAdapter(tokenBridgeAdapters[_bridge]);
+        _adapter = ILiquidityLayerAdapter(liquidityLayerAdapters[_bridge]);
         // Require the adapter to have been set
         require(address(_adapter) != address(0), "No adapter found for bridge");
     }
