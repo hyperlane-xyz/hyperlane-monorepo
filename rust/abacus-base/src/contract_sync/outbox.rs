@@ -36,7 +36,7 @@ where
         let message_leaf_index = self.metrics.message_leaf_index.clone();
         let chain_name = self.chain_name.clone();
 
-        let mut sync_helper = {
+        let sync_helper = {
             let config_initial_height = self.index_settings.from();
             let initial_height = db
                 .retrieve_latest_valid_message_range_start_block()
@@ -84,6 +84,8 @@ where
         //    Note this means we only handle this case upon observing messages in some range [C,D]
         //    that indicate a previously indexed range may have missed some messages.
         tokio::spawn(async move {
+            let mut sync_helper = sync_helper.await?;
+
             let start_block = sync_helper.current_position();
             let mut last_valid_range_start_block = start_block;
             info!(from = start_block, "[Messages]: resuming indexer from latest valid message range start block");

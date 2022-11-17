@@ -30,7 +30,7 @@ where
             .stored_events
             .with_label_values(&[GAS_PAYMENTS_LABEL, &self.chain_name]);
 
-        let mut sync_helper = {
+        let sync_helper = {
             let config_initial_height = self.index_settings.from();
             let initial_height = db
                 .retrieve_latest_indexed_gas_payment_block()
@@ -43,6 +43,8 @@ where
         };
 
         tokio::spawn(async move {
+            let mut sync_helper = sync_helper.await?;
+
             let start_block = sync_helper.current_position();
             info!(from = start_block, "[GasPayments]: resuming indexer");
             indexed_height.set(start_block as i64);

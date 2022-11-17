@@ -82,7 +82,8 @@ impl Syncer {
         let last_leaf_index = scraper.last_message_leaf_index().await?.unwrap_or(0);
 
         let sync_helper =
-            { ContractSyncHelper::new(scraper.local.indexer.clone(), chunk_size, initial_height) };
+            ContractSyncHelper::new(scraper.local.indexer.clone(), chunk_size, initial_height)
+                .await?;
 
         Ok(Self {
             scraper,
