@@ -338,7 +338,7 @@ impl DomainSettings {
         chain_name: &str,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn Mailbox>> {
-        let signer = self.get_signer(&chain_name).await;
+        let signer = self.get_signer(chain_name).await;
         let setup = self.try_chain_setup(chain_name)?;
         setup.try_into_mailbox(signer, metrics).await
     }
@@ -366,7 +366,7 @@ impl DomainSettings {
         chain_name: &str,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn InterchainGasPaymaster>> {
-        let signer = self.get_signer(&chain_name).await;
+        let signer = self.get_signer(chain_name).await;
         let setup = self.try_chain_setup(chain_name)?;
         setup
             .try_into_interchain_gas_paymaster(signer, metrics)
@@ -400,7 +400,7 @@ impl DomainSettings {
         chain_name: &str,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn MultisigIsm>> {
-        let signer = self.get_signer(&chain_name).await;
+        let signer = self.get_signer(chain_name).await;
         let chain_setup = self.try_chain_setup(chain_name)?;
         chain_setup.try_into_multisig_ism(signer, metrics).await
     }

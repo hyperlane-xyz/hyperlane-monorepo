@@ -46,7 +46,7 @@ impl BaseAgent for Scraper {
 
         for (chain_name, chain_setup) in settings.chain.chains.iter() {
             // let ctx = || format!("Loading chain {}", chain_name);
-            let local = Self::load_chain(&settings.chain, &chain_name, &metrics).await?;
+            let local = Self::load_chain(&settings.chain, chain_name, &metrics).await?;
             // .with_context(ctx)? TODO: Why doesn't this work anymore?
             {
                 trace!(chain_name = chain_name, "Created mailbox and indexer");

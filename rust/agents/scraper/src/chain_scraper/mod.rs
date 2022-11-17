@@ -110,7 +110,7 @@ impl SqlChainScraper {
         self.db
             .store_messages(
                 &self.local.mailbox.address(),
-                messages.into_iter().map(|m| {
+                messages.iter().map(|m| {
                     let txn = txns.get(&m.meta.transaction_hash).unwrap();
                     StorableMessage {
                         msg: m.message.clone(),

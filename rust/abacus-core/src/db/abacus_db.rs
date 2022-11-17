@@ -1,7 +1,7 @@
 use crate::db::{DbError, TypedDB, DB};
 use crate::{
     accumulator::merkle::Proof, AbacusMessage, InterchainGasPayment, InterchainGasPaymentMeta,
-    InterchainGasPaymentWithMeta, RawAbacusMessage,
+    InterchainGasPaymentWithMeta,
 };
 use ethers::core::types::{H256, U256};
 use eyre::Result;
@@ -154,7 +154,7 @@ impl AbacusDB {
     }
 
     /// Retrieve a message by its id
-    pub fn message_by_id(&self, id: H256) -> Result<Option<RawAbacusMessage>, DbError> {
+    pub fn message_by_id(&self, id: H256) -> Result<Option<AbacusMessage>, DbError> {
         self.retrieve_keyed_decodable(MESSAGE, &id)
     }
 
@@ -164,7 +164,7 @@ impl AbacusDB {
     }
 
     /// Retrieve a message by its nonce
-    pub fn message_by_nonce(&self, nonce: u32) -> Result<Option<RawAbacusMessage>, DbError> {
+    pub fn message_by_nonce(&self, nonce: u32) -> Result<Option<AbacusMessage>, DbError> {
         let id: Option<H256> = self.message_id_by_nonce(nonce)?;
         match id {
             None => Ok(None),
