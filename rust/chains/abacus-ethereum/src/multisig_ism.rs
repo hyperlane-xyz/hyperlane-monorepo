@@ -214,7 +214,7 @@ where
     async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
         let entry = self.validators_cache.read().await.get(domain).cloned();
         if let Some(validators) = entry {
-            Ok(validators.clone())
+            Ok(validators)
         } else {
             let validators = self.contract.validators(domain).call().await?;
             self.validators_cache
