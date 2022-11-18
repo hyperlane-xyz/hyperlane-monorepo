@@ -200,8 +200,9 @@ where
 
     #[tracing::instrument(err, skip(self))]
     async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
-        if let Some(threshold) = self.threshold_cache.read().await.get(domain) {
-            Ok(*threshold)
+        let entry = self.threshold_cache.read().await.get(domain).cloned();
+        if let Some(threshold) = entry {
+            Ok(threshold)
         } else {
             let threshold = self.contract.threshold(domain).call().await?;
             self.threshold_cache.write().await.put(domain, threshold);
@@ -211,7 +212,8 @@ where
 
     #[tracing::instrument(err, skip(self))]
     async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
-        if let Some(validators) = self.validators_cache.read().await.get(domain) {
+        let entry = self.validators_cache.read().await.get(domain).cloned();
+        if let Some(validators) = entry {
             Ok(validators.clone())
         } else {
             let validators = self.contract.validators(domain).call().await?;
