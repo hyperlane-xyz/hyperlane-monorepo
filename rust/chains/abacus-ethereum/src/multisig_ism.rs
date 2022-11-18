@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant};
 
 use abacus_core::accumulator::merkle::Proof;
 use async_trait::async_trait;
@@ -11,9 +11,8 @@ use ethers::abi::Token;
 use ethers::providers::Middleware;
 use ethers::types::{Selector, H160, H256, U256};
 use eyre::Result;
-use std::collections::hash_map::Entry::Occupied;
 use std::hash::Hash;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 use abacus_core::{
     AbacusAbi, AbacusChain, AbacusContract, ChainCommunicationError, ContractLocator, MultisigIsm,
@@ -25,14 +24,14 @@ use crate::trait_builder::MakeableWithProvider;
 
 #[derive(Debug)]
 struct Timestamped<Value> {
-    t: SystemTime,
+    t: Instant,
     value: Value,
 }
 
 impl<Value> Timestamped<Value> {
     fn new(value: Value) -> Timestamped<Value> {
         Timestamped {
-            t: SystemTime::now(),
+            t: Instant::now(),
             value,
         }
     }
@@ -63,16 +62,12 @@ where
         self.cache.insert(key, Timestamped::new(value));
     }
 
-    pub fn get(&mut self, key: Key) -> Option<&Value> {
-        if let Occupied(entry) = self.cache.entry(key) {
-            if SystemTime::now()
-                .duration_since(entry.get().t)
-                .expect("Clock may have gone backwards")
-                > self.expiry
-            {
+    pub fn get(&self, key: Key) -> Option<&Value> {
+        if let Some(entry) = self.cache.get(&key) {
+            if entry.t.elapsed() > self.expiry {
                 None
             } else {
-                Some(&self.cache[&key].value)
+                Some(&entry.value)
             }
         } else {
             None
@@ -116,8 +111,8 @@ where
     chain_name: String,
     #[allow(dead_code)]
     provider: Arc<M>,
-    threshold_cache: Mutex<ExpiringCache<u32, U256>>,
-    validators_cache: Mutex<ExpiringCache<u32, Vec<H160>>>,
+    threshold_cache: RwLock<ExpiringCache<u32, U256>>,
+    validators_cache: RwLock<ExpiringCache<u32, Vec<H160>>>,
 }
 
 impl<M> EthereumMultisigIsm<M>
@@ -135,8 +130,8 @@ where
             domain: locator.domain,
             chain_name: locator.chain_name.to_owned(),
             provider,
-            threshold_cache: Mutex::new(ExpiringCache::new(Duration::from_secs(60))),
-            validators_cache: Mutex::new(ExpiringCache::new(Duration::from_secs(60))),
+            threshold_cache: RwLock::new(ExpiringCache::new(Duration::from_secs(60))),
+            validators_cache: RwLock::new(ExpiringCache::new(Duration::from_secs(60))),
         }
     }
 }
@@ -215,24 +210,22 @@ where
 
     #[tracing::instrument(err, skip(self))]
     async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
-        let mut cache = self.threshold_cache.lock().await;
-        if let Some(threshold) = cache.get(domain) {
+        if let Some(threshold) = self.threshold_cache.read().await.get(domain) {
             Ok(*threshold)
         } else {
             let threshold = self.contract.threshold(domain).call().await?;
-            cache.put(domain, threshold);
+            self.threshold_cache.write().await.put(domain, threshold);
             Ok(threshold)
         }
     }
 
     #[tracing::instrument(err, skip(self))]
     async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
-        let mut cache = self.validators_cache.lock().await;
-        if let Some(validators) = cache.get(domain) {
+        if let Some(validators) = self.validators_cache.read().await.get(domain) {
             Ok(validators.clone())
         } else {
             let validators = self.contract.validators(domain).call().await?;
-            cache.put(domain, validators.clone());
+            self.validators_cache.write().await.put(domain, validators.clone());
             Ok(validators)
         }
     }
