@@ -217,7 +217,10 @@ where
             Ok(validators.clone())
         } else {
             let validators = self.contract.validators(domain).call().await?;
-            self.validators_cache.write().await.put(domain, validators.clone());
+            self.validators_cache
+                .write()
+                .await
+                .put(domain, validators.clone());
             Ok(validators)
         }
     }
