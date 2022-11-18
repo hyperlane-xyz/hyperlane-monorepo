@@ -104,10 +104,12 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     }
 
     const toQuery = chains.filter((c) => !this.cache.isFresh(c));
-    try {
-      await this.queryTokenPrices(toQuery);
-    } catch (e) {
-      warn('Failed to query token prices', e);
+    if (toQuery.length > 0) {
+      try {
+        await this.queryTokenPrices(toQuery);
+      } catch (e) {
+        warn('Failed to query token prices', e);
+      }
     }
     return chains.map((chain) => this.cache.fetch(chain));
   }
