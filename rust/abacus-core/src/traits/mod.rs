@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::fmt::Debug;
 
-use async_trait::async_trait;
 use auto_impl::auto_impl;
 use ethers::prelude::Selector;
 use ethers::{
@@ -10,25 +9,20 @@ use ethers::{
     core::types::{TransactionReceipt, H256},
     providers::{Middleware, ProviderError},
 };
-use eyre::Result;
 
-pub use common::*;
 pub use encode::*;
-pub use inbox::*;
 pub use indexer::*;
 pub use interchain_gas::*;
-pub use outbox::*;
-pub use validator_manager::*;
+pub use mailbox::*;
+pub use multisig_ism::*;
 
-use crate::{db::DbError, utils::domain_hash, AbacusError};
+use crate::{db::DbError, AbacusError};
 
-mod common;
 mod encode;
-mod inbox;
 mod indexer;
 mod interchain_gas;
-mod outbox;
-mod validator_manager;
+mod mailbox;
+mod multisig_ism;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]
@@ -96,25 +90,6 @@ pub trait AbacusContract {
 
     /// Return the address of this contract.
     fn address(&self) -> H256;
-}
-
-/// Interface for attributes shared by Outbox and Inbox
-#[async_trait]
-#[auto_impl(Box, Arc)]
-pub trait AbacusCommon: AbacusContract + Sync + Send + Debug {
-    /// Return the domain ID
-    fn local_domain(&self) -> u32;
-
-    /// Return the domain hash
-    fn local_domain_hash(&self) -> H256 {
-        domain_hash(self.local_domain())
-    }
-
-    /// Get the status of a transaction.
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError>;
-
-    /// Fetch the current validator manager value
-    async fn validator_manager(&self) -> Result<H256, ChainCommunicationError>;
 }
 
 /// Static contract ABI information.

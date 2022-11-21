@@ -9,15 +9,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "address",
-        "name": "outbox",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "leafIndex",
-        "type": "uint256"
+        "internalType": "bytes32",
+        "name": "messageId",
+        "type": "bytes32"
       },
       {
         "indexed": false,
@@ -91,14 +85,9 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_outbox",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_leafIndex",
-        "type": "uint256"
+        "internalType": "bytes32",
+        "name": "_messageId",
+        "type": "bytes32"
       },
       {
         "internalType": "uint32",

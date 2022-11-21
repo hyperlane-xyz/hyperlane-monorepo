@@ -28,8 +28,8 @@ pub struct ContractSyncMetrics {
     /// - `chain`: Chain the indexer is collecting data from.
     pub missed_events: IntCounterVec,
 
-    /// See `last_known_message_leaf_index` in CoreMetrics.
-    pub message_leaf_index: IntGaugeVec,
+    /// See `last_known_message_nonce` in CoreMetrics.
+    pub message_nonce: IntGaugeVec,
 }
 
 impl ContractSyncMetrics {
@@ -59,13 +59,13 @@ impl ContractSyncMetrics {
             )
             .expect("failed to register missed_events metric");
 
-        let message_leaf_index = metrics.last_known_message_leaf_index();
+        let message_nonce = metrics.last_known_message_nonce();
 
         ContractSyncMetrics {
             indexed_height,
             stored_events,
             missed_events,
-            message_leaf_index,
+            message_nonce,
         }
     }
 }

@@ -51,7 +51,7 @@ export const dispatchMessageAndReturnProof = async (
     proof: {
       branch: proof,
       leaf: messageId,
-      index: nonce.toNumber(),
+      index: nonce,
     },
     message,
   };
@@ -93,14 +93,14 @@ export async function dispatchMessageAndReturnMetadata(
   const root = await mailbox.root();
   const signatures = await signCheckpoint(
     root,
-    index.toNumber(),
+    index,
     mailbox.address,
     orderedValidators,
   );
   const origin = utils.parseMessage(proofAndMessage.message).origin;
   const metadata = utils.formatMultisigIsmMetadata({
     checkpointRoot: root,
-    checkpointIndex: index.toNumber(),
+    checkpointIndex: index,
     originMailbox: mailbox.address,
     proof: proofAndMessage.proof.branch,
     signatures,

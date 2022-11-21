@@ -21,13 +21,9 @@ pub use agent::*;
 #[macro_use]
 pub mod macros;
 
-/// outbox type
-mod outbox;
-pub use outbox::*;
-
-/// inbox type
-mod inbox;
-pub use inbox::*;
+/// mailbox type
+mod mailbox;
+pub use mailbox::*;
 
 mod metrics;
 pub use metrics::*;

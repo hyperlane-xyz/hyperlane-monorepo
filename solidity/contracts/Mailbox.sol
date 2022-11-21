@@ -174,8 +174,9 @@ contract Mailbox is
     /**
      * @notice Returns the number of inserted leaves in the tree
      */
-    function count() public view returns (uint256) {
-        return tree.count;
+    function count() public view returns (uint32) {
+        // count cannot exceed 2**TREE_DEPTH, see MerkleLib.sol
+        return uint32(tree.count);
     }
 
     /**
@@ -183,7 +184,7 @@ contract Mailbox is
      * @return root The root of the Outbox's merkle tree.
      * @return index The index of the last element in the tree.
      */
-    function latestCheckpoint() public view returns (bytes32, uint256) {
+    function latestCheckpoint() public view returns (bytes32, uint32) {
         return (root(), count() - 1);
     }
 

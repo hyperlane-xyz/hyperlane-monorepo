@@ -164,14 +164,14 @@ export function writeJSON(directory: string, filename: string, obj: any) {
 
 export function readJSON(directory: string, filename: string) {
   if (!fs.existsSync(directory)) {
-    throw Error("directory doesn't exist");
+    throw Error(`directory doesn't exist: ${directory}`);
   }
   return readJSONAtPath(path.join(directory, filename));
 }
 
 export function readJSONAtPath(filepath: string) {
   if (!fs.existsSync(filepath)) {
-    throw Error("file doesn't exist");
+    throw Error(`file doesn't exist: ${filepath}`);
   }
   return JSON.parse(fs.readFileSync(filepath, 'utf8'));
 }

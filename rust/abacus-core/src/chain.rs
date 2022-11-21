@@ -191,7 +191,6 @@ pub fn domain_id_from_name(name: &'static str) -> Option<u32> {
 mod tests {
     use abacus_base::Settings;
     use config::{Config, File, FileFormat};
-    use num_traits::identities::Zero;
     use std::collections::BTreeSet;
     use std::fs::read_to_string;
     use std::path::Path;
@@ -216,9 +215,7 @@ mod tests {
     const BLACKLISTED_DIRS: &[&str] = &[
         // Ignore only-local names of fake chains used by
         // e.g. test suites.
-        "test/test1_config.json",
-        "test/test2_config.json",
-        "test/test3_config.json",
+        "test/test_config.json",
     ];
 
     fn is_blacklisted(path: &Path) -> bool {
@@ -280,35 +277,11 @@ mod tests {
             .collect()
     }
 
-    fn outbox_chain_names() -> BTreeSet<String> {
-        abacus_settings()
-            .iter()
-            .map(|x| x.outbox.name.clone())
-            .collect()
-    }
-
-    fn inbox_chain_names() -> BTreeSet<String> {
-        abacus_settings()
-            .iter()
-            .flat_map(|x: &Settings| x.inboxes.iter().map(|(k, _)| String::from(k)))
-            .collect()
-    }
-
-    fn outbox_name_domain_coords() -> BTreeSet<ChainCoordinate> {
-        abacus_settings()
-            .iter()
-            .map(|x| ChainCoordinate {
-                name: x.outbox.name.clone(),
-                domain: x.outbox.domain.parse().unwrap(),
-            })
-            .collect()
-    }
-
-    fn inbox_name_domain_records() -> BTreeSet<ChainCoordinate> {
+    fn chain_name_domain_records() -> BTreeSet<ChainCoordinate> {
         abacus_settings()
             .iter()
             .flat_map(|x: &Settings| {
-                x.inboxes.iter().map(|(_, v)| ChainCoordinate {
+                x.chains.iter().map(|(_, v)| ChainCoordinate {
                     name: v.name.clone(),
                     domain: v.domain.parse().unwrap(),
                 })
@@ -318,24 +291,6 @@ mod tests {
 
     #[test]
     fn agent_json_config_consistency_checks() {
-        // Inbox/outbox and chain-presence equality
-        // (sanity checks that we have a complete list of
-        // relevant chains).
-        let inbox_chains = inbox_chain_names();
-        let outbox_chains = outbox_chain_names();
-        assert!(inbox_chains.symmetric_difference(&outbox_chains).count() == usize::zero());
-        assert_eq!(&inbox_chains.len(), &outbox_chains.len());
-
-        // Verify that the the outbox-associative chain-name
-        // and domain-number records agree with the
-        // inbox-associative chain-name and domain-number
-        // records, since our configuration data is /not/
-        // normalized and could drift out of sync.
-        let inbox_coords = inbox_name_domain_records();
-        let outbox_coords = outbox_name_domain_coords();
-        assert!(inbox_coords.symmetric_difference(&outbox_coords).count() == usize::zero());
-        assert_eq!(&inbox_coords.len(), &outbox_coords.len());
-
         // TODO(webbhorn): Also verify with this functionality
         // we have entries for all of the Gelato contract
         // addresses we need hardcoded in the binary for now.
@@ -345,8 +300,8 @@ mod tests {
         // by the macro `domain_and_chain` is complete
         // and in agreement with our on-disk json-based
         // configuration data.
-
-        for ChainCoordinate { name, domain } in inbox_coords.iter().chain(outbox_coords.iter()) {
+        let chain_coords = chain_name_domain_records();
+        for ChainCoordinate { name, domain } in chain_coords.iter() {
             assert_eq!(
                 AbacusDomain::try_from(domain.to_owned())
                     .unwrap()

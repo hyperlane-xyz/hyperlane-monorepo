@@ -192,7 +192,8 @@ mod test {
                     .parse()
                     .unwrap();
             let message = Checkpoint {
-                outbox_domain: 5,
+                mailbox_address: H256::repeat_byte(2),
+                mailbox_domain: 5,
                 root: H256::repeat_byte(1),
                 index: 123,
             };

@@ -43,7 +43,7 @@ pub struct CoreMetrics {
 
     span_durations: HistogramVec,
     span_events: IntCounterVec,
-    last_known_message_leaf_index: IntGaugeVec,
+    last_known_message_nonce: IntGaugeVec,
     validator_checkpoint_index: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
     submitter_queue_duration_histogram: HistogramVec,
@@ -103,9 +103,9 @@ impl CoreMetrics {
             registry
         )?;
 
-        let last_known_message_leaf_index = register_int_gauge_vec_with_registry!(
+        let last_known_message_nonce = register_int_gauge_vec_with_registry!(
             opts!(
-                namespaced!("last_known_message_leaf_index"),
+                namespaced!("last_known_message_nonce"),
                 "Last known message leaf index",
                 const_labels_ref
             ),
@@ -186,7 +186,7 @@ impl CoreMetrics {
 
             span_durations,
             span_events,
-            last_known_message_leaf_index,
+            last_known_message_nonce,
             validator_checkpoint_index,
 
             submitter_queue_length,
@@ -315,8 +315,8 @@ impl CoreMetrics {
     ///   has gotten to but not attempted to send it.
     /// - `message_processed`: When a leaf index was processed as part of the
     ///   MessageProcessor loop.
-    pub fn last_known_message_leaf_index(&self) -> IntGaugeVec {
-        self.last_known_message_leaf_index.clone()
+    pub fn last_known_message_nonce(&self) -> IntGaugeVec {
+        self.last_known_message_nonce.clone()
     }
 
     /// Gauge for reporting the most recent validator checkpoint index
@@ -373,7 +373,7 @@ impl CoreMetrics {
     /// lifetime.
     ///
     /// The value of
-    /// `abacus_last_known_message_leaf_index{phase=message_processed}`
+    /// `abacus_last_known_message_nonce{phase=message_processed}`
     /// should refer to the maximum leaf index value we ever successfully
     /// delivered. Since deliveries can happen out-of-index-order, we
     /// separately track this counter referring to the number of successfully

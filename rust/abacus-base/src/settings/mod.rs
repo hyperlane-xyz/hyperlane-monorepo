@@ -89,16 +89,13 @@ use tracing::instrument;
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
-    AbacusContract, ContractLocator, InboxValidatorManager, InterchainGasPaymasterIndexer,
-    OutboxIndexer, Signers,
+    InterchainGasPaymasterIndexer, MailboxIndexer, MultisigIsm, Signers,
 };
-use abacus_ethereum::{
-    InterchainGasPaymasterIndexerBuilder, MakeableWithProvider, OutboxIndexerBuilder,
-};
-pub use chains::{ChainConf, ChainSetup, InboxAddresses, OutboxAddresses};
+use abacus_ethereum::{InterchainGasPaymasterIndexerBuilder, MailboxIndexerBuilder};
+pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
-use crate::{AbacusAgentCore, CachingInbox, CachingOutbox, CoreMetrics, InboxContracts};
+use crate::{AbacusAgentCore, CachingMailbox, CoreMetrics};
 
 use self::chains::GelatoConf;
 
@@ -163,35 +160,6 @@ impl SignerConf {
     }
 }
 
-/// Outbox indexing settings
-#[derive(Debug, Deserialize, Default, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct IndexSettings {
-    /// The height at which to start indexing the Outbox contract
-    pub from: Option<String>,
-    /// The number of blocks to query at once at which to start indexing the
-    /// Outbox contract
-    pub chunk: Option<String>,
-}
-
-impl IndexSettings {
-    /// Get the `from` setting
-    pub fn from(&self) -> u32 {
-        self.from
-            .as_ref()
-            .and_then(|s| s.parse::<u32>().ok())
-            .unwrap_or_default()
-    }
-
-    /// Get the `chunk_size` setting
-    pub fn chunk_size(&self) -> u32 {
-        self.chunk
-            .as_ref()
-            .and_then(|s| s.parse::<u32>().ok())
-            .unwrap_or(1999)
-    }
-}
-
 /// Settings. Usually this should be treated as a base config and used as
 /// follows:
 ///
@@ -223,13 +191,8 @@ pub struct Settings {
     pub db: String,
     /// Port to listen for prometheus scrape requests
     pub metrics: Option<String>,
-    /// Settings for the outbox indexer
-    #[serde(default)]
-    pub index: IndexSettings,
-    /// Configurations for contracts on the outbox chain
-    pub outbox: ChainSetup<OutboxAddresses>,
-    /// Configurations for contracts on inbox chains
-    pub inboxes: HashMap<String, ChainSetup<InboxAddresses>>,
+    /// Configuration for contracts on each chain
+    pub chains: HashMap<String, ChainSetup>,
     /// The tracing configuration
     pub tracing: TracingConfig,
     /// Transaction signers
@@ -245,9 +208,7 @@ impl Settings {
         Self {
             db: self.db.clone(),
             metrics: self.metrics.clone(),
-            index: self.index.clone(),
-            outbox: self.outbox.clone(),
-            inboxes: self.inboxes.clone(),
+            chains: self.chains.clone(),
             tracing: self.tracing.clone(),
             signers: self.signers.clone(),
             gelato: self.gelato.clone(),
@@ -261,180 +222,155 @@ impl Settings {
         self.signers.get(name)?.try_into_signer().await.ok()
     }
 
-    /// Try to get a map of inbox name -> inbox contracts
-    pub async fn try_inbox_contracts(
+    /// Try to get a map of chain name -> mailbox contract
+    pub async fn try_into_mailboxes(
         &self,
         db: DB,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<HashMap<String, InboxContracts>> {
+        chain_names: &[&str],
+    ) -> eyre::Result<HashMap<String, CachingMailbox>> {
         let mut result = HashMap::new();
-        for (k, v) in self.inboxes.iter().filter(|(_, v)| {
-            !v.disabled
-                .as_ref()
-                .and_then(|d| d.parse::<bool>().ok())
-                .unwrap_or(false)
-        }) {
-            if k != &v.name {
-                bail!(
-                    "Inbox key does not match inbox name:\n key: {}  name: {}",
-                    k,
-                    v.name
-                );
+        for &chain_name in chain_names {
+            if let Some(x) = self.chains.get(chain_name) {
+                let mailbox = self.try_caching_mailbox(x, db.clone(), metrics).await?;
+                result.insert(chain_name.into(), mailbox);
+            } else {
+                bail!("No chain setup found for {}", chain_name)
             }
-            let caching_inbox = self.try_caching_inbox(v, db.clone(), metrics).await?;
-            let validator_manager = self.try_inbox_validator_manager(v, metrics).await?;
-            result.insert(
-                v.name.clone(),
-                InboxContracts {
-                    inbox: caching_inbox,
-                    validator_manager: validator_manager.into(),
-                },
-            );
         }
         Ok(result)
     }
 
-    /// Try to get a CachingInbox
-    async fn try_caching_inbox(
-        &self,
-        chain_setup: &ChainSetup<InboxAddresses>,
-        db: DB,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<CachingInbox> {
-        let signer = self.get_signer(&chain_setup.name).await;
-        let inbox = chain_setup.try_into_inbox(signer, metrics).await?;
-        let abacus_db = AbacusDB::new(inbox.chain_name(), db);
-        Ok(CachingInbox::new(inbox.into(), abacus_db))
-    }
-
-    /// Try to get an InboxValidatorManager
-    async fn try_inbox_validator_manager(
-        &self,
-        chain_setup: &ChainSetup<InboxAddresses>,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn InboxValidatorManager>> {
-        let signer = self.get_signer(&chain_setup.name).await;
-
-        chain_setup
-            .try_into_inbox_validator_manager(signer, metrics)
-            .await
-    }
-
-    /// Try to get a CachingOutbox
-    pub async fn try_caching_outbox(
+    /// Try to get a map of chain name -> interchain gas paymaster contract
+    pub async fn try_into_interchain_gas_paymasters(
         &self,
         db: DB,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<CachingOutbox> {
-        let signer = self.get_signer(&self.outbox.name).await;
-        let outbox = self.outbox.try_into_outbox(signer, metrics).await?;
-        let indexer = self.try_outbox_indexer(metrics).await?;
-        let abacus_db = AbacusDB::new(outbox.chain_name(), db);
-        Ok(CachingOutbox::new(outbox.into(), abacus_db, indexer.into()))
+        chain_names: &[&str],
+    ) -> eyre::Result<HashMap<String, CachingInterchainGasPaymaster>> {
+        let mut result = HashMap::new();
+        for &chain_name in chain_names {
+            if let Some(x) = self.chains.get(chain_name) {
+                let mailbox = self
+                    .try_caching_interchain_gas_paymaster(x, db.clone(), metrics)
+                    .await?;
+                result.insert(chain_name.into(), mailbox);
+            } else {
+                bail!("No chain setup found for {}", chain_name)
+            }
+        }
+        Ok(result)
+    }
+
+    /// Try to get a map of chain name -> multisig ism contract
+    pub async fn try_into_multisig_isms(
+        &self,
+        db: DB,
+        metrics: &CoreMetrics,
+        chain_names: &[&str],
+    ) -> eyre::Result<HashMap<String, Arc<dyn MultisigIsm>>> {
+        let mut result: HashMap<String, Arc<dyn MultisigIsm>> = HashMap::new();
+        for &chain_name in chain_names {
+            if let Some(x) = self.chains.get(chain_name) {
+                let multisig_ism = self.try_multisig_ism(x, db.clone(), metrics).await?;
+                result.insert(chain_name.into(), multisig_ism.into());
+            } else {
+                bail!("No chain setup found for {}", chain_name)
+            }
+        }
+        Ok(result)
+    }
+
+    /// Try to get a CachingMailbox
+    async fn try_caching_mailbox(
+        &self,
+        chain_setup: &ChainSetup,
+        db: DB,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<CachingMailbox> {
+        let signer = self.get_signer(&chain_setup.name).await;
+        let mailbox = chain_setup.try_into_mailbox(signer, metrics).await?;
+        let indexer = self.try_mailbox_indexer(metrics, chain_setup).await?;
+        let abacus_db = AbacusDB::new(&chain_setup.name, db);
+        Ok(CachingMailbox::new(
+            mailbox.into(),
+            abacus_db,
+            indexer.into(),
+        ))
     }
 
     /// Try to get a CachingInterchainGasPaymaster
-    pub async fn try_caching_interchain_gas_paymaster(
+    async fn try_caching_interchain_gas_paymaster(
         &self,
+        chain_setup: &ChainSetup,
         db: DB,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<Option<CachingInterchainGasPaymaster>> {
-        let signer = self.get_signer(&self.outbox.name).await;
-        match self
-            .outbox
+    ) -> eyre::Result<CachingInterchainGasPaymaster> {
+        let signer = self.get_signer(&chain_setup.name).await;
+        let interchain_gas_paymaster = chain_setup
             .try_into_interchain_gas_paymaster(signer, metrics)
-            .await?
-        {
-            Some(paymaster) => {
-                let indexer = self.try_interchain_gas_paymaster_indexer(metrics).await?;
-                let abacus_db = AbacusDB::new(paymaster.chain_name(), db);
-                Ok(Some(CachingInterchainGasPaymaster::new(
-                    paymaster.into(),
-                    abacus_db,
-                    indexer.into(),
-                )))
-            }
-            None => Ok(None),
-        }
+            .await?;
+        let indexer = self
+            .try_interchain_gas_paymaster_indexer(metrics, chain_setup)
+            .await?;
+        let abacus_db = AbacusDB::new(&chain_setup.name, db);
+        Ok(CachingInterchainGasPaymaster::new(
+            interchain_gas_paymaster.into(),
+            abacus_db,
+            indexer.into(),
+        ))
     }
 
-    /// Try to get an indexer object for a given outbox
-    pub async fn try_outbox_indexer_from_config(
+    /// Try to get a MultisigIsm
+    async fn try_multisig_ism(
+        &self,
+        chain_setup: &ChainSetup,
+        _db: DB,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn MultisigIsm>> {
+        let signer = self.get_signer(&chain_setup.name).await;
+        let multisig_ism = chain_setup.try_into_multisig_ism(signer, metrics).await?;
+        Ok(multisig_ism)
+    }
+
+    /// Try to get an indexer object for a given mailbox
+    pub async fn try_mailbox_indexer(
         &self,
         metrics: &CoreMetrics,
-        outbox: &ChainSetup<OutboxAddresses>,
-    ) -> eyre::Result<Box<dyn OutboxIndexer>> {
-        match &outbox.chain {
-            ChainConf::Ethereum(conn) => Ok(OutboxIndexerBuilder {
-                finality_blocks: outbox.finality_blocks(),
-            }
-            .make_with_connection(
-                conn.clone(),
-                &ContractLocator {
-                    chain_name: outbox.name.clone(),
-                    domain: outbox.domain.parse().expect("invalid uint"),
-                    address: outbox
-                        .addresses
-                        .outbox
-                        .parse::<ethers::types::Address>()?
-                        .into(),
+        chain_setup: &ChainSetup,
+    ) -> eyre::Result<Box<dyn MailboxIndexer>> {
+        chain_setup
+            .try_into_contract(
+                self.get_signer(&chain_setup.name).await,
+                metrics,
+                MailboxIndexerBuilder {
+                    finality_blocks: chain_setup.finality_blocks(),
                 },
-                self.get_signer(&outbox.name).await,
-                Some(|| metrics.json_rpc_client_metrics()),
-                Some((metrics.provider_metrics(), outbox.metrics_conf())),
+                chain_setup.addresses.mailbox.clone(),
             )
-            .await?),
-        }
-    }
-
-    /// Try to get an indexer object for the outbox
-    pub async fn try_outbox_indexer(
-        &self,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn OutboxIndexer>> {
-        self.try_outbox_indexer_from_config(metrics, &self.outbox)
             .await
     }
 
-    /// Try to get an indexer object for an interchain gas paymaster.
-    /// This function is only expected to be called when it's already been
-    /// confirmed that the interchain gas paymaster address was provided in
-    /// settings.
-    pub async fn try_interchain_gas_paymaster_indexer(
+    /// Try to get an indexer object for a given interchain gas paymaster
+    async fn try_interchain_gas_paymaster_indexer(
         &self,
         metrics: &CoreMetrics,
+        chain_setup: &ChainSetup,
     ) -> eyre::Result<Box<dyn InterchainGasPaymasterIndexer>> {
-        match &self.outbox.chain {
-            ChainConf::Ethereum(conn) => Ok(InterchainGasPaymasterIndexerBuilder {
-                outbox_address: self
-                    .outbox
-                    .addresses
-                    .outbox
-                    .parse::<ethers::types::Address>()?,
-                from_height: self.index.from(),
-                chunk_size: self.index.chunk_size(),
-                finality_blocks: self.outbox.finality_blocks(),
-            }
-            .make_with_connection(
-                conn.clone(),
-                &ContractLocator {
-                    chain_name: self.outbox.name.clone(),
-                    domain: self.outbox.domain.parse().expect("invalid uint"),
-                    address: self
-                        .outbox
+        chain_setup
+            .try_into_contract(
+                self.get_signer(&chain_setup.name).await,
+                metrics,
+                InterchainGasPaymasterIndexerBuilder {
+                    mailbox_address: chain_setup
                         .addresses
-                        .interchain_gas_paymaster
-                        .as_ref()
-                        .expect("interchain_gas_paymaster not provided")
-                        .parse::<ethers::types::Address>()?
-                        .into(),
+                        .mailbox
+                        .parse::<ethers::types::Address>()?,
+                    finality_blocks: chain_setup.finality_blocks(),
                 },
-                self.get_signer(&self.outbox.name).await,
-                Some(|| metrics.json_rpc_client_metrics()),
-                Some((metrics.provider_metrics(), self.outbox.metrics_conf())),
+                chain_setup.addresses.interchain_gas_paymaster.clone(),
             )
-            .await?),
-        }
+            .await
     }
 
     /// Create the core metrics from the settings given the name of the agent.
@@ -453,27 +389,32 @@ impl Settings {
     pub async fn try_into_abacus_core(
         &self,
         metrics: Arc<CoreMetrics>,
-        parse_inboxes: bool,
+        chain_names: Option<Vec<&str>>,
     ) -> eyre::Result<AbacusAgentCore> {
         let db = DB::from_path(&self.db)?;
-        let outbox = self.try_caching_outbox(db.clone(), &metrics).await?;
-        let interchain_gas_paymaster = self
-            .try_caching_interchain_gas_paymaster(db.clone(), &metrics)
-            .await?;
 
-        let inbox_contracts = if parse_inboxes {
-            self.try_inbox_contracts(db.clone(), &metrics).await?
-        } else {
-            HashMap::new()
+        // If not provided, default to using every chain listed in self.chains.
+        let chain_names = match chain_names {
+            Some(x) => x,
+            None => Vec::from_iter(self.chains.keys().map(String::as_str)),
         };
 
+        let mailboxes = self
+            .try_into_mailboxes(db.clone(), &metrics, chain_names.as_slice())
+            .await?;
+        let interchain_gas_paymasters = self
+            .try_into_interchain_gas_paymasters(db.clone(), &metrics, chain_names.as_slice())
+            .await?;
+        let multisig_isms = self
+            .try_into_multisig_isms(db.clone(), &metrics, chain_names.as_slice())
+            .await?;
+
         Ok(AbacusAgentCore {
-            outbox,
-            inboxes: inbox_contracts,
-            interchain_gas_paymaster,
+            mailboxes,
+            interchain_gas_paymasters,
+            multisig_isms,
             db,
             metrics,
-            indexer: self.index.clone(),
             settings: self.clone(),
         })
     }

@@ -14,12 +14,12 @@ pub use message::*;
 
 use crate::{AbacusError, Decode, Encode};
 
-/// A payment of Outbox native tokens for a message
+/// A payment of native tokens for a message
 #[derive(Debug)]
 pub struct InterchainGasPayment {
-    /// The index of the message's leaf in the merkle tree
-    pub leaf_index: u32,
-    /// The payment amount, in Outbox native token wei
+    /// The id of the message
+    pub message_id: H256,
+    /// The payment amount, in origin chain native token wei
     pub amount: U256,
 }
 

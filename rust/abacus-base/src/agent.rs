@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::{collections::HashMap, sync::Arc};
 
+use abacus_core::MultisigIsm;
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
@@ -10,39 +11,25 @@ use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
 use abacus_core::db::DB;
-use abacus_core::InboxValidatorManager;
 
 use crate::{
-    cancel_task,
-    metrics::CoreMetrics,
-    settings::{IndexSettings, Settings},
-    CachingInbox, CachingInterchainGasPaymaster, CachingOutbox,
+    cancel_task, metrics::CoreMetrics, settings::Settings, CachingInterchainGasPaymaster,
+    CachingMailbox,
 };
-
-/// Contracts relating to an inbox chain
-#[derive(Clone, Debug)]
-pub struct InboxContracts {
-    /// A boxed Inbox
-    pub inbox: CachingInbox,
-    /// A boxed InboxValidatorManager
-    pub validator_manager: Arc<dyn InboxValidatorManager>,
-}
 
 /// Properties shared across all abacus agents
 #[derive(Debug)]
 pub struct AbacusAgentCore {
-    /// A boxed Outbox
-    pub outbox: CachingOutbox,
-    /// A boxed InterchainGasPaymaster
-    pub interchain_gas_paymaster: Option<CachingInterchainGasPaymaster>,
-    /// A map of Inbox contracts by name
-    pub inboxes: HashMap<String, InboxContracts>,
+    /// A map of mailbox contracts by chain name
+    pub mailboxes: HashMap<String, CachingMailbox>,
+    /// A map of interchain gas paymaster contracts by chain name
+    pub interchain_gas_paymasters: HashMap<String, CachingInterchainGasPaymaster>,
+    /// A map of interchain gas paymaster contracts by chain name
+    pub multisig_isms: HashMap<String, Arc<dyn MultisigIsm>>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
     pub metrics: Arc<CoreMetrics>,
-    /// The height at which to start indexing the Outbox
-    pub indexer: IndexSettings,
     /// Settings this agent was created with
     pub settings: Settings,
 }
@@ -86,17 +73,14 @@ pub trait Agent: BaseAgent {
     /// Return a handle to the DB
     fn db(&self) -> &DB;
 
-    /// Return a reference to an Outbox contract
-    fn outbox(&self) -> &CachingOutbox;
+    /// Return a reference to a Mailbox contract
+    fn mailbox(&self, chain_name: &str) -> Option<&CachingMailbox>;
 
     /// Return a reference to an InterchainGasPaymaster contract
-    fn interchain_gas_paymaster(&self) -> Option<&CachingInterchainGasPaymaster>;
+    fn interchain_gas_paymaster(&self, chain_name: &str) -> Option<&CachingInterchainGasPaymaster>;
 
-    /// Get a reference to the inboxes map
-    fn inboxes(&self) -> &HashMap<String, InboxContracts>;
-
-    /// Get a reference to an inbox's contracts by its name
-    fn inbox_by_name(&self, name: &str) -> Option<&InboxContracts>;
+    /// Return a reference to a Multisig Ism contract
+    fn multisig_ism(&self, chain_name: &str) -> Option<&Arc<dyn MultisigIsm>>;
 }
 
 #[async_trait]
@@ -108,20 +92,16 @@ where
         &self.as_ref().db
     }
 
-    fn outbox(&self) -> &CachingOutbox {
-        &self.as_ref().outbox
+    fn mailbox(&self, chain_name: &str) -> Option<&CachingMailbox> {
+        self.as_ref().mailboxes.get(chain_name)
     }
 
-    fn interchain_gas_paymaster(&self) -> Option<&CachingInterchainGasPaymaster> {
-        self.as_ref().interchain_gas_paymaster.as_ref()
+    fn interchain_gas_paymaster(&self, chain_name: &str) -> Option<&CachingInterchainGasPaymaster> {
+        self.as_ref().interchain_gas_paymasters.get(chain_name)
     }
 
-    fn inboxes(&self) -> &HashMap<String, InboxContracts> {
-        &self.as_ref().inboxes
-    }
-
-    fn inbox_by_name(&self, name: &str) -> Option<&InboxContracts> {
-        self.inboxes().get(name)
+    fn multisig_ism(&self, chain_name: &str) -> Option<&Arc<dyn MultisigIsm>> {
+        self.as_ref().multisig_isms.get(chain_name)
     }
 }
 

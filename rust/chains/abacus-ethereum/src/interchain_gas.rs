@@ -30,9 +30,7 @@ where
 }
 
 pub struct InterchainGasPaymasterIndexerBuilder {
-    pub outbox_address: H160,
-    pub from_height: u32,
-    pub chunk_size: u32,
+    pub mailbox_address: H160,
     pub finality_blocks: u32,
 }
 
@@ -47,9 +45,6 @@ impl MakeableWithProvider for InterchainGasPaymasterIndexerBuilder {
         Box::new(EthereumInterchainGasPaymasterIndexer::new(
             Arc::new(provider),
             locator,
-            self.outbox_address,
-            self.from_height,
-            self.chunk_size,
             self.finality_blocks,
         ))
     }
@@ -63,11 +58,6 @@ where
 {
     contract: Arc<EthereumInterchainGasPaymasterInternal<M>>,
     provider: Arc<M>,
-    outbox_address: H160,
-    #[allow(unused)]
-    from_height: u32,
-    #[allow(unused)]
-    chunk_size: u32,
     finality_blocks: u32,
 }
 
@@ -76,23 +66,13 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumInterchainGasPaymasterIndexer
-    pub fn new(
-        provider: Arc<M>,
-        locator: &ContractLocator,
-        outbox_address: H160,
-        from_height: u32,
-        chunk_size: u32,
-        finality_blocks: u32,
-    ) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         Self {
             contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
                 &locator.address,
                 provider.clone(),
             )),
             provider,
-            outbox_address,
-            from_height,
-            chunk_size,
             finality_blocks,
         }
     }
@@ -128,7 +108,6 @@ where
         let events = self
             .contract
             .gas_payment_filter()
-            .topic1(self.outbox_address)
             .from_block(from_block)
             .to_block(to_block)
             .query_with_meta()
@@ -138,7 +117,7 @@ where
             .into_iter()
             .map(|(log, log_meta)| InterchainGasPaymentWithMeta {
                 payment: InterchainGasPayment {
-                    leaf_index: log.leaf_index.as_u32(),
+                    message_id: H256::from(log.message_id),
                     amount: log.amount,
                 },
                 meta: InterchainGasPaymentMeta {

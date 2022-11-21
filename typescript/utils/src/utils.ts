@@ -131,7 +131,7 @@ export const formatMessage = (
   recipientAddr = addressToBytes32(recipientAddr);
 
   return ethers.utils.solidityPack(
-    ['uint8', 'uint256', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
+    ['uint8', 'uint32', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
     [
       version,
       nonce,
@@ -157,17 +157,15 @@ export function messageId(message: HexString): string {
 export function parseMessage(message: string): ParsedMessage {
   const VERSION_OFFSET = 0;
   const NONCE_OFFSET = 1;
-  const ORIGIN_OFFSET = 33;
-  const SENDER_OFFSET = 37;
-  const DESTINATION_OFFSET = 69;
-  const RECIPIENT_OFFSET = 73;
-  const BODY_OFFSET = 105;
+  const ORIGIN_OFFSET = 5;
+  const SENDER_OFFSET = 9;
+  const DESTINATION_OFFSET = 41;
+  const RECIPIENT_OFFSET = 45;
+  const BODY_OFFSET = 77;
 
   const buf = Buffer.from(utils.arrayify(message));
   const version = buf.readUint8(VERSION_OFFSET);
-  const nonce = BigNumber.from(
-    utils.hexlify(buf.slice(NONCE_OFFSET, ORIGIN_OFFSET)),
-  ).toNumber();
+  const nonce = buf.readUInt32BE(NONCE_OFFSET);
   const origin = buf.readUInt32BE(ORIGIN_OFFSET);
   const sender = utils.hexlify(buf.slice(SENDER_OFFSET, DESTINATION_OFFSET));
   const destination = buf.readUInt32BE(DESTINATION_OFFSET);

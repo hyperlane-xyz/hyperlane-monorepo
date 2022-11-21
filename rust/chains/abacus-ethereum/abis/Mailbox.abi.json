@@ -15,18 +15,12 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "root",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "index",
-        "type": "uint256"
+        "internalType": "address",
+        "name": "module",
+        "type": "address"
       }
     ],
-    "name": "CheckpointCached",
+    "name": "DefaultIsmSet",
     "type": "event"
   },
   {
@@ -34,9 +28,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "uint256",
-        "name": "leafIndex",
-        "type": "uint256"
+        "internalType": "bytes32",
+        "name": "messageId",
+        "type": "bytes32"
       },
       {
         "indexed": false,
@@ -46,12 +40,6 @@
       }
     ],
     "name": "Dispatch",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [],
-    "name": "Fail",
     "type": "event"
   },
   {
@@ -90,13 +78,13 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "validatorManager",
-        "type": "address"
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "messageId",
+        "type": "bytes32"
       }
     ],
-    "name": "ValidatorManagerSet",
+    "name": "Process",
     "type": "event"
   },
   {
@@ -117,35 +105,9 @@
     "name": "VERSION",
     "outputs": [
       {
-        "internalType": "uint8",
+        "internalType": "uint32",
         "name": "",
-        "type": "uint8"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "cacheCheckpoint",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "name": "cachedCheckpoints",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
+        "type": "uint32"
       }
     ],
     "stateMutability": "view",
@@ -156,9 +118,41 @@
     "name": "count",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint32",
         "name": "",
-        "type": "uint256"
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "defaultIsm",
+    "outputs": [
+      {
+        "internalType": "contract IInterchainSecurityModule",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "delivered",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -185,18 +179,11 @@
     "name": "dispatch",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "bytes32",
         "name": "",
-        "type": "uint256"
+        "type": "bytes32"
       }
     ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "fail",
-    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -204,44 +191,13 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_validatorManager",
+        "name": "_defaultIsm",
         "type": "address"
       }
     ],
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "latestCachedCheckpoint",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "root",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "index",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "latestCachedRoot",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -254,9 +210,9 @@
         "type": "bytes32"
       },
       {
-        "internalType": "uint256",
+        "internalType": "uint32",
         "name": "",
-        "type": "uint256"
+        "type": "uint32"
       }
     ],
     "stateMutability": "view",
@@ -289,6 +245,24 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "_metadata",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_message",
+        "type": "bytes"
+      }
+    ],
+    "name": "process",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "renounceOwnership",
     "outputs": [],
@@ -312,26 +286,13 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_validatorManager",
+        "name": "_module",
         "type": "address"
       }
     ],
-    "name": "setValidatorManager",
+    "name": "setDefaultIsm",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "state",
-    "outputs": [
-      {
-        "internalType": "enum Outbox.States",
-        "name": "",
-        "type": "uint8"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -355,19 +316,6 @@
         "internalType": "uint256",
         "name": "count",
         "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "validatorManager",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",

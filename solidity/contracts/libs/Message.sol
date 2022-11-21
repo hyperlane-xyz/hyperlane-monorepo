@@ -12,11 +12,11 @@ library Message {
 
     uint256 private constant VERSION_OFFSET = 0;
     uint256 private constant NONCE_OFFSET = 1;
-    uint256 private constant ORIGIN_OFFSET = 33;
-    uint256 private constant SENDER_OFFSET = 37;
-    uint256 private constant DESTINATION_OFFSET = 69;
-    uint256 private constant RECIPIENT_OFFSET = 73;
-    uint256 private constant BODY_OFFSET = 105;
+    uint256 private constant ORIGIN_OFFSET = 5;
+    uint256 private constant SENDER_OFFSET = 9;
+    uint256 private constant DESTINATION_OFFSET = 41;
+    uint256 private constant RECIPIENT_OFFSET = 45;
+    uint256 private constant BODY_OFFSET = 77;
 
     /**
      * @notice Returns formatted (packed) Hyperlane message with provided fields
@@ -32,7 +32,7 @@ library Message {
      */
     function formatMessage(
         uint8 _version,
-        uint256 _nonce,
+        uint32 _nonce,
         uint32 _originDomain,
         bytes32 _sender,
         uint32 _destinationDomain,
@@ -74,8 +74,8 @@ library Message {
      * @param _message ABI encoded Hyperlane message.
      * @return Nonce of `_message`
      */
-    function nonce(bytes calldata _message) internal pure returns (uint256) {
-        return uint256(bytes32(_message[NONCE_OFFSET:ORIGIN_OFFSET]));
+    function nonce(bytes calldata _message) internal pure returns (uint32) {
+        return uint32(bytes4(_message[NONCE_OFFSET:ORIGIN_OFFSET]));
     }
 
     /**

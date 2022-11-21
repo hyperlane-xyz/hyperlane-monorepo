@@ -11,8 +11,10 @@ use sha3::{Digest, Keccak256};
 /// An Abacus checkpoint
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Checkpoint {
-    /// The outbox chain
-    pub outbox_domain: u32,
+    /// The mailbox address
+    pub mailbox_address: H256,
+    /// The mailbox chain
+    pub mailbox_domain: u32,
     /// The checkpointed root
     pub root: H256,
     /// The index of the checkpoint
@@ -24,7 +26,7 @@ impl std::fmt::Display for Checkpoint {
         write!(
             f,
             "Checkpoint(domain {} moved from {} to {})",
-            self.outbox_domain, self.root, self.index
+            self.mailbox_domain, self.root, self.index
         )
     }
 }
@@ -34,10 +36,11 @@ impl Encode for Checkpoint {
     where
         W: std::io::Write,
     {
-        writer.write_all(&self.outbox_domain.to_be_bytes())?;
+        writer.write_all(self.mailbox_address.as_ref())?;
+        writer.write_all(&self.mailbox_domain.to_be_bytes())?;
         writer.write_all(self.root.as_ref())?;
         writer.write_all(&self.index.to_be_bytes())?;
-        Ok(4 + 32 + 4)
+        Ok(32 + 4 + 32 + 4)
     }
 }
 
@@ -47,8 +50,11 @@ impl Decode for Checkpoint {
         R: std::io::Read,
         Self: Sized,
     {
-        let mut outbox_domain = [0u8; 4];
-        reader.read_exact(&mut outbox_domain)?;
+        let mut mailbox_address = H256::zero();
+        reader.read_exact(mailbox_address.as_mut())?;
+
+        let mut mailbox_domain = [0u8; 4];
+        reader.read_exact(&mut mailbox_domain)?;
 
         let mut root = H256::zero();
         reader.read_exact(root.as_mut())?;
@@ -57,7 +63,8 @@ impl Decode for Checkpoint {
         reader.read_exact(&mut index)?;
 
         Ok(Self {
-            outbox_domain: u32::from_be_bytes(outbox_domain),
+            mailbox_address,
+            mailbox_domain: u32::from_be_bytes(mailbox_domain),
             root,
             index: u32::from_be_bytes(index),
         })
@@ -68,10 +75,10 @@ impl Checkpoint {
     fn signing_hash(&self) -> H256 {
         let buffer = [0u8; 28];
         // sign:
-        // domain_hash(outbox_domain) || root || index (as u256)
+        // domain_hash(mailbox_address, mailbox_domain) || root || index (as u256)
         H256::from_slice(
             Keccak256::new()
-                .chain(domain_hash(self.outbox_domain))
+                .chain(domain_hash(self.mailbox_address, self.mailbox_domain))
                 .chain(self.root)
                 .chain(buffer)
                 .chain(self.index.to_be_bytes())

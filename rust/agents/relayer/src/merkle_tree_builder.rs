@@ -87,7 +87,7 @@ impl MerkleTreeBuilder {
     }
 
     fn ingest_leaf_index(&mut self, leaf_index: u32) -> Result<(), MerkleTreeBuilderError> {
-        match self.db.leaf_by_leaf_index(leaf_index) {
+        match self.db.message_id_by_nonce(leaf_index) {
             Ok(Some(leaf)) => {
                 debug!(leaf_index = leaf_index, "Ingesting leaf");
                 self.prover.ingest(leaf).expect("!tree full");
@@ -117,7 +117,7 @@ impl MerkleTreeBuilder {
         }
         let starting_index = self.prover.count() as u32;
         for i in starting_index..=checkpoint.index {
-            self.db.wait_for_leaf(i).await?;
+            self.db.wait_for_message_id(i).await?;
             self.ingest_leaf_index(i)?;
         }
 

@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use abacus_base::chains::IndexSettings;
 use async_trait::async_trait;
 use ethers::types::H256;
-use eyre::{eyre, Context, Result};
+use eyre::{eyre, Result};
 use sea_orm::prelude::TimeDateTime;
 use sea_orm::{Database, DbConn};
 use tokio::task::JoinHandle;
@@ -14,13 +15,10 @@ use tracing::instrument::Instrumented;
 use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
 
 use abacus_base::last_message::validate_message_continuity;
-use abacus_base::{
-    run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, IndexSettings,
-    OutboxAddresses, Settings,
-};
+use abacus_base::{run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, Settings};
 use abacus_core::{
-    name_from_domain_id, AbacusCommon, AbacusContract, CommittedMessage, ListValidity, LogMeta,
-    Outbox, OutboxIndexer, RawCommittedMessage,
+    name_from_domain_id, AbacusContract, AbacusMessage, ListValidity, LogMeta, Mailbox,
+    MailboxIndexer,
 };
 
 use crate::scraper::block_cursor::BlockCursor;
@@ -36,7 +34,6 @@ pub struct Scraper {
     metrics: Arc<CoreMetrics>,
     /// A map of outbox contracts by name.
     outboxes: HashMap<String, SqlOutboxScraper>,
-    inboxes: HashMap<String, ()>,
     gas_paymasters: HashMap<String, ()>,
 }
 
@@ -60,12 +57,10 @@ impl BaseAgent for Scraper {
             &metrics,
         )
         .await?;
-        let inboxes = Self::load_inboxes(&db, &core_settings, &metrics).await?;
         let gas_paymasters = Self::load_gas_paymasters(&db, &core_settings, &metrics).await?;
         Ok(Self {
             metrics,
             outboxes,
-            inboxes,
             gas_paymasters,
         })
     }
@@ -90,26 +85,17 @@ impl Scraper {
     async fn load_outboxes(
         db: &DbConn,
         core_settings: &Settings,
-        config: HashMap<String, ChainSetup<OutboxAddresses>>,
+        config: HashMap<String, ChainSetup>,
         index_settings: &HashMap<String, IndexSettings>,
         metrics: &Arc<CoreMetrics>,
     ) -> Result<HashMap<String, SqlOutboxScraper>> {
         let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
         let mut outboxes = HashMap::new();
         for (name, outbox_setup) in config {
-            if outbox_setup
-                .disabled
-                .as_ref()
-                .and_then(|d| d.parse::<bool>().ok())
-                .unwrap_or(false)
-            {
-                continue;
-            }
-
             let signer = core_settings.get_signer(&name).await;
-            let outbox = outbox_setup.try_into_outbox(signer, metrics).await?;
+            let outbox = outbox_setup.try_into_mailbox(signer, metrics).await?;
             let indexer = core_settings
-                .try_outbox_indexer_from_config(metrics, &outbox_setup)
+                .try_mailbox_indexer(metrics, &outbox_setup)
                 .await?;
             let index_settings_for_chain = index_settings
                 .get(outbox.chain_name())
@@ -129,15 +115,6 @@ impl Scraper {
         Ok(outboxes)
     }
 
-    async fn load_inboxes(
-        _db: &DbConn,
-        _core_settings: &Settings,
-        _metrics: &Arc<CoreMetrics>,
-    ) -> Result<HashMap<String, ()>> {
-        // TODO
-        Ok(HashMap::new())
-    }
-
     async fn load_gas_paymasters(
         _db: &DbConn,
         _core_settings: &Settings,
@@ -153,8 +130,8 @@ const MESSAGES_LABEL: &str = "messages";
 #[derive(Debug, Clone)]
 struct SqlOutboxScraper {
     db: DbConn,
-    outbox: Arc<dyn Outbox>,
-    indexer: Arc<dyn OutboxIndexer>,
+    outbox: Arc<dyn Mailbox>,
+    indexer: Arc<dyn MailboxIndexer>,
     chunk_size: u32,
     metrics: ContractSyncMetrics,
     cursor: Arc<BlockCursor>,
@@ -163,8 +140,8 @@ struct SqlOutboxScraper {
 impl SqlOutboxScraper {
     pub async fn new(
         db: DbConn,
-        outbox: Arc<dyn Outbox>,
-        indexer: Arc<dyn OutboxIndexer>,
+        outbox: Arc<dyn Mailbox>,
+        indexer: Arc<dyn MailboxIndexer>,
         index_settings: &IndexSettings,
         metrics: ContractSyncMetrics,
     ) -> Result<Self> {
@@ -201,13 +178,13 @@ impl SqlOutboxScraper {
         let indexed_height = self.metrics.indexed_height.with_label_values(&labels);
         let stored_messages = self.metrics.stored_events.with_label_values(&labels);
         let missed_messages = self.metrics.missed_events.with_label_values(&labels);
-        let message_leaf_index = self.metrics.message_leaf_index.clone();
+        let message_nonce = self.metrics.message_nonce.clone();
 
         let chunk_size = self.chunk_size;
         // difference 1
         let mut from = self.cursor.height().await as u32;
         let mut last_valid_range_start_block = from;
-        let mut last_leaf_index = self.last_message_leaf_index().await?.unwrap_or(0);
+        let mut last_nonce = self.last_message_nonce().await?.unwrap_or(0);
 
         info!(from, chunk_size, chain_name, "Resuming outbox sync");
 
@@ -242,7 +219,7 @@ impl SqlOutboxScraper {
             // Difference 2
             sorted_messages = sorted_messages
                 .into_iter()
-                .filter(|m| m.0.leaf_index > last_leaf_index)
+                .filter(|m| m.0.nonce > last_nonce)
                 .collect();
 
             debug!(
@@ -254,7 +231,7 @@ impl SqlOutboxScraper {
             );
 
             match validate_message_continuity(
-                Some(last_leaf_index),
+                Some(last_nonce),
                 &sorted_messages
                     .iter()
                     .map(|(msg, _)| msg)
@@ -262,29 +239,27 @@ impl SqlOutboxScraper {
             ) {
                 ListValidity::Valid => {
                     // Difference 3
-                    let max_leaf_index_of_batch = self.store_messages(&sorted_messages).await?;
+                    let max_nonce_of_batch = self.store_messages(&sorted_messages).await?;
                     stored_messages.inc_by(sorted_messages.len() as u64);
 
-                    for (raw_msg, _) in sorted_messages.iter() {
-                        let dst = CommittedMessage::try_from(raw_msg)
-                            .ok()
-                            .and_then(|msg| name_from_domain_id(msg.message.destination))
+                    for (message, _) in sorted_messages.iter() {
+                        let dst = name_from_domain_id(message.destination)
                             .unwrap_or_else(|| "unknown".into());
-                        message_leaf_index
+                        message_nonce
                             .with_label_values(&["dispatch", chain_name, &dst])
-                            .set(max_leaf_index_of_batch as i64);
+                            .set(max_nonce_of_batch as i64);
                     }
 
                     // Difference 4
                     self.cursor.update(full_chunk_from as u64).await;
-                    last_leaf_index = max_leaf_index_of_batch;
+                    last_nonce = max_nonce_of_batch;
                     last_valid_range_start_block = full_chunk_from;
                     from = to + 1;
                 }
                 ListValidity::InvalidContinuation => {
                     missed_messages.inc();
                     warn!(
-                        ?last_leaf_index,
+                        ?last_nonce,
                         start_block = from,
                         end_block = to,
                         last_valid_range_start_block,
@@ -296,7 +271,7 @@ impl SqlOutboxScraper {
                 ListValidity::ContainsGaps => {
                     missed_messages.inc();
                     warn!(
-                        ?last_leaf_index,
+                        ?last_nonce,
                         start_block = from,
                         end_block = to,
                         last_valid_range_start_block,
@@ -313,7 +288,7 @@ impl SqlOutboxScraper {
 
     /// Get the highest message leaf index that is stored in the database.
     #[instrument(skip(self))]
-    async fn last_message_leaf_index(&self) -> Result<Option<u32>> {
+    async fn last_message_nonce(&self) -> Result<Option<u32>> {
         use crate::db::message;
         use sea_orm::{prelude::*, QueryOrder, QuerySelect};
 
@@ -345,48 +320,42 @@ impl SqlOutboxScraper {
         skip_all,
         fields(messages = ?messages.iter().map(|(_, meta)| meta).collect::<Vec<_>>())
     )]
-    async fn store_messages(&self, messages: &[(RawCommittedMessage, LogMeta)]) -> Result<u32> {
+    async fn store_messages(&self, messages: &[(AbacusMessage, LogMeta)]) -> Result<u32> {
         use crate::db::message;
         use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
 
         debug_assert!(!messages.is_empty());
 
-        let messages = messages
-            .iter()
-            .map(|(raw, meta)| CommittedMessage::try_from(raw).map(|parsed| (parsed, meta)))
-            .collect::<Result<Vec<(CommittedMessage, &LogMeta)>, _>>()
-            .context("Failed to parse a message")?;
-
         // TODO: Look up txn info
         // TODO: Look up block info
 
         let txns: HashMap<H256, (i64, TimeDateTime)> = self
-            .ensure_blocks_and_txns(messages.iter().map(|(_, meta)| *meta))
+            .ensure_blocks_and_txns(messages.iter().map(|(_, meta)| meta))
             .await?
             .collect();
 
         let max_leaf_id = messages
             .iter()
-            .map(|m| m.0.leaf_index)
+            .map(|m| m.0.nonce)
             .max()
             .ok_or_else(|| eyre!("Received empty list"));
         let models: Vec<_> = messages
-            .into_iter()
+            .iter()
             .map(|(msg, meta)| {
-                debug_assert_eq!(self.outbox.local_domain(), msg.message.origin);
+                debug_assert_eq!(self.outbox.local_domain(), msg.origin);
                 let (txn_id, txn_timestamp) = txns.get(&meta.transaction_hash).unwrap();
                 message::ActiveModel {
                     id: NotSet,
                     time_created: Set(crate::date_time::now()),
-                    origin: Unchanged(msg.message.origin as i32),
-                    destination: Set(msg.message.destination as i32),
-                    leaf_index: Unchanged(msg.leaf_index as i32),
-                    sender: Set(format_h256(&msg.message.sender)),
-                    recipient: Set(format_h256(&msg.message.recipient)),
-                    msg_body: Set(if msg.message.body.is_empty() {
+                    origin: Unchanged(msg.origin as i32),
+                    destination: Set(msg.destination as i32),
+                    leaf_index: Unchanged(msg.nonce as i32),
+                    sender: Set(format_h256(&msg.sender)),
+                    recipient: Set(format_h256(&msg.recipient)),
+                    msg_body: Set(if msg.body.is_empty() {
                         None
                     } else {
-                        Some(msg.message.body)
+                        Some(msg.body.clone())
                     }),
                     outbox_address: Unchanged(format_h256(&self.outbox.address())),
                     timestamp: Set(*txn_timestamp),

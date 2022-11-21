@@ -2,13 +2,11 @@ use ethers::signers::Signer;
 use serde::Deserialize;
 
 use abacus_core::{
-    AbacusAbi, ContractLocator, Inbox, InboxValidatorManager, InterchainGasPaymaster, Outbox,
-    Signers,
+    AbacusAbi, ContractLocator, InterchainGasPaymaster, Mailbox, MultisigIsm, Signers,
 };
 use abacus_ethereum::{
-    Connection, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi, EthereumOutboxAbi,
-    InboxBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
-    MakeableWithProvider, OutboxBuilder,
+    Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi, EthereumMultisigIsmAbi,
+    InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider, MultisigIsmBuilder,
 };
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
@@ -54,28 +52,49 @@ pub struct GelatoConf {
 /// Addresses for outbox chain contracts
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct OutboxAddresses {
-    /// Address of the Outbox contract
-    pub outbox: String,
+pub struct CoreContractAddresses {
+    /// Address of the mailbox contract
+    pub mailbox: String,
+    /// Address of the MultisigIsm contract
+    pub multisig_ism: String,
     /// Address of the InterchainGasPaymaster contract
-    pub interchain_gas_paymaster: Option<String>,
+    pub interchain_gas_paymaster: String,
 }
 
-/// Addresses for inbox chain contracts
-#[derive(Clone, Debug, Deserialize, Default)]
+/// Outbox indexing settings
+#[derive(Debug, Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct InboxAddresses {
-    /// Address of the Inbox contract
-    pub inbox: String,
-    /// Address of the InboxValidatorManager contract
-    pub validator_manager: String,
+pub struct IndexSettings {
+    /// The height at which to start indexing the Outbox contract
+    pub from: Option<String>,
+    /// The number of blocks to query at once at which to start indexing the
+    /// Outbox contract
+    pub chunk: Option<String>,
+}
+
+impl IndexSettings {
+    /// Get the `from` setting
+    pub fn from(&self) -> u32 {
+        self.from
+            .as_ref()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or_default()
+    }
+
+    /// Get the `chunk_size` setting
+    pub fn chunk_size(&self) -> u32 {
+        self.chunk
+            .as_ref()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(1999)
+    }
 }
 
 /// A chain setup is a domain ID, an address on that chain (where the outbox or
 /// inbox is deployed) and details for connecting to the chain API.
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct ChainSetup<T> {
+pub struct ChainSetup {
     /// Chain name
     pub name: String,
     /// Chain domain identifier
@@ -83,24 +102,24 @@ pub struct ChainSetup<T> {
     /// Number of blocks until finality
     pub finality_blocks: String,
     /// Addresses of contracts on the chain
-    pub addresses: T,
+    pub addresses: CoreContractAddresses,
     /// The chain connection details
     #[serde(flatten)]
     pub chain: ChainConf,
     /// How transactions to this chain are submitted.
     #[serde(default)]
     pub txsubmission: TransactionSubmissionType,
-    /// Set this key to disable the inbox. Does nothing for outboxes.
-    #[serde(default)]
-    pub disabled: Option<String>,
     /// Configure chain-specific metrics information. This will automatically
     /// add all contract addresses but will not override any set explicitly.
     /// Use `metrics_conf()` to get the metrics.
     #[serde(default)]
     pub metrics_conf: PrometheusMiddlewareConf,
+    /// Settings for event indexing
+    #[serde(default)]
+    pub index: IndexSettings,
 }
 
-impl<T> ChainSetup<T> {
+impl ChainSetup {
     /// Get the number of blocks until finality
     pub fn finality_blocks(&self) -> u32 {
         self.finality_blocks
@@ -109,32 +128,20 @@ impl<T> ChainSetup<T> {
     }
 }
 
-impl ChainSetup<OutboxAddresses> {
-    /// Try to convert the chain setting into an Outbox contract
-    pub async fn try_into_outbox(
+impl ChainSetup {
+    /// Try to convert the chain setting into a Mailbox contract
+    pub async fn try_into_mailbox(
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn Outbox>> {
-        match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(OutboxBuilder {}
-                .make_with_connection(
-                    conf.clone(),
-                    &ContractLocator {
-                        chain_name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: self
-                            .addresses
-                            .outbox
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    Some(|| metrics.json_rpc_client_metrics()),
-                    Some((metrics.provider_metrics(), self.metrics_conf())),
-                )
-                .await?),
-        }
+    ) -> eyre::Result<Box<dyn Mailbox>> {
+        self.try_into_contract(
+            signer,
+            metrics,
+            MailboxBuilder {},
+            self.addresses.mailbox.clone(),
+        )
+        .await
     }
 
     /// Try to convert the chain setting into an InterchainGasPaymaster contract
@@ -142,109 +149,48 @@ impl ChainSetup<OutboxAddresses> {
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<Option<Box<dyn InterchainGasPaymaster>>> {
-        let paymaster_address = if let Some(address) = &self.addresses.interchain_gas_paymaster {
-            address
-        } else {
-            return Ok(None);
-        };
-        match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(Some(
-                InterchainGasPaymasterBuilder {}
-                    .make_with_connection(
-                        conf.clone(),
-                        &ContractLocator {
-                            chain_name: self.name.clone(),
-                            domain: self.domain.parse().expect("invalid uint"),
-                            address: paymaster_address.parse::<ethers::types::Address>()?.into(),
-                        },
-                        signer,
-                        Some(|| metrics.json_rpc_client_metrics()),
-                        Some((metrics.provider_metrics(), self.metrics_conf())),
-                    )
-                    .await?,
-            )),
-        }
+    ) -> eyre::Result<Box<dyn InterchainGasPaymaster>> {
+        self.try_into_contract(
+            signer,
+            metrics,
+            InterchainGasPaymasterBuilder {},
+            self.addresses.interchain_gas_paymaster.clone(),
+        )
+        .await
     }
 
-    /// Get a clone of the metrics conf with correctly configured contract
-    /// information.
-    pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
-        let mut cfg = self.metrics_conf.clone();
-
-        if cfg.chain.is_none() {
-            cfg.chain = Some(ChainInfo {
-                name: Some(self.name.clone()),
-            });
-        }
-
-        if let Ok(addr) = self.addresses.outbox.parse() {
-            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
-                name: Some("outbox".into()),
-                functions: EthereumOutboxAbi::fn_map_owned(),
-            });
-        }
-        if let Some(igp) = &self.addresses.interchain_gas_paymaster {
-            if let Ok(addr) = igp.parse() {
-                cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
-                    name: Some("igp".into()),
-                    functions: EthereumInterchainGasPaymasterAbi::fn_map_owned(),
-                });
-            }
-        }
-        cfg
-    }
-}
-
-impl ChainSetup<InboxAddresses> {
-    /// Try to convert the chain setting into an inbox contract
-    pub async fn try_into_inbox(
+    /// Try to convert the chain setting into a Multisig Ism contract
+    pub async fn try_into_multisig_ism(
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn Inbox>> {
+    ) -> eyre::Result<Box<dyn MultisigIsm>> {
+        self.try_into_contract(
+            signer,
+            metrics,
+            MultisigIsmBuilder {},
+            self.addresses.multisig_ism.clone(),
+        )
+        .await
+    }
+
+    /// Try to convert the chain setting into a contract
+    pub async fn try_into_contract<T: MakeableWithProvider>(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+        builder: T,
+        address: String,
+    ) -> eyre::Result<T::Output> {
         let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(InboxBuilder {}
+            ChainConf::Ethereum(conf) => Ok(builder
                 .make_with_connection(
                     conf.clone(),
                     &ContractLocator {
                         chain_name: self.name.clone(),
                         domain: self.domain.parse().expect("invalid uint"),
-                        address: self
-                            .addresses
-                            .inbox
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    Some(|| metrics.json_rpc_client_metrics()),
-                    Some((metrics.provider_metrics(), metrics_conf)),
-                )
-                .await?),
-        }
-    }
-
-    /// Try to convert the chain setting into an InboxValidatorManager contract
-    pub async fn try_into_inbox_validator_manager(
-        &self,
-        signer: Option<Signers>,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn InboxValidatorManager>> {
-        let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
-        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
-        match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(InboxValidatorManagerBuilder { inbox_address }
-                .make_with_connection(
-                    conf.clone(),
-                    &ContractLocator {
-                        chain_name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: self
-                            .addresses
-                            .validator_manager
-                            .parse::<ethers::types::Address>()?
-                            .into(),
+                        address: address.parse::<ethers::types::Address>()?.into(),
                     },
                     signer,
                     Some(|| metrics.json_rpc_client_metrics()),
@@ -276,16 +222,23 @@ impl ChainSetup<InboxAddresses> {
                     name: Some(agent_name.into()),
                 });
         }
-        if let Ok(addr) = self.addresses.inbox.parse() {
+
+        if let Ok(addr) = self.addresses.mailbox.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
-                name: Some("inbox".into()),
-                functions: EthereumInboxAbi::fn_map_owned(),
+                name: Some("mailbox".into()),
+                functions: EthereumMailboxAbi::fn_map_owned(),
             });
         }
-        if let Ok(addr) = self.addresses.validator_manager.parse() {
+        if let Ok(addr) = self.addresses.interchain_gas_paymaster.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
-                name: Some("ivm".into()),
-                functions: EthereumOutboxAbi::fn_map_owned(),
+                name: Some("igp".into()),
+                functions: EthereumInterchainGasPaymasterAbi::fn_map_owned(),
+            });
+        }
+        if let Ok(addr) = self.addresses.multisig_ism.parse() {
+            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
+                name: Some("msm".into()),
+                functions: EthereumMultisigIsmAbi::fn_map_owned(),
             });
         }
         cfg

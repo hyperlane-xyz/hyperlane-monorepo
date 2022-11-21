@@ -1,11 +1,12 @@
 use std::cmp::min;
 use std::time::Duration;
 
+use eyre::Result;
 use tokio::time::sleep;
 use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
-use abacus_core::{name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer};
+use abacus_core::{name_from_domain_id, ListValidity, MailboxIndexer};
 
 use crate::contract_sync::last_message::validate_message_continuity;
 use crate::{contract_sync::schema::OutboxContractSyncDB, ContractSync};
@@ -14,10 +15,10 @@ const MESSAGES_LABEL: &str = "messages";
 
 impl<I> ContractSync<I>
 where
-    I: OutboxIndexer + Clone + 'static,
+    I: MailboxIndexer + Clone + 'static,
 {
-    /// Sync outbox messages
-    pub fn sync_outbox_messages(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
+    /// Sync dispatched messages
+    pub fn sync_dispatched_messages(&self) -> Instrumented<tokio::task::JoinHandle<Result<()>>> {
         let span = info_span!("MessageContractSync");
 
         let db = self.db.clone();
@@ -37,7 +38,7 @@ where
             .missed_events
             .with_label_values(&[MESSAGES_LABEL, &self.chain_name]);
 
-        let message_leaf_index = self.metrics.message_leaf_index.clone();
+        let message_nonce = self.metrics.message_nonce.clone();
         let chain_name = self.chain_name.clone();
 
         let config_from = self.index_settings.from();
@@ -120,12 +121,12 @@ where
 
                 // Get the latest known leaf index. All messages whose indices are <= this index
                 // have been stored in the DB.
-                let last_leaf_index = db.retrieve_latest_leaf_index()?;
+                let last_nonce = db.retrieve_latest_nonce()?;
 
                 // Filter out any messages that have already been successfully indexed and stored.
                 // This is necessary if we're re-indexing blocks in hope of finding missing messages.
-                if let Some(min_index) = last_leaf_index {
-                    sorted_messages = sorted_messages.into_iter().filter(|m| m.leaf_index > min_index).collect();
+                if let Some(min_index) = last_nonce {
+                    sorted_messages = sorted_messages.into_iter().filter(|m| m.nonce > min_index).collect();
                 }
 
                 debug!(
@@ -135,24 +136,21 @@ where
                     "[Messages]: filtered any messages already indexed"
                 );
 
-                // Ensure the sorted messages are a valid continuation of last_leaf_index
-                match validate_message_continuity(last_leaf_index, &sorted_messages.iter().collect::<Vec<_>>()) {
+                // Ensure the sorted messages are a valid continuation of last_nonce
+                match validate_message_continuity(last_nonce, &sorted_messages.iter().collect::<Vec<_>>()) {
                     ListValidity::Valid => {
                         // Store messages
-                        let max_leaf_index_of_batch = db.store_messages(&sorted_messages)?;
+                        let max_nonce_of_batch = db.store_messages(&sorted_messages)?;
 
                         // Report amount of messages stored into db
                         stored_messages.inc_by(sorted_messages.len() as u64);
 
                         // Report latest leaf index to gauge by dst
-                        for raw_msg in sorted_messages.iter() {
-                            let dst = CommittedMessage::try_from(raw_msg)
-                                .ok()
-                                .and_then(|msg| name_from_domain_id(msg.message.destination))
-                                .unwrap_or_else(|| "unknown".into());
-                            message_leaf_index
+                        for msg in sorted_messages.iter() {
+                            let dst = name_from_domain_id(msg.destination).unwrap_or_else(|| "unknown".into());
+                            message_nonce
                                 .with_label_values(&["dispatch", &chain_name, &dst])
-                                .set(max_leaf_index_of_batch as i64);
+                                .set(max_nonce_of_batch as i64);
                         }
 
                         // Update the latest valid start block.
@@ -163,12 +161,12 @@ where
                         from = to + 1;
                     }
                     // The index of the first message in sorted_messages is not the
-                    // `last_leaf_index+1`.
+                    // `last_nonce+1`.
                     ListValidity::InvalidContinuation => {
                         missed_messages.inc();
 
                         warn!(
-                            last_leaf_index = ?last_leaf_index,
+                            last_nonce = ?last_nonce,
                             start_block = from,
                             end_block = to,
                             last_valid_range_start_block,
@@ -181,7 +179,7 @@ where
                         missed_messages.inc();
 
                         warn!(
-                            last_leaf_index = ?last_leaf_index,
+                            last_nonce = ?last_nonce,
                             start_block = from,
                             end_block = to,
                             "[Messages]: Found gaps in the messages in range, re-indexing the same range.",
@@ -212,28 +210,32 @@ mod test {
     use tokio::select;
     use tokio::time::{interval, timeout};
 
-    use abacus_core::{db::AbacusDB, AbacusMessage, Encode, LogMeta, RawCommittedMessage};
+    use abacus_core::{db::AbacusDB, AbacusMessage, LogMeta};
     use abacus_test::mocks::indexer::MockAbacusIndexer;
     use abacus_test::test_utils;
     use mockall::predicate::eq;
 
+    use crate::chains::IndexSettings;
     use crate::contract_sync::schema::OutboxContractSyncDB;
     use crate::ContractSync;
-    use crate::{settings::IndexSettings, ContractSyncMetrics, CoreMetrics};
+    use crate::{ContractSyncMetrics, CoreMetrics};
 
     #[tokio::test]
     async fn handles_missing_rpc_messages() {
         test_utils::run_test_db(|db| async move {
-            let mut message_vec = vec![];
-            AbacusMessage {
-                origin: 1000,
-                destination: 2000,
-                sender: H256::from([10; 32]),
-                recipient: H256::from([11; 32]),
-                body: [10u8; 5].to_vec(),
-            }
-            .write_to(&mut message_vec)
-            .expect("!write_to");
+            let message_gen = |nonce: u32| -> AbacusMessage {
+                AbacusMessage {
+                    version: 0,
+                    nonce,
+                    origin: 1000,
+                    destination: 2000,
+                    sender: H256::from([10; 32]),
+                    recipient: H256::from([11; 32]),
+                    body: [10u8; 5].to_vec(),
+                }
+            };
+
+            let messages = (0..10).map(message_gen).collect::<Vec<AbacusMessage>>();
 
             let meta = || LogMeta {
                 address: Default::default(),
@@ -244,36 +246,6 @@ mod test {
                 log_index: Default::default(),
             };
 
-            let m0 = RawCommittedMessage {
-                leaf_index: 0,
-                message: message_vec.clone(),
-            };
-
-            let m1 = RawCommittedMessage {
-                leaf_index: 1,
-                message: message_vec.clone(),
-            };
-
-            let m2 = RawCommittedMessage {
-                leaf_index: 2,
-                message: message_vec.clone(),
-            };
-
-            let m3 = RawCommittedMessage {
-                leaf_index: 3,
-                message: message_vec.clone(),
-            };
-
-            let m4 = RawCommittedMessage {
-                leaf_index: 4,
-                message: message_vec.clone(),
-            };
-
-            let m5 = RawCommittedMessage {
-                leaf_index: 5,
-                message: message_vec.clone(),
-            };
-
             let latest_valid_message_range_start_block = 100;
 
             let mut mock_indexer = MockAbacusIndexer::new();
@@ -281,7 +253,7 @@ mod test {
                 let mut seq = Sequence::new();
 
                 // Return m0.
-                let m0_clone = m0.clone();
+                let m0 = messages[0].clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -292,10 +264,10 @@ mod test {
                     .times(1)
                     .with(eq(91), eq(110))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m0_clone, meta())]));
+                    .return_once(move |_, _| Ok(vec![(m0, meta())]));
 
                 // Return m1, miss m2.
-                let m1_clone = m1.clone();
+                let m1 = messages[1].clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -306,7 +278,7 @@ mod test {
                     .times(1)
                     .with(eq(101), eq(120))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m1_clone, meta())]));
+                    .return_once(move |_, _| Ok(vec![(m1, meta())]));
 
                 // Miss m3.
                 mock_indexer
@@ -341,7 +313,7 @@ mod test {
                     .return_once(|| Ok(140));
 
                 // m1 --> m5 seen as an invalid continuation
-                let m5_clone = m5.clone();
+                let m5 = messages[5].clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -352,13 +324,13 @@ mod test {
                     .times(1)
                     .with(eq(131), eq(150))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m5_clone, meta())]));
+                    .return_once(move |_, _| Ok(vec![(m5, meta())]));
 
                 // Indexer goes back to the last valid message range start block
                 // and indexes the range based off the chunk size of 19.
                 // This time it gets m1 and m2 (which was previously skipped)
-                let m1_clone = m1.clone();
-                let m2_clone = m2.clone();
+                let m1 = messages[1].clone();
+                let m2 = messages[2].clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -369,12 +341,12 @@ mod test {
                     .times(1)
                     .with(eq(101), eq(120))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m1_clone, meta()), (m2_clone, meta())]));
+                    .return_once(move |_, _| Ok(vec![(m1, meta()), (m2, meta())]));
 
                 // Indexer continues, this time getting m3 and m5 message, but skipping m4,
                 // which means this range contains gaps
-                let m3_clone = m3.clone();
-                let m5_clone = m5.clone();
+                let m3 = messages[3].clone();
+                let m5 = messages[5].clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -385,10 +357,13 @@ mod test {
                     .times(1)
                     .with(eq(121), eq(140))
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m3_clone, meta()), (m5_clone, meta())]));
+                    .return_once(move |_, _| Ok(vec![(m3, meta()), (m5, meta())]));
 
                 // Indexer retries, the same range in hope of filling the gap,
                 // which it now does successfully
+                let m3 = messages[3].clone();
+                let m4 = messages[4].clone();
+                let m5 = messages[5].clone();
                 mock_indexer
                     .expect__get_finalized_block_number()
                     .times(1)
@@ -461,16 +436,16 @@ mod test {
                 sync_metrics,
             );
 
-            let sync_task = contract_sync.sync_outbox_messages();
+            let sync_task = contract_sync.sync_dispatched_messages();
             let test_pass_fut = timeout(Duration::from_secs(30), async move {
                 let mut interval = interval(Duration::from_millis(20));
                 loop {
-                    if abacus_db.message_by_leaf_index(0).expect("!db").is_some()
-                        && abacus_db.message_by_leaf_index(1).expect("!db").is_some()
-                        && abacus_db.message_by_leaf_index(2).expect("!db").is_some()
-                        && abacus_db.message_by_leaf_index(3).expect("!db").is_some()
-                        && abacus_db.message_by_leaf_index(4).expect("!db").is_some()
-                        && abacus_db.message_by_leaf_index(5).expect("!db").is_some()
+                    if abacus_db.message_by_nonce(0).expect("!db").is_some()
+                        && abacus_db.message_by_nonce(1).expect("!db").is_some()
+                        && abacus_db.message_by_nonce(2).expect("!db").is_some()
+                        && abacus_db.message_by_nonce(3).expect("!db").is_some()
+                        && abacus_db.message_by_nonce(4).expect("!db").is_some()
+                        && abacus_db.message_by_nonce(5).expect("!db").is_some()
                     {
                         break;
                     }

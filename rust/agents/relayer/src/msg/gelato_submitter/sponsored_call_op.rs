@@ -4,8 +4,8 @@ use std::{
     time::Duration,
 };
 
-use abacus_base::InboxContracts;
-use abacus_core::{ChainCommunicationError, Inbox, InboxValidatorManager, MessageStatus};
+use abacus_base::CachingMailbox;
+use abacus_core::{AbacusContract, ChainCommunicationError, Mailbox, MultisigIsm};
 use eyre::Result;
 use gelato::{
     sponsored_call::{SponsoredCallApiCall, SponsoredCallApiCallResult, SponsoredCallArgs},
@@ -29,7 +29,8 @@ pub struct SponsoredCallOpArgs {
     pub http: reqwest::Client,
 
     pub message: SubmitMessageArgs,
-    pub inbox_contracts: InboxContracts,
+    pub mailbox: CachingMailbox,
+    pub multisig_ism: Arc<dyn MultisigIsm>,
     pub sponsor_api_key: String,
     pub destination_chain: Chain,
 
@@ -61,11 +62,11 @@ impl SponsoredCallOp {
         Self(args)
     }
 
-    #[instrument(skip(self), fields(msg_leaf_index=self.message.leaf_index))]
+    #[instrument(skip(self), fields(msg_nonce=self.message.message.nonce))]
     pub async fn run(&mut self) {
         loop {
             match self.tick().await {
-                Ok(MessageStatus::Processed) => {
+                Ok(true) => {
                     // If the message was processed, send it over the channel and
                     // stop running.
                     if let Err(err) = self.send_message_processed() {
@@ -92,44 +93,40 @@ impl SponsoredCallOp {
 
     /// One tick will submit a sponsored call to Gelato and wait for a terminal state
     /// or timeout.
-    async fn tick(&self) -> Result<MessageStatus> {
+    async fn tick(&self) -> Result<bool> {
         // Before doing anything, first check if the message has already been processed.
-        if let Ok(MessageStatus::Processed) = self.message_status().await {
-            return Ok(MessageStatus::Processed);
+        if let Ok(true) = self.message_delivered().await {
+            return Ok(true);
         }
+        let metadata = self
+            .multisig_ism
+            .format_metadata(&self.message.checkpoint, self.message.proof)
+            .await?;
 
         // Estimate transaction costs for the process call. If there are issues, it's likely
         // that gas estimation has failed because the message is reverting. This is defined behavior,
         // so we just log the error and move onto the next tick.
         let tx_cost_estimate = match self
-            .inbox_contracts
-            .validator_manager
-            .process_estimate_costs(
-                &self.message.checkpoint,
-                &self.message.committed_message.message,
-                &self.message.proof,
-            )
+            .mailbox
+            .process_estimate_costs(&self.message.message, &metadata)
             .await
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
             Err(err) => {
                 tracing::info!(error=?err, "Error estimating process costs");
-                return Ok(MessageStatus::None);
+                return Ok(false);
             }
         };
 
         // If the gas payment requirement hasn't been met, sleep briefly and wait for the next tick.
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(
-                &self.message.committed_message,
-                &tx_cost_estimate,
-            )
+            .message_meets_gas_payment_requirement(&self.message.message, &tx_cost_estimate)
             .await?;
 
         if !meets_gas_requirement {
             tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
-            return Ok(MessageStatus::None);
+            return Ok(false);
         }
 
         // Send the sponsored call.
@@ -155,22 +152,22 @@ impl SponsoredCallOp {
             // and set ourselves up for the next tick.
             Err(err) => {
                 tracing::info!(err=?err, "Sponsored call timed out, reattempting");
-                Ok(MessageStatus::None)
+                Ok(false)
             }
         }
     }
 
     // Waits until the message has either been processed or the task id has been cancelled
     // by Gelato.
-    async fn poll_for_terminal_state(&self, task_id: String) -> Result<MessageStatus> {
+    async fn poll_for_terminal_state(&self, task_id: String) -> Result<bool> {
         loop {
             sleep(self.opts.poll_interval).await;
 
             // Check if the message has been processed. Checking with the Inbox directly
             // is the best source of truth, and is the only way in which a message can be
             // marked as processed.
-            if let Ok(MessageStatus::Processed) = self.message_status().await {
-                return Ok(MessageStatus::Processed);
+            if let Ok(true) = self.message_delivered().await {
+                return Ok(true);
             }
 
             // Get the status of the SponsoredCall task from Gelato for debugging.
@@ -196,7 +193,7 @@ impl SponsoredCallOp {
             // Gelato has reached the max # of retries for a task. Currently, the default is
             // after about 30 seconds.
             if let TaskState::Cancelled = task_state {
-                return Ok(MessageStatus::None);
+                return Ok(false);
             }
         }
     }
@@ -205,7 +202,7 @@ impl SponsoredCallOp {
     // the DB here. This is why sponsored call args are created and signed for each
     // sponsored call call.
     async fn send_sponsored_call_api_call(&self) -> Result<SponsoredCallApiCallResult> {
-        let args = self.create_sponsored_call_args();
+        let args = self.create_sponsored_call_args().await?;
 
         let sponsored_call_api_call = SponsoredCallApiCall {
             args: &args,
@@ -216,30 +213,25 @@ impl SponsoredCallOp {
         Ok(sponsored_call_api_call.run().await?)
     }
 
-    fn create_sponsored_call_args(&self) -> SponsoredCallArgs {
-        let calldata = self.inbox_contracts.validator_manager.process_calldata(
-            &self.message.checkpoint,
-            &self.message.committed_message.message,
-            &self.message.proof,
-        );
-        SponsoredCallArgs {
+    async fn create_sponsored_call_args(&self) -> Result<SponsoredCallArgs> {
+        let metadata = self
+            .multisig_ism
+            .format_metadata(&self.message.checkpoint, self.message.proof)
+            .await?;
+        let calldata = self
+            .mailbox
+            .process_calldata(&self.message.message, &metadata);
+        Ok(SponsoredCallArgs {
             chain_id: self.destination_chain,
-            target: self
-                .inbox_contracts
-                .validator_manager
-                .contract_address()
-                .into(),
+            target: self.mailbox.address().into(),
             data: calldata.into(),
             gas_limit: None, // Gelato will handle gas estimation
             retries: None,   // Use Gelato's default of 5 retries, each ~5 seconds apart
-        }
+        })
     }
 
-    async fn message_status(&self) -> Result<MessageStatus, ChainCommunicationError> {
-        self.inbox_contracts
-            .inbox
-            .message_status(self.message.committed_message.to_leaf())
-            .await
+    async fn message_delivered(&self) -> Result<bool, ChainCommunicationError> {
+        self.mailbox.delivered(self.message.message.id()).await
     }
 
     fn send_message_processed(

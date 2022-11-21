@@ -3,23 +3,22 @@
 
 use abacus_core::db::AbacusDB;
 pub use interchain_gas::*;
+pub use mailbox::*;
 pub use metrics::ContractSyncMetrics;
-pub use outbox::*;
 
-use crate::settings::IndexSettings;
+use crate::chains::IndexSettings;
 
 mod interchain_gas;
 /// Tools for working with message continuity.
 pub mod last_message;
+mod mailbox;
 mod metrics;
-mod outbox;
 mod schema;
 
 /// Entity that drives the syncing of an agent's db with on-chain data.
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
-/// `indexer` and fills the agent's db with this data. A CachingOutbox or
-/// CachingInbox will use a contract sync to spawn syncing tasks to keep the
-/// db up-to-date.
+/// `indexer` and fills the agent's db with this data. A CachingMailbox
+/// will use a contract sync to spawn syncing tasks to keep the db up-to-date.
 #[derive(Debug)]
 pub struct ContractSync<I> {
     chain_name: String,

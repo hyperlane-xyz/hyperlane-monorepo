@@ -30,9 +30,7 @@ where
 mod test {
     use ethers::types::H256;
 
-    use abacus_core::{
-        accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage,
-    };
+    use abacus_core::{accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, RawAbacusMessage};
 
     use super::*;
 
@@ -42,8 +40,9 @@ mod test {
             let outbox_name = "outbox_1".to_owned();
             let db = AbacusDB::new(outbox_name, db);
 
-            let leaf_index = 100;
             let m = AbacusMessage {
+                nonce: 100,
+                version: 0,
                 origin: 10,
                 sender: H256::from_low_u64_be(4),
                 destination: 12,
@@ -51,23 +50,16 @@ mod test {
                 body: vec![1, 2, 3],
             };
 
-            let message = RawCommittedMessage {
-                leaf_index,
-                message: m.to_vec(),
-            };
+            db.store_message(&m).unwrap();
 
-            assert_eq!(m.to_leaf(leaf_index), message.leaf());
+            let by_id = db.message_by_id(m.id()).unwrap().unwrap();
+            assert_eq!(RawAbacusMessage::from(&by_id), RawAbacusMessage::from(&m));
 
-            db.store_raw_committed_message(&message).unwrap();
-
-            let by_leaf = db.message_by_leaf(message.leaf()).unwrap().unwrap();
-            assert_eq!(by_leaf, message);
-
-            let by_index = db
-                .message_by_leaf_index(message.leaf_index)
-                .unwrap()
-                .unwrap();
-            assert_eq!(by_index, message);
+            let by_nonce = db.message_by_nonce(m.nonce).unwrap().unwrap();
+            assert_eq!(
+                RawAbacusMessage::from(&by_nonce),
+                RawAbacusMessage::from(&m)
+            );
         })
         .await;
     }
@@ -85,7 +77,7 @@ mod test {
             };
             db.store_proof(13, &proof).unwrap();
 
-            let by_index = db.proof_by_leaf_index(13).unwrap().unwrap();
+            let by_index = db.proof_by_nonce(13).unwrap().unwrap();
             assert_eq!(by_index, proof);
         })
         .await;

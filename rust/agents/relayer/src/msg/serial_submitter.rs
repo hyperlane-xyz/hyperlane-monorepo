@@ -1,13 +1,10 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use abacus_base::CachingMailbox;
 use abacus_base::CoreMetrics;
-use abacus_base::InboxContracts;
 use abacus_core::db::AbacusDB;
-use abacus_core::AbacusContract;
-use abacus_core::Inbox;
-use abacus_core::InboxValidatorManager;
-use abacus_core::MessageStatus;
+use abacus_core::{AbacusContract, Mailbox, MultisigIsm};
 use eyre::{bail, Result};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc;
@@ -121,8 +118,10 @@ pub(crate) struct SerialSubmitter {
     /// to be dispatched. The SerialSubmitter can only dispatch one message at a time, so this
     /// queue could grow.
     run_queue: VecDeque<SubmitMessageArgs>,
-    /// Inbox / InboxValidatorManager on the destination chain.
-    inbox_contracts: InboxContracts,
+    /// Mailbox on the destination chain.
+    mailbox: CachingMailbox,
+    /// Multisig ism on the destination chain.
+    multisig_ism: Arc<dyn MultisigIsm>,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
     /// Metrics for serial submitter.
@@ -134,7 +133,8 @@ pub(crate) struct SerialSubmitter {
 impl SerialSubmitter {
     pub(crate) fn new(
         rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-        inbox_contracts: InboxContracts,
+        mailbox: CachingMailbox,
+        multisig_ism: Arc<dyn MultisigIsm>,
         db: AbacusDB,
         metrics: SerialSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -143,7 +143,8 @@ impl SerialSubmitter {
             rx,
             wait_queue: Vec::new(),
             run_queue: VecDeque::new(),
-            inbox_contracts,
+            mailbox,
+            multisig_ism,
             db,
             metrics,
             gas_payment_enforcer,
@@ -155,7 +156,7 @@ impl SerialSubmitter {
             .instrument(info_span!("serial submitter work loop"))
     }
 
-    #[instrument(skip_all, fields(ibx=self.inbox_contracts.inbox.inbox().chain_name()))]
+    #[instrument(skip_all, fields(mbx=self.mailbox.chain_name()))]
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.tick().await?;
@@ -212,18 +213,18 @@ impl SerialSubmitter {
         };
 
         match self.process_message(&msg).await {
-            Ok(MessageStatus::Processed) => {
-                info!(msg=?msg, msg_leaf_index=msg.leaf_index, "Message processed");
+            Ok(true) => {
+                info!(id=?msg.message.id(), nonce=msg.message.nonce, "Message processed");
                 self.record_message_process_success(&msg)?;
                 return Ok(());
             }
-            Ok(MessageStatus::None) => {
-                info!(msg=?msg, msg_leaf_index=msg.leaf_index, "Message not processed");
+            Ok(false) => {
+                info!(id=?msg.message.id(), nonce=msg.message.nonce, "Message not processed");
             }
             // We expect this branch to be hit when there is unexpected behavior -
             // defined behavior like gas estimation failing will not hit this branch.
             Err(err) => {
-                warn!(msg=?msg, msg_leaf_index=msg.leaf_index, error=?err, "Error occurred when attempting to process message");
+                warn!(id=?msg.message.id(), nonce=msg.message.nonce, error=?err, "Error occurred when attempting to process message");
             }
         }
 
@@ -240,46 +241,44 @@ impl SerialSubmitter {
     /// been processed, Ok(MessageStatus::Processed) is returned. If this message is unable to
     /// be processed, either due to failed gas estimation or an insufficient gas payment,
     /// Ok(MessageStatus::None) is returned.
-    #[instrument(skip(self, msg), fields(msg_leaf_index=msg.leaf_index))]
-    async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<MessageStatus> {
+    #[instrument(skip(self, msg), fields(msg_nonce=msg.message.nonce))]
+    async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<bool> {
         // If the message has already been processed according to message_status call on
         // inbox, e.g. due to another relayer having already processed, then mark it as
         // already-processed, and move on to the next tick.
         // TODO(webbhorn): Make this robust to re-orgs on inbox.
-        if let MessageStatus::Processed = self
-            .inbox_contracts
-            .inbox
-            .message_status(msg.committed_message.to_leaf())
-            .await?
-        {
+        if self.mailbox.delivered(msg.message.id()).await? {
             info!("Message already processed");
-            return Ok(MessageStatus::Processed);
+            return Ok(true);
         }
+        let metadata = self
+            .multisig_ism
+            .format_metadata(&msg.checkpoint, msg.proof)
+            .await?;
 
         // Estimate transaction costs for the process call. If there are issues, it's likely
         // that gas estimation has failed because the message is reverting. This is defined behavior,
         // so we just log the error and move onto the next tick.
         let tx_cost_estimate = match self
-            .inbox_contracts
-            .validator_manager
-            .process_estimate_costs(&msg.checkpoint, &msg.committed_message.message, &msg.proof)
+            .mailbox
+            .process_estimate_costs(&msg.message, &metadata)
             .await
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
             Err(err) => {
                 info!(msg=?msg, error=?err, "Error estimating process costs");
-                return Ok(MessageStatus::None);
+                return Ok(false);
             }
         };
 
         // If the gas payment requirement hasn't been met, move to the next tick.
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&msg.committed_message, &tx_cost_estimate)
+            .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
             .await?;
         if !meets_gas_requirement {
             tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
-            return Ok(MessageStatus::None);
+            return Ok(false);
         }
 
         // Go ahead and attempt processing of message to destination chain.
@@ -293,14 +292,8 @@ impl SerialSubmitter {
         // We use the estimated gas limit from the prior call to `process_estimate_costs` to
         // avoid a second gas estimation.
         let process_result = self
-            .inbox_contracts
-            .validator_manager
-            .process(
-                &msg.checkpoint,
-                &msg.committed_message.message,
-                &msg.proof,
-                Some(tx_cost_estimate.gas_limit),
-            )
+            .mailbox
+            .process(&msg.message, &metadata, Some(tx_cost_estimate.gas_limit))
             .await;
         match process_result {
             // TODO(trevor): Instead of immediately marking as processed, move to a verification
@@ -312,11 +305,11 @@ impl SerialSubmitter {
                 info!(hash=?outcome.txid,
                     wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
                     "Message successfully processed by transaction");
-                Ok(MessageStatus::Processed)
+                Ok(true)
             }
             Ok(outcome) => {
                 info!(hash=?outcome.txid, "Transaction attempting to process transaction reverted");
-                Ok(MessageStatus::None)
+                Ok(false)
             }
             Err(e) => Err(e.into()),
         }
@@ -328,15 +321,15 @@ impl SerialSubmitter {
     /// return 'Ok(())', then without a wiped AbacusDB, we will never re-attempt processing for
     /// this message again, even after the relayer restarts.
     fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
-        self.db.mark_leaf_as_processed(msg.leaf_index)?;
+        self.db.mark_nonce_as_processed(msg.message.nonce)?;
         self.metrics
             .queue_duration_hist
             .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
-        self.metrics.max_submitted_leaf_index =
-            std::cmp::max(self.metrics.max_submitted_leaf_index, msg.leaf_index);
+        self.metrics.max_submitted_nonce =
+            std::cmp::max(self.metrics.max_submitted_nonce, msg.message.nonce);
         self.metrics
             .processed_gauge
-            .set(self.metrics.max_submitted_leaf_index as i64);
+            .set(self.metrics.max_submitted_nonce as i64);
         self.metrics.messages_processed_count.inc();
         Ok(())
     }
@@ -351,34 +344,34 @@ pub(crate) struct SerialSubmitterMetrics {
     messages_processed_count: IntCounter,
 
     /// Private state used to update actual metrics each tick.
-    max_submitted_leaf_index: u32,
+    max_submitted_nonce: u32,
 }
 
 impl SerialSubmitterMetrics {
-    pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
+    pub fn new(metrics: &CoreMetrics, origin_chain: &str, destination_chain: &str) -> Self {
         Self {
             run_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                outbox_chain,
-                inbox_chain,
+                origin_chain,
+                destination_chain,
                 "run_queue",
             ]),
             wait_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                outbox_chain,
-                inbox_chain,
+                origin_chain,
+                destination_chain,
                 "wait_queue",
             ]),
             queue_duration_hist: metrics
                 .submitter_queue_duration_histogram()
-                .with_label_values(&[outbox_chain, inbox_chain]),
+                .with_label_values(&[origin_chain, destination_chain]),
             messages_processed_count: metrics
                 .messages_processed_count()
-                .with_label_values(&[outbox_chain, inbox_chain]),
-            processed_gauge: metrics.last_known_message_leaf_index().with_label_values(&[
+                .with_label_values(&[origin_chain, destination_chain]),
+            processed_gauge: metrics.last_known_message_nonce().with_label_values(&[
                 "message_processed",
-                outbox_chain,
-                inbox_chain,
+                origin_chain,
+                destination_chain,
             ]),
-            max_submitted_leaf_index: 0,
+            max_submitted_nonce: 0,
         }
     }
 }

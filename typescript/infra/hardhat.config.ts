@@ -20,7 +20,7 @@ const chainSummary = async <Chain extends ChainName>(
 ) => {
   const coreContracts = core.getContracts(chain);
   const mailbox = coreContracts.mailbox.contract;
-  const dispatched = (await mailbox.count()).toNumber();
+  const dispatched = await mailbox.count();
   // TODO: Allow processed messages to be filtered by
   // origin, possibly sender and recipient.
   const processFilter = mailbox.filters.Process();
@@ -95,7 +95,7 @@ task('kathy', 'Dispatches random hyperlane messages')
           console.log(
             `send to ${recipient.address} on ${remote} via mailbox ${
               mailbox.address
-            } with nonce ${(await mailbox.count()).toNumber() - 1}`,
+            } on ${local} with nonce ${(await mailbox.count()) - 1}`,
           );
           console.log(await chainSummary(core, local));
           await sleep(timeout);

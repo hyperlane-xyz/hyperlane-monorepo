@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use abacus_core::{AbacusDomain, CommittedMessage, TxCostEstimate};
+use abacus_core::{AbacusDomain, AbacusMessage, TxCostEstimate};
 use async_trait::async_trait;
 use coingecko::CoinGeckoClient;
 use ethers::types::U256;
@@ -181,7 +181,7 @@ impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
     /// Returns (gas payment requirement met, current payment according to the DB)
     async fn message_meets_gas_payment_requirement(
         &self,
-        message: &CommittedMessage,
+        message: &AbacusMessage,
         current_payment: &U256,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<bool> {
@@ -191,14 +191,15 @@ impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
         let origin_token_tx_cost = self
             .convert_native_tokens(
                 destination_token_tx_cost,
-                message.message.destination,
-                message.message.origin,
+                message.destination,
+                message.origin,
             )
             .await?;
 
         let meets_requirement = *current_payment >= origin_token_tx_cost;
         tracing::info!(
-            message_leaf_index=?message.leaf_index,
+            message_id=?message.id(),
+            message_nonce=?message.nonce,
             tx_cost_estimate=?tx_cost_estimate,
             destination_token_tx_cost=?destination_token_tx_cost,
             origin_token_tx_cost=?origin_token_tx_cost,
@@ -259,15 +260,14 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
         usd_prices.insert(polygon_coingecko_id, polygon_price.into());
     }
 
-    let message = CommittedMessage {
-        leaf_index: 10u32,
-        message: AbacusMessage {
-            origin: celo_domain_id,
-            destination: polygon_domain_id,
-            sender: H256::zero(),
-            recipient: H256::zero(),
-            body: vec![],
-        },
+    let message = AbacusMessage {
+        version: 0,
+        nonce: 10u32,
+        origin: celo_domain_id,
+        destination: polygon_domain_id,
+        sender: H256::zero(),
+        recipient: H256::zero(),
+        body: vec![],
     };
     let tx_cost_estimate = TxCostEstimate {
         // 1M gas

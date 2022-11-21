@@ -6,7 +6,7 @@ use tokio::{sync::watch::Sender, task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, Instrument};
 
 use abacus_base::MultisigCheckpointSyncer;
-use abacus_core::{MultisigSignedCheckpoint, Outbox};
+use abacus_core::{Mailbox, MultisigSignedCheckpoint};
 
 pub(crate) struct CheckpointFetcher {
     polling_interval: u64,
@@ -18,7 +18,7 @@ pub(crate) struct CheckpointFetcher {
 impl CheckpointFetcher {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        outbox: &dyn Outbox,
+        mailbox: &dyn Mailbox,
         polling_interval: u64,
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
         signed_checkpoint_sender: Sender<Option<MultisigSignedCheckpoint>>,
@@ -26,7 +26,7 @@ impl CheckpointFetcher {
     ) -> Self {
         let signed_checkpoint_gauge = leaf_index_gauge.with_label_values(&[
             "signed_offchain_checkpoint",
-            outbox.chain_name(),
+            mailbox.chain_name(),
             "unknown", // Checkpoints are not remote-specific
         ]);
         Self {
@@ -51,7 +51,7 @@ impl CheckpointFetcher {
             .fetch_checkpoint(signed_checkpoint_index)
             .await?
         {
-            debug!(
+            info!(
                 signed_checkpoint_index = signed_checkpoint_index,
                 "Sending a newly fetched signed checkpoint via channel"
             );
