@@ -6,6 +6,7 @@ import {Versioned} from "./upgrade/Versioned.sol";
 import {MerkleLib} from "./libs/Merkle.sol";
 import {Message} from "./libs/Message.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
+import {OwnableSpecifiesISM} from "./OwnableSpecifiesISM.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
@@ -17,7 +18,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/se
 
 contract Mailbox is
     IMailbox,
-    OwnableUpgradeable,
+    OwnableSpecifiesISM,
     ReentrancyGuardUpgradeable,
     Versioned
 {
@@ -52,12 +53,6 @@ contract Mailbox is
     // ============ Events ============
 
     /**
-     * @notice Emitted when the default ISM is updated
-     * @param module The new default ISM
-     */
-    event DefaultIsmSet(address indexed module);
-
-    /**
      * @notice Emitted when a new message is dispatched via Hyperlane
      * @param messageId The unique message identifier
      * @param message Raw bytes of message
@@ -81,19 +76,10 @@ contract Mailbox is
 
     function initialize(address _defaultIsm) external initializer {
         __ReentrancyGuard_init();
-        __Ownable_init();
-        _setDefaultIsm(_defaultIsm);
+        __OwnableSpecifiesISM_init(_defaultIsm);
     }
 
     // ============ External Functions ============
-
-    /**
-     * @notice Sets the default ISM for the Mailbox.
-     * @param _module The new default ISM. Must be a contract.
-     */
-    function setDefaultIsm(address _module) external onlyOwner {
-        _setDefaultIsm(_module);
-    }
 
     /**
      * @notice Dispatches a message to the destination domain & recipient.
@@ -191,16 +177,6 @@ contract Mailbox is
     // ============ Internal Functions ============
 
     /**
-     * @notice Sets the default ISM for the Mailbox.
-     * @param _module The new default ISM. Must be a contract.
-     */
-    function _setDefaultIsm(address _module) internal {
-        require(Address.isContract(_module), "!contract");
-        defaultIsm = IInterchainSecurityModule(_module);
-        emit DefaultIsmSet(_module);
-    }
-
-    /**
      * @notice Returns the ISM to use for the recipient, defaulting to the
      * default ISM if none is specified.
      * @param _recipient The message recipient whose ISM should be returned.
@@ -220,7 +196,7 @@ contract Mailbox is
         ) {
             return _val;
         } catch {
-            return defaultIsm;
+            return interchainSecurityModule;
         }
     }
 }
