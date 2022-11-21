@@ -13,6 +13,9 @@
       "implementation": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
       "beacon": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788"
     },
+    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "multisigIsm": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
   },
   "test2": {
@@ -29,6 +32,9 @@
       "implementation": "0x59b670e9fA9D0A427751Af201D676719a970857b",
       "beacon": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1"
     },
+    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "multisigIsm": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1"
   },
   "test3": {
@@ -45,6 +51,9 @@
       "implementation": "0x9E545E3C0baAB3E08CdfD552C960A1050f373042",
       "beacon": "0xa82fF9aFd8f496c3d6ac40E2a0F282E47488CFc9"
     },
+    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "multisigIsm": "0xc5a5C42992dECbae36851359345FE25997F5C42d"
   }
 }
