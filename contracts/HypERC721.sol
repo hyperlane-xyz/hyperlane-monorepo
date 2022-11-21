@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Router} from "@hyperlane-xyz/app/contracts/Router.sol";
+import {Router} from "@hyperlane-xyz/core/contracts/Router.sol";
 
 import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 
@@ -94,7 +94,7 @@ contract HypERC721 is Router, ERC721EnumerableUpgradeable {
     function _handle(
         uint32 _origin,
         bytes32,
-        bytes memory _message
+        bytes calldata _message
     ) internal override {
         (address recipient, uint256 tokenId) = abi.decode(
             _message,

@@ -29,3 +29,27 @@ graph TB
     EthereumInbox-->|"handle(Ethereum, (Bob, 5))"|HYP_P
     HYP_P-.->Bob
 ```
+
+## Setup
+
+```sh
+# Install dependencies
+yarn
+
+# Build source and generate types
+yarn build
+```
+
+## Test
+
+```sh
+# Run all unit tests
+yarn test
+
+# Lint check code
+yarn lint
+```
+
+## Learn more
+
+For more information, see the [Hyperlane documentation](https://docs.hyperlane.xyz/hyperlane-docs/developers/getting-started).

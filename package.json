@@ -3,7 +3,8 @@
   "description": "A template for interchain ERC20 and ERC721 tokens using Hyperlane",
   "version": "0.5.0",
   "dependencies": {
-    "@hyperlane-xyz/sdk": "^0.5.0-beta0",
+    "@hyperlane-xyz/core": "^0.5.0",
+    "@hyperlane-xyz/sdk": "^0.5.0",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "ethers": "^5.6.8"
   },
@@ -54,7 +55,7 @@
     "coverage": "hardhat coverage",
     "lint": "eslint . --ext .ts",
     "prettier": "prettier --write ./contracts ./test",
-    "test": "hardhat test ./test/**/*.test.ts"
+    "test": "hardhat test ./test/*.test.ts"
   },
   "types": "dist/index.d.ts"
 }
