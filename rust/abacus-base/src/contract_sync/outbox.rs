@@ -2,13 +2,12 @@ use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
 use abacus_core::{
-    name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer, SyncBlockRangeCursor,
+    name_from_domain_id, CommittedMessage, Indexer, ListValidity, OutboxIndexer,
+    SyncBlockRangeCursor,
 };
 
 use crate::contract_sync::last_message::validate_message_continuity;
-use crate::{
-    contract_sync::schema::OutboxContractSyncDB, ContractSync, RateLimitedSyncBlockRangeCursor,
-};
+use crate::{contract_sync::schema::OutboxContractSyncDB, ContractSync};
 
 const MESSAGES_LABEL: &str = "messages";
 
@@ -45,7 +44,7 @@ where
             let initial_height = db
                 .retrieve_latest_valid_message_range_start_block()
                 .map_or(config_initial_height, |b| b + 1);
-            RateLimitedSyncBlockRangeCursor::new(
+            create_cursor(
                 indexer.clone(),
                 self.index_settings.chunk_size(),
                 initial_height,
@@ -201,6 +200,28 @@ where
 }
 
 #[cfg(test)]
+static mut MOCK_CURSOR: Option<abacus_test::mocks::cursor::MockSyncBlockRangeCursor> = None;
+
+/// Create a new cursor. In test mode we should use the mock cursor created by
+/// the test.
+#[cfg_attr(test, allow(unused_variables))]
+async fn create_cursor<I: Indexer>(
+    indexer: I,
+    chunk_size: u32,
+    initial_height: u32,
+) -> eyre::Result<impl SyncBlockRangeCursor> {
+    #[cfg(not(test))]
+    {
+        crate::RateLimitedSyncBlockRangeCursor::new(indexer, chunk_size, initial_height).await
+    }
+    #[cfg(test)]
+    {
+        let cursor = unsafe { MOCK_CURSOR.take() };
+        Ok(cursor.expect("Mock cursor was not set before it was used"))
+    }
+}
+
+#[cfg(test)]
 mod test {
     use std::sync::Arc;
     use std::time::Duration;
@@ -210,19 +231,29 @@ mod test {
     use mockall::predicate::eq;
     use mockall::*;
     use tokio::select;
-    use tokio::time::{interval, timeout};
+    use tokio::sync::Mutex;
+    use tokio::time::{interval, sleep, timeout};
 
     use abacus_core::{db::AbacusDB, AbacusMessage, Encode, LogMeta, RawCommittedMessage};
+    use abacus_test::mocks::cursor::MockSyncBlockRangeCursor;
     use abacus_test::mocks::indexer::MockAbacusIndexer;
     use abacus_test::test_utils;
 
+    use crate::contract_sync::outbox::MOCK_CURSOR;
     use crate::contract_sync::schema::OutboxContractSyncDB;
     use crate::ContractSync;
     use crate::{settings::IndexSettings, ContractSyncMetrics, CoreMetrics};
 
+    // we need a mutex for our tests because of the static cursor object
+    lazy_static! {
+        static ref TEST_MTX: Mutex<()> = Mutex::new(());
+    }
+
     #[tokio::test]
     async fn handles_missing_rpc_messages() {
         test_utils::run_test_db(|db| async move {
+            let _test_lock = TEST_MTX.lock().await;
+
             let mut message_vec = vec![];
             AbacusMessage {
                 origin: 1000,
@@ -276,160 +307,100 @@ mod test {
             let latest_valid_message_range_start_block = 100;
 
             let mut mock_indexer = MockAbacusIndexer::new();
+            let mut mock_cursor = MockSyncBlockRangeCursor::new();
             {
                 let mut seq = Sequence::new();
 
+                // Some local macros to reduce code-duplication.
+                macro_rules! expect_current_position {
+                    ($return_position:literal) => {
+                        mock_cursor
+                            .expect__current_position()
+                            .times(1)
+                            .in_sequence(&mut seq)
+                            .return_once(|| $return_position);
+                    };
+                }
+                macro_rules! expect_backtrack {
+                    ($expected_new_from:literal) => {
+                        mock_cursor
+                            .expect__backtrack()
+                            .times(1)
+                            .in_sequence(&mut seq)
+                            .with(eq($expected_new_from))
+                            .return_once(|_| ());
+                    };
+                }
+                macro_rules! expect_fetches_range {
+                    ($expected_from:literal, $expected_to:literal, $return_messages:expr) => {
+                        let messages: &[&RawCommittedMessage] = $return_messages;
+                        let messages = messages.iter().map(|&msg| (msg.clone(), meta())).collect();
+                        mock_cursor
+                            .expect__next_range()
+                            .times(1)
+                            .in_sequence(&mut seq)
+                            .return_once(|| Box::pin(async { Ok(($expected_from, $expected_to)) }));
+                        mock_indexer
+                            .expect__fetch_sorted_messages()
+                            .times(1)
+                            .with(eq($expected_from), eq($expected_to))
+                            .in_sequence(&mut seq)
+                            .return_once(move |_, _| Ok(messages));
+                    };
+                }
+
+                expect_current_position!(91);
+                expect_current_position!(91);
+
                 // Return m0.
-                let m0_clone = m0.clone();
-                mock_indexer
-                    .expect__get_finalized_block_number()
-                    .times(1)
-                    .in_sequence(&mut seq)
-                    .return_once(|| Ok(110));
-                mock_indexer
-                    .expect__fetch_sorted_messages()
-                    .times(1)
-                    .with(eq(91), eq(110))
-                    .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m0_clone, meta())]));
+                expect_fetches_range!(91, 110, &[&m0]);
 
                 // Return m1, miss m2.
-                let m1_clone = m1.clone();
-                mock_indexer
-                    .expect__get_finalized_block_number()
-                    .times(1)
-                    .in_sequence(&mut seq)
-                    .return_once(|| Ok(120));
-                mock_indexer
-                    .expect__fetch_sorted_messages()
-                    .times(1)
-                    .with(eq(101), eq(120))
-                    .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m1_clone, meta())]));
+                expect_current_position!(111);
+                expect_fetches_range!(101, 120, &[&m1]);
 
                 // Miss m3.
-                mock_indexer
-                    .expect__get_finalized_block_number()
-                    .times(1)
-                    .in_sequence(&mut seq)
-                    .return_once(|| Ok(130));
-                mock_indexer
-                    .expect__fetch_sorted_messages()
-                    .times(1)
-                    .with(eq(111), eq(130))
-                    .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![]));
+                expect_current_position!(121);
+                expect_fetches_range!(111, 130, &[]);
 
                 // Empty range.
-                mock_indexer
-                    .expect__get_finalized_block_number()
-                    .times(1)
-                    .in_sequence(&mut seq)
-                    .return_once(|| Ok(140));
-                mock_indexer
-                    .expect__fetch_sorted_messages()
-                    .times(1)
-                    .with(eq(121), eq(140))
-                    .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![]));
-
-                mock_indexer
-                    .expect__get_finalized_block_number()
-                    .times(1)
-                    .in_sequence(&mut seq)
-                    .return_once(|| Ok(140));
+                expect_current_position!(131);
+                expect_fetches_range!(121, 140, &[]);
 
                 // m1 --> m5 seen as an invalid continuation
-                let m5_clone = m5.clone();
-                mock_indexer
-                    .expect__get_finalized_block_number()
-                    .times(1)
-                    .in_sequence(&mut seq)
-                    .return_once(|| Ok(150));
-                mock_indexer
-                    .expect__fetch_sorted_messages()
-                    .times(1)
-                    .with(eq(131), eq(150))
-                    .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m5_clone, meta())]));
+                expect_current_position!(141);
+                expect_fetches_range!(131, 150, &[&m5]);
+                expect_backtrack!(101);
 
                 // Indexer goes back to the last valid message range start block
-                // and indexes the range based off the chunk size of 19.
+                // and indexes the range
                 // This time it gets m1 and m2 (which was previously skipped)
-                let m1_clone = m1.clone();
-                let m2_clone = m2.clone();
-                mock_indexer
-                    .expect__get_finalized_block_number()
-                    .times(1)
-                    .in_sequence(&mut seq)
-                    .return_once(|| Ok(160));
-                mock_indexer
-                    .expect__fetch_sorted_messages()
-                    .times(1)
-                    .with(eq(101), eq(120))
-                    .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m1_clone, meta()), (m2_clone, meta())]));
+                expect_current_position!(101);
+                expect_fetches_range!(101, 120, &[&m1, &m2]);
 
                 // Indexer continues, this time getting m3 and m5 message, but skipping m4,
                 // which means this range contains gaps
-                let m3_clone = m3.clone();
-                let m5_clone = m5.clone();
-                mock_indexer
-                    .expect__get_finalized_block_number()
-                    .times(1)
-                    .in_sequence(&mut seq)
-                    .return_once(|| Ok(170));
-                mock_indexer
-                    .expect__fetch_sorted_messages()
-                    .times(1)
-                    .with(eq(121), eq(140))
-                    .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m3_clone, meta()), (m5_clone, meta())]));
+                expect_current_position!(121);
+                expect_fetches_range!(118, 140, &[&m3, &m5]);
+                expect_backtrack!(121);
 
                 // Indexer retries, the same range in hope of filling the gap,
                 // which it now does successfully
-                mock_indexer
-                    .expect__get_finalized_block_number()
-                    .times(1)
-                    .in_sequence(&mut seq)
-                    .return_once(|| Ok(170));
-                mock_indexer
-                    .expect__fetch_sorted_messages()
-                    .times(1)
-                    .with(eq(121), eq(140))
-                    .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![(m3, meta()), (m4, meta()), (m5, meta())]));
+                expect_current_position!(121);
+                expect_fetches_range!(121, 140, &[&m3, &m4, &m5]);
 
                 // Indexer continues with the next block range, which happens to be empty
-                mock_indexer
-                    .expect__get_finalized_block_number()
-                    .times(1)
-                    .in_sequence(&mut seq)
-                    .return_once(|| Ok(180));
-                mock_indexer
-                    .expect__fetch_sorted_messages()
-                    .times(1)
-                    .with(eq(141), eq(160))
-                    .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![]));
-
-                // Indexer catches up with the tip
-                mock_indexer
-                    .expect__get_finalized_block_number()
-                    .times(1)
-                    .in_sequence(&mut seq)
-                    .return_once(|| Ok(180));
-                mock_indexer
-                    .expect__fetch_sorted_messages()
-                    .times(1)
-                    .with(eq(161), eq(180))
-                    .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![]));
+                expect_current_position!(141);
+                expect_fetches_range!(141, 160, &[]);
 
                 // Stay at the same tip, so no other fetch_sorted_messages calls are made
-                mock_indexer
-                    .expect__get_finalized_block_number()
-                    .returning(|| Ok(180));
+                mock_cursor.expect__current_position().returning(|| 161);
+                mock_cursor.expect__next_range().returning(|| {
+                    Box::pin(async move {
+                        sleep(Duration::from_secs(100)).await;
+                        Ok((161, 161))
+                    })
+                });
             }
 
             let abacus_db = AbacusDB::new("outbox_1", db);
@@ -446,13 +417,14 @@ mod test {
                 CoreMetrics::new("contract_sync_test", None, prometheus::Registry::new())
                     .expect("could not make metrics"),
             );
+            unsafe { MOCK_CURSOR = Some(mock_cursor) };
 
             let sync_metrics = ContractSyncMetrics::new(metrics);
 
             let contract_sync = ContractSync::new(
                 "outbox_1".into(),
                 abacus_db.clone(),
-                indexer.clone(),
+                indexer,
                 IndexSettings {
                     from: Some("0".to_string()),
                     chunk: Some("19".to_string()),
@@ -461,7 +433,7 @@ mod test {
             );
 
             let sync_task = contract_sync.sync_outbox_messages();
-            let test_pass_fut = timeout(Duration::from_secs(10000), async move {
+            let test_pass_fut = timeout(Duration::from_secs(5), async move {
                 let mut interval = interval(Duration::from_millis(20));
                 loop {
                     if abacus_db.message_by_leaf_index(0).expect("!db").is_some()

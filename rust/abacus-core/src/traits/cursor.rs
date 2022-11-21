@@ -1,9 +1,11 @@
 use async_trait::async_trait;
+use auto_impl::auto_impl;
 use eyre::Result;
 
 /// Tool for handling the logic of what the next block range that should be
 /// queried and may perform rate limiting on `next_range` queries.
 #[async_trait]
+#[auto_impl(Box)]
 pub trait SyncBlockRangeCursor {
     /// Returns the current `from` position of the scraper. Note that
     /// `next_range` may return a `from` value that is lower than this in order

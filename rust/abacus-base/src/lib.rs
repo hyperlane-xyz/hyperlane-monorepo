@@ -5,7 +5,8 @@
 //! Implementations of the `Outbox` and `Inbox` traits on different chains
 //! ought to live here.
 
-#![forbid(unsafe_code)]
+// Forbid unsafe code outside of tests
+#![cfg_attr(not(test), forbid(unsafe_code))]
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
