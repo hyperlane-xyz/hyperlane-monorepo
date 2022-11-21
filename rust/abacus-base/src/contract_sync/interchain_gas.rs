@@ -1,11 +1,10 @@
 use tokio::task::JoinHandle;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use abacus_core::InterchainGasPaymasterIndexer;
+use abacus_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
 
-use crate::{
-    contract_sync::schema::InterchainGasPaymasterContractSyncDB, ContractSync, SyncBlockRangeCursor,
-};
+use crate::contract_sync::cursor::RateLimitedSyncBlockRangeCursor;
+use crate::{contract_sync::schema::InterchainGasPaymasterContractSyncDB, ContractSync};
 
 const GAS_PAYMENTS_LABEL: &str = "gas_payments";
 
@@ -35,7 +34,7 @@ where
             let initial_height = db
                 .retrieve_latest_indexed_gas_payment_block()
                 .map_or(config_initial_height, |b| b + 1);
-            SyncBlockRangeCursor::new(
+            RateLimitedSyncBlockRangeCursor::new(
                 indexer.clone(),
                 self.index_settings.chunk_size(),
                 initial_height,

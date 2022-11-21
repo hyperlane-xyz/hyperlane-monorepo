@@ -1,10 +1,14 @@
 use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
-use abacus_core::{name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer};
+use abacus_core::{
+    name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer, SyncBlockRangeCursor,
+};
 
 use crate::contract_sync::last_message::validate_message_continuity;
-use crate::{contract_sync::schema::OutboxContractSyncDB, ContractSync, SyncBlockRangeCursor};
+use crate::{
+    contract_sync::schema::OutboxContractSyncDB, ContractSync, RateLimitedSyncBlockRangeCursor,
+};
 
 const MESSAGES_LABEL: &str = "messages";
 
@@ -41,7 +45,7 @@ where
             let initial_height = db
                 .retrieve_latest_valid_message_range_start_block()
                 .map_or(config_initial_height, |b| b + 1);
-            SyncBlockRangeCursor::new(
+            RateLimitedSyncBlockRangeCursor::new(
                 indexer.clone(),
                 self.index_settings.chunk_size(),
                 initial_height,
@@ -51,38 +55,50 @@ where
         // Indexes messages by fetching messages in ranges of blocks.
         // We've observed occasional flakiness with providers where some events in
         // a range will be missing. The leading theories are:
+        //
         // 1. The provider is just flaky and sometimes misses events :(
+        //
         // 2. For outbox chains with low finality times, it's possible that when
-        //    we query the RPC provider for the latest finalized block number,
-        //    we're returned a block number T. However when we attempt to index a range
-        //    where the `to` block is T, the `eth_getLogs` RPC is load balanced by the
-        //    provider to a different node whose latest known block is some block T' < T.
-        //    The `eth_getLogs` RPC implementations seem to happily accept `to` blocks that
-        //    exceed the latest known block, so it's possible that in our indexer we think
-        //    that we've indexed up to block T but we've only *actually* indexed up to block T'.
-
+        // we query the RPC provider for the latest finalized block number,
+        // we're returned a block number T. However when we attempt to index a range
+        // where the `to` block is T, the `eth_getLogs` RPC is load balanced by the
+        // provider to a different node whose latest known block is some block T' <T.
+        //
+        // The `eth_getLogs` RPC implementations seem to happily accept
+        // `to` blocks that exceed the latest known block, so it's possible
+        // that in our indexer we think that we've indexed up to block T but
+        // we've only *actually* indexed up to block T'.
+        //
         // It's easy to determine if a provider has skipped any message events by
-        // looking at the indices of each message and ensuring that we've indexed a valid
-        // continuation of messages.
+        // looking at the indices of each message and ensuring that we've indexed a
+        // valid continuation of messages.
+        //
         // There are two classes of invalid continuations:
-        // 1. The latest previously indexed message index is M that was found in a previously
-        //    indexed block range. A new block range [A,B] is indexed, returning a list of messages.
-        //    The lowest message index in that list is `M + 1`, but there are some missing messages
-        //    indices in the list. This is likely a flaky provider, and we can simply re-index the
-        //    range [A,B] hoping that the provider will soon return a correct list.
-        // 2. The latest previously indexed message index is M that was found in a previously
-        //    indexed block range, [A,B]. A new block range [C,D] is indexed, returning a list of
-        //    messages. However, the lowest message index in that list is M' where M' > M + 1.
-        //    This missing messages could be anywhere in the range [A,D]:
-        //    * It's possible there was an issue when the prior block range [A,B] was indexed, where
-        //      the provider didn't provide some messages with indices > M that it should have.
-        //    * It's possible that the range [B,C] that was presumed to be empty when it was indexed
-        //      actually wasn't.
-        //    * And it's possible that this was just a flaky gap, where there are messages in the [C,D]
-        //      range that weren't returned for some reason.
-        //    We can handle this by re-indexing starting from block A.
-        //    Note this means we only handle this case upon observing messages in some range [C,D]
-        //    that indicate a previously indexed range may have missed some messages.
+        //
+        // 1. The latest previously indexed message index is M that was found in a
+        // previously indexed block range. A new block range [A,B] is indexed, returning
+        // a list of messages. The lowest message index in that list is `M + 1`,
+        // but there are some missing messages indices in the list. This is
+        // likely a flaky provider, and we can simply re-index the range [A,B]
+        // hoping that the provider will soon return a correct list.
+        //
+        // 2. The latest previously indexed message index is M that was found in a
+        // previously indexed block range, [A,B]. A new block range [C,D] is
+        // indexed, returning a list of    messages. However, the lowest message
+        // index in that list is M' where M' > M + 1. This missing messages
+        // could be anywhere in the range [A,D]:
+        //    * It's possible there was an issue when the prior block range [A,B] was
+        //      indexed, where the provider didn't provide some messages with indices >
+        //      M that it should have.
+        //    * It's possible that the range [B,C] that was presumed to be empty when it
+        //      was indexed actually wasn't.
+        //    * And it's possible that this was just a flaky gap, where there are
+        //      messages in the [C,D] range that weren't returned for some reason.
+        //
+        // We can handle this by re-indexing starting from block A.
+        // Note this means we only handle this case upon observing messages in some
+        // range [C,D] that indicate a previously indexed range may have
+        // missed some messages.
         tokio::spawn(async move {
             let mut cursor = cursor.await?;
 
@@ -191,6 +207,7 @@ mod test {
 
     use ethers::core::types::H256;
     use eyre::eyre;
+    use mockall::predicate::eq;
     use mockall::*;
     use tokio::select;
     use tokio::time::{interval, timeout};
@@ -198,7 +215,6 @@ mod test {
     use abacus_core::{db::AbacusDB, AbacusMessage, Encode, LogMeta, RawCommittedMessage};
     use abacus_test::mocks::indexer::MockAbacusIndexer;
     use abacus_test::test_utils;
-    use mockall::predicate::eq;
 
     use crate::contract_sync::schema::OutboxContractSyncDB;
     use crate::ContractSync;
@@ -445,7 +461,7 @@ mod test {
             );
 
             let sync_task = contract_sync.sync_outbox_messages();
-            let test_pass_fut = timeout(Duration::from_secs(90), async move {
+            let test_pass_fut = timeout(Duration::from_secs(10000), async move {
                 let mut interval = interval(Duration::from_millis(20));
                 loop {
                     if abacus_db.message_by_leaf_index(0).expect("!db").is_some()
@@ -466,7 +482,9 @@ mod test {
                  tests_result = test_pass_fut =>
                    if tests_result.is_ok() { Ok(()) } else { Err(eyre!("timed out")) }
             };
-            assert!(test_result.is_ok());
+            if let Err(err) = test_result {
+                panic!("Test failed: {err}")
+            }
         })
         .await
     }

@@ -2,14 +2,16 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use abacus_base::SyncBlockRangeCursor;
+use abacus_base::RateLimitedSyncBlockRangeCursor;
 use ethers::prelude::H256;
 use eyre::Result;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
 use tracing::{debug, info, instrument, warn};
 
 use abacus_base::last_message::validate_message_continuity;
-use abacus_core::{name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer};
+use abacus_core::{
+    name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer, SyncBlockRangeCursor,
+};
 
 use crate::chain_scraper::{Delivery, RawMsgWithMeta, SqlChainScraper, TxnWithIdAndTime};
 
@@ -29,7 +31,7 @@ pub(super) struct Syncer {
     stored_deliveries: IntCounter,
     missed_messages: IntCounter,
     message_leaf_index: IntGaugeVec,
-    sync_cursor: SyncBlockRangeCursor<Arc<dyn OutboxIndexer>>,
+    sync_cursor: RateLimitedSyncBlockRangeCursor<Arc<dyn OutboxIndexer>>,
 
     last_valid_range_start_block: u32,
     last_leaf_index: u32,
@@ -81,9 +83,12 @@ impl Syncer {
         let last_valid_range_start_block = initial_height;
         let last_leaf_index = scraper.last_message_leaf_index().await?.unwrap_or(0);
 
-        let sync_cursor =
-            SyncBlockRangeCursor::new(scraper.local.indexer.clone(), chunk_size, initial_height)
-                .await?;
+        let sync_cursor = RateLimitedSyncBlockRangeCursor::new(
+            scraper.local.indexer.clone(),
+            chunk_size,
+            initial_height,
+        )
+        .await?;
 
         Ok(Self {
             scraper,
