@@ -403,6 +403,8 @@ mod test {
                 mock_cursor.expect__current_position().returning(|| 161);
                 mock_cursor.expect__next_range().returning(|| {
                     Box::pin(async move {
+                        // this sleep should be longer than the test timeout since we don't actually
+                        // want to yield any more values at this point.
                         sleep(Duration::from_secs(100)).await;
                         Ok((161, 161))
                     })
