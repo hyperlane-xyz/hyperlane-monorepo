@@ -88,10 +88,6 @@ impl SqlChainScraper {
         self.remotes.keys().copied()
     }
 
-    pub async fn get_finalized_block_number(&self) -> Result<u32> {
-        self.local.indexer.get_finalized_block_number().await
-    }
-
     /// Sync contract data and other blockchain with the current chain state.
     /// This will create a long-running task that should be spawned.
     pub fn sync(self) -> impl Future<Output = Result<()>> + Send + 'static {
