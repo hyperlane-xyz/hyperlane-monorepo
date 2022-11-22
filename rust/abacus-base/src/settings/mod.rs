@@ -79,7 +79,7 @@ use std::{collections::HashMap, env, sync::Arc};
 
 use config::{Config, ConfigError, Environment, File};
 use ethers::prelude::AwsSigner;
-use eyre::{bail, Context, Report};
+use eyre::{bail, eyre, Context, Report};
 use once_cell::sync::OnceCell;
 use rusoto_core::{credential::EnvironmentProvider, HttpClient};
 use rusoto_kms::KmsClient;
@@ -325,11 +325,11 @@ impl DomainSettings {
         chain_name: &str,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn AbacusProvider>> {
-        if let Some(x) = self.chains.get(chain_name) {
-            x.try_into_provider(metrics).await
-        } else {
-            bail!("No chain setup found for {}", chain_name)
-        }
+        self.chains
+            .get(chain_name)
+            .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))?
+            .try_into_provider(metrics)
+            .await
     }
 
     /// Try to get a Mailbox
@@ -444,10 +444,7 @@ impl DomainSettings {
                 metrics,
                 metrics_conf,
                 InterchainGasPaymasterIndexerBuilder {
-                    mailbox_address: chain_setup
-                        .addresses
-                        .mailbox
-                        .parse::<ethers::types::Address>()?,
+                    mailbox_address: chain_setup.addresses.mailbox.parse()?,
                     finality_blocks: chain_setup.finality_blocks(),
                 },
             )
@@ -457,11 +454,9 @@ impl DomainSettings {
 
     /// Try to get the chain setup for the provided chain name
     pub fn try_chain_setup(&self, chain_name: &str) -> eyre::Result<&ChainSetup> {
-        if let Some(x) = self.chains.get(chain_name) {
-            Ok(x)
-        } else {
-            bail!("No chain setup found for {}", chain_name)
-        }
+        self.chains
+            .get(chain_name)
+            .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))
     }
 }
 

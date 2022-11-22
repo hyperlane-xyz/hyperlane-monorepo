@@ -177,7 +177,7 @@ impl ChainSetup {
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn InterchainGasPaymaster>> {
         let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
-        let address = &&self.addresses.interchain_gas_paymaster;
+        let address = &self.addresses.interchain_gas_paymaster;
         let builder = InterchainGasPaymasterBuilder {};
         self.build(address, signer, metrics, metrics_conf, builder)
             .await
@@ -190,7 +190,7 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn MultisigIsm>> {
-        let address = &&self.addresses.multisig_ism;
+        let address = &self.addresses.multisig_ism;
         let builder = MultisigIsmBuilder {};
         let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         self.build(address, signer, metrics, metrics_conf, builder)

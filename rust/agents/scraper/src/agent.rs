@@ -11,7 +11,7 @@ use abacus_base::{
     decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, DomainSettings,
 };
 
-use crate::chain_scraper::{Local, SqlChainScraper};
+use crate::chain_scraper::{Contracts, SqlChainScraper};
 use crate::db::ScraperDb;
 
 /// A message explorer scraper agent
@@ -45,9 +45,10 @@ impl BaseAgent for Scraper {
         let mut scrapers: HashMap<u32, SqlChainScraper> = HashMap::new();
 
         for (chain_name, chain_setup) in settings.chain.chains.iter() {
-            // let ctx = || format!("Loading chain {}", chain_name);
-            let local = Self::load_chain(&settings.chain, chain_name, &metrics).await?;
-            // .with_context(ctx)? TODO: Why doesn't this work anymore?
+            let ctx = || format!("Loading chain {chain_name}");
+            let local = Self::load_chain(&settings.chain, chain_name, &metrics)
+                .await
+                .with_context(ctx)?;
             {
                 trace!(chain_name = chain_name, "Created mailbox and indexer");
                 let scraper = SqlChainScraper::new(
@@ -91,9 +92,9 @@ impl Scraper {
         config: &DomainSettings,
         chain_name: &str,
         metrics: &Arc<CoreMetrics>,
-    ) -> eyre::Result<Local> {
-        let ctx = || format!("Loading chain {}", chain_name);
-        Ok(Local {
+    ) -> eyre::Result<Contracts> {
+        let ctx = || format!("Loading chain {chain_name}");
+        Ok(Contracts {
             provider: config
                 .try_provider(chain_name, metrics)
                 .await

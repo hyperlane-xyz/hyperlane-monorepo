@@ -119,7 +119,7 @@ impl Syncer {
 
             let to = min(tip, self.from + self.chunk_size);
             let full_chunk_from = to.checked_sub(self.chunk_size).unwrap_or_default();
-            debug_assert_eq!(self.local.mailbox.local_domain(), self.local_domain());
+            debug_assert_eq!(self.contracts.mailbox.local_domain(), self.local_domain());
             let (sorted_messages, deliveries) = self.scrape_range(full_chunk_from, to).await?;
 
             let validation = validate_message_continuity(
@@ -183,16 +183,20 @@ impl Syncer {
         from: u32,
         to: u32,
     ) -> Result<(Vec<AbacusMessageWithMeta>, Vec<Delivery>)> {
-        let sorted_messages = self.local.indexer.fetch_sorted_messages(from, to).await?;
+        let sorted_messages = self
+            .contracts
+            .indexer
+            .fetch_sorted_messages(from, to)
+            .await?;
 
         let deliveries = self
-            .local
+            .contracts
             .indexer
             .fetch_delivered_messages(from, to)
             .await?
             .into_iter()
             .map(|(message_id, meta)| Delivery {
-                destination_mailbox: self.local.mailbox.address(),
+                destination_mailbox: self.contracts.mailbox.address(),
                 message_id,
                 meta,
             })
