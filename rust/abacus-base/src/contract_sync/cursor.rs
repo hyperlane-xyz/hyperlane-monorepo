@@ -7,7 +7,7 @@ use tokio::time::sleep;
 use abacus_core::{Indexer, SyncBlockRangeCursor};
 
 /// Tool for handling the logic of what the next block range that should be
-/// queried is and also handing rate limiting. Rate limiting is automatically
+/// queried is and also handling rate limiting. Rate limiting is automatically
 /// performed by `next_range`.
 pub struct RateLimitedSyncBlockRangeCursor<I> {
     indexer: I,
