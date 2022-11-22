@@ -212,7 +212,7 @@ mod test {
     use tokio::select;
     use tokio::time::{interval, timeout};
 
-    use hyperlane_core::{db::HyperlaneDB, HyperlaneMessage, LogMeta, RawHyperlaneMessage};
+    use hyperlane_core::{db::HyperlaneDB, HyperlaneMessage, LogMeta};
     use hyperlane_test::mocks::indexer::MockHyperlaneIndexer;
     use hyperlane_test::test_utils;
     use mockall::predicate::eq;
