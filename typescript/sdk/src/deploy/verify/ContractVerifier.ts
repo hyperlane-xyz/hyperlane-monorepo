@@ -102,6 +102,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
           this.logger(`Proxy verification failed, try manually?`);
           return;
         default:
+          this.logger(`Verification failed for some unknown reason`, result);
           throw new Error(`Verification failed: ${result.result}`);
       }
     }
@@ -121,6 +122,8 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       this.logger('Constructor arguments in legacy format, skipping');
       return;
     }
+
+    this.logger(`Verifying ${input.name} at ${input.address} on ${chain}`);
 
     const data = {
       sourceCode: this.flattenedSource,
