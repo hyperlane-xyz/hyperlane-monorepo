@@ -183,13 +183,18 @@ export class LiquidityLayerDeployer<
       );
     }
 
-    this.logger('Set Portal as LiquidityLayerAdapter on Router');
-    await cc.handleTx(
-      router.setLiquidityLayerAdapter(
-        adapterConfig.type,
-        portalAdapter.address,
-      ),
-    );
+    if (
+      (await router.liquidityLayerAdapters('Portal')) !== portalAdapter.address
+    ) {
+      this.logger('Set Portal as LiquidityLayerAdapter on Router');
+      await cc.handleTx(
+        router.setLiquidityLayerAdapter(
+          adapterConfig.type,
+          portalAdapter.address,
+        ),
+      );
+    }
+
     return portalAdapter;
   }
 

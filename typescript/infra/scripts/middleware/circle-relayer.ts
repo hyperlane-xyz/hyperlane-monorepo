@@ -6,17 +6,15 @@ import {
   LiquidityLayerApp,
   buildContracts,
   liquidityLayerFactories,
-  objMap,
 } from '@hyperlane-xyz/sdk';
 
-import { circleBridgeAdapterConfig } from '../config/environments/testnet2/liquidityLayer';
-import { readJSON, sleep } from '../src/utils/utils';
-
+import { bridgeAdapterConfigs } from '../../config/environments/testnet2/liquidityLayer';
+import { readJSON, sleep } from '../../src/utils/utils';
 import {
   getCoreEnvironmentConfig,
   getEnvironment,
   getEnvironmentDirectory,
-} from './utils';
+} from '../utils';
 
 async function check() {
   const environment = await getEnvironment();
@@ -24,7 +22,7 @@ async function check() {
   const multiProvider = await config.getMultiProvider();
   const dir = path.join(
     __dirname,
-    '../',
+    '../../',
     getEnvironmentDirectory(environment),
     'middleware/liquidity-layer',
   );
@@ -37,7 +35,7 @@ async function check() {
   const app = new LiquidityLayerApp(
     contracts,
     multiProvider,
-    objMap(circleBridgeAdapterConfig, (_chain, conf) => [conf]),
+    bridgeAdapterConfigs,
   );
 
   while (true) {

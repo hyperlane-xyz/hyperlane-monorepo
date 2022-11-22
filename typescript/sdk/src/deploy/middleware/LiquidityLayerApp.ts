@@ -136,8 +136,10 @@ export class LiquidityLayerApp<
       .message;
     const nonce = matchingLogs.find((_) => _!.name === 'BridgedToken')!.args
       .nonce;
-    const remoteChain =
-      message.chain === Chains.fuji ? Chains.goerli : Chains.fuji;
+    const remoteChain = chain === Chains.fuji ? Chains.goerli : Chains.fuji;
+    const domain = this.config[chain].circle!.circleDomainMapping.find(
+      (_) => _.hyperlaneDomain === ChainNameToDomainId[chain],
+    )!.circleDomain;
     return [
       {
         chain,
@@ -146,10 +148,10 @@ export class LiquidityLayerApp<
         txHash,
         message,
         nonce,
-        domain: 0,
+        domain,
         nonceHash: ethers.utils.solidityKeccak256(
           ['uint32', 'uint256'],
-          [0, nonce],
+          [domain, nonce],
         ),
       },
     ];
@@ -187,8 +189,6 @@ export class LiquidityLayerApp<
       ),
     );
 
-    const url = `https://wormhole-v2-testnet-api.certus.one/v1/signed_vaa/${wormholeOriginDomain}/${emitter}/${message.portalSequence}`;
-    console.log(url);
     const vaa = await fetch(
       `https://wormhole-v2-testnet-api.certus.one/v1/signed_vaa/${wormholeOriginDomain}/${emitter}/${message.portalSequence}`,
     ).then((_) => _.json());
