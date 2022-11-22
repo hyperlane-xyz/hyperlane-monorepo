@@ -115,7 +115,13 @@ impl Syncer {
         loop {
             debug_assert_eq!(self.local.outbox.local_domain(), self.local_domain());
             let start_block = self.sync_cursor.current_position();
-            let Ok((from, to)) = self.sync_cursor.next_range().await else { continue };
+            let (from, to) = match self.sync_cursor.next_range().await {
+                Ok(range) => range,
+                Err(err) => {
+                    warn!(error = %err, "failed to get next block range");
+                    continue;
+                }
+            };
 
             let (sorted_messages, deliveries) = self.scrape_range(from, to).await?;
 

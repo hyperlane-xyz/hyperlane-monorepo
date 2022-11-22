@@ -1,5 +1,5 @@
 use tokio::task::JoinHandle;
-use tracing::{info, info_span, instrument::Instrumented, Instrument};
+use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
 
 use abacus_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
 
@@ -49,7 +49,14 @@ where
             indexed_height.set(start_block as i64);
 
             loop {
-                let Ok((from, to)) = cursor.next_range().await else { continue };
+                let (from, to) = match cursor.next_range().await {
+                    Ok(range) => range,
+                    Err(err) => {
+                        warn!(error = %err, "[GasPayments]: failed to get next block range");
+                        continue;
+                    }
+                };
+
                 let gas_payments = indexer.fetch_gas_payments(from, to).await?;
 
                 info!(
