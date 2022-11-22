@@ -118,7 +118,7 @@ where
                     "[Messages]: indexed block range"
                 );
 
-                // Get the latest known leaf index. All messages whose indices are <= this index
+                // Get the latest known nonce. All messages whose indices are <= this index
                 // have been stored in the DB.
                 let last_nonce = db.retrieve_latest_nonce()?;
 
@@ -144,7 +144,7 @@ where
                         // Report amount of messages stored into db
                         stored_messages.inc_by(sorted_messages.len() as u64);
 
-                        // Report latest leaf index to gauge by dst
+                        // Report latest nonce to gauge by dst
                         for msg in sorted_messages.iter() {
                             let dst = name_from_domain_id(msg.destination).unwrap_or_else(|| "unknown".into());
                             message_nonce

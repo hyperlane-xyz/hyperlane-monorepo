@@ -131,11 +131,11 @@ impl Syncer {
             );
             match validation {
                 ListValidity::Valid => {
-                    let max_leaf_index_of_batch =
+                    let max_nonce_of_batch =
                         self.record_data(sorted_messages, deliveries).await?;
 
                     self.cursor.update(full_chunk_from as u64).await;
-                    if let Some(idx) = max_leaf_index_of_batch {
+                    if let Some(idx) = max_nonce_of_batch {
                         self.last_nonce = idx;
                     }
                     self.last_valid_range_start_block = full_chunk_from;
@@ -165,7 +165,7 @@ impl Syncer {
                 ListValidity::ContainsGaps => {
                     self.missed_messages.inc();
                     warn!(
-                        last_leaf_index = self.last_nonce,
+                        last_nonce = self.last_nonce,
                         start_block = self.from,
                         end_block = to,
                         last_valid_range_start_block = self.last_valid_range_start_block,
@@ -226,7 +226,7 @@ impl Syncer {
     }
 
     /// Record messages and deliveries, will fetch any extra data needed to do
-    /// so. Returns the max leaf index or None if no messages were provided.
+    /// so. Returns the max nonce or None if no messages were provided.
     #[instrument(
         skip_all,
         fields(sorted_messages = sorted_messages.len(), deliveries = deliveries.len())

@@ -64,7 +64,7 @@ impl AbacusDB {
         Ok(latest_nonce)
     }
 
-    /// Store a raw committed message building off of the latest leaf index
+    /// Store a raw committed message building off of the latest nonce
     pub fn store_latest_message(&self, message: &AbacusMessage) -> Result<()> {
         // If this message is not building off the latest nonce, log it.
         if let Some(nonce) = self.retrieve_latest_nonce()? {

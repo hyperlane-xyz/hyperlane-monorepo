@@ -5,7 +5,7 @@ use crate::{AbacusError, Decode, Encode};
 
 const ABACUS_MESSAGE_PREFIX_LEN: usize = 77;
 
-/// A Stamped message that has been committed at some leaf index
+/// A Stamped message that has been committed at some nonce
 pub type RawAbacusMessage = Vec<u8>;
 
 impl From<&AbacusMessage> for RawAbacusMessage {

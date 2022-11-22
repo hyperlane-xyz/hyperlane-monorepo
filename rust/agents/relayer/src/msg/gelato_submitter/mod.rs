@@ -95,7 +95,7 @@ impl GelatoSubmitter {
 
     async fn tick(&mut self) -> Result<()> {
         // Pull any messages sent by processor over channel and push
-        // them into the `received_messages` in asc order by message leaf index.
+        // them into the `received_messages` in asc order by message nonce.
         let mut received_messages = Vec::new();
         loop {
             match self.message_receiver.try_recv() {

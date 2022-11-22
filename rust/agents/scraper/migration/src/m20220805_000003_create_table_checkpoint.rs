@@ -82,7 +82,7 @@ pub enum Checkpoint {
     Validator,
     /// Merkle tree root hash
     Root,
-    /// Highest leaf index this checkpoint includes
+    /// Highest nonce this checkpoint includes
     Index,
     /// Domain of the origin chain this checkpoint was made for.
     OriginDomain,

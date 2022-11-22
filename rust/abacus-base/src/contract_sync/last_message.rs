@@ -1,11 +1,11 @@
 use abacus_core::{AbacusMessage, ListValidity};
 
-/// Check if the list of sorted messages is a valid continuation of the
-/// OptLatestLeafIndex. If the latest index is Some, check the validity of the
-/// list in continuation of the latest. If the latest index is None, check the
-/// validity of just the list.
+/// Check if the list of sorted messages is a valid continuation of
+/// `latest_message_nonce`. If the latest index is Some, check the validity of
+/// the list in continuation of the latest. If the latest index is None, check
+/// the validity of just the list.
 ///
-/// Optional latest leaf index to account for possibility that ContractSync is
+/// Optional latest nonce to account for possibility that ContractSync is
 /// still yet to see it's first message. We want to check for validity of new
 /// list of messages against a potential previous message (Some case) but also
 /// still validate the new messages in the case that we have not seen any

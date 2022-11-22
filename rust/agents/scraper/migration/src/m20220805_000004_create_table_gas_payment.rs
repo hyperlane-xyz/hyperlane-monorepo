@@ -77,7 +77,7 @@ pub enum GasPayment {
     /// Domain ID of the chain the payment was made on; technically duplicating
     /// Tx -> Block -> Domain but this will be used a lot for lookups.
     Domain,
-    /// Message leaf index the payment was for
+    /// Message nonce the payment was for
     LeafIndex,
     /// Address of the outbox contract
     OutboxAddress,
