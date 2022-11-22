@@ -27,7 +27,7 @@ const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
 /// A trait for dynamic trait creation with provider initialization.
 
 #[async_trait]
-pub trait MakeableWithProvider {
+pub trait MakeableWithProvider: Sync {
     /// The type that will be created.
     type Output;
 

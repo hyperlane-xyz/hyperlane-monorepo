@@ -25,7 +25,6 @@ mod agent;
 mod chain_scraper;
 mod conversions;
 mod date_time;
-mod settings;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
