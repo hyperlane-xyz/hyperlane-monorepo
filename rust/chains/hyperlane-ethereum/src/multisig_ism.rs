@@ -13,6 +13,7 @@ use eyre::Result;
 use std::hash::Hash;
 use tokio::sync::RwLock;
 
+use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
     ChainCommunicationError, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     MultisigIsm, MultisigSignedCheckpoint,
