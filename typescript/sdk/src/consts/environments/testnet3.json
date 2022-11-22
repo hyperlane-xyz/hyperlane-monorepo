@@ -1,1 +1,50 @@
-{}
+{
+  "alfajores": {
+    "upgradeBeaconController": "0x760Ff7C8f3D9d5D14fA90A0778cdBf13634C0D43",
+    "interchainGasPaymaster": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0xc7DB022B906a3CBb0f5c811962B6A09C7e374bD1",
+      "implementation": "0x97158A8ACe57736cb99c17160BA45226084185C1",
+      "beacon": "0x85fE7937BC008D23b2B49Bf34686DF8134D5948a"
+    },
+    "mailbox": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0x35E944Ef6B217196B8ab03C0B5aad8d2e75385c0",
+      "implementation": "0x910C3AaB3aFb7C281B8BAeB773b5cf09189628ab",
+      "beacon": "0xABcFa0B6656D6c7FBdFF403867206d5b3ADdC3B3"
+    },
+    "multisigIsm": "0x510E5137b2728703747DCf37BAdD4578a9a1fd49"
+  },
+  "fuji": {
+    "upgradeBeaconController": "0x430155F678a44752AFbA4814228e19607F3D0BCb",
+    "interchainGasPaymaster": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0x85ac3c2Ce5C517aFBCc5797F4a9D35fe458d523e",
+      "implementation": "0xDCe94a17D2FcDbfdAc2bFc89Ef29A47a4C4A5e97",
+      "beacon": "0xB55805716D02407e5D46e5d986B105Ca31A33fFa"
+    },
+    "mailbox": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0x91FF8A9bE7e16F65C6d7c6cf2968FD12CD7005E7",
+      "implementation": "0x62b3456029BB5d3AA330Cc9ac78b35bc30c23d13",
+      "beacon": "0x0862D09bA6e1d5886B8C4fcc81E0332848D991AB"
+    },
+    "multisigIsm": "0x128A8ffcE5C4Df0ca057520722Fbfcf41E203f5F"
+  },
+  "mumbai": {
+    "upgradeBeaconController": "0x2Bd503161B36b93e62C16203EFD69Cf6F56f4940",
+    "interchainGasPaymaster": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0x8fE544451F5CE316D43b9Bb94fC14a3F91E2bAD4",
+      "implementation": "0xd614cd0BD1E104ef61c7651e2990E2FB21482fD0",
+      "beacon": "0x2b508863017C974393C14CBfFF60770Ed598232D"
+    },
+    "mailbox": {
+      "kind": "UpgradeBeacon",
+      "proxy": "0x73a1bD3F6a77Ba6Ad1D9834c138AaaEeFfEaAFeD",
+      "implementation": "0x3ed99bE0Ff3449230923c6A21b0fE289b2092133",
+      "beacon": "0xBEAB47c61C08467c8D7412408D25B8D69a76EF18"
+    },
+    "multisigIsm": "0x1190D71E488CA311BEf395c7A8dD0c1C2cE0Da75"
+  }
+}

@@ -1,6 +1,61 @@
 {
   "environment": "testnet3",
-  "chains": {},
+  "chains": {
+    "alfajores": {
+      "name": "alfajores",
+      "domain": "44787",
+      "addresses": {
+        "mailbox": "0x35E944Ef6B217196B8ab03C0B5aad8d2e75385c0",
+        "interchainGasPaymaster": "0xc7DB022B906a3CBb0f5c811962B6A09C7e374bD1",
+        "multisigIsm": "0x510E5137b2728703747DCf37BAdD4578a9a1fd49"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "0",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "14753635"
+      }
+    },
+    "fuji": {
+      "name": "fuji",
+      "domain": "43113",
+      "addresses": {
+        "mailbox": "0x91FF8A9bE7e16F65C6d7c6cf2968FD12CD7005E7",
+        "interchainGasPaymaster": "0x85ac3c2Ce5C517aFBCc5797F4a9D35fe458d523e",
+        "multisigIsm": "0x128A8ffcE5C4Df0ca057520722Fbfcf41E203f5F"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "3",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "16091302"
+      }
+    },
+    "mumbai": {
+      "name": "mumbai",
+      "domain": "80001",
+      "addresses": {
+        "mailbox": "0x73a1bD3F6a77Ba6Ad1D9834c138AaaEeFfEaAFeD",
+        "interchainGasPaymaster": "0x8fE544451F5CE316D43b9Bb94fC14a3F91E2bAD4",
+        "multisigIsm": "0x1190D71E488CA311BEf395c7A8dD0c1C2cE0Da75"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "32",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "29281484"
+      }
+    }
+  },
   "signers": {},
   "db": "db_path",
   "tracing": {

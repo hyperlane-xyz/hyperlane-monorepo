@@ -75,7 +75,8 @@ export class HyperlaneCoreDeployer<
             this.logger(
               `Enrolling ${validator} as ${remote} validator on ${chain}`,
             );
-            await multisigIsm.enrollValidator(domain, validator);
+            const tx = multisigIsm.enrollValidator(domain, validator);
+            await this.multiProvider.getChainConnection(chain).handleTx(tx);
           }
         }
         const threshold = await multisigIsm.threshold(domain);
@@ -83,7 +84,11 @@ export class HyperlaneCoreDeployer<
           this.logger(
             `Setting ${remote} threshold to ${multisigIsmConfig.threshold} on ${chain}`,
           );
-          await multisigIsm.setThreshold(domain, multisigIsmConfig.threshold);
+          const tx = multisigIsm.setThreshold(
+            domain,
+            multisigIsmConfig.threshold,
+          );
+          await this.multiProvider.getChainConnection(chain).handleTx(tx);
         }
       }
     });

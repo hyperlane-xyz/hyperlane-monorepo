@@ -1,13 +1,10 @@
-import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
+import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
 import {
   ConnectionType,
   GasPaymentEnforcementPolicyType,
 } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
-import {
-  MATCHING_LIST_ALL_WILDCARDS, //  helloworldMatchingList,
-} from '../../utils';
 
 import { TestnetChains, chainNames, environment } from './chains';
 // import { helloWorld } from './helloworld';
@@ -27,6 +24,7 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/hyperlane-labs-dev/hyperlane-agent',
+    // TODO: Need to publish!
     tag: 'sha-7956ff0',
   },
   aws: {

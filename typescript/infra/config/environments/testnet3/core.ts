@@ -6,53 +6,49 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
   alfajores: {
     multisigIsm: {
       validators: [
-        '0x7716860b2be4079137dc21533ac6d26a99d76e83',
-        '0xb476f4d55d640e9a9a43b9bdf471dc06e4508bbd',
-        '0xda63918dd964c0d7c59a04062bffe0fba8edaf1c',
-        '0xebb97602f6acd259ecec9f9fa811aed5b35981ab',
+        '0xe6072396568e73ce6803b12b7e04164e839f1e54',
+        '0x9f177f51289b22515f41f95872e1511391b8e105',
+        '0x15f77400845eb1c971ad08de050861d5508cad6c',
       ],
-      threshold: 3,
+      threshold: 2,
     },
   },
   fuji: {
     multisigIsm: {
       validators: [
-        '0xc0ab1f3e3317521a92462927849b8844cf408b09',
-        '0xefde1812fea378c645d8e7984ce985b228cd1beb',
-        '0xb17f4f63e09c0a9207e2f008977e3f5b5584875d',
-        '0x6f6a95ad0348454a5d4c3029cd3243acecd1cf8b',
+        '0x9fa19ead5ec76e437948b35e227511b106293c40',
+        '0x227e7d6507762ece0c94678f8c103eff9d682476',
+        '0x2379e43740e4aa4fde48cf4f00a3106df1d8420d',
       ],
-      threshold: 3,
+      threshold: 2,
     },
   },
   mumbai: {
     multisigIsm: {
       validators: [
-        '0x0f1a231cb2ecc5f26696c433d76fe59521a227e0',
-        '0x3e527087fc60752695d9a4f77a6324bbae3940b1',
-        '0x62afdaed75bdfd94e0d6103eb0333669d4f5d232',
-        '0xa12b4612d00f682276c994040a3f37d0d6f343c4',
+        '0x0a664ea799447da6b15645cf8b9e82072a68343f',
+        '0x6ae6f12929a960aba24ba74ea310e3d37d0ac045',
+        '0x51f70c047cd73bc7873273707501568857a619c4',
       ],
-      threshold: 3,
+      threshold: 2,
     },
   },
   bsctestnet: {
     multisigIsm: {
       validators: [
-        '0xa7959b2f03f6fc77c9592547bd0ca12fe2c7bf8f',
-        '0xc78c1198d4224103dbb0e365286c3403c54fbbf6',
-        '0x453da5c773e829aa4f61be9bad64aa5eaaef000a',
-        '0x625027ffb9b9b9ba083d267e5b7756af33e636a0',
+        '0x23338c8714976dd4a57eaeff17cbd26d7e275c08',
+        '0x85a618d7450ebc37e0d682371f08dac94eec7a76',
+        '0x95b76562e4ba1791a27ba4236801271c9115b141',
       ],
-      threshold: 3,
+      threshold: 2,
     },
   },
   goerli: {
     multisigIsm: {
       validators: [
-        '0x89687c99ffb56f329915f80a858a45fccc2b7402',
-        '0xca25781e7c0067a71d09b991bd7b37ab1168c76c',
-        '0xcbf6cde516f43a7b5346f48319b016b0e05cb7af',
+        '0x95b76562e4ba1791a27ba4236801271c9115b141',
+        '0xa33020552a21f35e75bd385c6ab95c3dfa82d930',
+        '0x0bba4043ff242f8bf3f39bafa8930a84d644d947',
       ],
       threshold: 2,
     },
@@ -60,9 +56,9 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
   moonbasealpha: {
     multisigIsm: {
       validators: [
-        '0x0cc08084a0a7cc61102e800204851627732f8aa4',
-        '0xd151f6ca08e632eb7abd5afcb49c47d6a9b67a54',
-        '0x8d41c4cb699a408f9b5c69156eaa12ce76346b16',
+        '0x890c2aeac157c3f067f3e42b8afc797939c59a32',
+        '0x1b06d6fe69b972ed7420c83599d5a5c0fc185904',
+        '0xe70b85206a968a99a597581f0fa09c99e7681093',
       ],
       threshold: 2,
     },
@@ -70,9 +66,9 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
   optimismgoerli: {
     multisigIsm: {
       validators: [
-        '0xe9ab71d1dab8f10489dce9914ffcd854e5cc1fdc',
-        '0xca170b12198fa34de73e665b1a046bb434edd6ea',
-        '0xa8b5dbf231db20e7afe5dca9a25388ffe109fb72',
+        '0xbb8d77eefbecc55db6e5a19b0fc3dc290776f189',
+        '0x69792508b4ddaa3ca52241ccfcd1e0b119a1ee65',
+        '0x11ddb46c6b653e0cdd7ad5bee32ae316e18f8453',
       ],
       threshold: 2,
     },
@@ -80,9 +76,9 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
   arbitrumgoerli: {
     multisigIsm: {
       validators: [
-        '0xdf971036b9713b7471628706d0dd7187eac2d5ff',
-        '0x87feedf14ed63fbe225b1cab05b1d9ad3ac96b7e',
-        '0x00d7f1ca32a6360920c7e8ee27c2c9213cd204f4',
+        '0xce798fa21e323f6b24d9838a10ffecdefdfc4f30',
+        '0xa792d39dca4426927e0f00c1618d61c9cb41779d',
+        '0xdf181fcc11dfac5d01467e4547101a856dd5aa04',
       ],
       threshold: 2,
     },
