@@ -1,3 +1,4 @@
+/*
 import {
   ChainMap,
   ChainName,
@@ -33,7 +34,7 @@ async function check() {
     helloWorldFactories,
   ) as ChainMap<ChainName, HelloWorldContracts>;
 
-  const core = HyperlaneCore.fromEnvironment('testnet3', multiProvider);
+  const core = HyperlaneCore.fromEnvironment('mainnet', multiProvider);
   const app = new HelloWorldApp(core, contractsMap, multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(prodConfigs, ownerAddress),
@@ -48,3 +49,4 @@ async function check() {
 check()
   .then(() => console.info('Check complete'))
   .catch(console.error);
+*/

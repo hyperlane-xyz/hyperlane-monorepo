@@ -5,8 +5,9 @@ import { objMap } from '../../utils/objects';
 
 import mainnet from './mainnet.json';
 import test from './test.json';
+import testnet3 from './testnet3.json';
 
-export const environments = { test, mainnet };
+export const environments = { test, testnet3, mainnet };
 
 type HyperlaneCoreAddressMap = LooseChainMap<{
   mailbox: types.Address;

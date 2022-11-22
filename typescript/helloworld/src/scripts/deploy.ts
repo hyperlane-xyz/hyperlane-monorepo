@@ -1,3 +1,4 @@
+/*
 import { Wallet } from 'ethers';
 
 import {
@@ -37,3 +38,4 @@ async function main() {
 main()
   .then(() => console.info('Deploy complete'))
   .catch(console.error);
+*/
