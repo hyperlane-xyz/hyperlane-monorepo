@@ -132,8 +132,6 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     crate::oneline_eyre::install()?;
     #[cfg(all(feature = "color_eyre", not(feature = "oneline-errors")))]
     color_eyre::install()?;
-    #[cfg(not(any(feature = "color-eyre", feature = "oneline-eyre")))]
-    eyre::install()?;
 
     let settings = A::Settings::new().map_err(|e| e.into())?;
     let core_settings: &AgentSettings = settings.as_ref();

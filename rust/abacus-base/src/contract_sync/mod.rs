@@ -2,12 +2,14 @@
 // TODO: Reapply metrics
 
 use abacus_core::db::AbacusDB;
+pub use cursor::*;
 pub use interchain_gas::*;
 pub use metrics::ContractSyncMetrics;
 pub use outbox::*;
 
 use crate::settings::IndexSettings;
 
+mod cursor;
 mod interchain_gas;
 /// Tools for working with message continuity.
 pub mod last_message;
