@@ -11,6 +11,7 @@ export type MultisigIsmConfig = {
 
 export type CoreConfig = {
   multisigIsm: MultisigIsmConfig;
+  create2Factory?: types.Address;
   owner?: types.Address;
   remove?: boolean;
 };

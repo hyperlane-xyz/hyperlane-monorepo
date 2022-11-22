@@ -231,6 +231,7 @@ export abstract class HyperlaneDeployer<
     implementation: C,
     beaconAddress: string,
     initArgs: Parameters<C['initialize']>,
+    deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
@@ -245,6 +246,7 @@ export abstract class HyperlaneDeployer<
       new UpgradeBeaconProxy__factory(),
       'UpgradeBeaconProxy',
       deployArgs,
+      deployOpts,
     );
 
     return new ProxiedContract<C, BeaconProxyAddresses>(
@@ -271,6 +273,7 @@ export abstract class HyperlaneDeployer<
     deployArgs: Parameters<Factories[K]['deploy']>,
     ubcAddress: types.Address,
     initArgs: Parameters<C['initialize']>,
+    deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
     const cachedProxy = this.deployedContracts[chain]?.[contractName as any];
     if (cachedProxy) {
@@ -294,12 +297,14 @@ export abstract class HyperlaneDeployer<
       new UpgradeBeacon__factory(),
       'UpgradeBeacon',
       beaconDeployArgs,
+      deployOpts,
     );
     return this.deployProxy(
       chain,
       implementation as C,
       beacon.address,
       initArgs,
+      deployOpts,
     );
   }
 

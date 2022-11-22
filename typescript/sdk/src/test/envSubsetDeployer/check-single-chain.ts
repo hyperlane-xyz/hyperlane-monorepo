@@ -1,3 +1,4 @@
+/*
 import { buildContracts } from '../../contracts';
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { getChainToOwnerMap } from '../../deploy/utils';
@@ -39,7 +40,7 @@ async function check() {
     envSubsetFactories,
   ) as ChainMap<ChainName, RouterContracts>;
   const app = new EnvSubsetApp(contractsMap, multiProvider);
-  const core = HyperlaneCore.fromEnvironment('testnet3', multiProvider);
+  const core = HyperlaneCore.fromEnvironment('mainnet', multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(alfajoresChainConfig, ownerAddress),
   );
@@ -53,3 +54,4 @@ async function check() {
 check()
   .then(() => console.info('Check complete'))
   .catch(console.error);
+*/

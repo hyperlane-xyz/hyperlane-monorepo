@@ -1,3 +1,4 @@
+/*
 import { serializeContracts } from '../../contracts';
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { getChainToOwnerMap } from '../../deploy/utils';
@@ -34,3 +35,4 @@ async function main() {
 main()
   .then(() => console.info('Deploy complete'))
   .catch(console.error);
+*/

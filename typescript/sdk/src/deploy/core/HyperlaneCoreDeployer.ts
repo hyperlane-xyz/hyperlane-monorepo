@@ -13,7 +13,7 @@ import { MultiProvider } from '../../providers/MultiProvider';
 import { BeaconProxyAddresses, ProxiedContract } from '../../proxy';
 import { ChainMap, ChainName } from '../../types';
 import { objMap, promiseObjAll } from '../../utils/objects';
-import { HyperlaneDeployer } from '../HyperlaneDeployer';
+import { DeployOptions, HyperlaneDeployer } from '../HyperlaneDeployer';
 
 import { CoreConfig } from './types';
 
@@ -42,6 +42,7 @@ export class HyperlaneCoreDeployer<
     chain: LocalChain,
     defaultIsmAddress: types.Address,
     ubcAddress: types.Address,
+    deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<Mailbox, BeaconProxyAddresses>> {
     const domain = chainMetadata[chain].id;
 

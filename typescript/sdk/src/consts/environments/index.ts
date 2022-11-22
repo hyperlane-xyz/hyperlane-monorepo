@@ -5,9 +5,8 @@ import { objMap } from '../../utils/objects';
 
 import mainnet from './mainnet.json';
 import test from './test.json';
-import testnet3 from './testnet3.json';
 
-export const environments = { test, testnet3, mainnet };
+export const environments = { test, mainnet };
 
 type HyperlaneCoreAddressMap = LooseChainMap<{
   mailbox: types.Address;
@@ -20,7 +19,7 @@ type HyperlaneCoreAddressMap = LooseChainMap<{
 
 // Export developer-relevant addresses
 export const hyperlaneCoreAddresses = objMap(
-  { ...test, ...testnet3, ...mainnet },
+  { ...test, ...mainnet },
   (_chain, addresses) => ({
     mailbox: addresses.mailbox.proxy,
     multisigIsm: addresses.multisigIsm,

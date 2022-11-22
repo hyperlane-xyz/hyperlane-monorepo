@@ -1,0 +1,41 @@
+{
+  "alfajores": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0xAA9Ca6E244FcC80CF3Fb90FB20326f141C71C307",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x854fd51C04408ad84DA3838A4fF7282522F7866E",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x96Aa0D6639EF9593C61cC15A71101C0Ea650C1AF",
+      "constructorArguments": "000000000000000000000000854fd51c04408ad84da3838a4ff7282522f7866e000000000000000000000000aa9ca6e244fcc80cf3fb90fb20326f141c71c307",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x5b45bd4431aF0A3b9d0d17D75f93d4Cc1FC21533",
+      "constructorArguments": "00000000000000000000000096aa0d6639ef9593c61cc15a71101c0ea650c1af000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "multisigIsm",
+      "address": "0x60d39CBDC77c5dC55e78DF47fF5d625d2B6fb323",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "fuji": [],
+  "mumbai": [],
+  "bsctestnet": [],
+  "goerli": [],
+  "moonbasealpha": [],
+  "optimismgoerli": [],
+  "arbitrumgoerli": []
+}
