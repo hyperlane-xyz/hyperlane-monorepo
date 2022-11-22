@@ -72,7 +72,7 @@ where
     /// The retrying provider logic which accepts a matcher function that can
     /// handle specific cases for different underlying provider
     /// implementations.
-    #[instrument(level = "error", skip_all, fields(method = %method))]
+    #[instrument(skip_all, fields(method = %method))]
     async fn request_with_retry<T, R>(
         &self,
         method: &str,
@@ -160,7 +160,7 @@ where
 impl JsonRpcClient for RetryingProvider<Http> {
     type Error = RetryingProviderError<Http>;
 
-    #[instrument(level = "error", skip(self), fields(provider_host = %self.inner.url().host_str().unwrap_or("unknown")))]
+    #[instrument(skip(self), fields(provider_host = %self.inner.url().host_str().unwrap_or("unknown")))]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
         T: Debug + Serialize + Send + Sync,
