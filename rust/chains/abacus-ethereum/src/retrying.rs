@@ -6,7 +6,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, instrument, trace, warn};
 
 use crate::HttpClientError;
 
@@ -169,12 +169,7 @@ impl JsonRpcClient for RetryingProvider<Http> {
         self.request_with_retry::<T, R>(method, params, |res, attempt, next_backoff_ms| match res {
             Ok(res) => HandleMethod::Accept(res),
             Err(HttpClientError::ReqwestError(e)) => {
-                info!(
-                    next_backoff_ms,
-                    retries_remaining = self.max_requests - attempt,
-                    error = %e,
-                    "ReqwestError in http provider.",
-                );
+                warn!(next_backoff_ms, retries_remaining = self.max_requests - attempt, error = %e, "ReqwestError in http provider.");
                 HandleMethod::Retry(HttpClientError::ReqwestError(e))
             }
             Err(HttpClientError::JsonRpcError(e)) => {
@@ -185,12 +180,12 @@ impl JsonRpcClient for RetryingProvider<Http> {
                     warn!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider; not retrying.");
                     HandleMethod::Halt(HttpClientError::JsonRpcError(e))
                 } else {
-                    info!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider.");
+                    warn!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider.");
                     HandleMethod::Retry(HttpClientError::JsonRpcError(e))
                 }
             }
             Err(HttpClientError::SerdeJson { err, text }) => {
-                info!(attempt, next_backoff_ms, error = %err, text = text,  "SerdeJson error in http provider");
+                warn!(attempt, next_backoff_ms, error = %err, text = text,  "SerdeJson error in http provider");
                 HandleMethod::Retry(HttpClientError::SerdeJson { err, text })
             }
         })
