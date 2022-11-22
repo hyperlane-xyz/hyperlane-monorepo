@@ -49,9 +49,7 @@ where
             indexed_height.set(start_block as i64);
 
             loop {
-                let start_block = cursor.current_position();
                 let Ok((from, to)) = cursor.next_range().await else { continue };
-
                 let gas_payments = indexer.fetch_gas_payments(from, to).await?;
 
                 info!(
@@ -72,7 +70,7 @@ where
 
                 stored_messages.inc_by(new_payments_processed);
 
-                db.store_latest_indexed_gas_payment_block(start_block)?;
+                db.store_latest_indexed_gas_payment_block(from)?;
                 indexed_height.set(to as i64);
             }
         })
