@@ -196,7 +196,6 @@ impl Syncer {
             .await?
             .into_iter()
             .map(|(message_id, meta)| Delivery {
-                destination_mailbox: self.contracts.mailbox.address(),
                 message_id,
                 meta,
             })

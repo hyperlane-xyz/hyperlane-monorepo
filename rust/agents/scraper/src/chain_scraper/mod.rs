@@ -5,13 +5,13 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 
-use abacus_base::chains::IndexSettings;
 use ethers::types::H256;
 use eyre::{eyre, Result};
 use futures::TryFutureExt;
 use sea_orm::prelude::TimeDateTime;
 use tracing::trace;
 
+use abacus_base::chains::IndexSettings;
 use abacus_base::ContractSyncMetrics;
 use abacus_core::{
     AbacusContract, AbacusMessage, AbacusProvider, BlockInfo, LogMeta, Mailbox, MailboxIndexer,
@@ -144,7 +144,11 @@ impl SqlChainScraper {
         });
 
         self.db
-            .store_deliveries(self.local_domain(), storable)
+            .store_deliveries(
+                self.local_domain(),
+                self.contracts.mailbox.address(),
+                storable,
+            )
             .await
     }
 
@@ -346,7 +350,6 @@ impl SqlChainScraper {
 
 #[derive(Debug, Clone)]
 struct Delivery {
-    destination_mailbox: H256,
     message_id: H256,
     meta: LogMeta,
 }
@@ -354,7 +357,6 @@ struct Delivery {
 impl Delivery {
     fn as_storable(&self, txn_id: i64) -> StorableDelivery {
         StorableDelivery {
-            destination_mailbox: self.destination_mailbox,
             message_id: self.message_id,
             meta: &self.meta,
             txn_id,
