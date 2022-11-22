@@ -14,6 +14,7 @@ import { core } from './core';
 import { keyFunderConfig } from './funding';
 import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
+import { liquidityLayerRelayerConfig } from './middleware';
 
 export const environment: CoreEnvironmentConfig<TestnetChains> = {
   environment: environmentName,
@@ -36,4 +37,5 @@ export const environment: CoreEnvironmentConfig<TestnetChains> = {
   infra: infrastructure,
   helloWorld,
   keyFunderConfig,
+  liquidityLayerRelayerConfig,
 };
