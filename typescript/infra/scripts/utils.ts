@@ -23,21 +23,20 @@ import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames } from '../src/config/environment';
 import { assertContext } from '../src/utils/utils';
 
-export function getArgs(requireContext = false) {
-  const args = yargs(process.argv.slice(2))
+export function getArgsWithContext() {
+  return getArgs()
+    .describe('context', 'deploy context')
+    .coerce('context', assertContext)
+    .demandOption('context')
+    .alias('c', 'context');
+}
+
+export function getArgs() {
+  return yargs(process.argv.slice(2))
     .describe('environment', 'deploy environment')
     .coerce('environment', assertEnvironment)
     .demandOption('environment')
     .alias('e', 'environment');
-
-  if (requireContext) {
-    return args
-      .describe('context', 'deploy context')
-      .coerce('context', assertContext)
-      .demandOption('context')
-      .alias('c', 'context');
-  }
-  return args;
 }
 
 export async function getEnvironmentFromArgs(): Promise<string> {
@@ -69,7 +68,7 @@ export async function getEnvironmentConfig() {
 }
 
 export async function getContext(defaultContext?: string): Promise<Contexts> {
-  const argv = await getArgs(true).argv;
+  const argv = await getArgsWithContext().argv;
   // @ts-ignore
   return assertContext(argv.context! || defaultContext!);
 }
