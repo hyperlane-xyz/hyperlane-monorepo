@@ -68,10 +68,7 @@ contract PortalAdapterTest is Test {
                     0,
                     TypeCasts.addressToBytes32(address(destinationAdapter)),
                     0,
-                    originAdapter.adapterData(
-                        originDomain,
-                        originAdapter.nonce() + 1
-                    )
+                    abi.encode(originDomain, originAdapter.nonce() + 1)
                 )
             )
         );
@@ -96,7 +93,7 @@ contract PortalAdapterTest is Test {
             amount
         );
 
-        vm.expectRevert("Transfer has not yet been completed");
+        vm.expectRevert("Portal Transfer has not yet been completed");
 
         destinationAdapter.receiveTokens(
             originDomain,

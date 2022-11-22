@@ -108,7 +108,7 @@ export class LiquidityLayerApp<
     const portalSequence = event.args.portalSequence.toNumber();
     const nonce = event.args.nonce.toNumber();
     const destination = DomainIdToChainName[event.args.destination];
-    // @ts-ignore
+    // @ts-ignore destination is Chain as well but the compiler doesnt know that
     return [{ origin: chain, nonce, portalSequence, destination }];
   }
   async parseCircleMessages(

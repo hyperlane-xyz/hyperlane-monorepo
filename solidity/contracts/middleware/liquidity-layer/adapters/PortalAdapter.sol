@@ -11,7 +11,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract PortalAdapter is ILiquidityLayerAdapter, Router {
     struct TransferMetadata {
-        uint16 wormholeDomain;
         address tokenAddress;
     }
     /// @notice The Portal TokenBridge contract.
@@ -26,6 +25,8 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
     mapping(bytes32 => TransferMetadata) public portalTransfersProcessed;
 
     uint32 localDomain;
+    // We could technically use Portal's sequence number here but it doesn't
+    // get passed through, so we would have to parse the VAA twice
     uint224 public nonce = 0;
 
     /**
@@ -43,9 +44,9 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
     /**
      * @notice Emitted when the Hyperlane domain to Wormhole domain mapping is updated.
      * @param hyperlaneDomain The Hyperlane domain.
-     * @param womrholeDomain The Wormhole domain.
+     * @param wormholeDomain The Wormhole domain.
      */
-    event DomainAdded(uint32 indexed hyperlaneDomain, uint32 womrholeDomain);
+    event DomainAdded(uint32 indexed hyperlaneDomain, uint32 wormholeDomain);
 
     modifier onlyLiquidityLayerRouter() {
         require(msg.sender == liquidityLayerRouter, "!liquidityLayerRouter");
@@ -76,6 +77,12 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
         liquidityLayerRouter = _liquidityLayerRouter;
     }
 
+    /**
+     * Sends tokens as requested by the router
+     * @param _destinationDomain The hyperlane domain of the destination
+     * @param _token The token address
+     * @param _amount The amount of tokens to send
+     */
     function sendTokens(
         uint32 _destinationDomain,
         bytes32, // _recipientAddress, unused
@@ -83,7 +90,7 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
         uint256 _amount
     ) external onlyLiquidityLayerRouter returns (bytes memory) {
         nonce = nonce + 1;
-        uint16 wormholeDomain = hyperlaneDomainToWormholeDomain[
+        uint16 _wormholeDomain = hyperlaneDomainToWormholeDomain[
             _destinationDomain
         ];
 
@@ -100,83 +107,87 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
             "!approval"
         );
 
-        bytes memory payload = adapterData(localDomain, nonce);
-
         uint64 portalSequence = portalTokenBridge.transferTokensWithPayload(
             _token,
             _amount,
-            wormholeDomain,
+            _wormholeDomain,
             _remoteRouter,
+            // Nonce for grouping Portal messages in the same tx, not relevant for us
+            // https://book.wormhole.com/technical/evm/coreLayer.html#emitting-a-vaa
             0,
-            payload
+            // Portal Payload used in completeTransfer
+            abi.encode(localDomain, nonce)
         );
 
         emit BridgedToken(nonce, portalSequence, _destinationDomain);
-        return payload;
+        return abi.encode(nonce);
     }
 
-    // Returns the token and amount sent
+    /**
+     * Sends the tokens to the recipient as requested by the router
+     * @param _originDomain The hyperlane domain of the origin
+     * @param _recipient The address of the recipient
+     * @param _amount The amount of tokens to send
+     * @param _adapterData The adapter data from the origin chain, containing the nonce
+     */
     function receiveTokens(
         uint32 _originDomain, // Hyperlane domain
         address _recipient,
         uint256 _amount,
         bytes calldata _adapterData // The adapter data from the message
     ) external onlyLiquidityLayerRouter returns (address, uint256) {
-        // Get the origin information from the adapterData
-        (uint32 _originDomainInPayload, uint224 _nonce) = abi.decode(
-            _adapterData,
-            (uint32, uint224)
-        );
+        // Get the nonce information from the adapterData
+        uint224 _nonce = abi.decode(_adapterData, (uint224));
 
-        require(_originDomain == _originDomainInPayload, "!originDomain");
-
-        address tokenAddress = portalTransfersProcessed[
+        address _tokenAddress = portalTransfersProcessed[
             transferId(_originDomain, _nonce)
         ].tokenAddress;
 
         require(
-            tokenAddress != address(0x0),
+            _tokenAddress != address(0x0),
             "Portal Transfer has not yet been completed"
         );
 
-        IERC20 token = IERC20(tokenAddress);
+        IERC20 _token = IERC20(_tokenAddress);
 
         // Transfer the token out to the recipient
         // TODO: use safeTransfer
         // Portal doesn't charge any fee, so we can safely transfer out the
         // exact amount that was bridged over.
-        require(token.transfer(_recipient, _amount), "!transfer out");
-        return (address(token), _amount);
+        require(_token.transfer(_recipient, _amount), "!transfer out");
+        return (_tokenAddress, _amount);
     }
 
+    /**
+     * Completes the Portal transfer which sends the funds to this adapter.
+     * The router can call receiveTokens to move those funds to the ultimate recipient.
+     * @param encodedVm The VAA from the Wormhole Guardians
+     */
     function completeTransfer(bytes memory encodedVm) public {
-        bytes memory transferTokenBridgePayload = portalTokenBridge
+        bytes memory _tokenBridgeTransferWithPayload = portalTokenBridge
             .completeTransferWithPayload(encodedVm);
         IPortalTokenBridge.TransferWithPayload
-            memory transfer = portalTokenBridge.parseTransferWithPayload(
-                transferTokenBridgePayload
+            memory _transfer = portalTokenBridge.parseTransferWithPayload(
+                _tokenBridgeTransferWithPayload
             );
 
         (uint32 _originDomain, uint224 _nonce) = abi.decode(
-            transfer.payload,
+            _transfer.payload,
             (uint32, uint224)
         );
 
         // Logic taken from here https://github.com/wormhole-foundation/wormhole/blob/dev.v2/ethereum/contracts/bridge/Bridge.sol#L503
-        address tokenAddress = transfer.tokenChain ==
+        address tokenAddress = _transfer.tokenChain ==
             hyperlaneDomainToWormholeDomain[localDomain]
-            ? TypeCasts.bytes32ToAddress(transfer.tokenAddress)
+            ? TypeCasts.bytes32ToAddress(_transfer.tokenAddress)
             : portalTokenBridge.wrappedAsset(
-                transfer.tokenChain,
-                transfer.tokenAddress
+                _transfer.tokenChain,
+                _transfer.tokenAddress
             );
 
         portalTransfersProcessed[
             transferId(_originDomain, _nonce)
-        ] = TransferMetadata({
-            wormholeDomain: transfer.tokenChain,
-            tokenAddress: tokenAddress
-        });
+        ] = TransferMetadata({tokenAddress: tokenAddress});
     }
 
     // This contract is only a Router to be aware of remote router addresses,
@@ -198,19 +209,16 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
         emit DomainAdded(_hyperlaneDomain, _wormholeDomain);
     }
 
+    /**
+     * The key that is used to track fulfilled Portal transfers
+     * @param _hyperlaneDomain The hyperlane of the origin
+     * @param _nonce The nonce of the adapter on the origin
+     */
     function transferId(uint32 _hyperlaneDomain, uint224 _nonce)
         public
         pure
         returns (bytes32)
     {
         return bytes32(abi.encodePacked(_hyperlaneDomain, _nonce));
-    }
-
-    function adapterData(uint32 _originDomain, uint224 _nonce)
-        public
-        pure
-        returns (bytes memory)
-    {
-        return abi.encode(_originDomain, _nonce);
     }
 }

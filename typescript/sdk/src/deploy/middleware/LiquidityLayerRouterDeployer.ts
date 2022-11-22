@@ -162,7 +162,7 @@ export class LiquidityLayerDeployer<
       'portalAdapter',
       [],
       {
-        create2Salt: this.create2salt + 'assdsd',
+        create2Salt: this.create2salt,
         initCalldata,
       },
     );
