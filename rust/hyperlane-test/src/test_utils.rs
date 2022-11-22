@@ -55,7 +55,10 @@ mod test {
             db.store_message(&m).unwrap();
 
             let by_id = db.message_by_id(m.id()).unwrap().unwrap();
-            assert_eq!(RawHyperlaneMessage::from(&by_id), RawHyperlaneMessage::from(&m));
+            assert_eq!(
+                RawHyperlaneMessage::from(&by_id),
+                RawHyperlaneMessage::from(&m)
+            );
 
             let by_nonce = db.message_by_nonce(m.nonce).unwrap().unwrap();
             assert_eq!(
