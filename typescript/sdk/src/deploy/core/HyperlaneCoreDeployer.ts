@@ -45,13 +45,13 @@ export class HyperlaneCoreDeployer<
     deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<Mailbox, BeaconProxyAddresses>> {
     const domain = chainMetadata[chain].id;
-
     const mailbox = await this.deployProxiedContract(
       chain,
       'mailbox',
       [domain],
       ubcAddress,
       [defaultIsmAddress],
+      deployOpts,
     );
     return mailbox;
   }
@@ -69,15 +69,18 @@ export class HyperlaneCoreDeployer<
       for (const remote of remotes) {
         const multisigIsmConfig = this.configMap[remote].multisigIsm;
         const domain = ChainNameToDomainId[remote];
+        let lastTx;
         for (const validator of multisigIsmConfig.validators) {
           const isValidator = await multisigIsm.isEnrolled(domain, validator);
           if (!isValidator) {
             this.logger(
               `Enrolling ${validator} as ${remote} validator on ${chain}`,
             );
-            const tx = multisigIsm.enrollValidator(domain, validator);
-            await this.multiProvider.getChainConnection(chain).handleTx(tx);
+            lastTx = await multisigIsm.enrollValidator(domain, validator);
           }
+        }
+        if (lastTx) {
+          await this.multiProvider.getChainConnection(chain).handleTx(lastTx);
         }
         const threshold = await multisigIsm.threshold(domain);
         if (!threshold.eq(multisigIsmConfig.threshold)) {
@@ -99,6 +102,7 @@ export class HyperlaneCoreDeployer<
   async deployContracts<LocalChain extends Chain>(
     chain: LocalChain,
     config: CoreConfig,
+    deployOpts?: DeployOptions,
   ): Promise<CoreContracts> {
     if (config.remove) {
       // skip deploying to chains configured to be removed
@@ -130,6 +134,7 @@ export class HyperlaneCoreDeployer<
       chain,
       multisigIsm.address,
       upgradeBeaconController.address,
+      deployOpts,
     );
 
     return {

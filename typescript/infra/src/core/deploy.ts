@@ -1,6 +1,12 @@
+import { ethers } from 'ethers';
+
 import {
+  ChainMap,
   ChainName,
+  CoreConfig,
+  CoreContracts,
   HyperlaneCoreDeployer,
+  MultiProvider,
   chainMetadata,
   objMap,
 } from '@hyperlane-xyz/sdk';
@@ -12,9 +18,28 @@ import { writeJSON } from '../utils/utils';
 export class HyperlaneCoreInfraDeployer<
   Chain extends ChainName,
 > extends HyperlaneCoreDeployer<Chain> {
-  writeRustConfigs(environment: DeployEnvironment, directory: string) {
+  constructor(
+    protected readonly environment: DeployEnvironment,
+    multiProvider: MultiProvider<Chain>,
+    configMap: ChainMap<Chain, CoreConfig>,
+  ) {
+    super(multiProvider, configMap);
+  }
+
+  async deployContracts<LocalChain extends Chain>(
+    chain: LocalChain,
+    config: CoreConfig,
+  ): Promise<CoreContracts> {
+    const create2Salt = ethers.utils.solidityKeccak256(
+      ['string'],
+      [this.environment],
+    );
+    return super.deployContracts(chain, config, { create2Salt });
+  }
+
+  writeRustConfigs(directory: string) {
     const rustConfig: RustConfig<Chain> = {
-      environment,
+      environment: this.environment,
       chains: {},
       signers: {},
       db: 'db_path',
@@ -59,6 +84,6 @@ export class HyperlaneCoreInfraDeployer<
       }
       rustConfig.chains[chain] = chainConfig;
     });
-    writeJSON(directory, `${environment}_config.json`, rustConfig);
+    writeJSON(directory, `${this.environment}_config.json`, rustConfig);
   }
 }

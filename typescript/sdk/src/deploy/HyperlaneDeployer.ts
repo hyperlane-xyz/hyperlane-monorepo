@@ -281,6 +281,8 @@ export abstract class HyperlaneDeployer<
       return cachedProxy as ProxiedContract<C, BeaconProxyAddresses>;
     }
 
+    // The address of the implementation contract doesn't matter,
+    // so we do not attempt to use the Create2Factory.
     const implementation = await this.deployContract<K>(
       chain,
       contractName,
@@ -292,6 +294,9 @@ export abstract class HyperlaneDeployer<
       implementation.address,
       ubcAddress,
     ];
+    // The address of the UpgradeBeacon is encoded in the bytecode of
+    // the BeaconProxy. If we want consistent addresses for the BeaconProxy,
+    // we also need to use the Create2Factory for the UpgradeBeacon.
     const beacon = await this.deployContractFromFactory(
       chain,
       new UpgradeBeacon__factory(),
