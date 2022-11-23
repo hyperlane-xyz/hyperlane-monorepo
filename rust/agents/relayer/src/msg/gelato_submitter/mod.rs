@@ -67,8 +67,7 @@ impl GelatoSubmitter {
             .unwrap();
         Self {
             message_receiver,
-            destination_gelato_chain: abacus_domain_id_to_gelato_chain(mailbox.local_domain())
-                .unwrap(),
+            destination_gelato_chain: abacus_domain_id_to_gelato_chain(mailbox.domain()).unwrap(),
             mailbox,
             multisig_ism,
             db: abacus_db,

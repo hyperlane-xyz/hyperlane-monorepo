@@ -54,11 +54,8 @@ impl SqlChainScraper {
         metrics: ContractSyncMetrics,
     ) -> Result<Self> {
         let cursor = Arc::new(
-            db.block_cursor(
-                contracts.mailbox.local_domain(),
-                index_settings.from() as u64,
-            )
-            .await?,
+            db.block_cursor(contracts.mailbox.domain(), index_settings.from() as u64)
+                .await?,
         );
         Ok(Self {
             db,
@@ -73,8 +70,8 @@ impl SqlChainScraper {
         self.contracts.mailbox.chain_name()
     }
 
-    pub fn local_domain(&self) -> u32 {
-        self.contracts.mailbox.local_domain()
+    pub fn domain(&self) -> u32 {
+        self.contracts.mailbox.domain()
     }
 
     pub async fn get_finalized_block_number(&self) -> Result<u32> {
@@ -90,7 +87,7 @@ impl SqlChainScraper {
     /// Fetch the highest message nonce we have seen for the local domain.
     async fn last_message_nonce(&self) -> Result<Option<u32>> {
         self.db
-            .last_message_nonce(self.local_domain(), &self.contracts.mailbox.address())
+            .last_message_nonce(self.domain(), &self.contracts.mailbox.address())
             .await
     }
 
@@ -144,11 +141,7 @@ impl SqlChainScraper {
         });
 
         self.db
-            .store_deliveries(
-                self.local_domain(),
-                self.contracts.mailbox.address(),
-                storable,
-            )
+            .store_deliveries(self.domain(), self.contracts.mailbox.address(), storable)
             .await
     }
 
@@ -321,7 +314,7 @@ impl SqlChainScraper {
             let mut cur_id = self
                 .db
                 .store_blocks(
-                    self.local_domain(),
+                    self.domain(),
                     blocks_to_insert
                         .iter_mut()
                         .map(|(_, info)| info.take().unwrap()),

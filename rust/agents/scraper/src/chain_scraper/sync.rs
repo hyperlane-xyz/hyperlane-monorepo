@@ -119,7 +119,7 @@ impl Syncer {
 
             let to = min(tip, self.from + self.chunk_size);
             let full_chunk_from = to.checked_sub(self.chunk_size).unwrap_or_default();
-            debug_assert_eq!(self.contracts.mailbox.local_domain(), self.local_domain());
+            debug_assert_eq!(self.contracts.mailbox.domain(), self.domain());
             let (sorted_messages, deliveries) = self.scrape_range(full_chunk_from, to).await?;
 
             let validation = validate_message_continuity(

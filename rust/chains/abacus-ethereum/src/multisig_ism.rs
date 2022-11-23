@@ -9,16 +9,16 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use ethers::abi::Token;
 use ethers::providers::Middleware;
-use ethers::types::{H160, H256, Selector, U256};
+use ethers::types::{Selector, H160, H256, U256};
 use eyre::Result;
 use tokio::sync::RwLock;
 use tracing::instrument;
 
+use abacus_core::accumulator::merkle::Proof;
 use abacus_core::{
     AbacusAbi, AbacusChain, AbacusContract, ChainCommunicationError, ContractLocator, MultisigIsm,
     MultisigSignedCheckpoint,
 };
-use abacus_core::accumulator::merkle::Proof;
 
 use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
 use crate::trait_builder::MakeableWithProvider;
@@ -145,7 +145,7 @@ where
         &self.chain_name
     }
 
-    fn local_domain(&self) -> u32 {
+    fn domain(&self) -> u32 {
         self.domain
     }
 }

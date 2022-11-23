@@ -190,7 +190,7 @@ where
         &self.chain_name
     }
 
-    fn local_domain(&self) -> u32 {
+    fn domain(&self) -> u32 {
         self.domain
     }
 }
