@@ -38,17 +38,16 @@ pub trait MakeableWithProvider {
         conn: Connection,
         locator: &ContractLocator,
         signer: Option<Signers>,
-        rpc_metrics: Option<impl FnOnce() -> JsonRpcClientMetrics + Send>,
+        rpc_metrics: Option<JsonRpcClientMetrics>,
         middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> eyre::Result<Self::Output> {
         Ok(match conn {
             Connection::HttpQuorum { urls } => {
-                let rpc_metrics = rpc_metrics.map(|f| f());
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
                 let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
                 for url in urls.split(',') {
-                    let http_provider =
-                        Http::new_with_client(url.parse::<Url>()?, http_client.clone());
+                    let url: Url = url.parse()?;
+                    let http_provider = Http::new_with_client(url.clone(), http_client.clone());
                     // Wrap the inner providers as RetryingProviders rather than the QuorumProvider.
                     // We've observed issues where the QuorumProvider will first get the latest
                     // block number and then submit an RPC at that block height,
@@ -58,15 +57,15 @@ pub trait MakeableWithProvider {
                     // RPCs being retried, while retrying at the inner provider
                     // level will result in only the second RPC being retried
                     // (the one with the error), which is the desired behavior.
-                    let retrying_provider =
-                        RetryingProvider::new(http_provider, Some(5), Some(1000));
                     let metrics_provider = self.wrap_rpc_with_metrics(
-                        retrying_provider,
-                        Url::parse(url)?,
+                        http_provider,
+                        url,
                         &rpc_metrics,
                         &middleware_metrics,
                     );
-                    let weighted_provider = WeightedProvider::new(metrics_provider);
+                    let retrying_provider =
+                        RetryingProvider::new(metrics_provider, Some(5), Some(1000));
+                    let weighted_provider = WeightedProvider::new(retrying_provider);
                     builder = builder.add_provider(weighted_provider);
                 }
                 let quorum_provider = builder.build();
@@ -74,22 +73,31 @@ pub trait MakeableWithProvider {
                     .await?
             }
             Connection::Http { url } => {
+                let url: Url = url.parse()?;
                 let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
-                let http_provider = Http::new_with_client(url.parse::<Url>()?, http_client);
-                let retrying_http_provider: RetryingProvider<Http> =
-                    RetryingProvider::new(http_provider, None, None);
+                let http_provider = Http::new_with_client(url.clone(), http_client);
+                let metrics_provider: PrometheusJsonRpcClient<Http> = self.wrap_rpc_with_metrics(
+                    http_provider,
+                    url,
+                    &rpc_metrics,
+                    &middleware_metrics,
+                );
+                let retrying_http_provider: RetryingProvider<PrometheusJsonRpcClient<Http>> =
+                    RetryingProvider::new(metrics_provider, None, None);
                 self.wrap_with_metrics(retrying_http_provider, locator, signer, middleware_metrics)
                     .await?
             }
             Connection::Ws { url } => {
-                let ws = Ws::connect(url).await?;
-                self.wrap_with_metrics(ws, locator, signer, middleware_metrics)
+                let ws = Ws::connect(&url).await?;
+                let metrics_provider =
+                    self.wrap_rpc_with_metrics(ws, url.parse()?, &rpc_metrics, &middleware_metrics);
+                self.wrap_with_metrics(metrics_provider, locator, signer, middleware_metrics)
                     .await?
             }
         })
     }
 
-    /// Wrap a JsonRpcClient with metrics for use with a quorum provider.
+    /// Wrap a JsonRpcClient with metrics.
     fn wrap_rpc_with_metrics<C>(
         &self,
         client: C,

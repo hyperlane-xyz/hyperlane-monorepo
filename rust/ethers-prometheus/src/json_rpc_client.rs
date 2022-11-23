@@ -86,14 +86,18 @@ pub struct PrometheusJsonRpcClientConfig {
 }
 
 impl PrometheusJsonRpcClientConfig {
-    fn node_host(&self) -> &str {
+    /// Get a metrics/log compatible host string. This should exclude the secret
+    /// parts of the URL.
+    pub fn node_host(&self) -> &str {
         self.node
             .as_ref()
             .and_then(|n| n.host.as_ref())
             .map(|h| h.as_str())
             .unwrap_or("unknown")
     }
-    fn chain_name(&self) -> &str {
+
+    /// Get the name of the chain this provider is connected to.
+    pub fn chain_name(&self) -> &str {
         self.chain
             .as_ref()
             .and_then(|c| c.name.as_ref())
@@ -124,6 +128,12 @@ impl<C> PrometheusJsonRpcClient<C> {
             metrics,
             config,
         }
+    }
+}
+
+impl<C> AsRef<PrometheusJsonRpcClientConfig> for PrometheusJsonRpcClient<C> {
+    fn as_ref(&self) -> &PrometheusJsonRpcClientConfig {
+        &self.config
     }
 }
 

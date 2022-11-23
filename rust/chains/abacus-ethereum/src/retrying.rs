@@ -7,8 +7,9 @@ use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
 use tracing::{debug, error, info, instrument, trace, warn};
+use ethers_prometheus::json_rpc_client::{PrometheusJsonRpcClient};
 
-use crate::{HttpClientError, QuorumProvider};
+use crate::{HttpClientError};
 
 const METHODS_TO_NOT_RETRY: &[&str] = &[
     "eth_estimateGas",
@@ -157,10 +158,10 @@ where
 }
 
 #[async_trait]
-impl JsonRpcClient for RetryingProvider<Http> {
-    type Error = RetryingProviderError<Http>;
+impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
+    type Error = RetryingProviderError<PrometheusJsonRpcClient<Http>>;
 
-    #[instrument(level = "error", skip(self), fields(provider_host = %self.inner.url().host_str().unwrap_or("unknown")))]
+    #[instrument(level = "error", skip(self), fields(chain = %self.inner.as_ref().chain_name(), provider_host = %self.inner.as_ref().node_host()))]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
         T: Debug + Serialize + Send + Sync,
@@ -193,61 +194,6 @@ impl JsonRpcClient for RetryingProvider<Http> {
                 info!(attempt, next_backoff_ms, error = %err, text = text,  "SerdeJson error in http provider");
                 HandleMethod::Retry(HttpClientError::SerdeJson { err, text })
             }
-        })
-        .await
-    }
-}
-
-#[async_trait]
-impl<C> JsonRpcClient for RetryingProvider<QuorumProvider<C>>
-where
-    C: JsonRpcClient + 'static,
-{
-    type Error = RetryingProviderError<QuorumProvider<C>>;
-
-    #[instrument(level = "error", skip_all, fields(method = %method))]
-    async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
-    where
-        T: Debug + Serialize + Send + Sync,
-        R: DeserializeOwned,
-    {
-        use HandleMethod::*;
-        self.request_with_retry::<T, R>(method, params, |res, attempt, next_backoff_ms| {
-            let handling = match res {
-                Ok(v) => Accept(v),
-                Err(ProviderError::CustomError(e)) => Retry(ProviderError::CustomError(e)),
-                Err(ProviderError::EnsError(e)) => Retry(ProviderError::EnsError(e)),
-                Err(ProviderError::EnsNotOwned(e)) => Halt(ProviderError::EnsNotOwned(e)),
-                Err(ProviderError::HTTPError(e)) => Retry(ProviderError::HTTPError(e)),
-                Err(ProviderError::HexError(e)) => Halt(ProviderError::HexError(e)),
-                Err(ProviderError::JsonRpcClientError(e)) => {
-                    if METHODS_TO_NOT_RETRY.contains(&method) {
-                        Halt(ProviderError::JsonRpcClientError(e))
-                    } else {
-                        Retry(ProviderError::JsonRpcClientError(e))
-                    }
-                }
-                Err(ProviderError::SerdeJson(e)) => Retry(ProviderError::SerdeJson(e)),
-                Err(ProviderError::SignerUnavailable) => Halt(ProviderError::SignerUnavailable),
-                Err(ProviderError::UnsupportedNodeClient) => {
-                    Halt(ProviderError::UnsupportedNodeClient)
-                }
-                Err(ProviderError::UnsupportedRPC) => Halt(ProviderError::UnsupportedRPC),
-            };
-
-            match &handling {
-                Accept(_) => {
-                    trace!("Quorum reached successfully.");
-                }
-                Halt(e) => {
-                    error!(attempt, next_backoff_ms, error = %e, "Failed to reach quorum; not retrying.");
-                }
-                Retry(e) => {
-                    warn!(attempt, next_backoff_ms, error = %e, "Failed to reach quorum; suggesting retry.");
-                }
-            }
-
-            handling
         })
         .await
     }
