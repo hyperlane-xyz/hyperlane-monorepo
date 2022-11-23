@@ -131,8 +131,7 @@ impl Syncer {
             );
             match validation {
                 ListValidity::Valid => {
-                    let max_nonce_of_batch =
-                        self.record_data(sorted_messages, deliveries).await?;
+                    let max_nonce_of_batch = self.record_data(sorted_messages, deliveries).await?;
 
                     self.cursor.update(full_chunk_from as u64).await;
                     if let Some(idx) = max_nonce_of_batch {
@@ -195,10 +194,7 @@ impl Syncer {
             .fetch_delivered_messages(from, to)
             .await?
             .into_iter()
-            .map(|(message_id, meta)| Delivery {
-                message_id,
-                meta,
-            })
+            .map(|(message_id, meta)| Delivery { message_id, meta })
             .collect_vec();
 
         info!(

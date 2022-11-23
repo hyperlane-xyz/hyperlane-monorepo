@@ -1,8 +1,8 @@
 use sea_orm_migration::prelude::*;
 
-use crate::l20220805_types::*;
-use crate::m20220805_000001_create_table_domain::Domain;
-use crate::m20220805_000003_create_table_transaction::Transaction;
+use crate::l20221122_types::*;
+use crate::m20221122_000001_create_table_domain::Domain;
+use crate::m20221122_000003_create_table_transaction::Transaction;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -29,7 +29,7 @@ impl MigrationTrait for Migration {
                             .default("NOW()"),
                     )
                     .col(
-                        ColumnDef::new_with_type(DeliveredMessage::Hash, Hash)
+                        ColumnDef::new_with_type(DeliveredMessage::MsgId, Hash)
                             .not_null()
                             .unique_key(),
                     )
@@ -39,7 +39,7 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new_with_type(DeliveredMessage::InboxAddress, Address)
+                        ColumnDef::new_with_type(DeliveredMessage::DestinationMailbox, Address)
                             .not_null(),
                     )
                     .col(
@@ -73,8 +73,8 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(DeliveredMessage::Table)
-                    .name("delivered_message_hash_idx")
-                    .col(DeliveredMessage::Hash)
+                    .name("delivered_message_msg_id_idx")
+                    .col(DeliveredMessage::MsgId)
                     .index_type(IndexType::Hash)
                     .to_owned(),
             )
@@ -97,12 +97,12 @@ pub enum DeliveredMessage {
     Id,
     /// Time of record creation
     TimeCreated,
-    /// Hash of the message which was delivered
-    Hash,
+    /// Unique id of the message on the blockchain which was delivered
+    MsgId,
     /// Domain the message was received on
     Domain,
-    /// Address of the inbox contract the message was received by
-    InboxAddress,
+    /// Address of the mailbox contract the message was received by
+    DestinationMailbox,
     /// Transaction the delivery was included in
     TxId,
 }

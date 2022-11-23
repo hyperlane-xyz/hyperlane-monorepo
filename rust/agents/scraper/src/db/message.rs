@@ -72,7 +72,7 @@ impl ScraperDb {
             .map(|delivery| delivered_message::ActiveModel {
                 id: NotSet,
                 time_created: Set(date_time::now()),
-                message_id: Unchanged(format_h256(&delivery.message_id)),
+                msg_id: Unchanged(format_h256(&delivery.message_id)),
                 domain: Unchanged(domain as i32),
                 destination_mailbox: Unchanged(destination_mailbox.clone()),
                 tx_id: Set(delivery.txn_id),
@@ -84,7 +84,7 @@ impl ScraperDb {
 
         Insert::many(models)
             .on_conflict(
-                OnConflict::columns([delivered_message::Column::MessageId])
+                OnConflict::columns([delivered_message::Column::MsgId])
                     .update_columns([
                         delivered_message::Column::TimeCreated,
                         delivered_message::Column::TxId,
@@ -109,7 +109,7 @@ impl ScraperDb {
                 Ok(message::ActiveModel {
                     id: NotSet,
                     time_created: Set(date_time::now()),
-                    message_id: Unchanged(format_h256(&storable.msg.id())),
+                    msg_id: Unchanged(format_h256(&storable.msg.id())),
                     origin: Unchanged(storable.msg.origin as i32),
                     destination: Set(storable.msg.destination as i32),
                     nonce: Unchanged(storable.msg.nonce as i32),

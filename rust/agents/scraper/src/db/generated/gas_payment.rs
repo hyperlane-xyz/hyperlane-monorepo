@@ -16,7 +16,7 @@ pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
     pub domain: i32,
-    pub msg_id: i32,
+    pub msg_id: String,
     pub amount: Decimal,
     pub tx_id: i64,
 }
@@ -56,7 +56,7 @@ impl ColumnTrait for Column {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Domain => ColumnType::Integer.def(),
-            Self::MsgId => ColumnType::String(Some(64u32)).def().unique(),
+            Self::MsgId => ColumnType::String(Some(64u32)).def(),
             Self::Amount => ColumnType::Decimal(Some((78u32, 18u32))).def(),
             Self::TxId => ColumnType::BigInteger.def(),
         }
