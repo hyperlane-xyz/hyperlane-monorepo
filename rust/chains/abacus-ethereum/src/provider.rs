@@ -1,14 +1,16 @@
-use async_trait::async_trait;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use ethers::prelude::{Middleware, H256};
 use eyre::eyre;
+use tracing::instrument;
 
-use crate::MakeableWithProvider;
 use abacus_core::{
     AbacusChain, AbacusProvider, BlockInfo, ContractLocator, TxnInfo, TxnReceiptInfo,
 };
+
+use crate::MakeableWithProvider;
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
@@ -40,6 +42,7 @@ impl<M> AbacusProvider for EthereumProvider<M>
 where
     M: Middleware + 'static,
 {
+    #[instrument(err, skip(self))]
     async fn get_block_by_hash(&self, hash: &H256) -> eyre::Result<BlockInfo> {
         let block = self
             .provider
@@ -56,6 +59,7 @@ where
         })
     }
 
+    #[instrument(err, skip(self))]
     async fn get_txn_by_hash(&self, hash: &H256) -> eyre::Result<TxnInfo> {
         let txn = self
             .provider

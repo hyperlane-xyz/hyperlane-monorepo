@@ -2,22 +2,23 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use abacus_core::accumulator::merkle::Proof;
 use async_trait::async_trait;
 use ethers::abi::Token;
 use ethers::providers::Middleware;
-use ethers::types::{Selector, H160, H256, U256};
+use ethers::types::{H160, H256, Selector, U256};
 use eyre::Result;
-use std::hash::Hash;
 use tokio::sync::RwLock;
+use tracing::instrument;
 
 use abacus_core::{
     AbacusAbi, AbacusChain, AbacusContract, ChainCommunicationError, ContractLocator, MultisigIsm,
     MultisigSignedCheckpoint,
 };
+use abacus_core::accumulator::merkle::Proof;
 
 use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
 use crate::trait_builder::MakeableWithProvider;
@@ -208,7 +209,7 @@ where
         Ok(metadata)
     }
 
-    #[tracing::instrument(err, skip(self))]
+    #[instrument(err, ret, skip(self))]
     async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
         let entry = self.threshold_cache.read().await.get(domain).cloned();
         if let Some(threshold) = entry {
@@ -220,7 +221,7 @@ where
         }
     }
 
-    #[tracing::instrument(err, skip(self))]
+    #[instrument(err, ret, skip(self))]
     async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
         let entry = self.validators_cache.read().await.get(domain).cloned();
         if let Some(validators) = entry {

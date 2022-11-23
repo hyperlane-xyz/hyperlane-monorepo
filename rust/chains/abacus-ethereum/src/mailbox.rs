@@ -26,7 +26,7 @@ where
     M: Middleware,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -85,7 +85,7 @@ impl<M> Indexer for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, skip(self))]
+    #[instrument(err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> Result<u32> {
         Ok(self
             .provider
@@ -123,11 +123,7 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_delivered_messages(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> Result<Vec<(H256, abacus_core::LogMeta)>> {
+    async fn fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>> {
         Ok(self
             .contract
             .process_filter()
@@ -235,12 +231,17 @@ impl<M> Mailbox for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
-    #[tracing::instrument(err, skip(self))]
+    #[instrument(err, ret, skip(self))]
     async fn count(&self) -> Result<u32, ChainCommunicationError> {
         Ok(self.contract.count().call().await?)
     }
 
-    #[tracing::instrument(err, skip(self))]
+    #[instrument(err, ret)]
+    async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
+        Ok(self.contract.delivered(id.into()).call().await?)
+    }
+
+    #[instrument(err, ret, skip(self))]
     async fn latest_checkpoint(
         &self,
         maybe_lag: Option<u64>,
@@ -267,17 +268,12 @@ where
         })
     }
 
-    #[tracing::instrument(err, skip(self))]
+    #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
         Ok(self.contract.default_ism().call().await?.into())
     }
 
-    #[tracing::instrument(err)]
-    async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
-        Ok(self.contract.delivered(id.into()).call().await?)
-    }
-
-    #[tracing::instrument(skip(self))]
+    #[instrument(err, ret, skip(self))]
     async fn process(
         &self,
         message: &AbacusMessage,
@@ -291,6 +287,7 @@ where
         Ok(receipt.into())
     }
 
+    #[instrument(err, ret, skip(self))]
     async fn process_estimate_costs(
         &self,
         message: &AbacusMessage,

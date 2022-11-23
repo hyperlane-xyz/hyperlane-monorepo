@@ -4,8 +4,8 @@
 //! checkpoints/messages emitted within a certain block range by calling out to
 //! a chain-specific library and provider (e.g. ethers::provider). A
 //! chain-specific mailbox or inbox should implement one or both of the Indexer
-//! traits (CommonIndexer or MailboxIndexer) to provide an common interface which
-//! other entities can retrieve this chain-specific info.
+//! traits (CommonIndexer or MailboxIndexer) to provide an common interface
+//! which other entities can retrieve this chain-specific info.
 
 use std::fmt::Debug;
 
@@ -29,8 +29,8 @@ pub trait Indexer: Send + Sync + Debug {
 #[async_trait]
 #[auto_impl(Box, Arc)]
 pub trait MailboxIndexer: Indexer {
-    /// Fetch list of outbound messages between blocks `from` and `to`, sorted by
-    /// nonce.
+    /// Fetch list of outbound messages between blocks `from` and `to`, sorted
+    /// by nonce.
     async fn fetch_sorted_messages(
         &self,
         from: u32,
