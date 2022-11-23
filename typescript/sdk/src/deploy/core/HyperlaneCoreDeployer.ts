@@ -114,10 +114,16 @@ export class HyperlaneCoreDeployer<
     const startingBlockNumber = await provider.getBlockNumber();
     this.startingBlockNumbers[chain] = startingBlockNumber;
 
+    // The UpgradeBeaconController address is encoded into the bytecode of
+    // UpgradeBeacons, the address of which is encoded into the bytecode of
+    // UpgradeBeaconProxies. So to have consistent addresses for upgradable
+    // contracts, we need the UpgradeBeaconController to have a consistent
+    // address.
     const upgradeBeaconController = await this.deployContract(
       chain,
       'upgradeBeaconController',
       [],
+      deployOpts,
     );
 
     const interchainGasPaymaster = await this.deployProxiedContract(
@@ -130,11 +136,20 @@ export class HyperlaneCoreDeployer<
 
     const multisigIsm = await this.deployMultisigIsm(chain);
 
+    // In order to create2 multiple UpgradeBeacons for the same environment
+    // we need to namespace the create2 salt used to create them.
+    let mailboxDeployOpts = deployOpts;
+    if (mailboxDeployOpts && mailboxDeployOpts.create2Salt) {
+      mailboxDeployOpts.create2Salt = ethers.utils.solidityKeccak256(
+        ['bytes32', 'string'],
+        [mailboxDeployOpts.create2Salt, 'mailbox'],
+      );
+    }
     const mailbox = await this.deployMailbox(
       chain,
       multisigIsm.address,
       upgradeBeaconController.address,
-      deployOpts,
+      mailboxDeployOpts,
     );
 
     return {

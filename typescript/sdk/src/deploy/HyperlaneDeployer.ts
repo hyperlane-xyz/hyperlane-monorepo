@@ -145,7 +145,6 @@ export abstract class HyperlaneDeployer<
       if (args.length > 0) {
         throw new Error("Can't use CREATE2 with deployment args");
       }
-      this.logger(`Deploying with CREATE2 factory`);
 
       const create2Factory = Create2Factory__factory.connect(
         CREATE2FACTORY_ADDRESS,
@@ -160,26 +159,33 @@ export abstract class HyperlaneDeployer<
         salt,
       );
 
-      const deployTx = deployOpts.initCalldata
-        ? await create2Factory.deployAndInit(
-            factory.bytecode,
-            salt,
-            deployOpts.initCalldata,
-            chainConnection.overrides,
-          )
-        : await create2Factory.deploy(
-            factory.bytecode,
-            salt,
-            chainConnection.overrides,
-          );
-      await chainConnection.handleTx(deployTx);
+      if (
+        (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) == '0x'
+      ) {
+        this.logger(`Deploying with CREATE2 factory`);
+        const deployTx = deployOpts.initCalldata
+          ? await create2Factory.deployAndInit(
+              factory.bytecode,
+              salt,
+              deployOpts.initCalldata,
+              chainConnection.overrides,
+            )
+          : await create2Factory.deploy(
+              factory.bytecode,
+              salt,
+              chainConnection.overrides,
+            );
+        await chainConnection.handleTx(deployTx);
 
-      this.verificationInputs[chain].push({
-        name: contractName,
-        address: contractAddr,
-        isProxy: false,
-        constructorArguments: '',
-      });
+        this.verificationInputs[chain].push({
+          name: contractName,
+          address: contractAddr,
+          isProxy: false,
+          constructorArguments: '',
+        });
+      } else {
+        this.logger(`Found CREATE2-deployed contract`);
+      }
 
       return factory.attach(contractAddr).connect(signer) as ReturnType<
         F['deploy']
@@ -206,7 +212,6 @@ export abstract class HyperlaneDeployer<
         factory.bytecode,
       );
       this.verificationInputs[chain].push(verificationInput);
-
       return contract as ReturnType<F['deploy']>;
     }
   }
@@ -282,11 +287,12 @@ export abstract class HyperlaneDeployer<
     }
 
     // The address of the implementation contract doesn't matter,
-    // so we do not attempt to use the Create2Factory.
+    // so we do not technically need to use the Create2Factory.
     const implementation = await this.deployContract<K>(
       chain,
       contractName,
       deployArgs,
+      deployOpts,
     );
 
     this.logger(`Proxy ${contractName.toString()} on ${chain}`);
@@ -304,6 +310,7 @@ export abstract class HyperlaneDeployer<
       beaconDeployArgs,
       deployOpts,
     );
+
     return this.deployProxy(
       chain,
       implementation as C,
