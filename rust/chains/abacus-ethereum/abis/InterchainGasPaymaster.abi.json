@@ -16,7 +16,13 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "amount",
+        "name": "payment",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "gas",
         "type": "uint256"
       }
     ],
@@ -93,6 +99,16 @@
         "internalType": "uint32",
         "name": "_destinationDomain",
         "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_gas",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_refundAddress",
+        "type": "address"
       }
     ],
     "name": "payForGas",
