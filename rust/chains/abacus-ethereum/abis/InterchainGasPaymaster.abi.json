@@ -95,7 +95,7 @@
         "type": "uint32"
       }
     ],
-    "name": "payGasFor",
+    "name": "payForGas",
     "outputs": [],
     "stateMutability": "payable",
     "type": "function"

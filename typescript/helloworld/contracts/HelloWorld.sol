@@ -9,6 +9,11 @@ import {Router} from "@hyperlane-xyz/core/contracts/Router.sol";
  * @dev You can use this simple app as a starting point for your own application.
  */
 contract HelloWorld is Router {
+    /// A generous upper bound on the amount of gas to use in the handle function
+    /// when a message is processed. Consider moving to a mapping to accommodate
+    /// other execution environments.
+    uint256 public constant HANDLE_GAS_AMOUNT = 100_000;
+
     // A counter of how many messages have been sent from this contract.
     uint256 public sent;
     // A counter of how many messages have been received by this contract.
@@ -56,7 +61,13 @@ contract HelloWorld is Router {
     {
         sent += 1;
         sentTo[_destinationDomain] += 1;
-        _dispatchWithGas(_destinationDomain, bytes(_message), msg.value);
+        _dispatchWithGas(
+            _destinationDomain,
+            bytes(_message),
+            HANDLE_GAS_AMOUNT,
+            msg.value,
+            msg.sender
+        );
         emit SentHelloWorld(
             mailbox.localDomain(),
             _destinationDomain,

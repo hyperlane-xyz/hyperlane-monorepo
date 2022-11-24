@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { ContractTransaction } from 'ethers';
+import { BigNumberish, ContractTransaction } from 'ethers';
 import { ethers } from 'hardhat';
 
 import { utils } from '@hyperlane-xyz/utils';
@@ -23,6 +23,12 @@ const origin = 1;
 const destination = 2;
 const destinationWithoutRouter = 3;
 const body = '0xdeadbeef';
+
+interface GasPaymentParams {
+  gasAmount: BigNumberish;
+  gasPayment: BigNumberish;
+  refundAddress: string;
+}
 
 describe('Router', async () => {
   let router: TestRouter,
@@ -138,7 +144,7 @@ describe('Router', async () => {
       const runDispatchFunctionTests = async (
         dispatchFunction: (
           destinationDomain: number,
-          interchainGasPayment?: number,
+          gasPaymentParams: GasPaymentParams,
         ) => Promise<ContractTransaction>,
         expectGasPayment: boolean,
       ) => {
@@ -150,17 +156,21 @@ describe('Router', async () => {
           return expected ? assertion : assertion.not;
         };
 
+        const testGasPaymentParams: GasPaymentParams = {
+          gasAmount: 4321,
+          gasPayment: 1234,
+          refundAddress: '0xc0ffee0000000000000000000000000000000000',
+        };
+
         it('dispatches a message', async () => {
-          await expect(dispatchFunction(destination)).to.emit(
-            mailbox,
-            'Dispatch',
-          );
+          await expect(
+            dispatchFunction(destination, testGasPaymentParams),
+          ).to.emit(mailbox, 'Dispatch');
         });
 
         it(`${
           expectGasPayment ? 'pays' : 'does not pay'
         } interchain gas`, async () => {
-          const testInterchainGasPayment = 1234;
           const { id } = await inferMessageValues(
             mailbox,
             router.address,
@@ -169,17 +179,21 @@ describe('Router', async () => {
             '',
           );
           const assertion = expectAssertion(
-            expect(dispatchFunction(destination, testInterchainGasPayment)).to,
+            expect(dispatchFunction(destination, testGasPaymentParams)).to,
             expectGasPayment,
           );
           await assertion
             .emit(interchainGasPaymaster, 'GasPayment')
-            .withArgs(id, testInterchainGasPayment);
+            .withArgs(
+              id,
+              testGasPaymentParams.gasPayment,
+              testGasPaymentParams.gasAmount,
+            );
         });
 
         it('reverts when dispatching a message to an unenrolled remote router', async () => {
           await expect(
-            dispatchFunction(destinationWithoutRouter),
+            dispatchFunction(destinationWithoutRouter, testGasPaymentParams),
           ).to.be.revertedWith(
             `No router enrolled for domain. Did you specify the right domain ID?`,
           );
@@ -195,13 +209,15 @@ describe('Router', async () => {
 
       describe('#dispatchWithGas', () => {
         runDispatchFunctionTests(
-          (destinationDomain, interchainGasPayment = 0) =>
+          (destinationDomain, gasPaymentParams) =>
             router.dispatchWithGas(
               destinationDomain,
               '0x',
-              interchainGasPayment,
+              gasPaymentParams.gasAmount,
+              gasPaymentParams.gasPayment,
+              gasPaymentParams.refundAddress,
               {
-                value: interchainGasPayment,
+                value: gasPaymentParams.gasPayment,
               },
             ),
           true,
