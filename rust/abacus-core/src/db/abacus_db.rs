@@ -259,7 +259,10 @@ impl AbacusDB {
         &self,
         gas_payment: &InterchainGasPayment,
     ) -> Result<(), DbError> {
-        let InterchainGasPayment { message_id, payment } = gas_payment;
+        let InterchainGasPayment {
+            message_id,
+            payment,
+        } = gas_payment;
         let existing_payment = self.retrieve_gas_payment_for_message_id(*message_id)?;
         let total = existing_payment + payment;
 
