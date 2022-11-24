@@ -67,7 +67,9 @@ describe('InterchainAccountRouter', async () => {
       localDomain,
       signer.address,
     );
-    await local.dispatch(remoteDomain, [{ to: recipient.address, data }]);
+    await local['dispatch(uint32,(address,bytes)[])'](remoteDomain, [
+      { to: recipient.address, data },
+    ]);
     await coreApp.processMessages();
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);
