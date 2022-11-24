@@ -10,6 +10,8 @@ import {IMailbox} from "../../interfaces/IMailbox.sol";
 contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
 
+    uint256 public constant HANDLE_GAS_AMOUNT = 50_000;
+
     event Handled(bytes32 blockHash);
 
     function dispatchToSelf(
@@ -27,26 +29,27 @@ contract TestSendReceiver is IMessageRecipient {
         uint256 _value = msg.value;
         if (_blockHashNum % 5 == 0) {
             // Pay in two separate calls, resulting in 2 distinct events
-            uint256 _half = _value / 2;
-            _paymaster.payForGas{value: _half}(
+            uint256 _halfPayment = _value / 2;
+            uint256 _halfGasAmount = HANDLE_GAS_AMOUNT / 2;
+            _paymaster.payForGas{value: _halfPayment}(
                 _messageId,
                 _destinationDomain,
-                0,
-                address(0)
+                _halfGasAmount,
+                msg.sender
             );
-            _paymaster.payForGas{value: _value - _half}(
+            _paymaster.payForGas{value: _value - _halfPayment}(
                 _messageId,
                 _destinationDomain,
-                0,
-                address(0)
+                HANDLE_GAS_AMOUNT - _halfGasAmount,
+                msg.sender
             );
         } else {
             // Pay the entire msg.value in one call
             _paymaster.payForGas{value: _value}(
                 _messageId,
                 _destinationDomain,
-                0,
-                address(0)
+                HANDLE_GAS_AMOUNT,
+                msg.sender
             );
         }
     }
