@@ -259,11 +259,11 @@ impl AbacusDB {
         &self,
         gas_payment: &InterchainGasPayment,
     ) -> Result<(), DbError> {
-        let InterchainGasPayment { message_id, amount } = gas_payment;
+        let InterchainGasPayment { message_id, payment } = gas_payment;
         let existing_payment = self.retrieve_gas_payment_for_message_id(*message_id)?;
-        let total = existing_payment + amount;
+        let total = existing_payment + payment;
 
-        info!(message_id=?message_id, gas_payment_amount=?amount, new_total_gas_payment=?total, "Storing gas payment");
+        info!(message_id=?message_id, gas_payment_amount=?payment, new_total_gas_payment=?total, "Storing gas payment");
         self.store_keyed_encodable(GAS_PAYMENT_FOR_MESSAGE_ID, &gas_payment.message_id, &total)?;
 
         Ok(())
