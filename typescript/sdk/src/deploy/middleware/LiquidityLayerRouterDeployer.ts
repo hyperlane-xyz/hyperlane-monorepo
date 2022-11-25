@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import {
   CircleBridgeAdapter,
   CircleBridgeAdapter__factory,
@@ -8,6 +6,7 @@ import {
   PortalAdapter,
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { ChainNameToDomainId } from '../../domains';
@@ -184,7 +183,10 @@ export class LiquidityLayerDeployer<
     }
 
     if (
-      (await router.liquidityLayerAdapters('Portal')) !== portalAdapter.address
+      !utils.eqAddress(
+        await router.liquidityLayerAdapters('Portal'),
+        portalAdapter.address,
+      )
     ) {
       this.logger('Set Portal as LiquidityLayerAdapter on Router');
       await cc.handleTx(
@@ -226,8 +228,10 @@ export class LiquidityLayerDeployer<
     );
 
     if (
-      (await circleBridgeAdapter.tokenSymbolToAddress('USDC')) ===
-      ethers.constants.AddressZero
+      !utils.eqAddress(
+        await circleBridgeAdapter.tokenSymbolToAddress('USDC'),
+        adapterConfig.usdcAddress,
+      )
     ) {
       this.logger(`Set USDC token contract`);
       await cc.handleTx(
@@ -254,8 +258,10 @@ export class LiquidityLayerDeployer<
     }
 
     if (
-      (await router.liquidityLayerAdapters('Circle')) !==
-      circleBridgeAdapter.address
+      !utils.eqAddress(
+        await router.liquidityLayerAdapters('Circle'),
+        circleBridgeAdapter.address,
+      )
     ) {
       this.logger('Set Circle as LiquidityLayerAdapter on Router');
       await cc.handleTx(

@@ -15,7 +15,7 @@ import {
   getEnvironmentDirectory,
 } from '../utils';
 
-async function check() {
+async function relayPortalTransfers() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
@@ -55,4 +55,4 @@ async function check() {
   }
 }
 
-check().then(console.log).catch(console.error);
+relayPortalTransfers().then(console.log).catch(console.error);

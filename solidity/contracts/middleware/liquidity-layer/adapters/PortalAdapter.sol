@@ -10,9 +10,6 @@ import {TypeCasts} from "../../../libs/TypeCasts.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract PortalAdapter is ILiquidityLayerAdapter, Router {
-    struct TransferMetadata {
-        address tokenAddress;
-    }
     /// @notice The Portal TokenBridge contract.
     IPortalTokenBridge public portalTokenBridge;
 
@@ -21,8 +18,8 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
 
     /// @notice Hyperlane domain => Wormhole domain.
     mapping(uint32 => uint16) public hyperlaneDomainToWormholeDomain;
-    /// @notice transferId => transferMetadata
-    mapping(bytes32 => TransferMetadata) public portalTransfersProcessed;
+    /// @notice transferId => token address
+    mapping(bytes32 => address) public portalTransfersProcessed;
 
     uint32 localDomain;
     // We could technically use Portal's sequence number here but it doesn't
@@ -141,7 +138,7 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
 
         address _tokenAddress = portalTransfersProcessed[
             transferId(_originDomain, _nonce)
-        ].tokenAddress;
+        ];
 
         require(
             _tokenAddress != address(0x0),
@@ -187,7 +184,7 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
 
         portalTransfersProcessed[
             transferId(_originDomain, _nonce)
-        ] = TransferMetadata({tokenAddress: tokenAddress});
+        ] = tokenAddress;
     }
 
     // This contract is only a Router to be aware of remote router addresses,

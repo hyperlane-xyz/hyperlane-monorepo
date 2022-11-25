@@ -18,6 +18,11 @@ import { ChainMap, ChainName } from '../../types';
 
 import { BridgeAdapterConfig } from './LiquidityLayerRouterDeployer';
 
+const PORTAL_VAA_SERVICE_TESTNET_BASE_URL =
+  'https://wormhole-v2-testnet-api.certus.one/v1/signed_vaa/';
+const CIRCLE_ATTESTATIONS_BASE_URL =
+  'https://iris-api-sandbox.circle.com/attestations/';
+
 const CircleBridgeInterface = ICircleBridge__factory.createInterface();
 const CircleBridgeAdapterInterface =
   CircleBridgeAdapter__factory.createInterface();
@@ -168,10 +173,10 @@ export class LiquidityLayerApp<
       message.nonce,
     );
 
-    const transferMetadata =
+    const transferTokenAddress =
       await destinationPortalAdapter.portalTransfersProcessed(transferId);
 
-    if (transferMetadata.wormholeDomain != 0) {
+    if (!utils.eqAddress(transferTokenAddress, ethers.constants.AddressZero)) {
       console.log(
         `Transfer with nonce ${message.nonce} from ${message.origin} to ${message.destination} already processed`,
       );
@@ -190,7 +195,7 @@ export class LiquidityLayerApp<
     );
 
     const vaa = await fetch(
-      `https://wormhole-v2-testnet-api.certus.one/v1/signed_vaa/${wormholeOriginDomain}/${emitter}/${message.portalSequence}`,
+      `${PORTAL_VAA_SERVICE_TESTNET_BASE_URL}${wormholeOriginDomain}/${emitter}/${message.portalSequence}`,
     ).then((_) => _.json());
 
     if (vaa.code && vaa.code === 5) {
@@ -201,7 +206,7 @@ export class LiquidityLayerApp<
     const connection = this.multiProvider.getChainConnection(
       message.destination,
     );
-    console.log(
+    console.debug(
       `Complete portal transfer for nonce ${message.nonce} on ${message.destination}`,
     );
     await connection.handleTx(
@@ -230,7 +235,7 @@ export class LiquidityLayerApp<
 
     const messageHash = ethers.utils.keccak256(message.message);
     const attestationsB = await fetch(
-      `https://iris-api-sandbox.circle.com/attestations/${messageHash}`,
+      `${CIRCLE_ATTESTATIONS_BASE_URL}${messageHash}`,
     );
     const attestations = await attestationsB.json();
 
