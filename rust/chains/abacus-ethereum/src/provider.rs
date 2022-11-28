@@ -7,10 +7,8 @@ use eyre::eyre;
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusChain, AbacusProvider, BlockInfo, ContractLocator, TxnInfo, TxnReceiptInfo,
+    AbacusChain, AbacusProvider, BlockInfo, TxnInfo, TxnReceiptInfo,
 };
-
-use crate::MakeableWithProvider;
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
@@ -91,26 +89,6 @@ where
             sender: txn.from.into(),
             recipient: txn.to.map(Into::into),
             receipt,
-        })
-    }
-}
-
-/// Builder for abacus providers.
-pub struct AbacusProviderBuilder {}
-
-#[async_trait]
-impl MakeableWithProvider for AbacusProviderBuilder {
-    type Output = Box<dyn AbacusProvider>;
-
-    async fn make_with_provider<M: Middleware + 'static>(
-        &self,
-        provider: M,
-        locator: &ContractLocator,
-    ) -> Self::Output {
-        Box::new(EthereumProvider {
-            provider: Arc::new(provider),
-            chain_name: locator.chain_name.clone(),
-            domain: locator.domain,
         })
     }
 }

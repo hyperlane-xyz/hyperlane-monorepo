@@ -2,6 +2,7 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
+use std::fmt::{Debug, self};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -18,60 +19,32 @@ use abacus_core::{
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
-use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
 
-impl<M> std::fmt::Display for EthereumMailboxInternal<M>
+impl<M> fmt::Display for EthereumMailboxInternal<M>
 where
     M: Middleware,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{self:?}")
-    }
-}
-
-pub struct MailboxIndexerBuilder {
-    pub finality_blocks: u32,
-}
-
-#[async_trait]
-impl MakeableWithProvider for MailboxIndexerBuilder {
-    type Output = Box<dyn MailboxIndexer>;
-
-    async fn make_with_provider<M: Middleware + 'static>(
-        &self,
-        provider: M,
-        locator: &ContractLocator,
-    ) -> Self::Output {
-        Box::new(EthereumMailboxIndexer::new(
-            Arc::new(provider),
-            locator,
-            self.finality_blocks,
-        ))
     }
 }
 
 #[derive(Debug)]
 /// Struct that retrieves event data for an Ethereum mailbox
-pub struct EthereumMailboxIndexer<M>
-where
-    M: Middleware,
-{
-    contract: Arc<EthereumMailboxInternal<M>>,
+pub struct EthereumMailboxIndexer<M> {
+    contract: EthereumMailboxInternal<M>,
     provider: Arc<M>,
     finality_blocks: u32,
 }
 
 impl<M> EthereumMailboxIndexer<M>
 where
-    M: Middleware + 'static,
+    M: Middleware,
 {
     /// Create new EthereumMailboxIndexer
-    pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
-        let contract = Arc::new(EthereumMailboxInternal::new(
-            &locator.address,
-            provider.clone(),
-        ));
+    pub fn new(provider: M, locator: &ContractLocator, finality_blocks: u32) -> Self {
+        let contract = EthereumMailboxInternal::new(&locator.address, provider.clone());
         Self {
             contract,
             provider,
@@ -137,27 +110,9 @@ where
     }
 }
 
-pub struct MailboxBuilder {}
-
-#[async_trait]
-impl MakeableWithProvider for MailboxBuilder {
-    type Output = Box<dyn Mailbox>;
-
-    async fn make_with_provider<M: Middleware + 'static>(
-        &self,
-        provider: M,
-        locator: &ContractLocator,
-    ) -> Self::Output {
-        Box::new(EthereumMailbox::new(Arc::new(provider), locator))
-    }
-}
-
 /// A reference to an Mailbox contract on some Ethereum chain
 #[derive(Debug)]
-pub struct EthereumMailbox<M>
-where
-    M: Middleware,
-{
+pub struct EthereumMailbox<M> {
     contract: Arc<EthereumMailboxInternal<M>>,
     domain: u32,
     chain_name: String,

@@ -508,12 +508,12 @@ impl<M> PrometheusMiddleware<M> {
     /// - `metrics`: Metrics objects we will report to.
     /// - `tokens`: Tokens to watch the balances of.
     /// - `wallets`: Wallets to watch the balances of.
-    pub fn new(inner: M, metrics: MiddlewareMetrics, conf: PrometheusMiddlewareConf) -> Self {
+    pub fn new(inner: M, metrics: MiddlewareMetrics, conf: PrometheusMiddlewareConf) -> Arc<Self> {
         Self {
             inner: Arc::new(inner),
             metrics,
             conf: Arc::new(RwLock::new(conf)),
-        }
+        }.into()
     }
 
     /// Start tracking metrics for a new token.

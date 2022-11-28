@@ -18,7 +18,6 @@ use abacus_core::{
 use crate::contracts::interchain_gas_paymaster::{
     InterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, INTERCHAINGASPAYMASTER_ABI,
 };
-use crate::trait_builder::MakeableWithProvider;
 
 impl<M> Display for EthereumInterchainGasPaymasterInternal<M>
 where
@@ -29,35 +28,13 @@ where
     }
 }
 
-pub struct InterchainGasPaymasterIndexerBuilder {
-    pub mailbox_address: H160,
-    pub finality_blocks: u32,
-}
-
-#[async_trait]
-impl MakeableWithProvider for InterchainGasPaymasterIndexerBuilder {
-    type Output = Box<dyn InterchainGasPaymasterIndexer>;
-
-    async fn make_with_provider<M: Middleware + 'static>(
-        &self,
-        provider: M,
-        locator: &ContractLocator,
-    ) -> Self::Output {
-        Box::new(EthereumInterchainGasPaymasterIndexer::new(
-            Arc::new(provider),
-            locator,
-            self.finality_blocks,
-        ))
-    }
-}
-
 #[derive(Debug)]
 /// Struct that retrieves event data for an Ethereum InterchainGasPaymaster
 pub struct EthereumInterchainGasPaymasterIndexer<M>
 where
     M: Middleware,
 {
-    contract: Arc<EthereumInterchainGasPaymasterInternal<M>>,
+    contract: EthereumInterchainGasPaymasterInternal<M>,
     provider: Arc<M>,
     finality_blocks: u32,
 }
@@ -69,10 +46,10 @@ where
     /// Create new EthereumInterchainGasPaymasterIndexer
     pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         Self {
-            contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
+            contract: EthereumInterchainGasPaymasterInternal::new(
                 &locator.address,
                 provider.clone(),
-            )),
+            ),
             provider,
             finality_blocks,
         }
@@ -127,24 +104,6 @@ where
                 },
             })
             .collect())
-    }
-}
-
-pub struct InterchainGasPaymasterBuilder {}
-
-#[async_trait]
-impl MakeableWithProvider for InterchainGasPaymasterBuilder {
-    type Output = Box<dyn InterchainGasPaymaster>;
-
-    async fn make_with_provider<M: Middleware + 'static>(
-        &self,
-        provider: M,
-        locator: &ContractLocator,
-    ) -> Self::Output {
-        Box::new(EthereumInterchainGasPaymaster::new(
-            Arc::new(provider),
-            locator,
-        ))
     }
 }
 

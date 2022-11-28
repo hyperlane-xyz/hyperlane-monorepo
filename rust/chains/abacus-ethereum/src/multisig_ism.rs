@@ -21,7 +21,6 @@ use abacus_core::{
 };
 
 use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
-use crate::trait_builder::MakeableWithProvider;
 
 #[derive(Debug)]
 struct Timestamped<Value> {
@@ -85,28 +84,11 @@ where
     }
 }
 
-pub struct MultisigIsmBuilder {}
-
-#[async_trait]
-impl MakeableWithProvider for MultisigIsmBuilder {
-    type Output = Box<dyn MultisigIsm>;
-
-    async fn make_with_provider<M: Middleware + 'static>(
-        &self,
-        provider: M,
-        locator: &ContractLocator,
-    ) -> Self::Output {
-        Box::new(EthereumMultisigIsm::new(Arc::new(provider), locator))
-    }
-}
 
 /// A reference to an MultisigIsm contract on some Ethereum chain
 #[derive(Debug)]
-pub struct EthereumMultisigIsm<M>
-where
-    M: Middleware,
-{
-    contract: Arc<EthereumMultisigIsmInternal<M>>,
+pub struct EthereumMultisigIsm<M> {
+    contract: EthereumMultisigIsmInternal<M>,
     #[allow(dead_code)]
     domain: u32,
     chain_name: String,
@@ -124,10 +106,10 @@ where
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumMultisigIsmInternal::new(
+            contract: EthereumMultisigIsmInternal::new(
                 &locator.address,
                 provider.clone(),
-            )),
+            ),
             domain: locator.domain,
             chain_name: locator.chain_name.to_owned(),
             provider,

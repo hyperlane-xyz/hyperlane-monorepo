@@ -15,7 +15,7 @@ pub use retrying::{RetryingProvider, RetryingProviderError};
 
 use crate::abi::FunctionExt;
 #[cfg(not(doctest))]
-pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*};
+pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, provider_init::*};
 
 #[cfg(not(doctest))]
 mod tx;
@@ -25,7 +25,7 @@ mod tx;
 mod mailbox;
 
 #[cfg(not(doctest))]
-mod trait_builder;
+mod provider_init;
 
 /// Provider abi
 #[cfg(not(doctest))]
@@ -45,6 +45,9 @@ mod contracts;
 
 /// Retrying Provider
 mod retrying;
+
+/// Dynamic Middleware Wrapper
+mod dynamic;
 
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]

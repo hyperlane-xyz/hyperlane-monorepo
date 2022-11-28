@@ -100,6 +100,7 @@ dependencies = [
  "eyre",
  "hex 0.4.3",
  "num",
+ "paste",
  "reqwest",
  "rocksdb",
  "serde",
