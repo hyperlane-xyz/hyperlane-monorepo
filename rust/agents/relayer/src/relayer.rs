@@ -11,7 +11,7 @@ use abacus_base::{
     chains::GelatoConf, run_all, AbacusAgentCore, Agent, BaseAgent, ContractSyncMetrics,
     CoreMetrics, MultisigCheckpointSyncer,
 };
-use abacus_core::{AbacusContract, MultisigIsm, MultisigSignedCheckpoint, Signers};
+use abacus_core::{AbacusChain, MultisigIsm, MultisigSignedCheckpoint, Signers};
 
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
@@ -51,10 +51,7 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings
-            .as_ref()
-            .try_into_abacus_core(metrics, None)
-            .await?;
+        let core = settings.try_into_abacus_core(metrics, None).await?;
 
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
@@ -102,6 +99,7 @@ impl BaseAgent for Relayer {
             let signer = self
                 .core
                 .settings
+                .chain
                 .get_signer(chain_name)
                 .await
                 .expect("expected signer for mailbox");
@@ -112,8 +110,8 @@ impl BaseAgent for Relayer {
                 mailbox.clone(),
                 multisig_ism.clone(),
                 signed_checkpoint_receiver.clone(),
-                self.core.settings.chains[chain_name].txsubmission,
-                self.core.settings.gelato.as_ref(),
+                self.core.settings.chain.chains[chain_name].txsubmission,
+                self.core.settings.chain.gelato.as_ref(),
                 signer,
                 gas_payment_enforcer.clone(),
             ));
@@ -137,7 +135,7 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let mailbox = self.mailbox(&self.origin_chain_name).unwrap();
         let sync = mailbox.sync(
-            self.as_ref().settings.chains[&self.origin_chain_name]
+            self.as_ref().settings.chain.chains[&self.origin_chain_name]
                 .index
                 .clone(),
             sync_metrics,
@@ -153,7 +151,7 @@ impl Relayer {
             .interchain_gas_paymaster(&self.origin_chain_name)
             .unwrap();
         let sync = paymaster.sync(
-            self.as_ref().settings.chains[&self.origin_chain_name]
+            self.as_ref().settings.chain.chains[&self.origin_chain_name]
                 .index
                 .clone(),
             sync_metrics,

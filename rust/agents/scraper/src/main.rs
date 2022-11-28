@@ -14,31 +14,19 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-use ethers::types::H256;
-use eyre::{Context, Result};
+use eyre::Result;
 
 use abacus_base::agent_main;
+use agent::Scraper;
 
-use crate::scraper::Scraper;
-
-#[allow(clippy::all)]
 mod db;
 
+mod agent;
+mod chain_scraper;
+mod conversions;
 mod date_time;
-mod scraper;
-mod settings;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     agent_main::<Scraper>().await
-}
-
-fn parse_h256<T: AsRef<[u8]>>(data: T) -> Result<H256> {
-    Ok(H256::from_slice(
-        &hex::decode(data).context("Error decoding hash or address")?,
-    ))
-}
-
-fn format_h256(data: &H256) -> String {
-    hex::encode(data)
 }

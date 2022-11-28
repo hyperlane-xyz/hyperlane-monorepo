@@ -79,11 +79,13 @@ pub enum AbacusDomain {
     Arbitrum = 0x617262,
     /// Arbitrum testnet ArbitrumRinkeby domain ID, decimal ID 1634872690
     ArbitrumRinkeby = 0x61722d72,
+    ArbitrumGoerli = 421613,
 
     /// Optimism mainnet domain ID, decimal ID 28528
     Optimism = 0x6f70,
     /// Optimism testnet OptimismKovan domain ID, decimal ID 1869622635
     OptimismKovan = 0x6f702d6b,
+    OptimismGoerli = 420,
 
     /// BSC mainnet domain ID, decimal ID 6452067
     #[strum(serialize = "bsc")]
@@ -101,6 +103,8 @@ pub enum AbacusDomain {
     MoonbaseAlpha = 0x6d6f2d61,
     /// Moonbeam domain ID, decimal ID 1836002669
     Moonbeam = 0x6d6f2d6d,
+
+    Zksync2Testnet = 280,
 
     // -- Local test chains --
     /// Test1 local chain
@@ -151,9 +155,11 @@ impl AbacusDomain {
 
             AbacusDomain::Arbitrum => AbacusDomainType::Mainnet,
             AbacusDomain::ArbitrumRinkeby => AbacusDomainType::Testnet,
+            AbacusDomain::ArbitrumGoerli => AbacusDomainType::Testnet,
 
             AbacusDomain::Optimism => AbacusDomainType::Mainnet,
             AbacusDomain::OptimismKovan => AbacusDomainType::Testnet,
+            AbacusDomain::OptimismGoerli => AbacusDomainType::Testnet,
 
             AbacusDomain::BinanceSmartChain => AbacusDomainType::Mainnet,
             AbacusDomain::BinanceSmartChainTestnet => AbacusDomainType::Testnet,
@@ -163,6 +169,8 @@ impl AbacusDomain {
 
             AbacusDomain::MoonbaseAlpha => AbacusDomainType::Testnet,
             AbacusDomain::Moonbeam => AbacusDomainType::Mainnet,
+
+            AbacusDomain::Zksync2Testnet => AbacusDomainType::Testnet,
 
             AbacusDomain::Test1 => AbacusDomainType::LocalTestChain,
             AbacusDomain::Test2 => AbacusDomainType::LocalTestChain,
@@ -253,12 +261,6 @@ mod tests {
         let paths = config_paths(root);
         let files: Vec<String> = paths
             .iter()
-            .filter(|n| {
-                // Special config with different rules, with
-                // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1134
-                // we will remove this weird case
-                !n.contains("scraper_config")
-            })
             .filter_map(|x| read_to_string(x).ok())
             .collect();
         paths
@@ -281,7 +283,7 @@ mod tests {
         abacus_settings()
             .iter()
             .flat_map(|x: &Settings| {
-                x.chains.iter().map(|(_, v)| ChainCoordinate {
+                x.chain.chains.iter().map(|(_, v)| ChainCoordinate {
                     name: v.name.clone(),
                     domain: v.domain.parse().unwrap(),
                 })

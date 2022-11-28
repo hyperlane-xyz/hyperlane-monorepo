@@ -64,7 +64,6 @@ impl BaseAgent for Validator {
         let origin_chain_name = &settings.originchainname;
         let interval = settings.interval.parse().expect("invalid uint");
         let core = settings
-            .as_ref()
             .try_into_abacus_core(metrics, Some(vec![origin_chain_name]))
             .await?;
         let checkpoint_syncer = settings.checkpointsyncer.try_into_checkpoint_syncer(None)?;

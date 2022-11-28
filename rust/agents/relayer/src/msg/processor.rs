@@ -10,7 +10,7 @@ use tokio::{
 use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use abacus_base::{CachingMailbox, CoreMetrics};
-use abacus_core::{db::AbacusDB, AbacusContract, AbacusMessage, Mailbox, MultisigSignedCheckpoint};
+use abacus_core::{db::AbacusDB, AbacusChain, AbacusMessage, MultisigSignedCheckpoint};
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
 
@@ -58,7 +58,7 @@ impl MessageProcessor {
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 
-    #[instrument(ret, err, skip(self), fields(chain=self.destination_mailbox.chain_name(), domain=?self.destination_mailbox.local_domain()), level = "info")]
+    #[instrument(ret, err, skip(self), fields(chain=self.destination_mailbox.chain_name(), domain=?self.destination_mailbox.domain()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
         // Ensure that there is at least one valid, known checkpoint before starting
         // work loop.
@@ -92,7 +92,7 @@ impl MessageProcessor {
         {
             debug!(
                 chain=?self.destination_mailbox.chain_name(),
-                domain=?self.destination_mailbox.local_domain(),
+                domain=?self.destination_mailbox.domain(),
                 nonce=?self.message_nonce,
                 "Skipping since message_nonce already in DB");
             self.message_nonce += 1;
@@ -119,7 +119,7 @@ impl MessageProcessor {
         };
 
         // Skip if for different inbox.
-        if message.destination != self.destination_mailbox.local_domain() {
+        if message.destination != self.destination_mailbox.domain() {
             debug!(
                 id=?message.id(),
                 destination=message.destination,

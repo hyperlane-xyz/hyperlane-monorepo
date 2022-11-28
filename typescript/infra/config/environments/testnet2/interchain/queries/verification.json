@@ -1,0 +1,66 @@
+{
+  "alfajores": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "fuji": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "goerli": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "moonbasealpha": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "optimismgoerli": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "arbitrumgoerli": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ]
+}

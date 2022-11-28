@@ -10,7 +10,7 @@ use eyre::Result;
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusAbi, AbacusContract, ContractLocator, Indexer, InterchainGasPaymaster,
+    AbacusAbi, AbacusChain, AbacusContract, ContractLocator, Indexer, InterchainGasPaymaster,
     InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentMeta,
     InterchainGasPaymentWithMeta,
 };
@@ -34,10 +34,11 @@ pub struct InterchainGasPaymasterIndexerBuilder {
     pub finality_blocks: u32,
 }
 
+#[async_trait]
 impl MakeableWithProvider for InterchainGasPaymasterIndexerBuilder {
     type Output = Box<dyn InterchainGasPaymasterIndexer>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -83,7 +84,7 @@ impl<M> Indexer for EthereumInterchainGasPaymasterIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, skip(self))]
+    #[instrument(err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> Result<u32> {
         Ok(self
             .provider
@@ -131,10 +132,11 @@ where
 
 pub struct InterchainGasPaymasterBuilder {}
 
+#[async_trait]
 impl MakeableWithProvider for InterchainGasPaymasterBuilder {
     type Output = Box<dyn InterchainGasPaymaster>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -180,7 +182,7 @@ where
     }
 }
 
-impl<M> AbacusContract for EthereumInterchainGasPaymaster<M>
+impl<M> AbacusChain for EthereumInterchainGasPaymaster<M>
 where
     M: Middleware + 'static,
 {
@@ -188,6 +190,15 @@ where
         &self.chain_name
     }
 
+    fn domain(&self) -> u32 {
+        self.domain
+    }
+}
+
+impl<M> AbacusContract for EthereumInterchainGasPaymaster<M>
+where
+    M: Middleware + 'static,
+{
     fn address(&self) -> H256 {
         self.contract.address().into()
     }

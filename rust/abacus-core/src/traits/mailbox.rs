@@ -16,12 +16,9 @@ use crate::{
 #[async_trait]
 #[auto_impl(Box, Arc)]
 pub trait Mailbox: AbacusContract + Send + Sync + Debug {
-    /// Return the domain ID
-    fn local_domain(&self) -> u32;
-
     /// Return the domain hash
-    fn local_domain_hash(&self) -> H256 {
-        domain_hash(self.address(), self.local_domain())
+    fn domain_hash(&self) -> H256 {
+        domain_hash(self.address(), self.domain())
     }
 
     /// Gets the current leaf count of the merkle tree

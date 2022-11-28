@@ -4,13 +4,14 @@
 //! checkpoints/messages emitted within a certain block range by calling out to
 //! a chain-specific library and provider (e.g. ethers::provider). A
 //! chain-specific mailbox or inbox should implement one or both of the Indexer
-//! traits (CommonIndexer or MailboxIndexer) to provide an common interface which
-//! other entities can retrieve this chain-specific info.
+//! traits (CommonIndexer or MailboxIndexer) to provide an common interface
+//! which other entities can retrieve this chain-specific info.
 
 use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
+use ethers::types::H256;
 use eyre::Result;
 
 use crate::{AbacusMessage, InterchainGasPaymentWithMeta, LogMeta};
@@ -28,12 +29,16 @@ pub trait Indexer: Send + Sync + Debug {
 #[async_trait]
 #[auto_impl(Box, Arc)]
 pub trait MailboxIndexer: Indexer {
-    /// Fetch list of messages between blocks `from` and `to`.
+    /// Fetch list of outbound messages between blocks `from` and `to`, sorted
+    /// by nonce.
     async fn fetch_sorted_messages(
         &self,
         from: u32,
         to: u32,
     ) -> Result<Vec<(AbacusMessage, LogMeta)>>;
+
+    /// Fetch a list of delivered message IDs between blocks `from` and `to`.
+    async fn fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>>;
 }
 
 /// Interface for InterchainGasPaymaster contract indexer.

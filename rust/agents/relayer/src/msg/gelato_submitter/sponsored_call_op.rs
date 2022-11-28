@@ -210,7 +210,7 @@ impl SponsoredCallOp {
             sponsor_api_key: &self.sponsor_api_key,
         };
 
-        Ok(sponsored_call_api_call.run().await?)
+        sponsored_call_api_call.run().await
     }
 
     async fn create_sponsored_call_args(&self) -> Result<SponsoredCallArgs> {
@@ -234,6 +234,7 @@ impl SponsoredCallOp {
         self.mailbox.delivered(self.message.message.id()).await
     }
 
+    #[allow(clippy::result_large_err)]
     fn send_message_processed(
         &self,
     ) -> Result<(), tokio::sync::mpsc::error::SendError<SubmitMessageArgs>> {

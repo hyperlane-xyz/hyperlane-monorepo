@@ -134,19 +134,18 @@ export class HyperlaneCore<
 
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
     const mailbox = Mailbox__factory.createInterface();
-    const describedLogs = sourceTx.logs.map((log) => {
-      try {
-        return mailbox.parseLog(log);
-      } catch (e) {
-        return undefined;
-      }
-    });
-    const dispatchLogs = describedLogs.filter(
-      (log) => log && log.name === 'Dispatch',
-    ) as ethers.utils.LogDescription[];
-    if (dispatchLogs.length === 0) {
-      throw new Error('Dispatch logs not found');
-    }
+    const dispatchLogs = sourceTx.logs
+      .map((log) => {
+        try {
+          return mailbox.parseLog(log);
+        } catch (e) {
+          return undefined;
+        }
+      })
+      .filter(
+        (log): log is ethers.utils.LogDescription =>
+          !!log && log.name === 'Dispatch',
+      );
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
       const id = log.args['messageId'];
@@ -159,7 +158,6 @@ export class HyperlaneCore<
     sourceTx: ethers.ContractReceipt,
   ): Promise<ethers.ContractReceipt[]> {
     const messages = this.getDispatchedMessages(sourceTx);
-
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
   }
 }

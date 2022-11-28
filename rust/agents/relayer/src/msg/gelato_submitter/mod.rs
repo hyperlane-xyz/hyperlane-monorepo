@@ -3,7 +3,7 @@ use std::sync::Arc;
 use abacus_base::chains::GelatoConf;
 use abacus_base::{CachingMailbox, CoreMetrics};
 use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusDomain, Mailbox, MultisigIsm};
+use abacus_core::{AbacusChain, AbacusDomain, MultisigIsm};
 use eyre::{bail, Result};
 use gelato::types::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
@@ -67,8 +67,7 @@ impl GelatoSubmitter {
             .unwrap();
         Self {
             message_receiver,
-            destination_gelato_chain: abacus_domain_id_to_gelato_chain(mailbox.local_domain())
-                .unwrap(),
+            destination_gelato_chain: abacus_domain_id_to_gelato_chain(mailbox.domain()).unwrap(),
             mailbox,
             multisig_ism,
             db: abacus_db,
@@ -95,7 +94,7 @@ impl GelatoSubmitter {
 
     async fn tick(&mut self) -> Result<()> {
         // Pull any messages sent by processor over channel and push
-        // them into the `received_messages` in asc order by message leaf index.
+        // them into the `received_messages` in asc order by message nonce.
         let mut received_messages = Vec::new();
         loop {
             match self.message_receiver.try_recv() {
@@ -224,9 +223,11 @@ pub fn abacus_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
 
         AbacusDomain::Arbitrum => Chain::Arbitrum,
         AbacusDomain::ArbitrumRinkeby => Chain::ArbitrumRinkeby,
+        AbacusDomain::ArbitrumGoerli => Chain::ArbitrumGoerli,
 
         AbacusDomain::Optimism => Chain::Optimism,
         AbacusDomain::OptimismKovan => Chain::OptimismKovan,
+        AbacusDomain::OptimismGoerli => Chain::OptimismGoerli,
 
         AbacusDomain::BinanceSmartChain => Chain::BinanceSmartChain,
         AbacusDomain::BinanceSmartChainTestnet => Chain::BinanceSmartChainTestnet,
@@ -236,6 +237,8 @@ pub fn abacus_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
 
         AbacusDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
         AbacusDomain::Moonbeam => Chain::Moonbeam,
+
+        AbacusDomain::Zksync2Testnet => Chain::Zksync2Testnet,
 
         _ => bail!("No Gelato Chain for domain {abacus_domain}"),
     })

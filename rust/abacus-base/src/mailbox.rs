@@ -12,8 +12,8 @@ use tracing::{info_span, Instrument};
 
 use abacus_core::db::AbacusDB;
 use abacus_core::{
-    AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, Mailbox, MailboxIndexer,
-    TxCostEstimate, TxOutcome,
+    AbacusChain, AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, Mailbox,
+    MailboxIndexer, TxCostEstimate, TxOutcome,
 };
 
 use crate::chains::IndexSettings;
@@ -86,12 +86,8 @@ impl CachingMailbox {
 
 #[async_trait]
 impl Mailbox for CachingMailbox {
-    fn local_domain(&self) -> u32 {
-        self.mailbox.local_domain()
-    }
-
-    fn local_domain_hash(&self) -> H256 {
-        self.mailbox.local_domain_hash()
+    fn domain_hash(&self) -> H256 {
+        self.mailbox.domain_hash()
     }
 
     async fn count(&self) -> Result<u32, ChainCommunicationError> {
@@ -137,11 +133,17 @@ impl Mailbox for CachingMailbox {
     }
 }
 
-impl AbacusContract for CachingMailbox {
+impl AbacusChain for CachingMailbox {
     fn chain_name(&self) -> &str {
         self.mailbox.chain_name()
     }
 
+    fn domain(&self) -> u32 {
+        self.mailbox.domain()
+    }
+}
+
+impl AbacusContract for CachingMailbox {
     fn address(&self) -> H256 {
         self.mailbox.address()
     }

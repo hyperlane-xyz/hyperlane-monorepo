@@ -1,0 +1,58 @@
+{
+  "alfajores": [
+    {
+      "name": "router",
+      "address": "0x8fE544451F5CE316D43b9Bb94fC14a3F91E2bAD4",
+      "constructorArguments": "000000000000000000000000c41169650335ad274157ea5116cdf227430a68a30000000000000000000000001fb165396fb26ac4178ca4240b3724039f75eed7",
+      "isProxy": false
+    }
+  ],
+  "kovan": [
+    {
+      "name": "router",
+      "address": "0x5C607ECCA9085aeA21533B69eDF9440D853284C7",
+      "constructorArguments": "000000000000000000000000fa1fbf362144ae1bef2e33409948da1fb812bb4100000000000000000000000074234d5eeb6229fd75ff5370fab7d9819295f0d5",
+      "isProxy": false
+    }
+  ],
+  "fuji": [
+    {
+      "name": "router",
+      "address": "0x9bD9044622be25558cB153BfC75e1e1F828609f5",
+      "constructorArguments": "00000000000000000000000033abaf6708be03bdf0595da0745a7111b01db8c70000000000000000000000004834a491f78bbf48e983f9ce0e20d1e4dbe013d8",
+      "isProxy": false
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "router",
+      "address": "0x9EbDDe2d44bf86A95853a95506CE73c46b04295B",
+      "constructorArguments": "000000000000000000000000b636b2c65a75d41f0dbe98fb33eb563d245a241a0000000000000000000000009a27744c249a11f68b3b56f09d280599585dfbb8",
+      "isProxy": false
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "router",
+      "address": "0xD2Ca930Cd1fA92b0Cb6c749aE47DB38b7dbaB13e",
+      "constructorArguments": "000000000000000000000000e403e16db1f5997bc62dc611a8d42836364a7f01000000000000000000000000155b1f1801030ea4df038107d3cc1b4ba496916e",
+      "isProxy": false
+    }
+  ],
+  "optimismgoerli": [
+    {
+      "name": "router",
+      "address": "0x98AAE089CaD930C64a76dD2247a2aC5773a4B8cE",
+      "constructorArguments": "00000000000000000000000016b710b86cad07e6f1c531861a16f5fec29dba37000000000000000000000000eb6f11189197223c656807a83b0dd374f9a6df44",
+      "isProxy": false
+    }
+  ],
+  "arbitrumgoerli": [
+    {
+      "name": "router",
+      "address": "0xae7a78916Ba4c507aCB2F0e474ace545Ff4bF841",
+      "constructorArguments": "0000000000000000000000004926a10788306d84202a2adbd290b7743146cc17000000000000000000000000679dc08cc3a4acfeea2f7cafaa37561ae0b41ce7",
+      "isProxy": false
+    }
+  ]
+}

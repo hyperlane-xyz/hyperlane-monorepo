@@ -4,17 +4,18 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
+use std::collections::HashMap;
+
 use ethers::prelude::*;
 use eyre::Result;
 use num::Num;
-use std::collections::HashMap;
 
 use abacus_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
 use crate::abi::FunctionExt;
 #[cfg(not(doctest))]
-pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, trait_builder::*};
+pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*};
 
 #[cfg(not(doctest))]
 mod tx;
@@ -25,6 +26,10 @@ mod mailbox;
 
 #[cfg(not(doctest))]
 mod trait_builder;
+
+/// Provider abi
+#[cfg(not(doctest))]
+mod provider;
 
 /// InterchainGasPaymaster abi
 #[cfg(not(doctest))]

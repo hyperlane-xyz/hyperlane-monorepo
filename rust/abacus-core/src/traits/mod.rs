@@ -15,6 +15,7 @@ pub use indexer::*;
 pub use interchain_gas::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
+pub use provider::*;
 
 use crate::{db::DbError, AbacusError};
 
@@ -23,6 +24,7 @@ mod indexer;
 mod interchain_gas;
 mod mailbox;
 mod multisig_ism;
+mod provider;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]
@@ -79,15 +81,23 @@ where
     }
 }
 
+/// Interface for features of something deployed on/in a domain or is otherwise
+/// connected to it.
+#[auto_impl(Box, Arc)]
+pub trait AbacusChain {
+    /// Return an identifier (not necessarily unique) for the chain this
+    /// is connected to
+    fn chain_name(&self) -> &str;
+
+    /// Return the domain ID
+    fn domain(&self) -> u32;
+}
+
 /// Interface for a deployed contract.
 /// This trait is intended to expose attributes of any contract, and
 /// should not consider the purpose or implementation details of the contract.
 #[auto_impl(Box, Arc)]
-pub trait AbacusContract {
-    /// Return an identifier (not necessarily unique) for the chain this
-    /// contract is deployed to.
-    fn chain_name(&self) -> &str;
-
+pub trait AbacusContract: AbacusChain {
     /// Return the address of this contract.
     fn address(&self) -> H256;
 }

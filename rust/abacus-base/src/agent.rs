@@ -5,13 +5,13 @@ use abacus_core::MultisigIsm;
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
-use serde::ser::StdError;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
 use abacus_core::db::DB;
 
+use crate::AgentSettings;
 use crate::{
     cancel_task, metrics::CoreMetrics, settings::Settings, CachingInterchainGasPaymaster,
     CachingMailbox,
@@ -35,9 +35,9 @@ pub struct AbacusAgentCore {
 }
 
 /// Settings of an agent.
-pub trait AgentSettings: AsRef<Settings> + Sized {
+pub trait NewFromAgentSettings: AsRef<AgentSettings> + Sized {
     /// The error type returned by new on failures to parse.
-    type Error: 'static + StdError + Send + Sync;
+    type Error: Into<Report>;
 
     /// Create a new instance of these settings by reading the configs and env
     /// vars.
@@ -52,7 +52,7 @@ pub trait BaseAgent: Send + Sync + Debug {
     const AGENT_NAME: &'static str;
 
     /// The settings object for this agent
-    type Settings: AgentSettings;
+    type Settings: NewFromAgentSettings;
 
     /// Instantiate the agent from the standard settings object
     async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
@@ -116,8 +116,8 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     #[cfg(not(any(feature = "color-eyre", feature = "oneline-eyre")))]
     eyre::install()?;
 
-    let settings = A::Settings::new()?;
-    let core_settings: &Settings = settings.as_ref();
+    let settings = A::Settings::new().map_err(|e| e.into())?;
+    let core_settings: &AgentSettings = settings.as_ref();
 
     let metrics = settings.as_ref().try_into_metrics(A::AGENT_NAME)?;
     core_settings.tracing.start_tracing(&metrics)?;
@@ -132,6 +132,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
 pub fn run_all(
     tasks: Vec<Instrumented<JoinHandle<Result<(), Report>>>>,
 ) -> Instrumented<JoinHandle<Result<()>>> {
+    debug_assert!(!tasks.is_empty(), "No tasks submitted");
     let span = info_span!("run_all");
     tokio::spawn(async move {
         let (res, _, remaining) = select_all(tasks).await;

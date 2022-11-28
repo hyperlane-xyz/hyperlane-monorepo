@@ -13,7 +13,7 @@ mock! {
         // Mailbox
         pub fn _address(&self) -> H256 {}
 
-        pub fn _local_domain(&self) -> u32 {}
+        pub fn _domain(&self) -> u32 {}
 
         pub fn _domain_hash(&self) -> H256 {}
 
@@ -78,10 +78,6 @@ impl Mailbox for MockMailboxContract {
         self._latest_checkpoint(maybe_lag)
     }
 
-    fn local_domain(&self) -> u32 {
-        self._local_domain()
-    }
-
     async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
         self._default_ism()
     }
@@ -112,11 +108,17 @@ impl Mailbox for MockMailboxContract {
     }
 }
 
-impl AbacusContract for MockMailboxContract {
+impl AbacusChain for MockMailboxContract {
+    fn domain(&self) -> u32 {
+        self._domain()
+    }
+
     fn chain_name(&self) -> &str {
         self._chain_name()
     }
+}
 
+impl AbacusContract for MockMailboxContract {
     fn address(&self) -> H256 {
         self._address()
     }

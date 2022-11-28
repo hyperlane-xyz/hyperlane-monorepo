@@ -88,19 +88,18 @@ where
 
             info!(from = from, "[Messages]: resuming indexer from latest valid message range start block");
 
+            indexed_height.set(from as i64);
             loop {
-                indexed_height.set(from as i64);
+                sleep(Duration::from_secs(5)).await;
 
                 // Only index blocks considered final.
                 // If there's an error getting the block number, just start the loop over
-                let tip = if let Ok(num) = indexer.get_finalized_block_number().await {
-                    num
-                } else {
+                let Ok(tip) = indexer.get_finalized_block_number().await else {
                     continue;
                 };
                 if tip <= from {
                     // Sleep if caught up to tip
-                    sleep(Duration::from_secs(1)).await;
+                    sleep(Duration::from_secs(10)).await;
                     continue;
                 }
 
@@ -119,14 +118,14 @@ where
                     "[Messages]: indexed block range"
                 );
 
-                // Get the latest known leaf index. All messages whose indices are <= this index
+                // Get the latest known nonce. All messages whose indices are <= this index
                 // have been stored in the DB.
                 let last_nonce = db.retrieve_latest_nonce()?;
 
                 // Filter out any messages that have already been successfully indexed and stored.
                 // This is necessary if we're re-indexing blocks in hope of finding missing messages.
-                if let Some(min_index) = last_nonce {
-                    sorted_messages = sorted_messages.into_iter().filter(|m| m.nonce > min_index).collect();
+                if let Some(min_nonce) = last_nonce {
+                    sorted_messages.retain(|m| m.nonce > min_nonce);
                 }
 
                 debug!(
@@ -145,7 +144,7 @@ where
                         // Report amount of messages stored into db
                         stored_messages.inc_by(sorted_messages.len() as u64);
 
-                        // Report latest leaf index to gauge by dst
+                        // Report latest nonce to gauge by dst
                         for msg in sorted_messages.iter() {
                             let dst = name_from_domain_id(msg.destination).unwrap_or_else(|| "unknown".into());
                             message_nonce
@@ -159,6 +158,7 @@ where
 
                         // Move forward to the next height
                         from = to + 1;
+                        indexed_height.set(to as i64);
                     }
                     // The index of the first message in sorted_messages is not the
                     // `last_nonce+1`.
@@ -174,6 +174,7 @@ where
                         );
 
                         from = last_valid_range_start_block;
+                        indexed_height.set(from as i64);
                     }
                     ListValidity::ContainsGaps => {
                         missed_messages.inc();
@@ -191,6 +192,7 @@ where
                         // if the range was correctly indexed if there are no messages to observe their
                         // indices.
                         from = to + 1;
+                        indexed_height.set(to as i64);
                     }
                 };
             }
@@ -437,7 +439,7 @@ mod test {
             );
 
             let sync_task = contract_sync.sync_dispatched_messages();
-            let test_pass_fut = timeout(Duration::from_secs(30), async move {
+            let test_pass_fut = timeout(Duration::from_secs(90), async move {
                 let mut interval = interval(Duration::from_millis(20));
                 loop {
                     if abacus_db.message_by_nonce(0).expect("!db").is_some()

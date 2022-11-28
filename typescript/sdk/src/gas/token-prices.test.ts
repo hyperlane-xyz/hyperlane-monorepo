@@ -7,12 +7,13 @@ import { CoinGeckoTokenPriceGetter } from './token-prices';
 
 describe('TokenPriceGetter', () => {
   let tokenPriceGetter: CoinGeckoTokenPriceGetter;
+  let mockCoinGecko: MockCoinGecko;
   const chainA = Chains.ethereum,
     chainB = Chains.polygon,
     priceA = 10,
     priceB = 5.5;
-  beforeEach(async () => {
-    const mockCoinGecko = new MockCoinGecko();
+  before(async () => {
+    mockCoinGecko = new MockCoinGecko();
     // Origin token
     mockCoinGecko.setTokenPrice(chainA, priceA);
     // Destination token
@@ -23,6 +24,12 @@ describe('TokenPriceGetter', () => {
   describe('getTokenPrice', () => {
     it('returns a token price', async () => {
       expect(await tokenPriceGetter.getTokenPrice(chainA)).to.equal(priceA);
+    });
+
+    it('caches a token price', async () => {
+      mockCoinGecko.setFail(chainA, true);
+      expect(await tokenPriceGetter.getTokenPrice(chainA)).to.equal(priceA);
+      mockCoinGecko.setFail(chainA, false);
     });
   });
 

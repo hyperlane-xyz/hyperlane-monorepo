@@ -21,7 +21,12 @@ impl MigrationTrait for Migration {
                             .primary_key(),
                     )
                     .col(ColumnDef::new(Cursor::Domain).unsigned().not_null())
-                    .col(ColumnDef::new(Cursor::TimeUpdated).timestamp().not_null())
+                    .col(
+                        ColumnDef::new(Cursor::TimeCreated)
+                            .timestamp()
+                            .not_null()
+                            .default("NOW()"),
+                    )
                     .col(ColumnDef::new(Cursor::Height).big_unsigned().not_null())
                     .foreign_key(
                         ForeignKey::create()
@@ -48,8 +53,8 @@ pub enum Cursor {
     Id,
     /// Abacus domain ID the cursor is for
     Domain,
-    /// Time of the last record update
-    TimeUpdated,
+    /// Time when the record was created
+    TimeCreated,
     /// Height of the last block read for finality
     Height,
 }

@@ -1,0 +1,126 @@
+{
+  "environment": "testnet2",
+  "signers": {},
+  "inboxes": {
+    "alfajores": {
+      "domain": "1000",
+      "name": "alfajores",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "0",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0xac5e56b6eF335bbE4413eE48965dB6B538415E49",
+        "validatorManager": "0x793b4c911362c8900372cE6Da5f9dA96457E8c1B"
+      }
+    },
+    "mumbai": {
+      "domain": "80001",
+      "name": "mumbai",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "32",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x56c09458cC7863fff1Cc6Bcb6652Dcc3412FcA86",
+        "validatorManager": "0xd09D08a19C6609a1B51e1ca6a055861E7e7A4400"
+      }
+    },
+    "bsctestnet": {
+      "domain": "1651715444",
+      "name": "bsctestnet",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "9",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0xE3D93F9296FA3dF262E1a54f0de02F71E845af6b",
+        "validatorManager": "0x6d6a9bDDea1456673062633b7a4823dB13bDB9fb"
+      }
+    },
+    "goerli": {
+      "domain": "5",
+      "name": "goerli",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "2",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0xfc8d0D2E15A36f1A3F3aE3Cb127B706c1f23Aadc",
+        "validatorManager": "0xF7F0DaB0BECE4498dAc7eb616e288809D4499371"
+      }
+    },
+    "moonbasealpha": {
+      "domain": "1836002657",
+      "name": "moonbasealpha",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x1D5EbC3e15e9ECDe0e3530C85899556797eeaea5",
+        "validatorManager": "0x7FE7EA170cf08A25C2ff315814D96D93C311E692"
+      }
+    },
+    "optimismgoerli": {
+      "domain": "420",
+      "name": "optimismgoerli",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x304cAb315c93B87AAdb2B826A791b2c1Bf749996",
+        "validatorManager": "0xD3d062a5dcBA85ae863618d4c264d2358300c283"
+      }
+    },
+    "arbitrumgoerli": {
+      "domain": "421613",
+      "name": "arbitrumgoerli",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x6b1bb4ce664Bb4164AEB4d3D2E7DE7450DD8084C",
+        "validatorManager": "0x863E8c26621c52ACa1849C53500606e73BA272F0"
+      }
+    }
+  },
+  "outbox": {
+    "addresses": {
+      "outbox": "0xc507A7c848b59469cC44A3653F8a582aa8BeC71E",
+      "interchainGasPaymaster": "0x4834a491f78BBF48e983F9Ce0E20D1E4DbE013D8"
+    },
+    "domain": "43113",
+    "name": "fuji",
+    "rpcStyle": "ethereum",
+    "finalityBlocks": "0",
+    "connection": {
+      "type": "http",
+      "url": ""
+    }
+  },
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  },
+  "db": "db_path",
+  "index": {
+    "from": "10542676"
+  }
+}

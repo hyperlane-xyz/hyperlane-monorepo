@@ -25,18 +25,19 @@ import { assertContext } from '../src/utils/utils';
 
 export function getArgs() {
   return yargs(process.argv.slice(2))
-    .alias('e', 'env')
-    .describe('e', 'deploy environment')
-    .string('e')
+    .describe('environment', 'deploy environment')
+    .coerce('environment', assertEnvironment)
+    .demandOption('environment')
+    .alias('e', 'environment')
     .describe('context', 'deploy context')
-    .string('context')
-    .help('h')
-    .alias('h', 'help');
+    .coerce('context', assertContext)
+    .demandOption('context')
+    .alias('c', 'context');
 }
 
 export async function getEnvironmentFromArgs(): Promise<string> {
   const argv = await getArgs().argv;
-  return argv.e!;
+  return argv.environment!;
 }
 
 export function assertEnvironment(env: string): DeployEnvironment {
@@ -132,12 +133,8 @@ export async function getMultiProviderForRole<Chain extends ChainName>(
   return new MultiProvider<Chain>(connections);
 }
 
-function getContractsSdkFilepath(mod: string) {
-  return path.join('../sdk/src/', mod, 'environments');
-}
-
 export function getCoreContractsSdkFilepath() {
-  return getContractsSdkFilepath('consts');
+  return path.join('../sdk/src/consts/environments');
 }
 
 export function getEnvironmentDirectory(environment: DeployEnvironment) {

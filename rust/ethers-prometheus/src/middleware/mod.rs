@@ -1,6 +1,7 @@
 //! A middleware layer which collects metrics about operations made with a
 //! provider.
 
+use std::clone::Clone;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
@@ -9,6 +10,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use derive_builder::Builder;
+use ethers::abi::AbiEncode;
 use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::utils::hex::ToHex;
@@ -105,6 +107,34 @@ pub const CONTRACT_CALL_COUNT_LABELS: &[&str] = &[
 /// Help string for the metric.
 pub const CONTRACT_CALL_COUNT_HELP: &str = "Contract invocations by contract and function";
 
+/// Expected label names for the `log_query_duration_seconds` metric.
+pub const LOGS_QUERY_DURATION_SECONDS_LABELS: &[&str] = &[
+    "chain",
+    "contract_name",
+    "address",
+    "topic0",
+    "topic1",
+    "topic2",
+    "topic3",
+];
+
+/// Help string for the metric.
+pub const LOGS_QUERY_DURATION_SECONDS_HELP: &str = "Log query durations by address and topic.";
+
+/// Expected label names for the `log_query_count` metric.
+pub const LOGS_QUERY_COUNT_LABELS: &[&str] = &[
+    "chain",
+    "contract_name",
+    "address",
+    "topic0",
+    "topic1",
+    "topic2",
+    "topic3",
+];
+
+/// Help string for the metric.
+pub const LOG_QUERY_COUNT_HELP: &str = "Discrete number of log queries by address and topic.";
+
 /// Expected label names for the `transaction_send_duration_seconds` metric.
 pub const TRANSACTION_SEND_DURATION_SECONDS_LABELS: &[&str] = &["chain", "address_from"];
 /// Help string for the metric.
@@ -164,6 +194,30 @@ pub struct MiddlewareMetrics {
     /// - `function_selector`: contract function hash (hex).
     #[builder(setter(into, strip_option), default)]
     contract_call_count: Option<IntCounterVec>,
+
+    /// Log query durations by address and topic.
+    /// - `chain`: the chain name (or chain ID if the name is unknown) of the
+    ///   chain the logs were queried on.
+    /// - `contract_name`: name of the address if it is a known contract.
+    /// - `address`: address being filtered for log events (hex).
+    /// - `topic0`: topic 0 being filtered for; empty if not specified (hex).
+    /// - `topic1`: topic 1 being filtered for; empty if not specified (hex).
+    /// - `topic2`: topic 2 being filtered for; empty if not specified (hex).
+    /// - `topic3`: topic 3 being filtered for; empty if not specified (hex).
+    #[builder(setter(into, strip_option), default)]
+    logs_query_duration_seconds: Option<CounterVec>,
+
+    /// Discrete number of log queries by address and topic.
+    /// - `chain`: the chain name (or chain ID if the name is unknown) of the
+    ///   chain the logs were queried on.
+    /// - `contract_name`: name of the address if it is a known contract.
+    /// - `address`: address being filtered for log events (hex).
+    /// - `topic0`: topic 0 being filtered for; empty if not specified (hex).
+    /// - `topic1`: topic 1 being filtered for; empty if not specified (hex).
+    /// - `topic2`: topic 2 being filtered for; empty if not specified (hex).
+    /// - `topic3`: topic 3 being filtered for; empty if not specified (hex).
+    #[builder(setter(into, strip_option), default)]
+    logs_query_count: Option<IntCounterVec>,
 
     /// Time taken to submit the transaction (not counting time for it to be
     /// included).
@@ -361,6 +415,91 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
 
         Ok(result?)
     }
+
+    async fn get_logs(&self, filter: &Filter) -> Result<Vec<Log>, Self::Error> {
+        let start = Instant::now();
+        let result = self.inner.get_logs(filter).await;
+        if self.metrics.logs_query_duration_seconds.is_some()
+            || self.metrics.logs_query_count.is_some()
+        {
+            let data = self.conf.read().await;
+            let lookup_name = |addr: &Address| -> String {
+                data.contracts
+                    .get(addr)
+                    .and_then(|c| c.name.as_deref())
+                    .unwrap_or("unknown")
+                    .to_owned()
+            };
+            let to_csv_str = |mut acc: String, i: String| {
+                acc.push(',');
+                acc += &i;
+                acc
+            };
+            let chain = chain_name(&data.chain);
+            let (address, contract_name) = filter
+                .address
+                .as_ref()
+                .map(|addr| match addr {
+                    ValueOrArray::Value(v) => {
+                        let name = lookup_name(v);
+                        let addr = v.encode_hex();
+                        (addr, name)
+                    }
+                    ValueOrArray::Array(a) => {
+                        let addrs = a
+                            .iter()
+                            .map(ToHex::encode_hex::<String>)
+                            .reduce(to_csv_str)
+                            .expect("Array is empty");
+                        let names = a
+                            .iter()
+                            .map(|i| lookup_name(i))
+                            .reduce(to_csv_str)
+                            .expect("Array is empty");
+                        (addrs, names)
+                    }
+                })
+                .unwrap_or_else(|| ("*".to_owned(), "unknown".to_owned()));
+            let topic_name = |v: &Option<H256>| -> String {
+                v.map(|h| h.encode_hex()).unwrap_or_else(|| "*".to_owned())
+            };
+            let topic_str = |n: usize| -> String {
+                filter.topics[n]
+                    .as_ref()
+                    .map(|t| match t {
+                        Topic::Value(v) => topic_name(v),
+                        Topic::Array(a) => a
+                            .iter()
+                            .map(topic_name)
+                            .reduce(to_csv_str)
+                            .expect("Array is empty"),
+                    })
+                    .unwrap_or_else(|| "*".to_owned())
+            };
+            let topic0 = topic_str(0);
+            let topic1 = topic_str(1);
+            let topic2 = topic_str(2);
+            let topic3 = topic_str(3);
+            let labels = hashmap! {
+                "chain" => chain,
+                "contract_name" => &contract_name,
+                "address" => &address,
+                "topic0" => &topic0,
+                "topic1" => &topic1,
+                "topic2" => &topic2,
+                "topic3" => &topic3
+            };
+            if let Some(m) = &self.metrics.logs_query_count {
+                m.with(&labels).inc();
+            }
+            if let Some(m) = &self.metrics.logs_query_duration_seconds {
+                m.with(&labels)
+                    .inc_by((Instant::now() - start).as_secs_f64());
+            }
+        }
+
+        Ok(result?)
+    }
 }
 
 impl<M> PrometheusMiddleware<M> {
@@ -451,7 +590,7 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
                 Self::update_block_details(&*client, chain, block_height, gas_price_gwei).await;
             }
             if let Some(wallet_balance) = wallet_balance {
-                Self::update_wallet_balances(client.clone(), &*data, chain, wallet_balance).await;
+                Self::update_wallet_balances(client.clone(), &data, chain, wallet_balance).await;
             }
 
             // more metrics to come...

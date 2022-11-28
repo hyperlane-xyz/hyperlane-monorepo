@@ -40,21 +40,20 @@ where
                 .map_or_else(|| config_from, |b| b + 1);
 
             info!(from = from, "[GasPayments]: resuming indexer from {from}");
+            indexed_height.set(from as i64);
 
             loop {
-                indexed_height.set(from.into());
+                sleep(Duration::from_secs(5)).await;
 
                 // Only index blocks considered final.
                 // If there's an error getting the block number, just start the loop over
-                let tip = if let Ok(num) = indexer.get_finalized_block_number().await {
-                    num
-                } else {
+                let Ok(tip) = indexer.get_finalized_block_number().await else {
                     continue;
                 };
                 if tip <= from {
-                    debug!(tip=?tip, from=?from, "[GasPayments]: caught up to tip, waiting for new block");
                     // Sleep if caught up to tip
-                    sleep(Duration::from_secs(1)).await;
+                    debug!(tip=?tip, from=?from, "[GasPayments]: caught up to tip, waiting for new block");
+                    sleep(Duration::from_secs(10)).await;
                     continue;
                 }
 
@@ -85,6 +84,7 @@ where
 
                 db.store_latest_indexed_gas_payment_block(to)?;
                 from = to + 1;
+                indexed_height.set(to as i64);
             }
         })
         .instrument(span)

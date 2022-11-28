@@ -12,8 +12,9 @@ use eyre::{eyre, Result};
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusAbi, AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint, ContractLocator,
-    Indexer, LogMeta, Mailbox, MailboxIndexer, RawAbacusMessage, TxCostEstimate, TxOutcome,
+    AbacusAbi, AbacusChain, AbacusContract, AbacusMessage, ChainCommunicationError, Checkpoint,
+    ContractLocator, Indexer, LogMeta, Mailbox, MailboxIndexer, RawAbacusMessage, TxCostEstimate,
+    TxOutcome,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
@@ -25,7 +26,7 @@ where
     M: Middleware,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -33,10 +34,11 @@ pub struct MailboxIndexerBuilder {
     pub finality_blocks: u32,
 }
 
+#[async_trait]
 impl MakeableWithProvider for MailboxIndexerBuilder {
     type Output = Box<dyn MailboxIndexer>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -83,7 +85,7 @@ impl<M> Indexer for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, skip(self))]
+    #[instrument(err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> Result<u32> {
         Ok(self
             .provider
@@ -119,14 +121,29 @@ where
         events.sort_by(|a, b| a.0.nonce.cmp(&b.0.nonce));
         Ok(events)
     }
+
+    #[instrument(err, skip(self))]
+    async fn fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>> {
+        Ok(self
+            .contract
+            .process_filter()
+            .from_block(from)
+            .to_block(to)
+            .query_with_meta()
+            .await?
+            .into_iter()
+            .map(|(event, meta)| (H256::from(event.message_id), meta.into()))
+            .collect())
+    }
 }
 
 pub struct MailboxBuilder {}
 
+#[async_trait]
 impl MakeableWithProvider for MailboxBuilder {
     type Output = Box<dyn Mailbox>;
 
-    fn make_with_provider<M: Middleware + 'static>(
+    async fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -187,7 +204,7 @@ where
     }
 }
 
-impl<M> AbacusContract for EthereumMailbox<M>
+impl<M> AbacusChain for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
@@ -195,6 +212,15 @@ where
         &self.chain_name
     }
 
+    fn domain(&self) -> u32 {
+        self.domain
+    }
+}
+
+impl<M> AbacusContract for EthereumMailbox<M>
+where
+    M: Middleware + 'static,
+{
     fn address(&self) -> H256 {
         self.contract.address().into()
     }
@@ -205,12 +231,17 @@ impl<M> Mailbox for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
-    #[tracing::instrument(err, skip(self))]
+    #[instrument(err, ret, skip(self))]
     async fn count(&self) -> Result<u32, ChainCommunicationError> {
         Ok(self.contract.count().call().await?)
     }
 
-    #[tracing::instrument(err, skip(self))]
+    #[instrument(err, ret)]
+    async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
+        Ok(self.contract.delivered(id.into()).call().await?)
+    }
+
+    #[instrument(err, ret, skip(self))]
     async fn latest_checkpoint(
         &self,
         maybe_lag: Option<u64>,
@@ -237,21 +268,12 @@ where
         })
     }
 
-    fn local_domain(&self) -> u32 {
-        self.domain
-    }
-
-    #[tracing::instrument(err, skip(self))]
+    #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
         Ok(self.contract.default_ism().call().await?.into())
     }
 
-    #[tracing::instrument(err)]
-    async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
-        Ok(self.contract.delivered(id.into()).call().await?)
-    }
-
-    #[tracing::instrument(skip(self))]
+    #[instrument(err, ret, skip(self))]
     async fn process(
         &self,
         message: &AbacusMessage,
@@ -265,6 +287,7 @@ where
         Ok(receipt.into())
     }
 
+    #[instrument(err, ret, skip(self))]
     async fn process_estimate_costs(
         &self,
         message: &AbacusMessage,
