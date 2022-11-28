@@ -1,0 +1,26 @@
+{
+  "bsc": {
+    "router": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E"
+  },
+  "avalanche": {
+    "router": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E"
+  },
+  "polygon": {
+    "router": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E"
+  },
+  "celo": {
+    "router": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E"
+  },
+  "arbitrum": {
+    "router": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E"
+  },
+  "optimism": {
+    "router": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E"
+  },
+  "ethereum": {
+    "router": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E"
+  },
+  "moonbeam": {
+    "router": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E"
+  }
+}

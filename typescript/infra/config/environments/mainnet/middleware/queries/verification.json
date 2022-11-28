@@ -1,0 +1,66 @@
+{
+  "bsc": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "avalanche": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "polygon": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "celo": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "arbitrum": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "optimism": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "ethereum": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "moonbeam": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ]
+}

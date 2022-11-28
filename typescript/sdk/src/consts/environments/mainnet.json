@@ -80,8 +80,8 @@
       "beacon": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908"
     },
     "outboxValidatorManager": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "bsc": {
@@ -165,8 +165,8 @@
       "beacon": "0x0D63128D887159d63De29497dfa45AFc7C699AE4"
     },
     "outboxValidatorManager": "0xBF12ef4B9f307463D3FB59c3604F294dDCe287E2",
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "polygon": {
@@ -250,8 +250,8 @@
       "beacon": "0xe042D1fbDf59828dd16b9649Ede7abFc856F7a6c"
     },
     "outboxValidatorManager": "0xFC62DeF1f08793aBf0E67f69257c6be258194F72",
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "celo": {
@@ -335,8 +335,8 @@
       "beacon": "0x17E216fBb22dF4ef8A6640ae9Cb147C92710ac84"
     },
     "outboxValidatorManager": "0x1Ab68dC4f7b6cfcd00218D4b761b7F3b5a724555",
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "arbitrum": {
@@ -420,8 +420,8 @@
       "beacon": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908"
     },
     "outboxValidatorManager": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "optimism": {
@@ -505,8 +505,8 @@
       "beacon": "0x182E8d7c5F1B06201b102123FC7dF0EaeB445a7B"
     },
     "outboxValidatorManager": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a",
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "ethereum": {
@@ -590,8 +590,8 @@
       "beacon": "0x7f50C5776722630a0024fAE05fDe8b47571D7B39"
     },
     "outboxValidatorManager": "0x3a464f746D23Ab22155710f44dB16dcA53e0775E",
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "moonbeam": {
@@ -675,8 +675,8 @@
       "beacon": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7"
     },
     "outboxValidatorManager": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   }
 }
