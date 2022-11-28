@@ -138,6 +138,18 @@ async function checkMessage(
       'Calling recipient `handle` function from the inbox does not revert',
     );
   } catch (err: any) {
+    const data = (
+      await recipient.populateTransaction.handle(
+        message.parsed.origin,
+        message.parsed.sender,
+        message.parsed.body,
+      )
+    ).data;
+    console.log('Simulated call', {
+      from: destinationInbox.address,
+      to: recipient.address,
+      data,
+    });
     console.error(`Error calling recipient \`handle\` function from the inbox`);
     if (err.reason) {
       console.error('Reason: ', err.reason);
