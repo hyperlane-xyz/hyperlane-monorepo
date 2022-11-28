@@ -3,7 +3,7 @@ name: node
 on:
   # Triggers the workflow on push or pull request events but only for the main and v2 branches
   push:
-    branches: [main, v2]
+    branches: [main, v2, v2-2]
   pull_request:
     branches: [main, v2]
 
