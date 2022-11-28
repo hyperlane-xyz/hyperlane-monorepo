@@ -110,6 +110,21 @@ describe('Router', async () => {
       expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
     });
 
+    it('owner can enroll remote router using batch function', async () => {
+      const remote = nonOwner.address;
+      const remoteBytes = utils.addressToBytes32(nonOwner.address);
+      expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(false);
+      await expect(router.mustHaveRemoteRouter(origin)).to.be.revertedWith(
+        `No router enrolled for domain. Did you specify the right domain ID?`,
+      );
+      await router.enrollRemoteRouters(
+        [origin],
+        [utils.addressToBytes32(remote)],
+      );
+      expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(true);
+      expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
+    });
+
     it('non-owner cannot enroll remote router', async () => {
       await expect(
         router
