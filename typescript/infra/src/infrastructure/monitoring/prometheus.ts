@@ -78,7 +78,7 @@ async function getPrometheusConfig(
             {
               action: 'keep',
               regex:
-                '(container.*|optics.*|Optics.*|prometheus.*|ethereum.*|abacus.*|kube_pod_status_phase|kube_pod_container_status_restarts_total)',
+                '(container.*|optics.*|Optics.*|prometheus.*|ethereum.*|hyperlane.*|kube_pod_status_phase|kube_pod_container_status_restarts_total)',
               source_labels: ['__name__'],
             },
           ],
@@ -94,6 +94,8 @@ async function getPrometheusConfig(
 // Fetches a secret from GCP Secret Manager. The secret is expected to
 // be JSON with the shape of `PrometheusSecrets`.
 async function fetchPrometheusSecrets(): Promise<PrometheusSecrets> {
-  const secrets = await fetchGCPSecret('abacus-prometheus-remote_write_config');
+  const secrets = await fetchGCPSecret(
+    'hyperlane-prometheus-remote_write_config',
+  );
   return secrets as PrometheusSecrets;
 }

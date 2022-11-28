@@ -15,7 +15,7 @@ async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider(
-    Contexts.Abacus,
+    Contexts.Hyperlane,
     KEY_ROLE_ENUM.Create2Deployer,
   );
 

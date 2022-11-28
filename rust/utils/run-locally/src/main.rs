@@ -1,4 +1,4 @@
-//! Run this from the abacus-monorepo/rust directory using `cargo run -r -p run-locally`.
+//! Run this from the hyperlane-monorepo/rust directory using `cargo run -r -p run-locally`.
 //!
 //! Environment arguments:
 //! - `E2E_CI_MODE`: true/false, enables CI mode which will automatically wait for kathy to finish
@@ -118,7 +118,7 @@ fn main() -> ExitCode {
         .unwrap()
         .as_secs()
         .to_string();
-    let log_dir = concat_path(env::temp_dir(), format!("logs/abacus-agents/{date_str}"));
+    let log_dir = concat_path(env::temp_dir(), format!("logs/hyperlane-agents/{date_str}"));
     if !log_all {
         fs::create_dir_all(&log_dir).expect("Failed to make log dir");
     }
@@ -241,9 +241,9 @@ fn main() -> ExitCode {
 
     sleep(Duration::from_secs(10));
 
-    println!("Deploying abacus contracts...");
+    println!("Deploying hyperlane contracts...");
     let status = Command::new("yarn")
-        .arg("abacus")
+        .arg("hyperlane")
         .current_dir("../typescript/infra")
         .stdout(Stdio::null())
         .status()
@@ -318,7 +318,7 @@ fn main() -> ExitCode {
     println!("Setup complete! Agents running in background...");
     println!("Ctrl+C to end execution...");
 
-    println!("Spawning Kathy to send Abacus message traffic...");
+    println!("Spawning Kathy to send Hyperlane message traffic...");
     let mut kathy = Command::new("yarn");
     kathy.arg("kathy");
     if let Some(r) = kathy_rounds {
@@ -389,7 +389,7 @@ fn retry_queues_empty() -> bool {
         .into_string()
         .unwrap()
         .lines()
-        .filter(|l| l.starts_with("abacus_submitter_queue_length"))
+        .filter(|l| l.starts_with("hyperlane_submitter_queue_length"))
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
         .collect();
     assert!(!lengths.is_empty(), "Could not find queue length metric");
@@ -420,7 +420,7 @@ fn prefix_log(output: impl Read, name: &'static str) {
 
 /// Assert invariants for state upon successful test termination.
 fn assert_termination_invariants(num_expected_messages_processed: u32) {
-    // The value of `abacus_last_known_message_nonce{phase=message_processed}` should refer
+    // The value of `hyperlane_last_known_message_nonce{phase=message_processed}` should refer
     // to the maximum nonce value we ever successfully delivered. Since deliveries can happen
     // out-of-index-order, we separately track a counter of the number of successfully delivered
     // messages. At the end of this test, they should both hold the same value.
@@ -431,7 +431,7 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
         .unwrap()
         .lines()
         .filter(|l| l.contains(r#"phase="message_processed""#))
-        .filter(|l| l.starts_with("abacus_last_known_message_nonce"))
+        .filter(|l| l.starts_with("hyperlane_last_known_message_nonce"))
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
         .collect();
     assert!(
@@ -454,7 +454,7 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
         .into_string()
         .unwrap()
         .lines()
-        .filter(|l| l.starts_with("abacus_messages_processed_count"))
+        .filter(|l| l.starts_with("hyperlane_messages_processed_count"))
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
         .collect();
     assert!(
@@ -472,7 +472,7 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
         .into_string()
         .unwrap()
         .lines()
-        .filter(|l| l.starts_with("abacus_contract_sync_stored_events"))
+        .filter(|l| l.starts_with("hyperlane_contract_sync_stored_events"))
         .filter(|l| l.contains(r#"data_type="gas_payments""#))
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
         .next()

@@ -16,7 +16,7 @@ async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
 
-  const agentConfig = await getContextAgentConfig(config, 'abacus');
+  const agentConfig = await getContextAgentConfig(config, 'hyperlane');
 
   const validators = Object.entries(agentConfig.validatorSets).flatMap(
     ([chain, set]) => set.validators.map((validator) => ({ chain, validator })),
