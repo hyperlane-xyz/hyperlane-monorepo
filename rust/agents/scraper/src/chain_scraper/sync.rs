@@ -119,7 +119,7 @@ impl Syncer {
 
             let to = min(tip, self.from + self.chunk_size);
             let full_chunk_from = to.checked_sub(self.chunk_size).unwrap_or_default();
-            debug_assert_eq!(self.local.mailbox.local_domain(), self.local_domain());
+            debug_assert_eq!(self.contracts.mailbox.domain(), self.domain());
             let (sorted_messages, deliveries) = self.scrape_range(full_chunk_from, to).await?;
 
             let validation = validate_message_continuity(
@@ -131,11 +131,10 @@ impl Syncer {
             );
             match validation {
                 ListValidity::Valid => {
-                    let max_leaf_index_of_batch =
-                        self.record_data(sorted_messages, deliveries).await?;
+                    let max_nonce_of_batch = self.record_data(sorted_messages, deliveries).await?;
 
                     self.cursor.update(full_chunk_from as u64).await;
-                    if let Some(idx) = max_leaf_index_of_batch {
+                    if let Some(idx) = max_nonce_of_batch {
                         self.last_nonce = idx;
                     }
                     self.last_valid_range_start_block = full_chunk_from;
@@ -165,7 +164,7 @@ impl Syncer {
                 ListValidity::ContainsGaps => {
                     self.missed_messages.inc();
                     warn!(
-                        last_leaf_index = self.last_nonce,
+                        last_nonce = self.last_nonce,
                         start_block = self.from,
                         end_block = to,
                         last_valid_range_start_block = self.last_valid_range_start_block,
@@ -183,19 +182,19 @@ impl Syncer {
         from: u32,
         to: u32,
     ) -> Result<(Vec<AbacusMessageWithMeta>, Vec<Delivery>)> {
-        let sorted_messages = self.local.indexer.fetch_sorted_messages(from, to).await?;
+        let sorted_messages = self
+            .contracts
+            .indexer
+            .fetch_sorted_messages(from, to)
+            .await?;
 
         let deliveries = self
-            .local
+            .contracts
             .indexer
             .fetch_delivered_messages(from, to)
             .await?
             .into_iter()
-            .map(|(message_id, meta)| Delivery {
-                destination_mailbox: self.local.mailbox.address(),
-                message_id,
-                meta,
-            })
+            .map(|(message_id, meta)| Delivery { message_id, meta })
             .collect_vec();
 
         info!(
@@ -223,7 +222,7 @@ impl Syncer {
     }
 
     /// Record messages and deliveries, will fetch any extra data needed to do
-    /// so. Returns the max leaf index or None if no messages were provided.
+    /// so. Returns the max nonce or None if no messages were provided.
     #[instrument(
         skip_all,
         fields(sorted_messages = sorted_messages.len(), deliveries = deliveries.len())

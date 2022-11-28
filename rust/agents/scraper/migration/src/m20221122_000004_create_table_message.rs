@@ -1,6 +1,6 @@
-use crate::l20220805_types::*;
-use crate::m20220805_000001_create_table_domain::Domain;
-use crate::m20220805_000003_create_table_transaction::Transaction;
+use crate::l20221122_types::*;
+use crate::m20221122_000001_create_table_domain::Domain;
+use crate::m20221122_000003_create_table_transaction::Transaction;
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
@@ -28,17 +28,17 @@ impl MigrationTrait for Migration {
                             .default("NOW()"),
                     )
                     .col(
-                        ColumnDef::new_with_type(Message::Hash, Hash)
+                        ColumnDef::new_with_type(Message::MsgId, Hash)
                             .not_null()
                             .unique_key(),
                     )
                     .col(ColumnDef::new(Message::Origin).unsigned().not_null())
                     .col(ColumnDef::new(Message::Destination).unsigned().not_null())
-                    .col(ColumnDef::new(Message::LeafIndex).unsigned().not_null())
+                    .col(ColumnDef::new(Message::Nonce).unsigned().not_null())
                     .col(ColumnDef::new_with_type(Message::Sender, Address).not_null())
                     .col(ColumnDef::new_with_type(Message::Recipient, Address).not_null())
                     .col(ColumnDef::new(Message::MsgBody).binary())
-                    .col(ColumnDef::new_with_type(Message::OutboxAddress, Address).not_null())
+                    .col(ColumnDef::new_with_type(Message::OriginMailbox, Address).not_null())
                     .col(ColumnDef::new(Message::Timestamp).timestamp().not_null())
                     .col(ColumnDef::new(Message::OriginTxId).big_integer().not_null())
                     .foreign_key(
@@ -54,9 +54,9 @@ impl MigrationTrait for Migration {
                     .index(
                         Index::create()
                             .unique()
-                            .col(Message::OutboxAddress)
+                            .col(Message::OriginMailbox)
                             .col(Message::Origin)
-                            .col(Message::LeafIndex),
+                            .col(Message::Nonce),
                     )
                     .to_owned(),
             )
@@ -99,6 +99,16 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(Message::Table)
+                    .name("message_msg_id_idx")
+                    .col(Message::MsgId)
+                    .index_type(IndexType::Hash)
+                    .to_owned(),
+            )
+            .await?;
 
         Ok(())
     }
@@ -118,14 +128,14 @@ pub enum Message {
     Id,
     /// Time of record creation
     TimeCreated,
-    /// Message hash
-    Hash,
+    /// Unique id of the message on the blockchain
+    MsgId,
     /// Domain ID of the origin chain
     Origin,
     /// Domain ID of the destination chain
     Destination,
-    /// Leaf index of this message in the merkle tree of the outbox
-    LeafIndex,
+    /// Nonce of this message in the merkle tree of the outbox
+    Nonce,
     /// Address of the message sender on the origin chain (not necessarily the
     /// transaction signer)
     Sender,
@@ -133,8 +143,8 @@ pub enum Message {
     Recipient,
     /// Binary blob included in the message.
     MsgBody,
-    /// Address of the outbox contract
-    OutboxAddress,
+    /// Address of the mailbox contract which sent the message.
+    OriginMailbox,
     /// timestamp on block that includes the origin transaction (saves a double
     /// join)
     Timestamp,

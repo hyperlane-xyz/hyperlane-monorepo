@@ -80,7 +80,7 @@ use super::SubmitMessageArgs;
 ///     a submission attempt just prior to an old incarnation of this task crashing.
 ///  *  Not whitelisted (currently checked by processor)
 ///  *  Wrong destination chain (currently checked by processor)
-///  *  Checkpoint index < leaf index (currently checked by processor)
+///  *  Checkpoint index < nonce (currently checked by processor)
 ///
 /// Therefore, we maintain two queues of messages:
 ///
@@ -190,7 +190,7 @@ impl SerialSubmitter {
         // queue for further processing.
 
         // Promote any newly-ready messages from the wait queue to the run queue.
-        // The order of wait_messages, which includes messages asc ordered by leaf index,
+        // The order of wait_messages, which includes messages asc ordered by nonce,
         // is preserved and pushed at the front of the run_queue to ensure that new messages
         // are evaluated first.
         for msg in self.wait_queue.drain(..).rev() {

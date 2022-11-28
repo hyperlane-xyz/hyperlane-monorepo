@@ -67,8 +67,7 @@ impl GelatoSubmitter {
             .unwrap();
         Self {
             message_receiver,
-            destination_gelato_chain: abacus_domain_id_to_gelato_chain(mailbox.local_domain())
-                .unwrap(),
+            destination_gelato_chain: abacus_domain_id_to_gelato_chain(mailbox.domain()).unwrap(),
             mailbox,
             multisig_ism,
             db: abacus_db,
@@ -95,7 +94,7 @@ impl GelatoSubmitter {
 
     async fn tick(&mut self) -> Result<()> {
         // Pull any messages sent by processor over channel and push
-        // them into the `received_messages` in asc order by message leaf index.
+        // them into the `received_messages` in asc order by message nonce.
         let mut received_messages = Vec::new();
         loop {
             match self.message_receiver.try_recv() {

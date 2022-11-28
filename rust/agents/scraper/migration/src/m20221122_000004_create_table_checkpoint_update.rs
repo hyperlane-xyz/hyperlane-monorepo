@@ -1,8 +1,8 @@
 use sea_orm_migration::prelude::*;
 
-use crate::m20220805_000001_create_type_enum_checkpoint_update::CheckpointUpdateType;
-use crate::m20220805_000003_create_table_checkpoint::Checkpoint;
-use crate::m20220805_000003_create_table_transaction::Transaction;
+use crate::m20221122_000001_create_type_enum_checkpoint_update::CheckpointUpdateType;
+use crate::m20221122_000003_create_table_checkpoint::Checkpoint;
+use crate::m20221122_000003_create_table_transaction::Transaction;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

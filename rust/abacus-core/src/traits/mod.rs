@@ -90,7 +90,7 @@ pub trait AbacusChain {
     fn chain_name(&self) -> &str;
 
     /// Return the domain ID
-    fn local_domain(&self) -> u32;
+    fn domain(&self) -> u32;
 }
 
 /// Interface for a deployed contract.

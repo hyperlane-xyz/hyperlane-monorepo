@@ -1,8 +1,8 @@
 use sea_orm_migration::prelude::*;
 
-use crate::l20220805_types::*;
-use crate::m20220805_000001_create_table_domain::Domain;
-use crate::m20220805_000003_create_table_transaction::Transaction;
+use crate::l20221122_types::*;
+use crate::m20221122_000001_create_table_domain::Domain;
+use crate::m20221122_000003_create_table_transaction::Transaction;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -29,8 +29,7 @@ impl MigrationTrait for Migration {
                             .default("NOW()"),
                     )
                     .col(ColumnDef::new(GasPayment::Domain).unsigned().not_null())
-                    .col(ColumnDef::new(GasPayment::LeafIndex).unsigned().not_null())
-                    .col(ColumnDef::new_with_type(GasPayment::OutboxAddress, Address).not_null())
+                    .col(ColumnDef::new_with_type(GasPayment::MsgId, Hash).not_null())
                     .col(ColumnDef::new_with_type(GasPayment::Amount, CryptoCurrency).not_null())
                     .col(ColumnDef::new(GasPayment::TxId).big_integer().not_null())
                     .foreign_key(
@@ -50,10 +49,9 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(GasPayment::Table)
-                    .name("gas_payment_domain_outbox_leaf_idx")
-                    .col(GasPayment::Domain)
-                    .col(GasPayment::OutboxAddress)
-                    .col(GasPayment::LeafIndex)
+                    .name("gas_payment_msg_id_idx")
+                    .col(GasPayment::MsgId)
+                    .index_type(IndexType::Hash)
                     .to_owned(),
             )
             .await
@@ -77,10 +75,8 @@ pub enum GasPayment {
     /// Domain ID of the chain the payment was made on; technically duplicating
     /// Tx -> Block -> Domain but this will be used a lot for lookups.
     Domain,
-    /// Message leaf index the payment was for
-    LeafIndex,
-    /// Address of the outbox contract
-    OutboxAddress,
+    /// Unique id of the message on the blockchain which was paid for
+    MsgId,
     /// How much was paid
     Amount,
     /// Transaction the payment was made in

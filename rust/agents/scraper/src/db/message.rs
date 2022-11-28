@@ -16,7 +16,6 @@ use super::generated::{delivered_message, message};
 
 #[derive(Debug, Clone)]
 pub struct StorableDelivery<'a> {
-    pub destination_mailbox: H256,
     pub message_id: H256,
     pub meta: &'a LogMeta,
     /// The database id of the transaction the delivery event occurred in
@@ -56,13 +55,16 @@ impl ScraperDb {
             .map(|idx| idx as u32))
     }
 
-    /// Store deliveries from an inbox into the database (or update an existing one).
+    /// Store deliveries from an inbox into the database (or update an existing
+    /// one).
     #[instrument(skip_all)]
     pub async fn store_deliveries(
         &self,
         domain: u32,
+        destination_mailbox: H256,
         deliveries: impl Iterator<Item = StorableDelivery<'_>>,
     ) -> Result<()> {
+        let destination_mailbox = format_h256(&destination_mailbox);
         // we have a race condition where a message may not have been scraped yet even
         // though we have received news of delivery on this chain, so the
         // message IDs are looked up in a separate "thread".
@@ -70,9 +72,9 @@ impl ScraperDb {
             .map(|delivery| delivered_message::ActiveModel {
                 id: NotSet,
                 time_created: Set(date_time::now()),
-                message_id: Unchanged(format_h256(&delivery.message_id)),
+                msg_id: Unchanged(format_h256(&delivery.message_id)),
                 domain: Unchanged(domain as i32),
-                destination_mailbox: Unchanged(format_h256(&delivery.destination_mailbox)),
+                destination_mailbox: Unchanged(destination_mailbox.clone()),
                 tx_id: Set(delivery.txn_id),
             })
             .collect::<Vec<_>>();
@@ -82,7 +84,7 @@ impl ScraperDb {
 
         Insert::many(models)
             .on_conflict(
-                OnConflict::columns([delivered_message::Column::MessageId])
+                OnConflict::columns([delivered_message::Column::MsgId])
                     .update_columns([
                         delivered_message::Column::TimeCreated,
                         delivered_message::Column::TxId,
@@ -94,7 +96,8 @@ impl ScraperDb {
         Ok(())
     }
 
-    /// Store messages from an outbox into the database (or update an existing one).
+    /// Store messages from an outbox into the database (or update an existing
+    /// one).
     #[instrument(skip_all)]
     pub async fn store_messages(
         &self,
@@ -105,8 +108,8 @@ impl ScraperDb {
             .map(|storable| {
                 Ok(message::ActiveModel {
                     id: NotSet,
-                    time_created: Set(crate::date_time::now()),
-                    message_id: Unchanged(format_h256(&storable.msg.id())),
+                    time_created: Set(date_time::now()),
+                    msg_id: Unchanged(format_h256(&storable.msg.id())),
                     origin: Unchanged(storable.msg.origin as i32),
                     destination: Set(storable.msg.destination as i32),
                     nonce: Unchanged(storable.msg.nonce as i32),

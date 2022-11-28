@@ -1,7 +1,7 @@
 use sea_orm_migration::prelude::*;
 
-use crate::l20220805_types::*;
-use crate::m20220805_000004_create_table_message::Message;
+use crate::l20221122_types::*;
+use crate::m20221122_000004_create_table_message::Message;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

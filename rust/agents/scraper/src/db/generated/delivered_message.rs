@@ -15,7 +15,7 @@ impl EntityName for Entity {
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
-    pub message_id: String,
+    pub msg_id: String,
     pub domain: i32,
     pub destination_mailbox: String,
     pub tx_id: i64,
@@ -25,7 +25,7 @@ pub struct Model {
 pub enum Column {
     Id,
     TimeCreated,
-    MessageId,
+    MsgId,
     Domain,
     DestinationMailbox,
     TxId,
@@ -55,7 +55,7 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
-            Self::MessageId => ColumnType::String(Some(64u32)).def().unique(),
+            Self::MsgId => ColumnType::String(Some(64u32)).def().unique(),
             Self::Domain => ColumnType::Integer.def(),
             Self::DestinationMailbox => ColumnType::String(Some(64u32)).def(),
             Self::TxId => ColumnType::BigInteger.def(),

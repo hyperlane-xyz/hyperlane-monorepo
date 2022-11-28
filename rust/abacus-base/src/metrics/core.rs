@@ -18,8 +18,6 @@ use ethers_prometheus::middleware::MiddlewareMetrics;
 use crate::metrics::json_rpc_client::create_json_rpc_client_metrics;
 use crate::metrics::provider::create_provider_metrics;
 
-use super::NAMESPACE;
-
 /// Recommended default histogram buckets for network communication.
 pub const NETWORK_HISTOGRAM_BUCKETS: &[f64] = &[0.005, 0.01, 0.05, 0.1, 0.5, 1., 5., 10.];
 /// Recommended default histogram buckets for internal process logic.
@@ -29,7 +27,7 @@ pub const PROCESS_HISTOGRAM_BUCKETS: &[f64] = &[
 /// Macro to prefix a string with the namespace.
 macro_rules! namespaced {
     ($name:expr) => {
-        format!("{NAMESPACE}_{}", $name)
+        format!("{}_{}", super::NAMESPACE, $name)
     };
 }
 
@@ -106,7 +104,7 @@ impl CoreMetrics {
         let last_known_message_nonce = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("last_known_message_nonce"),
-                "Last known message leaf index",
+                "Last known message nonce",
                 const_labels_ref
             ),
             &["phase", "origin", "remote"],
@@ -292,28 +290,28 @@ impl CoreMetrics {
         )?)
     }
 
-    /// Reports the current highest message leaf index at multiple phases of the
+    /// Reports the current highest message nonce at multiple phases of the
     /// relaying process. There may be messages that have not reached a certain
-    /// stage, such as being fully processed, even if the reported index is
-    /// higher than that message's index.
+    /// stage, such as being fully processed, even if the reported nonce is
+    /// higher than that message's nonce.
     ///
     /// Some phases are not able to report the remote chain, but origin chain is
     /// always reported.
     ///
     /// Labels:
-    /// - `phase`: The phase the leaf index is being tracked at, see below.
+    /// - `phase`: The phase the nonce is being tracked at, see below.
     /// - `origin`: Origin chain the message comes from.
     /// - `remote`: Remote chain for the message. This will skip values because
-    ///   the indexes are contiguous by origin not remote.
+    ///   the nonces are contiguous by origin not remote.
     ///
     /// The following phases are implemented:
-    /// - `dispatch`: Highest leaf index which has been indexed on the outbox
+    /// - `dispatch`: Highest nonce which has been indexed on the outbox
     ///   contract syncer and stored in the relayer DB.
-    /// - `signed_offchain_checkpoint`: Highest leaf index of a checkpoint which
-    ///   is known to have been signed by a quorum of validators.
-    /// - `processor_loop`: Highest leaf index which the MessageProcessor loop
-    ///   has gotten to but not attempted to send it.
-    /// - `message_processed`: When a leaf index was processed as part of the
+    /// - `signed_offchain_checkpoint`: Highest nonce of a checkpoint which is
+    ///   known to have been signed by a quorum of validators.
+    /// - `processor_loop`: Highest nonce which the MessageProcessor loop has
+    ///   gotten to but not attempted to send it.
+    /// - `message_processed`: When a nonce was processed as part of the
     ///   MessageProcessor loop.
     pub fn last_known_message_nonce(&self) -> IntGaugeVec {
         self.last_known_message_nonce.clone()
@@ -337,7 +335,7 @@ impl CoreMetrics {
         self.outbox_state.clone()
     }
 
-    /// Latest message leaf index in the validator.
+    /// Latest message nonce in the validator.
     ///
     /// Phase:
     /// - `validator_observed`: When the validator has observed the checkpoint
@@ -374,7 +372,7 @@ impl CoreMetrics {
     ///
     /// The value of
     /// `abacus_last_known_message_nonce{phase=message_processed}`
-    /// should refer to the maximum leaf index value we ever successfully
+    /// should refer to the maximum nonce value we ever successfully
     /// delivered. Since deliveries can happen out-of-index-order, we
     /// separately track this counter referring to the number of successfully
     /// delivered messages.

@@ -420,8 +420,8 @@ fn prefix_log(output: impl Read, name: &'static str) {
 
 /// Assert invariants for state upon successful test termination.
 fn assert_termination_invariants(num_expected_messages_processed: u32) {
-    // The value of `abacus_last_known_message_leaf_index{phase=message_processed}` should refer
-    // to the maximum leaf index value we ever successfully delivered. Since deliveries can happen
+    // The value of `abacus_last_known_message_nonce{phase=message_processed}` should refer
+    // to the maximum nonce value we ever successfully delivered. Since deliveries can happen
     // out-of-index-order, we separately track a counter of the number of successfully delivered
     // messages. At the end of this test, they should both hold the same value.
     let msg_processed_max_index: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")

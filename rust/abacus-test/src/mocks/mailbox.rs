@@ -13,7 +13,7 @@ mock! {
         // Mailbox
         pub fn _address(&self) -> H256 {}
 
-        pub fn _local_domain(&self) -> u32 {}
+        pub fn _domain(&self) -> u32 {}
 
         pub fn _domain_hash(&self) -> H256 {}
 
@@ -109,8 +109,8 @@ impl Mailbox for MockMailboxContract {
 }
 
 impl AbacusChain for MockMailboxContract {
-    fn local_domain(&self) -> u32 {
-        self._local_domain()
+    fn domain(&self) -> u32 {
+        self._domain()
     }
 
     fn chain_name(&self) -> &str {

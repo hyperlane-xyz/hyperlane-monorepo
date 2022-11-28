@@ -86,8 +86,8 @@ impl CachingMailbox {
 
 #[async_trait]
 impl Mailbox for CachingMailbox {
-    fn local_domain_hash(&self) -> H256 {
-        self.mailbox.local_domain_hash()
+    fn domain_hash(&self) -> H256 {
+        self.mailbox.domain_hash()
     }
 
     async fn count(&self) -> Result<u32, ChainCommunicationError> {
@@ -138,8 +138,8 @@ impl AbacusChain for CachingMailbox {
         self.mailbox.chain_name()
     }
 
-    fn local_domain(&self) -> u32 {
-        self.mailbox.local_domain()
+    fn domain(&self) -> u32 {
+        self.mailbox.domain()
     }
 }
 
