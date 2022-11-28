@@ -123,6 +123,7 @@ export abstract class HyperlaneDeployer<
     args: Parameters<F['deploy']>,
     deployOpts?: DeployOptions,
   ): Promise<ReturnType<F['deploy']>> {
+    console.log(this.deployedContracts[chain]);
     const cachedContract = this.deployedContracts[chain]?.[contractName];
     if (cachedContract) {
       this.logger(`Recovered contract ${contractName} on ${chain}`);

@@ -68,21 +68,29 @@ export class HyperlaneCoreDeployer<
       for (const remote of remotes) {
         const multisigIsmConfig = this.configMap[remote].multisigIsm;
         const domain = ChainNameToDomainId[remote];
+        let lastTx;
         for (const validator of multisigIsmConfig.validators) {
           const isValidator = await multisigIsm.isEnrolled(domain, validator);
           if (!isValidator) {
             this.logger(
               `Enrolling ${validator} as ${remote} validator on ${chain}`,
             );
-            await multisigIsm.enrollValidator(domain, validator);
+            lastTx = await multisigIsm.enrollValidator(domain, validator);
           }
+        }
+        if (lastTx) {
+          await this.multiProvider.getChainConnection(chain).handleTx(lastTx);
         }
         const threshold = await multisigIsm.threshold(domain);
         if (!threshold.eq(multisigIsmConfig.threshold)) {
           this.logger(
             `Setting ${remote} threshold to ${multisigIsmConfig.threshold} on ${chain}`,
           );
-          await multisigIsm.setThreshold(domain, multisigIsmConfig.threshold);
+          const tx = multisigIsm.setThreshold(
+            domain,
+            multisigIsmConfig.threshold,
+          );
+          await this.multiProvider.getChainConnection(chain).handleTx(tx);
         }
       }
     });
