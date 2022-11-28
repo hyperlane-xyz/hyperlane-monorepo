@@ -78,6 +78,7 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         uint32[] calldata _domains,
         bytes32[] calldata _routers
     ) external virtual onlyOwner {
+        require(_domains.length == _routers.length, "!length");
         for (uint256 i = 0; i < _domains.length; i += 1) {
             _enrollRemoteRouter(_domains[i], _routers[i]);
         }
