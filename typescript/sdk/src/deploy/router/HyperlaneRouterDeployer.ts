@@ -81,6 +81,7 @@ export abstract class HyperlaneRouterDeployer<
       const deployedRemoteChains = this.multiProvider
         .remoteChains(local)
         .filter((c) => deployedChains.includes(c));
+
       const enrollEntries = await Promise.all(
         deployedRemoteChains.map(async (remote) => {
           const remoteDomain = chainMetadata[remote].id;
@@ -88,13 +89,13 @@ export abstract class HyperlaneRouterDeployer<
           const expected = utils.addressToBytes32(
             contractsMap[remote].router.address,
           );
-          return current !== expected ? [remote, expected] : undefined;
+          return current !== expected ? [remoteDomain, expected] : undefined;
         }),
       );
       const entries = enrollEntries.filter(
-        (entry): entry is [Chain, string] => entry !== undefined,
+        (entry): entry is [number, string] => entry !== undefined,
       );
-      const domains = entries.map(([chain]) => chainMetadata[chain].id);
+      const domains = entries.map(([id]) => id);
       const addresses = entries.map(([, address]) => address);
 
       await super.runIfOwner(local, contracts.router, async () => {
