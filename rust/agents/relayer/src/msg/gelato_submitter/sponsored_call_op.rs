@@ -4,14 +4,14 @@ use std::{
     time::Duration,
 };
 
-use abacus_base::CachingMailbox;
-use abacus_core::{AbacusContract, ChainCommunicationError, Mailbox, MultisigIsm};
 use eyre::Result;
 use gelato::{
     sponsored_call::{SponsoredCallApiCall, SponsoredCallApiCallResult, SponsoredCallArgs},
     task_status::{TaskState, TaskStatusApiCall, TaskStatusApiCallArgs},
     types::Chain,
 };
+use hyperlane_base::CachingMailbox;
+use hyperlane_core::{ChainCommunicationError, HyperlaneContract, Mailbox, MultisigIsm};
 use tokio::{
     sync::mpsc::UnboundedSender,
     time::{sleep, timeout},

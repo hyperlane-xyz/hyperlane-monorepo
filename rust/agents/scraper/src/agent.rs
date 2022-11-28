@@ -7,7 +7,7 @@ use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, trace, Instrument};
 
-use abacus_base::{
+use hyperlane_base::{
     decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, DomainSettings,
 };
 
@@ -20,7 +20,7 @@ use crate::db::ScraperDb;
 pub struct Scraper {
     db: ScraperDb,
     metrics: Arc<CoreMetrics>,
-    // TODO: Use AbacusAgentCore
+    // TODO: Use HyperlaneAgentCore
     /// A map of scrapers by domain.
     scrapers: HashMap<u32, SqlChainScraper>,
 }

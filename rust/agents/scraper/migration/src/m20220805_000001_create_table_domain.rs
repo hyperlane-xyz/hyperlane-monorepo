@@ -286,7 +286,7 @@ impl MigrationTrait for Migration {
 #[derive(Iden)]
 pub enum Domain {
     Table,
-    /// Abacus domain ID
+    /// Hyperlane domain ID
     Id,
     /// Time of record creation
     TimeCreated,

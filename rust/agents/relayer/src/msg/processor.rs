@@ -9,8 +9,8 @@ use tokio::{
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
-use abacus_base::{CachingMailbox, CoreMetrics};
-use abacus_core::{db::AbacusDB, AbacusChain, AbacusMessage, MultisigSignedCheckpoint};
+use hyperlane_base::{CachingMailbox, CoreMetrics};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneMessage, MultisigSignedCheckpoint};
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
 
@@ -18,7 +18,7 @@ use super::SubmitMessageArgs;
 
 #[derive(Debug)]
 pub(crate) struct MessageProcessor {
-    db: AbacusDB,
+    db: HyperlaneDB,
     destination_mailbox: CachingMailbox,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
@@ -32,7 +32,7 @@ pub(crate) struct MessageProcessor {
 impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        db: AbacusDB,
+        db: HyperlaneDB,
         destination_mailbox: CachingMailbox,
         whitelist: Arc<MatchingList>,
         blacklist: Arc<MatchingList>,
@@ -68,7 +68,7 @@ impl MessageProcessor {
                 break;
             }
         }
-        // Forever, scan AbacusDB looking for new messages to send. When criteria are
+        // Forever, scan HyperlaneDB looking for new messages to send. When criteria are
         // satisfied or the message is disqualified, push the message onto
         // self.tx_msg and then continue the scan at the next highest
         // nonce.
@@ -101,7 +101,7 @@ impl MessageProcessor {
         let message = if let Some(msg) = self
             .db
             .message_by_nonce(self.message_nonce)?
-            .map(AbacusMessage::from)
+            .map(HyperlaneMessage::from)
         {
             debug!(msg=?msg, "Working on msg");
             msg

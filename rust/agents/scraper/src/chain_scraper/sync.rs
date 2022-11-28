@@ -2,17 +2,17 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use abacus_base::RateLimitedSyncBlockRangeCursor;
 use ethers::prelude::H256;
 use eyre::Result;
+use hyperlane_base::RateLimitedSyncBlockRangeCursor;
 use itertools::Itertools;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
 use tracing::{debug, info, instrument, warn};
 
-use abacus_base::last_message::validate_message_continuity;
-use abacus_core::{name_from_domain_id, ListValidity, MailboxIndexer, SyncBlockRangeCursor};
+use hyperlane_base::last_message::validate_message_continuity;
+use hyperlane_core::{name_from_domain_id, ListValidity, MailboxIndexer, SyncBlockRangeCursor};
 
-use crate::chain_scraper::{AbacusMessageWithMeta, Delivery, SqlChainScraper, TxnWithIdAndTime};
+use crate::chain_scraper::{Delivery, HyperlaneMessageWithMeta, SqlChainScraper, TxnWithIdAndTime};
 
 /// Workhorse of synchronization. This consumes a `SqlChainScraper` which has
 /// the needed connections and information to work and then adds additional
@@ -184,7 +184,7 @@ impl Syncer {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<(Vec<AbacusMessageWithMeta>, Vec<Delivery>)> {
+    ) -> Result<(Vec<HyperlaneMessageWithMeta>, Vec<Delivery>)> {
         let sorted_messages = self
             .contracts
             .indexer
@@ -210,7 +210,7 @@ impl Syncer {
 
         let sorted_messages = sorted_messages
             .into_iter()
-            .map(|(message, meta)| AbacusMessageWithMeta { message, meta })
+            .map(|(message, meta)| HyperlaneMessageWithMeta { message, meta })
             .filter(|m| m.message.nonce > self.last_nonce)
             .collect::<Vec<_>>();
 
@@ -232,7 +232,7 @@ impl Syncer {
     )]
     async fn record_data(
         &self,
-        sorted_messages: Vec<AbacusMessageWithMeta>,
+        sorted_messages: Vec<HyperlaneMessageWithMeta>,
         deliveries: Vec<Delivery>,
     ) -> Result<Option<u32>> {
         let txns: HashMap<H256, TxnWithIdAndTime> = self

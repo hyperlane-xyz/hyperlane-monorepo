@@ -11,10 +11,11 @@ use futures::TryFutureExt;
 use sea_orm::prelude::TimeDateTime;
 use tracing::trace;
 
-use abacus_base::chains::IndexSettings;
-use abacus_base::ContractSyncMetrics;
-use abacus_core::{
-    AbacusContract, AbacusMessage, AbacusProvider, BlockInfo, LogMeta, Mailbox, MailboxIndexer,
+use hyperlane_base::chains::IndexSettings;
+use hyperlane_base::ContractSyncMetrics;
+use hyperlane_core::{
+    BlockInfo, HyperlaneContract, HyperlaneMessage, HyperlaneProvider, LogMeta, Mailbox,
+    MailboxIndexer,
 };
 
 use crate::chain_scraper::sync::Syncer;
@@ -30,7 +31,7 @@ mod sync;
 pub struct Contracts {
     pub mailbox: Arc<dyn Mailbox>,
     pub indexer: Arc<dyn MailboxIndexer>,
-    pub provider: Arc<dyn AbacusProvider>,
+    pub provider: Arc<dyn HyperlaneProvider>,
 }
 
 /// A chain scraper is comprised of all the information and contract/provider
@@ -93,7 +94,7 @@ impl SqlChainScraper {
     /// function.
     async fn store_messages(
         &self,
-        messages: &[AbacusMessageWithMeta],
+        messages: &[HyperlaneMessageWithMeta],
         txns: &HashMap<H256, TxnWithIdAndTime>,
     ) -> Result<u32> {
         debug_assert!(!messages.is_empty());
@@ -373,7 +374,7 @@ struct TxnWithBlockId {
 }
 
 #[derive(Debug, Clone)]
-struct AbacusMessageWithMeta {
-    message: AbacusMessage,
+struct HyperlaneMessageWithMeta {
+    message: HyperlaneMessage,
     meta: LogMeta,
 }
