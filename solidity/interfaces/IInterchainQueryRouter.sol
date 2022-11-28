@@ -9,7 +9,7 @@ interface IInterchainQueryRouter {
         address target,
         bytes calldata queryData,
         bytes calldata callback
-    ) external returns (uint256);
+    ) external returns (bytes32);
 
     function query(
         uint32 _destinationDomain,

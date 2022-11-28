@@ -55,13 +55,13 @@ contract InterchainQueryRouter is
         address target,
         bytes calldata queryData,
         bytes calldata callback
-    ) external returns (uint256 leafIndex) {
+    ) external returns (bytes32 messageId) {
         // TODO: fix this ugly arrayification
         Call[] memory calls = new Call[](1);
         calls[0] = Call({to: target, data: queryData});
         bytes[] memory callbacks = new bytes[](1);
         callbacks[0] = callback;
-        leafIndex = query(_destinationDomain, calls, callbacks);
+        messageId = query(_destinationDomain, calls, callbacks);
     }
 
     /**

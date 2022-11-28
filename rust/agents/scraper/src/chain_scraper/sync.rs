@@ -10,9 +10,7 @@ use prometheus::{IntCounter, IntGauge, IntGaugeVec};
 use tracing::{debug, info, instrument, warn};
 
 use abacus_base::last_message::validate_message_continuity;
-use abacus_core::{
-    name_from_domain_id, CommittedMessage, ListValidity, OutboxIndexer, SyncBlockRangeCursor,
-};
+use abacus_core::{name_from_domain_id, ListValidity, MailboxIndexer, SyncBlockRangeCursor};
 
 use crate::chain_scraper::{AbacusMessageWithMeta, Delivery, SqlChainScraper, TxnWithIdAndTime};
 
@@ -32,7 +30,7 @@ pub(super) struct Syncer {
     stored_deliveries: IntCounter,
     missed_messages: IntCounter,
     message_nonce: IntGaugeVec,
-    sync_cursor: RateLimitedSyncBlockRangeCursor<Arc<dyn OutboxIndexer>>,
+    sync_cursor: RateLimitedSyncBlockRangeCursor<Arc<dyn MailboxIndexer>>,
 
     last_valid_range_start_block: u32,
     last_nonce: u32,
@@ -85,7 +83,7 @@ impl Syncer {
         let last_nonce = scraper.last_message_nonce().await?.unwrap_or(0);
 
         let sync_cursor = RateLimitedSyncBlockRangeCursor::new(
-            scraper.local.indexer.clone(),
+            scraper.contracts.indexer.clone(),
             chunk_size,
             initial_height,
         )
@@ -114,7 +112,6 @@ impl Syncer {
         self.indexed_deliveries_height.set(start_block as i64);
 
         loop {
-            debug_assert_eq!(self.local.outbox.local_domain(), self.local_domain());
             let start_block = self.sync_cursor.current_position();
             let (from, to) = match self.sync_cursor.next_range().await {
                 Ok(range) => range,

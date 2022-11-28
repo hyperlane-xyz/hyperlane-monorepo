@@ -12,7 +12,7 @@ interface IInterchainAccountRouter {
         uint32 _destinationDomain,
         address target,
         bytes calldata data
-    ) external returns (uint256);
+    ) external returns (bytes32);
 
     function getInterchainAccount(uint32 _originDomain, address _sender)
         external

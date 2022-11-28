@@ -49,7 +49,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         uint32 _destinationDomain,
         address target,
         bytes calldata data
-    ) external returns (uint256) {
+    ) external returns (bytes32) {
         Call[] memory calls = new Call[](1);
         calls[0] = Call({to: target, data: data});
         return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));

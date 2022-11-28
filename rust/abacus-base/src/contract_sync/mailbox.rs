@@ -2,8 +2,7 @@ use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
 use abacus_core::{
-    name_from_domain_id, CommittedMessage, Indexer, ListValidity, OutboxIndexer,
-    SyncBlockRangeCursor,
+    name_from_domain_id, Indexer, ListValidity, MailboxIndexer, SyncBlockRangeCursor,
 };
 
 use crate::contract_sync::last_message::validate_message_continuity;
@@ -16,7 +15,9 @@ where
     I: MailboxIndexer + Clone + 'static,
 {
     /// Sync dispatched messages
-    pub fn sync_dispatched_messages(&self) -> Instrumented<tokio::task::JoinHandle<Result<()>>> {
+    pub fn sync_dispatched_messages(
+        &self,
+    ) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
         let span = info_span!("MessageContractSync");
 
         let db = self.db.clone();
@@ -238,11 +239,13 @@ mod test {
     use tokio::time::{interval, sleep, timeout};
 
     use abacus_core::{db::AbacusDB, AbacusMessage, LogMeta};
+    use abacus_test::mocks::cursor::MockSyncBlockRangeCursor;
     use abacus_test::mocks::indexer::MockAbacusIndexer;
     use abacus_test::test_utils;
 
     use crate::contract_sync::mailbox::MOCK_CURSOR;
     use crate::contract_sync::schema::OutboxContractSyncDB;
+    use crate::contract_sync::IndexSettings;
     use crate::ContractSync;
     use crate::{ContractSyncMetrics, CoreMetrics};
 
@@ -267,6 +270,12 @@ mod test {
             };
 
             let messages = (0..10).map(message_gen).collect::<Vec<AbacusMessage>>();
+            let m0 = messages[0].clone();
+            let m1 = messages[1].clone();
+            let m2 = messages[2].clone();
+            let m3 = messages[3].clone();
+            let m4 = messages[4].clone();
+            let m5 = messages[5].clone();
 
             let meta = || LogMeta {
                 address: Default::default(),
@@ -306,7 +315,7 @@ mod test {
                 }
                 macro_rules! expect_fetches_range {
                     ($expected_from:literal, $expected_to:literal, $return_messages:expr) => {
-                        let messages: &[&RawCommittedMessage] = $return_messages;
+                        let messages: &[&AbacusMessage] = $return_messages;
                         let messages = messages.iter().map(|&msg| (msg.clone(), meta())).collect();
                         mock_cursor
                             .expect__next_range()
