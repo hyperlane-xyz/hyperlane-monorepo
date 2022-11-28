@@ -10,11 +10,13 @@ export type HyperlaneFactories = {
   [key: string]: ethers.ContractFactory;
 };
 
+export type HyperlaneContract =
+  | ethers.Contract
+  | ProxiedContract<any, any>
+  | HyperlaneContracts;
+
 export type HyperlaneContracts = {
-  [key: Exclude<string, 'address'>]:
-    | ethers.Contract
-    | ProxiedContract<any, any>
-    | HyperlaneContracts;
+  [key: Exclude<string, 'address'>]: HyperlaneContract;
 };
 
 export type HyperlaneAddresses = {

@@ -55,10 +55,10 @@ export class HyperlaneCoreDeployer<
     return mailbox;
   }
 
-  async deployMultisigIsm<LocalChain extends Chain>(
+  async configureMultisigIsm<LocalChain extends Chain>(
     chain: LocalChain,
+    multisigIsm: MultisigIsm,
   ): Promise<MultisigIsm> {
-    const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
     const configChains = Object.keys(this.configMap) as Chain[];
     const remotes = this.multiProvider
       .intersect(configChains, false)
@@ -126,7 +126,8 @@ export class HyperlaneCoreDeployer<
       [],
     );
 
-    const multisigIsm = await this.deployMultisigIsm(chain);
+    const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
+    await this.configureMultisigIsm(chain, multisigIsm);
 
     const mailbox = await this.deployMailbox(
       chain,
