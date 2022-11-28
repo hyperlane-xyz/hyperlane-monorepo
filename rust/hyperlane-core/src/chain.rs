@@ -315,23 +315,23 @@ mod tests {
     #[test]
     fn domain_ids() {
         assert_eq!(
-            HyperlaneDomain::try_from(0x657468u32).unwrap(),
+            HyperlaneDomain::try_from(1).unwrap(),
             HyperlaneDomain::Ethereum,
         );
 
-        assert_eq!(u32::from(HyperlaneDomain::Ethereum), 0x657468u32,);
+        assert_eq!(u32::from(HyperlaneDomain::Ethereum), 1);
     }
 
     #[test]
     fn test_name_from_domain_id() {
-        assert_eq!(name_from_domain_id(0x657468u32), Some("ethereum".into()),);
+        assert_eq!(name_from_domain_id(1), Some("ethereum".into()),);
 
         assert_eq!(name_from_domain_id(0xf00u32), None,);
     }
 
     #[test]
     fn test_domain_id_from_name() {
-        assert_eq!(domain_id_from_name("ethereum"), Some(0x657468u32),);
+        assert_eq!(domain_id_from_name("ethereum"), Some(1),);
 
         assert_eq!(domain_id_from_name("foo"), None,);
     }
