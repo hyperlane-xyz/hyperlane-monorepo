@@ -178,7 +178,6 @@ export const chainMetadata = {
   goerli,
   mumbai,
   bsctestnet,
-  auroratestnet,
   moonbasealpha,
   moonbeam,
   optimismgoerli,
