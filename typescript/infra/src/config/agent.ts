@@ -160,6 +160,7 @@ type ChainValidatorConfigs<Chain extends ChainName> = ChainOverridableConfig<
 
 // Full validator agent config for a single chain
 interface ValidatorConfig extends BaseValidatorConfig {
+  originChainName: ChainName;
   checkpointSyncer: CheckpointSyncerConfig;
   validator: KeyConfig;
 }
@@ -348,6 +349,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
           return {
             ...baseConfig,
             checkpointSyncer: val.checkpointSyncer,
+            originChainName: this.chainName,
             validator,
           };
         }),

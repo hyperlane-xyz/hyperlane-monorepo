@@ -79,12 +79,12 @@ hyperlane:
         memory: 250m
     # -- Transaction Signing keys for home and replica(s)
     signer: {}
-    originChainName:
     # -- How long to wait between checking for updates
     configs:
       - interval:
         reorgPeriod:
         checkpointSyncers:
+        originChainName:
 
   relayer:
     enabled: false

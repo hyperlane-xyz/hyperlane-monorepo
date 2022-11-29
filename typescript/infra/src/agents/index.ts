@@ -78,7 +78,6 @@ async function helmValuesForChain<Chain extends ChainName>(
       }),
       validator: {
         enabled: chainAgentConfig.validatorEnabled,
-        originChainName: chainName,
         configs: await chainAgentConfig.validatorConfigs(),
       },
       relayer: {
