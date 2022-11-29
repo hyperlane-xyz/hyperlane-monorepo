@@ -14,8 +14,8 @@ import {
 } from './utils';
 
 const ARTIFACTS_TO_MERGE = [
-  { pathSegment: 'interchain', targetKey: 'interchainAccountRouter' },
-  { pathSegment: 'interchain/queries', targetKey: 'interchainQueryRouter' },
+  { pathSegment: 'middleware/accounts', targetKey: 'interchainAccountRouter' },
+  { pathSegment: 'middleware/queries', targetKey: 'interchainQueryRouter' },
   { pathSegment: 'create2', targetKey: 'create2Factory' },
 ];
 

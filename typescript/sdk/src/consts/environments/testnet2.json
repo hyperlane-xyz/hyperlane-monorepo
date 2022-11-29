@@ -14,8 +14,8 @@
       "implementation": "0x9095fDae1977A5fa61877FD44f307f7aDcBF9A0d",
       "beacon": "0xD3CCCbde1CCdB99313f25F8CA1A7B5C13BfD3dA2"
     },
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "fuji": {
@@ -33,8 +33,8 @@
       "implementation": "0x71B1BF7C99BEef0545eAFf441372cb6413d9367c",
       "beacon": "0x16C20625B11E0c8187Cc1B3e4ceedc35C48D8013"
     },
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "mumbai": {
@@ -52,8 +52,8 @@
       "implementation": "0x5310F977D29ae0Cf14eC000b5dbDF9734499Be4E",
       "beacon": "0xaCF0B0bA84db40cDC48235De2d6cF96540fFa5CD"
     },
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "bsctestnet": {
@@ -71,8 +71,8 @@
       "implementation": "0x7740342863717e26E3d5B828639834ADfce8a061",
       "beacon": "0xa318ffca299412ce76B7cb980850ceDB15584E7e"
     },
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "arbitrumgoerli": {
@@ -90,8 +90,8 @@
       "implementation": "0x54148470292C24345fb828B003461a9444414517",
       "beacon": "0x589C201a07c26b4725A4A829d772f24423da480B"
     },
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "optimismgoerli": {
@@ -109,8 +109,8 @@
       "implementation": "0x54148470292C24345fb828B003461a9444414517",
       "beacon": "0x589C201a07c26b4725A4A829d772f24423da480B"
     },
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "goerli": {
@@ -128,8 +128,8 @@
       "implementation": "0x54148470292C24345fb828B003461a9444414517",
       "beacon": "0x589C201a07c26b4725A4A829d772f24423da480B"
     },
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "moonbasealpha": {
@@ -147,8 +147,8 @@
       "implementation": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
       "beacon": "0x6966b0E55883d49BFB24539356a2f8A673E02039"
     },
-    "interchainAccountRouter": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
-    "interchainQueryRouter": "0x3CAa52Ff595Cab4123735EC677F1D9E6E988f8ca",
+    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
+    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   }
 }
