@@ -9,7 +9,7 @@ clap = { version = "4", features = ["derive"] }
 hyperlane-sealevel-mailbox = { path = "../programs/mailbox" }
 lazy_static = "1.4"
 pretty_env_logger = "0.4"
-solana-sdk = "=1.14.3"
-solana-client = "=1.14.3"
-solana-cli-config = "=1.14.3"
-solana-clap-utils = "=1.14.3"
+solana-sdk = { version = "=1.14.3", path = "/Users/steven/code/eclipse-labs/eclipse/sdk" }
+solana-client = { version = "=1.14.3", path = "/Users/steven/code/eclipse-labs/eclipse/client" }
+solana-cli-config = { version = "=1.14.3", path = "/Users/steven/code/eclipse-labs/eclipse/cli-config" }
+solana-clap-utils = { version = "=1.14.3", path = "/Users/steven/code/eclipse-labs/eclipse/clap-utils" }
