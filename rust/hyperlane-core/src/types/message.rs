@@ -3,7 +3,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::{Decode, Encode, HyperlaneError};
 
-const ABACUS_MESSAGE_PREFIX_LEN: usize = 77;
+const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
 
 /// A Stamped message that has been committed at some nonce
 pub type RawHyperlaneMessage = Vec<u8>;
@@ -74,7 +74,7 @@ impl Encode for HyperlaneMessage {
         writer.write_all(&self.destination.to_be_bytes())?;
         writer.write_all(self.recipient.as_ref())?;
         writer.write_all(&self.body)?;
-        Ok(ABACUS_MESSAGE_PREFIX_LEN + self.body.len())
+        Ok(HYPERLANE_MESSAGE_PREFIX_LEN + self.body.len())
     }
 }
 

@@ -62,22 +62,22 @@ We use the tokio async runtime environment. Please see the docs
 
 ### Repo layout
 
-- `abacus-base`
-  - lowest dependency abacus utilities
+- `hyperlane-base`
+  - lowest dependency hyperlane utilities
   - contains shared utilities for building off-chain agents
   - this includes
     - trait implementations for different chains
     - shared configuration file formats
     - basic setup for an off-chain agent
-- `abacus-core`
-  - depends on abacus-base
+- `hyperlane-core`
+  - depends on hyperlane-base
   - contains implementations of core primitives
   - this includes
     - traits (interfaces) for the on-chain contracts
     - model implementations of the contracts in rust
     - merkle tree implementations (for provers)
-- `chains/abacus-ethereum`
-  - depends on abacus-core (and transitively abacus-base)
+- `chains/hyperlane-ethereum`
+  - depends on hyperlane-core (and transitively hyperlane-base)
   - interfaces to the ethereum contracts
 - `agents`
   - each of the off-chain agents implemented thus far

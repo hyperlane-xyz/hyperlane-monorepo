@@ -149,7 +149,7 @@ export function messageId(message: HexString): string {
 }
 
 /**
- * Parse a serialized Abacus message from raw bytes.
+ * Parse a serialized Hyperlane message from raw bytes.
  *
  * @param message
  * @returns
