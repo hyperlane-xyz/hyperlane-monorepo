@@ -2,7 +2,7 @@
   "alfajores": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+      "address": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -10,7 +10,7 @@
   "fuji": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+      "address": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -18,7 +18,7 @@
   "mumbai": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+      "address": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -26,7 +26,7 @@
   "bsctestnet": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+      "address": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -34,7 +34,7 @@
   "goerli": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+      "address": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -42,7 +42,7 @@
   "moonbasealpha": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+      "address": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -50,7 +50,7 @@
   "optimismgoerli": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+      "address": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
       "isProxy": false,
       "constructorArguments": ""
     }
@@ -58,7 +58,7 @@
   "arbitrumgoerli": [
     {
       "name": "InterchainAccountRouter",
-      "address": "0xffD17672d47E7bB6192d5dBc12A096e00D1a206F",
+      "address": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
       "isProxy": false,
       "constructorArguments": ""
     }

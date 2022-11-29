@@ -45,6 +45,26 @@ contract InterchainQueryRouter is
 
     /**
      * @param _destinationDomain Domain of destination chain
+     * @param target The address of the contract to query on destination chain.
+     * @param queryData The calldata of the view call to make on the destination chain.
+     * @param callback Callback function selector on `msg.sender` and optionally abi-encoded prefix arguments.
+     */
+    function query(
+        uint32 _destinationDomain,
+        address target,
+        bytes calldata queryData,
+        bytes calldata callback
+    ) external returns (uint256 leafIndex) {
+        // TODO: fix this ugly arrayification
+        Call[] memory calls = new Call[](1);
+        calls[0] = Call({to: target, data: queryData});
+        bytes[] memory callbacks = new bytes[](1);
+        callbacks[0] = callback;
+        leafIndex = query(_destinationDomain, calls, callbacks);
+    }
+
+    /**
+     * @param _destinationDomain Domain of destination chain
      * @param call Call (to and data packed struct) to be made on destination chain.
      * @param callback Callback function selector on `msg.sender` and optionally abi-encoded prefix arguments.
      */

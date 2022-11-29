@@ -1,11 +1,9 @@
-use std::cmp::min;
-use std::time::Duration;
+use tokio::task::JoinHandle;
+use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
 
-use tokio::{task::JoinHandle, time::sleep};
-use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
+use abacus_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
 
-use abacus_core::InterchainGasPaymasterIndexer;
-
+use crate::contract_sync::cursor::RateLimitedSyncBlockRangeCursor;
 use crate::{contract_sync::schema::InterchainGasPaymasterContractSyncDB, ContractSync};
 
 const GAS_PAYMENTS_LABEL: &str = "gas_payments";
@@ -31,42 +29,39 @@ where
             .stored_events
             .with_label_values(&[GAS_PAYMENTS_LABEL, &self.chain_name]);
 
-        let config_from = self.index_settings.from();
-        let chunk_size = self.index_settings.chunk_size();
+        let cursor = {
+            let config_initial_height = self.index_settings.from();
+            let initial_height = db
+                .retrieve_latest_indexed_gas_payment_block()
+                .map_or(config_initial_height, |b| b + 1);
+            RateLimitedSyncBlockRangeCursor::new(
+                indexer.clone(),
+                self.index_settings.chunk_size(),
+                initial_height,
+            )
+        };
 
         tokio::spawn(async move {
-            let mut from = db
-                .retrieve_latest_indexed_gas_payment_block()
-                .map_or_else(|| config_from, |b| b + 1);
+            let mut cursor = cursor.await?;
 
-            info!(from = from, "[GasPayments]: resuming indexer from {from}");
-            indexed_height.set(from as i64);
+            let start_block = cursor.current_position();
+            info!(from = start_block, "[GasPayments]: resuming indexer");
+            indexed_height.set(start_block as i64);
 
             loop {
-                sleep(Duration::from_secs(5)).await;
-
-                // Only index blocks considered final.
-                // If there's an error getting the block number, just start the loop over
-                let Ok(tip) = indexer.get_finalized_block_number().await else {
-                    continue;
+                let (from, to) = match cursor.next_range().await {
+                    Ok(range) => range,
+                    Err(err) => {
+                        warn!(error = %err, "[GasPayments]: failed to get next block range");
+                        continue;
+                    }
                 };
-                if tip <= from {
-                    // Sleep if caught up to tip
-                    debug!(tip=?tip, from=?from, "[GasPayments]: caught up to tip, waiting for new block");
-                    sleep(Duration::from_secs(10)).await;
-                    continue;
-                }
 
-                let candidate = from + chunk_size;
-                let to = min(tip, candidate);
-                // Still search the full-size chunk size to possibly catch events that nodes have dropped "close to the tip"
-                let full_chunk_from = to.checked_sub(chunk_size).unwrap_or_default();
-
-                let gas_payments = indexer.fetch_gas_payments(full_chunk_from, to).await?;
+                let gas_payments = indexer.fetch_gas_payments(from, to).await?;
 
                 info!(
-                    from = full_chunk_from,
-                    to = to,
+                    from,
+                    to,
                     gas_payments_count = gas_payments.len(),
                     "[GasPayments]: indexed block range"
                 );
@@ -82,8 +77,7 @@ where
 
                 stored_messages.inc_by(new_payments_processed);
 
-                db.store_latest_indexed_gas_payment_block(to)?;
-                from = to + 1;
+                db.store_latest_indexed_gas_payment_block(from)?;
                 indexed_height.set(to as i64);
             }
         })

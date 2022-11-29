@@ -13,6 +13,7 @@ use ethers::{
 use eyre::Result;
 
 pub use common::*;
+pub use cursor::*;
 pub use encode::*;
 pub use inbox::*;
 pub use indexer::*;
@@ -24,6 +25,7 @@ pub use validator_manager::*;
 use crate::{db::DbError, utils::domain_hash, AbacusError};
 
 mod common;
+mod cursor;
 mod encode;
 mod inbox;
 mod indexer;
