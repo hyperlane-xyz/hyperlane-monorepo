@@ -58,51 +58,34 @@ impl From<&'_ Address> for ethers::types::H160 {
 #[derive(FromPrimitive, EnumString, strum::Display, EnumIter, PartialEq, Eq, Debug)]
 #[strum(serialize_all = "lowercase")]
 pub enum HyperlaneDomain {
-    /// Ethereum mainnet domain ID, decimal ID 6648936
-    Ethereum = 0x657468,
-    /// Ethereum testnet Goerli domain ID
+    Ethereum = 1,
     Goerli = 5,
-    /// Ethereum testnet Kovan domain ID
     Kovan = 3000,
 
-    /// Polygon mainnet domain ID, decimal ID 1886350457
-    Polygon = 0x706f6c79,
-    /// Polygon testnet Mumbai domain ID
+    Polygon = 137,
     Mumbai = 80001,
 
-    /// Avalanche mainnet domain ID, decimal ID 1635148152
-    Avalanche = 0x61766178,
-    /// Avalanche testnet Fuji domain ID
+    Avalanche = 43114,
     Fuji = 43113,
 
-    /// Arbitrum mainnet domain ID, decimal ID 6386274
-    Arbitrum = 0x617262,
-    /// Arbitrum testnet ArbitrumRinkeby domain ID, decimal ID 1634872690
-    ArbitrumRinkeby = 0x61722d72,
+    Arbitrum = 42161,
+    ArbitrumRinkeby = 421611,
     ArbitrumGoerli = 421613,
 
-    /// Optimism mainnet domain ID, decimal ID 28528
-    Optimism = 0x6f70,
-    /// Optimism testnet OptimismKovan domain ID, decimal ID 1869622635
-    OptimismKovan = 0x6f702d6b,
+    Optimism = 10,
+    OptimismKovan = 69,
     OptimismGoerli = 420,
 
-    /// BSC mainnet domain ID, decimal ID 6452067
     #[strum(serialize = "bsc")]
-    BinanceSmartChain = 0x627363,
-    /// BSC testnet, decimal ID 1651715444
+    BinanceSmartChain = 56,
     #[strum(serialize = "bsctestnet")]
-    BinanceSmartChainTestnet = 0x62732d74,
+    BinanceSmartChainTestnet = 97,
 
-    /// Celo domain ID, decimal ID 1667591279
-    Celo = 0x63656c6f,
-    /// Celo testnet Alfajores domain ID
-    Alfajores = 1000,
+    Celo = 42220,
+    Alfajores = 44787,
 
-    /// Moonbeam testnet MoonbaseAlpha domain ID, decimal ID 1836002657
-    MoonbaseAlpha = 0x6d6f2d61,
-    /// Moonbeam domain ID, decimal ID 1836002669
-    Moonbeam = 0x6d6f2d6d,
+    MoonbaseAlpha = 1287,
+    Moonbeam = 1284,
 
     Zksync2Testnet = 280,
 
@@ -332,23 +315,23 @@ mod tests {
     #[test]
     fn domain_ids() {
         assert_eq!(
-            HyperlaneDomain::try_from(0x657468u32).unwrap(),
+            HyperlaneDomain::try_from(1).unwrap(),
             HyperlaneDomain::Ethereum,
         );
 
-        assert_eq!(u32::from(HyperlaneDomain::Ethereum), 0x657468u32,);
+        assert_eq!(u32::from(HyperlaneDomain::Ethereum), 1);
     }
 
     #[test]
     fn test_name_from_domain_id() {
-        assert_eq!(name_from_domain_id(0x657468u32), Some("ethereum".into()),);
+        assert_eq!(name_from_domain_id(1), Some("ethereum".into()),);
 
         assert_eq!(name_from_domain_id(0xf00u32), None,);
     }
 
     #[test]
     fn test_domain_id_from_name() {
-        assert_eq!(domain_id_from_name("ethereum"), Some(0x657468u32),);
+        assert_eq!(domain_id_from_name("ethereum"), Some(1),);
 
         assert_eq!(domain_id_from_name("foo"), None,);
     }
