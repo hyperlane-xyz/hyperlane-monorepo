@@ -21,7 +21,7 @@ tracing = "0.1"
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 rocksdb = "0.18"
-mockall = "0.10.2"
+mockall = "0.11"
 
 backtrace = { version = "0.3", optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
