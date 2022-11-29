@@ -40,6 +40,12 @@ yarn
 yarn build
 ```
 
+### (Optional) Using local core contracts
+```
+# yarn link does not work well with workspaces
+ln -s ~/path/to/monorepo/solidity node_modules/@hyperlane-xyz/core
+```
+
 ## Test
 
 ```sh

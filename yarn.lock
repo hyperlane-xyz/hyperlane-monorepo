@@ -1201,14 +1201,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/core@npm:0.5.3, @hyperlane-xyz/core@npm:^0.5.0":
-  version: 0.5.3
-  resolution: "@hyperlane-xyz/core@npm:0.5.3"
+"@hyperlane-xyz/core@npm:0.5.4-3":
+  version: 0.5.4-3
+  resolution: "@hyperlane-xyz/core@npm:0.5.4-3"
   dependencies:
-    "@hyperlane-xyz/utils": 0.5.3
+    "@hyperlane-xyz/utils": 0.5.4-3
     "@openzeppelin/contracts": ^4.6.0
     "@openzeppelin/contracts-upgradeable": ^4.6.0
-  checksum: 2082cceb04022a6d73d5fc04966a72caddc77f84c8b35ed5fc8d46c4d4ff0189f834c5c8fad1355ef2bf2d040cae26b89f200bdbfb3118942ce46c946dc1df30
+  checksum: d1e7f0bc7bb749b4731f8d8e33652dfef854ca98084ef89cd224ba1b9428380169b7db97ae079d0575fc11e4261e70da5bbca95c444af3d0c5631d90924f3b87
   languageName: node
   linkType: hard
 
@@ -1216,8 +1216,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/hyperlane-token@workspace:."
   dependencies:
-    "@hyperlane-xyz/core": ^0.5.0
-    "@hyperlane-xyz/sdk": ^0.5.0
+    "@hyperlane-xyz/core": 0.5.4-3
+    "@hyperlane-xyz/sdk": 0.5.4-3
+    "@hyperlane-xyz/utils": 0.5.4-3
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts-upgradeable": ^4.6.0
@@ -1245,28 +1246,28 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@npm:^0.5.0":
-  version: 0.5.3
-  resolution: "@hyperlane-xyz/sdk@npm:0.5.3"
+"@hyperlane-xyz/sdk@npm:0.5.4-3":
+  version: 0.5.4-3
+  resolution: "@hyperlane-xyz/sdk@npm:0.5.4-3"
   dependencies:
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
-    "@hyperlane-xyz/core": 0.5.3
-    "@hyperlane-xyz/utils": 0.5.3
+    "@hyperlane-xyz/core": 0.5.4-3
+    "@hyperlane-xyz/utils": 0.5.4-3
     "@types/debug": ^4.1.7
     coingecko-api: ^1.0.10
     cross-fetch: ^3.1.5
     debug: ^4.3.4
     ethers: ^5.6.8
-  checksum: da21f5eabf14503cb95eeec548bc95eb42aebd4ac7c27193296b2b17e150b2dd7392c075f9930143a8ba81f32643a5be36701b6db6a85213fdd138903f11e38a
+  checksum: ec6447de817a325f3335926bf81ea44af3f894af66779b3dc99d4050bfc5fcfcb079c4b93b60059ac0277b0e2cf1bd4dfbc44db6d18ceb5a25fd5b86d0f4bf24
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/utils@npm:0.5.3":
-  version: 0.5.3
-  resolution: "@hyperlane-xyz/utils@npm:0.5.3"
+"@hyperlane-xyz/utils@npm:0.5.4-3":
+  version: 0.5.4-3
+  resolution: "@hyperlane-xyz/utils@npm:0.5.4-3"
   dependencies:
     ethers: ^5.6.8
-  checksum: a9d819494cba44f583d575d07d3af1b43357b90d95fb0fd4fa1d8337ad069f938dd678a8a0e824a8e70e767f3b8f5a8e6a1b649e27da21837e51e515ffa793f3
+  checksum: 146fdaf9753700c80127072d6fdc0c93a7b90a14a6cd3d9b3f90159bfd20723068c80930c848e2a26bfac72f0c1218bea219d359158a0bc1b85c018a48414b3b
   languageName: node
   linkType: hard
 
