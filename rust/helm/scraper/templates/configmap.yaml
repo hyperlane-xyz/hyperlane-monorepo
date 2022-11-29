@@ -7,32 +7,30 @@ metadata:
 data:
   RUN_ENV: {{ .Values.hyperlane.runEnv | quote }}
   {{- define "runDomains" -}}
-  {{- range .Values.hyperlane.outboxChains}}{{ print .name }},{{ end }}
+  {{- range .Values.hyperlane.chains}}{{ print .name }},{{ end }}
   {{- end }}
   RUN_DOMAINS: {{ include "runDomains" . | trimSuffix "," | quote }}
-  {{- range .Values.hyperlane.outboxChains }}
-  BASE_CONFIG_{{ .name | upper }}: {{ printf "%s_config.json" (.name | lower ) | quote }}
-  {{- end }}
+  BASE_CONFIG_{{ .name | upper }}: {{ printf "%s_config.json" (.Values.hyperlane.runEnv | lower ) | quote }}
   RUST_BACKTRACE: {{ .Values.hyperlane.rustBacktrace }}
   HYP_BASE_DB: {{ .Values.hyperlane.dbPath }}
   HYP_BASE_TRACING_FMT: {{ .Values.hyperlane.tracing.format }}
   HYP_BASE_TRACING_LEVEL: {{ .Values.hyperlane.tracing.level }}
-  {{- range .Values.hyperlane.inboxChains }}
-{{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "INBOXES_%s_" (.name | upper)) "format" "config_map") | indent 2 }}
+  {{- range .Values.hyperlane.chains }}
+{{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "CHAINS_%s_" (.name | upper)) "format" "config_map") | indent 2 }}
   {{- end }}
 
-  {{- range .Values.hyperlane.outboxChains }}
+  {{- range .Values.hyperlane.chains }}
   {{- if not .disabled }}
-  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_DISABLED: "false"
-  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_CONNECTION_TYPE: {{ .connection.type }}
+  HYP_BASE_CHAINS_{{ .name | upper }}_DISABLED: "false"
+  HYP_BASE_CHAINS_{{ .name | upper }}_CONNECTION_TYPE: {{ .connection.type }}
   {{- if eq .connection.type "httpQuorum" }}
-  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_CONNECTION_URLS: ""
+  HYP_BASE_CHAINS_{{ .name | upper }}_CONNECTION_URLS: ""
   {{- else }}
-  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_CONNECTION_URL: ""
+  HYP_BASE_CHAINS_{{ .name | upper }}_CONNECTION_URL: ""
   {{- end }}
-  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_NAME: {{ .name | lower }}
+  HYP_BASE_CHAINS_{{ .name | upper }}_NAME: {{ .name | lower }}
   {{- else}}
-  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_DISABLED: "true"
+  HYP_BASE_CHAINS_{{ .name | upper }}_DISABLED: "true"
   {{- end }}
   {{- end }}
 
