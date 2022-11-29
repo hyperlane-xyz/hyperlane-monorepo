@@ -1,0 +1,516 @@
+{
+  "alfajores": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0x7256A4D01Fc8C3DdAf6415cbb48a5a5464d1E034",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x945E59Cd57c7E6a3B62997D5876D427f198d32e2",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x350068a409bF7823aeefE674a5963fA4DbbC020C",
+      "constructorArguments": "000000000000000000000000945e59cd57c7e6a3b62997d5876d427f198d32e20000000000000000000000007256a4d01fc8c3ddaf6415cbb48a5a5464d1e034",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x974cC4516FdEE100c8f8f5338C7461DfD544a884",
+      "constructorArguments": "000000000000000000000000350068a409bf7823aeefe674a5963fa4dbbc020c000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "multisigIsm",
+      "address": "0xcF6bA9D5f6101232C065aD3462F365f0D1bD7fb4",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "mailbox",
+      "address": "0x389bffa5Af799130e7D77D13FA3f1a2A7c2c6324",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000aef3",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x7eDdB0E12909D7713A99CBB1F69475F7D119938C",
+      "constructorArguments": "000000000000000000000000389bffa5af799130e7d77d13fa3f1a2a7c2c63240000000000000000000000007256a4d01fc8c3ddaf6415cbb48a5a5464d1e034",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x4dea8886b520450aD19e35206dDFb951fFcDFb17",
+      "constructorArguments": "0000000000000000000000007eddb0e12909d7713a99cbb1f69475f7d119938c00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000024c4d66de8000000000000000000000000cf6ba9d5f6101232c065ad3462f365f0d1bd7fb400000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    }
+  ],
+  "fuji": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0xf267997ca816d5eafD2FFDcA5929448653C36fC7",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0xcd5c058E7fFB990A6D98573b48a24258a9673a16",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0xE2BC59cdD7cf0D6C052844150Fd6D61B121c461F",
+      "constructorArguments": "000000000000000000000000cd5c058e7ffb990a6d98573b48a24258a9673a16000000000000000000000000f267997ca816d5eafd2ffdca5929448653c36fc7",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x11Fc991B40d6CA311D3D09042F70fDD6c996Ea1B",
+      "constructorArguments": "000000000000000000000000e2bc59cdd7cf0d6c052844150fd6d61b121c461f000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "multisigIsm",
+      "address": "0xd66837b425e56b36073919DA85548FBD775B57e3",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "upgradeBeaconController",
+      "address": "0x9a5BFA884D6906fbdD3645f3b68B4e17bF80A7Ac",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x628d64270FC97D8ff04DcD13Dd6Cf1dde9DfAca3",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0xB7619A3EBFCAf08d6b04F1557c44806D976CF065",
+      "constructorArguments": "000000000000000000000000628d64270fc97d8ff04dcd13dd6cf1dde9dfaca30000000000000000000000009a5bfa884d6906fbdd3645f3b68b4e17bf80a7ac",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x6F113AF8732660bB826C4d8f7011b95Ab9bBd46a",
+      "constructorArguments": "000000000000000000000000b7619a3ebfcaf08d6b04f1557c44806d976cf065000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "multisigIsm",
+      "address": "0xEF8db4c93F36C3e6E122F79003DE136d5BE86395",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "upgradeBeaconController",
+      "address": "0x4718377c11832850387E85AeA07Ae87684d3841b",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x7d34FE1356FAd1f69eB7dcAC8d4d970d9E965Ed4",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0xc0294802f9333DB063FFd26BF765FffA4Ae035ca",
+      "constructorArguments": "0000000000000000000000007d34fe1356fad1f69eb7dcac8d4d970d9e965ed40000000000000000000000004718377c11832850387e85aea07ae87684d3841b",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x379Ae5e626b9186da3E7Acd6D75cCF3DDc907171",
+      "constructorArguments": "000000000000000000000000c0294802f9333db063ffd26bf765fffa4ae035ca000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "multisigIsm",
+      "address": "0x12Ac803eeD2707D5845e7c5E73BeDf0Dca331555",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "upgradeBeaconController",
+      "address": "0xA8aa2c1237275210566FDFCE1CF27B53645c6aE1",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x9B26FBD80b3C3aAc3e66c463623FF49A08F54d99",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0xd02EDfAd6eBcb88b6458C436Dc7EbA59D9856beA",
+      "constructorArguments": "0000000000000000000000009b26fbd80b3c3aac3e66c463623ff49a08f54d99000000000000000000000000a8aa2c1237275210566fdfce1cf27b53645c6ae1",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x7CE925E78047a99705ca16fE3918c79341BDe64F",
+      "constructorArguments": "000000000000000000000000d02edfad6ebcb88b6458c436dc7eba59d9856bea000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "upgradeBeaconController",
+      "address": "0x9d29eA8F9e7a04871C30C9d4C4129F0Fad5ab5a0",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x041EbFaE9AD18c2f9bC248832b644c0D2256D3B9",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x900567ec8701D387e62b85fb01A9E22C862779bC",
+      "constructorArguments": "000000000000000000000000041ebfae9ad18c2f9bc248832b644c0d2256d3b90000000000000000000000009d29ea8f9e7a04871c30c9d4c4129f0fad5ab5a0",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0xe0a9bf21Ddee4a0B0F354b25981924A767C6183E",
+      "constructorArguments": "000000000000000000000000900567ec8701d387e62b85fb01a9e22c862779bc000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "mailbox",
+      "address": "0xc392687AA3491cb010E0216fb6Caa5Dd7Cbf60b7",
+      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000a869",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0xad442d59B0a83e51DdF4CaBD9Ee39F28852005D8",
+      "constructorArguments": "000000000000000000000000c392687aa3491cb010e0216fb6caa5dd7cbf60b70000000000000000000000009d29ea8f9e7a04871c30c9d4c4129f0fad5ab5a0",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x9BA855357227f62263683A275291f3a923C13903",
+      "constructorArguments": "000000000000000000000000ad442d59b0a83e51ddf4cabd9ee39f28852005d800000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000024c4d66de800000000000000000000000012ac803eed2707d5845e7c5e73bedf0dca33155500000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0x54bDe7D3b78c05b7A686cc5D1211C30483eeAC45",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x78F9D209f705D3924a1cEae86Be1d09d82DB28db",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0xe04777c63989C271dBff3Af3f783B5CF84F40D0A",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x1D15E801F21b5f6ca07c8933D7FE94b29438e405",
+      "constructorArguments": "000000000000000000000000e04777c63989c271dbff3af3f783b5cf84f40d0a00000000000000000000000054bde7d3b78c05b7a686cc5d1211c30483eeac45",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x0b8978f247fEFae77dE328706fD5895B187BCa95",
+      "constructorArguments": "0000000000000000000000001d15e801f21b5f6ca07c8933d7fe94b29438e405000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "multisigIsm",
+      "address": "0x4E95F7Bf8a4D963C593A25bb6A8C83942211104A",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "mailbox",
+      "address": "0x2Ad9aFb9bee28cB96C263c469612078E468A8Fe9",
+      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000013881",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x9067ebbAf4f28dBDf97b37BC4C7F2b5bF8d54164",
+      "constructorArguments": "0000000000000000000000002ad9afb9bee28cb96c263c469612078e468a8fe900000000000000000000000054bde7d3b78c05b7a686cc5d1211c30483eeac45",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x2342eb763F3efeFE5A0BA2a21481fD5Ba7f59A90",
+      "constructorArguments": "0000000000000000000000009067ebbaf4f28dbdf97b37bc4c7f2b5bf8d5416400000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000024c4d66de80000000000000000000000004e95f7bf8a4d963c593a25bb6a8c83942211104a00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0xb10202cA1656A74f793d50EbfcC7F8F78CAab464",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x95ADDeb18912d6e6A9FbeF8B40cE44eA8cF2566e",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0xA68774aCEF2D13c1894295d801Bf0FB5b402D10e",
+      "constructorArguments": "00000000000000000000000095addeb18912d6e6a9fbef8b40ce44ea8cf2566e000000000000000000000000b10202ca1656a74f793d50ebfcc7f8f78caab464",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x81bbe1D62798A9c0ca42F1a41834a6C5E659cAEd",
+      "constructorArguments": "000000000000000000000000a68774acef2d13c1894295d801bf0fb5b402d10e000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "multisigIsm",
+      "address": "0xdE0Cbd9A17A99348785DA7625cB44a24b5A337be",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "mailbox",
+      "address": "0xB99Cf0bf4500BB66469bf949e2CB58535846BD1c",
+      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000061",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0xeCc72e8D4E3404175700DE71dfc3474eEa17a89B",
+      "constructorArguments": "000000000000000000000000b99cf0bf4500bb66469bf949e2cb58535846bd1c000000000000000000000000b10202ca1656a74f793d50ebfcc7f8f78caab464",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x056d6CAe959B4266291d6BCB3364cdF1Bc8C9814",
+      "constructorArguments": "000000000000000000000000ecc72e8d4e3404175700de71dfc3474eea17a89b00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000024c4d66de8000000000000000000000000de0cbd9a17a99348785da7625cb44a24b5a337be00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    }
+  ],
+  "goerli": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0xB9C0c168917aD137D0B75896ee273c3Ed2420012",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x7e3fb42377ffa28b7B649AE5319d3eB7C2128103",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x3ddeA0c17578242A17042F2cCf1b09fbBE51AFC3",
+      "constructorArguments": "0000000000000000000000007e3fb42377ffa28b7b649ae5319d3eb7c2128103000000000000000000000000b9c0c168917ad137d0b75896ee273c3ed2420012",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0xaC47a6318AdF660ea24994617B27171e85c6b5BE",
+      "constructorArguments": "0000000000000000000000003ddea0c17578242a17042f2ccf1b09fbbe51afc3000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "multisigIsm",
+      "address": "0x2a13C3bD245166D1C6515f15fcd1441367FAb675",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "mailbox",
+      "address": "0x7387e72A8F455A2bfb5E211B01d8B6AE2a56c60E",
+      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000005",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x20cC3a33C49fa13627303669edf2DcA7F1E76a50",
+      "constructorArguments": "0000000000000000000000007387e72a8f455a2bfb5e211b01d8b6ae2a56c60e000000000000000000000000b9c0c168917ad137d0b75896ee273c3ed2420012",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x5D5F9793Bc52CfF1522cDEf7206470717d2bae29",
+      "constructorArguments": "00000000000000000000000020cc3a33c49fa13627303669edf2dca7f1e76a5000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000024c4d66de80000000000000000000000002a13c3bd245166d1c6515f15fcd1441367fab67500000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    }
+  ],
+  "moonbasealpha": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0x0C16e730090cb681460516428c3b2D1BBCB1b647",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x890eB21B76DCB165A1807cBE279f883716eA47D4",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0xBA3f3A84F149842529993bc38A7b4cF8131c17c2",
+      "constructorArguments": "000000000000000000000000890eb21b76dcb165a1807cbe279f883716ea47d40000000000000000000000000c16e730090cb681460516428c3b2d1bbcb1b647",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x1fe349d93078B26C8c7350A401e2B60f100952F5",
+      "constructorArguments": "000000000000000000000000ba3f3a84f149842529993bc38a7b4cf8131c17c2000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "multisigIsm",
+      "address": "0xD221ffdAa65518BF56c8623e04eA0380CE1BfaE2",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "mailbox",
+      "address": "0x0De2F539569Fb1e2e3C1d233f7A63a18B9A17110",
+      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000000507",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x111F4f782B47881898755Bd2F67f12876893300E",
+      "constructorArguments": "0000000000000000000000000de2f539569fb1e2e3c1d233f7a63a18b9a171100000000000000000000000000c16e730090cb681460516428c3b2d1bbcb1b647",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x711166cE892CBa0Fc01FdD74cFBE73b027678e15",
+      "constructorArguments": "000000000000000000000000111f4f782b47881898755bd2f67f12876893300e00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000024c4d66de8000000000000000000000000d221ffdaa65518bf56c8623e04ea0380ce1bfae200000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    }
+  ],
+  "optimismgoerli": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0x69181Ea49C2F5F7904cEb7299a75620bAd0954FA",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x15846844baD5E06a98056e6c3F87C0ABB0A40d21",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x5f2fFCF69c58AcA2b521690400756FAe8CC99117",
+      "constructorArguments": "00000000000000000000000015846844bad5e06a98056e6c3f87c0abb0a40d2100000000000000000000000069181ea49c2f5f7904ceb7299a75620bad0954fa",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x62A3fC7873AC96fFF1975663Aa41Ab9100cDe2FB",
+      "constructorArguments": "0000000000000000000000005f2ffcf69c58aca2b521690400756fae8cc99117000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "multisigIsm",
+      "address": "0xDA7f1997D52a5f442E83948F7529BceAA6e1fda2",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "mailbox",
+      "address": "0x14EE2f01907707Ce8d13C4F5DBC40778b5b664e0",
+      "constructorArguments": "00000000000000000000000000000000000000000000000000000000000001a4",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x23cD67A76c99578f77C73A306A29905D63D203b4",
+      "constructorArguments": "00000000000000000000000014ee2f01907707ce8d13c4f5dbc40778b5b664e000000000000000000000000069181ea49c2f5f7904ceb7299a75620bad0954fa",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0xd876C01aB40e8cE42Db417fBC79c726d45504dE4",
+      "constructorArguments": "00000000000000000000000023cd67a76c99578f77c73a306a29905d63d203b400000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000024c4d66de8000000000000000000000000da7f1997d52a5f442e83948f7529bceaa6e1fda200000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    }
+  ],
+  "arbitrumgoerli": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0xDA7f1997D52a5f442E83948F7529BceAA6e1fda2",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0xa1C91dd4F3050DE9C4184BD8B4403A0C81D5463C",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0x603d9041D636CD3218888F1C6F18A4BfeDcdB7F0",
+      "constructorArguments": "000000000000000000000000a1c91dd4f3050de9c4184bd8b4403a0c81d5463c000000000000000000000000da7f1997d52a5f442e83948f7529bceaa6e1fda2",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x0C16e730090cb681460516428c3b2D1BBCB1b647",
+      "constructorArguments": "000000000000000000000000603d9041d636cd3218888f1c6f18a4bfedcdb7f0000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000048129fc1c00000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    },
+    {
+      "name": "multisigIsm",
+      "address": "0x890eB21B76DCB165A1807cBE279f883716eA47D4",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "mailbox",
+      "address": "0x11467b49e7BBE3090EC25aF85E172D5ed6F2DA23",
+      "constructorArguments": "0000000000000000000000000000000000000000000000000000000000066eed",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeacon",
+      "address": "0xC60C145f1e1904f9d6483A611BF1416697CCc1FE",
+      "constructorArguments": "00000000000000000000000011467b49e7bbe3090ec25af85e172d5ed6f2da23000000000000000000000000da7f1997d52a5f442e83948f7529bceaa6e1fda2",
+      "isProxy": false
+    },
+    {
+      "name": "UpgradeBeaconProxy",
+      "address": "0x957ff8ca77Af405D620e47350327fDA24b83070b",
+      "constructorArguments": "000000000000000000000000c60c145f1e1904f9d6483a611bf1416697ccc1fe00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000024c4d66de8000000000000000000000000890eb21b76dcb165a1807cbe279f883716ea47d400000000000000000000000000000000000000000000000000000000",
+      "isProxy": true
+    }
+  ]
+}
