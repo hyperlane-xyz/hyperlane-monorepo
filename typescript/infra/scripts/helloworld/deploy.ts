@@ -30,7 +30,7 @@ async function main() {
   const coreConfig = getCoreEnvironmentConfig(environment);
   // Always deploy from the hyperlane deployer
   const multiProvider = await coreConfig.getMultiProvider(
-    Contexts.Abacus,
+    Contexts.Hyperlane,
     KEY_ROLE_ENUM.Deployer,
   );
   const configMap = await getConfiguration(environment, multiProvider);

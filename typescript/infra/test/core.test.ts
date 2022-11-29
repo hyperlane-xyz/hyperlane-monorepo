@@ -1,7 +1,6 @@
 import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-import path from 'path';
 import sinon from 'sinon';
 
 import {
@@ -37,11 +36,11 @@ describe('core', async () => {
     // This is kind of awkward and really these tests shouldn't live here
     multiProvider = getTestMultiProvider(signer, testConfig.transactionConfigs);
     coreConfig = testConfig.core;
-    deployer = new HyperlaneCoreInfraDeployer(multiProvider, coreConfig);
     owners = objMap(testConfig.transactionConfigs, () => owner.address);
   });
 
   it('deploys', async () => {
+    deployer = new HyperlaneCoreInfraDeployer(multiProvider, coreConfig);
     contracts = await deployer.deploy();
   });
 
@@ -49,7 +48,7 @@ describe('core', async () => {
     const base = './test/outputs/core';
     writeJSON(base, 'contracts.json', serializeContracts(contracts));
     writeJSON(base, 'verification.json', deployer.verificationInputs);
-    deployer.writeRustConfigs(environment, path.join(base, 'rust'));
+    deployer.writeRustConfigs(environment, base);
   });
 
   it('transfers ownership', async () => {
@@ -59,6 +58,7 @@ describe('core', async () => {
 
   describe('failure modes', async () => {
     beforeEach(async () => {
+      deployer = new HyperlaneCoreInfraDeployer(multiProvider, coreConfig);
       const stub = sinon.stub(deployer, 'deployContracts');
       stub.withArgs('test3', sinon.match.any).rejects();
       // @ts-ignore
@@ -88,8 +88,8 @@ describe('core', async () => {
     it('can be resumed from partial contracts', async () => {
       sinon.restore(); // restore normal deployer behavior
 
-      delete deployer.deployedContracts.test2!.connectionManager;
-      delete deployer.deployedContracts.test2!.outbox;
+      delete deployer.deployedContracts.test2!.multisigIsm;
+      delete deployer.deployedContracts.test2!.mailbox;
 
       const result = await deployer.deploy();
       expect(result.test2).to.have.keys(Object.keys(result.test1));

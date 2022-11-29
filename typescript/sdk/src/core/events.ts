@@ -1,6 +1,7 @@
-// TODO get these exported from core package's index.ts
-import type { ProcessEvent } from '@hyperlane-xyz/core/dist/contracts/Inbox';
-import type { DispatchEvent } from '@hyperlane-xyz/core/dist/contracts/Outbox';
+import type {
+  DispatchEvent,
+  ProcessEvent,
+} from '@hyperlane-xyz/core/dist/contracts/Mailbox';
 
 import { Annotated } from '../events';
 

@@ -5,7 +5,7 @@ use serde::{Serialize, Serializer};
 use serde_repr::Serialize_repr;
 use std::fmt;
 
-// Each chain and chain ID supported by Abacus
+// Each chain and chain ID supported by Hyperlane
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize_repr, Hash)]
 #[repr(u64)]
 pub enum Chain {

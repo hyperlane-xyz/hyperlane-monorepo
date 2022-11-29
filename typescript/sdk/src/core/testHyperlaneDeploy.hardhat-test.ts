@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import { ContractReceipt } from 'ethers';
 import { ethers } from 'hardhat';
 
-import { TestOutbox, TestRecipient__factory } from '@hyperlane-xyz/core';
+import { TestMailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
@@ -21,8 +21,8 @@ const message = '0xdeadbeef';
 
 describe('TestCoreDeployer', async () => {
   let testCoreApp: TestCoreApp,
-    localOutbox: TestOutbox,
-    remoteOutbox: TestOutbox,
+    localMailbox: TestMailbox,
+    remoteMailbox: TestMailbox,
     dispatchReceipt: ContractReceipt;
 
   beforeEach(async () => {
@@ -33,25 +33,25 @@ describe('TestCoreDeployer', async () => {
     testCoreApp = await deployer.deployApp();
 
     const recipient = await new TestRecipient__factory(signer).deploy();
-    localOutbox = testCoreApp.getContracts(localChain).outbox.contract;
+    localMailbox = testCoreApp.getContracts(localChain).mailbox.contract;
 
-    const dispatchResponse = localOutbox.dispatch(
+    const dispatchResponse = localMailbox.dispatch(
       remoteDomain,
       utils.addressToBytes32(recipient.address),
       message,
     );
-    await expect(dispatchResponse).to.emit(localOutbox, 'Dispatch');
+    await expect(dispatchResponse).to.emit(localMailbox, 'Dispatch');
     dispatchReceipt = await testCoreApp.multiProvider
       .getChainConnection(localChain)
       .handleTx(dispatchResponse);
-    remoteOutbox = testCoreApp.getContracts(remoteChain).outbox.contract;
+    remoteMailbox = testCoreApp.getContracts(remoteChain).mailbox.contract;
     await expect(
-      remoteOutbox.dispatch(
+      remoteMailbox.dispatch(
         localDomain,
         utils.addressToBytes32(recipient.address),
         message,
       ),
-    ).to.emit(remoteOutbox, 'Dispatch');
+    ).to.emit(remoteMailbox, 'Dispatch');
   });
 
   it('processes outbound messages for a single domain', async () => {

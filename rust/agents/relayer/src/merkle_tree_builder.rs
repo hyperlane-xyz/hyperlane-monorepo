@@ -4,9 +4,9 @@ use ethers::core::types::H256;
 use eyre::Result;
 use tracing::{debug, error, instrument};
 
-use abacus_core::{
+use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
-    db::{AbacusDB, DbError},
+    db::{DbError, HyperlaneDB},
     ChainCommunicationError, Checkpoint,
 };
 
@@ -15,7 +15,7 @@ use crate::prover::{Prover, ProverError};
 /// Struct to sync prover.
 #[derive(Debug)]
 pub struct MerkleTreeBuilder {
-    db: AbacusDB,
+    db: HyperlaneDB,
     prover: Prover,
     incremental: IncrementalMerkle,
 }
@@ -53,11 +53,11 @@ pub enum MerkleTreeBuilderError {
         /// New root contained in signed checkpoint
         checkpoint_root: H256,
     },
-    /// Leaf index was not found in DB, despite batch providing messages after
-    #[error("Leaf index was not found {leaf_index:?}")]
-    UnavailableLeaf {
+    /// Nonce was not found in DB, despite batch providing messages after
+    #[error("Nonce was not found {nonce:?}")]
+    UnavailableNonce {
         /// Root of prover's local merkle tree
-        leaf_index: u32,
+        nonce: u32,
     },
     /// MerkleTreeBuilder attempts Prover operation and receives ProverError
     #[error(transparent)]
@@ -71,7 +71,7 @@ pub enum MerkleTreeBuilderError {
 }
 
 impl MerkleTreeBuilder {
-    pub fn new(db: AbacusDB) -> Self {
+    pub fn new(db: HyperlaneDB) -> Self {
         let prover = Prover::default();
         let incremental = IncrementalMerkle::default();
         Self {
@@ -82,14 +82,14 @@ impl MerkleTreeBuilder {
     }
 
     #[instrument(err, skip(self), level = "debug")]
-    pub fn get_proof(&self, leaf_index: u32) -> Result<Proof, MerkleTreeBuilderError> {
-        self.prover.prove(leaf_index as usize).map_err(Into::into)
+    pub fn get_proof(&self, nonce: u32) -> Result<Proof, MerkleTreeBuilderError> {
+        self.prover.prove(nonce as usize).map_err(Into::into)
     }
 
-    fn ingest_leaf_index(&mut self, leaf_index: u32) -> Result<(), MerkleTreeBuilderError> {
-        match self.db.leaf_by_leaf_index(leaf_index) {
+    fn ingest_nonce(&mut self, nonce: u32) -> Result<(), MerkleTreeBuilderError> {
+        match self.db.message_id_by_nonce(nonce) {
             Ok(Some(leaf)) => {
-                debug!(leaf_index = leaf_index, "Ingesting leaf");
+                debug!(nonce, "Ingesting leaf");
                 self.prover.ingest(leaf).expect("!tree full");
                 self.incremental.ingest(leaf);
                 assert_eq!(self.prover.root(), self.incremental.root());
@@ -97,7 +97,7 @@ impl MerkleTreeBuilder {
             }
             Ok(None) => {
                 error!("We should not arrive here");
-                Err(MerkleTreeBuilderError::UnavailableLeaf { leaf_index })
+                Err(MerkleTreeBuilderError::UnavailableNonce { nonce })
             }
             Err(e) => Err(e.into()),
         }
@@ -117,8 +117,8 @@ impl MerkleTreeBuilder {
         }
         let starting_index = self.prover.count() as u32;
         for i in starting_index..=checkpoint.index {
-            self.db.wait_for_leaf(i).await?;
-            self.ingest_leaf_index(i)?;
+            self.db.wait_for_message_id(i).await?;
+            self.ingest_nonce(i)?;
         }
 
         let prover_root = self.prover.root();

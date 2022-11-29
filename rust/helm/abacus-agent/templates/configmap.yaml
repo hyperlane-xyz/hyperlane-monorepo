@@ -5,19 +5,19 @@ metadata:
   labels:
     {{- include "agent-common.labels" . | nindent 4 }}
 data:
-  RUN_ENV: {{ .Values.abacus.runEnv | quote }}
-  BASE_CONFIG: {{ .Values.abacus.baseConfig }}
-  RUST_BACKTRACE: {{ .Values.abacus.rustBacktrace }}
-  HYP_BASE_DB: {{ .Values.abacus.dbPath }}
-  HYP_BASE_TRACING_FMT: {{ .Values.abacus.tracing.format }}
-  HYP_BASE_TRACING_LEVEL: {{ .Values.abacus.tracing.level }}
-  {{- if .Values.abacus.outboxChain.connection.type }}
-  HYP_BASE_OUTBOX_CONNECTION_TYPE: {{ .Values.abacus.outboxChain.connection.type }}
+  RUN_ENV: {{ .Values.hyperlane.runEnv | quote }}
+  BASE_CONFIG: {{ .Values.hyperlane.baseConfig }}
+  RUST_BACKTRACE: {{ .Values.hyperlane.rustBacktrace }}
+  HYP_BASE_DB: {{ .Values.hyperlane.dbPath }}
+  HYP_BASE_TRACING_FMT: {{ .Values.hyperlane.tracing.format }}
+  HYP_BASE_TRACING_LEVEL: {{ .Values.hyperlane.tracing.level }}
+  {{- if .Values.hyperlane.outboxChain.connection.type }}
+  HYP_BASE_OUTBOX_CONNECTION_TYPE: {{ .Values.hyperlane.outboxChain.connection.type }}
   {{- end }}
-  {{- range .Values.abacus.inboxChains }}
+  {{- range .Values.hyperlane.inboxChains }}
 {{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "INBOXES_%s_" (.name | upper)) "format" "config_map") | indent 2 }}
   {{- end }}
-  {{- if .Values.abacus.tracing.uri }}
-  HYP_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.abacus.tracing.uri }}
+  {{- if .Values.hyperlane.tracing.uri }}
+  HYP_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.hyperlane.tracing.uri }}
   {{- end }}
-  HYP_BASE_METRICS: {{ .Values.abacus.metrics.port | quote }}
+  HYP_BASE_METRICS: {{ .Values.hyperlane.metrics.port | quote }}

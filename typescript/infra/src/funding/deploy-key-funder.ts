@@ -44,7 +44,7 @@ function getKeyFunderHelmValues<Chain extends ChainName>(
     cronjob: {
       schedule: keyFunderConfig.cronSchedule,
     },
-    abacus: {
+    hyperlane: {
       runEnv: agentConfig.environment,
       // Only used for fetching RPC urls as env vars
       chains: agentConfig.contextChainNames,

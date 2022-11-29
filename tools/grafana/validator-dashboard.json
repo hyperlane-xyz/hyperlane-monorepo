@@ -122,7 +122,7 @@
             "uid": "<prometheus>"
           },
           "editorMode": "code",
-          "expr": "1 / avg by(chain)(rate(abacus_block_height{abacus_deployment=~\"$deployment\",chain=~\"$chain\",agent=\"validator\"}[$__rate_interval]))",
+          "expr": "1 / avg by(chain)(rate(hyperlane_block_height{hyperlane_deployment=~\"$deployment\",chain=~\"$chain\",agent=\"validator\"}[$__rate_interval]))",
           "interval": "$bucket",
           "legendFormat": "__auto",
           "range": true,
@@ -184,7 +184,7 @@
             "uid": "<prometheus>"
           },
           "editorMode": "code",
-          "expr": "max(abacus_block_height{agent=\"validator\", }) by (chain)",
+          "expr": "max(hyperlane_block_height{agent=\"validator\", }) by (chain)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -246,7 +246,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max by(chain) (abacus_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_processed\"})",
+          "expr": "max by(chain) (hyperlane_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_processed\"})",
           "instant": false,
           "interval": "$bucket",
           "legendFormat": "__auto",
@@ -336,7 +336,7 @@
             "uid": "<prometheus>"
           },
           "editorMode": "code",
-          "expr": "max by (chain)(abacus_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_processed\"}) - max by (chain)(abacus_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_processed\"} offset $bucket)",
+          "expr": "max by (chain)(hyperlane_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_processed\"}) - max by (chain)(hyperlane_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_processed\"} offset $bucket)",
           "interval": "$bucket",
           "legendFormat": "__auto",
           "range": true,
@@ -427,7 +427,7 @@
             "uid": "<prometheus>"
           },
           "editorMode": "code",
-          "expr": "max by(chain) (abacus_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_observed\"}) - min by (chain)(abacus_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_observed\"})",
+          "expr": "max by(chain) (hyperlane_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_observed\"}) - min by (chain)(hyperlane_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_observed\"})",
           "interval": "$bucket",
           "legendFormat": "__auto",
           "range": true,
@@ -527,7 +527,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max by(chain) (abacus_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_observed\"}) - min by(chain) (abacus_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_processed\"})",
+          "expr": "max by(chain) (hyperlane_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_observed\"}) - min by(chain) (hyperlane_latest_checkpoint{agent=\"validator\",  chain=~\"$chain\", phase=\"validator_processed\"})",
           "instant": false,
           "interval": "$bucket",
           "legendFormat": "__auto",
@@ -616,7 +616,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "abacus_outbox_state{agent=\"validator\", }",
+          "expr": "hyperlane_outbox_state{agent=\"validator\", }",
           "instant": true,
           "legendFormat": "{{chain}} @ {{instance}}",
           "range": false,
@@ -709,7 +709,7 @@
             "uid": "<prometheus>"
           },
           "editorMode": "code",
-          "expr": "sum by (chain)(increase(abacus_contract_call_count{ chain=~\"$chain\", agent=\"validator\"}[$bucket]))",
+          "expr": "sum by (chain)(increase(hyperlane_contract_call_count{ chain=~\"$chain\", agent=\"validator\"}[$bucket]))",
           "interval": "$bucket",
           "legendFormat": "{{chain}}",
           "range": true,
@@ -802,7 +802,7 @@
             "uid": "<prometheus>"
           },
           "editorMode": "code",
-          "expr": "sum by (chain) (rate(abacus_contract_call_count{agent=\"validator\"}[$__rate_interval]))",
+          "expr": "sum by (chain) (rate(hyperlane_contract_call_count{agent=\"validator\"}[$__rate_interval]))",
           "interval": "$bucket",
           "legendFormat": "__auto",
           "range": true,
@@ -895,7 +895,7 @@
             "uid": "<prometheus>"
           },
           "editorMode": "code",
-          "expr": "avg by (chain)(rate(abacus_contract_call_count{agent=\"validator\",chain=~\"$chain\"}[$__rate_interval]) - rate(abacus_contract_call_duration_seconds{agent=\"validator\",chain=~\"$chain\"}[$__rate_interval]))",
+          "expr": "avg by (chain)(rate(hyperlane_contract_call_count{agent=\"validator\",chain=~\"$chain\"}[$__rate_interval]) - rate(hyperlane_contract_call_duration_seconds{agent=\"validator\",chain=~\"$chain\"}[$__rate_interval]))",
           "interval": "$bucket",
           "legendFormat": "{{chain}}",
           "range": true,
@@ -997,7 +997,7 @@
                 "uid": "<prometheus>"
               },
               "editorMode": "code",
-              "expr": "sum by (contract_name, function_name)(increase(abacus_contract_call_count{ chain=~\"$chain\", agent=\"validator\"}[$bucket]))",
+              "expr": "sum by (contract_name, function_name)(increase(hyperlane_contract_call_count{ chain=~\"$chain\", agent=\"validator\"}[$bucket]))",
               "interval": "$bucket",
               "legendFormat": "{{contract_name}}::{{function_name}}",
               "range": true,
@@ -1089,7 +1089,7 @@
                 "uid": "<prometheus>"
               },
               "editorMode": "code",
-              "expr": "sum by (function_name,contract_name)(rate(abacus_contract_call_count{agent=\"validator\",chain=~\"$chain\"}[$__rate_interval]))",
+              "expr": "sum by (function_name,contract_name)(rate(hyperlane_contract_call_count{agent=\"validator\",chain=~\"$chain\"}[$__rate_interval]))",
               "interval": "$bucket",
               "legendFormat": "{{contract_name}}::{{function_name}}",
               "range": true,
@@ -1181,7 +1181,7 @@
                 "uid": "<prometheus>"
               },
               "editorMode": "code",
-              "expr": "avg by (function_name,contract_name)(rate(abacus_contract_call_count{agent=\"validator\",chain=~\"$chain\"}[$__rate_interval]) - rate(abacus_contract_call_duration_seconds{agent=\"validator\",chain=~\"$chain\"}[$__rate_interval]))",
+              "expr": "avg by (function_name,contract_name)(rate(hyperlane_contract_call_count{agent=\"validator\",chain=~\"$chain\"}[$__rate_interval]) - rate(hyperlane_contract_call_duration_seconds{agent=\"validator\",chain=~\"$chain\"}[$__rate_interval]))",
               "interval": "$bucket",
               "legendFormat": "{{contract_name}}::{{function_name}}",
               "range": true,
@@ -1279,7 +1279,7 @@
           "type": "prometheus",
           "uid": "<prometheus>"
         },
-        "definition": "label_values(abacus_block_height, abacus_deployment)",
+        "definition": "label_values(hyperlane_block_height, hyperlane_deployment)",
         "hide": 0,
         "includeAll": false,
         "label": "Deployment",
@@ -1287,7 +1287,7 @@
         "name": "deployment",
         "options": [],
         "query": {
-          "query": "label_values(abacus_block_height, abacus_deployment)",
+          "query": "label_values(hyperlane_block_height, hyperlane_deployment)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -1310,7 +1310,7 @@
           "type": "prometheus",
           "uid": "<prometheus>"
         },
-        "definition": "label_values(abacus_block_height{abacus_deployment=~\"$deployment\"}, chain)",
+        "definition": "label_values(hyperlane_block_height{hyperlane_deployment=~\"$deployment\"}, chain)",
         "hide": 0,
         "includeAll": true,
         "label": "Chain",
@@ -1318,7 +1318,7 @@
         "name": "chain",
         "options": [],
         "query": {
-          "query": "label_values(abacus_block_height{abacus_deployment=~\"$deployment\"}, chain)",
+          "query": "label_values(hyperlane_block_height{hyperlane_deployment=~\"$deployment\"}, chain)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,

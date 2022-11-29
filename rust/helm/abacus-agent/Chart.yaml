@@ -1,6 +1,6 @@
 apiVersion: v2
-name: abacus-agent
-description: A Helm Chart that encapsulates the deployment of the Abacus Rust Agent(s)
+name: hyperlane-agent
+description: A Helm Chart that encapsulates the deployment of the Hyperlane Rust Agent(s)
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

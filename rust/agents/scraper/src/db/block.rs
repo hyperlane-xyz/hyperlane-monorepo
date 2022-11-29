@@ -6,7 +6,7 @@ use sea_orm::{
 };
 use tracing::trace;
 
-use abacus_core::BlockInfo;
+use hyperlane_core::BlockInfo;
 
 use crate::conversions::{format_h256, parse_h256};
 use crate::date_time;

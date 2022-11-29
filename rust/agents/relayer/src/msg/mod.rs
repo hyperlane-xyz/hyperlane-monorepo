@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use abacus_core::{accumulator::merkle::Proof, CommittedMessage, MultisigSignedCheckpoint};
+use hyperlane_core::{accumulator::merkle::Proof, HyperlaneMessage, MultisigSignedCheckpoint};
 
 use tokio::time::Instant;
 
@@ -30,8 +30,7 @@ pub mod serial_submitter;
 
 #[derive(Clone, Debug)]
 pub struct SubmitMessageArgs {
-    pub leaf_index: u32,
-    pub committed_message: CommittedMessage,
+    pub message: HyperlaneMessage,
     pub checkpoint: MultisigSignedCheckpoint,
     pub proof: Proof,
     pub enqueue_time: Instant,
@@ -40,15 +39,13 @@ pub struct SubmitMessageArgs {
 
 impl SubmitMessageArgs {
     pub fn new(
-        leaf_index: u32,
-        committed_message: CommittedMessage,
+        message: HyperlaneMessage,
         checkpoint: MultisigSignedCheckpoint,
         proof: Proof,
         enqueue_time: Instant,
     ) -> Self {
         SubmitMessageArgs {
-            leaf_index,
-            committed_message,
+            message,
             checkpoint,
             proof,
             enqueue_time,
@@ -58,7 +55,7 @@ impl SubmitMessageArgs {
 }
 
 // The run_queue implementation is a max-heap.  We want the next op to
-// be min over <num_retries, leaf_index>, so the total ordering is
+// be min over <num_retries, nonce>, so the total ordering is
 // the reverse of the natural lexicographic ordering.
 //
 // TODO(webbhorn): It may be more natural to take a `Reversed` of the normal
@@ -67,7 +64,7 @@ impl SubmitMessageArgs {
 impl Ord for SubmitMessageArgs {
     fn cmp(&self, other: &Self) -> Ordering {
         match self.num_retries.cmp(&other.num_retries) {
-            Ordering::Equal => match self.leaf_index.cmp(&other.leaf_index) {
+            Ordering::Equal => match self.message.nonce.cmp(&other.message.nonce) {
                 Ordering::Equal => Ordering::Equal,
                 Ordering::Less => Ordering::Greater,
                 Ordering::Greater => Ordering::Less,
@@ -86,7 +83,7 @@ impl PartialOrd for SubmitMessageArgs {
 
 impl PartialEq for SubmitMessageArgs {
     fn eq(&self, other: &Self) -> bool {
-        self.num_retries == other.num_retries && self.leaf_index == other.leaf_index
+        self.num_retries == other.num_retries && self.message.nonce == other.message.nonce
     }
 }
 

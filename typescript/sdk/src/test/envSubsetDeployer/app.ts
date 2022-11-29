@@ -70,10 +70,10 @@ export class EnvSubsetDeployer<
     await promiseObjAll(
       objMap(contractsMap, async (chain, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(chain);
-        const acm = this.configMap[chain].connectionManager;
+        const mailbox = this.configMap[chain].mailbox;
         await chainConnection.handleTx(
           // @ts-ignore
-          contracts.router.initialize(acm, chainConnection.overrides),
+          contracts.router.initialize(mailbox, chainConnection.overrides),
         );
       }),
     );
