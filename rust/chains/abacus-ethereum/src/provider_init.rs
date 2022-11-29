@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ethers::prelude::{
-    Http, JsonRpcClient, JsonRpcClientWrapper, Middleware, NonceManagerMiddleware, Provider,
-    Quorum, QuorumProvider, SignerMiddleware, WeightedProvider, Ws,
+    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
+    SignerMiddleware, WeightedProvider, Ws,
 };
 use reqwest::{Client, Url};
 

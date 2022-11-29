@@ -271,7 +271,7 @@ impl DomainSettings {
     }
 
     /// Try to get a map of chain name -> mailbox contract
-    pub async fn try_into_mailboxes(
+    pub async fn build_all_mailboxes(
         &self,
         chain_names: &[&str],
         metrics: &CoreMetrics,
@@ -280,7 +280,7 @@ impl DomainSettings {
         let mut result = HashMap::new();
         for &chain_name in chain_names {
             let mailbox = self
-                .try_caching_mailbox(chain_name, db.clone(), metrics)
+                .build_caching_mailbox(chain_name, db.clone(), metrics)
                 .await
                 .context("Building mailbox")?;
             result.insert(chain_name.into(), mailbox);
@@ -289,7 +289,7 @@ impl DomainSettings {
     }
 
     /// Try to get a map of chain name -> interchain gas paymaster contract
-    pub async fn try_into_interchain_gas_paymasters(
+    pub async fn build_all_interchain_gas_paymasters(
         &self,
         chain_names: &[&str],
         metrics: &CoreMetrics,
@@ -298,7 +298,7 @@ impl DomainSettings {
         let mut result = HashMap::new();
         for &chain_name in chain_names {
             let mailbox = self
-                .try_caching_interchain_gas_paymaster(chain_name, db.clone(), metrics)
+                .build_caching_interchain_gas_paymaster(chain_name, db.clone(), metrics)
                 .await
                 .context("Building igp")?;
             result.insert(chain_name.into(), mailbox);
@@ -307,7 +307,7 @@ impl DomainSettings {
     }
 
     /// Try to get a map of chain name -> multisig ism contract
-    pub async fn try_into_multisig_isms(
+    pub async fn build_all_multisig_isms(
         &self,
         chain_names: &[&str],
         metrics: &CoreMetrics,
@@ -315,7 +315,7 @@ impl DomainSettings {
         let mut result: HashMap<String, Arc<dyn MultisigIsm>> = HashMap::new();
         for &chain_name in chain_names {
             let multisig_ism = self
-                .try_multisig_ism(chain_name, metrics)
+                .build_multisig_ism(chain_name, metrics)
                 .await
                 .context("Building multisig isms")?;
             result.insert(chain_name.into(), multisig_ism.into());
@@ -324,7 +324,7 @@ impl DomainSettings {
     }
 
     /// Try to get an AbacusProvider
-    pub async fn try_provider(
+    pub async fn build_provider(
         &self,
         chain_name: &str,
         metrics: &CoreMetrics,
@@ -332,30 +332,30 @@ impl DomainSettings {
         self.chains
             .get(chain_name)
             .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))?
-            .try_into_provider(metrics)
+            .build_provider(metrics)
             .await
     }
 
     /// Try to get a Mailbox
-    pub async fn try_mailbox(
+    pub async fn build_mailbox(
         &self,
         chain_name: &str,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn Mailbox>> {
         let signer = self.get_signer(chain_name).await;
         let setup = self.try_chain_setup(chain_name)?;
-        setup.try_into_mailbox(signer, metrics).await
+        setup.build_mailbox(signer, metrics).await
     }
 
     /// Try to get a CachingMailbox
-    async fn try_caching_mailbox(
+    async fn build_caching_mailbox(
         &self,
         chain_name: &str,
         db: DB,
         metrics: &CoreMetrics,
     ) -> eyre::Result<CachingMailbox> {
-        let mailbox = self.try_mailbox(chain_name, metrics).await?;
-        let indexer = self.try_mailbox_indexer(chain_name, metrics).await?;
+        let mailbox = self.build_mailbox(chain_name, metrics).await?;
+        let indexer = self.build_mailbox_indexer(chain_name, metrics).await?;
         let abacus_db = AbacusDB::new(chain_name, db);
         Ok(CachingMailbox::new(
             mailbox.into(),
@@ -365,7 +365,7 @@ impl DomainSettings {
     }
 
     /// Try to get an IGP
-    pub async fn try_interchain_gas_paymaster(
+    pub async fn build_interchain_gas_paymaster(
         &self,
         chain_name: &str,
         metrics: &CoreMetrics,
@@ -373,22 +373,22 @@ impl DomainSettings {
         let signer = self.get_signer(chain_name).await;
         let setup = self.try_chain_setup(chain_name)?;
         setup
-            .try_into_interchain_gas_paymaster(signer, metrics)
+            .build_interchain_gas_paymaster(signer, metrics)
             .await
     }
 
     /// Try to get a CachingInterchainGasPaymaster
-    async fn try_caching_interchain_gas_paymaster(
+    async fn build_caching_interchain_gas_paymaster(
         &self,
         chain_name: &str,
         db: DB,
         metrics: &CoreMetrics,
     ) -> eyre::Result<CachingInterchainGasPaymaster> {
         let interchain_gas_paymaster = self
-            .try_interchain_gas_paymaster(chain_name, metrics)
+            .build_interchain_gas_paymaster(chain_name, metrics)
             .await?;
         let indexer = self
-            .try_interchain_gas_paymaster_indexer(chain_name, metrics)
+            .build_interchain_gas_paymaster_indexer(chain_name, metrics)
             .await?;
         let abacus_db = AbacusDB::new(chain_name, db);
         Ok(CachingInterchainGasPaymaster::new(
@@ -399,18 +399,18 @@ impl DomainSettings {
     }
 
     /// Try to get a Multisig ISM
-    pub async fn try_multisig_ism(
+    pub async fn build_multisig_ism(
         &self,
         chain_name: &str,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn MultisigIsm>> {
         let signer = self.get_signer(chain_name).await;
         let chain_setup = self.try_chain_setup(chain_name)?;
-        chain_setup.try_into_multisig_ism(signer, metrics).await
+        chain_setup.build_multisig_ism(signer, metrics).await
     }
 
     /// Try to get an indexer object for a given mailbox
-    pub async fn try_mailbox_indexer(
+    pub async fn build_mailbox_indexer(
         &self,
         chain_name: &str,
         metrics: &CoreMetrics,
@@ -418,13 +418,13 @@ impl DomainSettings {
         let chain_setup = self.try_chain_setup(chain_name)?;
         let signer = self.get_signer(&chain_setup.name).await;
         chain_setup
-            .try_into_mailbox_indexer(signer, metrics)
+            .build_mailbox_indexer(signer, metrics)
             .await
             .context("Building mailbox indexer")
     }
 
     /// Try to get an indexer object for a given interchain gas paymaster
-    pub async fn try_interchain_gas_paymaster_indexer(
+    pub async fn build_interchain_gas_paymaster_indexer(
         &self,
         chain_name: &str,
         metrics: &CoreMetrics,
@@ -432,7 +432,7 @@ impl DomainSettings {
         let chain_setup = self.try_chain_setup(chain_name)?;
         let signer = self.get_signer(&chain_setup.name).await;
         chain_setup
-            .try_into_interchain_gas_paymaster_indexer(signer, metrics)
+            .build_interchain_gas_paymaster_indexer(signer, metrics)
             .await
             .context("Building mailbox indexer")
     }
@@ -553,15 +553,15 @@ impl Settings {
 
         let mailboxes = self
             .chain
-            .try_into_mailboxes(chain_names.as_slice(), &metrics, db.clone())
+            .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
             .await?;
         let interchain_gas_paymasters = self
             .chain
-            .try_into_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db.clone())
+            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db.clone())
             .await?;
         let multisig_isms = self
             .chain
-            .try_into_multisig_isms(chain_names.as_slice(), &metrics)
+            .build_all_multisig_isms(chain_names.as_slice(), &metrics)
             .await?;
 
         Ok(AbacusAgentCore {

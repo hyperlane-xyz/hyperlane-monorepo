@@ -3,22 +3,21 @@
 //! middleware and still allows for digging into specific errors if needed.
 
 use std::error::Error;
-use std::fmt::{Debug, Display, Formatter, Pointer};
-use std::ops::Deref;
+use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::prelude::{
-    Http, JsonRpcClient, JsonRpcClientWrapper, Middleware, NonceManagerMiddleware, Provider,
-    ProviderError, QuorumProvider, SignerMiddleware, Ws, WsClientError,
+    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, ProviderError,
+    QuorumProvider, SignerMiddleware, Ws, WsClientError,
 };
+use paste::paste;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use abacus_core::Signers;
 use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
 use ethers_prometheus::middleware::PrometheusMiddleware;
-use paste::paste;
 
 use crate::RetryingProvider;
 
@@ -159,8 +158,20 @@ impl Middleware for DynamicMiddleware {
     }
 }
 
-impl From<SignerMiddleware<NonceManagerMiddleware<Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>>, Signers>> for DynamicMiddleware {
-    fn from(_: SignerMiddleware<NonceManagerMiddleware<Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>>, Signers>) -> Self {
+impl
+    From<
+        SignerMiddleware<
+            NonceManagerMiddleware<Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>>,
+            Signers,
+        >,
+    > for DynamicMiddleware
+{
+    fn from(
+        _: SignerMiddleware<
+            NonceManagerMiddleware<Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>>,
+            Signers,
+        >,
+    ) -> Self {
         todo!()
     }
 }
@@ -171,8 +182,12 @@ impl From<Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>> for Dynamic
     }
 }
 
-impl From<SignerMiddleware<NonceManagerMiddleware<Provider<DynamicJsonRpcClient>>, Signers>> for DynamicMiddleware {
-    fn from(_: SignerMiddleware<NonceManagerMiddleware<Provider<DynamicJsonRpcClient>>, Signers>) -> Self {
+impl From<SignerMiddleware<NonceManagerMiddleware<Provider<DynamicJsonRpcClient>>, Signers>>
+    for DynamicMiddleware
+{
+    fn from(
+        _: SignerMiddleware<NonceManagerMiddleware<Provider<DynamicJsonRpcClient>>, Signers>,
+    ) -> Self {
         todo!()
     }
 }
