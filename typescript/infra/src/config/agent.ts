@@ -134,6 +134,7 @@ type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
 // Full relayer agent config for a single chain
 interface RelayerConfig
   extends Omit<BaseRelayerConfig, 'whitelist' | 'blacklist'> {
+  originChainName: ChainName;
   multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
   whitelist?: string;
   blacklist?: string;
@@ -432,6 +433,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
     );
 
     const relayerConfig: RelayerConfig = {
+      originChainName: this.chainName,
       signedCheckpointPollingInterval:
         baseConfig.signedCheckpointPollingInterval,
       multisigCheckpointSyncer: {

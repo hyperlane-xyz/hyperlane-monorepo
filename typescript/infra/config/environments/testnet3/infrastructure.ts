@@ -2,7 +2,7 @@ import { InfrastructureConfig } from '../../../src/config';
 
 export const infrastructure: InfrastructureConfig = {
   kubernetes: {
-    clusterName: 'hyperlane-testnet',
+    clusterName: 'abacus-testnet',
   },
   monitoring: {
     namespace: 'monitoring',

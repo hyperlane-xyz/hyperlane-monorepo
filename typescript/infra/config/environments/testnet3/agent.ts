@@ -23,9 +23,9 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   runEnv: environment,
   context: Contexts.Hyperlane,
   docker: {
-    repo: 'gcr.io/hyperlane-labs-dev/hyperlane-agent',
+    repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
     // TODO: Need to publish!
-    tag: 'sha-7956ff0',
+    tag: 'sha-513b4bb',
   },
   aws: {
     region: 'us-east-1',
