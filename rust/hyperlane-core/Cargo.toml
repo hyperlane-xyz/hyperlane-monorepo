@@ -1,0 +1,42 @@
+[package]
+name = "hyperlane-core"
+version = "0.1.0"
+authors = ["James Prestwich <prestwich@clabs.co>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+auto_impl = "1.0"
+ethers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-10-28-01", default-features = false, features = ['legacy'] }
+ethers-signers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-10-28-01", features=["aws"] }
+ethers-providers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-10-28-01", features=["ws", "rustls"] }
+config = "0.13"
+hex = "0.4.3"
+sha3 = "0.9.1"
+lazy_static = "*"
+thiserror = "*"
+async-trait = { version = "0.1", default-features = false }
+maplit = "1.0"
+tokio = { version = "1", features = ["rt", "macros"] }
+tracing = "0.1"
+tracing-futures = "0.2"
+serde = {version = "1.0", features = ["derive"]}
+serde_json = {version = "1.0"}
+eyre = "0.6"
+rocksdb = "0.18"
+bytes = { version = "1", features = ["serde"]}
+num = {version="0", features=["serde"]}
+num-traits = "0.2"
+num-derive = "0.3"
+strum = "0.24"
+strum_macros = "0.24"
+
+[dev-dependencies]
+hyperlane-base = { path = "../hyperlane-base" }
+color-eyre = "0.6"
+tokio = {version = "1", features = ["rt", "time"]}
+walkdir = { version = "2" }
+
+[features]
+output = []

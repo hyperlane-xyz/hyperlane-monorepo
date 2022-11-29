@@ -7,7 +7,7 @@ use ethers::prelude::*;
 use serde::de::{Error, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use abacus_core::AbacusMessage;
+use hyperlane_core::HyperlaneMessage;
 
 /// Defines a set of patterns for determining if a message should or should not
 /// be relayed. This is useful for determine if a message matches a given set or
@@ -203,8 +203,8 @@ struct MatchInfo<'a> {
     dst_addr: &'a H256,
 }
 
-impl<'a> From<&'a AbacusMessage> for MatchInfo<'a> {
-    fn from(msg: &'a AbacusMessage) -> Self {
+impl<'a> From<&'a HyperlaneMessage> for MatchInfo<'a> {
+    fn from(msg: &'a HyperlaneMessage) -> Self {
         Self {
             src_domain: msg.origin,
             src_addr: &msg.sender,
@@ -217,7 +217,7 @@ impl<'a> From<&'a AbacusMessage> for MatchInfo<'a> {
 impl MatchingList {
     /// Check if a message matches any of the rules.
     /// - `default`: What to return if the the matching list is empty.
-    pub fn msg_matches(&self, msg: &AbacusMessage, default: bool) -> bool {
+    pub fn msg_matches(&self, msg: &HyperlaneMessage, default: bool) -> bool {
         self.matches(msg.into(), default)
     }
 

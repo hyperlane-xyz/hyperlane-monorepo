@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+// ============ Internal Imports ============
 import {OwnableMulticall, Call} from "../OwnableMulticall.sol";
+import {Router} from "../Router.sol";
 import {IInterchainAccountRouter} from "../../interfaces/IInterchainAccountRouter.sol";
 
 // ============ External Imports ============
-import {Router} from "../Router.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -26,20 +27,20 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
 
     function initialize(
         address _owner,
-        address _abacusConnectionManager,
+        address _mailbox,
         address _interchainGasPaymaster
     ) public initializer {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
-        // Set the addresses for the ACM and IGP
+        // Set the addresses for the Mailbox and IGP
         // Alternatively, this could be done later in an initialize method
-        _setAbacusConnectionManager(_abacusConnectionManager);
+        _setMailbox(_mailbox);
         _setInterchainGasPaymaster(_interchainGasPaymaster);
     }
 
     function dispatch(uint32 _destinationDomain, Call[] calldata calls)
         external
-        returns (uint256)
+        returns (bytes32)
     {
         return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
     }
@@ -48,7 +49,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         uint32 _destinationDomain,
         address target,
         bytes calldata data
-    ) external returns (uint256) {
+    ) external returns (bytes32) {
         Call[] memory calls = new Call[](1);
         calls[0] = Call({to: target, data: data});
         return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));

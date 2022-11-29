@@ -17,4 +17,4 @@ if [[ -z $TAG ]]; then
   fi
 fi
 
-DOCKER_BUILDKIT=1 docker build $PLATFORM -t gcr.io/abacus-labs-dev/abacus-agent:$TAG .
+DOCKER_BUILDKIT=1 docker build $PLATFORM -t gcr.io/abacus-labs-dev/hyperlane-agent:$TAG .

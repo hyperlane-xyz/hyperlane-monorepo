@@ -5,7 +5,7 @@ use eyre::{eyre, Context, Result};
 use sea_orm::{prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, NotSet, QuerySelect};
 use tracing::{instrument, trace};
 
-use abacus_core::TxnInfo;
+use hyperlane_core::TxnInfo;
 
 use crate::conversions::{format_h256, parse_h256};
 use crate::date_time;

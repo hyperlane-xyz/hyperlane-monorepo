@@ -48,16 +48,18 @@ async function main() {
     `${environment}.json`,
     serializeContracts(deployer.deployedContracts),
   );
-  const existingVerificationInputs = readJSON(
-    getCoreVerificationDirectory(environment),
-    'verification.json',
-  );
-  writeJSON(
-    getCoreVerificationDirectory(environment),
-    'verification.json',
-    deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
-  );
-
+  const verificationDir = getCoreVerificationDirectory(environment);
+  const verificationFile = 'verification.json';
+  let existingVerificationInputs = [];
+  try {
+    existingVerificationInputs = readJSON(verificationDir, verificationFile);
+  } finally {
+    writeJSON(
+      getCoreVerificationDirectory(environment),
+      'verification.json',
+      deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
+    );
+  }
   deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
 }
 

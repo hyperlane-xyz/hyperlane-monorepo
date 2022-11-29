@@ -66,7 +66,8 @@ async function checkMessage(
   multiProvider: MultiProvider<any>,
   message: DispatchedMessage,
 ) {
-  console.log(`Leaf index: ${message.leafIndex.toString()}`);
+  const messageId = utils.messageId(message.message);
+  console.log(`Id: ${messageId}`);
   console.log(`Raw bytes: ${message.message}`);
   console.log('Parsed message:', message.parsed);
 
@@ -88,16 +89,10 @@ async function checkMessage(
     return;
   }
 
-  const destinationInbox = core.getMailboxPair(
-    DomainIdToChainName[message.parsed.origin],
-    destinationChain,
-  ).destinationInbox;
-
-  const messageHash = utils.messageHash(message.message, message.leafIndex);
-  console.log(`Message hash: ${messageHash}`);
-
-  const processed = await destinationInbox.messages(messageHash);
-  if (processed === 1) {
+  const destinationMailbox =
+    core.getContracts(destinationChain).mailbox.contract;
+  const delivered = await destinationMailbox.delivered(messageId);
+  if (delivered) {
     console.log('Message has already been processed');
 
     // TODO: look for past events to find the exact tx in which the message was processed.
@@ -132,7 +127,7 @@ async function checkMessage(
       message.parsed.origin,
       message.parsed.sender,
       message.parsed.body,
-      { from: destinationInbox.address },
+      { from: destinationMailbox.address },
     );
     console.log(
       'Calling recipient `handle` function from the inbox does not revert',
@@ -146,7 +141,7 @@ async function checkMessage(
       )
     ).data;
     console.log('Simulated call', {
-      from: destinationInbox.address,
+      from: destinationMailbox.address,
       to: recipient.address,
       data,
     });

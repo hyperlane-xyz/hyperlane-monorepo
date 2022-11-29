@@ -7,36 +7,26 @@ import mainnet from './mainnet.json';
 import test from './test.json';
 import testnet2 from './testnet2.json';
 
-export const environments = {
-  test,
-  testnet2,
-  mainnet,
-};
+export const environments = { test, testnet2, mainnet };
 
 type HyperlaneCoreAddressMap = LooseChainMap<{
-  outbox: types.Address;
-  connectionManager: types.Address;
+  mailbox: types.Address;
+  multisigIsm: types.Address;
   interchainGasPaymaster: types.Address;
   interchainAccountRouter: types.Address;
   interchainQueryRouter: types.Address;
   create2Factory: types.Address;
-  inboxes: Record<string, types.Address>;
 }>;
 
 // Export developer-relevant addresses
 export const hyperlaneCoreAddresses = objMap(
-  { ...testnet2, ...mainnet },
+  { ...test, ...testnet2, ...mainnet },
   (_chain, addresses) => ({
-    outbox: addresses.outbox.proxy,
-    connectionManager: addresses.connectionManager,
+    mailbox: addresses.mailbox.proxy,
+    multisigIsm: addresses.multisigIsm,
     interchainGasPaymaster: addresses.interchainGasPaymaster.proxy,
     interchainAccountRouter: addresses.interchainAccountRouter,
     interchainQueryRouter: addresses.interchainQueryRouter,
     create2Factory: addresses.create2Factory,
-    inboxes: objMap(
-      // @ts-ignore
-      addresses.inboxes,
-      (_remoteChain, inboxAddresses) => inboxAddresses.inbox.proxy,
-    ),
   }),
 ) as HyperlaneCoreAddressMap;

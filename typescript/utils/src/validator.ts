@@ -9,14 +9,16 @@ import { domainHash } from './utils';
 export class BaseValidator {
   localDomain: Domain;
   address: Address;
+  mailbox: Address;
 
-  constructor(address: Address, localDomain: Domain) {
+  constructor(address: Address, localDomain: Domain, mailbox: Address) {
     this.localDomain = localDomain;
     this.address = address;
+    this.mailbox = mailbox;
   }
 
   domainHash() {
-    return domainHash(this.localDomain);
+    return domainHash(this.localDomain, this.mailbox);
   }
 
   message(root: HexString, index: number) {
@@ -52,12 +54,22 @@ export class Validator extends BaseValidator {
     protected signer: ethers.Signer,
     address: Address,
     localDomain: Domain,
+    mailbox: Address,
   ) {
-    super(address, localDomain);
+    super(address, localDomain, mailbox);
   }
 
-  static async fromSigner(signer: ethers.Signer, localDomain: Domain) {
-    return new Validator(signer, await signer.getAddress(), localDomain);
+  static async fromSigner(
+    signer: ethers.Signer,
+    localDomain: Domain,
+    mailbox: Address,
+  ) {
+    return new Validator(
+      signer,
+      await signer.getAddress(),
+      localDomain,
+      mailbox,
+    );
   }
 
   async signCheckpoint(root: HexString, index: number): Promise<Checkpoint> {

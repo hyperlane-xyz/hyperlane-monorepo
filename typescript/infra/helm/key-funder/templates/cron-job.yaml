@@ -21,18 +21,18 @@ spec:
             - ./node_modules/.bin/ts-node
             - ./typescript/infra/scripts/funding/fund-keys-from-deployer.ts
             - -e
-            - {{ .Values.abacus.runEnv }}
+            - {{ .Values.hyperlane.runEnv }}
             - --context
-            - {{ .Values.abacus.contextFundingFrom }}
-{{- range $context, $roles := .Values.abacus.contextsAndRolesToFund }}
+            - {{ .Values.hyperlane.contextFundingFrom }}
+{{- range $context, $roles := .Values.hyperlane.contextsAndRolesToFund }}
             - --contexts-and-roles
             - {{ $context }}={{ join "," $roles }}
             - -f
             - /addresses-secret/{{ $context }}-addresses.json
 {{- end }}
-{{- if .Values.abacus.connectionType }}
+{{- if .Values.hyperlane.connectionType }}
             - --connection-type
-            - {{ .Values.abacus.connectionType }}
+            - {{ .Values.hyperlane.connectionType }}
 {{- end }}
             env:
             - name: PROMETHEUS_PUSH_GATEWAY

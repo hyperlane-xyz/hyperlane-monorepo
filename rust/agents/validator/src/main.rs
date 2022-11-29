@@ -6,7 +6,7 @@
 
 use eyre::Result;
 
-use abacus_base::agent_main;
+use hyperlane_base::agent_main;
 
 use crate::validator::Validator;
 

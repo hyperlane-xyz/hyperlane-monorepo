@@ -75,14 +75,6 @@ export const alfajores: IChainConnection = {
   apiPrefix: 'api-',
 };
 
-export const auroratestnet: IChainConnection = {
-  provider: new ethers.providers.JsonRpcProvider(
-    'https://testnet.aurora.dev',
-    1313161555,
-  ),
-  confirmations: 1,
-};
-
 export const fuji: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'https://api.avax-test.network/ext/bc/C/rpc',
@@ -120,16 +112,6 @@ export const arbitrumgoerli: IChainConnection = {
   ),
   confirmations: 1,
   blockExplorerUrl: 'https://goerli.arbiscan.io',
-  apiPrefix: 'api-',
-};
-
-export const zksync2testnet: IChainConnection = {
-  provider: new ethers.providers.JsonRpcProvider(
-    'https://zksync2-testnet.zksync.dev',
-    280,
-  ),
-  confirmations: 1,
-  blockExplorerUrl: 'https://zksync2-testnet.zkscan.io/',
   apiPrefix: 'api-',
 };
 
@@ -199,7 +181,6 @@ export const test3: IChainConnection = {
 
 export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   arbitrum,
-  auroratestnet,
   bsc,
   ethereum,
   celo,
@@ -215,7 +196,6 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   moonbeam,
   optimismgoerli,
   arbitrumgoerli,
-  zksync2testnet,
   test1,
   test2,
   test3,

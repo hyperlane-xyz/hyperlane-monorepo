@@ -1,14 +1,14 @@
-{{- if .Values.abacus.cycleOnce }}
+{{- if .Values.hyperlane.cycleOnce }}
 apiVersion: v1
 kind: Pod
 metadata:
-  name: {{ include "abacus.fullname" . }}-cycle-once-{{ (randAlphaNum 4 | nospace | lower) }}
+  name: {{ include "hyperlane.fullname" . }}-cycle-once-{{ (randAlphaNum 4 | nospace | lower) }}
   labels: &metadata_labels
-    abacus/deployment: {{ .Values.abacus.runEnv | quote }}
-    abacus/context: {{ .Values.abacus.context | quote }}
+    hyperlane/deployment: {{ .Values.hyperlane.runEnv | quote }}
+    hyperlane/context: {{ .Values.hyperlane.context | quote }}
     app.kubernetes.io/component: kathy
 spec:
   restartPolicy: Never
   containers:
-{{- include "abacus.helloworld-kathy.container" . | indent 2 }}
+{{- include "hyperlane.helloworld-kathy.container" . | indent 2 }}
 {{- end }}

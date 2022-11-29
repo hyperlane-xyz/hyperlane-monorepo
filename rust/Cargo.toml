@@ -3,13 +3,13 @@ cargo-features = ["edition2021"]
 [workspace]
 
 members = [
-    "abacus-base",
-    "abacus-core",
+    "hyperlane-base",
+    "hyperlane-core",
     "agents/relayer",
     "agents/scraper",
-    "abacus-test",
+    "hyperlane-test",
     "agents/validator",
-    "chains/abacus-ethereum",
+    "chains/hyperlane-ethereum",
     "ethers-prometheus",
     "gelato",
     "utils/abigen",
