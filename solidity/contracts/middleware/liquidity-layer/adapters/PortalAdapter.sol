@@ -24,6 +24,8 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
     uint32 localDomain;
     // We could technically use Portal's sequence number here but it doesn't
     // get passed through, so we would have to parse the VAA twice
+    // 224 bits should be large enough and allows us to pack into a single slot
+    // with a Hyperlane domain
     uint224 public nonce = 0;
 
     /**
@@ -65,10 +67,6 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
 
-        // Set the addresses for the ACM and IGP to address(0) - they aren't used.
-        _setAbacusConnectionManager(address(0));
-        _setInterchainGasPaymaster(address(0));
-
         localDomain = _localDomain;
         portalTokenBridge = IPortalTokenBridge(_portalTokenBridge);
         liquidityLayerRouter = _liquidityLayerRouter;
@@ -91,11 +89,7 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
             _destinationDomain
         ];
 
-        bytes32 _remoteRouter = routers[_destinationDomain];
-        require(
-            _remoteRouter != bytes32(0),
-            "Portal TokenBridgeAdapter: No router for domain"
-        );
+        bytes32 _remoteRouter = _mustHaveRemoteRouter(_destinationDomain);
 
         // Approve the token to Portal. We assume that the LiquidityLayerRouter
         // has already transferred the token to this contract.

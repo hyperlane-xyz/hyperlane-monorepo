@@ -56,6 +56,7 @@ contract PortalAdapterTest is Test {
     }
 
     function testAdapter(uint256 amount) public {
+        // Transfers of 0 are invalid
         vm.assume(amount > 0);
         // Calls MockPortalBridge with the right paramters
         vm.expectCall(
@@ -84,6 +85,7 @@ contract PortalAdapterTest is Test {
     function testReceivingRevertsWithoutTransferCompletion(uint256 amount)
         public
     {
+        // Transfers of 0 are invalid
         vm.assume(amount > 0);
         token.mint(address(originAdapter), amount);
         bytes memory adapterData = originAdapter.sendTokens(
@@ -104,6 +106,7 @@ contract PortalAdapterTest is Test {
     }
 
     function testReceivingWorks(uint256 amount) public {
+        // Transfers of 0 are invalid
         vm.assume(amount > 0);
         token.mint(address(originAdapter), amount);
         bytes memory adapterData = originAdapter.sendTokens(

@@ -23,6 +23,8 @@ const PORTAL_VAA_SERVICE_TESTNET_BASE_URL =
 const CIRCLE_ATTESTATIONS_BASE_URL =
   'https://iris-api-sandbox.circle.com/attestations/';
 
+const PORTAL_VAA_SERVICE_SUCCESS_CODE = 5;
+
 const CircleBridgeInterface = ICircleBridge__factory.createInterface();
 const CircleBridgeAdapterInterface =
   CircleBridgeAdapter__factory.createInterface();
@@ -113,8 +115,10 @@ export class LiquidityLayerApp<
     const portalSequence = event.args.portalSequence.toNumber();
     const nonce = event.args.nonce.toNumber();
     const destination = DomainIdToChainName[event.args.destination];
-    // @ts-ignore destination is Chain as well but the compiler doesnt know that
-    return [{ origin: chain, nonce, portalSequence, destination }];
+
+    return [
+      { origin: chain, nonce, portalSequence, destination },
+    ] as PortalBridgeMessage<Chain>[];
   }
   async parseCircleMessages(
     chain: Chain,
@@ -198,7 +202,7 @@ export class LiquidityLayerApp<
       `${PORTAL_VAA_SERVICE_TESTNET_BASE_URL}${wormholeOriginDomain}/${emitter}/${message.portalSequence}`,
     ).then((_) => _.json());
 
-    if (vaa.code && vaa.code === 5) {
+    if (vaa.code && vaa.code === PORTAL_VAA_SERVICE_SUCCESS_CODE) {
       console.log(`VAA not yet found for nonce ${message.nonce}`);
       return;
     }
