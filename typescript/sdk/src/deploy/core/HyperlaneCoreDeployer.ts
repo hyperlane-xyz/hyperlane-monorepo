@@ -60,6 +60,7 @@ export class HyperlaneCoreDeployer<
     multisigIsm: MultisigIsm,
   ): Promise<MultisigIsm> {
     const configChains = Object.keys(this.configMap) as Chain[];
+    const chainConnection = this.multiProvider.getChainConnection(chain);
     const remotes = this.multiProvider
       .intersect(configChains, false)
       .multiProvider.remoteChains(chain);
@@ -75,11 +76,15 @@ export class HyperlaneCoreDeployer<
             this.logger(
               `Enrolling ${validator} as ${remote} validator on ${chain}`,
             );
-            lastTx = await multisigIsm.enrollValidator(domain, validator);
+            lastTx = await multisigIsm.enrollValidator(
+              domain,
+              validator,
+              chainConnection.overrides,
+            );
           }
         }
         if (lastTx) {
-          await this.multiProvider.getChainConnection(chain).handleTx(lastTx);
+          await chainConnection.handleTx(lastTx);
         }
         const threshold = await multisigIsm.threshold(domain);
         if (!threshold.eq(multisigIsmConfig.threshold)) {
@@ -89,8 +94,9 @@ export class HyperlaneCoreDeployer<
           const tx = multisigIsm.setThreshold(
             domain,
             multisigIsmConfig.threshold,
+            chainConnection.overrides,
           );
-          await this.multiProvider.getChainConnection(chain).handleTx(tx);
+          await chainConnection.handleTx(tx);
         }
       }
     });
