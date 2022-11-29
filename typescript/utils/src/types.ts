@@ -35,12 +35,6 @@ export type CallData = {
   data: string;
 };
 
-export enum AbacusState {
-  UNINITIALIZED = 0,
-  ACTIVE,
-  FAILED,
-}
-
 export enum MessageStatus {
   NONE = 0,
   PROCESSED,
