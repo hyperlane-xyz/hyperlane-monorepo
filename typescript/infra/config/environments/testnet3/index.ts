@@ -12,7 +12,7 @@ import {
 } from './chains';
 import { core } from './core';
 import { keyFunderConfig } from './funding';
-// import { helloWorld } from './helloworld';
+import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
 
 export const environment: CoreEnvironmentConfig<TestnetChains> = {
@@ -34,6 +34,6 @@ export const environment: CoreEnvironmentConfig<TestnetChains> = {
   agents,
   core,
   infra: infrastructure,
-  // helloWorld,
+  helloWorld,
   keyFunderConfig,
 };
