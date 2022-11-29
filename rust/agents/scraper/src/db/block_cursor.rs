@@ -25,7 +25,7 @@ struct BlockCursorInner {
 #[derive(Debug)]
 pub struct BlockCursor {
     db: DbConn,
-    /// The abacus domain this block cursor is for.
+    /// The hyperlane domain this block cursor is for.
     domain: u32,
     inner: RwLock<BlockCursorInner>,
 }

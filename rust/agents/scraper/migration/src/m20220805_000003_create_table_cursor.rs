@@ -51,7 +51,7 @@ pub enum Cursor {
     Table,
     /// Unique database ID
     Id,
-    /// Abacus domain ID the cursor is for
+    /// Hyperlane domain ID the cursor is for
     Domain,
     /// Time when the record was created
     TimeCreated,

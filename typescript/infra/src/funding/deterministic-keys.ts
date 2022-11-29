@@ -25,7 +25,7 @@ export const getDeterministicKey = async (
 ) => {
   const deployerKey = new AgentGCPKey(
     environment,
-    Contexts.Abacus,
+    Contexts.Hyperlane,
     KEY_ROLE_ENUM.Deployer,
   );
   await deployerKey.fetch();

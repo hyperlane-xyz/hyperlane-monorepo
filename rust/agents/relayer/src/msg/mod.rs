@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use abacus_core::{accumulator::merkle::Proof, AbacusMessage, MultisigSignedCheckpoint};
+use hyperlane_core::{accumulator::merkle::Proof, HyperlaneMessage, MultisigSignedCheckpoint};
 
 use tokio::time::Instant;
 
@@ -30,7 +30,7 @@ pub mod serial_submitter;
 
 #[derive(Clone, Debug)]
 pub struct SubmitMessageArgs {
-    pub message: AbacusMessage,
+    pub message: HyperlaneMessage,
     pub checkpoint: MultisigSignedCheckpoint,
     pub proof: Proof,
     pub enqueue_time: Instant,
@@ -39,7 +39,7 @@ pub struct SubmitMessageArgs {
 
 impl SubmitMessageArgs {
     pub fn new(
-        message: AbacusMessage,
+        message: HyperlaneMessage,
         checkpoint: MultisigSignedCheckpoint,
         proof: Proof,
         enqueue_time: Instant,

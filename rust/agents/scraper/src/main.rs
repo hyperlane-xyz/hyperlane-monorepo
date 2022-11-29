@@ -1,5 +1,5 @@
 //! The message explorer scraper is responsible for building and maintaining a
-//! relational database of the Abacus state across blockchains to empower us and
+//! relational database of the Hyperlane state across blockchains to empower us and
 //! our users to trace and debug messages and other system state.
 //!
 //! Information scrapped is predominately recoverable simply be re-scraping the
@@ -8,7 +8,7 @@
 //! information is not critical to the functioning of the system.
 //!
 //! One scraper instance is run per chain and together they will be able to
-//! piece together the full abacus system state in the relational database.
+//! piece together the full hyperlane system state in the relational database.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -16,8 +16,8 @@
 
 use eyre::Result;
 
-use abacus_base::agent_main;
 use agent::Scraper;
+use hyperlane_base::agent_main;
 
 mod db;
 

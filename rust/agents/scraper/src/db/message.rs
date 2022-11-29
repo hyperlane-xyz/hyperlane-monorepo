@@ -5,7 +5,7 @@ use sea_orm::{
 };
 use tracing::{instrument, trace};
 
-use abacus_core::{AbacusMessage, LogMeta};
+use hyperlane_core::{HyperlaneMessage, LogMeta};
 use migration::OnConflict;
 
 use crate::conversions::format_h256;
@@ -23,7 +23,7 @@ pub struct StorableDelivery<'a> {
 }
 
 pub struct StorableMessage<'a> {
-    pub msg: AbacusMessage,
+    pub msg: HyperlaneMessage,
     pub meta: &'a LogMeta,
     /// The database id of the transaction the message was sent in
     pub txn_id: i64,
