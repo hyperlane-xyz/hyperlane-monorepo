@@ -18,7 +18,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "alfajores",
         token: "CELO",
-        domain: 1000,
+        domain: 44787,
         chain_id: 44787,
         is_test_net: true,
         is_deprecated: false,
@@ -26,7 +26,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "arbitrum",
         token: "ETH",
-        domain: 6386274,
+        domain: 42161,
         chain_id: 42161,
         is_test_net: false,
         is_deprecated: false,
@@ -42,23 +42,15 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "arbitrumrinkeby",
         token: "ETH",
-        domain: 0x61722d72,
+        domain: 421611,
         chain_id: 421611,
-        is_test_net: true,
-        is_deprecated: true,
-    },
-    RawDomain {
-        name: "auroratestnet",
-        token: "ETH",
-        domain: 0x61752d74,
-        chain_id: 1313161555,
         is_test_net: true,
         is_deprecated: true,
     },
     RawDomain {
         name: "avalanche",
         token: "AVAX",
-        domain: 0x61766178,
+        domain: 43114,
         chain_id: 43114,
         is_test_net: false,
         is_deprecated: false,
@@ -66,7 +58,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "bsc",
         token: "BNB",
-        domain: 6452067,
+        domain: 56,
         chain_id: 56,
         is_test_net: false,
         is_deprecated: false,
@@ -74,7 +66,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "bsctestnet",
         token: "tBNB",
-        domain: 0x62732d74,
+        domain: 97,
         chain_id: 97,
         is_test_net: true,
         is_deprecated: false,
@@ -82,7 +74,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "celo",
         token: "CELO",
-        domain: 0x63656c6f,
+        domain: 42220,
         chain_id: 42220,
         is_test_net: false,
         is_deprecated: false,
@@ -122,7 +114,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "moonbasealpha",
         token: "DEV",
-        domain: 0x6d6f2d61,
+        domain: 1287,
         chain_id: 1287,
         is_test_net: true,
         is_deprecated: false,
@@ -130,7 +122,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "moonbeam",
         token: "GLMR",
-        domain: 0x6d6f2d6d,
+        domain: 1284,
         chain_id: 1284,
         is_test_net: false,
         is_deprecated: false,
@@ -146,7 +138,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "optimism",
         token: "ETH",
-        domain: 28528,
+        domain: 10,
         chain_id: 10,
         is_test_net: false,
         is_deprecated: false,
@@ -162,7 +154,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "optimismkovan",
         token: "ETH",
-        domain: 0x6f702d6b,
+        domain: 69,
         chain_id: 69,
         is_test_net: true,
         is_deprecated: true,
@@ -170,7 +162,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "polygon",
         token: "MATIC",
-        domain: 0x706f6c79,
+        domain: 137,
         chain_id: 137,
         is_test_net: false,
         is_deprecated: false,

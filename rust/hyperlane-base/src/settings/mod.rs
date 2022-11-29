@@ -598,9 +598,9 @@ impl Settings {
         Config::builder()
             .add_source(File::with_name("config/default"))
             .add_source(File::with_name(&env_path))
-            // Add in settings from the environment (with a prefix of ABACUS)
-            // Eg.. `ABACUS_DEBUG=1 would set the `debug` key
-            .add_source(Environment::with_prefix("ABACUS"))
+            // Add in settings from the environment (with a prefix of HYPERLANE)
+            // Eg.. `HYPERLANE_DEBUG=1 would set the `debug` key
+            .add_source(Environment::with_prefix("HYPERLANE"))
             .build()?
             .try_deserialize()
     }
