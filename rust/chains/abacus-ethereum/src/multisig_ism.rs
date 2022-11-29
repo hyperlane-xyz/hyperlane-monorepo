@@ -84,10 +84,12 @@ where
     }
 }
 
-
 /// A reference to an MultisigIsm contract on some Ethereum chain
 #[derive(Debug)]
-pub struct EthereumMultisigIsm<M> {
+pub struct EthereumMultisigIsm<M>
+where
+    M: Middleware,
+{
     contract: EthereumMultisigIsmInternal<M>,
     #[allow(dead_code)]
     domain: u32,
@@ -106,10 +108,7 @@ where
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: EthereumMultisigIsmInternal::new(
-                &locator.address,
-                provider.clone(),
-            ),
+            contract: EthereumMultisigIsmInternal::new(&locator.address, provider.clone()),
             domain: locator.domain,
             chain_name: locator.chain_name.to_owned(),
             provider,

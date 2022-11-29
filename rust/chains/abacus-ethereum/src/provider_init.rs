@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ethers::prelude::{
-    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
-    SignerMiddleware, WeightedProvider, Ws,
+    Http, JsonRpcClient, JsonRpcClientWrapper, Middleware, NonceManagerMiddleware, Provider,
+    Quorum, QuorumProvider, SignerMiddleware, WeightedProvider, Ws,
 };
 use reqwest::{Client, Url};
 
@@ -127,13 +127,16 @@ async fn wrap_with_metrics<C>(
 where
     C: Into<DynamicJsonRpcClient>,
 {
-    let provider = Provider::new(client.into());
+    let provider: Provider<DynamicJsonRpcClient> = Provider::new(client.into());
     Ok(if let Some(metrics) = metrics {
         let provider = PrometheusMiddleware::new(provider, metrics.0, metrics.1);
         tokio::spawn(provider.start_updating_on_interval(METRICS_SCRAPE_INTERVAL));
-        wrap_with_signer::<Arc<PrometheusMiddleware<Provider<C>>>>(provider, signer).await?
+        wrap_with_signer::<Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>>(
+            provider, signer,
+        )
+        .await?
     } else {
-        wrap_with_signer::<Provider<C>>(provider, signer).await?
+        wrap_with_signer::<Provider<DynamicJsonRpcClient>>(provider, signer).await?
     })
 }
 
@@ -145,16 +148,14 @@ async fn wrap_with_signer<M>(
 ) -> eyre::Result<DynamicMiddleware>
 where
     M: Middleware + 'static,
-    DynamicMiddleware: From<SignerMiddleware<NonceManagerMiddleware<M>, Signers>>,
+    DynamicMiddleware: From<SignerMiddleware<NonceManagerMiddleware<M>, Signers>> + From<M>,
 {
-    if let Some(signer) = signer {
+    Ok(if let Some(signer) = signer {
         let signing_provider = make_signing_provider(provider, signer).await?;
         DynamicMiddleware::from(signing_provider)
     } else {
         DynamicMiddleware::from(provider)
-    }
-    .await
-    .into()
+    })
 }
 
 async fn make_signing_provider<M: Middleware>(

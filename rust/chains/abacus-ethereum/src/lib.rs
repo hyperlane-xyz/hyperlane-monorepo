@@ -15,7 +15,7 @@ pub use retrying::{RetryingProvider, RetryingProviderError};
 
 use crate::abi::FunctionExt;
 #[cfg(not(doctest))]
-pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, provider_init::*};
+pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, provider_init::*, dynamic::*};
 
 #[cfg(not(doctest))]
 mod tx;

@@ -6,9 +6,7 @@ use ethers::prelude::{Middleware, H256};
 use eyre::eyre;
 use tracing::instrument;
 
-use abacus_core::{
-    AbacusChain, AbacusProvider, BlockInfo, TxnInfo, TxnReceiptInfo,
-};
+use abacus_core::{AbacusChain, AbacusProvider, BlockInfo, TxnInfo, TxnReceiptInfo};
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
@@ -20,6 +18,19 @@ where
     provider: Arc<M>,
     chain_name: String,
     domain: u32,
+}
+
+impl<M> EthereumProvider<M>
+where
+    M: Middleware,
+{
+    pub fn new(provider: Arc<M>, chain_name: String, domain: u32) -> Self {
+        Self {
+            provider,
+            chain_name,
+            domain,
+        }
+    }
 }
 
 impl<M> AbacusChain for EthereumProvider<M>

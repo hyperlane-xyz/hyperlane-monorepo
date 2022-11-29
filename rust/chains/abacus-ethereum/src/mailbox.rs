@@ -2,7 +2,7 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::fmt::{Debug, self};
+use std::fmt::{self, Debug};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -30,9 +30,12 @@ where
     }
 }
 
-#[derive(Debug)]
 /// Struct that retrieves event data for an Ethereum mailbox
-pub struct EthereumMailboxIndexer<M> {
+#[derive(Debug)]
+pub struct EthereumMailboxIndexer<M>
+where
+    M: Middleware,
+{
     contract: EthereumMailboxInternal<M>,
     provider: Arc<M>,
     finality_blocks: u32,
@@ -43,7 +46,7 @@ where
     M: Middleware,
 {
     /// Create new EthereumMailboxIndexer
-    pub fn new(provider: M, locator: &ContractLocator, finality_blocks: u32) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         let contract = EthereumMailboxInternal::new(&locator.address, provider.clone());
         Self {
             contract,
@@ -112,8 +115,11 @@ where
 
 /// A reference to an Mailbox contract on some Ethereum chain
 #[derive(Debug)]
-pub struct EthereumMailbox<M> {
-    contract: Arc<EthereumMailboxInternal<M>>,
+pub struct EthereumMailbox<M>
+where
+    M: Middleware,
+{
+    contract: EthereumMailboxInternal<M>,
     domain: u32,
     chain_name: String,
     provider: Arc<M>,
@@ -127,10 +133,10 @@ where
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumMailboxInternal::new(
+            contract: EthereumMailboxInternal::new(
                 &locator.address,
                 provider.clone(),
-            )),
+            ),
             domain: locator.domain,
             chain_name: locator.chain_name.to_owned(),
             provider,

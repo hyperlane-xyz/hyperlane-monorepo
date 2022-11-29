@@ -1,10 +1,17 @@
+//! Dynamic provider and rpc client types that can be used without needing to
+//! construct a narrow chain for static creation of each thing that uses a
+//! middleware and still allows for digging into specific errors if needed.
+
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter, Pointer};
 use std::ops::Deref;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::prelude::{Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, QuorumProvider, SignerMiddleware, Ws};
+use ethers::prelude::{
+    Http, JsonRpcClient, JsonRpcClientWrapper, Middleware, NonceManagerMiddleware, Provider,
+    ProviderError, QuorumProvider, SignerMiddleware, Ws, WsClientError,
+};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -15,17 +22,17 @@ use paste::paste;
 
 use crate::RetryingProvider;
 
-
-// Middleware
-type TSignerNoncePrometheus = SignerMiddleware<
-    NonceManagerMiddleware<Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>>,
-    Signers,
->;
-type TSignerNoncePrometheusError = <TSignerNoncePrometheus as Middleware>::Error;
-
-type TSignerNonce =
-    SignerMiddleware<NonceManagerMiddleware<Provider<DynamicJsonRpcClient>>, Signers>;
-type TSignerNonceError = <TSignerNonce as Middleware>::Error;
+// // Middleware
+// type TSignerNoncePrometheus = SignerMiddleware<
+//     NonceManagerMiddleware<Arc<PrometheusMiddleware<Provider<Box<dyn
+// JsonRpcClientWrapper>>>>>,     Signers,
+// >;
+// type TSignerNoncePrometheusError = <TSignerNoncePrometheus as
+// Middleware>::Error;
+//
+// type TSignerNonce =
+//     SignerMiddleware<NonceManagerMiddleware<Provider<DynamicJsonRpcClient>>,
+// Signers>; type TSignerNonceError = <TSignerNonce as Middleware>::Error;
 
 // TODO: use derive more?
 
@@ -51,7 +58,7 @@ macro_rules! make_dyn_json_rpc_client {
                 R: DeserializeOwned,
             {
                 match self {
-                    $(Self::$n(p) => p.request(method, params).await.map_err(DynamicJsonRpcClientError::from),)*
+                    $(Self::$n(p) => JsonRpcClient::request(p, method, params).await.map_err(DynamicJsonRpcClientError::from),)*
                 }
             }
         }
@@ -75,7 +82,7 @@ macro_rules! make_dyn_json_rpc_client_error {
     {$($n:ident($t:ty)),*$(,)?} => {
         #[derive(Debug)]
         pub enum DynamicJsonRpcClientError {
-            $($n(Box<<$t as JsonRpcClient>::Error>),)*
+            $($n(Box<$t>),)*
         }
 
         impl Display for DynamicJsonRpcClientError {
@@ -94,15 +101,23 @@ macro_rules! make_dyn_json_rpc_client_error {
             }
         }
 
+        impl From<DynamicJsonRpcClientError> for ProviderError {
+            fn from(err: DynamicJsonRpcClientError) -> Self {
+                match err {
+                    $(DynamicJsonRpcClientError::$n(e) => (*e).into(),)*
+                }
+            }
+        }
+
         $(
-        impl From<<$t as JsonRpcClient>::Error> for DynamicJsonRpcClientError {
-            fn from(p: <$t as JsonRpcClient>::Error) -> Self {
+        impl From<$t> for DynamicJsonRpcClientError {
+            fn from(p: $t) -> Self {
                 Self::$n(Box::new(p))
             }
         }
 
-        impl From<Box<<$t as JsonRpcClient>::Error>> for DynamicJsonRpcClientError {
-            fn from(p: Box<<$t as JsonRpcClient>::Error>) -> Self {
+        impl From<Box<$t>> for DynamicJsonRpcClientError {
+            fn from(p: Box<$t>) -> Self {
                 Self::$n(p)
             }
         }
@@ -117,7 +132,9 @@ make_dyn_json_rpc_client! {
 }
 
 make_dyn_json_rpc_client_error! {
-    RetryingPrometheusHttp(RetryingProvider<PrometheusJsonRpcClient<Http>>),
+    RetryingPrometheusHttp(TRetryingPrometheusHttpError),
+    Ws(WsClientError),
+    Provider(ProviderError)
 }
 
 pub struct DynamicMiddleware {}
@@ -129,12 +146,57 @@ impl Debug for DynamicMiddleware {
 }
 
 impl Middleware for DynamicMiddleware {
-    type Error = ();
-    type Provider = ();
-    type Inner = ();
+    type Error = DynamicMiddlewareError;
+    type Provider = DynamicJsonRpcClient;
+    type Inner = DynamicMiddleware;
 
     fn inner(&self) -> &Self::Inner {
         todo!()
+    }
+
+    fn provider(&self) -> &Provider<Self::Provider> {
+        todo!()
+    }
+}
+
+impl From<SignerMiddleware<NonceManagerMiddleware<Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>>, Signers>> for DynamicMiddleware {
+    fn from(_: SignerMiddleware<NonceManagerMiddleware<Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>>, Signers>) -> Self {
+        todo!()
+    }
+}
+
+impl From<Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>> for DynamicMiddleware {
+    fn from(_: Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>) -> Self {
+        todo!()
+    }
+}
+
+impl From<SignerMiddleware<NonceManagerMiddleware<Provider<DynamicJsonRpcClient>>, Signers>> for DynamicMiddleware {
+    fn from(_: SignerMiddleware<NonceManagerMiddleware<Provider<DynamicJsonRpcClient>>, Signers>) -> Self {
+        todo!()
+    }
+}
+
+impl From<Provider<DynamicJsonRpcClient>> for DynamicMiddleware {
+    fn from(_: Provider<DynamicJsonRpcClient>) -> Self {
+        todo!()
+    }
+}
+
+#[derive(Debug)]
+pub struct DynamicMiddlewareError {}
+
+impl Display for DynamicMiddlewareError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl Error for DynamicMiddlewareError {}
+
+impl ethers::providers::FromErr<DynamicMiddlewareError> for DynamicMiddlewareError {
+    fn from(src: DynamicMiddlewareError) -> Self {
+        src
     }
 }
 
@@ -149,19 +211,6 @@ impl Middleware for DynamicMiddleware {
 // pub enum DynamicMiddleware {
 //     SignerNoncePrometheus(Box<TSignerNoncePrometheus>),
 // }
-
-impl From<TSignerNoncePrometheus> for DynamicMiddleware {
-    fn from(m: TSignerNoncePrometheus) -> Self {
-        // Self::SignerNoncePrometheus(Box::new(m))
-        todo!()
-    }
-}
-
-impl From<TSignerNonce> for DynamicMiddleware {
-    fn from(_: TSignerNonce) -> Self {
-        todo!()
-    }
-}
 
 // impl Debug for DynamicMiddleware {
 //     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
