@@ -136,7 +136,7 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
      * @dev Reverts if there is no enrolled router for _destinationDomain.
      * @param _destinationDomain The domain of the chain to which to send the message.
      * @param _messageBody Raw bytes content of message.
-     * @param _gasAmount The amount of destination gas the message that's provided to the InterchainGasPaymaster.
+     * @param _gasAmount The amount of destination gas for the message that is requested via the InterchainGasPaymaster.
      * @param _gasPayment The amount of native tokens to pay for the message to be relayed.
      * @param _gasPaymentRefundAddress The address to refund any gas overpayment to.
      */

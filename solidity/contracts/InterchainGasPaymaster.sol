@@ -17,10 +17,10 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
     /**
      * @notice Emitted when a payment is made for a message's gas costs.
      * @param messageId The ID of the message to pay for.
-     * @param payment The amount of native tokens paid.
      * @param gas The amount of destination gas paid for.
+     * @param payment The amount of native tokens paid.
      */
-    event GasPayment(bytes32 indexed messageId, uint256 payment, uint256 gas);
+    event GasPayment(bytes32 indexed messageId, uint256 gas, uint256 payment);
 
     // ============ Constructor ============
 
@@ -40,8 +40,8 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
      * to its destination chain.
      * @param _messageId The ID of the message to pay for.
      * @param _destinationDomain The domain of the message's destination chain.
-     * @param _gas The amount of destination gas to pay for. Unused.
-     * @param _refundAddress The address to refund any overpayment to. Unused.
+     * @param _gas The amount of destination gas to pay for. Currently unused.
+     * @param _refundAddress The address to refund any overpayment to. Currently unused.
      */
     function payForGas(
         bytes32 _messageId,
@@ -50,12 +50,12 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
         address _refundAddress
     ) external payable override {
         // Silence compiler warning. The NatSpec @param requires the parameter to be named.
-        // While not used at the moment, future versions of the paymaster may look up overhead
-        // costs by the destination domain, and refund overpayments to the _refundAddress.
+        // While not used at the moment, future versions of the paymaster have behavior specific
+        // to the destination domain and refund overpayments to the _refundAddress.
         _destinationDomain;
         _refundAddress;
 
-        emit GasPayment(_messageId, msg.value, _gas);
+        emit GasPayment(_messageId, _gas, msg.value);
     }
 
     /**

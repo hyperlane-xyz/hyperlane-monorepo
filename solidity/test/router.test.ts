@@ -186,8 +186,8 @@ describe('Router', async () => {
             .emit(interchainGasPaymaster, 'GasPayment')
             .withArgs(
               id,
-              testGasPaymentParams.gasPayment,
               testGasPaymentParams.gasAmount,
+              testGasPaymentParams.gasPayment,
             );
         });
 

@@ -71,7 +71,7 @@ describe('InterchainGasPaymaster', async () => {
         ),
       )
         .to.emit(paymaster, 'GasPayment')
-        .withArgs(MESSAGE_ID, GAS_PAYMENT_AMOUNT, GAS_AMOUNT);
+        .withArgs(MESSAGE_ID, GAS_AMOUNT, GAS_PAYMENT_AMOUNT);
     });
   });
 
