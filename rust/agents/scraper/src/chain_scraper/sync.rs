@@ -105,7 +105,7 @@ impl Syncer {
     }
 
     /// Sync contract and other blockchain data with the current chain state.
-    #[instrument(skip(self), fields(chain_name = self.chain_name(), chink_size = self.chunk_size))]
+    #[instrument(skip(self), fields(chain_name = self.chain_name(), chunk_size = self.chunk_size))]
     pub async fn run(mut self) -> Result<()> {
         let start_block = self.sync_cursor.current_position();
         info!(from = start_block, "Resuming chain sync");
