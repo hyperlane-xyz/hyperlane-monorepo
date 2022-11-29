@@ -25,7 +25,7 @@ async function main() {
 
   const dir = path.join(
     getEnvironmentDirectory(environment),
-    'interchain/queries',
+    'middleware/queries',
   );
 
   // config gcp deployer key as owner
