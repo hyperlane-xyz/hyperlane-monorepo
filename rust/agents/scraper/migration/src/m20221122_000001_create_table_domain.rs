@@ -48,14 +48,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: true,
     },
     RawDomain {
-        name: "auroratestnet",
-        token: "ETH",
-        domain: 1313161555,
-        chain_id: 1313161555,
-        is_test_net: true,
-        is_deprecated: true,
-    },
-    RawDomain {
         name: "avalanche",
         token: "AVAX",
         domain: 43114,
