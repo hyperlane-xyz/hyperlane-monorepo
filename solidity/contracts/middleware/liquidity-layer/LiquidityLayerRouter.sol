@@ -24,11 +24,11 @@ contract LiquidityLayerRouter is Router {
         address _mailbox,
         address _interchainGasPaymaster
     ) public initializer {
-        // Transfer ownership of the contract to deployer
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
+            _interchainGasPaymaster
+        );
         _transferOwnership(_owner);
-        // Alternatively, this could be done later in an initialize method
-        _setMailbox(_mailbox);
-        _setInterchainGasPaymaster(_interchainGasPaymaster);
     }
 
     function dispatchWithTokens(

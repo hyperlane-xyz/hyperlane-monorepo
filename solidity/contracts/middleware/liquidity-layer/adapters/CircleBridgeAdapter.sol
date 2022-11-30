@@ -74,9 +74,6 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
 
-        // Set the addresses for the IGP to address(0) - it's not used.
-        _setInterchainGasPaymaster(address(0));
-
         circleBridge = ICircleBridge(_circleBridge);
         circleMessageTransmitter = ICircleMessageTransmitter(
             _circleMessageTransmitter

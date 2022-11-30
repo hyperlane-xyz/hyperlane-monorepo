@@ -218,9 +218,11 @@ contract Mailbox is
         try _recipient.interchainSecurityModule() returns (
             IInterchainSecurityModule _val
         ) {
-            return _val;
-        } catch {
-            return defaultIsm;
-        }
+            // If the recipient specifies a zero address, use the default ISM.
+            if (address(_val) != address(0)) {
+                return _val;
+            }
+        } catch {}
+        return defaultIsm;
     }
 }
