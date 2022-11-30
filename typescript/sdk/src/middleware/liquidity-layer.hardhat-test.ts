@@ -20,7 +20,6 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer';
 import { LiquidityLayerApp } from '../deploy/middleware/LiquidityLayerApp';
 import {
   BridgeAdapterType,
-  CircleBridgeAdapterConfig,
   LiquidityLayerConfig,
   LiquidityLayerDeployer,
 } from '../deploy/middleware/LiquidityLayerRouterDeployer';
@@ -30,7 +29,7 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, TestChainNames } from '../types';
 import { objMap } from '../utils/objects';
 
-describe('LiquidityLayerRouter', async () => {
+describe.only('LiquidityLayerRouter', async () => {
   const localChain = 'test1';
   const remoteChain = 'test2';
   const localDomain = ChainNameToDomainId[localChain];
@@ -86,7 +85,7 @@ describe('LiquidityLayerRouter', async () => {
                   circleDomain: remoteDomain,
                 },
               ],
-            } as CircleBridgeAdapterConfig,
+            },
           ],
         }),
       ),
