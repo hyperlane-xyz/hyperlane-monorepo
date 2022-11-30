@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+// Portal's interface from their docs
 interface IPortalTokenBridge {
     struct Transfer {
         uint8 payloadID;
