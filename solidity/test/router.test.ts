@@ -59,10 +59,10 @@ describe('Router', async () => {
     });
 
     it('cannot be initialized twice', async () => {
-      await router.initialize(ethers.constants.AddressZero);
-      await expect(
-        router.initialize(ethers.constants.AddressZero),
-      ).to.be.revertedWith('Initializable: contract is already initialized');
+      await router.initialize(mailbox.address);
+      await expect(router.initialize(mailbox.address)).to.be.revertedWith(
+        'Initializable: contract is already initialized',
+      );
     });
   });
 

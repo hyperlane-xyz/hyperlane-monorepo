@@ -55,8 +55,7 @@ abstract contract HyperlaneConnectionClient is
      * @notice Only accept addresses that at least have contract code
      */
     modifier onlyContract(address _contract) {
-        // TODO: fix tests that provide zero address
-        // require(Address.isContract(_contract), "!contract");
+        require(Address.isContract(_contract), "!contract");
         _;
     }
 

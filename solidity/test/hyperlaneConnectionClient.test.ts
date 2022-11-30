@@ -18,6 +18,7 @@ const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 describe('HyperlaneConnectionClient', async () => {
   let connectionClient: TestHyperlaneConnectionClient,
     mailbox: Mailbox,
+    newMailbox: Mailbox,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
 
@@ -29,6 +30,7 @@ describe('HyperlaneConnectionClient', async () => {
     const mailboxFactory = new Mailbox__factory(signer);
     const domain = 1000;
     mailbox = await mailboxFactory.deploy(domain);
+    newMailbox = await mailboxFactory.deploy(domain);
 
     const connectionClientFactory = new TestHyperlaneConnectionClient__factory(
       signer,
@@ -39,23 +41,22 @@ describe('HyperlaneConnectionClient', async () => {
 
   it('Cannot be initialized twice', async () => {
     await expect(
-      connectionClient.initialize(ethers.constants.AddressZero),
+      connectionClient.initialize(mailbox.address),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
   it('owner can set mailbox', async () => {
-    const newMailbox = signer.address;
-    expect(await connectionClient.mailbox()).to.not.equal(newMailbox);
-    await expect(connectionClient.setMailbox(newMailbox)).to.emit(
+    expect(await connectionClient.mailbox()).to.not.equal(newMailbox.address);
+    await expect(connectionClient.setMailbox(newMailbox.address)).to.emit(
       connectionClient,
       'MailboxSet',
     );
-    expect(await connectionClient.mailbox()).to.equal(newMailbox);
+    expect(await connectionClient.mailbox()).to.equal(newMailbox.address);
   });
 
   it('non-owner cannot set mailbox', async () => {
     await expect(
-      connectionClient.connect(nonOwner).setMailbox(signer.address),
+      connectionClient.connect(nonOwner).setMailbox(newMailbox.address),
     ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
   });
 
