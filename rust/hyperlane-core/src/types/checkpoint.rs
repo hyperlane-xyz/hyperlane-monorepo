@@ -210,7 +210,7 @@ impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
         }
 
         let signatures = signed_checkpoints
-            .into_iter()
+            .iter()
             .map(|c| SignatureWithSigner {
                 signature: c.signed_checkpoint.signature,
                 signer: c.signer,
