@@ -13,7 +13,7 @@ abstract contract HyperlaneConnectionClient is OwnableUpgradeable {
 
     IMailbox public mailbox;
     // Interchain Gas Paymaster contract. The relayer associated with this contract
-    // must be willing to relay messages dispatched from the current Outbox contract,
+    // must be willing to relay messages dispatched from the current Mailbox contract,
     // otherwise payments made to the paymaster will not result in relayed messages.
     IInterchainGasPaymaster public interchainGasPaymaster;
 
@@ -99,7 +99,7 @@ abstract contract HyperlaneConnectionClient is OwnableUpgradeable {
     }
 
     /**
-     * @notice Modify the contract the Application uses to validate Inbox contracts
+     * @notice Modify the contract the Application uses to validate Mailbox contracts
      * @param _mailbox The address of the mailbox contract
      */
     function _setMailbox(address _mailbox) internal {

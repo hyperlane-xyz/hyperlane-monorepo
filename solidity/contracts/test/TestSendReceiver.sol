@@ -13,12 +13,12 @@ contract TestSendReceiver is IMessageRecipient {
     event Handled(bytes32 blockHash);
 
     function dispatchToSelf(
-        IMailbox _outbox,
+        IMailbox _mailbox,
         IInterchainGasPaymaster _paymaster,
         uint32 _destinationDomain,
         bytes calldata _messageBody
     ) external payable {
-        bytes32 _messageId = _outbox.dispatch(
+        bytes32 _messageId = _mailbox.dispatch(
             _destinationDomain,
             address(this).addressToBytes32(),
             _messageBody
