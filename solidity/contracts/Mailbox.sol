@@ -59,16 +59,41 @@ contract Mailbox is
 
     /**
      * @notice Emitted when a new message is dispatched via Hyperlane
-     * @param messageId The unique message identifier
+     * @param sender The address that dispatched the message
+     * @param destination The destination domain of the message
+     * @param recipient The message recipient address on `destination`
      * @param message Raw bytes of message
      */
-    event Dispatch(bytes32 indexed messageId, bytes message);
+    event Dispatch(
+        address indexed sender,
+        uint32 indexed destination,
+        bytes32 indexed recipient,
+        bytes message
+    );
+
+    /**
+     * @notice Emitted when a new message is dispatched via Hyperlane
+     * @param messageId The unique message identifier
+     */
+    event DispatchId(bytes32 indexed messageId);
+
+    /**
+     * @notice Emitted when a new message is dispatched via Hyperlane
+     * @param messageId The unique message identifier
+     */
+    event ProcessId(bytes32 indexed messageId);
 
     /**
      * @notice Emitted when a Hyperlane message is delivered
-     * @param messageId The unique message identifier
+     * @param origin The origin domain of the message
+     * @param sender The message sender address on `origin`
+     * @param recipient The address that handled the message
      */
-    event Process(bytes32 indexed messageId);
+    event Process(
+        uint32 indexed origin,
+        bytes32 indexed sender,
+        address indexed recipient
+    );
 
     // ============ Constructor ============
 
@@ -118,11 +143,17 @@ contract Mailbox is
             _recipientAddress,
             _messageBody
         );
+        emit Dispatch(
+            msg.sender,
+            _destinationDomain,
+            _recipientAddress,
+            _message
+        );
 
         // Insert the message ID into the merkle tree.
         bytes32 _id = _message.id();
         tree.insert(_id);
-        emit Dispatch(_id, _message);
+        emit DispatchId(_id);
         return _id;
     }
 
@@ -145,6 +176,7 @@ contract Mailbox is
         bytes32 _id = _message.id();
         require(delivered[_id] == false, "delivered");
         delivered[_id] = true;
+        emit ProcessId(_id);
 
         // Verify the message via the ISM.
         IInterchainSecurityModule _ism = _recipientIsm(
@@ -153,13 +185,11 @@ contract Mailbox is
         require(_ism.verify(_metadata, _message), "!module");
 
         // Deliver the message to the recipient.
-        uint32 _origin = _message.origin();
-        IMessageRecipient(_message.recipientAddress()).handle(
-            _origin,
-            _message.sender(),
-            _message.body()
-        );
-        emit Process(_id);
+        uint32 origin = _message.origin();
+        bytes32 sender = _message.sender();
+        address recipient = _message.recipientAddress();
+        IMessageRecipient(recipient).handle(origin, sender, _message.body());
+        emit Process(origin, sender, recipient);
     }
 
     // ============ Public Functions ============
