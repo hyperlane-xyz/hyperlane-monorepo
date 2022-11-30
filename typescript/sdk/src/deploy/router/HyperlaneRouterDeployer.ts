@@ -4,6 +4,7 @@ import { ethers } from 'ethers';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
+import { DomainIdToChainName } from '../../domains';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
 import { ChainMap, ChainName } from '../../types';
@@ -99,7 +100,8 @@ export abstract class HyperlaneRouterDeployer<
       const addresses = entries.map(([, address]) => address);
 
       await super.runIfOwner(local, contracts.router, async () => {
-        this.logger(`Enroll remote (${domains}) routers on ${local}`);
+        const chains = domains.map((id) => DomainIdToChainName[id]);
+        this.logger(`Enroll remote (${chains}) routers on ${local}`);
         await chainConnection.handleTx(
           contracts.router.enrollRemoteRouters(
             domains,
