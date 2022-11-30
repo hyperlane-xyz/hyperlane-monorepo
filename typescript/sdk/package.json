@@ -50,6 +50,5 @@
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts'",
     "test:hardhat": "hardhat test ./src/**/*.hardhat-test.ts"
   },
-  "types": "dist/index.d.ts",
-  "stableVersion": "0.5.3"
+  "types": "dist/index.d.ts"
 }
