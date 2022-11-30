@@ -176,24 +176,42 @@ impl
     }
 }
 
-impl From<Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>> for DynamicMiddleware {
-    fn from(_: Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>) -> Self {
+impl From<Arc<PrometheusMiddleware<Provider<Arc<DynamicJsonRpcClient>>>>> for DynamicMiddleware {
+    fn from(_: Arc<PrometheusMiddleware<Provider<Arc<DynamicJsonRpcClient>>>>) -> Self {
         todo!()
     }
 }
 
-impl From<SignerMiddleware<NonceManagerMiddleware<Provider<DynamicJsonRpcClient>>, Signers>>
-    for DynamicMiddleware
+impl
+    From<
+        SignerMiddleware<
+            NonceManagerMiddleware<Arc<PrometheusMiddleware<Provider<Arc<DynamicJsonRpcClient>>>>>,
+            Signers,
+        >,
+    > for DynamicMiddleware
 {
     fn from(
-        _: SignerMiddleware<NonceManagerMiddleware<Provider<DynamicJsonRpcClient>>, Signers>,
+        _: SignerMiddleware<
+            NonceManagerMiddleware<Arc<PrometheusMiddleware<Provider<Arc<DynamicJsonRpcClient>>>>>,
+            Signers,
+        >,
     ) -> Self {
         todo!()
     }
 }
 
-impl From<Provider<DynamicJsonRpcClient>> for DynamicMiddleware {
-    fn from(_: Provider<DynamicJsonRpcClient>) -> Self {
+impl From<SignerMiddleware<NonceManagerMiddleware<Provider<Arc<DynamicJsonRpcClient>>>, Signers>>
+    for DynamicMiddleware
+{
+    fn from(
+        _: SignerMiddleware<NonceManagerMiddleware<Provider<Arc<DynamicJsonRpcClient>>>, Signers>,
+    ) -> Self {
+        todo!()
+    }
+}
+
+impl From<Provider<Arc<DynamicJsonRpcClient>>> for DynamicMiddleware {
+    fn from(_: Provider<Arc<DynamicJsonRpcClient>>) -> Self {
         todo!()
     }
 }

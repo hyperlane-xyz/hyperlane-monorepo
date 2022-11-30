@@ -1,23 +1,31 @@
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Weak};
 
 use ethers::signers::Signer;
+use lazy_static::lazy_static;
 use serde::Deserialize;
+use tokio::sync::Mutex;
 
 use abacus_core::{
     AbacusAbi, AbacusProvider, ContractLocator, InterchainGasPaymaster,
     InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers,
 };
 use abacus_ethereum::{
-    make_with_connection, Connection, DynamicMiddleware, EthereumInterchainGasPaymaster,
-    EthereumInterchainGasPaymasterAbi, EthereumInterchainGasPaymasterIndexer, EthereumMailbox,
-    EthereumMailboxAbi, EthereumMailboxIndexer, EthereumMultisigIsm, EthereumMultisigIsmAbi,
-    EthereumProvider,
+    create_connection, create_provider, ConnectionConfig, DynamicJsonRpcClient, DynamicMiddleware,
+    EthereumInterchainGasPaymaster, EthereumInterchainGasPaymasterAbi,
+    EthereumInterchainGasPaymasterIndexer, EthereumMailbox, EthereumMailboxAbi,
+    EthereumMailboxIndexer, EthereumMultisigIsm, EthereumMultisigIsmAbi, EthereumProvider,
 };
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 
 use crate::CoreMetrics;
+
+lazy_static! {
+    static ref ETHEREUM_RPC_CLIENTS: Mutex<HashMap<ConnectionConfig, Weak<DynamicJsonRpcClient>>> =
+        Default::default();
+}
 
 /// A connection to _some_ blockchain.
 ///
@@ -26,7 +34,7 @@ use crate::CoreMetrics;
 #[serde(tag = "rpcStyle", content = "connection", rename_all = "camelCase")]
 pub enum ChainConf {
     /// Ethereum configuration
-    Ethereum(Connection),
+    Ethereum(ConnectionConfig),
 }
 
 impl Default for ChainConf {
@@ -315,10 +323,28 @@ impl ChainSetup {
         //     unreachable!("This function should only be called for Ethereum chains")
         // };
 
-        make_with_connection(
-            conf.clone(),
+        let client = {
+            let mut clients = ETHEREUM_RPC_CLIENTS.lock().await;
+            let maybe_client = clients.get(conf).and_then(|r| r.upgrade());
+            if let Some(client) = maybe_client {
+                client
+            } else {
+                let client = Arc::new(
+                    create_connection(
+                        conf.clone(),
+                        Some(metrics.json_rpc_client_metrics()),
+                        &self.name,
+                    )
+                    .await?,
+                );
+                clients.insert(conf.clone(), Arc::downgrade(&client));
+                client
+            }
+        };
+
+        create_provider(
+            client,
             signer,
-            Some(metrics.json_rpc_client_metrics()),
             Some((metrics.provider_metrics(), metrics_conf)),
         )
         .await

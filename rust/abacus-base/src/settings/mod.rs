@@ -372,9 +372,7 @@ impl DomainSettings {
     ) -> eyre::Result<Box<dyn InterchainGasPaymaster>> {
         let signer = self.get_signer(chain_name).await;
         let setup = self.try_chain_setup(chain_name)?;
-        setup
-            .build_interchain_gas_paymaster(signer, metrics)
-            .await
+        setup.build_interchain_gas_paymaster(signer, metrics).await
     }
 
     /// Try to get a CachingInterchainGasPaymaster

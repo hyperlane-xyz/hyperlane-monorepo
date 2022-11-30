@@ -2,14 +2,14 @@ use std::{fmt::Debug, str::FromStr, time::Duration};
 
 use async_trait::async_trait;
 use ethers::providers::{Http, JsonRpcClient, ProviderError};
+use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
 use tracing::{debug, error, info, instrument, trace, warn};
-use ethers_prometheus::json_rpc_client::{PrometheusJsonRpcClient};
 
-use crate::{HttpClientError};
+use crate::HttpClientError;
 
 const METHODS_TO_NOT_RETRY: &[&str] = &[
     "eth_estimateGas",

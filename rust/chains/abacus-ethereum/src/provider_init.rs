@@ -16,25 +16,23 @@ use ethers_prometheus::json_rpc_client::{
 use ethers_prometheus::middleware::{
     MiddlewareMetrics, PrometheusMiddleware, PrometheusMiddlewareConf,
 };
+use ethers_prometheus::ChainInfo;
 
 use crate::dynamic::{DynamicJsonRpcClient, DynamicMiddleware};
-use crate::{Connection, RetryingProvider};
+use crate::{ConnectionConfig, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Construct a new instance of the associated trait using a connection
-/// config. This is the first step and will wrap the provider with
-/// metrics and a signer as needed.
-pub async fn make_with_connection(
-    conn: Connection,
-    signer: Option<Signers>,
+/// Create a new connection with the connection information to a node.
+pub async fn create_connection(
+    conn: ConnectionConfig,
     rpc_metrics: Option<JsonRpcClientMetrics>,
-    middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
-) -> eyre::Result<DynamicMiddleware> {
+    chain: &str,
+) -> eyre::Result<DynamicJsonRpcClient> {
     match conn {
-        Connection::HttpQuorum { urls } => {
+        ConnectionConfig::HttpQuorum { urls } => {
             let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
             let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
             for url in urls.split(',') {
@@ -50,7 +48,7 @@ pub async fn make_with_connection(
                 // level will result in only the second RPC being retried
                 // (the one with the error), which is the desired behavior.
                 let metrics_provider =
-                    wrap_rpc_with_metrics(http_provider, url, &rpc_metrics, &middleware_metrics);
+                    wrap_rpc_with_metrics(http_provider, url, &rpc_metrics, chain);
                 let retrying_provider =
                     RetryingProvider::new(metrics_provider, Some(5), Some(1000));
                 let dyn_provider = DynamicJsonRpcClient::from(retrying_provider);
@@ -58,25 +56,33 @@ pub async fn make_with_connection(
                 builder = builder.add_provider(weighted_provider);
             }
             let quorum_provider: QuorumProvider<DynamicJsonRpcClient> = builder.build();
-            wrap_with_metrics(quorum_provider, signer, middleware_metrics).await
+            Ok(quorum_provider.into())
         }
-        Connection::Http { url } => {
+        ConnectionConfig::Http { url } => {
             let url: Url = url.parse()?;
             let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
             let http_provider = Http::new_with_client(url.clone(), http_client);
             let metrics_provider: PrometheusJsonRpcClient<Http> =
-                wrap_rpc_with_metrics(http_provider, url, &rpc_metrics, &middleware_metrics);
+                wrap_rpc_with_metrics(http_provider, url, &rpc_metrics, chain);
             let retrying_http_provider: RetryingProvider<PrometheusJsonRpcClient<Http>> =
                 RetryingProvider::new(metrics_provider, None, None);
-            wrap_with_metrics(retrying_http_provider, signer, middleware_metrics).await
+            Ok(retrying_http_provider.into())
         }
-        Connection::Ws { url } => {
+        ConnectionConfig::Ws { url } => {
             let ws = Ws::connect(&url).await?;
-            let metrics_provider =
-                wrap_rpc_with_metrics(ws, url.parse()?, &rpc_metrics, &middleware_metrics);
-            wrap_with_metrics(metrics_provider, signer, middleware_metrics).await
+            let metrics_provider = wrap_rpc_with_metrics(ws, url.parse()?, &rpc_metrics, chain);
+            Ok(metrics_provider.into())
         }
     }
+}
+
+/// Wraps a JSON RPC connection with the configured middleware layers.
+pub async fn create_provider(
+    client: Arc<DynamicJsonRpcClient>,
+    signer: Option<Signers>,
+    middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
+) -> eyre::Result<DynamicMiddleware> {
+    wrap_with_metrics::<Arc<DynamicJsonRpcClient>>(client, signer, middleware_metrics).await
 }
 
 /// Wrap a JsonRpcClient with metrics.
@@ -84,10 +90,10 @@ fn wrap_rpc_with_metrics<C>(
     client: C,
     url: Url,
     rpc_metrics: &Option<JsonRpcClientMetrics>,
-    middleware_metrics: &Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
+    chain: &str,
 ) -> PrometheusJsonRpcClient<C>
 where
-    PrometheusJsonRpcClient<C>: JsonRpcClient,
+    C: JsonRpcClient,
 {
     PrometheusJsonRpcClient::new(
         client,
@@ -110,9 +116,9 @@ where
                 },
             }),
             // steal the chain info from the middleware conf
-            chain: middleware_metrics
-                .as_ref()
-                .and_then(|(_, v)| v.chain.clone()),
+            chain: Some(ChainInfo {
+                name: Some(chain.into()),
+            }),
         },
     )
 }
@@ -120,23 +126,17 @@ where
 /// Wrap the provider creation with metrics if provided; this is the second
 /// step
 async fn wrap_with_metrics<C>(
-    client: C,
+    client: Arc<DynamicJsonRpcClient>,
     signer: Option<Signers>,
     metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
-) -> eyre::Result<DynamicMiddleware>
-where
-    C: Into<DynamicJsonRpcClient>,
-{
-    let provider: Provider<DynamicJsonRpcClient> = Provider::new(client.into());
+) -> eyre::Result<DynamicMiddleware> {
+    let provider = Provider::new(client);
     Ok(if let Some(metrics) = metrics {
         let provider = PrometheusMiddleware::new(provider, metrics.0, metrics.1);
         tokio::spawn(provider.start_updating_on_interval(METRICS_SCRAPE_INTERVAL));
-        wrap_with_signer::<Arc<PrometheusMiddleware<Provider<DynamicJsonRpcClient>>>>(
-            provider, signer,
-        )
-        .await?
+        wrap_with_signer(provider, signer).await?
     } else {
-        wrap_with_signer::<Provider<DynamicJsonRpcClient>>(provider, signer).await?
+        wrap_with_signer(provider, signer).await?
     })
 }
 

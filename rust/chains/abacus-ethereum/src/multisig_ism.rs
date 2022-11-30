@@ -120,7 +120,7 @@ where
 
 impl<M> AbacusChain for EthereumMultisigIsm<M>
 where
-    M: Middleware + 'static,
+    M: Middleware,
 {
     fn chain_name(&self) -> &str {
         &self.chain_name
@@ -133,7 +133,7 @@ where
 
 impl<M> AbacusContract for EthereumMultisigIsm<M>
 where
-    M: Middleware + 'static,
+    M: Middleware,
 {
     fn address(&self) -> H256 {
         self.contract.address().into()

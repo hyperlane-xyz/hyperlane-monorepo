@@ -15,7 +15,9 @@ pub use retrying::{RetryingProvider, RetryingProviderError};
 
 use crate::abi::FunctionExt;
 #[cfg(not(doctest))]
-pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, provider_init::*, dynamic::*};
+pub use crate::{
+    dynamic::*, interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, provider_init::*,
+};
 
 #[cfg(not(doctest))]
 mod tx;
@@ -50,9 +52,9 @@ mod retrying;
 mod dynamic;
 
 /// Ethereum connection configuration
-#[derive(Debug, serde::Deserialize, Clone)]
+#[derive(Debug, serde::Deserialize, Clone, Hash, Eq, PartialEq)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum Connection {
+pub enum ConnectionConfig {
     /// A HTTP-only quorum.
     HttpQuorum {
         /// List of fully qualified strings to connect to
@@ -70,7 +72,7 @@ pub enum Connection {
     },
 }
 
-impl Default for Connection {
+impl Default for ConnectionConfig {
     fn default() -> Self {
         Self::Http {
             url: Default::default(),
@@ -81,7 +83,7 @@ impl Default for Connection {
 #[allow(dead_code)]
 /// A live connection to an ethereum-compatible chain.
 pub struct Chain {
-    creation_metadata: Connection,
+    creation_metadata: ConnectionConfig,
     ethers: Provider<Http>,
 }
 

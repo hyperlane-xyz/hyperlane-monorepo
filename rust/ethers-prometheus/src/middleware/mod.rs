@@ -513,7 +513,8 @@ impl<M> PrometheusMiddleware<M> {
             inner: Arc::new(inner),
             metrics,
             conf: Arc::new(RwLock::new(conf)),
-        }.into()
+        }
+        .into()
     }
 
     /// Start tracking metrics for a new token.

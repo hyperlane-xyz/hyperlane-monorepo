@@ -35,7 +35,7 @@ where
 
 impl<M> AbacusChain for EthereumProvider<M>
 where
-    M: Middleware + 'static,
+    M: Middleware,
 {
     fn chain_name(&self) -> &str {
         &self.chain_name

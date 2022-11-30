@@ -124,7 +124,7 @@ where
 
 impl<M> EthereumInterchainGasPaymaster<M>
 where
-    M: Middleware + 'static,
+    M: Middleware,
 {
     /// Create a reference to a outbox at a specific Ethereum address on some
     /// chain
@@ -143,7 +143,7 @@ where
 
 impl<M> AbacusChain for EthereumInterchainGasPaymaster<M>
 where
-    M: Middleware + 'static,
+    M: Middleware,
 {
     fn chain_name(&self) -> &str {
         &self.chain_name
@@ -156,7 +156,7 @@ where
 
 impl<M> AbacusContract for EthereumInterchainGasPaymaster<M>
 where
-    M: Middleware + 'static,
+    M: Middleware,
 {
     fn address(&self) -> H256 {
         self.contract.address().into()

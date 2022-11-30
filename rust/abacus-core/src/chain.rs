@@ -55,7 +55,9 @@ impl From<&'_ Address> for ethers::types::H160 {
 }
 
 /// All domains supported by Abacus.
-#[derive(FromPrimitive, EnumString, strum::Display, EnumIter, PartialEq, Eq, Debug, Copy, Clone)]
+#[derive(
+    FromPrimitive, EnumString, strum::Display, EnumIter, PartialEq, Eq, Debug, Copy, Clone,
+)]
 #[strum(serialize_all = "lowercase")]
 pub enum AbacusDomain {
     /// Ethereum mainnet domain ID, decimal ID 6648936

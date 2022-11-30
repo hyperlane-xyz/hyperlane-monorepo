@@ -127,22 +127,24 @@ where
 
 impl<M> EthereumMailbox<M>
 where
-    M: Middleware + 'static,
+    M: Middleware,
 {
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: EthereumMailboxInternal::new(
-                &locator.address,
-                provider.clone(),
-            ),
+            contract: EthereumMailboxInternal::new(&locator.address, provider.clone()),
             domain: locator.domain,
             chain_name: locator.chain_name.to_owned(),
             provider,
         }
     }
+}
 
+impl<M> EthereumMailbox<M>
+where
+    M: Middleware + 'static,
+{
     /// Returns a ContractCall that processes the provided message.
     /// If the provided tx_gas_limit is None, gas estimation occurs.
     async fn process_contract_call(
@@ -167,7 +169,7 @@ where
 
 impl<M> AbacusChain for EthereumMailbox<M>
 where
-    M: Middleware + 'static,
+    M: Middleware,
 {
     fn chain_name(&self) -> &str {
         &self.chain_name
@@ -180,7 +182,7 @@ where
 
 impl<M> AbacusContract for EthereumMailbox<M>
 where
-    M: Middleware + 'static,
+    M: Middleware,
 {
     fn address(&self) -> H256 {
         self.contract.address().into()
