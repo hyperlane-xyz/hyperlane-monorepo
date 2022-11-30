@@ -176,7 +176,7 @@ pub struct SignatureWithSigner {
 pub struct MultisigSignedCheckpoint {
     /// The checkpoint
     pub checkpoint: Checkpoint,
-    /// Signatures over the checkpoint
+    /// Signatures over the checkpoint. No ordering guarantees.
     pub signatures: Vec<SignatureWithSigner>,
 }
 
@@ -208,13 +208,9 @@ impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
         {
             return Err(MultisigSignedCheckpointError::InconsistentCheckpoints());
         }
-        // MultisigValidatorManagers expect signatures to be sorted by their signer in ascending
-        // order to prevent duplicates.
-        let mut sorted_signed_checkpoints = signed_checkpoints.clone();
-        sorted_signed_checkpoints.sort_by_key(|c| c.signer);
 
-        let signatures = sorted_signed_checkpoints
-            .iter()
+        let signatures = signed_checkpoints
+            .into_iter()
             .map(|c| SignatureWithSigner {
                 signature: c.signed_checkpoint.signature,
                 signer: c.signer,
