@@ -1,19 +1,18 @@
-use std::cmp::min;
 use std::collections::HashMap;
 use std::ops::Deref;
-use std::time::Duration;
+use std::sync::Arc;
 
 use ethers::prelude::H256;
 use eyre::Result;
+use hyperlane_base::RateLimitedSyncBlockRangeCursor;
 use itertools::Itertools;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
-use tokio::time::sleep;
 use tracing::{debug, info, instrument, warn};
 
-use abacus_base::last_message::validate_message_continuity;
-use abacus_core::{name_from_domain_id, ListValidity};
+use hyperlane_base::last_message::validate_message_continuity;
+use hyperlane_core::{name_from_domain_id, ListValidity, MailboxIndexer, SyncBlockRangeCursor};
 
-use crate::chain_scraper::{AbacusMessageWithMeta, Delivery, SqlChainScraper, TxnWithIdAndTime};
+use crate::chain_scraper::{Delivery, HyperlaneMessageWithMeta, SqlChainScraper, TxnWithIdAndTime};
 
 /// Workhorse of synchronization. This consumes a `SqlChainScraper` which has
 /// the needed connections and information to work and then adds additional
@@ -31,9 +30,8 @@ pub(super) struct Syncer {
     stored_deliveries: IntCounter,
     missed_messages: IntCounter,
     message_nonce: IntGaugeVec,
-    chunk_size: u32,
+    sync_cursor: RateLimitedSyncBlockRangeCursor<Arc<dyn MailboxIndexer>>,
 
-    from: u32,
     last_valid_range_start_block: u32,
     last_nonce: u32,
 }
@@ -80,9 +78,16 @@ impl Syncer {
         let message_nonce = scraper.metrics.message_nonce.clone();
 
         let chunk_size = scraper.chunk_size;
-        let from = scraper.cursor.height().await as u32;
-        let last_valid_range_start_block = from;
+        let initial_height = scraper.cursor.height().await as u32;
+        let last_valid_range_start_block = initial_height;
         let last_nonce = scraper.last_message_nonce().await?.unwrap_or(0);
+
+        let sync_cursor = RateLimitedSyncBlockRangeCursor::new(
+            scraper.contracts.indexer.clone(),
+            chunk_size,
+            initial_height,
+        )
+        .await?;
 
         Ok(Self {
             scraper,
@@ -92,35 +97,31 @@ impl Syncer {
             stored_deliveries,
             missed_messages,
             message_nonce,
-            chunk_size,
-            from,
+            sync_cursor,
             last_valid_range_start_block,
             last_nonce,
         })
     }
 
     /// Sync contract and other blockchain data with the current chain state.
-    #[instrument(skip(self), fields(chain_name = self.chain_name(), chink_size = self.chunk_size))]
+    #[instrument(skip(self), fields(chain_name = self.chain_name(), chunk_size = self.chunk_size))]
     pub async fn run(mut self) -> Result<()> {
-        info!(from = self.from, "Resuming chain sync");
-        self.indexed_message_height.set(self.from as i64);
-        self.indexed_deliveries_height.set(self.from as i64);
+        let start_block = self.sync_cursor.current_position();
+        info!(from = start_block, "Resuming chain sync");
+        self.indexed_message_height.set(start_block as i64);
+        self.indexed_deliveries_height.set(start_block as i64);
 
         loop {
-            sleep(Duration::from_secs(5)).await;
-
-            let Ok(tip) = self.get_finalized_block_number().await else {
-                continue;
+            let start_block = self.sync_cursor.current_position();
+            let (from, to) = match self.sync_cursor.next_range().await {
+                Ok(range) => range,
+                Err(err) => {
+                    warn!(error = %err, "failed to get next block range");
+                    continue;
+                }
             };
-            if tip <= self.from {
-                sleep(Duration::from_secs(10)).await;
-                continue;
-            }
 
-            let to = min(tip, self.from + self.chunk_size);
-            let full_chunk_from = to.checked_sub(self.chunk_size).unwrap_or_default();
-            debug_assert_eq!(self.contracts.mailbox.domain(), self.domain());
-            let (sorted_messages, deliveries) = self.scrape_range(full_chunk_from, to).await?;
+            let (sorted_messages, deliveries) = self.scrape_range(from, to).await?;
 
             let validation = validate_message_continuity(
                 Some(self.last_nonce),
@@ -133,18 +134,16 @@ impl Syncer {
                 ListValidity::Valid => {
                     let max_nonce_of_batch = self.record_data(sorted_messages, deliveries).await?;
 
-                    self.cursor.update(full_chunk_from as u64).await;
+                    self.cursor.update(from as u64).await;
                     if let Some(idx) = max_nonce_of_batch {
                         self.last_nonce = idx;
                     }
-                    self.last_valid_range_start_block = full_chunk_from;
-                    self.from = to + 1;
+                    self.last_valid_range_start_block = from;
                     self.indexed_message_height.set(to as i64);
                     self.indexed_deliveries_height.set(to as i64);
                 }
                 ListValidity::Empty => {
                     let _ = self.record_data(sorted_messages, deliveries).await?;
-                    self.from = to + 1;
                     self.indexed_message_height.set(to as i64);
                     self.indexed_deliveries_height.set(to as i64);
                 }
@@ -152,20 +151,24 @@ impl Syncer {
                     self.missed_messages.inc();
                     warn!(
                         last_nonce = self.last_nonce,
-                        start_block = self.from,
+                        start_block = from,
                         end_block = to,
                         last_valid_range_start_block = self.last_valid_range_start_block,
                         "Found invalid continuation in range. Re-indexing from the start block of the last successful range."
                     );
-                    self.from = self.last_valid_range_start_block;
-                    self.indexed_message_height.set(self.from as i64);
-                    self.indexed_deliveries_height.set(self.from as i64);
+                    self.sync_cursor
+                        .backtrack(self.last_valid_range_start_block);
+                    self.indexed_message_height
+                        .set(self.last_valid_range_start_block as i64);
+                    self.indexed_deliveries_height
+                        .set(self.last_valid_range_start_block as i64);
                 }
                 ListValidity::ContainsGaps => {
                     self.missed_messages.inc();
+                    self.sync_cursor.backtrack(start_block);
                     warn!(
                         last_nonce = self.last_nonce,
-                        start_block = self.from,
+                        start_block = from,
                         end_block = to,
                         last_valid_range_start_block = self.last_valid_range_start_block,
                         "Found gaps in the message in range, re-indexing the same range."
@@ -181,7 +184,7 @@ impl Syncer {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<(Vec<AbacusMessageWithMeta>, Vec<Delivery>)> {
+    ) -> Result<(Vec<HyperlaneMessageWithMeta>, Vec<Delivery>)> {
         let sorted_messages = self
             .contracts
             .indexer
@@ -207,7 +210,7 @@ impl Syncer {
 
         let sorted_messages = sorted_messages
             .into_iter()
-            .map(|(message, meta)| AbacusMessageWithMeta { message, meta })
+            .map(|(message, meta)| HyperlaneMessageWithMeta { message, meta })
             .filter(|m| m.message.nonce > self.last_nonce)
             .collect::<Vec<_>>();
 
@@ -229,7 +232,7 @@ impl Syncer {
     )]
     async fn record_data(
         &self,
-        sorted_messages: Vec<AbacusMessageWithMeta>,
+        sorted_messages: Vec<HyperlaneMessageWithMeta>,
         deliveries: Vec<Delivery>,
     ) -> Result<Option<u32>> {
         let txns: HashMap<H256, TxnWithIdAndTime> = self

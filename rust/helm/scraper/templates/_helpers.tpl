@@ -35,8 +35,8 @@ Common labels
 */}}
 {{- define "scraper.labels" -}}
 helm.sh/chart: {{ include "scraper.chart" . }}
-abacus/deployment: {{ .Values.abacus.runEnv | quote }}
-abacus/context: {{ .Values.abacus.context | quote }}
+hyperlane/deployment: {{ .Values.hyperlane.runEnv | quote }}
+hyperlane/context: {{ .Values.hyperlane.context | quote }}
 {{ include "scraper.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}

@@ -5,8 +5,8 @@ use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{sync::watch::Sender, task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use abacus_base::MultisigCheckpointSyncer;
-use abacus_core::{Mailbox, MultisigSignedCheckpoint};
+use hyperlane_base::MultisigCheckpointSyncer;
+use hyperlane_core::{Mailbox, MultisigSignedCheckpoint};
 
 pub(crate) struct CheckpointFetcher {
     polling_interval: u64,

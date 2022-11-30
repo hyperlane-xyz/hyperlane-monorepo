@@ -1,7 +1,7 @@
-use abacus_core::{AbacusMessage, TxCostEstimate};
 use async_trait::async_trait;
 use ethers::types::U256;
 use eyre::Result;
+use hyperlane_core::{HyperlaneMessage, TxCostEstimate};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
@@ -19,7 +19,7 @@ impl GasPaymentPolicy for GasPaymentPolicyNone {
     /// Returns (gas payment requirement met, current payment according to the DB)
     async fn message_meets_gas_payment_requirement(
         &self,
-        _message: &AbacusMessage,
+        _message: &HyperlaneMessage,
         _current_payment: &U256,
         _tx_cost_estimate: &TxCostEstimate,
     ) -> Result<bool> {
@@ -29,11 +29,11 @@ impl GasPaymentPolicy for GasPaymentPolicyNone {
 
 #[tokio::test]
 async fn test_gas_payment_policy_none() {
-    use abacus_core::AbacusMessage;
+    use hyperlane_core::HyperlaneMessage;
 
     let policy = GasPaymentPolicyNone::new();
 
-    let message = AbacusMessage::default();
+    let message = HyperlaneMessage::default();
 
     // Always returns true
     assert_eq!(

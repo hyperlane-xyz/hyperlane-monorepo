@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use abacus_base::chains::GelatoConf;
-use abacus_base::{CachingMailbox, CoreMetrics};
-use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusChain, AbacusDomain, MultisigIsm};
 use eyre::{bail, Result};
 use gelato::types::Chain;
+use hyperlane_base::chains::GelatoConf;
+use hyperlane_base::{CachingMailbox, CoreMetrics};
+use hyperlane_core::db::HyperlaneDB;
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, MultisigIsm};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::time::{sleep, Duration, Instant};
@@ -36,7 +36,7 @@ pub(crate) struct GelatoSubmitter {
     /// The destination chain in the format expected by the Gelato crate.
     destination_gelato_chain: Chain,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
-    db: AbacusDB,
+    db: HyperlaneDB,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     http_client: reqwest::Client,
     /// Prometheus metrics.
@@ -54,7 +54,7 @@ impl GelatoSubmitter {
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
         multisig_ism: Arc<dyn MultisigIsm>,
-        abacus_db: AbacusDB,
+        hyperlane_db: HyperlaneDB,
         gelato_config: GelatoConf,
         metrics: GelatoSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -67,10 +67,11 @@ impl GelatoSubmitter {
             .unwrap();
         Self {
             message_receiver,
-            destination_gelato_chain: abacus_domain_id_to_gelato_chain(mailbox.domain()).unwrap(),
+            destination_gelato_chain: hyperlane_domain_id_to_gelato_chain(mailbox.domain())
+                .unwrap(),
             mailbox,
             multisig_ism,
-            db: abacus_db,
+            db: hyperlane_db,
             gelato_config,
             http_client,
             metrics,
@@ -147,10 +148,10 @@ impl GelatoSubmitter {
         Ok(())
     }
 
-    /// Record in AbacusDB and various metrics that this process has observed the successful
+    /// Record in HyperlaneDB and various metrics that this process has observed the successful
     /// processing of a message. An Ok(()) value returned by this function is the 'commit' point
     /// in a message's lifetime for final processing -- after this function has been seen to
-    /// return 'Ok(())', then without a wiped AbacusDB, we will never re-attempt processing for
+    /// return 'Ok(())', then without a wiped HyperlaneDB, we will never re-attempt processing for
     /// this message again, even after the relayer restarts.
     fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         tracing::info!(msg=?msg, "Recording message as successfully processed");
@@ -205,55 +206,57 @@ impl GelatoSubmitterMetrics {
 }
 
 // While this may be more ergonomic as an Into / From impl,
-// it feels a bit awkward to have abacus-base (where AbacusDomain)
+// it feels a bit awkward to have hyperlane-base (where HyperlaneDomain)
 // is implemented to be aware of the gelato crate or vice versa.
-pub fn abacus_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
-    let abacus_domain = AbacusDomain::try_from(domain)?;
+pub fn hyperlane_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
+    let hyperlane_domain = HyperlaneDomain::try_from(domain)?;
 
-    Ok(match abacus_domain {
-        AbacusDomain::Ethereum => Chain::Ethereum,
-        AbacusDomain::Kovan => Chain::Kovan,
-        AbacusDomain::Goerli => Chain::Goerli,
+    Ok(match hyperlane_domain {
+        HyperlaneDomain::Ethereum => Chain::Ethereum,
+        HyperlaneDomain::Kovan => Chain::Kovan,
+        HyperlaneDomain::Goerli => Chain::Goerli,
 
-        AbacusDomain::Polygon => Chain::Polygon,
-        AbacusDomain::Mumbai => Chain::Mumbai,
+        HyperlaneDomain::Polygon => Chain::Polygon,
+        HyperlaneDomain::Mumbai => Chain::Mumbai,
 
-        AbacusDomain::Avalanche => Chain::Avalanche,
-        AbacusDomain::Fuji => Chain::Fuji,
+        HyperlaneDomain::Avalanche => Chain::Avalanche,
+        HyperlaneDomain::Fuji => Chain::Fuji,
 
-        AbacusDomain::Arbitrum => Chain::Arbitrum,
-        AbacusDomain::ArbitrumRinkeby => Chain::ArbitrumRinkeby,
-        AbacusDomain::ArbitrumGoerli => Chain::ArbitrumGoerli,
+        HyperlaneDomain::Arbitrum => Chain::Arbitrum,
+        HyperlaneDomain::ArbitrumRinkeby => Chain::ArbitrumRinkeby,
+        HyperlaneDomain::ArbitrumGoerli => Chain::ArbitrumGoerli,
 
-        AbacusDomain::Optimism => Chain::Optimism,
-        AbacusDomain::OptimismKovan => Chain::OptimismKovan,
-        AbacusDomain::OptimismGoerli => Chain::OptimismGoerli,
+        HyperlaneDomain::Optimism => Chain::Optimism,
+        HyperlaneDomain::OptimismKovan => Chain::OptimismKovan,
+        HyperlaneDomain::OptimismGoerli => Chain::OptimismGoerli,
 
-        AbacusDomain::BinanceSmartChain => Chain::BinanceSmartChain,
-        AbacusDomain::BinanceSmartChainTestnet => Chain::BinanceSmartChainTestnet,
+        HyperlaneDomain::BinanceSmartChain => Chain::BinanceSmartChain,
+        HyperlaneDomain::BinanceSmartChainTestnet => Chain::BinanceSmartChainTestnet,
 
-        AbacusDomain::Celo => Chain::Celo,
-        AbacusDomain::Alfajores => Chain::Alfajores,
+        HyperlaneDomain::Celo => Chain::Celo,
+        HyperlaneDomain::Alfajores => Chain::Alfajores,
 
-        AbacusDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
-        AbacusDomain::Moonbeam => Chain::Moonbeam,
+        HyperlaneDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
+        HyperlaneDomain::Moonbeam => Chain::Moonbeam,
 
-        AbacusDomain::Zksync2Testnet => Chain::Zksync2Testnet,
+        HyperlaneDomain::Zksync2Testnet => Chain::Zksync2Testnet,
 
-        _ => bail!("No Gelato Chain for domain {abacus_domain}"),
+        _ => bail!("No Gelato Chain for domain {hyperlane_domain}"),
     })
 }
 
 #[test]
-fn test_abacus_domain_id_to_gelato_chain() {
-    use abacus_core::AbacusDomainType;
+fn test_hyperlane_domain_id_to_gelato_chain() {
+    use hyperlane_core::HyperlaneDomainType;
     use strum::IntoEnumIterator;
 
-    // Iterate through all AbacusDomains, ensuring all mainnet and testnet domains
-    // are included in abacus_domain_id_to_gelato_chain.
-    for abacus_domain in AbacusDomain::iter() {
-        if let AbacusDomainType::Mainnet | AbacusDomainType::Testnet = abacus_domain.domain_type() {
-            assert!(abacus_domain_id_to_gelato_chain(u32::from(abacus_domain)).is_ok());
+    // Iterate through all HyperlaneDomains, ensuring all mainnet and testnet domains
+    // are included in hyperlane_domain_id_to_gelato_chain.
+    for hyperlane_domain in HyperlaneDomain::iter() {
+        if let HyperlaneDomainType::Mainnet | HyperlaneDomainType::Testnet =
+            hyperlane_domain.domain_type()
+        {
+            assert!(hyperlane_domain_id_to_gelato_chain(u32::from(hyperlane_domain)).is_ok());
         }
     }
 }

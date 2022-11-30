@@ -21,16 +21,16 @@ tracing = "0.1"
 tracing-futures = "0.2"
 tracing-subscriber = "0.3"
 
-abacus-core = { path = "../../abacus-core" }
-abacus-base = { path = "../../abacus-base" }
-abacus-ethereum = { path = "../../chains/abacus-ethereum" }
+hyperlane-core = { path = "../../hyperlane-core" }
+hyperlane-base = { path = "../../hyperlane-base" }
+hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 gelato = { path = "../../gelato" }
 prometheus = "0.13"
 
 [dev-dependencies]
 tokio-test = "0.4"
-abacus-test = { path = "../../abacus-test" }
+hyperlane-test = { path = "../../hyperlane-test" }
 
 [features]
-default = ["abacus-base/color-eyre"]
-oneline-errors = ["abacus-base/oneline-errors"]
+default = ["hyperlane-base/color-eyre"]
+oneline-errors = ["hyperlane-base/oneline-errors"]

@@ -1,4 +1,4 @@
-{{- if .Values.abacus.validator.enabled }}
+{{- if .Values.hyperlane.validator.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -11,7 +11,7 @@ spec:
     matchLabels:
       {{- include "agent-common.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: validator
-  replicas: {{ len .Values.abacus.validator.configs }}
+  replicas: {{ len .Values.hyperlane.validator.configs }}
   serviceName: {{ include "agent-common.fullname" . }}-validator
   template:
     metadata:
@@ -21,7 +21,7 @@ spec:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.abacus.validator.podAnnotations }}
+        {{- with .Values.hyperlane.validator.podAnnotations }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
       labels:
@@ -30,7 +30,7 @@ spec:
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.abacus.validator.podLabels }}
+        {{- with .Values.hyperlane.validator.podLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
     spec:
@@ -64,22 +64,22 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
-          {{- if .Values.abacus.tracing.uri }}
+          {{- if .Values.hyperlane.tracing.uri }}
           - name: HYP_BASE_TRACING_JAEGER_NAME
             value: {{ include "agent-common.fullname" . }}-validator
           {{- end }}
         resources:
-          {{- toYaml .Values.abacus.validator.resources | nindent 10 }}
+          {{- toYaml .Values.hyperlane.validator.resources | nindent 10 }}
         volumeMounts:
         - name: state
-          mountPath: {{ .Values.abacus.dbPath }}
+          mountPath: {{ .Values.hyperlane.dbPath }}
         - name: config-env-vars
           mountPath: /config-env-vars
         - name: secret-env-vars
           mountPath: /secret-env-vars
         ports: 
         - name: metrics
-          containerPort: {{ .Values.abacus.metrics.port }}
+          containerPort: {{ .Values.hyperlane.metrics.port }}
       volumes:
       - name: config-env-vars
         configMap:
@@ -105,13 +105,13 @@ spec:
     spec:
       storageClassName: {{ .Values.storage.storageClass }}
       accessModes: [ {{ .Values.storage.accessModes }} ]
-      {{- if .Values.abacus.validator.storage.snapshot.enabled }}
+      {{- if .Values.hyperlane.validator.storage.snapshot.enabled }}
       dataSource:
-        name: {{ .Values.abacus.validator.storage.snapshot.name }}
+        name: {{ .Values.hyperlane.validator.storage.snapshot.name }}
         kind: VolumeSnapshot
         apiGroup: snapshot.storage.k8s.io
       {{- end }}
       resources:
         requests:
-          storage: {{ .Values.abacus.validator.storage.size }}
+          storage: {{ .Values.hyperlane.validator.storage.size }}
 {{- end }}

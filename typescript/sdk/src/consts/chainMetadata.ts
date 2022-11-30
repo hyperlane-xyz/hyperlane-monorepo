@@ -31,20 +31,20 @@ export interface RpcPagination {
  * Mainnets
  */
 export const celo: ChainMetadata = {
-  id: 0x63656c6f, // b'celo' interpreted as an int
+  id: 42220,
   finalityBlocks: 0,
   gnosisSafeTransactionServiceUrl:
     'https://transaction-service.gnosis-safe-staging.celo-networks-dev.org',
 };
 
 export const ethereum: ChainMetadata = {
-  id: 0x657468, // b'eth' interpreted as an int
+  id: 1,
   finalityBlocks: 20,
   gnosisSafeTransactionServiceUrl: 'https://safe-transaction.gnosis.io',
 };
 
 export const arbitrum: ChainMetadata = {
-  id: 0x617262, // b'arb' interpreted as an int
+  id: 42161,
   finalityBlocks: 0,
   gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
   gnosisSafeTransactionServiceUrl:
@@ -52,7 +52,7 @@ export const arbitrum: ChainMetadata = {
 };
 
 export const optimism: ChainMetadata = {
-  id: 0x6f70, // b'op' interpreted as an int
+  id: 10,
   finalityBlocks: 0,
   gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
   gnosisSafeTransactionServiceUrl:
@@ -60,14 +60,14 @@ export const optimism: ChainMetadata = {
 };
 
 export const bsc: ChainMetadata = {
-  id: 0x627363, // b'bsc' interpreted as an int
+  id: 56,
   finalityBlocks: 15,
   gasCurrencyCoinGeckoId: 'binancecoin',
   gnosisSafeTransactionServiceUrl: 'https://safe-transaction.bsc.gnosis.io/',
 };
 
 export const avalanche: ChainMetadata = {
-  id: 0x61766178, // b'avax' interpreted as an int
+  id: 43114,
   finalityBlocks: 3,
   paginate: {
     // Needs to be low to avoid RPC timeouts
@@ -80,7 +80,7 @@ export const avalanche: ChainMetadata = {
 };
 
 export const polygon: ChainMetadata = {
-  id: 0x706f6c79, // b'poly' interpreted as an int
+  id: 137,
   finalityBlocks: 256,
   paginate: {
     // Needs to be low to avoid RPC timeouts
@@ -96,7 +96,7 @@ export const polygon: ChainMetadata = {
  * Testnets
  */
 export const alfajores: ChainMetadata = {
-  id: 1000,
+  id: 44787,
   finalityBlocks: 0,
 };
 
@@ -151,22 +151,17 @@ const testChains = {
 };
 
 export const bsctestnet: ChainMetadata = {
-  id: 0x62732d74, // b'bs-t' interpreted as an int
+  id: 97,
   finalityBlocks: 9,
 };
 
-export const auroratestnet: ChainMetadata = {
-  id: 0x61752d74, // b'au-t' interpreted as an int
-  finalityBlocks: 1,
-};
-
 export const moonbasealpha: ChainMetadata = {
-  id: 0x6d6f2d61, // b'mo-a' interpreted as an int
+  id: 1287,
   finalityBlocks: 1,
 };
 
 export const moonbeam: ChainMetadata = {
-  id: 0x6d6f2d6d, // b'mo-a' interpreted as an int
+  id: 1284,
   finalityBlocks: 1,
 };
 
@@ -183,7 +178,6 @@ export const chainMetadata = {
   goerli,
   mumbai,
   bsctestnet,
-  auroratestnet,
   moonbasealpha,
   moonbeam,
   optimismgoerli,

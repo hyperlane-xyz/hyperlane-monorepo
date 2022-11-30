@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
-use abacus_base::chains::TransactionSubmissionType;
-use abacus_base::CachingMailbox;
 use async_trait::async_trait;
 use eyre::Result;
+use hyperlane_base::chains::TransactionSubmissionType;
+use hyperlane_base::CachingMailbox;
 use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use abacus_base::{
-    chains::GelatoConf, run_all, AbacusAgentCore, Agent, BaseAgent, ContractSyncMetrics,
-    CoreMetrics, MultisigCheckpointSyncer,
+use hyperlane_base::{
+    chains::GelatoConf, run_all, Agent, BaseAgent, ContractSyncMetrics, CoreMetrics,
+    HyperlaneAgentCore, MultisigCheckpointSyncer,
 };
-use abacus_core::{AbacusChain, MultisigIsm, MultisigSignedCheckpoint, Signers};
+use hyperlane_core::{HyperlaneChain, MultisigIsm, MultisigSignedCheckpoint, Signers};
 
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
@@ -28,14 +28,14 @@ pub struct Relayer {
     origin_chain_name: String,
     signed_checkpoint_polling_interval: u64,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
-    core: AbacusAgentCore,
+    core: HyperlaneAgentCore,
     gas_payment_enforcement_policy: GasPaymentEnforcementPolicy,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
 }
 
-impl AsRef<AbacusAgentCore> for Relayer {
-    fn as_ref(&self) -> &AbacusAgentCore {
+impl AsRef<HyperlaneAgentCore> for Relayer {
+    fn as_ref(&self) -> &HyperlaneAgentCore {
         &self.core
     }
 }
@@ -51,7 +51,7 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings.try_into_abacus_core(metrics, None).await?;
+        let core = settings.try_into_hyperlane_core(metrics, None).await?;
 
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
