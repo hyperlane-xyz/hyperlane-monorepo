@@ -22,7 +22,8 @@ contract LiquidityLayerRouter is Router {
     function initialize(
         address _owner,
         address _mailbox,
-        address _interchainGasPaymaster
+        address _interchainGasPaymaster,
+        address _interchainSecurityModule
     ) public initializer {
         __HyperlaneConnectionClient_initialize(
             _mailbox,

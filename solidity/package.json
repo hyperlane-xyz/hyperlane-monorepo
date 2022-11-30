@@ -47,7 +47,7 @@
     "clean": "hardhat clean && rm -rf ./dist ./cache",
     "coverage": "hardhat coverage",
     "prettier": "prettier --write ./contracts ./interfaces ./test",
-    "test": "hardhat test"
+    "test": "hardhat test && forge test"
   },
   "types": "dist/index.d.ts"
 }
