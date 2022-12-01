@@ -2,7 +2,7 @@ name: rust
 
 on:
   push:
-    branches: [main]
+    branches: [main, v1]
   pull_request:
     paths:
       - 'rust/**'

@@ -1,38 +1,37 @@
 import { ethers } from 'ethers';
 
-import { types, utils } from '@hyperlane-xyz/utils';
-
-import { Checkpoint } from './types';
+import { Address, Checkpoint, Domain, HexString } from './types';
+import { domainHash } from './utils';
 
 /**
  * Utilities for validators to construct and verify checkpoints.
  */
 export class BaseValidator {
-  localDomain: types.Domain;
-  address: types.Address;
+  localDomain: Domain;
+  address: Address;
 
-  constructor(address: types.Address, localDomain: types.Domain) {
+  constructor(address: Address, localDomain: Domain) {
     this.localDomain = localDomain;
     this.address = address;
   }
 
   domainHash() {
-    return utils.domainHash(this.localDomain);
+    return domainHash(this.localDomain);
   }
 
-  message(root: types.HexString, index: number) {
+  message(root: HexString, index: number) {
     return ethers.utils.solidityPack(
       ['bytes32', 'bytes32', 'uint256'],
       [this.domainHash(), root, index],
     );
   }
 
-  messageHash(root: types.HexString, index: number) {
+  messageHash(root: HexString, index: number) {
     const message = this.message(root, index);
     return ethers.utils.arrayify(ethers.utils.keccak256(message));
   }
 
-  recoverAddressFromCheckpoint(checkpoint: Checkpoint): types.Address {
+  recoverAddressFromCheckpoint(checkpoint: Checkpoint): Address {
     const msgHash = this.messageHash(checkpoint.root, checkpoint.index);
     return ethers.utils.verifyMessage(msgHash, checkpoint.signature);
   }
@@ -51,20 +50,17 @@ export class BaseValidator {
 export class Validator extends BaseValidator {
   constructor(
     protected signer: ethers.Signer,
-    address: types.Address,
-    localDomain: types.Domain,
+    address: Address,
+    localDomain: Domain,
   ) {
     super(address, localDomain);
   }
 
-  static async fromSigner(signer: ethers.Signer, localDomain: types.Domain) {
+  static async fromSigner(signer: ethers.Signer, localDomain: Domain) {
     return new Validator(signer, await signer.getAddress(), localDomain);
   }
 
-  async signCheckpoint(
-    root: types.HexString,
-    index: number,
-  ): Promise<Checkpoint> {
+  async signCheckpoint(root: HexString, index: number): Promise<Checkpoint> {
     const msgHash = this.messageHash(root, index);
     const signature = await this.signer.signMessage(msgHash);
     return {
