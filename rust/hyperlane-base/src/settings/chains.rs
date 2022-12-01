@@ -167,7 +167,7 @@ impl ChainSetup {
         let builder = MailboxBuilder {};
         self.build(address, signer, metrics, metrics_conf, builder)
             .await
-            .context("Building outbox")
+            .context("Building mailbox")
     }
 
     /// Try to convert the chain setting into an interchain gas paymaster contract
@@ -181,7 +181,7 @@ impl ChainSetup {
         let builder = InterchainGasPaymasterBuilder {};
         self.build(address, signer, metrics, metrics_conf, builder)
             .await
-            .context("Building igp")
+            .context("Building IGP")
     }
 
     /// Try to convert the chain setting into a Multisig Ism contract
