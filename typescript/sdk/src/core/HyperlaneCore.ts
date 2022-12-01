@@ -133,6 +133,20 @@ export class HyperlaneCore<
     });
   }
 
+  protected async waitForMessageWasProcessed(
+    message: DispatchedMessage,
+  ): Promise<void> {
+    const id = utils.messageId(message.message);
+    const { mailbox } = this.getDestination(message);
+    await utils.pollAsync(async () => {
+      const delivered = await mailbox.delivered(id);
+      if (!delivered) {
+        throw new Error(`Message ${id} not yet processed`);
+      }
+    });
+    return;
+  }
+
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
     const mailbox = Mailbox__factory.createInterface();
     const dispatchLogs = sourceTx.logs
@@ -160,5 +174,14 @@ export class HyperlaneCore<
   ): Promise<ethers.ContractReceipt[]> {
     const messages = this.getDispatchedMessages(sourceTx);
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
+  }
+
+  async waitForMessageProcessed(
+    sourceTx: ethers.ContractReceipt,
+  ): Promise<void> {
+    const messages = this.getDispatchedMessages(sourceTx);
+    await Promise.all(
+      messages.map((msg) => this.waitForMessageWasProcessed(msg)),
+    );
   }
 }
