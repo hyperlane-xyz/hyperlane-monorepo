@@ -80,7 +80,11 @@ export class LiquidityLayerDeployer<
     const initCalldata =
       LiquidityLayerRouter__factory.createInterface().encodeFunctionData(
         'initialize',
-        [config.owner, config.mailbox, config.interchainGasPaymaster],
+        [
+          config.mailbox,
+          config.interchainGasPaymaster,
+          config.interchainSecurityModule,
+        ],
       );
     const router = await this.deployContract(chain, 'router', [], {
       create2Salt: this.create2salt,
