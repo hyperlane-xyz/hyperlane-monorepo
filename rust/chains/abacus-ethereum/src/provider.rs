@@ -46,14 +46,14 @@ where
 {
     async fn get_block_by_hash(&self, hash: &H256) -> eyre::Result<BlockInfo> {
         let block = get_with_retry_on_none(|| self.provider.get_block(*hash)).await?;
-        return Ok(BlockInfo {
+        Ok(BlockInfo {
             hash: *hash,
             timestamp: block.timestamp.as_u64(),
             number: block
                 .number
                 .ok_or_else(|| eyre!("Block is not part of the chain yet {}", hash))?
                 .as_u64(),
-        });
+        })
     }
 
     async fn get_txn_by_hash(&self, hash: &H256) -> eyre::Result<TxnInfo> {
@@ -117,12 +117,10 @@ where
     E: std::error::Error + Send + Sync + 'static,
 {
     for i in 0..3 {
-        if i > 0 {
-            sleep(Duration::from_secs(5)).await;
-        }
         if let Some(t) = get().await? {
             return Ok(t);
         } else {
+            sleep(Duration::from_secs(5)).await;
             continue;
         };
     }
