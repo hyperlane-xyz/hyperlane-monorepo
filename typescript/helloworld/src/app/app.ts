@@ -67,6 +67,12 @@ export class HelloWorldApp<
     return this.core.waitForMessageProcessing(receipt);
   }
 
+  async waitForMessageProcessed(
+    receipt: ethers.ContractReceipt,
+  ): Promise<void> {
+    return this.core.waitForMessageProcessed(receipt);
+  }
+
   async channelStats<From extends Chain>(
     from: From,
     to: Remotes<Chain, From>,
