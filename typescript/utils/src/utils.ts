@@ -123,7 +123,7 @@ export async function retryAsync<T>(
 
 export async function pollAsync<T>(
   runner: () => Promise<T>,
-  delay = 500,
+  delayMs = 500,
   maxAttempts: number | undefined = undefined,
 ) {
   let attempts = 0;
@@ -135,7 +135,7 @@ export async function pollAsync<T>(
     } catch (error) {
       saveError = error;
       attempts += 1;
-      await sleep(delay);
+      await sleep(delayMs);
     }
   }
   throw saveError;

@@ -2,7 +2,6 @@ import { BigNumber, ethers } from 'ethers';
 
 import { Inbox, Outbox, Outbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
-import { pollAsync } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { environments } from '../consts/environments';
@@ -162,7 +161,7 @@ export class HyperlaneCore<
   ): Promise<void> {
     const hash = utils.messageHash(message.message, message.leafIndex);
     const { inbox } = this.getDestination(message);
-    await pollAsync(async () => {
+    await utils.pollAsync(async () => {
       const messageStatus = await inbox.messages(hash);
       if (messageStatus !== InboxMessageStatus.Processed) {
         throw new Error(
