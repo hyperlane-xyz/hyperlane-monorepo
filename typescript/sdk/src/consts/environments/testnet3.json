@@ -13,8 +13,6 @@
       "implementation": "0x389bffa5Af799130e7D77D13FA3f1a2A7c2c6324",
       "beacon": "0x7eDdB0E12909D7713A99CBB1F69475F7D119938C"
     },
-    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
-    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "multisigIsm": "0xcF6bA9D5f6101232C065aD3462F365f0D1bD7fb4"
   },
@@ -32,8 +30,6 @@
       "implementation": "0xc392687AA3491cb010E0216fb6Caa5Dd7Cbf60b7",
       "beacon": "0xad442d59B0a83e51DdF4CaBD9Ee39F28852005D8"
     },
-    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
-    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "multisigIsm": "0x12Ac803eeD2707D5845e7c5E73BeDf0Dca331555"
   },
@@ -51,8 +47,6 @@
       "implementation": "0x2Ad9aFb9bee28cB96C263c469612078E468A8Fe9",
       "beacon": "0x9067ebbAf4f28dBDf97b37BC4C7F2b5bF8d54164"
     },
-    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
-    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "multisigIsm": "0x4E95F7Bf8a4D963C593A25bb6A8C83942211104A"
   },
@@ -70,8 +64,6 @@
       "implementation": "0xB99Cf0bf4500BB66469bf949e2CB58535846BD1c",
       "beacon": "0xeCc72e8D4E3404175700DE71dfc3474eEa17a89B"
     },
-    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
-    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "multisigIsm": "0xdE0Cbd9A17A99348785DA7625cB44a24b5A337be"
   },
@@ -89,8 +81,6 @@
       "implementation": "0x7387e72A8F455A2bfb5E211B01d8B6AE2a56c60E",
       "beacon": "0x20cC3a33C49fa13627303669edf2DcA7F1E76a50"
     },
-    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
-    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "multisigIsm": "0x2a13C3bD245166D1C6515f15fcd1441367FAb675"
   },
@@ -108,8 +98,6 @@
       "implementation": "0x0De2F539569Fb1e2e3C1d233f7A63a18B9A17110",
       "beacon": "0x111F4f782B47881898755Bd2F67f12876893300E"
     },
-    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
-    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "multisigIsm": "0xD221ffdAa65518BF56c8623e04eA0380CE1BfaE2"
   },
@@ -127,8 +115,6 @@
       "implementation": "0x14EE2f01907707Ce8d13C4F5DBC40778b5b664e0",
       "beacon": "0x23cD67A76c99578f77C73A306A29905D63D203b4"
     },
-    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
-    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "multisigIsm": "0xDA7f1997D52a5f442E83948F7529BceAA6e1fda2"
   },
@@ -146,8 +132,6 @@
       "implementation": "0x11467b49e7BBE3090EC25aF85E172D5ed6F2DA23",
       "beacon": "0xC60C145f1e1904f9d6483A611BF1416697CCc1FE"
     },
-    "interchainAccountRouter": "0xc011170d9795a7a2d065E384EAd1CA3394A7d35E",
-    "interchainQueryRouter": "0x6141e7E7fA2c1beB8be030B0a7DB4b8A10c7c3cd",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "multisigIsm": "0x890eB21B76DCB165A1807cBE279f883716eA47D4"
   }

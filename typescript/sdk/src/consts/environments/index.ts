@@ -21,7 +21,7 @@ type HyperlaneCoreAddressMap = LooseChainMap<{
 
 // Export developer-relevant addresses
 export const hyperlaneCoreAddresses = objMap(
-  { ...test, ...testnet2, ...mainnet, ...testnet3 },
+  { ...testnet2, ...mainnet },
   (_chain, addresses) => ({
     mailbox: addresses.mailbox.proxy,
     multisigIsm: addresses.multisigIsm,
