@@ -14,10 +14,10 @@ pragma solidity >=0.8.0;
 library MultisigIsmMetadata {
     uint256 private constant MERKLE_ROOT_OFFSET = 0;
     uint256 private constant MERKLE_INDEX_OFFSET = 32;
-    uint256 private constant ORIGIN_MAILBOX_OFFSET = 64;
-    uint256 private constant MERKLE_PROOF_OFFSET = 96;
-    uint256 private constant THRESHOLD_OFFSET = 1120;
-    uint256 private constant SIGNATURES_OFFSET = 1152;
+    uint256 private constant ORIGIN_MAILBOX_OFFSET = 36;
+    uint256 private constant MERKLE_PROOF_OFFSET = 68;
+    uint256 private constant THRESHOLD_OFFSET = 1092;
+    uint256 private constant SIGNATURES_OFFSET = 1124;
     uint256 private constant SIGNATURE_LENGTH = 65;
 
     /**
