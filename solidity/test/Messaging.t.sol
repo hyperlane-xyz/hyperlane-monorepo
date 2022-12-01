@@ -21,7 +21,7 @@ contract MessagingTest is Test {
     function setUp() public {
         originMailbox = new MockMailbox(originDomain);
         remoteMailbox = new MockMailbox(remoteDomain);
-        originMailbox.addRemoteMailbox(remoteMailbox);
+        originMailbox.addRemoteMailbox(remoteDomain, remoteMailbox);
 
         receiver = new TestRecipient();
     }
