@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use std::fmt::Debug;
 use std::future::Future;
 use std::sync::Arc;
@@ -120,7 +119,7 @@ where
     O: Future<Output = Result<Option<T>, E>>,
     E: std::error::Error + Send + Sync + 'static,
 {
-    for i in 0..3 {
+    for _ in 0..3 {
         if let Some(t) = get().await? {
             return Ok(t);
         } else {
