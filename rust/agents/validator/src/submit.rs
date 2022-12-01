@@ -60,15 +60,18 @@ impl ValidatorSubmitter {
             sleep(Duration::from_secs(self.interval)).await;
         }
 
+        // current_index will be None if the validator cannot find
+        // a previously signed checkpoint
         let mut current_index = self
             .checkpoint_syncer
             .latest_index()
-            .await?
-            .unwrap_or_default();
+            .await?;
 
-        self.metrics
-            .latest_checkpoint_processed
-            .set(current_index as i64);
+        if current_index.is_some() {
+            self.metrics
+                .latest_checkpoint_processed
+                .set(current_index.unwrap_or_default() as i64);
+        }
 
         // How often to log checkpoint info - once every minute
         let checkpoint_info_log_period = Duration::from_secs(60);
@@ -112,11 +115,15 @@ impl ValidatorSubmitter {
                 "Polled latest checkpoint"
             );
 
-            if current_index < latest_checkpoint.index {
+            // If current_index is None, we were unable to find a previously
+            // signed checkpoint, and we should sign the latest checkpoint.
+            // This ensures that we still sign even if the latest checkpoint
+            // has index 0.
+            if current_index.is_none() || current_index.unwrap_or_default() < latest_checkpoint.index {
                 let signed_checkpoint = latest_checkpoint.sign_with(self.signer.as_ref()).await?;
 
                 info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed new latest checkpoint");
-                current_index = latest_checkpoint.index;
+                current_index = Some(latest_checkpoint.index);
 
                 self.checkpoint_syncer
                     .write_checkpoint(signed_checkpoint.clone())
