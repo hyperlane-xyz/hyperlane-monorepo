@@ -1,28 +1,82 @@
 {
-  "goerli": [
+  "fuji": [
     {
-      "name": "TokenBridgeRouter",
-      "address": "0x952228cA63f85130534981844050c82b89f373E7",
+      "name": "LiquidityLayerRouter",
+      "address": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541",
       "isProxy": false,
       "constructorArguments": ""
     },
     {
       "name": "CircleBridgeAdapter",
-      "address": "0xc262a656c99B3a2f1B196dc5BeDa8f4f80D4a878",
+      "address": "0xb54AD7AE42B7c505100594365CdBC4b28Ef51FE6",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "PortalAdapter",
+      "address": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
       "isProxy": false,
       "constructorArguments": ""
     }
   ],
-  "fuji": [
+  "goerli": [
     {
-      "name": "TokenBridgeRouter",
-      "address": "0x952228cA63f85130534981844050c82b89f373E7",
+      "name": "LiquidityLayerRouter",
+      "address": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541",
       "isProxy": false,
       "constructorArguments": ""
     },
     {
       "name": "CircleBridgeAdapter",
-      "address": "0xc262a656c99B3a2f1B196dc5BeDa8f4f80D4a878",
+      "address": "0xb54AD7AE42B7c505100594365CdBC4b28Ef51FE6",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "PortalAdapter",
+      "address": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "LiquidityLayerRouter",
+      "address": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "PortalAdapter",
+      "address": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "LiquidityLayerRouter",
+      "address": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "PortalAdapter",
+      "address": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "alfajores": [
+    {
+      "name": "LiquidityLayerRouter",
+      "address": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "PortalAdapter",
+      "address": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
       "isProxy": false,
       "constructorArguments": ""
     }

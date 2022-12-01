@@ -7,7 +7,7 @@ import {
   objMap,
 } from '@hyperlane-xyz/sdk';
 
-import { circleBridgeAdapterConfig } from '../../config/environments/test/liquidityLayer';
+import { bridgeAdapterConfigs } from '../../config/environments/testnet3/liquidityLayer';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import {
@@ -29,17 +29,16 @@ async function main() {
 
   // config gcp deployer key as owner
   const ownerConfigMap = await getConfiguration(environment, multiProvider);
-
+  const config = objMap(bridgeAdapterConfigs, (chain, conf) => ({
+    ...conf,
+    ...ownerConfigMap[chain],
+  }));
   const deployer = new LiquidityLayerDeployer(
     multiProvider,
-    objMap(circleBridgeAdapterConfig, (chain, conf) => ({
-      bridgeAdapterConfigs: [conf],
-      ...ownerConfigMap[chain],
-    })),
+    config,
     core,
     'LiquidityLayerDeploy2',
   );
-
   await deployWithArtifacts(dir, liquidityLayerFactories, deployer);
 }
 
