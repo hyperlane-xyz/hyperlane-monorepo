@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: cd solidity && forge install
       - name: Run tests
-        run: forge test -vvv
+        run: cd solidity && forge test -vvv
       - name: Build Test with older solc versions
         run: |
           forge build --contracts src/Test.sol --use solc:0.8.0
