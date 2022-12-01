@@ -44,7 +44,6 @@ describe('InterchainAccountRouter', async () => {
   });
 
   beforeEach(async () => {
-    console.log(config);
     const InterchainAccount = new InterchainAccountDeployer(
       multiProvider,
       config,
