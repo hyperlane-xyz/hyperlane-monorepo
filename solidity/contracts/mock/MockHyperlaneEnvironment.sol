@@ -42,12 +42,12 @@ contract MockHyperlaneEnvironment {
         originQueryRouter.initialize(
             address(this),
             address(originMailbox),
-            address(0)
+            address(igps[originDomain])
         );
         destinationQueryRouter.initialize(
             address(this),
             address(destinationMailbox),
-            address(0)
+            address(igps[destinationDomain])
         );
 
         originQueryRouter.enrollRemoteRouter(
