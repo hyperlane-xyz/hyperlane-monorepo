@@ -40,14 +40,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "arbitrumrinkeby",
-        token: "ETH",
-        domain: 421611,
-        chain_id: 421611,
-        is_test_net: true,
-        is_deprecated: true,
-    },
-    RawDomain {
         name: "avalanche",
         token: "AVAX",
         domain: 43114,
@@ -104,14 +96,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "kovan",
-        token: "ETH",
-        domain: 3000,
-        chain_id: 42,
-        is_test_net: true,
-        is_deprecated: true,
-    },
-    RawDomain {
         name: "moonbasealpha",
         token: "DEV",
         domain: 1287,
@@ -150,14 +134,6 @@ const DOMAINS: &[RawDomain] = &[
         chain_id: 420,
         is_test_net: true,
         is_deprecated: false,
-    },
-    RawDomain {
-        name: "optimismkovan",
-        token: "ETH",
-        domain: 69,
-        chain_id: 69,
-        is_test_net: true,
-        is_deprecated: true,
     },
     RawDomain {
         name: "polygon",
