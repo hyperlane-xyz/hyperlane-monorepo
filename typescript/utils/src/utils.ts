@@ -13,6 +13,10 @@ export function deepEquals(v1: any, v2: any) {
   return JSON.stringify(v1) === JSON.stringify(v2);
 }
 
+export function eqAddress(a: string, b: string) {
+  return ethers.utils.getAddress(a) === ethers.utils.getAddress(b);
+}
+
 export const ensure0x = (hexstr: string) =>
   hexstr.startsWith('0x') ? hexstr : `0x${hexstr}`;
 

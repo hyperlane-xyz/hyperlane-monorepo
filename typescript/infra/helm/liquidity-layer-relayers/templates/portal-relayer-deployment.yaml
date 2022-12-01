@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal-relayer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: portal-relayer
+  template:
+    metadata:
+      labels:
+        name: portal-relayer
+    spec:
+      containers:
+      - name: portal-relayer
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: IfNotPresent
+        command:
+        - ./node_modules/.bin/ts-node
+        - ./typescript/infra/scripts/middleware/portal-relayer.ts
+        - -e
+        - {{ .Values.abacus.runEnv }}
+{{- if .Values.abacus.connectionType }}
+        - --connection-type
+        - {{ .Values.abacus.connectionType }}
+{{- end }}
+        envFrom:
+        - secretRef:
+            name: liquidity-layer-env-var-secret
