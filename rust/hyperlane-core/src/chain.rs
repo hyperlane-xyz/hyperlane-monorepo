@@ -260,7 +260,7 @@ mod tests {
         hyperlane_settings()
             .iter()
             .flat_map(|x: &Settings| {
-                x.chain.chains.iter().map(|(_, v)| ChainCoordinate {
+                x.chains.iter().map(|(_, v)| ChainCoordinate {
                     name: v.name.clone(),
                     domain: v.domain.parse().unwrap(),
                 })
