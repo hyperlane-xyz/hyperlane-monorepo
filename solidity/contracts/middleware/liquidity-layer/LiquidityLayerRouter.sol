@@ -21,15 +21,14 @@ contract LiquidityLayerRouter is Router {
 
     function initialize(
         address _owner,
-        address _abacusConnectionManager,
+        address _mailbox,
         address _interchainGasPaymaster
     ) public initializer {
-        // Transfer ownership of the contract to deployer
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
+            _interchainGasPaymaster
+        );
         _transferOwnership(_owner);
-        // Set the addresses for the ACM and IGP
-        // Alternatively, this could be done later in an initialize method
-        _setAbacusConnectionManager(_abacusConnectionManager);
-        _setInterchainGasPaymaster(_interchainGasPaymaster);
     }
 
     function dispatchWithTokens(

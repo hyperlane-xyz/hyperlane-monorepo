@@ -23,7 +23,10 @@ async function main() {
   const multiProvider = await coreConfig.getMultiProvider();
   const core = HyperlaneCore.fromEnvironment(environment, multiProvider as any);
 
-  const dir = path.join(getEnvironmentDirectory(environment), 'interchain');
+  const dir = path.join(
+    getEnvironmentDirectory(environment),
+    'middleware/accounts',
+  );
 
   // config gcp deployer key as owner
   const configMap = await getConfiguration(environment, multiProvider);

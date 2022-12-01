@@ -1,18 +1,18 @@
-use std::cmp::min;
 use std::collections::HashMap;
 use std::ops::Deref;
-use std::time::Duration;
+use std::sync::Arc;
 
 use ethers::prelude::H256;
 use eyre::Result;
+use hyperlane_base::RateLimitedSyncBlockRangeCursor;
+use itertools::Itertools;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
-use tokio::time::sleep;
 use tracing::{debug, info, instrument, warn};
 
-use abacus_base::last_message::validate_message_continuity;
-use abacus_core::{name_from_domain_id, CommittedMessage, ListValidity};
+use hyperlane_base::last_message::validate_message_continuity;
+use hyperlane_core::{name_from_domain_id, ListValidity, MailboxIndexer, SyncBlockRangeCursor};
 
-use crate::chain_scraper::{Delivery, RawMsgWithMeta, SqlChainScraper, TxnWithIdAndTime};
+use crate::chain_scraper::{Delivery, HyperlaneMessageWithMeta, SqlChainScraper, TxnWithIdAndTime};
 
 /// Workhorse of synchronization. This consumes a `SqlChainScraper` which has
 /// the needed connections and information to work and then adds additional
@@ -29,12 +29,11 @@ pub(super) struct Syncer {
     stored_messages: IntCounter,
     stored_deliveries: IntCounter,
     missed_messages: IntCounter,
-    message_leaf_index: IntGaugeVec,
-    chunk_size: u32,
+    message_nonce: IntGaugeVec,
+    sync_cursor: RateLimitedSyncBlockRangeCursor<Arc<dyn MailboxIndexer>>,
 
-    from: u32,
     last_valid_range_start_block: u32,
-    last_leaf_index: u32,
+    last_nonce: u32,
 }
 
 impl Deref for Syncer {
@@ -76,12 +75,19 @@ impl Syncer {
             .metrics
             .missed_events
             .with_label_values(&message_labels);
-        let message_leaf_index = scraper.metrics.message_leaf_index.clone();
+        let message_nonce = scraper.metrics.message_nonce.clone();
 
         let chunk_size = scraper.chunk_size;
-        let from = scraper.cursor.height().await as u32;
-        let last_valid_range_start_block = from;
-        let last_leaf_index = scraper.last_message_leaf_index().await?.unwrap_or(0);
+        let initial_height = scraper.cursor.height().await as u32;
+        let last_valid_range_start_block = initial_height;
+        let last_nonce = scraper.last_message_nonce().await?.unwrap_or(0);
+
+        let sync_cursor = RateLimitedSyncBlockRangeCursor::new(
+            scraper.contracts.indexer.clone(),
+            chunk_size,
+            initial_height,
+        )
+        .await?;
 
         Ok(Self {
             scraper,
@@ -90,79 +96,79 @@ impl Syncer {
             stored_messages,
             stored_deliveries,
             missed_messages,
-            message_leaf_index,
-            chunk_size,
-            from,
+            message_nonce,
+            sync_cursor,
             last_valid_range_start_block,
-            last_leaf_index,
+            last_nonce,
         })
     }
 
     /// Sync contract and other blockchain data with the current chain state.
-    #[instrument(skip(self), fields(chain_name = self.chain_name(), chink_size = self.chunk_size))]
+    #[instrument(skip(self), fields(chain_name = self.chain_name(), chunk_size = self.chunk_size))]
     pub async fn run(mut self) -> Result<()> {
-        info!(from = self.from, "Resuming chain sync");
-        self.indexed_message_height.set(self.from as i64);
-        self.indexed_deliveries_height.set(self.from as i64);
+        let start_block = self.sync_cursor.current_position();
+        info!(from = start_block, "Resuming chain sync");
+        self.indexed_message_height.set(start_block as i64);
+        self.indexed_deliveries_height.set(start_block as i64);
 
         loop {
-            sleep(Duration::from_secs(5)).await;
-
-            let Ok(tip) = self.get_finalized_block_number().await else {
-                continue;
+            let start_block = self.sync_cursor.current_position();
+            let (from, to) = match self.sync_cursor.next_range().await {
+                Ok(range) => range,
+                Err(err) => {
+                    warn!(error = %err, "failed to get next block range");
+                    continue;
+                }
             };
-            if tip <= self.from {
-                sleep(Duration::from_secs(10)).await;
-                continue;
-            }
 
-            let to = min(tip, self.from + self.chunk_size);
-            let full_chunk_from = to.checked_sub(self.chunk_size).unwrap_or_default();
-            debug_assert_eq!(self.local.outbox.local_domain(), self.local_domain());
-            let (sorted_messages, deliveries) = self.scrape_range(full_chunk_from, to).await?;
+            let (sorted_messages, deliveries) = self.scrape_range(from, to).await?;
 
             let validation = validate_message_continuity(
-                Some(self.last_leaf_index),
-                &sorted_messages.iter().map(|r| &r.raw).collect::<Vec<_>>(),
+                Some(self.last_nonce),
+                &sorted_messages
+                    .iter()
+                    .map(|r| &r.message)
+                    .collect::<Vec<_>>(),
             );
             match validation {
                 ListValidity::Valid => {
-                    let max_leaf_index_of_batch =
-                        self.record_data(sorted_messages, deliveries).await?;
+                    let max_nonce_of_batch = self.record_data(sorted_messages, deliveries).await?;
 
-                    self.cursor.update(full_chunk_from as u64).await;
-                    if let Some(idx) = max_leaf_index_of_batch {
-                        self.last_leaf_index = idx;
+                    self.cursor.update(from as u64).await;
+                    if let Some(idx) = max_nonce_of_batch {
+                        self.last_nonce = idx;
                     }
-                    self.last_valid_range_start_block = full_chunk_from;
-                    self.from = to + 1;
+                    self.last_valid_range_start_block = from;
                     self.indexed_message_height.set(to as i64);
                     self.indexed_deliveries_height.set(to as i64);
                 }
                 ListValidity::Empty => {
                     let _ = self.record_data(sorted_messages, deliveries).await?;
-                    self.from = to + 1;
                     self.indexed_message_height.set(to as i64);
                     self.indexed_deliveries_height.set(to as i64);
                 }
                 ListValidity::InvalidContinuation => {
                     self.missed_messages.inc();
                     warn!(
-                        last_leaf_index = self.last_leaf_index,
-                        start_block = self.from,
+                        last_nonce = self.last_nonce,
+                        start_block = from,
                         end_block = to,
                         last_valid_range_start_block = self.last_valid_range_start_block,
                         "Found invalid continuation in range. Re-indexing from the start block of the last successful range."
                     );
-                    self.from = self.last_valid_range_start_block;
-                    self.indexed_message_height.set(self.from as i64);
-                    self.indexed_deliveries_height.set(self.from as i64);
+                    self.sync_cursor
+                        .backtrack(self.last_valid_range_start_block);
+                    self.indexed_message_height
+                        .set(self.last_valid_range_start_block as i64);
+                    self.indexed_deliveries_height
+                        .set(self.last_valid_range_start_block as i64);
                 }
                 ListValidity::ContainsGaps => {
                     self.missed_messages.inc();
+                    self.sync_cursor.backtrack(start_block);
                     warn!(
-                        last_leaf_index = self.last_leaf_index,
-                        start_block = self.from,
+                        last_nonce = self.last_nonce,
+                        start_block = from,
                         end_block = to,
                         last_valid_range_start_block = self.last_valid_range_start_block,
                         "Found gaps in the message in range, re-indexing the same range."
@@ -178,10 +184,21 @@ impl Syncer {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<(Vec<RawMsgWithMeta>, Vec<Delivery>)> {
-        let sorted_messages = self.local.indexer.fetch_sorted_messages(from, to).await?;
+    ) -> Result<(Vec<HyperlaneMessageWithMeta>, Vec<Delivery>)> {
+        let sorted_messages = self
+            .contracts
+            .indexer
+            .fetch_sorted_messages(from, to)
+            .await?;
 
-        let deliveries = self.deliveries(from, to).await?;
+        let deliveries = self
+            .contracts
+            .indexer
+            .fetch_delivered_messages(from, to)
+            .await?
+            .into_iter()
+            .map(|(message_id, meta)| Delivery { message_id, meta })
+            .collect_vec();
 
         info!(
             from,
@@ -193,8 +210,8 @@ impl Syncer {
 
         let sorted_messages = sorted_messages
             .into_iter()
-            .map(|(raw, meta)| RawMsgWithMeta { raw, meta })
-            .filter(|m| m.raw.leaf_index > self.last_leaf_index)
+            .map(|(message, meta)| HyperlaneMessageWithMeta { message, meta })
+            .filter(|m| m.message.nonce > self.last_nonce)
             .collect::<Vec<_>>();
 
         debug!(
@@ -207,37 +224,15 @@ impl Syncer {
         Ok((sorted_messages, deliveries))
     }
 
-    /// get the deliveries for a given range from the inboxes.
-    #[instrument(skip(self))]
-    async fn deliveries(&self, from: u32, to: u32) -> Result<Vec<Delivery>> {
-        let mut delivered = vec![];
-        for (_, remote) in self.remotes.iter() {
-            debug_assert_eq!(remote.inbox.local_domain(), self.local_domain());
-            delivered.extend(
-                remote
-                    .indexer
-                    .fetch_processed_messages(from, to)
-                    .await?
-                    .into_iter()
-                    .map(|(message_hash, meta)| Delivery {
-                        inbox: remote.inbox.address(),
-                        message_hash,
-                        meta,
-                    }),
-            )
-        }
-        Ok(delivered)
-    }
-
     /// Record messages and deliveries, will fetch any extra data needed to do
-    /// so. Returns the max leaf index or None if no messages were provided.
+    /// so. Returns the max nonce or None if no messages were provided.
     #[instrument(
         skip_all,
         fields(sorted_messages = sorted_messages.len(), deliveries = deliveries.len())
     )]
     async fn record_data(
         &self,
-        sorted_messages: Vec<RawMsgWithMeta>,
+        sorted_messages: Vec<HyperlaneMessageWithMeta>,
         deliveries: Vec<Delivery>,
     ) -> Result<Option<u32>> {
         let txns: HashMap<H256, TxnWithIdAndTime> = self
@@ -257,20 +252,18 @@ impl Syncer {
         }
 
         if !sorted_messages.is_empty() {
-            let max_leaf_index_of_batch = self.store_messages(&sorted_messages, &txns).await?;
+            let max_nonce_of_batch = self.store_messages(&sorted_messages, &txns).await?;
             self.stored_messages.inc_by(sorted_messages.len() as u64);
 
             for m in sorted_messages.iter() {
-                let parsed = CommittedMessage::try_from(&m.raw).ok();
-                let idx = m.raw.leaf_index;
-                let dst = parsed
-                    .and_then(|msg| name_from_domain_id(msg.message.destination))
-                    .unwrap_or_else(|| "unknown".into());
-                self.message_leaf_index
+                let nonce = m.message.nonce;
+                let dst =
+                    name_from_domain_id(m.message.destination).unwrap_or_else(|| "unknown".into());
+                self.message_nonce
                     .with_label_values(&["dispatch", self.chain_name(), &dst])
-                    .set(idx as i64);
+                    .set(nonce as i64);
             }
-            Ok(Some(max_leaf_index_of_batch))
+            Ok(Some(max_nonce_of_batch))
         } else {
             Ok(None)
         }

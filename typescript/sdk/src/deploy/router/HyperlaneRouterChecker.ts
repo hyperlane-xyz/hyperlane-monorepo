@@ -24,7 +24,6 @@ export class HyperlaneRouterChecker<
   async checkChain(chain: Chain): Promise<void> {
     await this.checkEnrolledRouters(chain);
     await this.checkOwnership(chain);
-    await this.checkConnectionManager(chain);
   }
 
   async checkEnrolledRouters(chain: Chain): Promise<void> {
@@ -37,18 +36,6 @@ export class HyperlaneRouterChecker<
         const address = await router.routers(remoteChainId);
         utils.assert(address === utils.addressToBytes32(remoteRouter.address));
       }),
-    );
-  }
-
-  async checkConnectionManager(chain: Chain): Promise<void> {
-    const router = this.app.getContracts(chain).router;
-    const expectedConnectionManager = this.configMap[chain].connectionManager;
-
-    const routerConnectionManager = await router.abacusConnectionManager();
-
-    utils.assert(
-      expectedConnectionManager === routerConnectionManager,
-      `Incorrect ConnectionManager for ${chain}. Expected ${expectedConnectionManager}, found ${routerConnectionManager}`,
     );
   }
 

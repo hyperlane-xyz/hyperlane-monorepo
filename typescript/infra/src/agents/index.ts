@@ -23,7 +23,7 @@ import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
 import { KEY_ROLE_ENUM } from './roles';
 
-const helmChartPath = '../../rust/helm/abacus-agent/';
+const helmChartPath = '../../rust/helm/hyperlane-agent/';
 
 async function helmValuesForChain<Chain extends ChainName>(
   chainName: Chain,
@@ -60,7 +60,7 @@ async function helmValuesForChain<Chain extends ChainName>(
       repository: agentConfig.docker.repo,
       tag: agentConfig.docker.tag,
     },
-    abacus: {
+    hyperlane: {
       runEnv: agentConfig.runEnv,
       context: agentConfig.context,
       baseConfig: `${chainName}_config.json`,
@@ -113,7 +113,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   envVars.push(
     `HYP_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`,
   );
-  valueDict.abacus.inboxChains.forEach((inboxChain: any) => {
+  valueDict.hyperlane.inboxChains.forEach((inboxChain: any) => {
     envVars.push(
       `HYP_BASE_INBOXES_${inboxChain.name.toUpperCase()}_CONNECTION_URL=${
         rpcEndpoints[inboxChain.name]
@@ -122,7 +122,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   });
 
   // Base vars from config map
-  envVars.push(`BASE_CONFIG=${valueDict.abacus.baseConfig}`);
+  envVars.push(`BASE_CONFIG=${valueDict.hyperlane.baseConfig}`);
   envVars.push(`RUN_ENV=${agentConfig.runEnv}`);
   envVars.push(`HYP_BASE_METRICS=9090`);
   envVars.push(`HYP_BASE_TRACING_LEVEL=info`);
@@ -219,19 +219,22 @@ export async function getAgentEnvVars<Chain extends ChainName>(
 
   switch (role) {
     case KEY_ROLE_ENUM.Validator:
-      if (valueDict.abacus.validator.configs) {
+      if (valueDict.hyperlane.validator.configs) {
         envVars = envVars.concat(
           configEnvVars(
-            valueDict.abacus.validator.configs[index!],
+            valueDict.hyperlane.validator.configs[index!],
             KEY_ROLE_ENUM.Validator,
           ),
         );
       }
       break;
     case KEY_ROLE_ENUM.Relayer:
-      if (valueDict.abacus.relayer.config) {
+      if (valueDict.hyperlane.relayer.config) {
         envVars = envVars.concat(
-          configEnvVars(valueDict.abacus.relayer.config, KEY_ROLE_ENUM.Relayer),
+          configEnvVars(
+            valueDict.hyperlane.relayer.config,
+            KEY_ROLE_ENUM.Relayer,
+          ),
         );
       }
       break;
@@ -413,8 +416,8 @@ function getHelmReleaseName<Chain extends ChainName>(
   agentConfig: AgentConfig<Chain>,
 ): string {
   // For backward compatibility reasons, don't include the context
-  // in the name of the helm release if the context is the default "abacus"
-  if (agentConfig.context === 'abacus') {
+  // in the name of the helm release if the context is the default "hyperlane"
+  if (agentConfig.context === 'hyperlane') {
     return outboxChainName;
   }
   return `${outboxChainName}-${agentConfig.context}`;

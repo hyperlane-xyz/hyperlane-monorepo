@@ -32,7 +32,7 @@ async function main() {
   // from solidity/core/hardhat.config.ts
   const compilerOptions: CompilerOptions = {
     codeformat: 'solidity-single-file',
-    compilerversion: 'v0.8.13+commit.07a7930e',
+    compilerversion: 'v0.8.16+commit.07a7930e',
     optimizationUsed: '1',
     runs: '999999',
   };

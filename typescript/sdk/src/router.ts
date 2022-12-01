@@ -21,8 +21,9 @@ export type RouterFactories<RouterContract extends Router = Router> =
   };
 
 export type ConnectionClientConfig = {
-  connectionManager: types.Address;
+  mailbox: types.Address;
   interchainGasPaymaster: types.Address;
+  interchainSecurityModule?: types.Address;
 };
 
 export { Router } from '@hyperlane-xyz/core';

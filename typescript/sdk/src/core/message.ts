@@ -1,6 +1,6 @@
-import { BigNumber, utils as ethersUtils, providers } from 'ethers';
+import { utils as ethersUtils, providers } from 'ethers';
 
-import { Inbox, Outbox, Outbox__factory } from '@hyperlane-xyz/core';
+import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { ChainNameToDomainId, DomainIdToChainName } from '../domains';
@@ -49,12 +49,6 @@ export enum MessageStatus {
   Processed = 3,
 }
 
-export enum InboxMessageStatus {
-  None = 0,
-  Proven,
-  Processed,
-}
-
 export type EventCache = {
   process?: AnnotatedProcess;
 };
@@ -67,8 +61,8 @@ export type EventCache = {
 export class HyperlaneMessage {
   readonly dispatch: AnnotatedDispatch;
   readonly message: types.ParsedMessage;
-  readonly outbox: Outbox;
-  readonly inbox: Inbox;
+  readonly outbox: Mailbox;
+  readonly inbox: Mailbox;
 
   readonly multiProvider: MultiProvider;
   readonly core: HyperlaneCore;
@@ -85,13 +79,9 @@ export class HyperlaneMessage {
     this.dispatch = dispatch;
 
     const messageChains = resolveChains(this.message);
-    const mailboxes = core.getMailboxPair(
-      messageChains.origin as never, // TODO: Fix never type that results from Exclude<T, T>
-      messageChains.destination,
-    );
 
-    this.outbox = mailboxes.originOutbox;
-    this.inbox = mailboxes.destinationInbox;
+    this.outbox = core.getContracts(messageChains.origin).mailbox.contract;
+    this.inbox = core.getContracts(messageChains.destination).mailbox.contract;
     this.cache = {};
   }
 
@@ -117,7 +107,7 @@ export class HyperlaneMessage {
     receipt: providers.TransactionReceipt,
   ): HyperlaneMessage[] {
     const messages: HyperlaneMessage[] = [];
-    const outbox = new Outbox__factory().interface;
+    const outbox = new Mailbox__factory().interface;
     const chain = resolveDomain(nameOrDomain);
     const provider = multiProvider.getChainConnection(chain).provider!;
 
@@ -250,7 +240,7 @@ export class HyperlaneMessage {
       return this.cache.process;
     }
     // if not, attempt to query the event
-    const processFilter = this.inbox.filters.Process(this.leaf);
+    const processFilter = this.inbox.filters.Process(this.id);
     const processLogs = await findAnnotatedSingleEvent<ProcessEvent>(
       this.multiProvider,
       this.destinationName,
@@ -293,23 +283,12 @@ export class HyperlaneMessage {
   }
 
   /**
-   * Retrieve the inbox status of this message.
-   *
-   * @returns The {@link InboxMessageStatus} corresponding to the solidity
-   * status of the message.
-   */
-  async inboxStatus(): Promise<InboxMessageStatus> {
-    return this.inbox.messages(this.leaf);
-  }
-
-  /**
    * Checks whether the message has been delivered.
    *
    * @returns true if processed, else false.
    */
   async delivered(): Promise<boolean> {
-    const status = await this.inboxStatus();
-    return status === InboxMessageStatus.Processed;
+    return this.inbox.delivered(this.id);
   }
 
   /**
@@ -389,19 +368,9 @@ export class HyperlaneMessage {
   }
 
   /**
-   * The messageHash committed to the tree in the Outbox contract.
+   * The messageId committed to the tree in the Outbox contract.
    */
-  get leaf(): string {
-    return utils.messageHash(
-      this.dispatch.event.args.message,
-      this.dispatch.event.args.leafIndex.toNumber(),
-    );
-  }
-
-  /**
-   * The index of the leaf in the contract.
-   */
-  get leafIndex(): BigNumber {
-    return this.dispatch.event.args.leafIndex;
+  get id(): string {
+    return this.dispatch.event.args.messageId;
   }
 }

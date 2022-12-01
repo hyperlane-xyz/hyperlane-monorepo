@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use abacus_base::chains::GelatoConf;
-use abacus_base::{CoreMetrics, InboxContracts};
-use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusChain, AbacusDomain};
 use eyre::{bail, Result};
 use gelato::types::Chain;
+use hyperlane_base::chains::GelatoConf;
+use hyperlane_base::{CachingMailbox, CoreMetrics};
+use hyperlane_core::db::HyperlaneDB;
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, MultisigIsm};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::time::{sleep, Duration, Instant};
@@ -29,12 +29,14 @@ pub(crate) struct GelatoSubmitter {
     gelato_config: GelatoConf,
     /// Source of messages to submit.
     message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-    /// Inbox / InboxValidatorManager on the destination chain.
-    inbox_contracts: InboxContracts,
-    /// The inbox chain in the format expected by the Gelato crate.
-    inbox_gelato_chain: Chain,
+    /// Mailbox on the destination chain.
+    mailbox: CachingMailbox,
+    /// Multisig ISM on the destination chain.
+    multisig_ism: Arc<dyn MultisigIsm>,
+    /// The destination chain in the format expected by the Gelato crate.
+    destination_gelato_chain: Chain,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
-    db: AbacusDB,
+    db: HyperlaneDB,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     http_client: reqwest::Client,
     /// Prometheus metrics.
@@ -50,8 +52,9 @@ pub(crate) struct GelatoSubmitter {
 impl GelatoSubmitter {
     pub fn new(
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-        inbox_contracts: InboxContracts,
-        abacus_db: AbacusDB,
+        mailbox: CachingMailbox,
+        multisig_ism: Arc<dyn MultisigIsm>,
+        hyperlane_db: HyperlaneDB,
         gelato_config: GelatoConf,
         metrics: GelatoSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -64,12 +67,11 @@ impl GelatoSubmitter {
             .unwrap();
         Self {
             message_receiver,
-            inbox_gelato_chain: abacus_domain_id_to_gelato_chain(
-                inbox_contracts.inbox.local_domain(),
-            )
-            .unwrap(),
-            inbox_contracts,
-            db: abacus_db,
+            destination_gelato_chain: hyperlane_domain_id_to_gelato_chain(mailbox.domain())
+                .unwrap(),
+            mailbox,
+            multisig_ism,
+            db: hyperlane_db,
             gelato_config,
             http_client,
             metrics,
@@ -93,7 +95,7 @@ impl GelatoSubmitter {
 
     async fn tick(&mut self) -> Result<()> {
         // Pull any messages sent by processor over channel and push
-        // them into the `received_messages` in asc order by message leaf index.
+        // them into the `received_messages` in asc order by message nonce.
         let mut received_messages = Vec::new();
         loop {
             match self.message_receiver.try_recv() {
@@ -116,9 +118,10 @@ impl GelatoSubmitter {
                 opts: SponsoredCallOptions::default(),
                 http: self.http_client.clone(),
                 message: msg,
-                inbox_contracts: self.inbox_contracts.clone(),
+                mailbox: self.mailbox.clone(),
+                multisig_ism: self.multisig_ism.clone(),
                 sponsor_api_key: self.gelato_config.sponsorapikey.clone(),
-                destination_chain: self.inbox_gelato_chain,
+                destination_chain: self.destination_gelato_chain,
                 message_processed_sender: self.message_processed_sender.clone(),
                 gas_payment_enforcer: self.gas_payment_enforcer.clone(),
             });
@@ -145,24 +148,24 @@ impl GelatoSubmitter {
         Ok(())
     }
 
-    /// Record in AbacusDB and various metrics that this process has observed the successful
+    /// Record in HyperlaneDB and various metrics that this process has observed the successful
     /// processing of a message. An Ok(()) value returned by this function is the 'commit' point
     /// in a message's lifetime for final processing -- after this function has been seen to
-    /// return 'Ok(())', then without a wiped AbacusDB, we will never re-attempt processing for
+    /// return 'Ok(())', then without a wiped HyperlaneDB, we will never re-attempt processing for
     /// this message again, even after the relayer restarts.
     fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         tracing::info!(msg=?msg, "Recording message as successfully processed");
-        self.db.mark_leaf_as_processed(msg.leaf_index)?;
+        self.db.mark_nonce_as_processed(msg.message.nonce)?;
 
         self.metrics.active_sponsored_call_ops_gauge.sub(1);
         self.metrics
             .queue_duration_hist
             .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
-        self.metrics.highest_submitted_leaf_index =
-            std::cmp::max(self.metrics.highest_submitted_leaf_index, msg.leaf_index);
+        self.metrics.highest_submitted_nonce =
+            std::cmp::max(self.metrics.highest_submitted_nonce, msg.message.nonce);
         self.metrics
             .processed_gauge
-            .set(self.metrics.highest_submitted_leaf_index as i64);
+            .set(self.metrics.highest_submitted_nonce as i64);
         self.metrics.messages_processed_count.inc();
         Ok(())
     }
@@ -175,83 +178,85 @@ pub(crate) struct GelatoSubmitterMetrics {
     messages_processed_count: IntCounter,
     active_sponsored_call_ops_gauge: IntGauge,
     /// Private state used to update actual metrics each tick.
-    highest_submitted_leaf_index: u32,
+    highest_submitted_nonce: u32,
 }
 
 impl GelatoSubmitterMetrics {
-    pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
+    pub fn new(metrics: &CoreMetrics, origin_chain: &str, destination_chain: &str) -> Self {
         Self {
             queue_duration_hist: metrics
                 .submitter_queue_duration_histogram()
-                .with_label_values(&[outbox_chain, inbox_chain]),
+                .with_label_values(&[origin_chain, destination_chain]),
             messages_processed_count: metrics
                 .messages_processed_count()
-                .with_label_values(&[outbox_chain, inbox_chain]),
-            processed_gauge: metrics.last_known_message_leaf_index().with_label_values(&[
+                .with_label_values(&[origin_chain, destination_chain]),
+            processed_gauge: metrics.last_known_message_nonce().with_label_values(&[
                 "message_processed",
-                outbox_chain,
-                inbox_chain,
+                origin_chain,
+                destination_chain,
             ]),
             active_sponsored_call_ops_gauge: metrics.submitter_queue_length().with_label_values(&[
-                outbox_chain,
-                inbox_chain,
+                origin_chain,
+                destination_chain,
                 "active_sponsored_call_ops",
             ]),
-            highest_submitted_leaf_index: 0,
+            highest_submitted_nonce: 0,
         }
     }
 }
 
 // While this may be more ergonomic as an Into / From impl,
-// it feels a bit awkward to have abacus-base (where AbacusDomain)
+// it feels a bit awkward to have hyperlane-base (where HyperlaneDomain)
 // is implemented to be aware of the gelato crate or vice versa.
-pub fn abacus_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
-    let abacus_domain = AbacusDomain::try_from(domain)?;
+pub fn hyperlane_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
+    let hyperlane_domain = HyperlaneDomain::try_from(domain)?;
 
-    Ok(match abacus_domain {
-        AbacusDomain::Ethereum => Chain::Ethereum,
-        AbacusDomain::Kovan => Chain::Kovan,
-        AbacusDomain::Goerli => Chain::Goerli,
+    Ok(match hyperlane_domain {
+        HyperlaneDomain::Ethereum => Chain::Ethereum,
+        HyperlaneDomain::Kovan => Chain::Kovan,
+        HyperlaneDomain::Goerli => Chain::Goerli,
 
-        AbacusDomain::Polygon => Chain::Polygon,
-        AbacusDomain::Mumbai => Chain::Mumbai,
+        HyperlaneDomain::Polygon => Chain::Polygon,
+        HyperlaneDomain::Mumbai => Chain::Mumbai,
 
-        AbacusDomain::Avalanche => Chain::Avalanche,
-        AbacusDomain::Fuji => Chain::Fuji,
+        HyperlaneDomain::Avalanche => Chain::Avalanche,
+        HyperlaneDomain::Fuji => Chain::Fuji,
 
-        AbacusDomain::Arbitrum => Chain::Arbitrum,
-        AbacusDomain::ArbitrumRinkeby => Chain::ArbitrumRinkeby,
-        AbacusDomain::ArbitrumGoerli => Chain::ArbitrumGoerli,
+        HyperlaneDomain::Arbitrum => Chain::Arbitrum,
+        HyperlaneDomain::ArbitrumRinkeby => Chain::ArbitrumRinkeby,
+        HyperlaneDomain::ArbitrumGoerli => Chain::ArbitrumGoerli,
 
-        AbacusDomain::Optimism => Chain::Optimism,
-        AbacusDomain::OptimismKovan => Chain::OptimismKovan,
-        AbacusDomain::OptimismGoerli => Chain::OptimismGoerli,
+        HyperlaneDomain::Optimism => Chain::Optimism,
+        HyperlaneDomain::OptimismKovan => Chain::OptimismKovan,
+        HyperlaneDomain::OptimismGoerli => Chain::OptimismGoerli,
 
-        AbacusDomain::BinanceSmartChain => Chain::BinanceSmartChain,
-        AbacusDomain::BinanceSmartChainTestnet => Chain::BinanceSmartChainTestnet,
+        HyperlaneDomain::BinanceSmartChain => Chain::BinanceSmartChain,
+        HyperlaneDomain::BinanceSmartChainTestnet => Chain::BinanceSmartChainTestnet,
 
-        AbacusDomain::Celo => Chain::Celo,
-        AbacusDomain::Alfajores => Chain::Alfajores,
+        HyperlaneDomain::Celo => Chain::Celo,
+        HyperlaneDomain::Alfajores => Chain::Alfajores,
 
-        AbacusDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
-        AbacusDomain::Moonbeam => Chain::Moonbeam,
+        HyperlaneDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
+        HyperlaneDomain::Moonbeam => Chain::Moonbeam,
 
-        AbacusDomain::Zksync2Testnet => Chain::Zksync2Testnet,
+        HyperlaneDomain::Zksync2Testnet => Chain::Zksync2Testnet,
 
-        _ => bail!("No Gelato Chain for domain {abacus_domain}"),
+        _ => bail!("No Gelato Chain for domain {hyperlane_domain}"),
     })
 }
 
 #[test]
-fn test_abacus_domain_id_to_gelato_chain() {
-    use abacus_core::AbacusDomainType;
+fn test_hyperlane_domain_id_to_gelato_chain() {
+    use hyperlane_core::HyperlaneDomainType;
     use strum::IntoEnumIterator;
 
-    // Iterate through all AbacusDomains, ensuring all mainnet and testnet domains
-    // are included in abacus_domain_id_to_gelato_chain.
-    for abacus_domain in AbacusDomain::iter() {
-        if let AbacusDomainType::Mainnet | AbacusDomainType::Testnet = abacus_domain.domain_type() {
-            assert!(abacus_domain_id_to_gelato_chain(u32::from(abacus_domain)).is_ok());
+    // Iterate through all HyperlaneDomains, ensuring all mainnet and testnet domains
+    // are included in hyperlane_domain_id_to_gelato_chain.
+    for hyperlane_domain in HyperlaneDomain::iter() {
+        if let HyperlaneDomainType::Mainnet | HyperlaneDomainType::Testnet =
+            hyperlane_domain.domain_type()
+        {
+            assert!(hyperlane_domain_id_to_gelato_chain(u32::from(hyperlane_domain)).is_ok());
         }
     }
 }

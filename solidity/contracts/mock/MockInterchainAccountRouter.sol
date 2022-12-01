@@ -38,17 +38,31 @@ contract MockInterchainAccountRouter is IInterchainAccountRouter {
         originDomain = _originDomain;
     }
 
-    function dispatch(uint32, Call[] calldata calls)
-        external
-        returns (uint256)
+    function dispatch(uint32 _destinationDomain, Call[] calldata calls)
+        public
+        returns (bytes32)
     {
+        return _dispatch(_destinationDomain, calls);
+    }
+
+    function dispatch(
+        uint32 _destinationDomain,
+        address target,
+        bytes calldata data
+    ) external returns (bytes32) {
+        Call[] memory calls = new Call[](1);
+        calls[0] = Call({to: target, data: data});
+        return _dispatch(_destinationDomain, calls);
+    }
+
+    function _dispatch(uint32, Call[] memory calls) internal returns (bytes32) {
         pendingCalls[totalCalls] = PendingCall(
             originDomain,
             msg.sender,
             abi.encode(calls)
         );
         totalCalls += 1;
-        return totalCalls;
+        return keccak256(abi.encodePacked(totalCalls));
     }
 
     function getInterchainAccount(uint32 _origin, address _sender)

@@ -1,4 +1,7 @@
-import { ChainNameToDomainId } from '@hyperlane-xyz/sdk';
+import {
+  ChainNameToDomainId,
+  hyperlaneCoreAddresses,
+} from '@hyperlane-xyz/sdk';
 
 import { S3Validator } from '../src/agents/aws/validator';
 import { concurrentMap } from '../src/utils/utils';
@@ -13,7 +16,7 @@ async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
 
-  const agentConfig = await getContextAgentConfig(config, 'abacus');
+  const agentConfig = await getContextAgentConfig(config, 'hyperlane');
 
   const validators = Object.entries(agentConfig.validatorSets).flatMap(
     ([chain, set]) => set.validators.map((validator) => ({ chain, validator })),
@@ -26,6 +29,8 @@ async function main() {
         validator.address,
         // @ts-ignore
         ChainNameToDomainId[chain],
+        // @ts-ignore
+        hyperlaneCoreAddresses[chain].mailbox,
         // @ts-ignore
         `https://${validator.checkpointSyncer.bucket!}.s3.${
           // @ts-ignore

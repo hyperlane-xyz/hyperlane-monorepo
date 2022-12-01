@@ -1,7 +1,11 @@
 import { ethers } from 'ethers';
 import yargs from 'yargs';
 
-import { AllChains, ChainNameToDomainId } from '@hyperlane-xyz/sdk';
+import {
+  AllChains,
+  ChainNameToDomainId,
+  hyperlaneCoreAddresses,
+} from '@hyperlane-xyz/sdk';
 
 import { S3Validator } from '../src/agents/aws/validator';
 
@@ -25,16 +29,19 @@ async function main() {
   const { address, prospective, control, chain } = await getArgs();
 
   const localDomain = ChainNameToDomainId[chain];
+  const mailbox = hyperlaneCoreAddresses[chain].mailbox;
 
   const controlValidator = new S3Validator(
     ethers.constants.AddressZero,
     localDomain,
+    mailbox,
     control,
   );
 
   const prospectiveValidator = new S3Validator(
     address,
     localDomain,
+    mailbox,
     prospective,
   );
 

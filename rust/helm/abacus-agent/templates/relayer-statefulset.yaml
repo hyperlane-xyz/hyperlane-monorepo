@@ -1,4 +1,4 @@
-{{- if .Values.abacus.relayer.enabled }}
+{{- if .Values.hyperlane.relayer.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -20,7 +20,7 @@ spec:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.abacus.relayer.podAnnotations }}
+        {{- with .Values.hyperlane.relayer.podAnnotations }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
       labels:
@@ -29,7 +29,7 @@ spec:
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.abacus.relayer.podLabels }}
+        {{- with .Values.hyperlane.relayer.podLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
     spec:
@@ -55,22 +55,22 @@ spec:
         - secretRef:
             name: {{ include "agent-common.fullname" . }}-relayer-secret
         env:
-{{- include "agent-common.config-env-vars" (dict "config" .Values.abacus.relayer.config "agent_name" "relayer") | indent 10 }}
-          {{- range .Values.abacus.relayer.signers }}
+{{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.relayer.config "agent_name" "relayer") | indent 10 }}
+          {{- range .Values.hyperlane.relayer.signers }}
 {{- include "agent-common.config-env-vars" (dict "config" .keyConfig "agent_name" "base" "key_name_prefix" (printf "SIGNERS_%s_" (.name | upper))) | indent 10 }}
           {{- end }}
-          {{- if .Values.abacus.tracing.uri }}
+          {{- if .Values.hyperlane.tracing.uri }}
           - name: HYP_BASE_TRACING_JAEGER_NAME
             value: {{ include "agent-common.fullname" . }}-relayer
           {{- end }}
         resources:
-          {{- toYaml .Values.abacus.relayer.resources | nindent 10 }}
+          {{- toYaml .Values.hyperlane.relayer.resources | nindent 10 }}
         volumeMounts:
         - name: state
-          mountPath: {{ .Values.abacus.dbPath }}
+          mountPath: {{ .Values.hyperlane.dbPath }}
         ports: 
         - name: metrics
-          containerPort: {{ .Values.abacus.metrics.port }}
+          containerPort: {{ .Values.hyperlane.metrics.port }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -89,13 +89,13 @@ spec:
     spec:
       storageClassName: {{ .Values.storage.storageClass }}
       accessModes: [ {{ .Values.storage.accessModes }} ]
-      {{- if .Values.abacus.relayer.storage.snapshot.enabled }}
+      {{- if .Values.hyperlane.relayer.storage.snapshot.enabled }}
       dataSource:
-        name: {{ .Values.abacus.relayer.storage.snapshot.name }}
+        name: {{ .Values.hyperlane.relayer.storage.snapshot.name }}
         kind: VolumeSnapshot
         apiGroup: snapshot.storage.k8s.io
       {{- end }}
       resources:
         requests:
-          storage: {{ .Values.abacus.relayer.storage.size }}
+          storage: {{ .Values.hyperlane.relayer.storage.size }}
 {{- end }}

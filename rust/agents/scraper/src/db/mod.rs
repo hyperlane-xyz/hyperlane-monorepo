@@ -4,9 +4,9 @@ use eyre::Result;
 use sea_orm::{Database, DbConn};
 use tracing::instrument;
 
-use abacus_core::TxnInfo;
 pub use block::*;
 pub use block_cursor::BlockCursor;
+use hyperlane_core::TxnInfo;
 pub use message::*;
 pub use txn::*;
 

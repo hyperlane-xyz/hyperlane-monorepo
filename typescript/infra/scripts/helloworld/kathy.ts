@@ -22,31 +22,31 @@ import { getApp } from './utils';
 const metricsRegister = new Registry();
 // TODO rename counter names
 const messagesSendCount = new Counter({
-  name: 'abacus_kathy_messages',
+  name: 'hyperlane_kathy_messages',
   help: 'Count of messages sent; records successes and failures by status label',
   registers: [metricsRegister],
   labelNames: ['origin', 'remote', 'status'],
 });
 const currentPairingIndexGauge = new Gauge({
-  name: 'abacus_kathy_pairing_index',
+  name: 'hyperlane_kathy_pairing_index',
   help: 'The current message pairing index kathy is on, this is useful for seeing if kathy is always crashing around the same pairing as pairings are deterministically ordered.',
   registers: [metricsRegister],
   labelNames: [],
 });
 const messageSendSeconds = new Counter({
-  name: 'abacus_kathy_message_send_seconds',
+  name: 'hyperlane_kathy_message_send_seconds',
   help: 'Total time spent waiting on messages to get sent not including time spent waiting on it to be received.',
   registers: [metricsRegister],
   labelNames: ['origin', 'remote'],
 });
 const messageReceiptSeconds = new Counter({
-  name: 'abacus_kathy_message_receipt_seconds',
+  name: 'hyperlane_kathy_message_receipt_seconds',
   help: 'Total time spent waiting on messages to be received including time to be sent.',
   registers: [metricsRegister],
   labelNames: ['origin', 'remote'],
 });
 const walletBalance = new Gauge({
-  name: 'abacus_wallet_balance',
+  name: 'hyperlane_wallet_balance',
   help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
   registers: [metricsRegister],
   labelNames: [
@@ -413,7 +413,7 @@ async function sendMessage(
 
   try {
     await utils.timeout(
-      app.waitForMessageReceipt(receipt),
+      app.waitForMessageProcessed(receipt),
       messageReceiptTimeout,
       'Timeout waiting for message to be received',
     );
@@ -455,11 +455,8 @@ async function messageIsProcessed(
   destination: ChainName,
   message: DispatchedMessage,
 ): Promise<boolean> {
-  const { destinationInbox: inbox } = core.getMailboxPair(origin, destination);
-  const messageHash = utils.messageHash(message.message, message.leafIndex);
-  const status = await inbox.messages(messageHash);
-  // Return if the status is MessageStatus.Processed
-  return status === 1;
+  const destinationMailbox = core.getContracts(destination).mailbox.contract;
+  return destinationMailbox.delivered(message.id);
 }
 
 async function updateWalletBalanceMetricFor(

@@ -7,11 +7,11 @@ import {
   InterchainGasPaymaster__factory,
 } from '../types';
 
-const LEAF_INDEX = 4321;
+const MESSAGE_ID =
+  '0x6ae9a99190641b9ed0c07143340612dde0e9cb7deaa5fe07597858ae9ba5fd7f';
 const DESTINATION_DOMAIN = 1234;
 const PAYMENT_AMOUNT = 123456789;
 const OWNER = '0xdeadbeef00000000000000000000000000000000';
-const OUTBOX = '0x00000000000000000000000000000000DeaDBeef';
 
 describe('InterchainGasPaymaster', async () => {
   let paymaster: InterchainGasPaymaster, signer: SignerWithAddress;
@@ -37,7 +37,7 @@ describe('InterchainGasPaymaster', async () => {
         paymaster.address,
       );
 
-      await paymaster.payGasFor(OUTBOX, LEAF_INDEX, DESTINATION_DOMAIN, {
+      await paymaster.payGasFor(MESSAGE_ID, DESTINATION_DOMAIN, {
         value: PAYMENT_AMOUNT,
       });
 
@@ -52,19 +52,19 @@ describe('InterchainGasPaymaster', async () => {
 
     it('emits the GasPayment event', async () => {
       await expect(
-        paymaster.payGasFor(OUTBOX, LEAF_INDEX, DESTINATION_DOMAIN, {
+        paymaster.payGasFor(MESSAGE_ID, DESTINATION_DOMAIN, {
           value: PAYMENT_AMOUNT,
         }),
       )
         .to.emit(paymaster, 'GasPayment')
-        .withArgs(OUTBOX, LEAF_INDEX, PAYMENT_AMOUNT);
+        .withArgs(MESSAGE_ID, PAYMENT_AMOUNT);
     });
   });
 
   describe('#claim', async () => {
     it('sends the entire balance of the contract to the owner', async () => {
       // First pay some ether into the contract
-      await paymaster.payGasFor(OUTBOX, LEAF_INDEX, DESTINATION_DOMAIN, {
+      await paymaster.payGasFor(MESSAGE_ID, DESTINATION_DOMAIN, {
         value: PAYMENT_AMOUNT,
       });
 

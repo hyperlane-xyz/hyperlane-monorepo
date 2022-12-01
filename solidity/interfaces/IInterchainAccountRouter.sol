@@ -6,7 +6,13 @@ import {Call} from "../contracts/Call.sol";
 interface IInterchainAccountRouter {
     function dispatch(uint32 _destinationDomain, Call[] calldata calls)
         external
-        returns (uint256);
+        returns (bytes32);
+
+    function dispatch(
+        uint32 _destinationDomain,
+        address target,
+        bytes calldata data
+    ) external returns (bytes32);
 
     function getInterchainAccount(uint32 _originDomain, address _sender)
         external

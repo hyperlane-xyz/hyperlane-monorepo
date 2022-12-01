@@ -6,12 +6,28 @@ import {Message} from "../libs/Message.sol";
 contract TestMessage {
     using Message for bytes;
 
+    function version(bytes calldata _message)
+        external
+        pure
+        returns (uint32 _version)
+    {
+        return _message.version();
+    }
+
+    function nonce(bytes calldata _message)
+        external
+        pure
+        returns (uint256 _nonce)
+    {
+        return _message.nonce();
+    }
+
     function body(bytes calldata _message)
         external
         pure
         returns (bytes calldata _body)
     {
-        (, , , , _body) = _message.destructure();
+        return _message.body();
     }
 
     function origin(bytes calldata _message)
@@ -19,7 +35,7 @@ contract TestMessage {
         pure
         returns (uint32 _origin)
     {
-        (_origin, , , , ) = _message.destructure();
+        return _message.origin();
     }
 
     function sender(bytes calldata _message)
@@ -27,7 +43,7 @@ contract TestMessage {
         pure
         returns (bytes32 _sender)
     {
-        (, _sender, , , ) = _message.destructure();
+        return _message.sender();
     }
 
     function destination(bytes calldata _message)
@@ -35,7 +51,7 @@ contract TestMessage {
         pure
         returns (uint32 _destination)
     {
-        (, , _destination, , ) = _message.destructure();
+        return _message.destination();
     }
 
     function recipient(bytes calldata _message)
@@ -43,7 +59,7 @@ contract TestMessage {
         pure
         returns (bytes32 _recipient)
     {
-        (, , , _recipient, ) = _message.destructure();
+        return _message.recipient();
     }
 
     function recipientAddress(bytes calldata _message)
@@ -51,14 +67,10 @@ contract TestMessage {
         pure
         returns (address _recipient)
     {
-        (, , , _recipient, ) = _message.destructureAddresses();
+        return _message.recipientAddress();
     }
 
-    function leaf(bytes calldata _message, uint256 _leafIndex)
-        external
-        pure
-        returns (bytes32)
-    {
-        return _message.leaf(_leafIndex);
+    function id(bytes calldata _message) external pure returns (bytes32) {
+        return _message.id();
     }
 }

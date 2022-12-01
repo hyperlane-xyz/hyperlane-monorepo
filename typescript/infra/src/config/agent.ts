@@ -1,4 +1,4 @@
-import { ChainMap, ChainName, RemoteChainMap } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
@@ -249,40 +249,33 @@ export type RustConnection =
   | { type: ConnectionType.Ws; url: string }
   | { type: ConnectionType.HttpQuorum; urls: string };
 
-export type RustContractBlock<T> = {
-  addresses: T;
-  domain: string;
+export type RustCoreAddresses = {
+  mailbox: types.Address;
+  interchainGasPaymaster: types.Address;
+  multisigIsm: types.Address;
+};
+
+export type RustChainSetup = {
   name: ChainName;
+  domain: string;
+  finalityBlocks: string;
+  addresses: RustCoreAddresses;
   rpcStyle: 'ethereum';
   connection: RustConnection;
-  finalityBlocks: string;
-};
-
-export type OutboxAddresses = {
-  outbox: types.Address;
-  interchainGasPaymaster: types.Address;
-};
-
-export type InboxAddresses = {
-  inbox: types.Address;
-  validatorManager: types.Address;
+  index?: { from: string };
 };
 
 export type RustConfig<Chain extends ChainName> = {
   environment: DeployEnvironment;
-  index?: { from: string };
-  signers: Partial<ChainMap<Chain, RustSigner>>;
-  inboxes: RemoteChainMap<
-    Chain,
-    any,
-    RustContractBlock<Partial<InboxAddresses>>
-  >;
-  outbox: RustContractBlock<Partial<OutboxAddresses>>;
+  chains: Partial<ChainMap<Chain, RustChainSetup>>;
+  // TODO: Separate DBs for each chain (fold into RustChainSetup)
+  db: string;
+  // TODO: Fold this into RustChainSetup
+  signers?: Partial<ChainMap<Chain, RustSigner>>;
   tracing: {
     level: string;
     fmt: 'json';
   };
-  db: string;
 };
 
 // Helper to get chain-specific agent configurations

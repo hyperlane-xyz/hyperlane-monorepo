@@ -7,7 +7,7 @@ import {
   objMap,
 } from '@hyperlane-xyz/sdk';
 
-import { circleBridgeAdapterConfig } from '../../config/environments/testnet2/liquidityLayer';
+import { circleBridgeAdapterConfig } from '../../config/environments/test/liquidityLayer';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import {

@@ -1,4 +1,4 @@
-//! Run this from the abacus-monorepo/rust directory using `cargo run -r -p run-locally`.
+//! Run this from the hyperlane-monorepo/rust directory using `cargo run -r -p run-locally`.
 //!
 //! Environment arguments:
 //! - `E2E_CI_MODE`: true/false, enables CI mode which will automatically wait for kathy to finish
@@ -118,7 +118,7 @@ fn main() -> ExitCode {
         .unwrap()
         .as_secs()
         .to_string();
-    let log_dir = concat_path(env::temp_dir(), format!("logs/abacus-agents/{date_str}"));
+    let log_dir = concat_path(env::temp_dir(), format!("logs/hyperlane-agents/{date_str}"));
     if !log_all {
         fs::create_dir_all(&log_dir).expect("Failed to make log dir");
     }
@@ -140,13 +140,13 @@ fn main() -> ExitCode {
     };
 
     let relayer_env = hashmap! {
-        "HYP_BASE_OUTBOX_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_OUTBOX_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_INBOXES_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_INBOXES_TEST2_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_INBOXES_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
-        "HYP_BASE_INBOXES_TEST3_CONNECTION_TYPE" => "http",
-        "BASE_CONFIG" => "test1_config.json",
+        "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST3_CONNECTION_TYPE" => "http",
+        "BASE_CONFIG" => "test_config.json",
         "RUN_ENV" => "test",
         "HYP_BASE_METRICS" => "9092",
         "HYP_BASE_TRACING_FMT" => "pretty",
@@ -159,6 +159,7 @@ fn main() -> ExitCode {
         "HYP_BASE_SIGNERS_TEST3_KEY" => "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
         "HYP_BASE_SIGNERS_TEST3_TYPE" => "hexKey",
         "HYP_RELAYER_GASPAYMENTENFORCEMENTPOLICY_TYPE" => "none",
+        "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
         "HYP_RELAYER_WHITELIST" => r#"[{"sourceAddress": "*", "destinationDomain": ["13372", "13373"], "destinationAddress": "*"}]"#,
         "HYP_RELAYER_SIGNEDCHECKPOINTPOLLINGINTERVAL" => "5",
         "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_THRESHOLD" => "1",
@@ -167,18 +168,19 @@ fn main() -> ExitCode {
     };
 
     let validator_env = hashmap! {
-        "HYP_BASE_OUTBOX_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_OUTBOX_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_INBOXES_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_INBOXES_TEST2_CONNECTION_TYPE" => "httpQuorum",
-        "HYP_BASE_INBOXES_TEST3_CONNECTION_URLS" => "http://127.0.0.1:8545",
-        "HYP_BASE_INBOXES_TEST3_CONNECTION_TYPE" => "http",
-        "BASE_CONFIG" => "test1_config.json",
+        "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST3_CONNECTION_URLS" => "http://127.0.0.1:8545",
+        "HYP_BASE_CHAINS_TEST3_CONNECTION_TYPE" => "http",
+        "BASE_CONFIG" => "test_config.json",
         "RUN_ENV" => "test",
         "HYP_BASE_METRICS" => "9091",
         "HYP_BASE_TRACING_FMT" => "pretty",
         "HYP_BASE_TRACING_LEVEL" => "info",
         "HYP_BASE_DB" => validator_db.to_str().unwrap(),
+        "HYP_VALIDATOR_ORIGINCHAINNAME" => "test1",
         "HYP_VALIDATOR_VALIDATOR_KEY" => "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
         "HYP_VALIDATOR_VALIDATOR_TYPE" => "hexKey",
         "HYP_VALIDATOR_REORGPERIOD" => "0",
@@ -197,6 +199,7 @@ fn main() -> ExitCode {
 
     println!("Building typescript...");
     build_cmd(&["yarn", "install"], &build_log, log_all, Some("../"));
+    build_cmd(&["yarn", "clean"], &build_log, log_all, Some("../"));
     build_cmd(&["yarn", "build"], &build_log, log_all, Some("../"));
 
     println!("Building relayer...");
@@ -238,9 +241,9 @@ fn main() -> ExitCode {
 
     sleep(Duration::from_secs(10));
 
-    println!("Deploying abacus contracts...");
+    println!("Deploying hyperlane contracts...");
     let status = Command::new("yarn")
-        .arg("abacus")
+        .arg("hyperlane")
         .current_dir("../typescript/infra")
         .stdout(Stdio::null())
         .status()
@@ -315,7 +318,7 @@ fn main() -> ExitCode {
     println!("Setup complete! Agents running in background...");
     println!("Ctrl+C to end execution...");
 
-    println!("Spawning Kathy to send Abacus message traffic...");
+    println!("Spawning Kathy to send Hyperlane message traffic...");
     let mut kathy = Command::new("yarn");
     kathy.arg("kathy");
     if let Some(r) = kathy_rounds {
@@ -325,7 +328,7 @@ fn main() -> ExitCode {
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())
         .spawn()
-        .expect("Failed tp start kathy");
+        .expect("Failed to start kathy");
     let kathy_stdout = kathy.stdout.take().unwrap();
     state.watchers.push(spawn(move || {
         if log_all {
@@ -386,7 +389,7 @@ fn retry_queues_empty() -> bool {
         .into_string()
         .unwrap()
         .lines()
-        .filter(|l| l.starts_with("abacus_submitter_queue_length"))
+        .filter(|l| l.starts_with("hyperlane_submitter_queue_length"))
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
         .collect();
     assert!(!lengths.is_empty(), "Could not find queue length metric");
@@ -417,8 +420,8 @@ fn prefix_log(output: impl Read, name: &'static str) {
 
 /// Assert invariants for state upon successful test termination.
 fn assert_termination_invariants(num_expected_messages_processed: u32) {
-    // The value of `abacus_last_known_message_leaf_index{phase=message_processed}` should refer
-    // to the maximum leaf index value we ever successfully delivered. Since deliveries can happen
+    // The value of `hyperlane_last_known_message_nonce{phase=message_processed}` should refer
+    // to the maximum nonce value we ever successfully delivered. Since deliveries can happen
     // out-of-index-order, we separately track a counter of the number of successfully delivered
     // messages. At the end of this test, they should both hold the same value.
     let msg_processed_max_index: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
@@ -428,7 +431,7 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
         .unwrap()
         .lines()
         .filter(|l| l.contains(r#"phase="message_processed""#))
-        .filter(|l| l.starts_with("abacus_last_known_message_leaf_index"))
+        .filter(|l| l.starts_with("hyperlane_last_known_message_nonce"))
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
         .collect();
     assert!(
@@ -451,7 +454,7 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
         .into_string()
         .unwrap()
         .lines()
-        .filter(|l| l.starts_with("abacus_messages_processed_count"))
+        .filter(|l| l.starts_with("hyperlane_messages_processed_count"))
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
         .collect();
     assert!(
@@ -469,7 +472,7 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
         .into_string()
         .unwrap()
         .lines()
-        .filter(|l| l.starts_with("abacus_contract_sync_stored_events"))
+        .filter(|l| l.starts_with("hyperlane_contract_sync_stored_events"))
         .filter(|l| l.contains(r#"data_type="gas_payments""#))
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
         .next()
@@ -558,5 +561,9 @@ fn build_cmd(cmd: &[&str], log: impl AsRef<Path>, log_all: bool, wd: Option<&str
         c.current_dir(wd);
     }
     let status = c.status().expect("Failed to run command");
-    assert!(status.success(), "Command returned non-zero exit code");
+    assert!(
+        status.success(),
+        "Command returned non-zero exit code: {}",
+        cmd.join(" ")
+    );
 }

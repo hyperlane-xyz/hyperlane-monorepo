@@ -11,10 +11,11 @@ use futures::TryFutureExt;
 use sea_orm::prelude::TimeDateTime;
 use tracing::trace;
 
-use abacus_base::{ContractSyncMetrics, IndexSettings};
-use abacus_core::{
-    AbacusContract, AbacusProvider, BlockInfo, CommittedMessage, Inbox, InboxIndexer, LogMeta,
-    Outbox, OutboxIndexer, RawCommittedMessage,
+use hyperlane_base::chains::IndexSettings;
+use hyperlane_base::ContractSyncMetrics;
+use hyperlane_core::{
+    BlockInfo, HyperlaneContract, HyperlaneMessage, HyperlaneProvider, LogMeta, Mailbox,
+    MailboxIndexer,
 };
 
 use crate::chain_scraper::sync::Syncer;
@@ -25,20 +26,12 @@ use crate::db::{
 
 mod sync;
 
-/// Remote chain components which are on the current chain.
-/// (e.g. inbox for a remote chain deployed on the current chain).
+/// Local chain components like the mailbox.
 #[derive(Debug, Clone)]
-pub struct Remote {
-    pub inbox: Arc<dyn Inbox>,
-    pub indexer: Arc<dyn InboxIndexer>,
-}
-
-/// Local chain components like the outbox.
-#[derive(Debug, Clone)]
-pub struct Local {
-    pub outbox: Arc<dyn Outbox>,
-    pub indexer: Arc<dyn OutboxIndexer>,
-    pub provider: Arc<dyn AbacusProvider>,
+pub struct Contracts {
+    pub mailbox: Arc<dyn Mailbox>,
+    pub indexer: Arc<dyn MailboxIndexer>,
+    pub provider: Arc<dyn HyperlaneProvider>,
 }
 
 /// A chain scraper is comprised of all the information and contract/provider
@@ -46,8 +39,8 @@ pub struct Local {
 #[derive(Clone, Debug)]
 pub struct SqlChainScraper {
     db: ScraperDb,
-    local: Local,
-    remotes: HashMap<u32, Remote>,
+    /// Contracts on this chain representing this chain (e.g. mailbox)
+    contracts: Contracts,
     chunk_size: u32,
     metrics: ContractSyncMetrics,
     cursor: Arc<BlockCursor>,
@@ -57,19 +50,17 @@ pub struct SqlChainScraper {
 impl SqlChainScraper {
     pub async fn new(
         db: ScraperDb,
-        local: Local,
-        remotes: HashMap<u32, Remote>,
+        contracts: Contracts,
         index_settings: &IndexSettings,
         metrics: ContractSyncMetrics,
     ) -> Result<Self> {
         let cursor = Arc::new(
-            db.block_cursor(local.outbox.local_domain(), index_settings.from() as u64)
+            db.block_cursor(contracts.mailbox.domain(), index_settings.from() as u64)
                 .await?,
         );
         Ok(Self {
             db,
-            local,
-            remotes,
+            contracts,
             chunk_size: index_settings.chunk_size(),
             metrics,
             cursor,
@@ -77,19 +68,11 @@ impl SqlChainScraper {
     }
 
     pub fn chain_name(&self) -> &str {
-        self.local.outbox.chain_name()
+        self.contracts.mailbox.chain_name()
     }
 
-    pub fn local_domain(&self) -> u32 {
-        self.local.outbox.local_domain()
-    }
-
-    pub fn remote_domains(&self) -> impl Iterator<Item = u32> + '_ {
-        self.remotes.keys().copied()
-    }
-
-    pub async fn get_finalized_block_number(&self) -> Result<u32> {
-        self.local.indexer.get_finalized_block_number().await
+    pub fn domain(&self) -> u32 {
+        self.contracts.mailbox.domain()
     }
 
     /// Sync contract data and other blockchain with the current chain state.
@@ -98,45 +81,37 @@ impl SqlChainScraper {
         Syncer::new(self).and_then(|syncer| syncer.run())
     }
 
-    /// Fetch the highest message leaf index we have seen for the local domain.
-    async fn last_message_leaf_index(&self) -> Result<Option<u32>> {
+    /// Fetch the highest message nonce we have seen for the local domain.
+    async fn last_message_nonce(&self) -> Result<Option<u32>> {
         self.db
-            .last_message_leaf_index(self.local_domain(), &self.local.outbox.address())
+            .last_message_nonce(self.domain(), &self.contracts.mailbox.address())
             .await
     }
 
-    /// Store messages from the outbox into the database.
+    /// Store messages from the origin mailbox into the database.
     ///
-    /// Returns the highest message leaf index which was provided to this
+    /// Returns the highest message nonce which was provided to this
     /// function.
     async fn store_messages(
         &self,
-        messages: &[RawMsgWithMeta],
+        messages: &[HyperlaneMessageWithMeta],
         txns: &HashMap<H256, TxnWithIdAndTime>,
     ) -> Result<u32> {
         debug_assert!(!messages.is_empty());
 
-        let max_leaf_id = messages
+        let max_nonce = messages
             .iter()
-            .map(|m| m.raw.leaf_index)
+            .map(|m| m.message.nonce)
             .max()
             .ok_or_else(|| eyre!("Received empty list"))?;
-        let parsed: Vec<(CommittedMessage, &LogMeta)> = messages
-            .iter()
-            .map(|RawMsgWithMeta { raw, meta }| {
-                let msg = CommittedMessage::try_from(raw)?;
-                debug_assert_eq!(self.local_domain(), msg.message.origin);
-                Ok((msg, meta))
-            })
-            .collect::<Result<_>>()?;
         self.db
             .store_messages(
-                &self.local.outbox.address(),
-                parsed.into_iter().map(|(msg, meta)| {
-                    let txn = txns.get(&meta.transaction_hash).unwrap();
+                &self.contracts.mailbox.address(),
+                messages.iter().map(|m| {
+                    let txn = txns.get(&m.meta.transaction_hash).unwrap();
                     StorableMessage {
-                        msg,
-                        meta,
+                        msg: m.message.clone(),
+                        meta: &m.meta,
                         txn_id: txn.id,
                         timestamp: txn.timestamp,
                     }
@@ -144,7 +119,7 @@ impl SqlChainScraper {
             )
             .await?;
 
-        Ok(max_leaf_id)
+        Ok(max_nonce)
     }
 
     /// Record that a message was delivered.
@@ -163,7 +138,7 @@ impl SqlChainScraper {
         });
 
         self.db
-            .store_deliveries(self.local_domain(), storable)
+            .store_deliveries(self.domain(), self.contracts.mailbox.address(), storable)
             .await
     }
 
@@ -258,7 +233,7 @@ impl SqlChainScraper {
         let as_f64 = ethers::types::U256::to_f64_lossy;
         for (hash, (_, block_id)) in txns_to_insert.iter() {
             storable.push(StorableTxn {
-                info: self.local.provider.get_txn_by_hash(hash).await?,
+                info: self.contracts.provider.get_txn_by_hash(hash).await?,
                 block_id: *block_id,
             });
         }
@@ -323,7 +298,7 @@ impl SqlChainScraper {
             .iter_mut()
             .filter(|(_, block_info)| block_info.is_none());
         for (hash, block_info) in blocks_to_fetch {
-            let info = self.local.provider.get_block_by_hash(hash).await?;
+            let info = self.contracts.provider.get_block_by_hash(hash).await?;
             let basic_info_ref = block_info.insert(BasicBlock {
                 id: -1,
                 hash: *hash,
@@ -336,7 +311,7 @@ impl SqlChainScraper {
             let mut cur_id = self
                 .db
                 .store_blocks(
-                    self.local_domain(),
+                    self.domain(),
                     blocks_to_insert
                         .iter_mut()
                         .map(|(_, info)| info.take().unwrap()),
@@ -365,16 +340,14 @@ impl SqlChainScraper {
 
 #[derive(Debug, Clone)]
 struct Delivery {
-    inbox: H256,
-    message_hash: H256,
+    message_id: H256,
     meta: LogMeta,
 }
 
 impl Delivery {
     fn as_storable(&self, txn_id: i64) -> StorableDelivery {
         StorableDelivery {
-            inbox: self.inbox,
-            message_hash: self.message_hash,
+            message_id: self.message_id,
             meta: &self.meta,
             txn_id,
         }
@@ -401,7 +374,7 @@ struct TxnWithBlockId {
 }
 
 #[derive(Debug, Clone)]
-struct RawMsgWithMeta {
-    raw: RawCommittedMessage,
+struct HyperlaneMessageWithMeta {
+    message: HyperlaneMessage,
     meta: LogMeta,
 }
