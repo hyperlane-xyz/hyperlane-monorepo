@@ -6,13 +6,10 @@ pub use sea_orm_migration::prelude::*;
 
 mod l20221122_types;
 mod m20221122_000001_create_table_domain;
-mod m20221122_000001_create_type_enum_checkpoint_update;
 mod m20221122_000002_create_table_block;
 
-mod m20221122_000003_create_table_checkpoint;
 mod m20221122_000003_create_table_cursor;
 mod m20221122_000003_create_table_transaction;
-mod m20221122_000004_create_table_checkpoint_update;
 mod m20221122_000004_create_table_gas_payment;
 mod m20221122_000004_create_table_message;
 mod m20221122_000005_create_table_delivered_message;
@@ -28,12 +25,9 @@ impl MigratorTrait for Migrator {
         // last number)
         vec![
             Box::new(m20221122_000001_create_table_domain::Migration),
-            Box::new(m20221122_000001_create_type_enum_checkpoint_update::Migration),
             Box::new(m20221122_000002_create_table_block::Migration),
-            Box::new(m20221122_000003_create_table_checkpoint::Migration),
             Box::new(m20221122_000003_create_table_cursor::Migration),
             Box::new(m20221122_000003_create_table_transaction::Migration),
-            Box::new(m20221122_000004_create_table_checkpoint_update::Migration),
             Box::new(m20221122_000004_create_table_gas_payment::Migration),
             Box::new(m20221122_000004_create_table_message::Migration),
             Box::new(m20221122_000005_create_table_delivered_message::Migration),
