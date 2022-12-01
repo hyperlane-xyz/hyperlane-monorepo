@@ -3,12 +3,17 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
+import {ISpecifiesInterchainSecurityModule, IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
 
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-abstract contract HyperlaneConnectionClient is OwnableUpgradeable {
+abstract contract HyperlaneConnectionClient is
+    OwnableUpgradeable,
+    ISpecifiesInterchainSecurityModule
+{
     // ============ Mutable Storage ============
 
     IMailbox public mailbox;
@@ -17,10 +22,11 @@ abstract contract HyperlaneConnectionClient is OwnableUpgradeable {
     // otherwise payments made to the paymaster will not result in relayed messages.
     IInterchainGasPaymaster public interchainGasPaymaster;
 
+    IInterchainSecurityModule public interchainSecurityModule;
+
     uint256[48] private __GAP; // gap for upgrade safety
 
     // ============ Events ============
-
     /**
      * @notice Emitted when a new mailbox is set.
      * @param mailbox The address of the mailbox contract
@@ -33,6 +39,8 @@ abstract contract HyperlaneConnectionClient is OwnableUpgradeable {
      */
     event InterchainGasPaymasterSet(address indexed interchainGasPaymaster);
 
+    event InterchainSecurityModuleSet(address indexed module);
+
     // ============ Modifiers ============
 
     /**
@@ -40,6 +48,14 @@ abstract contract HyperlaneConnectionClient is OwnableUpgradeable {
      */
     modifier onlyMailbox() {
         require(msg.sender == address(mailbox), "!mailbox");
+        _;
+    }
+
+    /**
+     * @notice Only accept addresses that at least have contract code
+     */
+    modifier onlyContract(address _contract) {
+        require(Address.isContract(_contract), "!contract");
         _;
     }
 
@@ -59,6 +75,18 @@ abstract contract HyperlaneConnectionClient is OwnableUpgradeable {
     ) internal onlyInitializing {
         _setInterchainGasPaymaster(_interchainGasPaymaster);
         __HyperlaneConnectionClient_initialize(_mailbox);
+    }
+
+    function __HyperlaneConnectionClient_initialize(
+        address _mailbox,
+        address _interchainGasPaymaster,
+        address _interchainSecurityModule
+    ) internal onlyInitializing {
+        _setInterchainSecurityModule(_interchainSecurityModule);
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
+            _interchainGasPaymaster
+        );
     }
 
     // ============ External functions ============
@@ -83,6 +111,14 @@ abstract contract HyperlaneConnectionClient is OwnableUpgradeable {
         _setInterchainGasPaymaster(_interchainGasPaymaster);
     }
 
+    function setInterchainSecurityModule(address _module)
+        external
+        virtual
+        onlyOwner
+    {
+        _setInterchainSecurityModule(_module);
+    }
+
     // ============ Internal functions ============
 
     /**
@@ -91,6 +127,7 @@ abstract contract HyperlaneConnectionClient is OwnableUpgradeable {
      */
     function _setInterchainGasPaymaster(address _interchainGasPaymaster)
         internal
+        onlyContract(_interchainGasPaymaster)
     {
         interchainGasPaymaster = IInterchainGasPaymaster(
             _interchainGasPaymaster
@@ -102,8 +139,16 @@ abstract contract HyperlaneConnectionClient is OwnableUpgradeable {
      * @notice Modify the contract the Application uses to validate Mailbox contracts
      * @param _mailbox The address of the mailbox contract
      */
-    function _setMailbox(address _mailbox) internal {
+    function _setMailbox(address _mailbox) internal onlyContract(_mailbox) {
         mailbox = IMailbox(_mailbox);
         emit MailboxSet(_mailbox);
+    }
+
+    function _setInterchainSecurityModule(address _module)
+        internal
+        onlyContract(_module)
+    {
+        interchainSecurityModule = IInterchainSecurityModule(_module);
+        emit InterchainSecurityModuleSet(_module);
     }
 }

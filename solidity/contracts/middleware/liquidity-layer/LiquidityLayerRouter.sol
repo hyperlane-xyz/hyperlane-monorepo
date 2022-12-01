@@ -20,7 +20,6 @@ contract LiquidityLayerRouter is Router {
     event LiquidityLayerAdapterSet(string indexed bridge, address adapter);
 
     function initialize(
-        address _owner,
         address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule
