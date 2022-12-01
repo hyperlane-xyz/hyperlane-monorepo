@@ -75,25 +75,21 @@
 //!    intended to be used by a specific agent.
 //!    E.g. `export HYP_KATHY_CHAT_TYPE="static message"`
 
-use std::{collections::HashMap, env, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
-use config::{Config, Environment, File};
-use ethers::prelude::AwsSigner;
-use eyre::{bail, eyre, Context, Report};
+use eyre::{eyre, Context};
 use once_cell::sync::OnceCell;
-use rusoto_core::{credential::EnvironmentProvider, HttpClient};
 use rusoto_kms::KmsClient;
 use serde::Deserialize;
-use tracing::instrument;
 
 pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
-    utils::HexString,
     HyperlaneProvider, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox,
     MailboxIndexer, MultisigIsm, Signers,
 };
 use hyperlane_ethereum::{InterchainGasPaymasterIndexerBuilder, MailboxIndexerBuilder};
+pub use signers::SignerConf;
 
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
 use crate::{CachingMailbox, CoreMetrics, HyperlaneAgentCore};
@@ -102,80 +98,13 @@ use self::chains::GelatoConf;
 
 /// Chain configuration
 pub mod chains;
-
+pub(crate) mod loader;
+/// Signer configuration
+mod signers;
 /// Tracing subscriber management
 pub mod trace;
 
 static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
-
-/// Load a settings object from the config locations.
-///
-/// Read settings from the config files and/or env
-/// The config will be located at `config/default` unless specified
-/// otherwise
-///
-/// Configs are loaded in the following precedence order:
-///
-/// 1. The file specified by the `RUN_ENV` and `BASE_CONFIG`
-///    env vars. `RUN_ENV/BASE_CONFIG`
-/// 2. The file specified by the `RUN_ENV` env var and the
-///    agent's name. `RUN_ENV/<agent_prefix>-partial.json`
-/// 3. Configuration env vars with the prefix `HYP_BASE` intended
-///    to be shared by multiple agents in the same environment
-/// 4. Configuration env vars with the prefix `HYP_<agent_prefix>`
-///    intended to be used by a specific agent.
-///
-/// Specify a configuration directory with the `RUN_ENV` env
-/// variable. Specify a configuration file with the `BASE_CONFIG`
-/// env variable.
-pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
-    agent_prefix: &str,
-    config_file_name: Option<&str>,
-    ignore_prefixes: &[S],
-) -> eyre::Result<T> {
-    let env = env::var("RUN_ENV").unwrap_or_else(|_| "default".into());
-
-    // Derive additional prefix from agent name
-    let prefix = format!("HYP_{}", agent_prefix).to_ascii_uppercase();
-
-    let filtered_env: HashMap<String, String> = env::vars()
-        .filter(|(k, _v)| {
-            !ignore_prefixes
-                .iter()
-                .any(|prefix| k.starts_with(prefix.as_ref()))
-        })
-        .collect();
-
-    let builder = Config::builder();
-    let builder = if let Some(fname) = config_file_name {
-        builder.add_source(File::with_name(&format!("./config/{}/{}", env, fname)))
-    } else {
-        builder
-    };
-    let config_deserializer = builder
-        .add_source(
-            File::with_name(&format!(
-                "./config/{}/{}-partial",
-                env,
-                agent_prefix.to_lowercase()
-            ))
-            .required(false),
-        )
-        // Use a base configuration env variable prefix
-        .add_source(
-            Environment::with_prefix("HYP_BASE")
-                .separator("_")
-                .source(Some(filtered_env.clone())),
-        )
-        .add_source(
-            Environment::with_prefix(&prefix)
-                .separator("_")
-                .source(Some(filtered_env)),
-        )
-        .build()?;
-
-    Ok(serde_path_to_error::deserialize(config_deserializer)?)
-}
 
 /// Settings. Usually this should be treated as a base config and used as
 /// follows:
@@ -467,59 +396,6 @@ impl Settings {
             db: self.db.clone(),
             metrics: self.metrics.clone(),
             tracing: self.tracing.clone(),
-        }
-    }
-}
-
-/// Ethereum signer types
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum SignerConf {
-    /// A local hex key
-    HexKey {
-        /// Hex string of private key, without 0x prefix
-        key: HexString<64>,
-    },
-    /// An AWS signer. Note that AWS credentials must be inserted into the env
-    /// separately.
-    Aws {
-        /// The UUID identifying the AWS KMS Key
-        id: String, // change to no _ so we can set by env
-        /// The AWS region
-        region: String,
-    },
-    #[serde(other)]
-    /// Assume node will sign on RPC calls
-    Node,
-}
-
-impl Default for SignerConf {
-    fn default() -> Self {
-        Self::Node
-    }
-}
-
-impl SignerConf {
-    /// Try to convert the ethereum signer to a local wallet
-    #[instrument(err)]
-    pub async fn try_into_signer(&self) -> Result<Signers, Report> {
-        match self {
-            SignerConf::HexKey { key } => Ok(Signers::Local(key.as_ref().parse()?)),
-            SignerConf::Aws { id, region } => {
-                let client = KMS_CLIENT.get_or_init(|| {
-                    KmsClient::new_with_client(
-                        rusoto_core::Client::new_with(
-                            EnvironmentProvider::default(),
-                            HttpClient::new().unwrap(),
-                        ),
-                        region.parse().expect("invalid region"),
-                    )
-                });
-
-                let signer = AwsSigner::new(client, id, 0).await?;
-                Ok(Signers::Aws(signer))
-            }
-            SignerConf::Node => bail!("Node signer"),
         }
     }
 }
