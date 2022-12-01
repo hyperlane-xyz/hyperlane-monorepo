@@ -2,7 +2,6 @@ import { ethers } from 'ethers';
 
 import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
-import { pollAsync } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { environments } from '../consts/environments';
@@ -139,9 +138,9 @@ export class HyperlaneCore<
   ): Promise<void> {
     const id = utils.messageId(message.message);
     const { mailbox } = this.getDestination(message);
-    await pollAsync(async () => {
-      const messageStatus = await mailbox.delivered(id);
-      if (!messageStatus) {
+    await utils.pollAsync(async () => {
+      const delivered = await mailbox.delivered(id);
+      if (!delivered) {
         throw new Error(`Message ${id} not yet processed`);
       }
     });
