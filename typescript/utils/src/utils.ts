@@ -125,6 +125,26 @@ export async function retryAsync<T>(
   throw saveError;
 }
 
+export async function pollAsync<T>(
+  runner: () => Promise<T>,
+  delayMs = 500,
+  maxAttempts: number | undefined = undefined,
+) {
+  let attempts = 0;
+  let saveError;
+  while (!maxAttempts || attempts < maxAttempts) {
+    try {
+      const ret = await runner();
+      return ret;
+    } catch (error) {
+      saveError = error;
+      attempts += 1;
+      await sleep(delayMs);
+    }
+  }
+  throw saveError;
+}
+
 export function median(a: number[]): number {
   const sorted = a.slice().sort();
   const mid = Math.floor(sorted.length / 2);

@@ -413,7 +413,7 @@ async function sendMessage(
 
   try {
     await utils.timeout(
-      app.waitForMessageReceipt(receipt),
+      app.waitForMessageProcessed(receipt),
       messageReceiptTimeout,
       'Timeout waiting for message to be received',
     );
