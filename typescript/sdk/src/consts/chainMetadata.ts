@@ -127,7 +127,7 @@ export const zksync2testnet: ChainMetadata = {
 
 export const mumbai: ChainMetadata = {
   id: 80001,
-  finalityBlocks: 32,
+  finalityBlocks: 3,
   paginate: {
     // eth_getLogs and eth_newFilter are limited to a 10,000 blocks range
     blocks: 10000,
