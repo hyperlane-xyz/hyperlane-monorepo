@@ -6,3 +6,7 @@
 	path = typescript/helloworld
 	url = git@github.com:hyperlane-xyz/hyperlane-app-template.git
 	branch = main
+[submodule "solidity/lib/forge-std"]
+	path = solidity/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+	branch = v1.1.1
