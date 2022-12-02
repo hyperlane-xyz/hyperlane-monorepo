@@ -11,15 +11,19 @@ abstract contract PausableReentrancyGuardUpgradeable is Initializable {
 
     uint256 private _status;
 
+    /**
+     * @dev MUST be called for `nonReentrant` to not always revert
+     */
     function __PausableReentrancyGuard_init() internal onlyInitializing {
         _status = _NOT_ENTERED;
     }
 
-    function _pause() internal {
+    function _pause() internal notPaused {
         _status = _PAUSED;
     }
 
     function _unpause() internal {
+        require(_status == _PAUSED, "!paused");
         _status = _NOT_ENTERED;
     }
 

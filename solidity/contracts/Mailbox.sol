@@ -78,7 +78,7 @@ contract Mailbox is
     /**
      * @notice Emitted when Mailbox is unpaused
      */
-    event UnPaused();
+    event Unpaused();
 
     // ============ Constructor ============
 
@@ -214,7 +214,7 @@ contract Mailbox is
      */
     function unpause() external onlyOwner {
         _unpause();
-        emit UnPaused();
+        emit Unpaused();
     }
 
     // ============ Internal Functions ============

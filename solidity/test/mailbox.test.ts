@@ -239,7 +239,7 @@ describe('Mailbox', async () => {
 
     it('should emit events', async () => {
       await expect(mailbox.pause()).to.emit(mailbox, 'Paused');
-      await expect(mailbox.unpause()).to.emit(mailbox, 'UnPaused');
+      await expect(mailbox.unpause()).to.emit(mailbox, 'Unpaused');
     });
 
     it('should prevent dispatch and process', async () => {
@@ -250,8 +250,8 @@ describe('Mailbox', async () => {
           utils.addressToBytes32(nonOwner.address),
           '0x',
         ),
-      ).to.be.revertedWith('!paused');
-      await expect(mailbox.process('0x', '0x')).to.be.revertedWith('!paused');
+      ).to.be.revertedWith('paused');
+      await expect(mailbox.process('0x', '0x')).to.be.revertedWith('paused');
     });
   });
 });
