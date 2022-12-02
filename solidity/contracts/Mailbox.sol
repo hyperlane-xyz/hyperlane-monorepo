@@ -211,7 +211,7 @@ contract Mailbox is
 
     /**
      * @notice Returns a checkpoint representing the current merkle tree.
-     * @return root The root of the Outbox's merkle tree.
+     * @return root The root of the Mailbox's merkle tree.
      * @return index The index of the last element in the tree.
      */
     function latestCheckpoint() public view returns (bytes32, uint32) {
