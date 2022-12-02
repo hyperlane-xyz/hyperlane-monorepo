@@ -62,10 +62,7 @@ impl ValidatorSubmitter {
 
         // current_index will be None if the validator cannot find
         // a previously signed checkpoint
-        let mut current_index = self
-            .checkpoint_syncer
-            .latest_index()
-            .await?;
+        let mut current_index = self.checkpoint_syncer.latest_index().await?;
 
         if current_index.is_some() {
             self.metrics
@@ -119,7 +116,9 @@ impl ValidatorSubmitter {
             // signed checkpoint, and we should sign the latest checkpoint.
             // This ensures that we still sign even if the latest checkpoint
             // has index 0.
-            if current_index.is_none() || current_index.unwrap_or_default() < latest_checkpoint.index {
+            if current_index.is_none()
+                || current_index.unwrap_or_default() < latest_checkpoint.index
+            {
                 let signed_checkpoint = latest_checkpoint.sign_with(self.signer.as_ref()).await?;
 
                 info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed new latest checkpoint");
