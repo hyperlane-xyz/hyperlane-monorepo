@@ -25,8 +25,10 @@ const destinationWithoutRouter = 3;
 const body = '0xdeadbeef';
 
 interface GasPaymentParams {
+  // The amount of destination gas being paid for
   gasAmount: BigNumberish;
-  gasPayment: BigNumberish;
+  // The amount of native tokens paid
+  payment: BigNumberish;
   refundAddress: string;
 }
 

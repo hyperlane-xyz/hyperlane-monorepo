@@ -17,10 +17,14 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
     /**
      * @notice Emitted when a payment is made for a message's gas costs.
      * @param messageId The ID of the message to pay for.
-     * @param gas The amount of destination gas paid for.
+     * @param gasAmount The amount of destination gas paid for.
      * @param payment The amount of native tokens paid.
      */
-    event GasPayment(bytes32 indexed messageId, uint256 gas, uint256 payment);
+    event GasPayment(
+        bytes32 indexed messageId,
+        uint256 gasAmount,
+        uint256 payment
+    );
 
     // ============ Constructor ============
 
@@ -40,13 +44,13 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
      * to its destination chain.
      * @param _messageId The ID of the message to pay for.
      * @param _destinationDomain The domain of the message's destination chain.
-     * @param _gas The amount of destination gas to pay for. Currently unused.
+     * @param _gasAmount The amount of destination gas to pay for. Currently unused.
      * @param _refundAddress The address to refund any overpayment to. Currently unused.
      */
     function payForGas(
         bytes32 _messageId,
         uint32 _destinationDomain,
-        uint256 _gas,
+        uint256 _gasAmount,
         address _refundAddress
     ) external payable override {
         // Silence compiler warning. The NatSpec @param requires the parameter to be named.
@@ -55,7 +59,7 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
         _destinationDomain;
         _refundAddress;
 
-        emit GasPayment(_messageId, _gas, msg.value);
+        emit GasPayment(_messageId, _gasAmount, msg.value);
     }
 
     /**
