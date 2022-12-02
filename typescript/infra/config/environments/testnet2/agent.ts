@@ -55,7 +55,7 @@ export const abacus: AgentConfig<TestnetChains> = {
         reorgPeriod: 3,
       },
       mumbai: {
-        reorgPeriod: 32,
+        reorgPeriod: 3,
       },
       bsctestnet: {
         reorgPeriod: 9,
