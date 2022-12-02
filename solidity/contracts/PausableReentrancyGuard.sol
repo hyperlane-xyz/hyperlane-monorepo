@@ -27,7 +27,7 @@ abstract contract PausableReentrancyGuardUpgradeable is Initializable {
      * @dev Prevents a contract from being called when paused.
      */
     modifier notPaused() {
-        require(_status != _PAUSED, "!paused");
+        require(_status != _PAUSED, "paused");
         _;
     }
 
