@@ -1,0 +1,106 @@
+{
+    "arbitrum": {
+        "id": 42161,
+        "finalityBlocks": 0,
+        "gasCurrencyCoinGeckoId": "ethereum",
+        "gnosisSafeTransactionServiceUrl": "https://safe-transaction.arbitrum.gnosis.io/"
+    },
+    "bsc": {
+        "id": 56,
+        "finalityBlocks": 15,
+        "gasCurrencyCoinGeckoId": "binancecoin",
+        "gnosisSafeTransactionServiceUrl": "https://safe-transaction.bsc.gnosis.io/"
+    },
+    "celo": {
+        "id": 42220,
+        "finalityBlocks": 0,
+        "gnosisSafeTransactionServiceUrl": "https://transaction-service.gnosis-safe-staging.celo-networks-dev.org"
+    },
+    "ethereum": {
+        "id": 1,
+        "finalityBlocks": 20,
+        "gnosisSafeTransactionServiceUrl": "https://safe-transaction.gnosis.io"
+    },
+    "avalanche": {
+        "id": 43114,
+        "finalityBlocks": 3,
+        "paginate": {
+            "blocks": 100000,
+            "from": 6765067
+        },
+        "gasCurrencyCoinGeckoId": "avalanche-2",
+        "gnosisSafeTransactionServiceUrl": "https://safe-transaction.avalanche.gnosis.io/"
+    },
+    "optimism": {
+        "id": 10,
+        "finalityBlocks": 0,
+        "gasCurrencyCoinGeckoId": "ethereum",
+        "gnosisSafeTransactionServiceUrl": "https://safe-transaction.optimism.gnosis.io/"
+    },
+    "polygon": {
+        "id": 137,
+        "finalityBlocks": 256,
+        "paginate": {
+            "blocks": 10000,
+            "from": 19657100
+        },
+        "gasCurrencyCoinGeckoId": "matic-network",
+        "gnosisSafeTransactionServiceUrl": "https://safe-transaction.polygon.gnosis.io/"
+    },
+    "alfajores": {
+        "id": 44787,
+        "finalityBlocks": 0
+    },
+    "fuji": {
+        "id": 43113,
+        "finalityBlocks": 3
+    },
+    "goerli": {
+        "id": 5,
+        "finalityBlocks": 2
+    },
+    "mumbai": {
+        "id": 80001,
+        "finalityBlocks": 32,
+        "paginate": {
+            "blocks": 10000,
+            "from": 22900000
+        }
+    },
+    "bsctestnet": {
+        "id": 97,
+        "finalityBlocks": 9
+    },
+    "moonbasealpha": {
+        "id": 1287,
+        "finalityBlocks": 1
+    },
+    "moonbeam": {
+        "id": 1284,
+        "finalityBlocks": 1
+    },
+    "optimismgoerli": {
+        "id": 420,
+        "finalityBlocks": 1
+    },
+    "arbitrumgoerli": {
+        "id": 421613,
+        "finalityBlocks": 1
+    },
+    "zksync2testnet": {
+        "id": 280,
+        "finalityBlocks": 1
+    },
+    "test1": {
+        "id": 13371,
+        "finalityBlocks": 0
+    },
+    "test2": {
+        "id": 13372,
+        "finalityBlocks": 1
+    },
+    "test3": {
+        "id": 13373,
+        "finalityBlocks": 2
+    }
+}

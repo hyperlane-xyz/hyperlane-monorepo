@@ -185,3 +185,5 @@ export const chainMetadata = {
   zksync2testnet,
   ...testChains,
 } as Record<ChainName, ChainMetadata>;
+
+// used for chains.json: console.log(JSON.stringify(chainMetadata));
