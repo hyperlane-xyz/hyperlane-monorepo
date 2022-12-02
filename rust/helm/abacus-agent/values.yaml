@@ -86,7 +86,7 @@ abacus:
     resources:
       requests:
         cpu: 100m
-        memory: 250m
+        memory: 250Mi
     # -- Transaction Signing keys for home and replica(s)
     signer: {}
     # -- How long to wait between checking for updates
@@ -109,7 +109,7 @@ abacus:
     resources:
       requests:
         cpu: 250m
-        memory: 1Gi
+        memory: 250Mi
     signers:
       - name: 'kovan'
         # aws:
