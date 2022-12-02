@@ -24,6 +24,7 @@ contract LiquidityLayerRouter is Router {
         address _interchainGasPaymaster,
         address _interchainSecurityModule
     ) public initializer {
+        // Transfer ownership of the contract to `msg.sender`
         __HyperlaneConnectionClient_initialize(
             _mailbox,
             _interchainGasPaymaster,
