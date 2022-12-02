@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import { TestMailbox } from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { DomainIdToChainName } from '../domains';
@@ -58,13 +59,8 @@ export class TestCoreApp<
       }
       const destinationChain = DomainIdToChainName[destination] as TestChain;
       const inbox = this.getContracts(destinationChain).mailbox.contract;
-
-      const dispatchIdIndex = dispatch.logIndex + 1;
-      const receipt = await dispatch.getTransactionReceipt();
-      const dispatchIdLog = receipt.logs[dispatchIdIndex];
-      const dispatchId = outbox.interface.parseLog(dispatchIdLog);
-
-      const delivered = await inbox.delivered(dispatchId.args.messageId);
+      const id = utils.messageId(dispatch.args.message);
+      const delivered = await inbox.delivered(id);
       if (!delivered) {
         const response = await inbox.process('0x', dispatch.args.message);
         const destinationResponses = responses.get(destinationChain) || [];

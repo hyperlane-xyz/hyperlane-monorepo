@@ -72,7 +72,6 @@ export class HyperlaneMessage {
     multiProvider: MultiProvider,
     core: HyperlaneCore,
     dispatch: AnnotatedDispatch,
-    readonly id: string,
   ) {
     this.multiProvider = multiProvider;
     this.core = core;
@@ -112,7 +111,7 @@ export class HyperlaneMessage {
     const chain = resolveDomain(nameOrDomain);
     const provider = multiProvider.getChainConnection(chain).provider!;
 
-    receipt.logs.forEach((log, index) => {
+    for (const log of receipt.logs) {
       try {
         const parsed = outbox.parseLog(log);
         if (parsed.name === 'Dispatch') {
@@ -131,17 +130,13 @@ export class HyperlaneMessage {
             true,
           );
           annotated.event.blockNumber = annotated.receipt.blockNumber;
-          const dispatchId = outbox.parseLog(receipt.logs[index + 1]); // DispatchId always immediately after Dispatch
-          const message = new HyperlaneMessage(
-            multiProvider,
-            core,
-            annotated,
-            dispatchId.args.messageId,
-          );
+          const message = new HyperlaneMessage(multiProvider, core, annotated);
           messages.push(message);
         }
-      } catch (e) {}
-    });
+      } catch (e) {
+        continue;
+      }
+    }
     return messages;
   }
 
@@ -370,5 +365,12 @@ export class HyperlaneMessage {
    */
   get transactionHash(): string {
     return this.dispatch.event.transactionHash;
+  }
+
+  /**
+   * The messageId committed to the tree in the Mailbox contract.
+   */
+  get id(): string {
+    return utils.messageId(this.dispatch.event.args.message);
   }
 }

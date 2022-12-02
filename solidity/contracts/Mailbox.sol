@@ -188,8 +188,8 @@ contract Mailbox is
         bytes32 sender = _message.sender();
         address recipient = _message.recipientAddress();
         IMessageRecipient(recipient).handle(origin, sender, _message.body());
-        emit ProcessId(_id);
         emit Process(origin, sender, recipient);
+        emit ProcessId(_id);
     }
 
     // ============ Public Functions ============
