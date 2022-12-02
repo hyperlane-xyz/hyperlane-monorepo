@@ -261,11 +261,13 @@ export abstract class HyperlaneDeployer<
     );
   }
 
-  // prettier-ignore
-  private cacheContract<
-    K extends keyof Factories,
-  >(chain: Chain, contractName: K, contract: HyperlaneContract) {
-    if (!this.deployedContracts[chain]) {[]
+  private cacheContract<K extends keyof Factories>(
+    chain: Chain,
+    contractName: K,
+    contract: HyperlaneContract,
+  ) {
+    if (!this.deployedContracts[chain]) {
+      [];
       this.deployedContracts[chain] = {};
     }
     if (this.deployedContracts[chain]) {

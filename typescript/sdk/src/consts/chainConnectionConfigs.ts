@@ -147,7 +147,7 @@ export const moonbasealpha: IChainConnection = {
 
 export const moonbeam: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
-    'https://rpc.api.moonbeam.network	',
+    'https://rpc.api.moonbeam.network',
     1284,
   ),
   confirmations: 1,

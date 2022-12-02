@@ -19,21 +19,6 @@ data:
 {{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "CHAINS_%s_" (.name | upper)) "format" "config_map") | indent 2 }}
   {{- end }}
 
-  {{- range .Values.hyperlane.chains }}
-  {{- if not .disabled }}
-  HYP_BASE_CHAINS_{{ .name | upper }}_DISABLED: "false"
-  HYP_BASE_CHAINS_{{ .name | upper }}_CONNECTION_TYPE: {{ .connection.type }}
-  {{- if eq .connection.type "httpQuorum" }}
-  HYP_BASE_CHAINS_{{ .name | upper }}_CONNECTION_URLS: ""
-  {{- else }}
-  HYP_BASE_CHAINS_{{ .name | upper }}_CONNECTION_URL: ""
-  {{- end }}
-  HYP_BASE_CHAINS_{{ .name | upper }}_NAME: {{ .name | lower }}
-  {{- else}}
-  HYP_BASE_CHAINS_{{ .name | upper }}_DISABLED: "true"
-  {{- end }}
-  {{- end }}
-
   {{- if .Values.hyperlane.tracing.uri }}
   HYP_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.hyperlane.tracing.uri }}
   {{- end }}

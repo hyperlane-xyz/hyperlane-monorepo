@@ -55,8 +55,6 @@ spec:
         - secretRef:
             name: {{ include "agent-common.fullname" . }}-relayer-secret
         env:
-          - name: HYP_RELAYER_ORIGINCHAINNAME
-            value: {{ .Values.hyperlane.relayer.config.originChainName }}
 {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.relayer.config "agent_name" "relayer") | indent 10 }}
           {{- range .Values.hyperlane.relayer.signers }}
 {{- include "agent-common.config-env-vars" (dict "config" .keyConfig "agent_name" "base" "key_name_prefix" (printf "SIGNERS_%s_" (.name | upper))) | indent 10 }}

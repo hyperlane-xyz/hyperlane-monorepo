@@ -147,7 +147,7 @@ export const validators: ChainValidatorSets<TestnetChains> = {
     threshold: 2,
     validators: [
       {
-        address: '0x95b76562e4ba1791a27ba4236801271c9115b141',
+        address: '0xf43fbd072fd38e1121d4b3b0b8a35116bbb01ea9',
         name: s3BucketName('goerli', 0),
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
@@ -271,37 +271,4 @@ export const validators: ChainValidatorSets<TestnetChains> = {
       },
     ],
   },
-  // Ignore for now
-  // zksync2testnet: {
-  //   threshold: 2,
-  //   validators: [
-  //     {
-  //       address: '0x9476169618f6642413b77549c10dda7a253fb2be',
-  //       name: s3BucketName('zksync2testnet', 0),
-  //       checkpointSyncer: {
-  //         type: CheckpointSyncerType.S3,
-  //         bucket: s3BucketName('zksync2testnet', 0),
-  //         region: s3BucketRegion,
-  //       },
-  //     },
-  //     {
-  //       address: '0x96f9782038cfb4e09c98fbb07627e7c5f7afabcb',
-  //       name: s3BucketName('zksync2testnet', 1),
-  //       checkpointSyncer: {
-  //         type: CheckpointSyncerType.S3,
-  //         bucket: s3BucketName('zksync2testnet', 1),
-  //         region: s3BucketRegion,
-  //       },
-  //     },
-  //     {
-  //       address: '0xf08e3b66c34f101901e6a41cd6f36ce14653fe6b',
-  //       name: s3BucketName('zksync2testnet', 2),
-  //       checkpointSyncer: {
-  //         type: CheckpointSyncerType.S3,
-  //         bucket: s3BucketName('zksync2testnet', 2),
-  //         region: s3BucketRegion,
-  //       },
-  //     },
-  //   ],
-  // },
 };

@@ -104,9 +104,6 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   const valueDict = await helmValuesForChain(outboxChainName, agentConfig);
   let envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig);
-  envVars.push(
-    `HYP_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`,
-  );
   valueDict.hyperlane.chains.forEach((chain: any) => {
     envVars.push(
       `HYP_BASE_CHAINS_${chain.name.toUpperCase()}_CONNECTION_URL=${

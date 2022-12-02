@@ -72,6 +72,7 @@ function removeHelmRepo(repoName: string) {
 
 // Outputs an array of the shape: [{"name":"foo", "url":"bar"}, ...]
 async function listHelmRepos() {
+  // try/catch in case no helm repos are installed
   try {
     const [output] = await execCmd('helm repo list -o json');
     return JSON.parse(output);
