@@ -16,13 +16,13 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "payment",
+        "name": "gasAmount",
         "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "gas",
+        "name": "payment",
         "type": "uint256"
       }
     ],
@@ -102,7 +102,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_gas",
+        "name": "_gasAmount",
         "type": "uint256"
       },
       {
