@@ -78,7 +78,7 @@ contract Mailbox is
     event DispatchId(bytes32 indexed messageId);
 
     /**
-     * @notice Emitted when a new message is dispatched via Hyperlane
+     * @notice Emitted when a Hyperlane message is processed
      * @param messageId The unique message identifier
      */
     event ProcessId(bytes32 indexed messageId);
@@ -143,16 +143,16 @@ contract Mailbox is
             _recipientAddress,
             _messageBody
         );
+
+        // Insert the message ID into the merkle tree.
+        bytes32 _id = _message.id();
+        tree.insert(_id);
         emit Dispatch(
             msg.sender,
             _destinationDomain,
             _recipientAddress,
             _message
         );
-
-        // Insert the message ID into the merkle tree.
-        bytes32 _id = _message.id();
-        tree.insert(_id);
         emit DispatchId(_id);
         return _id;
     }
@@ -176,7 +176,6 @@ contract Mailbox is
         bytes32 _id = _message.id();
         require(delivered[_id] == false, "delivered");
         delivered[_id] = true;
-        emit ProcessId(_id);
 
         // Verify the message via the ISM.
         IInterchainSecurityModule _ism = _recipientIsm(
@@ -189,6 +188,7 @@ contract Mailbox is
         bytes32 sender = _message.sender();
         address recipient = _message.recipientAddress();
         IMessageRecipient(recipient).handle(origin, sender, _message.body());
+        emit ProcessId(_id);
         emit Process(origin, sender, recipient);
     }
 
