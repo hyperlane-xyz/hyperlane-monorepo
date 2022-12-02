@@ -175,7 +175,7 @@ describe('Router', async () => {
 
         const testGasPaymentParams: GasPaymentParams = {
           gasAmount: 4321,
-          gasPayment: 1234,
+          payment: 1234,
           refundAddress: '0xc0ffee0000000000000000000000000000000000',
         };
 
@@ -204,7 +204,7 @@ describe('Router', async () => {
             .withArgs(
               id,
               testGasPaymentParams.gasAmount,
-              testGasPaymentParams.gasPayment,
+              testGasPaymentParams.payment,
             );
         });
 
@@ -231,10 +231,10 @@ describe('Router', async () => {
               destinationDomain,
               '0x',
               gasPaymentParams.gasAmount,
-              gasPaymentParams.gasPayment,
+              gasPaymentParams.payment,
               gasPaymentParams.refundAddress,
               {
-                value: gasPaymentParams.gasPayment,
+                value: gasPaymentParams.payment,
               },
             ),
           true,
