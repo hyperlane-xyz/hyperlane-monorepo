@@ -46,7 +46,7 @@ abstract contract PausableReentrancyGuardUpgradeable is Initializable {
      * by making the `nonReentrant` function external, and making it call a
      * `private` function that does the actual work.
      */
-    modifier nonReentrant() {
+    modifier nonReentrantAndNotPaused() {
         // status must have been initialized
         require(_status == _NOT_ENTERED, "reentrant call (or paused)");
 

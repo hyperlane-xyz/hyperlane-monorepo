@@ -145,8 +145,7 @@ contract Mailbox is
     function process(bytes calldata _metadata, bytes calldata _message)
         external
         override
-        notPaused
-        nonReentrant
+        nonReentrantAndNotPaused
     {
         // Check that the message was intended for this mailbox.
         require(_message.version() == VERSION, "!version");
