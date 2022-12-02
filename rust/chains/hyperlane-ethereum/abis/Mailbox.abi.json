@@ -28,8 +28,20 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint32",
+        "name": "destination",
+        "type": "uint32"
+      },
+      {
+        "indexed": true,
         "internalType": "bytes32",
-        "name": "messageId",
+        "name": "recipient",
         "type": "bytes32"
       },
       {
@@ -40,6 +52,19 @@
       }
     ],
     "name": "Dispatch",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "messageId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "DispatchId",
     "type": "event"
   },
   {
@@ -79,12 +104,37 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "uint32",
+        "name": "origin",
+        "type": "uint32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "sender",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      }
+    ],
+    "name": "Process",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "bytes32",
         "name": "messageId",
         "type": "bytes32"
       }
     ],
-    "name": "Process",
+    "name": "ProcessId",
     "type": "event"
   },
   {
