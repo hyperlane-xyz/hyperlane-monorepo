@@ -20,16 +20,15 @@ contract LiquidityLayerRouter is Router {
     event LiquidityLayerAdapterSet(string indexed bridge, address adapter);
 
     function initialize(
-        address _owner,
         address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule
     ) public initializer {
         __HyperlaneConnectionClient_initialize(
             _mailbox,
-            _interchainGasPaymaster
+            _interchainGasPaymaster,
+            _interchainSecurityModule
         );
-        _transferOwnership(_owner);
     }
 
     function dispatchWithTokens(

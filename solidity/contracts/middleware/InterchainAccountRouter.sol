@@ -26,7 +26,6 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     );
 
     function initialize(
-        address _owner,
         address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule
