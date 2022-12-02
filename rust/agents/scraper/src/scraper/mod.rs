@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use abacus_base::chains::IndexSettings;
+use hyperlane_base::chains::IndexSettings;
 use async_trait::async_trait;
 use ethers::types::H256;
 use eyre::{eyre, Result};
@@ -14,10 +14,10 @@ use tokio::time::sleep;
 use tracing::instrument::Instrumented;
 use tracing::{debug, info, info_span, instrument, trace, warn, Instrument};
 
-use abacus_base::last_message::validate_message_continuity;
-use abacus_base::{run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, Settings};
-use abacus_core::{
-    name_from_domain_id, AbacusContract, AbacusMessage, ListValidity, LogMeta, Mailbox,
+use hyperlane_base::last_message::validate_message_continuity;
+use hyperlane_base::{run_all, BaseAgent, ChainSetup, ContractSyncMetrics, CoreMetrics, Settings};
+use hyperlane_core::{
+    name_from_domain_id, HyperlaneContract, HyperlaneMessage, ListValidity, LogMeta, Mailbox,
     MailboxIndexer,
 };
 
@@ -166,7 +166,7 @@ impl SqlOutboxScraper {
     /// Sync outbox messages.
     ///
     /// This code is very similar to the outbox contract sync code in
-    /// abacus-base.
+    /// hyperlane-base.
     ///
     /// TODO: merge duplicate logic?
     /// TODO: better handling for errors to auto-restart without bringing down
@@ -320,7 +320,7 @@ impl SqlOutboxScraper {
         skip_all,
         fields(messages = ?messages.iter().map(|(_, meta)| meta).collect::<Vec<_>>())
     )]
-    async fn store_messages(&self, messages: &[(AbacusMessage, LogMeta)]) -> Result<u32> {
+    async fn store_messages(&self, messages: &[(HyperlaneMessage, LogMeta)]) -> Result<u32> {
         use crate::db::message;
         use sea_orm::{prelude::*, sea_query::OnConflict, ActiveValue::*, Insert};
 

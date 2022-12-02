@@ -19,9 +19,14 @@ export type EnvironmentConfig<Chain extends ChainName> = ChainMap<
 
 export enum ViolationType {
   Owner = 'Owner',
+  NotDeployed = 'NotDeployed',
 }
 
 export interface OwnerViolation extends CheckerViolation {
   type: ViolationType.Owner;
   contract: Ownable;
+}
+
+export interface NotDeployedViolation extends CheckerViolation {
+  type: ViolationType.NotDeployed;
 }

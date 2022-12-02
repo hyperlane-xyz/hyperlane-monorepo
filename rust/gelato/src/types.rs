@@ -5,7 +5,7 @@ use serde::{Serialize, Serializer};
 use serde_repr::Serialize_repr;
 use std::fmt;
 
-// Each chain and chain ID supported by Abacus
+// Each chain and chain ID supported by Hyperlane
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize_repr, Hash)]
 #[repr(u64)]
 pub enum Chain {
@@ -22,9 +22,11 @@ pub enum Chain {
 
     Arbitrum = 42161,
     ArbitrumRinkeby = 421611,
+    ArbitrumGoerli = 421613,
 
     Optimism = 10,
     OptimismKovan = 69,
+    OptimismGoerli = 420,
 
     BinanceSmartChain = 56,
     BinanceSmartChainTestnet = 97,
@@ -34,6 +36,8 @@ pub enum Chain {
 
     MoonbaseAlpha = 1287,
     Moonbeam = 1284,
+
+    Zksync2Testnet = 280,
 }
 
 impl fmt::Display for Chain {

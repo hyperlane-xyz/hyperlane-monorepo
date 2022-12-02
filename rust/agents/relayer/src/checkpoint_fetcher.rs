@@ -5,8 +5,8 @@ use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{sync::watch::Sender, task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use abacus_base::MultisigCheckpointSyncer;
-use abacus_core::{Mailbox, MultisigSignedCheckpoint};
+use hyperlane_base::MultisigCheckpointSyncer;
+use hyperlane_core::{Mailbox, MultisigSignedCheckpoint};
 
 pub(crate) struct CheckpointFetcher {
     polling_interval: u64,
@@ -22,9 +22,9 @@ impl CheckpointFetcher {
         polling_interval: u64,
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
         signed_checkpoint_sender: Sender<Option<MultisigSignedCheckpoint>>,
-        leaf_index_gauge: IntGaugeVec,
+        message_nonce_gauge: IntGaugeVec,
     ) -> Self {
-        let signed_checkpoint_gauge = leaf_index_gauge.with_label_values(&[
+        let signed_checkpoint_gauge = message_nonce_gauge.with_label_values(&[
             "signed_offchain_checkpoint",
             mailbox.chain_name(),
             "unknown", // Checkpoints are not remote-specific

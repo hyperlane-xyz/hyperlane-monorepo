@@ -8,7 +8,7 @@ import {
 import { TestChains } from './chains';
 
 const localStoragePath = (chainName: ChainName) =>
-  `/tmp/abacus-test-${chainName}-validator`;
+  `/tmp/hyperlane-test-${chainName}-validator`;
 
 export const validators: ChainValidatorSets<TestChains> = {
   test1: {

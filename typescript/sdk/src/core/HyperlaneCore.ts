@@ -80,6 +80,7 @@ export class HyperlaneCore<
     return {
       mailbox: contracts.mailbox.address,
       interchainGasPaymaster: contracts.interchainGasPaymaster.address,
+      interchainSecurityModule: contracts.multisigIsm.address, // default ism
     };
   }
 
@@ -132,21 +133,34 @@ export class HyperlaneCore<
     });
   }
 
-  getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
-    const mailbox = Mailbox__factory.createInterface();
-    const describedLogs = sourceTx.logs.map((log) => {
-      try {
-        return mailbox.parseLog(log);
-      } catch (e) {
-        return undefined;
+  protected async waitForMessageWasProcessed(
+    message: DispatchedMessage,
+  ): Promise<void> {
+    const id = utils.messageId(message.message);
+    const { mailbox } = this.getDestination(message);
+    await utils.pollAsync(async () => {
+      const delivered = await mailbox.delivered(id);
+      if (!delivered) {
+        throw new Error(`Message ${id} not yet processed`);
       }
     });
-    const dispatchLogs = describedLogs.filter(
-      (log) => log && log.name === 'Dispatch',
-    ) as ethers.utils.LogDescription[];
-    if (dispatchLogs.length === 0) {
-      throw new Error('Dispatch logs not found');
-    }
+    return;
+  }
+
+  getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
+    const mailbox = Mailbox__factory.createInterface();
+    const dispatchLogs = sourceTx.logs
+      .map((log) => {
+        try {
+          return mailbox.parseLog(log);
+        } catch (e) {
+          return undefined;
+        }
+      })
+      .filter(
+        (log): log is ethers.utils.LogDescription =>
+          !!log && log.name === 'Dispatch',
+      );
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
       const id = log.args['messageId'];
@@ -159,7 +173,15 @@ export class HyperlaneCore<
     sourceTx: ethers.ContractReceipt,
   ): Promise<ethers.ContractReceipt[]> {
     const messages = this.getDispatchedMessages(sourceTx);
-
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
+  }
+
+  async waitForMessageProcessed(
+    sourceTx: ethers.ContractReceipt,
+  ): Promise<void> {
+    const messages = this.getDispatchedMessages(sourceTx);
+    await Promise.all(
+      messages.map((msg) => this.waitForMessageWasProcessed(msg)),
+    );
   }
 }

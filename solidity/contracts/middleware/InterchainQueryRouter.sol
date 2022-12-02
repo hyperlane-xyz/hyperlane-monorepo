@@ -4,13 +4,18 @@ pragma solidity ^0.8.13;
 // ============ Internal Imports ============
 import {OwnableMulticall, Call} from "../OwnableMulticall.sol";
 import {Router} from "../Router.sol";
+import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract InterchainQueryRouter is Router, OwnableMulticall {
+contract InterchainQueryRouter is
+    Router,
+    OwnableMulticall,
+    IInterchainQueryRouter
+{
     enum Action {
         DISPATCH,
         RESOLVE
@@ -41,6 +46,26 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
 
     /**
      * @param _destinationDomain Domain of destination chain
+     * @param target The address of the contract to query on destination chain.
+     * @param queryData The calldata of the view call to make on the destination chain.
+     * @param callback Callback function selector on `msg.sender` and optionally abi-encoded prefix arguments.
+     */
+    function query(
+        uint32 _destinationDomain,
+        address target,
+        bytes calldata queryData,
+        bytes calldata callback
+    ) external returns (bytes32 messageId) {
+        // TODO: fix this ugly arrayification
+        Call[] memory calls = new Call[](1);
+        calls[0] = Call({to: target, data: queryData});
+        bytes[] memory callbacks = new bytes[](1);
+        callbacks[0] = callback;
+        messageId = query(_destinationDomain, calls, callbacks);
+    }
+
+    /**
+     * @param _destinationDomain Domain of destination chain
      * @param call Call (to and data packed struct) to be made on destination chain.
      * @param callback Callback function selector on `msg.sender` and optionally abi-encoded prefix arguments.
      */
@@ -48,13 +73,13 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
         uint32 _destinationDomain,
         Call calldata call,
         bytes calldata callback
-    ) external {
+    ) external returns (bytes32 messageId) {
         // TODO: fix this ugly arrayification
         Call[] memory calls = new Call[](1);
         calls[0] = call;
         bytes[] memory callbacks = new bytes[](1);
         callbacks[0] = callback;
-        query(_destinationDomain, calls, callbacks);
+        messageId = query(_destinationDomain, calls, callbacks);
     }
 
     /**
@@ -66,12 +91,12 @@ contract InterchainQueryRouter is Router, OwnableMulticall {
         uint32 _destinationDomain,
         Call[] memory calls,
         bytes[] memory callbacks
-    ) public {
+    ) public returns (bytes32 messageId) {
         require(
             calls.length == callbacks.length,
             "InterchainQueryRouter: calls and callbacks must be same length"
         );
-        _dispatch(
+        messageId = _dispatch(
             _destinationDomain,
             abi.encode(Action.DISPATCH, msg.sender, calls, callbacks)
         );

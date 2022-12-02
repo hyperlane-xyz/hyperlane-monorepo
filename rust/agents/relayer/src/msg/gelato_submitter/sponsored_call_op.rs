@@ -4,14 +4,14 @@ use std::{
     time::Duration,
 };
 
-use abacus_base::CachingMailbox;
-use abacus_core::{AbacusContract, ChainCommunicationError, Mailbox, MultisigIsm};
 use eyre::Result;
 use gelato::{
     sponsored_call::{SponsoredCallApiCall, SponsoredCallApiCallResult, SponsoredCallArgs},
     task_status::{TaskState, TaskStatusApiCall, TaskStatusApiCallArgs},
     types::Chain,
 };
+use hyperlane_base::CachingMailbox;
+use hyperlane_core::{ChainCommunicationError, HyperlaneContract, Mailbox, MultisigIsm};
 use tokio::{
     sync::mpsc::UnboundedSender,
     time::{sleep, timeout},
@@ -210,7 +210,7 @@ impl SponsoredCallOp {
             sponsor_api_key: &self.sponsor_api_key,
         };
 
-        Ok(sponsored_call_api_call.run().await?)
+        sponsored_call_api_call.run().await
     }
 
     async fn create_sponsored_call_args(&self) -> Result<SponsoredCallArgs> {
@@ -234,6 +234,7 @@ impl SponsoredCallOp {
         self.mailbox.delivered(self.message.message.id()).await
     }
 
+    #[allow(clippy::result_large_err)]
     fn send_message_processed(
         &self,
     ) -> Result<(), tokio::sync::mpsc::error::SendError<SubmitMessageArgs>> {

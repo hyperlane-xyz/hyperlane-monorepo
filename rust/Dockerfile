@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:experimental
 
-FROM rust:1.63 as builder
+FROM rust:1.65 as builder
 WORKDIR /usr/src
 
 # 1a: Prepare for static linking
@@ -12,9 +12,9 @@ RUN apt-get update && \
 # Add workspace to workdir 
 COPY agents ./agents
 COPY chains ./chains
-COPY abacus-base ./abacus-base 
-COPY abacus-core ./abacus-core
-COPY abacus-test ./abacus-test
+COPY hyperlane-base ./hyperlane-base 
+COPY hyperlane-core ./hyperlane-core
+COPY hyperlane-test ./hyperlane-test
 COPY ethers-prometheus ./ethers-prometheus
 COPY gelato ./gelato
 COPY utils ./utils
@@ -47,8 +47,8 @@ COPY config ./config
 COPY --from=builder /release/* .
 
 RUN chmod 777 /app &&  \
-    mkdir /usr/share/abacus/ && \
-    chmod 1000 /usr/share/abacus
+    mkdir /usr/share/hyperlane/ && \
+    chmod 1000 /usr/share/hyperlane
 
 USER 1000
 ENTRYPOINT ["tini", "--"]

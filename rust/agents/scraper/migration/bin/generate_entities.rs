@@ -10,8 +10,9 @@ use common::*;
 
 mod common;
 
-const RAW_DB_PATH: &str = "./agents/scraper/src/db";
+const RAW_DB_PATH: &str = "./agents/scraper/src/db/generated";
 const DOCKER_NAME: &str = "scraper-entity-generator";
+const CLI_VERSION: &str = "~0.9.3";
 
 struct PostgresDockerContainer;
 
@@ -36,7 +37,7 @@ impl PostgresDockerContainer {
             .await;
         if let Ok(status) = status {
             if status.success() {
-                sleep(Duration::from_secs(1)).await;
+                sleep(Duration::from_secs(2)).await;
                 return Ok(Self);
             }
         }
@@ -68,7 +69,7 @@ async fn main() -> Result<(), DbErr> {
 
     let install_cli = tokio::spawn(
         Command::new("cargo")
-            .args(["install", "sea-orm-cli"])
+            .args(["install", "--version", CLI_VERSION, "sea-orm-cli"])
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .status(),

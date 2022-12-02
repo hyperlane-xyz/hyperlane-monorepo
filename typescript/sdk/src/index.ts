@@ -1,4 +1,9 @@
-export { AllChains, Chains, Mainnets } from './consts/chains';
+export {
+  AllChains,
+  Chains,
+  Mainnets,
+  AllDeprecatedChains,
+} from './consts/chains';
 export { chainMetadata } from './consts/chainMetadata';
 export {
   chainConnectionConfigs,
@@ -66,7 +71,7 @@ export {
   MessageStatus,
   resolveDomain,
   resolveId,
-  resolveNetworks,
+  resolveChains,
 } from './core/message';
 export { TestCoreApp, TestCoreContracts } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
@@ -102,8 +107,18 @@ export {
   InterchainQueryDeployer,
 } from './deploy/middleware/deploy';
 export {
+  LiquidityLayerDeployer,
+  BridgeAdapterType,
+  BridgeAdapterConfig,
+  CircleBridgeAdapterConfig,
+} from './deploy/middleware/LiquidityLayerRouterDeployer';
+export { LiquidityLayerApp } from './deploy/middleware/LiquidityLayerApp';
+
+export {
+  LiquidityLayerContracts,
   interchainAccountFactories,
   interchainQueryFactories,
+  liquidityLayerFactories,
 } from './middleware';
 export { RouterConfig } from './deploy/router/types';
 export { getTestMultiProvider, getChainToOwnerMap } from './deploy/utils';

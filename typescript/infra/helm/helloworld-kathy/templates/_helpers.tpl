@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "abacus.name" -}}
+{{- define "hyperlane.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "abacus.fullname" -}}
+{{- define "hyperlane.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -26,17 +26,17 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "abacus.chart" -}}
+{{- define "hyperlane.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "abacus.labels" -}}
-helm.sh/chart: {{ include "abacus.chart" . }}
-abacus/deployment: {{ .Values.abacus.runEnv | quote }}
-{{ include "abacus.selectorLabels" . }}
+{{- define "hyperlane.labels" -}}
+helm.sh/chart: {{ include "hyperlane.chart" . }}
+hyperlane/deployment: {{ .Values.hyperlane.runEnv | quote }}
+{{ include "hyperlane.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -46,22 +46,22 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "abacus.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "abacus.name" . }}
+{{- define "hyperlane.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "hyperlane.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 The name of the ClusterSecretStore
 */}}
-{{- define "abacus.cluster-secret-store.name" -}}
+{{- define "hyperlane.cluster-secret-store.name" -}}
 {{- default "external-secrets-gcp-cluster-secret-store" .Values.externalSecrets.clusterSecretStore }}
 {{- end }}
 
 {{/*
 The helloworld-kathy container
 */}}
-{{- define "abacus.helloworld-kathy.container" }}
+{{- define "hyperlane.helloworld-kathy.container" }}
 - name: helloworld-kathy
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
@@ -69,33 +69,37 @@ The helloworld-kathy container
   - ./node_modules/.bin/ts-node
   - ./typescript/infra/scripts/helloworld/kathy.ts
   - -e
-  - {{ .Values.abacus.runEnv }}
+  - {{ .Values.hyperlane.runEnv }}
   - --context
-  - {{ .Values.abacus.context }}
-{{- if .Values.abacus.fullCycleTime }}
+  - {{ .Values.hyperlane.context }}
+{{- if .Values.hyperlane.fullCycleTime }}
   - --full-cycle-time
-  - "{{ .Values.abacus.fullCycleTime }}"
+  - "{{ .Values.hyperlane.fullCycleTime }}"
 {{- end }}
-{{- if .Values.abacus.messageSendTimeout }}
+{{- if .Values.hyperlane.messageSendTimeout }}
   - --message-send-timeout
-  - "{{ .Values.abacus.messageSendTimeout }}"
+  - "{{ .Values.hyperlane.messageSendTimeout }}"
 {{- end }}
-{{- if .Values.abacus.messageReceiptTimeout }}
+{{- if .Values.hyperlane.messageReceiptTimeout }}
   - --message-receipt-timeout
-  - "{{ .Values.abacus.messageReceiptTimeout }}"
+  - "{{ .Values.hyperlane.messageReceiptTimeout }}"
 {{- end }}
-{{- range .Values.abacus.chainsToSkip }}
+{{- range .Values.hyperlane.chainsToSkip }}
   - --chains-to-skip
   - {{ . }}
 {{- end }}
-{{- if .Values.abacus.cycleOnce }}
+{{- if .Values.hyperlane.cycleOnce }}
   - --cycle-once
 {{- end }}
-{{- if .Values.abacus.connectionType }}
+{{- if .Values.hyperlane.connectionType }}
   - --connection-type
-  - {{ .Values.abacus.connectionType }}
+  - {{ .Values.hyperlane.connectionType }}
+{{- end }}
+{{- if .Values.hyperlane.cyclesBetweenEthereumMessages }}
+  - --cycles-between-ethereum-messages
+  - "{{ .Values.hyperlane.cyclesBetweenEthereumMessages }}"
 {{- end }}
   envFrom:
   - secretRef:
-      name: {{ include "abacus.fullname" . }}-secret
+      name: {{ include "hyperlane.fullname" . }}-secret
 {{- end }}

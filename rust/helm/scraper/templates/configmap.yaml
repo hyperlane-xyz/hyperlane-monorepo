@@ -5,32 +5,38 @@ metadata:
   labels:
     {{- include "agent-common.labels" . | nindent 4 }}
 data:
-  RUN_ENV: {{ .Values.abacus.runEnv | quote }}
-  BASE_CONFIG: {{ .Values.abacus.baseConfig }}
-  RUST_BACKTRACE: {{ .Values.abacus.rustBacktrace }}
-  HYP_BASE_DB: {{ .Values.abacus.dbPath }}
-  HYP_BASE_TRACING_FMT: {{ .Values.abacus.tracing.format }}
-  HYP_BASE_TRACING_LEVEL: {{ .Values.abacus.tracing.level }}
-  {{- range .Values.abacus.inboxChains }}
+  RUN_ENV: {{ .Values.hyperlane.runEnv | quote }}
+  {{- define "runDomains" -}}
+  {{- range .Values.hyperlane.outboxChains}}{{ print .name }},{{ end }}
+  {{- end }}
+  RUN_DOMAINS: {{ include "runDomains" . | trimSuffix "," | quote }}
+  {{- range .Values.hyperlane.outboxChains }}
+  BASE_CONFIG_{{ .name | upper }}: {{ printf "%s_config.json" (.name | lower ) | quote }}
+  {{- end }}
+  RUST_BACKTRACE: {{ .Values.hyperlane.rustBacktrace }}
+  HYP_BASE_DB: {{ .Values.hyperlane.dbPath }}
+  HYP_BASE_TRACING_FMT: {{ .Values.hyperlane.tracing.format }}
+  HYP_BASE_TRACING_LEVEL: {{ .Values.hyperlane.tracing.level }}
+  {{- range .Values.hyperlane.inboxChains }}
 {{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "INBOXES_%s_" (.name | upper)) "format" "config_map") | indent 2 }}
   {{- end }}
 
-  {{- range .Values.abacus.outboxChains }}
+  {{- range .Values.hyperlane.outboxChains }}
   {{- if not .disabled }}
-  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_DISABLED: "false"
-  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_CONNECTION_TYPE: {{ .connection.type }}
+  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_DISABLED: "false"
+  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_CONNECTION_TYPE: {{ .connection.type }}
   {{- if eq .connection.type "httpQuorum" }}
-  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_CONNECTION_URLS: ""
+  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_CONNECTION_URLS: ""
   {{- else }}
-  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_CONNECTION_URL: ""
+  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_CONNECTION_URL: ""
   {{- end }}
-  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_NAME: {{ .name | lower }}
+  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_NAME: {{ .name | lower }}
   {{- else}}
-  HYP_SCRAPER_OUTBOXES_{{ .name | upper }}_DISABLED: "true"
+  HYP_SCRAPER_{{ .name | upper }}_OUTBOX_DISABLED: "true"
   {{- end }}
   {{- end }}
 
-  {{- if .Values.abacus.tracing.uri }}
-  HYP_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.abacus.tracing.uri }}
+  {{- if .Values.hyperlane.tracing.uri }}
+  HYP_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.hyperlane.tracing.uri }}
   {{- end }}
-  HYP_BASE_METRICS: {{ .Values.abacus.metrics.port | quote }}
+  HYP_BASE_METRICS: {{ .Values.hyperlane.metrics.port | quote }}

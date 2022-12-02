@@ -1,9 +1,9 @@
 image:
-  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
+  repository: gcr.io/hyperlane-labs-dev/hyperlane-monorepo
   tag:
-abacus:
+hyperlane:
   runEnv: testnet2
-  context: abacus
+  context: hyperlane
   # Only used for fetching secrets, so all chains should be included regardless of being skipped
   chains: []
   aws: true

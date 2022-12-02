@@ -28,6 +28,17 @@ export async function deployWithArtifacts<T extends HyperlaneFactories>(
     console.error(e);
     contracts = deployer.deployedContracts as any;
   }
-  writeJSON(dir, 'verification.json', deployer.verificationInputs);
+
+  try {
+    const existingVerificationInputs = readJSON(dir, 'verification.json');
+    writeJSON(
+      dir,
+      'verification.json',
+      deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
+    );
+  } catch {
+    writeJSON(dir, 'verification.json', deployer.verificationInputs);
+  }
+
   writeJSON(dir, 'addresses.json', serializeContracts(contracts));
 }

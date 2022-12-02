@@ -1,5 +1,5 @@
 image:
-  repository: gcr.io/clabs-abacus/abacus-agent
+  repository: gcr.io/clabs-hyperlane/hyperlane-agent
   pullPolicy: Always
   tag: 'latest'
 
@@ -22,17 +22,15 @@ storage:
   storageClass: 'standard'
   accessModes: ReadWriteOnce
 
-# -- Abacus Overrides
-# By Default, Abacus Agents load the config baked into the Docker Image
+# -- Hyperlane Overrides
+# By Default, Hyperlane Agents load the config baked into the Docker Image
 # Pass values here in order to override the values in the config
 # Note: For successful operation, one _must_ pass signer keys as
 #       they are not baked into the image for security reasons.
-abacus:
+hyperlane:
   # Sets the config folder to use
   runEnv: 'default'
-  context: 'abacus'
-  # Sets the base config to be used (switch between Homes)
-  baseConfig: 'base.json'
+  context: 'hyperlane'
   # Set the SQL db connection info
   dbPath: external-secret
   rustBacktrace: full

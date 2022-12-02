@@ -65,10 +65,10 @@ describe('Router', async () => {
     });
 
     it('cannot be initialized twice', async () => {
-      await router.initialize(ethers.constants.AddressZero);
-      await expect(
-        router.initialize(ethers.constants.AddressZero),
-      ).to.be.revertedWith('Initializable: contract is already initialized');
+      await router.initialize(mailbox.address);
+      await expect(router.initialize(mailbox.address)).to.be.revertedWith(
+        'Initializable: contract is already initialized',
+      );
     });
   });
 
@@ -112,6 +112,21 @@ describe('Router', async () => {
         `No router enrolled for domain. Did you specify the right domain ID?`,
       );
       await router.enrollRemoteRouter(origin, utils.addressToBytes32(remote));
+      expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(true);
+      expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
+    });
+
+    it('owner can enroll remote router using batch function', async () => {
+      const remote = nonOwner.address;
+      const remoteBytes = utils.addressToBytes32(nonOwner.address);
+      expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(false);
+      await expect(router.mustHaveRemoteRouter(origin)).to.be.revertedWith(
+        `No router enrolled for domain. Did you specify the right domain ID?`,
+      );
+      await router.enrollRemoteRouters(
+        [origin],
+        [utils.addressToBytes32(remote)],
+      );
       expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(true);
       expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
     });

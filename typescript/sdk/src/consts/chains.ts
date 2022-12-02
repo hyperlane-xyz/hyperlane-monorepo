@@ -18,10 +18,22 @@ export enum Chains { // must be string type to be used with Object.keys
   bsctestnet = 'bsctestnet',
   moonbasealpha = 'moonbasealpha',
   moonbeam = 'moonbeam',
+  optimismgoerli = 'optimismgoerli',
+  arbitrumgoerli = 'arbitrumgoerli',
   test1 = 'test1',
   test2 = 'test2',
   test3 = 'test3',
 }
+
+export enum DeprecatedChains {
+  rinkeby = 'rinkeby',
+  optimismrinkeby = 'optimismrinkeby',
+  arbitrumrinkeby = 'arbitrumrinkeby',
+  kovan = 'kovan',
+  optimismkovan = 'optimismkovan',
+  arbitrumkovan = 'arbitrumkovan',
+}
+export const AllDeprecatedChains = Object.keys(DeprecatedChains) as string[];
 
 export const Mainnets = [
   Chains.arbitrum,

@@ -52,14 +52,20 @@ export class MockProvider extends ethers.providers.BaseProvider {
 export class MockCoinGecko implements CoinGeckoInterface {
   // Prices keyed by coingecko id
   private tokenPrices: Record<string, number>;
+  // Whether or not to fail to return a response, keyed by coingecko id
+  private fail: Record<string, boolean>;
 
   constructor() {
     this.tokenPrices = {};
+    this.fail = {};
   }
 
   price(params: CoinGeckoSimplePriceParams): CoinGeckoResponse {
     const data: any = {};
     for (const id of params.ids) {
+      if (this.fail[id]) {
+        return Promise.reject(`Failed to fetch price for ${id}`);
+      }
       data[id] = {
         usd: this.tokenPrices[id],
       };
@@ -79,6 +85,11 @@ export class MockCoinGecko implements CoinGeckoInterface {
   setTokenPrice(chain: ChainName, price: number) {
     const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
     this.tokenPrices[id] = price;
+  }
+
+  setFail(chain: ChainName, fail: boolean) {
+    const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
+    this.fail[id] = fail;
   }
 }
 

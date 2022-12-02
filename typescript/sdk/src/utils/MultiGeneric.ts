@@ -1,4 +1,4 @@
-import { AllChains } from '../consts/chains';
+import { AllChains, AllDeprecatedChains } from '../consts/chains';
 import { ChainMap, ChainName, Remotes } from '../types';
 
 export class MultiGeneric<Chain extends ChainName, Value> {
@@ -40,7 +40,9 @@ export class MultiGeneric<Chain extends ChainName, Value> {
   }
 
   chains(): Chain[] {
-    return Object.keys(this.chainMap) as Chain[];
+    return Object.keys(this.chainMap).filter(
+      (chain) => !AllDeprecatedChains.includes(chain),
+    ) as Chain[];
   }
 
   forEach(fn: (n: Chain, dc: Value) => void): void {

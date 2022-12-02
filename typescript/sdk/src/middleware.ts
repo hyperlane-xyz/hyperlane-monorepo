@@ -1,8 +1,12 @@
 import {
+  CircleBridgeAdapter,
+  CircleBridgeAdapter__factory,
   InterchainAccountRouter,
   InterchainAccountRouter__factory,
   InterchainQueryRouter,
   InterchainQueryRouter__factory,
+  LiquidityLayerRouter,
+  LiquidityLayerRouter__factory,
 } from '@hyperlane-xyz/core';
 
 import { RouterContracts, RouterFactories } from './router';
@@ -24,3 +28,16 @@ export const interchainQueryFactories: InterchainQueryFactories = {
 };
 
 export type InterchainQueryContracts = RouterContracts<InterchainQueryRouter>;
+
+export type LiquidityLayerFactories = RouterFactories<LiquidityLayerRouter> & {
+  circleBridgeAdapter: CircleBridgeAdapter__factory;
+};
+
+export const liquidityLayerFactories: LiquidityLayerFactories = {
+  router: new LiquidityLayerRouter__factory(),
+  circleBridgeAdapter: new CircleBridgeAdapter__factory(),
+};
+
+export type LiquidityLayerContracts = RouterContracts<LiquidityLayerRouter> & {
+  circleBridgeAdapter?: CircleBridgeAdapter;
+};

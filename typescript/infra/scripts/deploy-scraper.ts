@@ -14,11 +14,11 @@ async function deploy() {
   const config = getCoreEnvironmentConfig(environment);
 
   const agentConfig = await getContextAgentConfig(config);
-  if (agentConfig.context != Contexts.Abacus) {
+  if (agentConfig.context != Contexts.Hyperlane) {
     // scraper scrapes everything so deploying for multiple contexts might cause unintentional
     // conflicts
     throw new Error(
-      `Scraper only supports the '${Contexts.Abacus}' context at this time`,
+      `Scraper only supports the '${Contexts.Hyperlane}' context at this time`,
     );
   }
 

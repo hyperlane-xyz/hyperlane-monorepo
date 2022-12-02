@@ -149,7 +149,7 @@ export function messageId(message: HexString): string {
 }
 
 /**
- * Parse a serialized Abacus message from raw bytes.
+ * Parse a serialized Hyperlane message from raw bytes.
  *
  * @param message
  * @returns
@@ -200,6 +200,26 @@ export async function retryAsync<T>(
     } catch (error) {
       saveError = error;
       await sleep(baseRetryMs * 2 ** i);
+    }
+  }
+  throw saveError;
+}
+
+export async function pollAsync<T>(
+  runner: () => Promise<T>,
+  delayMs = 500,
+  maxAttempts: number | undefined = undefined,
+) {
+  let attempts = 0;
+  let saveError;
+  while (!maxAttempts || attempts < maxAttempts) {
+    try {
+      const ret = await runner();
+      return ret;
+    } catch (error) {
+      saveError = error;
+      attempts += 1;
+      await sleep(delayMs);
     }
   }
   throw saveError;

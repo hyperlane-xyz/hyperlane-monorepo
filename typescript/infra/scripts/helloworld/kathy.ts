@@ -14,44 +14,39 @@ import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { ConnectionType } from '../../src/config/agent';
 import { startMetricsServer } from '../../src/utils/metrics';
-import {
-  assertChain,
-  assertContext,
-  diagonalize,
-  sleep,
-} from '../../src/utils/utils';
-import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from '../utils';
+import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
+import { getArgs, getCoreEnvironmentConfig } from '../utils';
 
 import { getApp } from './utils';
 
 const metricsRegister = new Registry();
 // TODO rename counter names
 const messagesSendCount = new Counter({
-  name: 'abacus_kathy_messages',
+  name: 'hyperlane_kathy_messages',
   help: 'Count of messages sent; records successes and failures by status label',
   registers: [metricsRegister],
   labelNames: ['origin', 'remote', 'status'],
 });
 const currentPairingIndexGauge = new Gauge({
-  name: 'abacus_kathy_pairing_index',
+  name: 'hyperlane_kathy_pairing_index',
   help: 'The current message pairing index kathy is on, this is useful for seeing if kathy is always crashing around the same pairing as pairings are deterministically ordered.',
   registers: [metricsRegister],
   labelNames: [],
 });
 const messageSendSeconds = new Counter({
-  name: 'abacus_kathy_message_send_seconds',
+  name: 'hyperlane_kathy_message_send_seconds',
   help: 'Total time spent waiting on messages to get sent not including time spent waiting on it to be received.',
   registers: [metricsRegister],
   labelNames: ['origin', 'remote'],
 });
 const messageReceiptSeconds = new Counter({
-  name: 'abacus_kathy_message_receipt_seconds',
+  name: 'hyperlane_kathy_message_receipt_seconds',
   help: 'Total time spent waiting on messages to be received including time to be sent.',
   registers: [metricsRegister],
   labelNames: ['origin', 'remote'],
 });
 const walletBalance = new Gauge({
-  name: 'abacus_wallet_balance',
+  name: 'hyperlane_wallet_balance',
   help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
   registers: [metricsRegister],
   labelNames: [
@@ -68,13 +63,7 @@ const walletBalance = new Gauge({
 const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
 
 function getKathyArgs() {
-  return getArgs()
-    .coerce('e', assertEnvironment)
-    .demandOption('e')
-
-    .coerce('context', assertContext)
-    .demandOption('context')
-
+  const args = getArgs()
     .boolean('cycle-once')
     .describe(
       'cycle-once',
@@ -119,13 +108,23 @@ function getKathyArgs() {
       ConnectionType.Http,
       ConnectionType.HttpQuorum,
     ])
-    .demandOption('connection-type').argv;
+    .demandOption('connection-type');
+
+  // Splitting these args from the rest of them because TypeScript otherwise
+  // complains that the "Type instantiation is excessively deep and possibly infinite."
+  return args
+    .number('cycles-between-ethereum-messages')
+    .describe(
+      'cycles-between-ethereum-messages',
+      'How many cycles to skip between a cycles that send messages to/from Ethereum',
+    )
+    .default('cycles-between-ethereum-messages', 0).argv;
 }
 
 // Returns whether an error occurred
 async function main(): Promise<boolean> {
   const {
-    e: environment,
+    environment,
     context,
     chainsToSkip,
     cycleOnce,
@@ -133,6 +132,7 @@ async function main(): Promise<boolean> {
     messageSendTimeout,
     messageReceiptTimeout,
     connectionType,
+    cyclesBetweenEthereumMessages,
   } = await getKathyArgs();
 
   let errorOccurred = false;
@@ -224,6 +224,48 @@ async function main(): Promise<boolean> {
 
   chains.map((chain) => updateWalletBalanceMetricFor(app, chain));
 
+  // Incremented each time an entire cycle has occurred
+  let currentCycle = 0;
+  // Within the current cycle, how many messages have been sent
+  let cycleMessageCount = 0;
+
+  // Use to move to the next message in a cycle.
+  // Returns true if we should stop sending messages.
+  const nextMessage = async () => {
+    // If it's the end of a cycle...
+    if (cycleMessageCount == pairings.length - 1) {
+      // Print stats
+      for (const [origin, destinationStats] of Object.entries(
+        await app.stats(),
+      )) {
+        for (const [destination, counts] of Object.entries(destinationStats)) {
+          debug('Message stats', {
+            origin,
+            destination,
+            currentCycle,
+            ...counts,
+          });
+        }
+      }
+      // Move to the next cycle and reset the # of messages in the cycle
+      currentCycle++;
+      cycleMessageCount = 0;
+
+      if (cycleOnce) {
+        log('Finished cycling through all pairs once');
+        // Return true to signify messages should stop being sent.
+        return true;
+      }
+    } else {
+      cycleMessageCount++;
+    }
+
+    // Move on to the next index
+    currentPairingIndex = (currentPairingIndex + 1) % pairings.length;
+    // Return false to signify messages should continue to be sent.
+    return false;
+  };
+
   while (true) {
     currentPairingIndexGauge.set(currentPairingIndex);
     const { origin, destination } = pairings[currentPairingIndex];
@@ -236,6 +278,26 @@ async function main(): Promise<boolean> {
       origin,
       destination,
     };
+
+    // Skip Ethereum if we've been configured to do so for this cycle
+    if (
+      (origin === 'ethereum' || destination === 'ethereum') &&
+      currentCycle % (cyclesBetweenEthereumMessages + 1) !== 0
+    ) {
+      debug('Skipping message to/from Ethereum', {
+        currentCycle,
+        origin,
+        destination,
+        cyclesBetweenEthereumMessages,
+      });
+      // Break if we should stop sending messages
+      if (await nextMessage()) {
+        break;
+      }
+      // Move to the next message
+      continue;
+    }
+
     // wait until we are allowed to send the message; we don't want to send on
     // the interval directly because low intervals could cause multiple to be
     // sent concurrently. Using allowedToSend creates a token-bucket system that
@@ -282,27 +344,10 @@ async function main(): Promise<boolean> {
       });
     });
 
-    // Print stats once every cycle through the pairings.
-    // For the cycle-once case, it's important this checks if the current index is
-    // the final index in pairings. For the long-running case, this index choice
-    // is arbitrary.
-    if (currentPairingIndex == pairings.length - 1) {
-      for (const [origin, destinationStats] of Object.entries(
-        await app.stats(),
-      )) {
-        for (const [destination, counts] of Object.entries(destinationStats)) {
-          debug('Message stats', { origin, destination, ...counts });
-        }
-      }
-
-      if (cycleOnce) {
-        log('Finished cycling through all pairs once');
-        break;
-      }
+    // Break if we should stop sending messages
+    if (await nextMessage()) {
+      break;
     }
-
-    // Move on to the next index
-    currentPairingIndex = (currentPairingIndex + 1) % pairings.length;
   }
   return errorOccurred;
 }
@@ -368,7 +413,7 @@ async function sendMessage(
 
   try {
     await utils.timeout(
-      app.waitForMessageReceipt(receipt),
+      app.waitForMessageProcessed(receipt),
       messageReceiptTimeout,
       'Timeout waiting for message to be received',
     );

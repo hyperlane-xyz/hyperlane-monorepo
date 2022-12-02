@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 // ============ Internal Imports ============
 import {OwnableMulticall, Call} from "../OwnableMulticall.sol";
 import {Router} from "../Router.sol";
+import {IInterchainAccountRouter} from "../../interfaces/IInterchainAccountRouter.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -14,7 +15,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title The Hello World App
  * @dev You can use this simple app as a starting point for your own application.
  */
-contract InterchainAccountRouter is Router {
+contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     bytes constant bytecode = type(OwnableMulticall).creationCode;
     bytes32 constant bytecodeHash = bytes32(keccak256(bytecode));
 
@@ -39,8 +40,19 @@ contract InterchainAccountRouter is Router {
 
     function dispatch(uint32 _destinationDomain, Call[] calldata calls)
         external
+        returns (bytes32)
     {
-        _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
+        return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
+    }
+
+    function dispatch(
+        uint32 _destinationDomain,
+        address target,
+        bytes calldata data
+    ) external returns (bytes32) {
+        Call[] memory calls = new Call[](1);
+        calls[0] = Call({to: target, data: data});
+        return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
     }
 
     function getInterchainAccount(uint32 _origin, address _sender)

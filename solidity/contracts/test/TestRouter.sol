@@ -6,8 +6,8 @@ import "../Router.sol";
 contract TestRouter is Router {
     event InitializeOverload();
 
-    function initialize(address _abacusConnectionManager) external initializer {
-        __Router_initialize(_abacusConnectionManager);
+    function initialize(address _mailbox) external initializer {
+        __Router_initialize(_mailbox);
         emit InitializeOverload();
     }
 
