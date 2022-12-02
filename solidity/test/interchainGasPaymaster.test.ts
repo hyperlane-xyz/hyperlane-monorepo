@@ -10,7 +10,9 @@ import {
 const MESSAGE_ID =
   '0x6ae9a99190641b9ed0c07143340612dde0e9cb7deaa5fe07597858ae9ba5fd7f';
 const DESTINATION_DOMAIN = 1234;
-const PAYMENT_AMOUNT = 123456789;
+const GAS_PAYMENT_AMOUNT = 123456789;
+const GAS_AMOUNT = 4444;
+const REFUND_ADDRESS = '0xc0ffee0000000000000000000000000000000000';
 const OWNER = '0xdeadbeef00000000000000000000000000000000';
 
 describe('InterchainGasPaymaster', async () => {
@@ -31,42 +33,60 @@ describe('InterchainGasPaymaster', async () => {
     });
   });
 
-  describe('#payGasFor', async () => {
+  describe('#payForGas', async () => {
     it('deposits the value into the contract', async () => {
       const paymasterBalanceBefore = await signer.provider!.getBalance(
         paymaster.address,
       );
 
-      await paymaster.payGasFor(MESSAGE_ID, DESTINATION_DOMAIN, {
-        value: PAYMENT_AMOUNT,
-      });
+      await paymaster.payForGas(
+        MESSAGE_ID,
+        DESTINATION_DOMAIN,
+        GAS_AMOUNT,
+        REFUND_ADDRESS,
+        {
+          value: GAS_PAYMENT_AMOUNT,
+        },
+      );
 
       const paymasterBalanceAfter = await signer.provider!.getBalance(
         paymaster.address,
       );
 
       expect(paymasterBalanceAfter.sub(paymasterBalanceBefore)).equals(
-        PAYMENT_AMOUNT,
+        GAS_PAYMENT_AMOUNT,
       );
     });
 
     it('emits the GasPayment event', async () => {
       await expect(
-        paymaster.payGasFor(MESSAGE_ID, DESTINATION_DOMAIN, {
-          value: PAYMENT_AMOUNT,
-        }),
+        paymaster.payForGas(
+          MESSAGE_ID,
+          DESTINATION_DOMAIN,
+          GAS_AMOUNT,
+          REFUND_ADDRESS,
+          {
+            value: GAS_PAYMENT_AMOUNT,
+          },
+        ),
       )
         .to.emit(paymaster, 'GasPayment')
-        .withArgs(MESSAGE_ID, PAYMENT_AMOUNT);
+        .withArgs(MESSAGE_ID, GAS_AMOUNT, GAS_PAYMENT_AMOUNT);
     });
   });
 
   describe('#claim', async () => {
     it('sends the entire balance of the contract to the owner', async () => {
       // First pay some ether into the contract
-      await paymaster.payGasFor(MESSAGE_ID, DESTINATION_DOMAIN, {
-        value: PAYMENT_AMOUNT,
-      });
+      await paymaster.payForGas(
+        MESSAGE_ID,
+        DESTINATION_DOMAIN,
+        GAS_AMOUNT,
+        REFUND_ADDRESS,
+        {
+          value: GAS_PAYMENT_AMOUNT,
+        },
+      );
 
       // Set the owner to a different address so we aren't paying gas with the same
       // address we want to observe the balance of
@@ -77,12 +97,12 @@ describe('InterchainGasPaymaster', async () => {
       const paymasterBalanceBefore = await signer.provider!.getBalance(
         paymaster.address,
       );
-      expect(paymasterBalanceBefore).equals(PAYMENT_AMOUNT);
+      expect(paymasterBalanceBefore).equals(GAS_PAYMENT_AMOUNT);
 
       await paymaster.claim();
 
       const ownerBalanceAfter = await signer.provider!.getBalance(OWNER);
-      expect(ownerBalanceAfter).equals(PAYMENT_AMOUNT);
+      expect(ownerBalanceAfter).equals(GAS_PAYMENT_AMOUNT);
       const paymasterBalanceAfter = await signer.provider!.getBalance(
         paymaster.address,
       );

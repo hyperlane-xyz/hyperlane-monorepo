@@ -70,7 +70,13 @@ contract LiquidityLayerRouter is Router {
         );
 
         // Dispatch the _messageWithMetadata to the destination's LiquidityLayerRouter.
-        _dispatchWithGas(_destinationDomain, _messageWithMetadata, msg.value);
+        _dispatchWithGas(
+            _destinationDomain,
+            _messageWithMetadata,
+            0, // TODO eventually accommodate gas amounts
+            msg.value,
+            msg.sender
+        );
     }
 
     // Handles a message from an enrolled remote LiquidityLayerRouter
