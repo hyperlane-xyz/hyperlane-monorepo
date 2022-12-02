@@ -70,17 +70,14 @@ describe('Mailbox', async () => {
 
     it('Dispatches a message', async () => {
       // Send message with signer address as msg.sender
+      const recipientBytes = utils.addressToBytes32(recipient.address);
       await expect(
-        mailbox
-          .connect(signer)
-          .dispatch(
-            destDomain,
-            utils.addressToBytes32(recipient.address),
-            body,
-          ),
+        mailbox.connect(signer).dispatch(destDomain, recipientBytes, body),
       )
         .to.emit(mailbox, 'Dispatch')
-        .withArgs(id, message);
+        .withArgs(signer.address, destDomain, recipientBytes, message)
+        .to.emit(mailbox, 'DispatchId')
+        .withArgs(utils.messageId(message));
     });
 
     it('Returns the id of the dispatched message', async () => {
@@ -120,7 +117,15 @@ describe('Mailbox', async () => {
     });
 
     it('processes a message', async () => {
-      await expect(mailbox.process('0x', message)).to.emit(mailbox, 'Process');
+      await expect(mailbox.process('0x', message))
+        .to.emit(mailbox, 'Process')
+        .withArgs(
+          originDomain,
+          utils.addressToBytes32(signer.address),
+          recipient,
+        )
+        .to.emit(mailbox, 'ProcessId')
+        .withArgs(id);
       expect(await mailbox.delivered(id)).to.be.true;
     });
 
