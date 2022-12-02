@@ -43,12 +43,11 @@ contract Mailbox is
     MerkleLib.Tree public tree;
     // Mapping of message ID to whether or not that message has been delivered.
     mapping(bytes32 => bool) public delivered;
-    bool public paused;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[46] private __GAP;
+    uint256[47] private __GAP;
 
     // ============ Events ============
 
