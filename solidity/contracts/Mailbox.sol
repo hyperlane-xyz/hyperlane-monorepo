@@ -43,11 +43,12 @@ contract Mailbox is
     MerkleLib.Tree public tree;
     // Mapping of message ID to whether or not that message has been delivered.
     mapping(bytes32 => bool) public delivered;
+    bool public paused;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[47] private __GAP;
+    uint256[46] private __GAP;
 
     // ============ Events ============
 
@@ -69,6 +70,14 @@ contract Mailbox is
      * @param messageId The unique message identifier
      */
     event Process(bytes32 indexed messageId);
+
+    event Paused();
+    event UnPaused();
+
+    modifier notPaused() {
+        require(!paused, "!paused");
+        _;
+    }
 
     // ============ Constructor ============
 
@@ -106,7 +115,7 @@ contract Mailbox is
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes calldata _messageBody
-    ) external override returns (bytes32) {
+    ) external override notPaused returns (bytes32) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
         // Format the message into packed bytes.
         bytes memory _message = Message.formatMessage(
@@ -136,6 +145,7 @@ contract Mailbox is
         external
         override
         nonReentrant
+        notPaused
     {
         // Check that the message was intended for this mailbox.
         require(_message.version() == VERSION, "!version");
@@ -186,6 +196,16 @@ contract Mailbox is
      */
     function latestCheckpoint() public view returns (bytes32, uint32) {
         return (root(), count() - 1);
+    }
+
+    function pause() external onlyOwner {
+        paused = true;
+        emit Paused();
+    }
+
+    function unpause() external onlyOwner {
+        paused = false;
+        emit UnPaused();
     }
 
     // ============ Internal Functions ============

@@ -226,4 +226,28 @@ describe('Mailbox', async () => {
       );
     });
   });
+
+  describe('#pause', () => {
+    it.only('should revert on non-owner', async () => {
+      await expect(mailbox.connect(nonOwner).pause()).to.be.revertedWith(
+        ONLY_OWNER_REVERT_MSG,
+      );
+      await expect(mailbox.connect(nonOwner).unpause()).to.be.revertedWith(
+        ONLY_OWNER_REVERT_MSG,
+      );
+    });
+
+    it.only('should emit events', async () => {
+      await expect(mailbox.pause()).to.emit(mailbox, 'Paused');
+      await expect(mailbox.unpause()).to.emit(mailbox, 'UnPaused');
+    });
+
+    it.only('should prevent dispatch and process', async () => {
+      await mailbox.pause();
+      await expect(mailbox.dispatch(destDomain, '', '0x')).to.be.revertedWith(
+        '!paused',
+      );
+      await expect(mailbox.process('0x', '0x')).to.be.revertedWith('!paused');
+    });
+  });
 });
