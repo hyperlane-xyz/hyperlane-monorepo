@@ -1,0 +1,3 @@
+[submodule "solidity/lib/create3-factory"]
+	path = solidity/lib/create3-factory
+	url = https://github.com/lifinance/create3-factory
