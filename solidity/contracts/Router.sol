@@ -163,14 +163,12 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         address _gasPaymentRefundAddress
     ) internal {
         bytes32 _messageId = _dispatch(_destinationDomain, _messageBody);
-        if (_gasPayment > 0) {
-            interchainGasPaymaster.payForGas{value: _gasPayment}(
-                _messageId,
-                _destinationDomain,
-                _gasAmount,
-                _gasPaymentRefundAddress
-            );
-        }
+        interchainGasPaymaster.payForGas{value: _gasPayment}(
+            _messageId,
+            _destinationDomain,
+            _gasAmount,
+            _gasPaymentRefundAddress
+        );
     }
 
     /**
