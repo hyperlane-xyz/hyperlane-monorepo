@@ -253,5 +253,11 @@ describe('Mailbox', async () => {
       ).to.be.revertedWith('paused');
       await expect(mailbox.process('0x', '0x')).to.be.revertedWith('paused');
     });
+
+    it('isPaused should be true', async () => {
+      await mailbox.pause();
+      const paused = await mailbox.isPaused();
+      expect(paused);
+    });
   });
 });

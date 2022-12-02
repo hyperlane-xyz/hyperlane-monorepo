@@ -217,6 +217,13 @@ contract Mailbox is
         emit Unpaused();
     }
 
+    /**
+     * @notice Returns whether mailbox is paused.
+     */
+    function isPaused() external view returns (bool) {
+        return _isPaused();
+    }
+
     // ============ Internal Functions ============
 
     /**

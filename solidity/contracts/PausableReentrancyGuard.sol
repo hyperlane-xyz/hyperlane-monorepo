@@ -18,20 +18,24 @@ abstract contract PausableReentrancyGuardUpgradeable is Initializable {
         _status = _NOT_ENTERED;
     }
 
+    function _isPaused() internal view returns (bool) {
+        return _status == _PAUSED;
+    }
+
     function _pause() internal notPaused {
         _status = _PAUSED;
     }
 
     function _unpause() internal {
-        require(_status == _PAUSED, "!paused");
+        require(_isPaused(), "!paused");
         _status = _NOT_ENTERED;
     }
 
     /**
-     * @dev Prevents a contract from being called when paused.
+     * @dev Prevents a contract from being entered when paused.
      */
     modifier notPaused() {
-        require(_status != _PAUSED, "paused");
+        require(!_isPaused(), "paused");
         _;
     }
 
@@ -44,7 +48,7 @@ abstract contract PausableReentrancyGuardUpgradeable is Initializable {
      */
     modifier nonReentrant() {
         // status must have been initialized
-        require(_status == _NOT_ENTERED, "ReentrancyGuard: reentrant call");
+        require(_status == _NOT_ENTERED, "reentrant call (or paused)");
 
         // Any calls to nonReentrant after this point will fail
         _status = _ENTERED;
