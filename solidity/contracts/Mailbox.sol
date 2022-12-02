@@ -9,16 +9,16 @@ import {TypeCasts} from "./libs/TypeCasts.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
+import {PausableReentrancyGuardUpgradeable} from "./PausableReentrancyGuard.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 contract Mailbox is
     IMailbox,
     OwnableUpgradeable,
-    ReentrancyGuardUpgradeable,
+    PausableReentrancyGuardUpgradeable,
     Versioned
 {
     // ============ Libraries ============
@@ -74,11 +74,6 @@ contract Mailbox is
     event Paused();
     event UnPaused();
 
-    modifier notPaused() {
-        require(!paused, "!paused");
-        _;
-    }
-
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
@@ -89,7 +84,7 @@ contract Mailbox is
     // ============ Initializer ============
 
     function initialize(address _defaultIsm) external initializer {
-        __ReentrancyGuard_init();
+        __PausableReentrancyGuard_init();
         __Ownable_init();
         _setDefaultIsm(_defaultIsm);
     }
@@ -144,8 +139,8 @@ contract Mailbox is
     function process(bytes calldata _metadata, bytes calldata _message)
         external
         override
-        nonReentrant
         notPaused
+        nonReentrant
     {
         // Check that the message was intended for this mailbox.
         require(_message.version() == VERSION, "!version");
@@ -199,12 +194,12 @@ contract Mailbox is
     }
 
     function pause() external onlyOwner {
-        paused = true;
+        _pause();
         emit Paused();
     }
 
     function unpause() external onlyOwner {
-        paused = false;
+        _unpause();
         emit UnPaused();
     }
 
