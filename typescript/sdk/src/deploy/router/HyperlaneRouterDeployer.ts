@@ -77,13 +77,11 @@ export abstract class HyperlaneRouterDeployer<
       contractsMap,
     )) {
       const local = chain as Chain;
-      this.logger({ local });
       const chainConnection = this.multiProvider.getChainConnection(local);
       // only enroll chains which are deployed
       const deployedRemoteChains = this.multiProvider
         .remoteChains(local)
         .filter((c) => deployedChains.includes(c));
-      this.logger({ deployedRemoteChains });
 
       const enrollEntries = await Promise.all(
         deployedRemoteChains.map(async (remote) => {
@@ -98,7 +96,6 @@ export abstract class HyperlaneRouterDeployer<
       const entries = enrollEntries.filter(
         (entry): entry is [number, string] => entry !== undefined,
       );
-      this.logger({ entries });
       const domains = entries.map(([id]) => id);
       const addresses = entries.map(([, address]) => address);
 
