@@ -119,7 +119,7 @@ where
             .map(|(log, log_meta)| InterchainGasPaymentWithMeta {
                 payment: InterchainGasPayment {
                     message_id: H256::from(log.message_id),
-                    amount: log.amount,
+                    payment: log.payment,
                 },
                 meta: InterchainGasPaymentMeta {
                     transaction_hash: log_meta.transaction_hash,

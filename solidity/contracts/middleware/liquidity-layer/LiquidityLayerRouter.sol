@@ -20,15 +20,15 @@ contract LiquidityLayerRouter is Router {
     event LiquidityLayerAdapterSet(string indexed bridge, address adapter);
 
     function initialize(
-        address _owner,
         address _mailbox,
-        address _interchainGasPaymaster
+        address _interchainGasPaymaster,
+        address _interchainSecurityModule
     ) public initializer {
         __HyperlaneConnectionClient_initialize(
             _mailbox,
-            _interchainGasPaymaster
+            _interchainGasPaymaster,
+            _interchainSecurityModule
         );
-        _transferOwnership(_owner);
     }
 
     function dispatchWithTokens(
@@ -70,7 +70,13 @@ contract LiquidityLayerRouter is Router {
         );
 
         // Dispatch the _messageWithMetadata to the destination's LiquidityLayerRouter.
-        _dispatchWithGas(_destinationDomain, _messageWithMetadata, msg.value);
+        _dispatchWithGas(
+            _destinationDomain,
+            _messageWithMetadata,
+            0, // TODO eventually accommodate gas amounts
+            msg.value,
+            msg.sender
+        );
     }
 
     // Handles a message from an enrolled remote LiquidityLayerRouter

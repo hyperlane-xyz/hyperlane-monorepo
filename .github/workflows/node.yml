@@ -106,5 +106,13 @@ jobs:
           path: ./*
           key: ${{ github.sha }}
 
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Install dependencies
+        run: cd solidity && forge install
+
       - name: core
         run: yarn workspace @hyperlane-xyz/core run test
