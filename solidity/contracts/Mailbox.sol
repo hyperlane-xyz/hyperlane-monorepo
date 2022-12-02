@@ -70,7 +70,14 @@ contract Mailbox is
      */
     event Process(bytes32 indexed messageId);
 
+    /**
+     * @notice Emitted when Mailbox is paused
+     */
     event Paused();
+
+    /**
+     * @notice Emitted when Mailbox is unpaused
+     */
     event UnPaused();
 
     // ============ Constructor ============
@@ -192,11 +199,19 @@ contract Mailbox is
         return (root(), count() - 1);
     }
 
+    /**
+     * @notice Pauses mailbox and prevents further dispatch/process calls
+     * @dev Only `owner` can pause the mailbox.
+     */
     function pause() external onlyOwner {
         _pause();
         emit Paused();
     }
 
+    /**
+     * @notice Unpauses mailbox and allows for message processing.
+     * @dev Only `owner` can unpause the mailbox.
+     */
     function unpause() external onlyOwner {
         _unpause();
         emit UnPaused();
