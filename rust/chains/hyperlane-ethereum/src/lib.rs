@@ -49,7 +49,7 @@ mod retrying;
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum Connection {
+pub enum ConnectionConf {
     /// A HTTP-only quorum.
     HttpQuorum {
         /// List of fully qualified strings to connect to
@@ -67,7 +67,7 @@ pub enum Connection {
     },
 }
 
-impl Default for Connection {
+impl Default for ConnectionConf {
     fn default() -> Self {
         Self::Http {
             url: Default::default(),
@@ -78,7 +78,7 @@ impl Default for Connection {
 #[allow(dead_code)]
 /// A live connection to an ethereum-compatible chain.
 pub struct Chain {
-    creation_metadata: Connection,
+    creation_metadata: ConnectionConf,
     ethers: Provider<Http>,
 }
 
