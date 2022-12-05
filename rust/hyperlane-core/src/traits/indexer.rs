@@ -11,10 +11,9 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use ethers::types::H256;
 use eyre::Result;
 
-use crate::{HyperlaneMessage, InterchainGasPaymentWithMeta, LogMeta};
+use crate::{HyperlaneMessage, InterchainGasPaymentWithMeta, LogMeta, H256};
 
 /// Interface for an indexer.
 #[async_trait]

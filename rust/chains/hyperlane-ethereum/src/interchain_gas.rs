@@ -5,14 +5,14 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::prelude::*;
+use ethers::prelude::{Middleware, Selector};
 use eyre::Result;
 use tracing::instrument;
 
 use hyperlane_core::{
     ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, Indexer,
     InterchainGasPaymaster, InterchainGasPaymasterIndexer, InterchainGasPayment,
-    InterchainGasPaymentMeta, InterchainGasPaymentWithMeta,
+    InterchainGasPaymentMeta, InterchainGasPaymentWithMeta, H160, H256,
 };
 
 use crate::contracts::interchain_gas_paymaster::{

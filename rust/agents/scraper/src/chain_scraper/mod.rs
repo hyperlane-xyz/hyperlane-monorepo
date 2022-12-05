@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 
-use ethers::types::H256;
 use eyre::{eyre, Result};
 use futures::TryFutureExt;
 use sea_orm::prelude::TimeDateTime;
@@ -15,7 +14,7 @@ use hyperlane_base::chains::IndexSettings;
 use hyperlane_base::ContractSyncMetrics;
 use hyperlane_core::{
     BlockInfo, HyperlaneContract, HyperlaneMessage, HyperlaneProvider, LogMeta, Mailbox,
-    MailboxIndexer,
+    MailboxIndexer, H256,
 };
 
 use crate::chain_scraper::sync::Syncer;

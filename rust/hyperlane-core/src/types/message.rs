@@ -1,7 +1,6 @@
-use ethers::types::H256;
 use sha3::{Digest, Keccak256};
 
-use crate::{Decode, Encode, HyperlaneError};
+use crate::{Decode, Encode, HyperlaneError, H256};
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
 

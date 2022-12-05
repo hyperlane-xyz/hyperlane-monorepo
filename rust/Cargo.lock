@@ -1974,6 +1974,7 @@ dependencies = [
  "num",
  "num-derive",
  "num-traits",
+ "primitive-types",
  "rocksdb",
  "serde",
  "serde_json",

@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use ethers::abi::Token;
 use ethers::providers::Middleware;
-use ethers::types::{Selector, H160, H256, U256};
+use ethers::types::Selector;
 use eyre::Result;
 use tokio::sync::RwLock;
 use tracing::instrument;
@@ -17,7 +17,7 @@ use tracing::instrument;
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
     ChainCommunicationError, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    MultisigIsm, MultisigSignedCheckpoint, SignatureWithSigner,
+    MultisigIsm, MultisigSignedCheckpoint, SignatureWithSigner, H160, H256, U256,
 };
 
 use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};

@@ -28,10 +28,8 @@ where
 
 #[cfg(test)]
 mod test {
-    use ethers::types::H256;
-
     use hyperlane_core::{
-        accumulator::merkle::Proof, db::HyperlaneDB, HyperlaneMessage, RawHyperlaneMessage,
+        accumulator::merkle::Proof, db::HyperlaneDB, HyperlaneMessage, RawHyperlaneMessage, H256,
     };
 
     use super::*;

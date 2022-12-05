@@ -1,4 +1,4 @@
-use ethers::prelude::H256;
+use hyperlane_core::H256;
 
 /// Convert a hex string (without 0x prefix) to a H256. This handles the case where it is actually
 /// as H160 and will correctly return a H256 with the most significant bits as zero.

@@ -4,13 +4,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use ethers::prelude::{Middleware, H256};
+use ethers::prelude::Middleware;
 use eyre::eyre;
 use tokio::time::sleep;
 use tracing::instrument;
 
 use hyperlane_core::{
-    BlockInfo, ContractLocator, HyperlaneChain, HyperlaneProvider, TxnInfo, TxnReceiptInfo,
+    BlockInfo, ContractLocator, HyperlaneChain, HyperlaneProvider, TxnInfo, TxnReceiptInfo, H256,
 };
 
 use crate::MakeableWithProvider;

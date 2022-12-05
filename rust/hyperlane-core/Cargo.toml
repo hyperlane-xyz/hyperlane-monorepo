@@ -32,6 +32,9 @@ num-derive = "0.3"
 strum = "0.24"
 strum_macros = "0.24"
 
+# version determined by ethers-rs
+primitive-types = "*"
+
 [dev-dependencies]
 hyperlane-base = { path = "../hyperlane-base" }
 color-eyre = "0.6"

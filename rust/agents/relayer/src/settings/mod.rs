@@ -1,7 +1,7 @@
 //! Configuration
 
-use ethers::types::U256;
 use hyperlane_base::decl_settings;
+use hyperlane_core::U256;
 
 pub mod matching_list;
 

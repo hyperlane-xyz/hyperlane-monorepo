@@ -4,16 +4,18 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
+use ethers::abi::FunctionExt;
 use std::collections::HashMap;
 
-use ethers::prelude::*;
+use ethers::prelude::{
+    abi, BlockId, BlockNumber, Http, Lazy, Middleware, NameOrAddress, Provider, Selector,
+};
 use eyre::Result;
 use num::Num;
 
 use hyperlane_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
-use crate::abi::FunctionExt;
 #[cfg(not(doctest))]
 pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*};
 

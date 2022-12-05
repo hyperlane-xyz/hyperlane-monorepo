@@ -2,8 +2,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::core::types::H256;
-use ethers::types::U256;
 use eyre::Result;
 use futures_util::future::select_all;
 use tokio::task::JoinHandle;
@@ -13,7 +11,7 @@ use tracing::{info_span, Instrument};
 use hyperlane_core::db::HyperlaneDB;
 use hyperlane_core::{
     ChainCommunicationError, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneMessage,
-    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome,
+    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::chains::IndexSettings;

@@ -1,11 +1,11 @@
 use std::time::Duration;
 
 use ethers::abi::Detokenize;
-use ethers::prelude::*;
+use ethers::prelude::{NameOrAddress, TransactionReceipt};
 use ethers_contract::builders::ContractCall;
 use tracing::{error, info};
 
-use hyperlane_core::ChainCommunicationError;
+use hyperlane_core::{ChainCommunicationError, H256};
 
 use crate::Middleware;
 
