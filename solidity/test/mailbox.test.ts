@@ -70,17 +70,14 @@ describe('Mailbox', async () => {
 
     it('Dispatches a message', async () => {
       // Send message with signer address as msg.sender
+      const recipientBytes = utils.addressToBytes32(recipient.address);
       await expect(
-        mailbox
-          .connect(signer)
-          .dispatch(
-            destDomain,
-            utils.addressToBytes32(recipient.address),
-            body,
-          ),
+        mailbox.connect(signer).dispatch(destDomain, recipientBytes, body),
       )
         .to.emit(mailbox, 'Dispatch')
-        .withArgs(id, message);
+        .withArgs(signer.address, destDomain, recipientBytes, message)
+        .to.emit(mailbox, 'DispatchId')
+        .withArgs(utils.messageId(message));
     });
 
     it('Returns the id of the dispatched message', async () => {
@@ -120,7 +117,15 @@ describe('Mailbox', async () => {
     });
 
     it('processes a message', async () => {
-      await expect(mailbox.process('0x', message)).to.emit(mailbox, 'Process');
+      await expect(mailbox.process('0x', message))
+        .to.emit(mailbox, 'Process')
+        .withArgs(
+          originDomain,
+          utils.addressToBytes32(signer.address),
+          recipient,
+        )
+        .to.emit(mailbox, 'ProcessId')
+        .withArgs(id);
       expect(await mailbox.delivered(id)).to.be.true;
     });
 
@@ -224,6 +229,40 @@ describe('Mailbox', async () => {
       await expect(mailbox.setDefaultIsm(signer.address)).to.be.revertedWith(
         '!contract',
       );
+    });
+  });
+
+  describe('#pause', () => {
+    it('should revert on non-owner', async () => {
+      await expect(mailbox.connect(nonOwner).pause()).to.be.revertedWith(
+        ONLY_OWNER_REVERT_MSG,
+      );
+      await expect(mailbox.connect(nonOwner).unpause()).to.be.revertedWith(
+        ONLY_OWNER_REVERT_MSG,
+      );
+    });
+
+    it('should emit events', async () => {
+      await expect(mailbox.pause()).to.emit(mailbox, 'Paused');
+      await expect(mailbox.unpause()).to.emit(mailbox, 'Unpaused');
+    });
+
+    it('should prevent dispatch and process', async () => {
+      await mailbox.pause();
+      await expect(
+        mailbox.dispatch(
+          destDomain,
+          utils.addressToBytes32(nonOwner.address),
+          '0x',
+        ),
+      ).to.be.revertedWith('paused');
+      await expect(mailbox.process('0x', '0x')).to.be.revertedWith('paused');
+    });
+
+    it('isPaused should be true', async () => {
+      await mailbox.pause();
+      const paused = await mailbox.isPaused();
+      expect(paused);
     });
   });
 });

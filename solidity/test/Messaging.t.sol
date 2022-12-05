@@ -2,16 +2,16 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../contracts/mock/MockOutbox.sol";
-import "../contracts/mock/MockInbox.sol";
+import "../contracts/mock/MockMailbox.sol";
+import "../contracts/mock/MockMailbox.sol";
 import "../contracts/test/TestRecipient.sol";
-import "../interfaces/IInbox.sol";
-import "../interfaces/IOutbox.sol";
+import "../interfaces/IMailbox.sol";
+import "../interfaces/IMailbox.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
 contract MessagingTest is Test {
-    MockOutbox outbox;
-    MockInbox inbox;
+    MockMailbox originMailbox;
+    MockMailbox remoteMailbox;
 
     TestRecipient receiver;
 
@@ -19,19 +19,20 @@ contract MessagingTest is Test {
     uint32 remoteDomain = 2;
 
     function setUp() public {
-        inbox = new MockInbox();
-        outbox = new MockOutbox(originDomain, address(inbox));
+        originMailbox = new MockMailbox(originDomain);
+        remoteMailbox = new MockMailbox(remoteDomain);
+        originMailbox.addRemoteMailbox(remoteDomain, remoteMailbox);
 
         receiver = new TestRecipient();
     }
 
     function testSendMessage(string calldata _message) public {
-        outbox.dispatch(
+        originMailbox.dispatch(
             remoteDomain,
             TypeCasts.addressToBytes32(address(receiver)),
             bytes(_message)
         );
-        inbox.processNextPendingMessage();
+        remoteMailbox.processNextInboundMessage();
         assertEq(string(receiver.lastData()), _message);
     }
 }
