@@ -24,6 +24,9 @@ module.exports = {
     outDir: './types',
     target: 'ethers-v5',
     alwaysGenerateOverloads: false,
+    externalArtifacts: [
+      'node_modules/@openzeppelin/contracts/build/contracts/*Proxy*.json',
+    ],
   },
   mocha: {
     bail: true,
