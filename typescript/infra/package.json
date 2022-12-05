@@ -3,6 +3,7 @@
   "description": "Infrastructure utilities for the Hyperlane Network",
   "version": "0.5.3",
   "dependencies": {
+    "@arbitrum/sdk": "^3.0.0",
     "@aws-sdk/client-iam": "^3.74.0",
     "@aws-sdk/client-kms": "3.48.0",
     "@aws-sdk/client-s3": "^3.74.0",
