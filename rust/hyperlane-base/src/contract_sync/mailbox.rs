@@ -387,7 +387,7 @@ mod test {
                 });
             }
 
-            let hyperlane_db = HyperlaneDB::new("outbox_1", db);
+            let hyperlane_db = HyperlaneDB::new("mailbox_1", db);
 
             // Set the latest valid message range start block
             hyperlane_db
@@ -406,7 +406,7 @@ mod test {
             let sync_metrics = ContractSyncMetrics::new(metrics);
 
             let contract_sync = ContractSync::new(
-                "outbox_1".into(),
+                "mailbox_1".into(),
                 hyperlane_db.clone(),
                 indexer,
                 IndexSettings {

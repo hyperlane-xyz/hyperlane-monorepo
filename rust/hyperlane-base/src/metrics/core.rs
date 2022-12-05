@@ -148,7 +148,7 @@ impl CoreMetrics {
         let latest_checkpoint = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("latest_checkpoint"),
-                "Outbox latest checkpoint",
+                "Mailbox latest checkpoint",
                 const_labels_ref
             ),
             &["phase", "chain"],
