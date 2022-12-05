@@ -267,14 +267,10 @@ export abstract class HyperlaneDeployer<
     contract: HyperlaneContract,
   ) {
     if (!this.deployedContracts[chain]) {
-      [];
       this.deployedContracts[chain] = {};
     }
-    if (this.deployedContracts[chain]) {
-      // TODO: This doesn't compile but it *does* work.
-      // Had to comment out to be able to push since prettier complains.
-      // this.deployedContracts[chain]?.[contractName as string] = contract;
-    }
+    // @ts-ignore
+    this.deployedContracts[chain][contractName] = contract;
   }
 
   /**
