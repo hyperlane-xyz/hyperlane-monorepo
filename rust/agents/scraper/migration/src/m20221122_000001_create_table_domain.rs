@@ -218,7 +218,7 @@ impl MigrationTrait for Migration {
             let now = {
                 let sys = time::SystemTime::now();
                 let dur = sys.duration_since(UNIX_EPOCH).unwrap();
-                DateTime::from_timestamp(dur.as_secs() as i64, dur.subsec_nanos())
+                DateTime::from_timestamp_opt(dur.as_secs() as i64, dur.subsec_nanos()).unwrap()
             };
 
             EntityTrait::insert(domain::ActiveModel {
