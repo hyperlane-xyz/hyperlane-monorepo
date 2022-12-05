@@ -466,7 +466,7 @@ class ContextFunder {
         recipient: to,
         overrides: l1ChainConnection.overrides,
       });
-    } else if (l2Chain.includes('abitrum')) {
+    } else if (l2Chain.includes('arbitrum')) {
       const l2Network = await getL2Network(ChainNameToDomainId[l2Chain]);
       const ethBridger = new EthBridger(l2Network);
       tx = await ethBridger.deposit({
