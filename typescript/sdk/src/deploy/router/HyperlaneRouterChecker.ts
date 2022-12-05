@@ -7,7 +7,11 @@ import { RouterContracts } from '../../router';
 import { ChainName } from '../../types';
 import { HyperlaneAppChecker } from '../HyperlaneAppChecker';
 
-import { RouterConfig } from './types';
+import {
+  EnrolledRouterViolation,
+  RouterConfig,
+  RouterViolationType,
+} from './types';
 
 export class HyperlaneRouterChecker<
   Chain extends ChainName,
@@ -33,8 +37,18 @@ export class HyperlaneRouterChecker<
       this.app.remoteChains(chain).map(async (remoteChain) => {
         const remoteRouter = this.app.getContracts(remoteChain).router;
         const remoteChainId = chainMetadata[remoteChain].id;
-        const address = await router.routers(remoteChainId);
-        utils.assert(address === utils.addressToBytes32(remoteRouter.address));
+        const actual = await router.routers(remoteChainId);
+        const expected = utils.addressToBytes32(remoteRouter.address);
+        if (actual !== expected) {
+          const violation: EnrolledRouterViolation = {
+            type: RouterViolationType.EnrolledRouter,
+            contract: router,
+            chain,
+            actual,
+            expected,
+          };
+          this.addViolation(violation);
+        }
       }),
     );
   }
