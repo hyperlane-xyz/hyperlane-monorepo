@@ -5,3 +5,4 @@ libs = ['node_modules', 'lib']
 test = 'test'
 cache_path  = 'forge-cache'
 allow_paths = ["../node_modules"]
+fs_permissions = [{ access = "read", path = "./"}]
