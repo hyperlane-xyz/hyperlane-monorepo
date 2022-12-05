@@ -6,7 +6,7 @@ use hyperlane_core::{
 };
 
 use crate::contract_sync::last_message::validate_message_continuity;
-use crate::{contract_sync::schema::OutboxContractSyncDB, ContractSync};
+use crate::{contract_sync::schema::MailboxContractSyncDB, ContractSync};
 
 const MESSAGES_LABEL: &str = "messages";
 
@@ -244,7 +244,7 @@ mod test {
     use hyperlane_test::test_utils;
 
     use crate::contract_sync::mailbox::MOCK_CURSOR;
-    use crate::contract_sync::schema::OutboxContractSyncDB;
+    use crate::contract_sync::schema::MailboxContractSyncDB;
     use crate::contract_sync::IndexSettings;
     use crate::ContractSync;
     use crate::{ContractSyncMetrics, CoreMetrics};
