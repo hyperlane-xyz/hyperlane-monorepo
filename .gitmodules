@@ -1,7 +1,8 @@
 [submodule "solidity/lib/create3-factory"]
 	path = solidity/lib/create3-factory
 	url = https://github.com/lifinance/create3-factory
+	branch = main
 [submodule "solidity/lib/forge-std"]
 	path = solidity/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
-	branch = v1.1.1
+	tag = v1.1.1
