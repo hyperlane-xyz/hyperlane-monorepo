@@ -151,20 +151,26 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
      * @dev Reverts if there is no enrolled router for _destinationDomain.
      * @param _destinationDomain The domain of the chain to which to send the message.
      * @param _messageBody Raw bytes content of message.
+     * @param _gasAmount The amount of destination gas for the message that is requested via the InterchainGasPaymaster.
      * @param _gasPayment The amount of native tokens to pay for the message to be relayed.
+     * @param _gasPaymentRefundAddress The address to refund any gas overpayment to.
      */
     function _dispatchWithGas(
         uint32 _destinationDomain,
         bytes memory _messageBody,
-        uint256 _gasPayment
+        uint256 _gasAmount,
+        uint256 _gasPayment,
+        address _gasPaymentRefundAddress
     ) internal {
         bytes32 _messageId = _dispatch(_destinationDomain, _messageBody);
-        if (_gasPayment > 0) {
-            interchainGasPaymaster.payGasFor{value: _gasPayment}(
-                _messageId,
-                _destinationDomain
-            );
-        }
+        // Call the IGP even if the gas payment is zero. This is to support on-chain
+        // fee quoting in IGPs, which should always revert if gas payment is insufficient.
+        interchainGasPaymaster.payForGas{value: _gasPayment}(
+            _messageId,
+            _destinationDomain,
+            _gasAmount,
+            _gasPaymentRefundAddress
+        );
     }
 
     /**

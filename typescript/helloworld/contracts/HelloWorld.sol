@@ -21,6 +21,10 @@ contract HelloWorld is Router {
     // by this contract from the domain.
     mapping(uint32 => uint256) public receivedFrom;
 
+    // Keyed by domain, a generous upper bound on the amount of gas to use in the
+    // handle function when a message is processed. Used for paying for gas.
+    mapping(uint32 => uint256) public handleGasAmounts;
+
     // ============ Events ============
     event SentHelloWorld(
         uint32 indexed origin,
@@ -32,6 +36,10 @@ contract HelloWorld is Router {
         uint32 indexed destination,
         bytes32 sender,
         string message
+    );
+    event HandleGasAmountSet(
+        uint32 indexed destination,
+        uint256 handleGasAmount
     );
 
     constructor(address _mailbox, address _interchainGasPaymaster) {
@@ -49,6 +57,7 @@ contract HelloWorld is Router {
      * @notice Sends a message to the _destinationDomain. Any msg.value is
      * used as interchain gas payment.
      * @param _destinationDomain The destination domain to send the message to.
+     * @param _message The message to send.
      */
     function sendHelloWorld(uint32 _destinationDomain, string calldata _message)
         external
@@ -56,12 +65,33 @@ contract HelloWorld is Router {
     {
         sent += 1;
         sentTo[_destinationDomain] += 1;
-        _dispatchWithGas(_destinationDomain, bytes(_message), msg.value);
+        _dispatchWithGas(
+            _destinationDomain,
+            bytes(_message),
+            handleGasAmounts[_destinationDomain],
+            msg.value,
+            msg.sender
+        );
         emit SentHelloWorld(
             mailbox.localDomain(),
             _destinationDomain,
             _message
         );
+    }
+
+    /**
+     * @notice Sets the amount of gas the recipient's handle function uses on
+     * the destination domain, which is used when paying for gas.
+     * @dev Reverts if called by a non-owner.
+     * @param _destinationDomain The destination domain,
+     * @param _handleGasAmount The handle gas amount.
+     */
+    function setHandleGasAmount(
+        uint32 _destinationDomain,
+        uint256 _handleGasAmount
+    ) external onlyOwner {
+        handleGasAmounts[_destinationDomain] = _handleGasAmount;
+        emit HandleGasAmountSet(_destinationDomain, _handleGasAmount);
     }
 
     // ============ Internal functions ============

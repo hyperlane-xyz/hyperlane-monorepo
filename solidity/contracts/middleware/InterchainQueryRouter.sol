@@ -32,16 +32,16 @@ contract InterchainQueryRouter is
     );
 
     function initialize(
-        address _owner,
         address _mailbox,
-        address _interchainGasPaymaster
+        address _interchainGasPaymaster,
+        address _interchainSecurityModule
     ) public initializer {
-        // Transfer ownership of the contract to deployer
-        _transferOwnership(_owner);
-        // Set the addresses for the Mailbox and IGP
-        // Alternatively, this could be done later in an initialize method
-        _setMailbox(_mailbox);
-        _setInterchainGasPaymaster(_interchainGasPaymaster);
+        // Transfer ownership of the contract to `msg.sender`
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
+            _interchainGasPaymaster,
+            _interchainSecurityModule
+        );
     }
 
     /**

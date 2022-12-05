@@ -17,9 +17,14 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
     /**
      * @notice Emitted when a payment is made for a message's gas costs.
      * @param messageId The ID of the message to pay for.
-     * @param amount The amount of native tokens paid.
+     * @param gasAmount The amount of destination gas paid for.
+     * @param payment The amount of native tokens paid.
      */
-    event GasPayment(bytes32 indexed messageId, uint256 amount);
+    event GasPayment(
+        bytes32 indexed messageId,
+        uint256 gasAmount,
+        uint256 payment
+    );
 
     // ============ Constructor ============
 
@@ -39,18 +44,22 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
      * to its destination chain.
      * @param _messageId The ID of the message to pay for.
      * @param _destinationDomain The domain of the message's destination chain.
+     * @param _gasAmount The amount of destination gas to pay for. Currently unused.
+     * @param _refundAddress The address to refund any overpayment to. Currently unused.
      */
-    function payGasFor(bytes32 _messageId, uint32 _destinationDomain)
-        external
-        payable
-        override
-    {
+    function payForGas(
+        bytes32 _messageId,
+        uint32 _destinationDomain,
+        uint256 _gasAmount,
+        address _refundAddress
+    ) external payable override {
         // Silence compiler warning. The NatSpec @param requires the parameter to be named.
-        // While not used at the moment, future versions of the paymaster may conditionally
-        // forward payments depending on the destination domain.
+        // While not used at the moment, future versions of the paymaster have behavior specific
+        // to the destination domain and refund overpayments to the _refundAddress.
         _destinationDomain;
+        _refundAddress;
 
-        emit GasPayment(_messageId, msg.value);
+        emit GasPayment(_messageId, _gasAmount, msg.value);
     }
 
     /**

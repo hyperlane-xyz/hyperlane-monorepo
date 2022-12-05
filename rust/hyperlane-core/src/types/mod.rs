@@ -22,7 +22,7 @@ pub struct InterchainGasPayment {
     /// The id of the message
     pub message_id: H256,
     /// The payment amount, in origin chain native token wei
-    pub amount: U256,
+    pub payment: U256,
 }
 
 /// Uniquely identifying metadata for an InterchainGasPayment

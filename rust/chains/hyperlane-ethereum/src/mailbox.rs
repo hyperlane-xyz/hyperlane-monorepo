@@ -126,7 +126,7 @@ where
     async fn fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>> {
         Ok(self
             .contract
-            .process_filter()
+            .process_id_filter()
             .from_block(from)
             .to_block(to)
             .query_with_meta()

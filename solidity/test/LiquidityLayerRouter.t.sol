@@ -53,16 +53,15 @@ contract LiquidityLayerRouterTest is Test {
             destinationDomain
         );
 
-        // TODO: set IGP?
         originLiquidityLayerRouter.initialize(
-            address(this),
-            address(testEnvironment.connectionManager(originDomain)),
-            address(0)
+            address(testEnvironment.mailboxes(originDomain)),
+            address(testEnvironment.igps(originDomain)),
+            address(testEnvironment.isms(originDomain))
         );
         destinationLiquidityLayerRouter.initialize(
-            address(this),
-            address(testEnvironment.connectionManager(destinationDomain)),
-            address(0)
+            address(testEnvironment.mailboxes(destinationDomain)),
+            address(testEnvironment.igps(destinationDomain)),
+            address(testEnvironment.isms(destinationDomain))
         );
 
         originLiquidityLayerRouter.enrollRemoteRouter(

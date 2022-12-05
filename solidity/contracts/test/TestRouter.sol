@@ -38,10 +38,18 @@ contract TestRouter is Router {
     }
 
     function dispatchWithGas(
-        uint32 _destination,
-        bytes memory _msg,
-        uint256 _gasPayment
+        uint32 _destinationDomain,
+        bytes memory _messageBody,
+        uint256 _gasAmount,
+        uint256 _gasPayment,
+        address _gasPaymentRefundAddress
     ) external payable {
-        _dispatchWithGas(_destination, _msg, _gasPayment);
+        _dispatchWithGas(
+            _destinationDomain,
+            _messageBody,
+            _gasAmount,
+            _gasPayment,
+            _gasPaymentRefundAddress
+        );
     }
 }
