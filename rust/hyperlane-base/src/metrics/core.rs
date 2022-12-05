@@ -293,7 +293,7 @@ impl CoreMetrics {
     ///   the nonces are contiguous by origin not remote.
     ///
     /// The following phases are implemented:
-    /// - `dispatch`: Highest nonce which has been indexed on the outbox
+    /// - `dispatch`: Highest nonce which has been indexed on the mailbox
     ///   contract syncer and stored in the relayer DB.
     /// - `signed_offchain_checkpoint`: Highest nonce of a checkpoint which is
     ///   known to have been signed by a quorum of validators.
@@ -317,7 +317,7 @@ impl CoreMetrics {
     ///
     /// Phase:
     /// - `validator_observed`: When the validator has observed the checkpoint
-    ///   on the outbox contract.
+    ///   on the mailbox contract.
     /// - `validator_processed`: When the validator has written this checkpoint.
     pub fn latest_checkpoint(&self) -> IntGaugeVec {
         self.latest_checkpoint.clone()

@@ -118,7 +118,7 @@ impl MessageProcessor {
             return Ok(());
         };
 
-        // Skip if for different inbox.
+        // Skip if for different mailbox.
         if message.destination != self.destination_mailbox.domain() {
             debug!(
                 id=?message.id(),

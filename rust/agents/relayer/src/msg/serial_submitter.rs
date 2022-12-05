@@ -165,7 +165,7 @@ impl SerialSubmitter {
     }
 
     /// Tick represents a single round of scheduling wherein we will process each queue and
-    /// await at most one message submission.  It is extracted from the main loop to allow for
+    /// await at most one message submission. It is extracted from the main loop to allow for
     /// testing the state of the scheduler at particular points without having to worry about
     /// concurrent access.
     async fn tick(&mut self) -> Result<()> {
@@ -185,7 +185,7 @@ impl SerialSubmitter {
         }
 
         // TODO(webbhorn): Scan verification queue, dropping messages that have been confirmed
-        // processed by the inbox indexer observing it.  For any still-unverified messages that
+        // processed by the mailbox indexer observing it. For any still-unverified messages that
         // have been in the verification queue for > threshold_time, move them back to the wait
         // queue for further processing.
 
@@ -237,16 +237,16 @@ impl SerialSubmitter {
     }
 
     /// Returns the message's status. If the message is processed, either by a transaction
-    /// in this fn or by a view call to the Inbox contract discovering the message has already
+    /// in this fn or by a view call to the Mailbox contract discovering the message has already
     /// been processed, Ok(MessageStatus::Processed) is returned. If this message is unable to
     /// be processed, either due to failed gas estimation or an insufficient gas payment,
     /// Ok(MessageStatus::None) is returned.
     #[instrument(skip(self, msg), fields(msg_nonce=msg.message.nonce))]
     async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<bool> {
         // If the message has already been processed according to message_status call on
-        // inbox, e.g. due to another relayer having already processed, then mark it as
+        // mailbox, e.g. due to another relayer having already processed, then mark it as
         // already-processed, and move on to the next tick.
-        // TODO(webbhorn): Make this robust to re-orgs on inbox.
+        // TODO(webbhorn): Make this robust to re-orgs on mailbox.
         if self.mailbox.delivered(msg.message.id()).await? {
             info!("Message already processed");
             return Ok(true);
@@ -297,7 +297,7 @@ impl SerialSubmitter {
             .await;
         match process_result {
             // TODO(trevor): Instead of immediately marking as processed, move to a verification
-            // queue, which will wait for finality and indexing by the inbox indexer and then mark
+            // queue, which will wait for finality and indexing by the mailbox indexer and then mark
             // as processed (or eventually retry if no confirmation is ever seen).
 
             // Only mark the message as processed if the transaction didn't revert.

@@ -3,7 +3,7 @@
 //! way to retrieve data such as the chain's latest block number or a list of
 //! checkpoints/messages emitted within a certain block range by calling out to
 //! a chain-specific library and provider (e.g. ethers::provider). A
-//! chain-specific mailbox or inbox should implement one or both of the Indexer
+//! chain-specific mailbox should implement one or both of the Indexer
 //! traits (CommonIndexer or MailboxIndexer) to provide an common interface
 //! which other entities can retrieve this chain-specific info.
 
