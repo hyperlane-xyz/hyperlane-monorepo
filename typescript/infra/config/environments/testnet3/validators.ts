@@ -272,3 +272,5 @@ export const validators: ChainValidatorSets<TestnetChains> = {
     ],
   },
 };
+
+// used for validators.json: console.log(JSON.stringify(validators));
