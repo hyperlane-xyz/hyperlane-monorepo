@@ -48,7 +48,6 @@ pub struct CoreMetrics {
 
     messages_processed_count: IntCounterVec,
 
-    outbox_state: IntGaugeVec,
     latest_checkpoint: IntGaugeVec,
 
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
@@ -146,16 +145,6 @@ impl CoreMetrics {
             registry
         )?;
 
-        let outbox_state = register_int_gauge_vec_with_registry!(
-            opts!(
-                namespaced!("outbox_state"),
-                "Outbox contract state value",
-                const_labels_ref
-            ),
-            &["chain"],
-            registry
-        )?;
-
         let latest_checkpoint = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("latest_checkpoint"),
@@ -192,7 +181,6 @@ impl CoreMetrics {
 
             messages_processed_count,
 
-            outbox_state,
             latest_checkpoint,
 
             json_rpc_client_metrics: OnceCell::new(),
@@ -323,16 +311,6 @@ impl CoreMetrics {
     /// - `validator`: Address of the validator
     pub fn validator_checkpoint_index(&self) -> IntGaugeVec {
         self.validator_checkpoint_index.clone()
-    }
-
-    /// Gauge for reporting the current outbox state. This is either 0 (for
-    /// UnInitialized), 1 (for Active), or 2 (for Failed). These are from the
-    /// outbox contract States enum.
-    ///
-    /// Labels:
-    /// - `chain`: The chain the outbox is for.
-    pub fn outbox_state(&self) -> IntGaugeVec {
-        self.outbox_state.clone()
     }
 
     /// Latest message nonce in the validator.
