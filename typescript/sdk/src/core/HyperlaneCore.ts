@@ -120,7 +120,7 @@ export class HyperlaneCore<
   ): Promise<ethers.ContractReceipt> {
     const id = utils.messageId(message.message);
     const { mailbox, chainConnection } = this.getDestination(message);
-    const filter = mailbox.filters.Process(id);
+    const filter = mailbox.filters.ProcessId(id);
 
     return new Promise<ethers.ContractReceipt>((resolve, reject) => {
       mailbox.once(filter, (emittedId, event) => {

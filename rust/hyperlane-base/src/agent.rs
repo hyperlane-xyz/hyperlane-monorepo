@@ -11,7 +11,6 @@ use tracing::{info_span, Instrument};
 
 use hyperlane_core::db::DB;
 
-use crate::AgentSettings;
 use crate::{
     cancel_task, metrics::CoreMetrics, settings::Settings, CachingInterchainGasPaymaster,
     CachingMailbox,
@@ -35,7 +34,7 @@ pub struct HyperlaneAgentCore {
 }
 
 /// Settings of an agent.
-pub trait NewFromAgentSettings: AsRef<AgentSettings> + Sized {
+pub trait NewFromSettings: AsRef<Settings> + Sized {
     /// The error type returned by new on failures to parse.
     type Error: Into<Report>;
 
@@ -52,7 +51,7 @@ pub trait BaseAgent: Send + Sync + Debug {
     const AGENT_NAME: &'static str;
 
     /// The settings object for this agent
-    type Settings: NewFromAgentSettings;
+    type Settings: NewFromSettings;
 
     /// Instantiate the agent from the standard settings object
     async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
@@ -115,7 +114,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     color_eyre::install()?;
 
     let settings = A::Settings::new().map_err(|e| e.into())?;
-    let core_settings: &AgentSettings = settings.as_ref();
+    let core_settings: &Settings = settings.as_ref();
 
     let metrics = settings.as_ref().try_into_metrics(A::AGENT_NAME)?;
     core_settings.tracing.start_tracing(&metrics)?;

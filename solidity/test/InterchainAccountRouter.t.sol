@@ -2,17 +2,16 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../contracts/mock/MockOutbox.sol";
-import "../contracts/mock/MockInbox.sol";
-import "../contracts/AbacusConnectionManager.sol";
+import "../contracts/mock/MockMailbox.sol";
+import "../contracts/HyperlaneConnectionClient.sol";
+import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import "../contracts/test/TestRecipient.sol";
 import "../contracts/middleware/InterchainAccountRouter.sol";
 import {OwnableMulticall, Call} from "../contracts/OwnableMulticall.sol";
 
 contract InterchainAccountRouterTest is Test {
-    MockOutbox outbox;
-    MockInbox inbox;
+    MockHyperlaneEnvironment environment;
 
     uint32 originDomain = 1;
     uint32 remoteDomain = 2;
@@ -20,20 +19,10 @@ contract InterchainAccountRouterTest is Test {
     InterchainAccountRouter originRouter;
     InterchainAccountRouter remoteRouter;
 
-    AbacusConnectionManager originManager;
-    AbacusConnectionManager remoteManager;
-
     TestRecipient recipient;
 
     function setUp() public {
-        inbox = new MockInbox();
-        outbox = new MockOutbox(originDomain, address(inbox));
-
-        originManager = new AbacusConnectionManager();
-        remoteManager = new AbacusConnectionManager();
-
-        originManager.setOutbox(address(outbox));
-        remoteManager.enrollInbox(remoteDomain, address(inbox));
+        environment = new MockHyperlaneEnvironment(originDomain, remoteDomain);
 
         recipient = new TestRecipient();
 
@@ -41,14 +30,14 @@ contract InterchainAccountRouterTest is Test {
         remoteRouter = new InterchainAccountRouter();
 
         originRouter.initialize(
-            address(this),
-            address(originManager),
-            address(0)
+            address(environment.mailboxes(originDomain)),
+            address(environment.igps(originDomain)),
+            address(environment.isms(originDomain))
         );
         remoteRouter.initialize(
-            address(this),
-            address(remoteManager),
-            address(0)
+            address(environment.mailboxes(remoteDomain)),
+            address(environment.igps(remoteDomain)),
+            address(environment.isms(remoteDomain))
         );
 
         originRouter.enrollRemoteRouter(
@@ -68,7 +57,7 @@ contract InterchainAccountRouterTest is Test {
             data: abi.encodeCall(recipient.fooBar, (1, "Test"))
         });
         originRouter.dispatch(remoteDomain, calls);
-        inbox.processNextPendingMessage();
+        environment.processNextPendingMessage();
         assertEq(recipient.lastCallMessage(), "Test");
     }
 }

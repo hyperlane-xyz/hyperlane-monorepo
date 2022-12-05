@@ -176,7 +176,8 @@ export async function assertCorrectKubeContext<Chain extends ChainName>(
     !currentKubeContext.endsWith(`${coreConfig.infra.kubernetes.clusterName}`)
   ) {
     console.error(
-      `Cowardly refusing to deploy using k8s context ${currentKubeContext}; are you sure you have the right k8s context active?`,
+      `Cowardly refusing to deploy using current k8s context ${currentKubeContext}; are you sure you have the right k8s context active?`,
+      `Want clusterName ${coreConfig.infra.kubernetes.clusterName}`,
     );
     process.exit(1);
   }

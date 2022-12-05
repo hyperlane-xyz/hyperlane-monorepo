@@ -3,6 +3,8 @@ pragma solidity ^0.8.13;
 
 import "./MockMailbox.sol";
 import "../middleware/InterchainQueryRouter.sol";
+import "../InterchainGasPaymaster.sol";
+import "../test/TestIsm.sol";
 
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
@@ -11,6 +13,8 @@ contract MockHyperlaneEnvironment {
     uint32 destinationDomain;
 
     mapping(uint32 => MockMailbox) public mailboxes;
+    mapping(uint32 => InterchainGasPaymaster) public igps;
+    mapping(uint32 => IInterchainSecurityModule) public isms;
     mapping(uint32 => InterchainQueryRouter) public queryRouters;
 
     constructor(uint32 _originDomain, uint32 _destinationDomain) {
@@ -20,6 +24,15 @@ contract MockHyperlaneEnvironment {
         MockMailbox originMailbox = new MockMailbox(_originDomain);
         MockMailbox destinationMailbox = new MockMailbox(_destinationDomain);
 
+        originMailbox.addRemoteMailbox(_destinationDomain, destinationMailbox);
+        destinationMailbox.addRemoteMailbox(_originDomain, originMailbox);
+
+        igps[originDomain] = new InterchainGasPaymaster();
+        igps[destinationDomain] = new InterchainGasPaymaster();
+
+        isms[originDomain] = new TestIsm();
+        isms[destinationDomain] = new TestIsm();
+
         mailboxes[_originDomain] = originMailbox;
         mailboxes[_destinationDomain] = destinationMailbox;
 
@@ -27,14 +40,14 @@ contract MockHyperlaneEnvironment {
         InterchainQueryRouter destinationQueryRouter = new InterchainQueryRouter();
 
         originQueryRouter.initialize(
-            address(this),
             address(originMailbox),
-            address(0)
+            address(igps[originDomain]),
+            address(isms[originDomain])
         );
         destinationQueryRouter.initialize(
-            address(this),
             address(destinationMailbox),
-            address(0)
+            address(igps[destinationDomain]),
+            address(isms[destinationDomain])
         );
 
         originQueryRouter.enrollRemoteRouter(

@@ -134,6 +134,7 @@ type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
 // Full relayer agent config for a single chain
 interface RelayerConfig
   extends Omit<BaseRelayerConfig, 'whitelist' | 'blacklist'> {
+  originChainName: ChainName;
   multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
   whitelist?: string;
   blacklist?: string;
@@ -159,6 +160,7 @@ type ChainValidatorConfigs<Chain extends ChainName> = ChainOverridableConfig<
 
 // Full validator agent config for a single chain
 interface ValidatorConfig extends BaseValidatorConfig {
+  originChainName: ChainName;
   checkpointSyncer: CheckpointSyncerConfig;
   validator: KeyConfig;
 }
@@ -347,6 +349,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
           return {
             ...baseConfig,
             checkpointSyncer: val.checkpointSyncer,
+            originChainName: this.chainName,
             validator,
           };
         }),
@@ -432,6 +435,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
     );
 
     const relayerConfig: RelayerConfig = {
+      originChainName: this.chainName,
       signedCheckpointPollingInterval:
         baseConfig.signedCheckpointPollingInterval,
       multisigCheckpointSyncer: {
