@@ -10,6 +10,7 @@ import {
 import type { types } from '@hyperlane-xyz/utils';
 
 import {
+  HyperlaneContract,
   HyperlaneContracts,
   HyperlaneFactories,
   connectContracts,
@@ -219,13 +220,15 @@ export abstract class HyperlaneDeployer<
     args: Parameters<Factories[K]['deploy']>,
     deployOpts?: DeployOptions,
   ): Promise<ReturnType<Factories[K]['deploy']>> {
-    return this.deployContractFromFactory(
+    const contract = await this.deployContractFromFactory(
       chain,
       this.factories[contractName],
       contractName.toString(),
       args,
       deployOpts,
     );
+    this.cacheContract(chain, contractName, contract);
+    return contract;
   }
 
   protected async deployProxy<C extends ethers.Contract>(
@@ -258,6 +261,18 @@ export abstract class HyperlaneDeployer<
         beacon: beaconAddress,
       },
     );
+  }
+
+  private cacheContract<K extends keyof Factories>(
+    chain: Chain,
+    contractName: K,
+    contract: HyperlaneContract,
+  ) {
+    if (!this.deployedContracts[chain]) {
+      this.deployedContracts[chain] = {};
+    }
+    // @ts-ignore
+    this.deployedContracts[chain][contractName] = contract;
   }
 
   /**
@@ -297,12 +312,14 @@ export abstract class HyperlaneDeployer<
       'UpgradeBeacon',
       beaconDeployArgs,
     );
-    return this.deployProxy(
+    const contract = await this.deployProxy(
       chain,
       implementation as C,
       beacon.address,
       initArgs,
     );
+    this.cacheContract(chain, contractName, contract);
+    return contract;
   }
 
   /**

@@ -1,5 +1,5 @@
 image:
-  repository: gcr.io/clabs-hyperlane/hyperlane-agent
+  repository: gcr.io/abacus-labs-dev/hyperlane-agent
   pullPolicy: Always
   tag: 'latest'
 
@@ -43,7 +43,7 @@ hyperlane:
   metrics:
     port: 9090
 
-  inboxChains:
+  chains:
 
   scraper:
     enabled: true

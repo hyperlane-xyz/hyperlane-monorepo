@@ -1,5 +1,5 @@
 image:
-  repository: gcr.io/clabs-hyperlane/hyperlane-agent
+  repository: gcr.io/abacus-labs-dev/hyperlane-agent
   pullPolicy: Always
   tag: 'latest'
 
@@ -44,31 +44,21 @@ hyperlane:
     uri: ''
   metrics:
     port: 9090
-  outboxChain:
-    name: 'kovan'
-    # -- The contract address for the home contract
-    address:
-    # -- The hard-coded domain corresponding to this blockchain
-    domain:
-    # -- RPC Style
-    rpcStyle: # "ethereum"
-    connection:
-      type: # "http"
-    # -- Connection string pointing to an RPC endpoint for the home chain
   aws: # true | false
   gelatoApiKeyRequired: # true | false
 
-  # -- Replica chain overrides, a sequence
-  inboxChains:
+  # -- Chain overrides, a sequence
+  chains:
     - name: 'alfajores'
       disabled: false
-      # -- The contract address for the replica contract
-      address:
+      addresses:
+        mailbox:
+        multisigIsm:
+        interchainGasPaymaster:
       domain:
       rpcStyle: # "ethereum"
       connection:
         type: # "http"
-      # -- Connection string pointing to an RPC endpoint for the replica chain
 
   # Hyperlane Agent Roles
   # Individually Switchable via <role>.enabled
@@ -94,6 +84,7 @@ hyperlane:
       - interval:
         reorgPeriod:
         checkpointSyncers:
+        originChainName:
 
   relayer:
     enabled: false
@@ -116,6 +107,7 @@ hyperlane:
       - name: 'alfajores'
         # aws:
     config:
+      originChainName:
       signedCheckpointPollingInterval:
       multisigCheckpointSyncer:
         threshold:
