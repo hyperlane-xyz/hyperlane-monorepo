@@ -161,8 +161,8 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         uint256 _gasAmount,
         uint256 _gasPayment,
         address _gasPaymentRefundAddress
-    ) internal {
-        bytes32 _messageId = _dispatch(_destinationDomain, _messageBody);
+    ) internal returns (bytes32 _messageId) {
+        _messageId = _dispatch(_destinationDomain, _messageBody);
         // Call the IGP even if the gas payment is zero. This is to support on-chain
         // fee quoting in IGPs, which should always revert if gas payment is insufficient.
         interchainGasPaymaster.payForGas{value: _gasPayment}(

@@ -3,17 +3,17 @@ pragma solidity ^0.8.13;
 
 import {Router} from "../../Router.sol";
 
-import {IMessageRecipient} from "../../../interfaces/IMessageRecipient.sol";
+import {ILiquidityLayerRouter} from "../../../interfaces/ILiquidityLayerRouter.sol";
 import {ICircleBridge} from "./interfaces/circle/ICircleBridge.sol";
 import {ICircleMessageTransmitter} from "./interfaces/circle/ICircleMessageTransmitter.sol";
 import {ILiquidityLayerAdapter} from "./interfaces/ILiquidityLayerAdapter.sol";
-import {ILiquidityLayerMessageRecipient} from "./interfaces/ILiquidityLayerMessageRecipient.sol";
+import {ILiquidityLayerMessageRecipient} from "../../../interfaces/ILiquidityLayerMessageRecipient.sol";
 
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract LiquidityLayerRouter is Router {
+contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
     // Token bridge => adapter address
     mapping(string => address) public liquidityLayerAdapters;
 
@@ -39,7 +39,7 @@ contract LiquidityLayerRouter is Router {
         address _token,
         uint256 _amount,
         string calldata _bridge
-    ) external payable {
+    ) external payable returns (bytes32) {
         ILiquidityLayerAdapter _adapter = _getAdapter(_bridge);
 
         // Transfer the tokens to the adapter
@@ -71,13 +71,14 @@ contract LiquidityLayerRouter is Router {
         );
 
         // Dispatch the _messageWithMetadata to the destination's LiquidityLayerRouter.
-        _dispatchWithGas(
-            _destinationDomain,
-            _messageWithMetadata,
-            0, // TODO eventually accommodate gas amounts
-            msg.value,
-            msg.sender
-        );
+        return
+            _dispatchWithGas(
+                _destinationDomain,
+                _messageWithMetadata,
+                0, // TODO eventually accommodate gas amounts
+                msg.value,
+                msg.sender
+            );
     }
 
     // Handles a message from an enrolled remote LiquidityLayerRouter
