@@ -9,16 +9,16 @@ import {TypeCasts} from "./libs/TypeCasts.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
+import {PausableReentrancyGuardUpgradeable} from "./PausableReentrancyGuard.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 contract Mailbox is
     IMailbox,
     OwnableUpgradeable,
-    ReentrancyGuardUpgradeable,
+    PausableReentrancyGuardUpgradeable,
     Versioned
 {
     // ============ Libraries ============
@@ -95,6 +95,16 @@ contract Mailbox is
         address indexed recipient
     );
 
+    /**
+     * @notice Emitted when Mailbox is paused
+     */
+    event Paused();
+
+    /**
+     * @notice Emitted when Mailbox is unpaused
+     */
+    event Unpaused();
+
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
@@ -105,7 +115,7 @@ contract Mailbox is
     // ============ Initializer ============
 
     function initialize(address _defaultIsm) external initializer {
-        __ReentrancyGuard_init();
+        __PausableReentrancyGuard_init();
         __Ownable_init();
         _setDefaultIsm(_defaultIsm);
     }
@@ -131,7 +141,7 @@ contract Mailbox is
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes calldata _messageBody
-    ) external override returns (bytes32) {
+    ) external override notPaused returns (bytes32) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
         // Format the message into packed bytes.
         bytes memory _message = Message.formatMessage(
@@ -166,7 +176,7 @@ contract Mailbox is
     function process(bytes calldata _metadata, bytes calldata _message)
         external
         override
-        nonReentrant
+        nonReentrantAndNotPaused
     {
         // Check that the message was intended for this mailbox.
         require(_message.version() == VERSION, "!version");
@@ -216,6 +226,31 @@ contract Mailbox is
      */
     function latestCheckpoint() public view returns (bytes32, uint32) {
         return (root(), count() - 1);
+    }
+
+    /**
+     * @notice Pauses mailbox and prevents further dispatch/process calls
+     * @dev Only `owner` can pause the mailbox.
+     */
+    function pause() external onlyOwner {
+        _pause();
+        emit Paused();
+    }
+
+    /**
+     * @notice Unpauses mailbox and allows for message processing.
+     * @dev Only `owner` can unpause the mailbox.
+     */
+    function unpause() external onlyOwner {
+        _unpause();
+        emit Unpaused();
+    }
+
+    /**
+     * @notice Returns whether mailbox is paused.
+     */
+    function isPaused() external view returns (bool) {
+        return _isPaused();
     }
 
     // ============ Internal Functions ============
