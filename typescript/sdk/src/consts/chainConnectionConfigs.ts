@@ -141,17 +141,17 @@ export const moonbasealpha: IChainConnection = {
     1287,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://moonbase.moonscan.io/',
+  blockExplorerUrl: 'https://moonbase.moonscan.io',
   apiPrefix: 'api-',
 };
 
 export const moonbeam: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
-    'https://rpc.api.moonbeam.network	',
+    'https://rpc.api.moonbeam.network',
     1284,
   ),
   confirmations: 1,
-  blockExplorerUrl: 'https://moonscan.io/',
+  blockExplorerUrl: 'https://moonscan.io',
   apiPrefix: 'api-moonbeam.',
 };
 

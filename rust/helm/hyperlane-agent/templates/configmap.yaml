@@ -11,11 +11,8 @@ data:
   HYP_BASE_DB: {{ .Values.hyperlane.dbPath }}
   HYP_BASE_TRACING_FMT: {{ .Values.hyperlane.tracing.format }}
   HYP_BASE_TRACING_LEVEL: {{ .Values.hyperlane.tracing.level }}
-  {{- if .Values.hyperlane.outboxChain.connection.type }}
-  HYP_BASE_OUTBOX_CONNECTION_TYPE: {{ .Values.hyperlane.outboxChain.connection.type }}
-  {{- end }}
-  {{- range .Values.hyperlane.inboxChains }}
-{{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "INBOXES_%s_" (.name | upper)) "format" "config_map") | indent 2 }}
+  {{- range .Values.hyperlane.chains }}
+{{- include "agent-common.config-env-vars" (dict "config" . "agent_name" "base" "key_name_prefix" (printf "CHAINS_%s_" (.name | upper)) "format" "config_map") | indent 2 }}
   {{- end }}
   {{- if .Values.hyperlane.tracing.uri }}
   HYP_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.hyperlane.tracing.uri }}

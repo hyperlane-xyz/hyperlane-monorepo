@@ -63,25 +63,19 @@ async function helmValuesForChain<Chain extends ChainName>(
     hyperlane: {
       runEnv: agentConfig.runEnv,
       context: agentConfig.context,
-      baseConfig: `${chainName}_config.json`,
-      outboxChain: {
-        name: chainName,
-        connection: baseConnectionConfig,
-      },
+      baseConfig: `${agentConfig.runEnv}_config.json`,
       aws: !!agentConfig.aws,
       gelatoApiKeyRequired,
-      inboxChains: agentConfig.environmentChainNames
-        .filter((name) => name !== chainName)
-        .map((remoteChainName) => {
-          return {
-            name: remoteChainName,
-            disabled: !agentConfig.contextChainNames.includes(remoteChainName),
-            txsubmission: {
-              type: chainAgentConfig.transactionSubmissionType(remoteChainName),
-            },
-            connection: baseConnectionConfig,
-          };
-        }),
+      chains: agentConfig.environmentChainNames.map((envChainName) => {
+        return {
+          name: envChainName,
+          disabled: !agentConfig.contextChainNames.includes(envChainName),
+          txsubmission: {
+            type: chainAgentConfig.transactionSubmissionType(envChainName),
+          },
+          connection: baseConnectionConfig,
+        };
+      }),
       validator: {
         enabled: chainAgentConfig.validatorEnabled,
         configs: await chainAgentConfig.validatorConfigs(),
@@ -110,13 +104,10 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   const valueDict = await helmValuesForChain(outboxChainName, agentConfig);
   let envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig);
-  envVars.push(
-    `HYP_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`,
-  );
-  valueDict.hyperlane.inboxChains.forEach((inboxChain: any) => {
+  valueDict.hyperlane.chains.forEach((chain: any) => {
     envVars.push(
-      `HYP_BASE_INBOXES_${inboxChain.name.toUpperCase()}_CONNECTION_URL=${
-        rpcEndpoints[inboxChain.name]
+      `HYP_BASE_CHAINS_${chain.name.toUpperCase()}_CONNECTION_URL=${
+        rpcEndpoints[chain.name]
       }`,
     );
   });
