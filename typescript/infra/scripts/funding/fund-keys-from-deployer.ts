@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
@@ -6,6 +6,7 @@ import {
   AllChains,
   ChainConnection,
   ChainName,
+  ChainNameToDomainId,
   CompleteChainMap,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
@@ -33,6 +34,9 @@ import {
   getArgs,
   getCoreEnvironmentConfig,
 } from '../utils';
+
+// Missing types declaration for bufio
+const CrossChainMessenger = require('@eth-optimism/sdk').CrossChainMessenger;
 
 const constMetricLabels = {
   // this needs to get set in main because of async reasons
@@ -338,7 +342,7 @@ class ContextFunder {
       await this.fundKeyIfRequired(chainConnection, chain, key, desiredBalance);
     } catch (err) {
       error('Error funding key', {
-        key: getKeyInfo(key),
+        key: await getKeyInfo(key, chain, chainConnection),
         context: this.context,
         error: err,
       });
@@ -349,6 +353,20 @@ class ContextFunder {
     return failureOccurred;
   }
 
+  private async getFundingAmount(
+    chainConnection: ChainConnection,
+    chain: ChainName,
+    address: string,
+    desiredBalance: BigNumber,
+  ): Promise<BigNumber> {
+    const currentBalance = await chainConnection.provider.getBalance(address);
+    const delta = desiredBalance.sub(currentBalance);
+    const minDelta = desiredBalance
+      .mul(MIN_DELTA_NUMERATOR)
+      .div(MIN_DELTA_DENOMINATOR);
+    return delta.gt(minDelta) ? delta : BigNumber.from(0);
+  }
+
   // Tops up the key's balance to the desired balance if the current balance
   // is lower than the desired balance by the min delta
   private async fundKeyIfRequired(
@@ -357,64 +375,101 @@ class ContextFunder {
     key: BaseCloudAgentKey,
     desiredBalance: string,
   ) {
-    const currentBalance = await chainConnection.provider.getBalance(
-      key.address,
-    );
     const desiredBalanceEther = ethers.utils.parseUnits(
       desiredBalance,
       'ether',
     );
-    const delta = desiredBalanceEther.sub(currentBalance);
+    const fundingAmount = await this.getFundingAmount(
+      chainConnection,
+      chain,
+      key.address,
+      desiredBalanceEther,
+    );
+    const keyInfo = await getKeyInfo(key, chain, chainConnection);
+    const funderAddress = await chainConnection.getAddress()!;
 
-    const minDelta = desiredBalanceEther
-      .mul(MIN_DELTA_NUMERATOR)
-      .div(MIN_DELTA_DENOMINATOR);
+    if (fundingAmount.eq(0)) {
+      log('Skipping funding for key', {
+        key: keyInfo,
+        context: this.context,
+        chain,
+      });
+      return;
+    } else {
+      log('Funding key', {
+        chain,
+        amount: ethers.utils.formatEther(fundingAmount),
+        key: keyInfo,
+        funder: {
+          address: funderAddress,
+          balance: ethers.utils.formatEther(
+            await chainConnection.signer!.getBalance(),
+          ),
+        },
+        context: this.context,
+      });
+    }
 
-    const keyInfo = getKeyInfo(key);
+    // Optionally bridge ETH to L2 before funding the desired key.
+    if (chain.includes('optimism') || chain.includes('arbitrum')) {
+      // By bridging the funder with 10x the desired balance we save
+      // on L1 gas.
+      const bridgeAmount = await this.getFundingAmount(
+        chainConnection,
+        chain,
+        funderAddress,
+        desiredBalanceEther.mul(10),
+      );
+      const testnet = chain.includes('goerli');
+      if (bridgeAmount.gt(0)) {
+        if (chain.includes('optimism')) {
+          await this.bridgeToOptimism(funderAddress, bridgeAmount, testnet);
+        }
+      }
+    }
 
-    log('Assessing key for funding', {
+    const tx = await chainConnection.signer!.sendTransaction({
+      to: key.address,
+      value: fundingAmount,
+      ...chainConnection.overrides,
+    });
+    log('Sent transaction', {
       key: keyInfo,
-      keyBalanceDelta: ethers.utils.formatEther(delta),
-      minKeyBalanceDelta: ethers.utils.formatEther(minDelta),
-      currentKeyBalance: ethers.utils.formatEther(currentBalance),
-      desiredKeyBalance: desiredBalance,
-      funder: {
-        address: await chainConnection.getAddress(),
-        balance: ethers.utils.formatEther(
-          await chainConnection.signer!.getBalance(),
-        ),
-      },
+      txUrl: chainConnection.getTxUrl(tx),
       context: this.context,
       chain,
     });
+    const receipt = await tx.wait(chainConnection.confirmations);
+    log('Got transaction receipt', {
+      key: keyInfo,
+      receipt,
+      context: this.context,
+      chain,
+    });
+  }
 
-    if (delta.gt(minDelta)) {
-      log('Sending funds...', {
-        key: keyInfo,
-        amount: ethers.utils.formatEther(delta),
-        context: this.context,
-        chain,
-      });
-
-      const tx = await chainConnection.signer!.sendTransaction({
-        to: key.address,
-        value: delta,
-        ...chainConnection.overrides,
-      });
-      log('Sent transaction', {
-        key: keyInfo,
-        txUrl: chainConnection.getTxUrl(tx),
-        context: this.context,
-        chain,
-      });
-      const receipt = await tx.wait(chainConnection.confirmations);
-      log('Got transaction receipt', {
-        key: keyInfo,
-        receipt,
-        context: this.context,
-        chain,
-      });
-    }
+  private async bridgeToOptimism(
+    to: string,
+    amount: BigNumber,
+    testnet = true,
+  ) {
+    const l1Chain: ChainName = testnet ? 'goerli' : 'ethereum';
+    const l1ChainConnection =
+      this.multiProvider.tryGetChainConnection(l1Chain)!;
+    const l2Chain: ChainName = testnet ? 'optimismgoerli' : 'optimism';
+    const l2ChainConnection =
+      this.multiProvider.tryGetChainConnection(l2Chain)!;
+    const crossChainMessenger = new CrossChainMessenger({
+      l1ChainId: ChainNameToDomainId[l1Chain],
+      l2ChainId: ChainNameToDomainId[l2Chain],
+      l1SignerOrProvider: l1ChainConnection.signer!,
+      l2SignerOrProvider: l2ChainConnection.provider,
+    });
+    const tx = crossChainMessenger.depositETH(amount, {
+      recipient: to,
+      overrides: l1ChainConnection.overrides,
+    });
+    await l1ChainConnection.handleTx(tx);
   }
 
   private async updateWalletBalanceGauge(
@@ -443,8 +498,14 @@ class ContextFunder {
   }
 }
 
-function getKeyInfo(key: BaseCloudAgentKey) {
+async function getKeyInfo(
+  key: BaseCloudAgentKey,
+  chain: ChainName,
+  chainConnection: ChainConnection,
+) {
   return {
+    chain,
+    balance: await chainConnection.provider.getBalance(key.address),
     context: key.context,
     address: key.address,
     originChain: key.chainName,
