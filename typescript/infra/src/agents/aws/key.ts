@@ -231,6 +231,8 @@ export class AgentAwsKey extends CloudAgentKey {
     if (!keyId) {
       throw Error('Key ID not defined');
     }
+    // @ts-ignore provider.getFeeData type mismatch due to
+    // aws-kms-ethers-signer using ethers 5.6 and this package using ethers 5.7
     return new KmsEthersSigner(
       {
         keyId,
