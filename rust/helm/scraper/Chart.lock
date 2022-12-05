@@ -1,6 +1,0 @@
-dependencies:
-- name: agent-common
-  repository: file://../agent-common
-  version: 0.1.0
-digest: sha256:9077bf1e5fe081300f9d30a01fa5b196a61ec4f2f802b7b8f67dffc84d425dc0
-generated: "2022-10-07T15:37:35.347695-04:00"
