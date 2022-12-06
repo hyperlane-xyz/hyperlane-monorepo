@@ -87,6 +87,8 @@ export abstract class HyperlaneDeployer<
 
     this.logger(`Start deploy to ${targetChains}`);
     for (const chain of targetChains) {
+      // Temporarily skip moonbase alpha
+      if (chain === 'moonbasealpha') continue;
       const chainConnection = this.multiProvider.getChainConnection(chain);
       const signerUrl = await chainConnection.getAddressUrl();
       this.logger(`Deploying to ${chain} from ${signerUrl} ...`);
