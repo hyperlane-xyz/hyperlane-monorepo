@@ -29,7 +29,6 @@ export class HyperlaneCoreChecker<
     await this.checkProxiedContracts(chain);
     await this.checkMailbox(chain);
     await this.checkMultisigIsm(chain);
-    await this.checkInterchainGasPaymaster(chain);
   }
 
   async checkDomainOwnership(chain: Chain): Promise<void> {
@@ -37,7 +36,7 @@ export class HyperlaneCoreChecker<
     if (config.owner) {
       const contracts = this.app.getContracts(chain);
       const ownables = [
-        contracts.upgradeBeaconController,
+        contracts.proxyAdmin,
         contracts.mailbox.contract,
         contracts.multisigIsm,
       ];
@@ -68,19 +67,17 @@ export class HyperlaneCoreChecker<
 
   async checkProxiedContracts(chain: Chain): Promise<void> {
     const contracts = this.app.getContracts(chain);
-    await this.checkUpgradeBeacon(
+    await this.checkProxiedContract(
       chain,
       'Mailbox',
       contracts.mailbox.addresses,
+      contracts.proxyAdmin.address,
     );
-  }
-
-  async checkInterchainGasPaymaster(chain: Chain): Promise<void> {
-    const contracts = this.app.getContracts(chain);
-    await this.checkUpgradeBeacon(
+    await this.checkProxiedContract(
       chain,
       'InterchainGasPaymaster',
-      contracts.interchainGasPaymaster.addresses,
+      contracts.mailbox.addresses,
+      contracts.proxyAdmin.address,
     );
   }
 

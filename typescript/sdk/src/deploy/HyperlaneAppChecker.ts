@@ -4,10 +4,10 @@ import type { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
-import { BeaconProxyAddresses } from '../proxy';
+import { TransparentProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
 
-import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
+import { proxyAdmin, proxyImplementation, proxyViolation } from './proxy';
 import { CheckerViolation, OwnerViolation, ViolationType } from './types';
 
 export abstract class HyperlaneAppChecker<
@@ -54,20 +54,25 @@ export abstract class HyperlaneAppChecker<
     this.violations.push(violation);
   }
 
-  async checkUpgradeBeacon(
+  async checkProxiedContract(
     chain: Chain,
     name: string,
-    proxiedAddress: BeaconProxyAddresses,
+    proxiedAddress: TransparentProxyAddresses,
+    proxyAdminAddress?: types.Address,
   ): Promise<void> {
     const dc = this.multiProvider.getChainConnection(chain);
-    const implementation = await upgradeBeaconImplementation(
+    const implementation = await proxyImplementation(
       dc.provider,
-      proxiedAddress.beacon,
+      proxiedAddress.proxy,
     );
     if (implementation !== proxiedAddress.implementation) {
       this.addViolation(
-        upgradeBeaconViolation(chain, name, proxiedAddress, implementation),
+        proxyViolation(chain, name, proxiedAddress, implementation),
       );
+    }
+    if (proxyAdminAddress) {
+      const admin = await proxyAdmin(dc.provider, proxiedAddress.proxy);
+      utils.assert(admin === proxyAdminAddress, 'Proxy admin mismatch');
     }
   }
 

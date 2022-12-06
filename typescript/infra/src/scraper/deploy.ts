@@ -22,7 +22,7 @@ export async function runScraperHelmCommand<Chain extends ChainName>(
       ? ` | kubectl diff -n ${agentConfig.namespace} --field-manager="Go-http-client" -f - || true`
       : '';
 
-  const helmReleaseName = getScraperHelmReleaseName(agentConfig);
+  const helmReleaseName = getScraperHelmReleaseName();
 
   if (action === HelmCommand.InstallOrUpgrade) {
     // Delete secrets to avoid them being stale
@@ -100,8 +100,6 @@ async function scraperHelmValues<Chain extends ChainName>(
   return helmifyValues(valueDict);
 }
 
-function getScraperHelmReleaseName<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
-) {
+function getScraperHelmReleaseName() {
   return `scraper`;
 }
