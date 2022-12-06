@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use ethers::types::{H160, U256};
+use ethers::types::{H160};
 use eyre::Result;
 
 use crate::{
@@ -23,7 +23,7 @@ pub trait MultisigIsm: HyperlaneContract + Send + Sync + Debug {
     ) -> Result<Vec<u8>, ChainCommunicationError>;
 
     /// Fetch the threshold for the provided domain
-    async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError>;
+    async fn threshold(&self, domain: u32) -> Result<u8, ChainCommunicationError>;
 
     /// Fetch the validators for the provided domain
     async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError>;
