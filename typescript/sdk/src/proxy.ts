@@ -27,8 +27,7 @@ export function isProxyAddresses(
   );
 }
 
-export interface TransparentProxyAddresses
-  extends ProxyAddresses<ProxyKind.Transparent> {}
+export type TransparentProxyAddresses = ProxyAddresses<ProxyKind.Transparent>;
 
 export class ProxiedContract<
   C extends Contract,
