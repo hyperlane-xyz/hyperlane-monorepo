@@ -13,7 +13,7 @@ export const testnetConfigs = {
   },
   bsctestnet: chainConnectionConfigs.bsctestnet,
   goerli: chainConnectionConfigs.goerli,
-  moonbasealpha: chainConnectionConfigs.moonbasealpha,
+  // moonbasealpha: chainConnectionConfigs.moonbasealpha,
   optimismgoerli: chainConnectionConfigs.optimismgoerli,
   arbitrumgoerli: chainConnectionConfigs.arbitrumgoerli,
 };
