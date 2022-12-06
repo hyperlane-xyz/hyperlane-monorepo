@@ -158,13 +158,13 @@ export abstract class HyperlaneDeployer<
       const salt = ethers.utils.keccak256(
         ethers.utils.hexlify(ethers.utils.toUtf8Bytes(deployOpts.create2Salt)),
       );
+      const encodedConstructorArgs =
+        factory.interface.encodeDeploy(constructorArgs);
       const bytecode = ethers.utils.hexlify(
-        ethers.utils.concat([
-          factory.bytecode,
-          factory.interface.encodeDeploy(constructorArgs),
-        ]),
+        ethers.utils.concat([factory.bytecode, encodedConstructorArgs]),
       );
 
+      // TODO: Maybe recover deployed contracts?
       const contractAddr = await create2Factory.deployedAddress(
         bytecode,
         await signer.getAddress(),
@@ -189,9 +189,7 @@ export abstract class HyperlaneDeployer<
         name: contractName,
         address: contractAddr,
         isProxy: false,
-        // TODO: fix
-        //         constructorArguments: constructorArgs,
-        constructorArguments: '',
+        constructorArguments: encodedConstructorArgs,
       });
 
       return factory.attach(contractAddr).connect(signer) as ReturnType<

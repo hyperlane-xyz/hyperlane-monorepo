@@ -12,6 +12,7 @@ import {Message} from "../libs/Message.sol";
 import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 
+// TODO: Cleanup and tests
 /**
  * @title MultisigIsm
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
