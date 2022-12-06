@@ -84,6 +84,8 @@ export class HyperlaneCoreDeployer<
     chain: LocalChain,
   ): Promise<MultisigIsm> {
     const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
+    // Config is broken somehow..
+    if (multisigIsm.address) return multisigIsm;
     const configChains = Object.keys(this.configMap) as Chain[];
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const remotes = this.multiProvider
@@ -116,24 +118,27 @@ export class HyperlaneCoreDeployer<
       const validatorEntries = configEntries.filter(
         (entry): entry is [number, number, string[]] => entry[2] !== undefined,
       );
+      // TODO: Why is this failing?
+      /*
       const validatorDomains = validatorEntries.map(([id]) => id);
       const validatorAddresses = validatorEntries.map(
         ([, , addresses]) => addresses,
       );
+      */
       for (const entry of validatorEntries) {
         this.logger(
           `Enroll ${DomainIdToChainName[entry[0]]} validators on ${chain}: ${
             entry[2]
           }`,
         );
+        await chainConnection.handleTx(
+          multisigIsm.enrollValidators(
+            [entry[0]],
+            [entry[2]],
+            chainConnection.overrides,
+          ),
+        );
       }
-      await chainConnection.handleTx(
-        multisigIsm.enrollValidators(
-          validatorDomains,
-          validatorAddresses,
-          chainConnection.overrides,
-        ),
-      );
 
       const thresholdEntries = configEntries.filter(
         (entry): entry is [number, number, string[]] => entry[1] !== undefined,

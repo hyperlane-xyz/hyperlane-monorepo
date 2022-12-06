@@ -158,7 +158,13 @@ export abstract class HyperlaneDeployer<
       const salt = ethers.utils.keccak256(
         ethers.utils.hexlify(ethers.utils.toUtf8Bytes(deployOpts.create2Salt)),
       );
-      const bytecode = factory.getDeployTransaction(constructorArgs).data;
+      const bytecode = ethers.utils.hexlify(
+        ethers.utils.concat([
+          factory.bytecode,
+          factory.interface.encodeDeploy(constructorArgs),
+        ]),
+      );
+
       const contractAddr = await create2Factory.deployedAddress(
         bytecode,
         await signer.getAddress(),
@@ -188,9 +194,9 @@ export abstract class HyperlaneDeployer<
         constructorArguments: '',
       });
 
-      const contract = factory
-        .attach(contractAddr)
-        .connect(signer) as ReturnType<F['deploy']>;
+      return factory.attach(contractAddr).connect(signer) as ReturnType<
+        F['deploy']
+      >;
     } else {
       const contract = await factory
         .connect(signer)
@@ -257,7 +263,8 @@ export abstract class HyperlaneDeployer<
       // To get consistent addresses with Create2, we need to use
       // consistent constructor arguments.
       // The three constructor arguments we need to configure are:
-      // 1. Proxy implementation: This will start as the null address.
+      // 1. Proxy implementation: This will start as the Create2Factory
+      //    address, as it needs to be a contract address.
       //    After we've taken over as the proxy admin, we will set it
       //    to the proper address.
       // 2. Proxy admin: This will start as the Create2Factory contract
@@ -266,7 +273,7 @@ export abstract class HyperlaneDeployer<
       //    initialize our proxied contract manually.
       const constructorArgs: Parameters<
         TransparentUpgradeableProxy__factory['deploy']
-      > = [ethers.constants.AddressZero, CREATE2FACTORY_ADDRESS, '0x'];
+      > = [CREATE2FACTORY_ADDRESS, CREATE2FACTORY_ADDRESS, '0x'];
       // We set the initCallData to atomically change admin to the proxyAdmin
       // contract.
       const initCalldata =
