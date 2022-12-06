@@ -32,7 +32,7 @@ export const abacus: AgentConfig<TestnetChains> = {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
-  contextChainNames: chainNames,
+  contextChainNames: chainNames.filter((chain) => chain !== 'moonbasealpha'),
   validatorSets: validators,
   gelato: {
     enabledChains: [
