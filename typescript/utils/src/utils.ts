@@ -50,10 +50,10 @@ export const parseMultisigIsmMetadata = (
 ): ParsedMultisigIsmMetadata => {
   const MERKLE_ROOT_OFFSET = 0;
   const MERKLE_INDEX_OFFSET = 32;
-  const ORIGIN_MAILBOX_OFFSET = 64;
-  const MERKLE_PROOF_OFFSET = 96;
-  const THRESHOLD_OFFSET = 1120;
-  const SIGNATURES_OFFSET = 1152;
+  const ORIGIN_MAILBOX_OFFSET = 36;
+  const MERKLE_PROOF_OFFSET = 68;
+  const THRESHOLD_OFFSET = 1092;
+  const SIGNATURES_OFFSET = 1093;
   const SIGNATURE_LENGTH = 65;
 
   const buf = Buffer.from(utils.arrayify(metadata));
@@ -99,10 +99,10 @@ export const formatMultisigIsmMetadata = (
   return ethers.utils.solidityPack(
     [
       'bytes32',
-      'uint256',
+      'uint32',
       'bytes32',
       'bytes32[32]',
-      'uint256',
+      'uint8',
       'bytes',
       'address[]',
     ],
