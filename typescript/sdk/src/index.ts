@@ -46,7 +46,11 @@ export {
   TSContract,
 } from './events';
 
-export { BeaconProxyAddresses, ProxiedContract, ProxyAddresses } from './proxy';
+export {
+  TransparentProxyAddresses,
+  ProxiedContract,
+  ProxyAddresses,
+} from './proxy';
 
 export { Router, RouterContracts, RouterFactories } from './router';
 
@@ -99,7 +103,7 @@ export {
   MultisigIsmViolationType,
 } from './deploy/core/types';
 export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
-export { UpgradeBeaconViolation } from './deploy/proxy';
+export { ProxyViolation } from './deploy/proxy';
 export { HyperlaneRouterDeployer } from './deploy/router/HyperlaneRouterDeployer';
 export { HyperlaneRouterChecker } from './deploy/router/HyperlaneRouterChecker';
 export {
