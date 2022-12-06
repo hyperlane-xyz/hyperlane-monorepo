@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use ethers::types::{H160};
+use ethers::types::H160;
 use eyre::Result;
 
 use crate::{

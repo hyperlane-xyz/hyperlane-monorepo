@@ -210,7 +210,15 @@ where
             .collect();
         let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
 
-        let metadata = [root_bytes, index_bytes, mailbox_and_proof_bytes, threshold_bytes, signature_bytes, validator_bytes].concat();
+        let metadata = [
+            root_bytes,
+            index_bytes,
+            mailbox_and_proof_bytes,
+            threshold_bytes,
+            signature_bytes,
+            validator_bytes,
+        ]
+        .concat();
         Ok(metadata)
     }
 
