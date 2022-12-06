@@ -4,8 +4,7 @@ import { ethers } from 'ethers';
 import {
   Create2Factory__factory,
   Ownable,
-  UpgradeBeaconProxy__factory,
-  UpgradeBeacon__factory,
+  TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
@@ -17,7 +16,11 @@ import {
   serializeContracts,
 } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import { BeaconProxyAddresses, ProxiedContract, ProxyKind } from '../proxy';
+import {
+  ProxiedContract,
+  ProxyKind,
+  TransparentProxyAddresses,
+} from '../proxy';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 
@@ -231,34 +234,35 @@ export abstract class HyperlaneDeployer<
     return contract;
   }
 
+  // TODO: Support Create2 for consistent proxy addresses
+  // for a given contract type.
   protected async deployProxy<C extends ethers.Contract>(
     chain: Chain,
     implementation: C,
-    beaconAddress: string,
+    proxyAdmin: string,
     initArgs: Parameters<C['initialize']>,
-  ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
+  ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
       initArgs,
     );
-    const deployArgs: Parameters<UpgradeBeaconProxy__factory['deploy']> = [
-      beaconAddress,
-      initData,
-    ];
-    const beaconProxy = await this.deployContractFromFactory(
+    const deployArgs: Parameters<
+      TransparentUpgradeableProxy__factory['deploy']
+    > = [implementation.address, proxyAdmin, initData];
+
+    const proxy = await this.deployContractFromFactory(
       chain,
-      new UpgradeBeaconProxy__factory(),
-      'UpgradeBeaconProxy',
+      new TransparentUpgradeableProxy__factory(),
+      'TransparentUpgradableProxy',
       deployArgs,
     );
 
-    return new ProxiedContract<C, BeaconProxyAddresses>(
-      implementation.attach(beaconProxy.address) as C,
+    return new ProxiedContract<C, TransparentProxyAddresses>(
+      implementation.attach(proxy.address) as C,
       {
-        kind: ProxyKind.UpgradeBeacon,
-        proxy: beaconProxy.address,
+        kind: ProxyKind.Transparent,
+        proxy: proxy.address,
         implementation: implementation.address,
-        beacon: beaconAddress,
       },
     );
   }
@@ -276,7 +280,7 @@ export abstract class HyperlaneDeployer<
   }
 
   /**
-   * Deploys the UpgradeBeacon, Implementation and Proxy for a given contract
+   * Deploys the Implementation and Proxy for a given contract
    *
    */
   async deployProxiedContract<
@@ -286,13 +290,13 @@ export abstract class HyperlaneDeployer<
     chain: Chain,
     contractName: K,
     deployArgs: Parameters<Factories[K]['deploy']>,
-    ubcAddress: types.Address,
+    proxyAdmin: types.Address,
     initArgs: Parameters<C['initialize']>,
-  ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
+  ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
     const cachedProxy = this.deployedContracts[chain]?.[contractName as any];
     if (cachedProxy) {
       this.logger(`Recovered proxy ${contractName.toString()} on ${chain}`);
-      return cachedProxy as ProxiedContract<C, BeaconProxyAddresses>;
+      return cachedProxy as ProxiedContract<C, TransparentProxyAddresses>;
     }
 
     const implementation = await this.deployContract<K>(
@@ -301,43 +305,14 @@ export abstract class HyperlaneDeployer<
       deployArgs,
     );
 
-    this.logger(`Proxy ${contractName.toString()} on ${chain}`);
-    const beaconDeployArgs: Parameters<UpgradeBeacon__factory['deploy']> = [
-      implementation.address,
-      ubcAddress,
-    ];
-    const beacon = await this.deployContractFromFactory(
-      chain,
-      new UpgradeBeacon__factory(),
-      'UpgradeBeacon',
-      beaconDeployArgs,
-    );
     const contract = await this.deployProxy(
       chain,
       implementation as C,
-      beacon.address,
+      proxyAdmin,
       initArgs,
     );
     this.cacheContract(chain, contractName, contract);
     return contract;
-  }
-
-  /**
-   * Sets up a new proxy with the same beacon and implementation
-   *
-   */
-  async duplicateProxiedContract<C extends ethers.Contract>(
-    chain: Chain,
-    proxy: ProxiedContract<C, BeaconProxyAddresses>,
-    initArgs: Parameters<C['initialize']>,
-  ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
-    this.logger(`Duplicate Proxy on ${chain}`);
-    return this.deployProxy(
-      chain,
-      proxy.contract.attach(proxy.addresses.implementation) as C,
-      proxy.addresses.beacon,
-      initArgs,
-    );
   }
 
   mergeWithExistingVerificationInputs(

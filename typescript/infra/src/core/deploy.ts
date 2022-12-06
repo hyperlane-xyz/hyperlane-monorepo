@@ -1,6 +1,9 @@
 import {
+  ChainMap,
   ChainName,
+  CoreConfig,
   HyperlaneCoreDeployer,
+  MultiProvider,
   chainMetadata,
   objMap,
 } from '@hyperlane-xyz/sdk';
@@ -12,6 +15,17 @@ import { writeJSON } from '../utils/utils';
 export class HyperlaneCoreInfraDeployer<
   Chain extends ChainName,
 > extends HyperlaneCoreDeployer<Chain> {
+  environment: DeployEnvironment;
+
+  constructor(
+    multiProvider: MultiProvider<Chain>,
+    configMap: ChainMap<Chain, CoreConfig>,
+    environment: DeployEnvironment,
+  ) {
+    super(multiProvider, configMap);
+    this.environment = environment;
+  }
+
   writeRustConfigs(environment: DeployEnvironment, directory: string) {
     const rustConfig: RustConfig<Chain> = {
       environment,

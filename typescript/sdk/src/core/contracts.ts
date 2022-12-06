@@ -8,30 +8,30 @@ import {
   Mailbox__factory,
   MultisigIsm,
   MultisigIsm__factory,
-  UpgradeBeaconController,
-  UpgradeBeaconController__factory,
+  ProxyAdmin,
+  ProxyAdmin__factory,
 } from '@hyperlane-xyz/core';
 
-import { BeaconProxyAddresses, ProxiedContract } from '../proxy';
+import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 
 type ConnectionClientContracts = {
   interchainGasPaymaster: ProxiedContract<
     InterchainGasPaymaster,
-    BeaconProxyAddresses
+    TransparentProxyAddresses
   >;
 };
 
 export type CoreContracts = ConnectionClientContracts & {
-  mailbox: ProxiedContract<Mailbox, BeaconProxyAddresses>;
+  mailbox: ProxiedContract<Mailbox, TransparentProxyAddresses>;
   multisigIsm: MultisigIsm;
-  upgradeBeaconController: UpgradeBeaconController;
+  proxyAdmin: ProxyAdmin;
 };
 
 export const coreFactories = {
   interchainAccountRouter: new InterchainAccountRouter__factory(),
   interchainQueryRouter: new InterchainQueryRouter__factory(),
   create2Factory: new Create2Factory__factory(),
-  upgradeBeaconController: new UpgradeBeaconController__factory(),
+  proxyAdmin: new ProxyAdmin__factory(),
   interchainGasPaymaster: new InterchainGasPaymaster__factory(),
   multisigIsm: new MultisigIsm__factory(),
   mailbox: new Mailbox__factory(),

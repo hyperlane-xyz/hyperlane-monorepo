@@ -12,7 +12,11 @@ import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
 import { CoreConfig } from '../deploy/core/types';
 import { MultiProvider } from '../providers/MultiProvider';
-import { BeaconProxyAddresses, ProxiedContract, ProxyKind } from '../proxy';
+import {
+  ProxiedContract,
+  ProxyKind,
+  TransparentProxyAddresses,
+} from '../proxy';
 import { ChainMap, TestChainNames } from '../types';
 
 import { TestCoreApp } from './TestCoreApp';
@@ -71,17 +75,16 @@ export class TestCoreDeployer<
   async deployMailbox<LocalChain extends TestChain>(
     chain: LocalChain,
     defaultIsmAddress: types.Address,
-  ): Promise<ProxiedContract<TestMailbox, BeaconProxyAddresses>> {
+  ): Promise<ProxiedContract<TestMailbox, TransparentProxyAddresses>> {
     const localDomain = chainMetadata[chain].id;
 
     const mailbox = await this.deployContract(chain, 'mailbox', [localDomain]);
     await mailbox.initialize(defaultIsmAddress);
     return new ProxiedContract(mailbox, {
-      kind: ProxyKind.UpgradeBeacon,
+      kind: ProxyKind.Transparent,
       proxy: mailbox.address,
       implementation: mailbox.address,
-      beacon: mailbox.address,
-    }) as ProxiedContract<TestMailbox, BeaconProxyAddresses>;
+    }) as ProxiedContract<TestMailbox, TransparentProxyAddresses>;
   }
 
   async deployApp(): Promise<TestCoreApp<TestChain>> {

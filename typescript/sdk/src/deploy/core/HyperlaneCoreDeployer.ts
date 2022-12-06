@@ -10,7 +10,7 @@ import { CoreContracts, coreFactories } from '../../core/contracts';
 import { ChainNameToDomainId } from '../../domains';
 import { ChainConnection } from '../../providers/ChainConnection';
 import { MultiProvider } from '../../providers/MultiProvider';
-import { BeaconProxyAddresses, ProxiedContract } from '../../proxy';
+import { ProxiedContract, TransparentProxyAddresses } from '../../proxy';
 import { ChainMap, ChainName } from '../../types';
 import { objMap, promiseObjAll } from '../../utils/objects';
 import { HyperlaneDeployer } from '../HyperlaneDeployer';
@@ -41,15 +41,15 @@ export class HyperlaneCoreDeployer<
   async deployMailbox<LocalChain extends Chain>(
     chain: LocalChain,
     defaultIsmAddress: types.Address,
-    ubcAddress: types.Address,
-  ): Promise<ProxiedContract<Mailbox, BeaconProxyAddresses>> {
+    proxyAdmin: types.Address,
+  ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
     const domain = chainMetadata[chain].id;
 
     const mailbox = await this.deployProxiedContract(
       chain,
       'mailbox',
       [domain],
-      ubcAddress,
+      proxyAdmin,
       [defaultIsmAddress],
     );
     return mailbox;
@@ -119,17 +119,13 @@ export class HyperlaneCoreDeployer<
     const startingBlockNumber = await provider.getBlockNumber();
     this.startingBlockNumbers[chain] = startingBlockNumber;
 
-    const upgradeBeaconController = await this.deployContract(
-      chain,
-      'upgradeBeaconController',
-      [],
-    );
+    const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
     const interchainGasPaymaster = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
       [],
-      upgradeBeaconController.address,
+      proxyAdmin.address,
       [],
     );
 
@@ -138,11 +134,11 @@ export class HyperlaneCoreDeployer<
     const mailbox = await this.deployMailbox(
       chain,
       multisigIsm.address,
-      upgradeBeaconController.address,
+      proxyAdmin.address,
     );
 
     return {
-      upgradeBeaconController,
+      proxyAdmin,
       interchainGasPaymaster,
       mailbox,
       multisigIsm,
@@ -173,7 +169,7 @@ export class HyperlaneCoreDeployer<
     const ownables: Ownable[] = [
       coreContracts.mailbox.contract,
       coreContracts.multisigIsm,
-      coreContracts.upgradeBeaconController,
+      coreContracts.proxyAdmin,
     ];
     return Promise.all(
       ownables.map((ownable) =>
