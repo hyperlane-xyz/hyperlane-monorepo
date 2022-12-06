@@ -149,9 +149,6 @@ export abstract class HyperlaneDeployer<
       deployOpts.create2Salt &&
       (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
     ) {
-      if (constructorArgs.length > 0) {
-        throw new Error("Can't use CREATE2 with constructor args");
-      }
       this.logger(`Deploying with CREATE2 factory`);
 
       const create2Factory = Create2Factory__factory.connect(
@@ -161,21 +158,22 @@ export abstract class HyperlaneDeployer<
       const salt = ethers.utils.keccak256(
         ethers.utils.hexlify(ethers.utils.toUtf8Bytes(deployOpts.create2Salt)),
       );
+      const bytecode = factory.getDeployTransaction(constructorArgs).data;
       const contractAddr = await create2Factory.deployedAddress(
-        factory.bytecode,
+        bytecode,
         await signer.getAddress(),
         salt,
       );
 
       const deployTx = deployOpts.initCalldata
         ? await create2Factory.deployAndInit(
-            factory.bytecode,
+            bytecode,
             salt,
             deployOpts.initCalldata,
             chainConnection.overrides,
           )
         : await create2Factory.deploy(
-            factory.bytecode,
+            bytecode,
             salt,
             chainConnection.overrides,
           );
@@ -185,12 +183,14 @@ export abstract class HyperlaneDeployer<
         name: contractName,
         address: contractAddr,
         isProxy: false,
+        // TODO: fix
+        //         constructorArguments: constructorArgs,
         constructorArguments: '',
       });
 
-      return factory.attach(contractAddr).connect(signer) as ReturnType<
-        F['deploy']
-      >;
+      const contract = factory
+        .attach(contractAddr)
+        .connect(signer) as ReturnType<F['deploy']>;
     } else {
       const contract = await factory
         .connect(signer)
