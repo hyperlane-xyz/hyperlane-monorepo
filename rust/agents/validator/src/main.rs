@@ -1,4 +1,4 @@
-//! The validator signs Outbox checkpoints that have reached finality.
+//! The validator signs Mailbox checkpoints that have reached finality.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]

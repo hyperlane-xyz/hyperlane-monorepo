@@ -9,7 +9,7 @@
 /// Accumulator management
 pub mod accumulator;
 
-/// Async Traits for Outboxes & Inboxes for use in applications
+/// Async Traits for contract instances for use in applications
 mod traits;
 use ethers_signers::WalletError;
 pub use traits::*;

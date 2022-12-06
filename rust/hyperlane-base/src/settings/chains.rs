@@ -53,7 +53,7 @@ pub struct GelatoConf {
     pub sponsorapikey: String,
 }
 
-/// Addresses for outbox chain contracts
+/// Addresses for mailbox chain contracts
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CoreContractAddresses {
@@ -65,14 +65,14 @@ pub struct CoreContractAddresses {
     pub interchain_gas_paymaster: String,
 }
 
-/// Outbox indexing settings
+/// Indexing settings
 #[derive(Debug, Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexSettings {
     /// The height at which to start indexing the Outbox contract
     pub from: Option<String>,
     /// The number of blocks to query at once at which to start indexing the
-    /// Outbox contract
+    /// Mailbox contract
     pub chunk: Option<String>,
 }
 
@@ -94,8 +94,8 @@ impl IndexSettings {
     }
 }
 
-/// A chain setup is a domain ID, an address on that chain (where the outbox or
-/// inbox is deployed) and details for connecting to the chain API.
+/// A chain setup is a domain ID, an address on that chain (where the mailbox is deployed) and
+/// details for connecting to the chain API.
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainSetup {
