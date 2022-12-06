@@ -87,7 +87,7 @@ export class HyperlaneCoreDeployer<
           }),
         );
         const threshold = await multisigIsm.threshold(domain);
-        if (!threshold.eq(multisigIsmConfig.threshold)) {
+        if (threshold !== multisigIsmConfig.threshold) {
           this.logger(
             `Setting ${remote} threshold to ${multisigIsmConfig.threshold} on ${chain}`,
           );

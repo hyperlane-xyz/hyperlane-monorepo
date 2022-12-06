@@ -53,7 +53,7 @@ export const parseMultisigIsmMetadata = (
   const ORIGIN_MAILBOX_OFFSET = 36;
   const MERKLE_PROOF_OFFSET = 68;
   const THRESHOLD_OFFSET = 1092;
-  const SIGNATURES_OFFSET = 1124;
+  const SIGNATURES_OFFSET = 1093;
   const SIGNATURE_LENGTH = 65;
 
   const buf = Buffer.from(utils.arrayify(metadata));
@@ -102,7 +102,7 @@ export const formatMultisigIsmMetadata = (
       'uint32',
       'bytes32',
       'bytes32[32]',
-      'uint256',
+      'uint8',
       'bytes',
       'address[]',
     ],

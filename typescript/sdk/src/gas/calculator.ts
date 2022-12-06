@@ -315,7 +315,9 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     // TODO: Check the recipient module
     const module = this.core.getContracts(destination).multisigIsm;
     const threshold = await module.threshold(ChainNameToDomainId[origin]);
-    return threshold.mul(GAS_OVERHEAD_PER_SIGNATURE).add(GAS_OVERHEAD_BASE);
+    return BigNumber.from(threshold)
+      .mul(GAS_OVERHEAD_PER_SIGNATURE)
+      .add(GAS_OVERHEAD_BASE);
   }
 
   /**
