@@ -1,7 +1,13 @@
 import debug from 'debug';
 import { ethers } from 'ethers';
 
-import { Mailbox, MultisigIsm, Ownable, ProxyAdmin } from '@hyperlane-xyz/core';
+import {
+  InterchainGasPaymaster,
+  Mailbox,
+  MultisigIsm,
+  Ownable,
+  ProxyAdmin,
+} from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
@@ -13,7 +19,7 @@ import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../../proxy';
 import { ChainMap, ChainName } from '../../types';
 import { objMap, promiseObjAll } from '../../utils/objects';
-import { HyperlaneDeployer } from '../HyperlaneDeployer';
+import { DeployOptions, HyperlaneDeployer } from '../HyperlaneDeployer';
 
 import { CoreConfig } from './types';
 
@@ -38,10 +44,28 @@ export class HyperlaneCoreDeployer<
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
+  deployInterchainGasPaymaster<LocalChain extends Chain>(
+    chain: LocalChain,
+    proxyAdmin: ProxyAdmin,
+    deployOpts?: DeployOptions,
+  ): Promise<
+    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
+  > {
+    return this.deployProxiedContract(
+      chain,
+      'interchainGasPaymaster',
+      [],
+      proxyAdmin,
+      [],
+      deployOpts,
+    );
+  }
+
   async deployMailbox<LocalChain extends Chain>(
     chain: LocalChain,
     defaultIsmAddress: types.Address,
     proxyAdmin: ProxyAdmin,
+    deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
     const domain = chainMetadata[chain].id;
 
@@ -51,6 +75,7 @@ export class HyperlaneCoreDeployer<
       [domain],
       proxyAdmin,
       [defaultIsmAddress],
+      deployOpts,
     );
     return mailbox;
   }
@@ -118,19 +143,13 @@ export class HyperlaneCoreDeployer<
     const provider = dc.provider!;
     const startingBlockNumber = await provider.getBlockNumber();
     this.startingBlockNumbers[chain] = startingBlockNumber;
-
-    const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
-
-    const interchainGasPaymaster = await this.deployProxiedContract(
-      chain,
-      'interchainGasPaymaster',
-      [],
-      proxyAdmin,
-      [],
-    );
-
     const multisigIsm = await this.deployMultisigIsm(chain);
 
+    const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
+    const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
+      chain,
+      proxyAdmin,
+    );
     const mailbox = await this.deployMailbox(
       chain,
       multisigIsm.address,

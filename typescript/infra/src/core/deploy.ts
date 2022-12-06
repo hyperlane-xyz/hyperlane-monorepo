@@ -1,12 +1,22 @@
+import { ethers } from 'hardhat';
+
+import {
+  InterchainGasPaymaster,
+  Mailbox,
+  ProxyAdmin,
+} from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
   CoreConfig,
   HyperlaneCoreDeployer,
   MultiProvider,
+  ProxiedContract,
+  TransparentProxyAddresses,
   chainMetadata,
   objMap,
 } from '@hyperlane-xyz/sdk';
+import { types } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';
 import { ConnectionType } from '../config/agent';
@@ -25,10 +35,43 @@ export class HyperlaneCoreInfraDeployer<
     super(multiProvider, configMap);
     this.environment = environment;
   }
+  async deployInterchainGasPaymaster<LocalChain extends Chain>(
+    chain: LocalChain,
+    proxyAdmin: ProxyAdmin,
+  ): Promise<
+    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
+  > {
+    const deployOpts = {
+      create2Salt: ethers.utils.solidityKeccak256(
+        ['string', 'string'],
+        [this.environment, 'interchainGasPaymaster'],
+      ),
+    };
+    return super.deployInterchainGasPaymaster(chain, proxyAdmin, deployOpts);
+  }
 
-  writeRustConfigs(environment: DeployEnvironment, directory: string) {
+  async deployMailbox<LocalChain extends Chain>(
+    chain: LocalChain,
+    defaultIsmAddress: types.Address,
+    proxyAdmin: ProxyAdmin,
+  ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
+    const deployOpts = {
+      create2Salt: ethers.utils.solidityKeccak256(
+        ['string', 'string'],
+        [this.environment, 'mailbox'],
+      ),
+    };
+    return super.deployMailbox(
+      chain,
+      defaultIsmAddress,
+      proxyAdmin,
+      deployOpts,
+    );
+  }
+
+  writeRustConfigs(directory: string) {
     const rustConfig: RustConfig<Chain> = {
-      environment,
+      environment: this.environment,
       chains: {},
       signers: {},
       db: 'db_path',
@@ -73,6 +116,6 @@ export class HyperlaneCoreInfraDeployer<
       }
       rustConfig.chains[chain] = chainConfig;
     });
-    writeJSON(directory, `${environment}_config.json`, rustConfig);
+    writeJSON(directory, `${this.environment}_config.json`, rustConfig);
   }
 }

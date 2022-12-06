@@ -248,6 +248,7 @@ export abstract class HyperlaneDeployer<
     );
     let proxy: TransparentUpgradeableProxy;
     const chainConnection = this.multiProvider.getChainConnection(chain);
+    this.logger(`Deploying transparent upgradable proxy`);
     if (
       deployOpts &&
       deployOpts.create2Salt &&
@@ -280,6 +281,7 @@ export abstract class HyperlaneDeployer<
         constructorArgs,
         { ...deployOpts, initCalldata },
       );
+      this.logger(`Upgrading and initializing transparent upgradable proxy`);
       // We now have a deployed proxy admin'd by ProxyAdmin.
       // Upgrade its implementation and initialize it
       await proxyAdmin.upgradeAndCall(
