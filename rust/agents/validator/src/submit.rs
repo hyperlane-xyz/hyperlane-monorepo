@@ -64,10 +64,10 @@ impl ValidatorSubmitter {
         // a previously signed checkpoint
         let mut current_index = self.checkpoint_syncer.latest_index().await?;
 
-        if current_index.is_some() {
+        if Some(current_index) = current_index {
             self.metrics
                 .latest_checkpoint_processed
-                .set(current_index.unwrap_or_default() as i64);
+                .set(current_index as i64);
         }
 
         // How often to log checkpoint info - once every minute
