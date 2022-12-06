@@ -95,11 +95,13 @@ export class HyperlaneCoreDeployer<
         remotes.map(async (remote) => {
           const remoteDomain = ChainNameToDomainId[remote];
           const multisigIsmConfig = this.configMap[remote].multisigIsm;
-          const unenrolledValidators = await Promise.all(
-            multisigIsmConfig.validators.filter(
-              async (validator) =>
-                !(await multisigIsm.isEnrolled(remoteDomain, validator)),
+          const isEnrolled = await Promise.all(
+            multisigIsmConfig.validators.map((v) =>
+              multisigIsm.isEnrolled(remoteDomain, v),
             ),
+          );
+          const unenrolledValidators = multisigIsmConfig.validators.filter(
+            (_, i) => !isEnrolled[i],
           );
           const currentThreshold = await multisigIsm.threshold(remoteDomain);
           const thresholdEntry = currentThreshold.eq(
@@ -115,43 +117,47 @@ export class HyperlaneCoreDeployer<
       const validatorEntries = configEntries.filter(
         (entry): entry is [number, number, string[]] => entry[2] !== undefined,
       );
-      const validatorDomains = validatorEntries.map(([id]) => id);
-      const validatorAddresses = validatorEntries.map(
-        ([, , addresses]) => addresses,
-      );
-      for (const entry of validatorEntries) {
-        this.logger(
-          `Enroll ${DomainIdToChainName[entry[0]]} validators on ${chain}: ${
-            entry[2]
-          }`,
+      if (validatorEntries.length > 0) {
+        const validatorDomains = validatorEntries.map(([id]) => id);
+        const validatorAddresses = validatorEntries.map(
+          ([, , addresses]) => addresses,
+        );
+        for (const entry of validatorEntries) {
+          this.logger(
+            `Enroll ${DomainIdToChainName[entry[0]]} validators on ${chain}: ${
+              entry[2]
+            }`,
+          );
+        }
+        await chainConnection.handleTx(
+          multisigIsm.enrollValidators(
+            validatorDomains,
+            validatorAddresses,
+            chainConnection.overrides,
+          ),
         );
       }
-      await chainConnection.handleTx(
-        multisigIsm.enrollValidators(
-          validatorDomains,
-          validatorAddresses,
-          chainConnection.overrides,
-        ),
-      );
 
       const thresholdEntries = configEntries.filter(
         (entry): entry is [number, number, string[]] => entry[1] !== undefined,
       );
-      const thresholdDomains = thresholdEntries.map(([id]) => id);
-      const thresholdChains = thresholdDomains.map(
-        (id) => DomainIdToChainName[id],
-      );
-      const thresholds = thresholdEntries.map(([, threshold]) => threshold);
-      this.logger(
-        `Set remote (${thresholdChains}) thresholds on ${chain}: ${thresholds}`,
-      );
-      await chainConnection.handleTx(
-        multisigIsm.setThresholds(
-          thresholdDomains,
-          thresholds,
-          chainConnection.overrides,
-        ),
-      );
+      if (thresholdEntries.length > 0) {
+        const thresholdDomains = thresholdEntries.map(([id]) => id);
+        const thresholdChains = thresholdDomains.map(
+          (id) => DomainIdToChainName[id],
+        );
+        const thresholds = thresholdEntries.map(([, threshold]) => threshold);
+        this.logger(
+          `Set remote (${thresholdChains}) thresholds on ${chain}: ${thresholds}`,
+        );
+        await chainConnection.handleTx(
+          multisigIsm.setThresholds(
+            thresholdDomains,
+            thresholds,
+            chainConnection.overrides,
+          ),
+        );
+      }
     });
 
     return multisigIsm;
