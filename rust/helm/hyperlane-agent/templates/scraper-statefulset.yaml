@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "agent-common.fullname" . }}
+  name: {{ include "agent-common.fullname" . }}-scraper
   labels:
     {{- include "agent-common.labels" . | nindent 4 }}
     app.kubernetes.io/component: scraper
@@ -12,7 +12,7 @@ spec:
       {{- include "agent-common.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: scraper
   replicas: 1 
-  serviceName: {{ include "agent-common.fullname" . }}
+  serviceName: {{ include "agent-common.fullname" . }}-scraper
   template:
     metadata:
       annotations:
@@ -47,20 +47,18 @@ spec:
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command: ["./scraper"]
-        env:
-{{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.scraper.config "agent_name" "scraper") | indent 10 }}
-          {{- range .Values.hyperlane.scraper.signers }}
-{{- include "agent-common.config-env-vars" (dict "config" .keyConfig "agent_name" "base" "key_name_prefix" (printf "SIGNERS_%s_" (.name | upper))) | indent 10 }}
-          {{- end }}
-          {{- if .Values.hyperlane.tracing.uri }}
-          - name: HYP_BASE_TRACING_JAEGER_NAME
-            value: {{ include "agent-common.fullname" . }}-scraper
-          {{- end }}
         envFrom:
         - configMapRef:
             name: {{ include "agent-common.fullname" . }}
         - secretRef:
             name: {{ include "agent-common.fullname" . }}-secret
+        - secretRef:
+            name: {{ include "agent-common.fullname" . }}-scraper-secret
+        env:
+          {{- if .Values.hyperlane.tracing.uri }}
+          - name: HYP_BASE_TRACING_JAEGER_NAME
+            value: {{ include "agent-common.fullname" . }}-scraper
+          {{- end }}
         resources:
           {{- toYaml .Values.hyperlane.scraper.resources | nindent 10 }}
         ports: 

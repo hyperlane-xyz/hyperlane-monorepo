@@ -1,4 +1,4 @@
-use ethers::{abi::AbiEncode, signers::Signer};
+use ethers::signers::Signer;
 use eyre::Context;
 use serde::Deserialize;
 
@@ -150,9 +150,9 @@ impl ChainSetup {
         };
 
         let address = match &self.chain {
-            ChainConf::Ethereum(_) => ethers::types::Address::zero().encode_hex(),
+            ChainConf::Ethereum(_) => "0x0000000000000000000000000000000000000000",
         };
-        self.build(&address, None, metrics, metrics_conf, builder)
+        self.build(address, None, metrics, metrics_conf, builder)
             .await
     }
 
@@ -167,10 +167,11 @@ impl ChainSetup {
         let builder = MailboxBuilder {};
         self.build(address, signer, metrics, metrics_conf, builder)
             .await
-            .context("Building outbox")
+            .context("Building mailbox")
     }
 
-    /// Try to convert the chain setting into an interchain gas paymaster contract
+    /// Try to convert the chain setting into an interchain gas paymaster
+    /// contract
     pub async fn try_into_interchain_gas_paymaster(
         &self,
         signer: Option<Signers>,
@@ -181,7 +182,7 @@ impl ChainSetup {
         let builder = InterchainGasPaymasterBuilder {};
         self.build(address, signer, metrics, metrics_conf, builder)
             .await
-            .context("Building igp")
+            .context("Building IGP")
     }
 
     /// Try to convert the chain setting into a Multisig Ism contract
