@@ -1,7 +1,7 @@
 import debug from 'debug';
 import { ethers } from 'ethers';
 
-import { Mailbox, MultisigIsm, Ownable } from '@hyperlane-xyz/core';
+import { Mailbox, MultisigIsm, Ownable, ProxyAdmin } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
@@ -41,7 +41,7 @@ export class HyperlaneCoreDeployer<
   async deployMailbox<LocalChain extends Chain>(
     chain: LocalChain,
     defaultIsmAddress: types.Address,
-    proxyAdmin: types.Address,
+    proxyAdmin: ProxyAdmin,
   ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
     const domain = chainMetadata[chain].id;
 
@@ -125,7 +125,7 @@ export class HyperlaneCoreDeployer<
       chain,
       'interchainGasPaymaster',
       [],
-      proxyAdmin.address,
+      proxyAdmin,
       [],
     );
 
@@ -134,7 +134,7 @@ export class HyperlaneCoreDeployer<
     const mailbox = await this.deployMailbox(
       chain,
       multisigIsm.address,
-      proxyAdmin.address,
+      proxyAdmin,
     );
 
     return {

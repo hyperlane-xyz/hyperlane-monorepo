@@ -8,7 +8,6 @@ import {
   TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import type { types } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneContract,
@@ -195,7 +194,7 @@ export abstract class HyperlaneDeployer<
     } else {
       const contract = await factory
         .connect(signer)
-        .deploy(...args, chainConnection.overrides);
+        .deploy(...constructorArgs, chainConnection.overrides);
 
       await chainConnection.handleTx(contract.deployTransaction);
 
@@ -236,21 +235,24 @@ export abstract class HyperlaneDeployer<
     return contract;
   }
 
-  // TODO: Support Create2 for consistent proxy addresses
-  // for a given contract type.
   protected async deployProxy<C extends ethers.Contract>(
     chain: Chain,
     implementation: C,
     proxyAdmin: ProxyAdmin,
     initArgs: Parameters<C['initialize']>,
+    deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
       initArgs,
     );
-    const create2 = false;
     let proxy: TransparentUpgradeableProxy;
-    if (create2) {
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    if (
+      deployOpts &&
+      deployOpts.create2Salt &&
+      (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
+    ) {
       // To get consistent addresses with Create2, we need to use
       // consistent constructor arguments.
       // The three constructor arguments we need to configure are:
@@ -276,7 +278,7 @@ export abstract class HyperlaneDeployer<
         new TransparentUpgradeableProxy__factory(),
         'TransparentUpgradableProxy',
         constructorArgs,
-        { initCalldata },
+        { ...deployOpts, initCalldata },
       );
       // We now have a deployed proxy admin'd by ProxyAdmin.
       // Upgrade its implementation and initialize it
@@ -330,8 +332,9 @@ export abstract class HyperlaneDeployer<
     chain: Chain,
     contractName: K,
     constructorArgs: Parameters<Factories[K]['deploy']>,
-    proxyAdmin: types.Address,
+    proxyAdmin: ProxyAdmin,
     initArgs: Parameters<C['initialize']>,
+    deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
     const cachedProxy = this.deployedContracts[chain]?.[contractName as any];
     if (cachedProxy) {
@@ -343,6 +346,7 @@ export abstract class HyperlaneDeployer<
       chain,
       contractName,
       constructorArgs,
+      deployOpts,
     );
 
     const contract = await this.deployProxy(
@@ -350,6 +354,7 @@ export abstract class HyperlaneDeployer<
       implementation as C,
       proxyAdmin,
       initArgs,
+      deployOpts,
     );
     this.cacheContract(chain, contractName, contract);
     return contract;
