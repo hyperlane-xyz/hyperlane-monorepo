@@ -2,29 +2,26 @@ import path from 'path';
 
 import {
   ChainMap,
-  Chains,
   LiquidityLayerApp,
   buildContracts,
   liquidityLayerFactories,
-  objMap,
 } from '@hyperlane-xyz/sdk';
 
-import { circleBridgeAdapterConfig } from '../config/environments/testnet2/liquidityLayer';
-import { readJSON, sleep } from '../src/utils/utils';
-
+import { bridgeAdapterConfigs } from '../../config/environments/testnet2/liquidityLayer';
+import { readJSON, sleep } from '../../src/utils/utils';
 import {
   getCoreEnvironmentConfig,
   getEnvironment,
   getEnvironmentDirectory,
-} from './utils';
+} from '../utils';
 
-async function check() {
+async function relayPortalTransfers() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const dir = path.join(
     __dirname,
-    '../',
+    '../../',
     getEnvironmentDirectory(environment),
     'middleware/liquidity-layer',
   );
@@ -37,29 +34,25 @@ async function check() {
   const app = new LiquidityLayerApp(
     contracts,
     multiProvider,
-    objMap(circleBridgeAdapterConfig, (_chain, conf) => [conf]),
+    bridgeAdapterConfigs,
   );
 
   while (true) {
-    for (const chain of [Chains.goerli, Chains.fuji]) {
-      const txHashes = await app.fetchCircleMessageTransactions(chain);
-
-      const circleDispatches = (
+    for (const chain of Object.keys(bridgeAdapterConfigs)) {
+      const txHashes = await app.fetchPortalBridgeTransactions(chain);
+      const portalMessages = (
         await Promise.all(
-          txHashes.map((txHash) => app.parseCircleMessages(chain, txHash)),
+          txHashes.map((txHash) => app.parsePortalMessages(chain, txHash)),
         )
       ).flat();
 
       // Poll for attestation data and submit
-      await Promise.all(
-        circleDispatches.map((message) =>
-          app.attemptCircleAttestationSubmission(message),
-        ),
-      );
-
-      await sleep(6000);
+      for (const message of portalMessages) {
+        await app.attemptPortalTransferCompletion(message);
+      }
+      await sleep(10000);
     }
   }
 }
 
-check().then(console.log).catch(console.error);
+relayPortalTransfers().then(console.log).catch(console.error);

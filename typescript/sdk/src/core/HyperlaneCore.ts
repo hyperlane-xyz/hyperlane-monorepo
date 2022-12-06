@@ -14,6 +14,7 @@ import { ChainMap, ChainName, Remotes } from '../types';
 import { objMap, pick } from '../utils/objects';
 
 import { CoreContracts, coreFactories } from './contracts';
+import { InboxMessageStatus } from './message';
 
 export type CoreEnvironment = keyof typeof environments;
 export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
@@ -155,6 +156,22 @@ export class HyperlaneCore<
     });
   }
 
+  protected async waitForMessageWasProcessed(
+    message: DispatchedMessage,
+  ): Promise<void> {
+    const hash = utils.messageHash(message.message, message.leafIndex);
+    const { inbox } = this.getDestination(message);
+    await utils.pollAsync(async () => {
+      const messageStatus = await inbox.messages(hash);
+      if (messageStatus !== InboxMessageStatus.Processed) {
+        throw new Error(
+          `Message ${message.leafIndex} ${hash} not yet processed`,
+        );
+      }
+    });
+    return;
+  }
+
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
     const outbox = Outbox__factory.createInterface();
     const dispatchLogs = sourceTx.logs
@@ -182,5 +199,14 @@ export class HyperlaneCore<
   ): Promise<ethers.ContractReceipt[]> {
     const messages = this.getDispatchedMessages(sourceTx);
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
+  }
+
+  async waitForMessageProcessed(
+    sourceTx: ethers.ContractReceipt,
+  ): Promise<void> {
+    const messages = this.getDispatchedMessages(sourceTx);
+    await Promise.all(
+      messages.map((msg) => this.waitForMessageWasProcessed(msg)),
+    );
   }
 }

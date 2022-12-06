@@ -1,13 +1,15 @@
-import { ethers } from 'ethers';
-
 import {
   CircleBridgeAdapter,
   CircleBridgeAdapter__factory,
   LiquidityLayerRouter,
   LiquidityLayerRouter__factory,
+  PortalAdapter,
+  PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
+import { ChainNameToDomainId } from '../../domains';
 import {
   LiquidityLayerContracts,
   LiquidityLayerFactories,
@@ -15,12 +17,13 @@ import {
 } from '../../middleware';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
-import { objMap } from '../../utils/objects';
+import { objFilter, objMap } from '../../utils/objects';
 import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
 import { RouterConfig } from '../router/types';
 
 export enum BridgeAdapterType {
   Circle = 'Circle',
+  Portal = 'Portal',
 }
 
 export interface CircleBridgeAdapterConfig {
@@ -34,11 +37,21 @@ export interface CircleBridgeAdapterConfig {
   }[];
 }
 
-export type BridgeAdapterConfig = CircleBridgeAdapterConfig;
+export interface PortalAdapterConfig {
+  type: BridgeAdapterType.Portal;
+  portalBridgeAddress: string;
+  wormholeDomainMapping: {
+    hyperlaneDomain: number;
+    wormholeDomain: number;
+  }[];
+}
 
-export type LiquidityLayerConfig = RouterConfig & {
-  bridgeAdapterConfigs: BridgeAdapterConfig[];
+export type BridgeAdapterConfig = {
+  circle?: CircleBridgeAdapterConfig;
+  portal?: PortalAdapterConfig;
 };
+
+export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
 
 export class LiquidityLayerDeployer<
   Chain extends ChainName,
@@ -60,14 +73,27 @@ export class LiquidityLayerDeployer<
   async enrollRemoteRouters(
     contractsMap: ChainMap<Chain, LiquidityLayerContracts>,
   ): Promise<void> {
-    // Enroll the LiquidityLayerRouter with each other
+    this.logger(`Enroll LiquidityLayerRouters with each other`);
     await super.enrollRemoteRouters(contractsMap);
 
-    // Enroll the circle adapters with each other
+    this.logger(`Enroll CircleBridgeAdapters with each other`);
     await super.enrollRemoteRouters(
-      objMap(contractsMap, (_chain, contracts) => ({
-        router: contracts.circleBridgeAdapter!,
-      })),
+      objFilter(
+        objMap(contractsMap, (_chain, contracts) => ({
+          router: contracts.circleBridgeAdapter,
+        })),
+        (_): _ is { router: CircleBridgeAdapter } => !!_.router,
+      ),
+    );
+
+    this.logger(`Enroll PortalAdapters with each other`);
+    await super.enrollRemoteRouters(
+      objFilter(
+        objMap(contractsMap, (_chain, contracts) => ({
+          router: contracts.portalAdapter,
+        })),
+        (_): _ is { router: PortalAdapter } => !!_.router,
+      ),
     );
   }
 
@@ -89,22 +115,89 @@ export class LiquidityLayerDeployer<
 
     const bridgeAdapters: Partial<LiquidityLayerContracts> = {};
 
-    for (const adapterConfig of config.bridgeAdapterConfigs) {
-      if (adapterConfig.type === BridgeAdapterType.Circle) {
-        bridgeAdapters.circleBridgeAdapter =
-          await this.deployCircleBridgeAdapter(
-            chain,
-            adapterConfig,
-            config.owner,
-            router,
-          );
-      }
+    if (config.circle) {
+      bridgeAdapters.circleBridgeAdapter = await this.deployCircleBridgeAdapter(
+        chain,
+        config.circle,
+        config.owner,
+        router,
+      );
+    }
+    if (config.portal) {
+      bridgeAdapters.portalAdapter = await this.deployPortalAdapter(
+        chain,
+        config.portal,
+        config.owner,
+        router,
+      );
     }
 
     return {
       ...bridgeAdapters,
       router,
     };
+  }
+
+  async deployPortalAdapter(
+    chain: Chain,
+    adapterConfig: PortalAdapterConfig,
+    owner: string,
+    router: LiquidityLayerRouter,
+  ): Promise<PortalAdapter> {
+    const cc = this.multiProvider.getChainConnection(chain);
+
+    const initCalldata =
+      PortalAdapter__factory.createInterface().encodeFunctionData(
+        'initialize',
+        [
+          ChainNameToDomainId[chain],
+          owner,
+          adapterConfig.portalBridgeAddress,
+          router.address,
+        ],
+      );
+    const portalAdapter = await this.deployContract(
+      chain,
+      'portalAdapter',
+      [],
+      {
+        create2Salt: this.create2salt,
+        initCalldata,
+      },
+    );
+
+    for (const {
+      wormholeDomain,
+      hyperlaneDomain,
+    } of adapterConfig.wormholeDomainMapping) {
+      const expectedCircleDomain =
+        await portalAdapter.hyperlaneDomainToWormholeDomain(hyperlaneDomain);
+      if (expectedCircleDomain === wormholeDomain) continue;
+
+      this.logger(
+        `Set wormhole domain ${wormholeDomain} for hyperlane domain ${hyperlaneDomain}`,
+      );
+      await cc.handleTx(
+        portalAdapter.addDomain(hyperlaneDomain, wormholeDomain),
+      );
+    }
+
+    if (
+      !utils.eqAddress(
+        await router.liquidityLayerAdapters('Portal'),
+        portalAdapter.address,
+      )
+    ) {
+      this.logger('Set Portal as LiquidityLayerAdapter on Router');
+      await cc.handleTx(
+        router.setLiquidityLayerAdapter(
+          adapterConfig.type,
+          portalAdapter.address,
+        ),
+      );
+    }
+
+    return portalAdapter;
   }
 
   async deployCircleBridgeAdapter(
@@ -135,8 +228,10 @@ export class LiquidityLayerDeployer<
     );
 
     if (
-      (await circleBridgeAdapter.tokenSymbolToAddress('USDC')) ===
-      ethers.constants.AddressZero
+      !utils.eqAddress(
+        await circleBridgeAdapter.tokenSymbolToAddress('USDC'),
+        adapterConfig.usdcAddress,
+      )
     ) {
       this.logger(`Set USDC token contract`);
       await cc.handleTx(
@@ -162,13 +257,21 @@ export class LiquidityLayerDeployer<
       );
     }
 
-    this.logger('Set CircleLiquidityLayerAdapter on Router');
-    await cc.handleTx(
-      router.setLiquidityLayerAdapter(
-        adapterConfig.type,
+    if (
+      !utils.eqAddress(
+        await router.liquidityLayerAdapters('Circle'),
         circleBridgeAdapter.address,
-      ),
-    );
+      )
+    ) {
+      this.logger('Set Circle as LiquidityLayerAdapter on Router');
+      await cc.handleTx(
+        router.setLiquidityLayerAdapter(
+          adapterConfig.type,
+          circleBridgeAdapter.address,
+        ),
+      );
+    }
+
     return circleBridgeAdapter;
   }
 }

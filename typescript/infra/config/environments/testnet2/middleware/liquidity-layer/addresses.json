@@ -1,10 +1,24 @@
 {
-  "goerli": {
-    "circleBridgeAdapter": "0xc262a656c99B3a2f1B196dc5BeDa8f4f80D4a878",
-    "router": "0x952228cA63f85130534981844050c82b89f373E7"
-  },
   "fuji": {
-    "circleBridgeAdapter": "0xc262a656c99B3a2f1B196dc5BeDa8f4f80D4a878",
-    "router": "0x952228cA63f85130534981844050c82b89f373E7"
+    "circleBridgeAdapter": "0xb54AD7AE42B7c505100594365CdBC4b28Ef51FE6",
+    "portalAdapter": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
+    "router": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541"
+  },
+  "goerli": {
+    "circleBridgeAdapter": "0xb54AD7AE42B7c505100594365CdBC4b28Ef51FE6",
+    "portalAdapter": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
+    "router": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541"
+  },
+  "mumbai": {
+    "portalAdapter": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
+    "router": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541"
+  },
+  "bsctestnet": {
+    "portalAdapter": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
+    "router": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541"
+  },
+  "alfajores": {
+    "portalAdapter": "0xe589a05be1304b43A6FEb9c5D6a6EEEA35656271",
+    "router": "0x3428e12EfDb2446c1E7feC3f1CED099A8a7cD541"
   }
 }

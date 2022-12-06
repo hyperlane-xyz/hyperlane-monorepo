@@ -2,8 +2,9 @@ name: e2e
 
 on:
   push:
-    branches: [main]
+    branches: [main, v1]
   pull_request:
+    branches: [main, v1]
   workflow_dispatch:
 
 concurrency:

@@ -51,7 +51,6 @@ export enum MessageStatus {
 
 export enum InboxMessageStatus {
   None = 0,
-  Proven,
   Processed,
 }
 

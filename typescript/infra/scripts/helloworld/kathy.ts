@@ -15,7 +15,7 @@ import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { ConnectionType } from '../../src/config/agent';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getArgs, getCoreEnvironmentConfig } from '../utils';
+import { getArgsWithContext, getCoreEnvironmentConfig } from '../utils';
 
 import { getApp } from './utils';
 
@@ -63,7 +63,7 @@ const walletBalance = new Gauge({
 const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
 
 function getKathyArgs() {
-  const args = getArgs()
+  const args = getArgsWithContext()
     .boolean('cycle-once')
     .describe(
       'cycle-once',
@@ -413,7 +413,7 @@ async function sendMessage(
 
   try {
     await utils.timeout(
-      app.waitForMessageReceipt(receipt),
+      app.waitForMessageProcessed(receipt),
       messageReceiptTimeout,
       'Timeout waiting for message to be received',
     );
