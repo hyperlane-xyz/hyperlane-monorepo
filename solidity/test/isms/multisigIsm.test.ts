@@ -208,6 +208,51 @@ describe('MultisigIsm', async () => {
     });
   });
 
+  describe('#setThresholds', () => {
+    let validatorAddresses: string[];
+    const domains = [ORIGIN_DOMAIN, DESTINATION_DOMAIN];
+    const thresholds = [2, 4];
+    before(async () => {
+      validatorAddresses = validators.map((v) => v.address);
+    });
+
+    beforeEach(async () => {
+      await multisigIsm.enrollValidators(
+        domains,
+        domains.map(() => validatorAddresses),
+      );
+    });
+
+    it('sets the quorum thresholds', async () => {
+      await multisigIsm.setThresholds(domains, thresholds);
+
+      await Promise.all(
+        domains.map(async (domain, i) => {
+          expect(await multisigIsm.validators(domain)).to.equal(thresholds[i]);
+        }),
+      );
+    });
+
+    it('emits the SetThreshold event', async () => {
+      expect(await multisigIsm.setThresholds(domains, thresholds))
+        .to.emit(multisigIsm, 'ThresholdSet')
+        .withArgs(ORIGIN_DOMAIN, 2);
+    });
+
+    it('emits the CommitmentUpdated event', async () => {
+      const expectedCommitment = getCommitment(2, validatorAddresses);
+      expect(await multisigIsm.setThresholds(domains, thresholds))
+        .to.emit(multisigIsm, 'CommitmentUpdated')
+        .withArgs(ORIGIN_DOMAIN, expectedCommitment);
+    });
+
+    it('reverts when called by a non-owner', async () => {
+      await expect(
+        multisigIsm.connect(nonOwner).setThresholds(domains, thresholds),
+      ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+  });
+
   describe('#setThreshold', () => {
     beforeEach(async () => {
       // Have 2 validators to allow us to have more than 1 valid

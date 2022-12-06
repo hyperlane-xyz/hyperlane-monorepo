@@ -12,7 +12,6 @@ import {Message} from "../libs/Message.sol";
 import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 
-// TODO: Cleanup and tests
 /**
  * @title MultisigIsm
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
@@ -90,6 +89,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      * @dev Reverts if `_validator` is already in the validator set.
      * @param _domains The remote domains of the validator sets.
      * @param _validators The validators to add to the validator sets.
+     * @dev _validators[i] are the validators to enroll for _domains[i].
      */
     function enrollValidators(
         uint32[] calldata _domains,
