@@ -228,7 +228,7 @@ describe('MultisigIsm', async () => {
 
       await Promise.all(
         domains.map(async (domain, i) => {
-          expect(await multisigIsm.validators(domain)).to.equal(thresholds[i]);
+          expect(await multisigIsm.threshold(domain)).to.equal(thresholds[i]);
         }),
       );
     });

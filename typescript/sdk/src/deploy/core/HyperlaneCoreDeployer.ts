@@ -100,7 +100,8 @@ export class HyperlaneCoreDeployer<
       );
       const validatorsToEnroll = expectedValidators.map((validators, i) =>
         validators.filter(
-          (validator) => !actualValidators[i].includes(validator),
+          (validator) =>
+            !actualValidators[i].includes(ethers.utils.getAddress(validator)),
         ),
       );
       const chainsToEnrollValidators = remotes.filter(
