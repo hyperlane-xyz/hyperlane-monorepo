@@ -1,4 +1,4 @@
-import { ethers } from 'hardhat';
+import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
@@ -44,7 +44,7 @@ export class HyperlaneCoreInfraDeployer<
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string'],
-        [this.environment, 'interchainGasPaymaster'],
+        [this.environment, 'interchainGasPaymaster0'],
       ),
     };
     return super.deployInterchainGasPaymaster(chain, proxyAdmin, deployOpts);
@@ -58,7 +58,7 @@ export class HyperlaneCoreInfraDeployer<
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string'],
-        [this.environment, 'mailbox'],
+        [this.environment, 'mailbox0'],
       ),
     };
     return super.deployMailbox(
