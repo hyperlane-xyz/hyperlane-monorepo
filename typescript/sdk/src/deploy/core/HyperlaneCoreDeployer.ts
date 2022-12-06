@@ -13,7 +13,7 @@ import type { types } from '@hyperlane-xyz/utils';
 import { chainMetadata } from '../../consts/chainMetadata';
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { CoreContracts, coreFactories } from '../../core/contracts';
-import { ChainNameToDomainId } from '../../domains';
+import { ChainNameToDomainId, DomainIdToChainName } from '../../domains';
 import { ChainConnection } from '../../providers/ChainConnection';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../../proxy';
@@ -91,40 +91,68 @@ export class HyperlaneCoreDeployer<
       .multiProvider.remoteChains(chain);
     await super.runIfOwner(chain, multisigIsm, async () => {
       // TODO: Remove extraneous validators
-      for (const remote of remotes) {
-        const multisigIsmConfig = this.configMap[remote].multisigIsm;
-        const domain = ChainNameToDomainId[remote];
-        await Promise.all(
-          multisigIsmConfig.validators.map(async (validator) => {
-            const isValidator = await multisigIsm.isEnrolled(domain, validator);
-            if (!isValidator) {
-              this.logger(
-                `Enrolling ${validator} as ${remote} validator on ${chain}`,
-              );
-              await chainConnection.handleTx(
-                multisigIsm.enrollValidator(
-                  domain,
-                  validator,
-                  chainConnection.overrides,
-                ),
-              );
-            }
-          }),
-        );
-        const threshold = await multisigIsm.threshold(domain);
-        if (!threshold.eq(multisigIsmConfig.threshold)) {
-          this.logger(
-            `Setting ${remote} threshold to ${multisigIsmConfig.threshold} on ${chain}`,
-          );
-          await chainConnection.handleTx(
-            multisigIsm.setThreshold(
-              domain,
-              multisigIsmConfig.threshold,
-              chainConnection.overrides,
+      const configEntries = await Promise.all(
+        remotes.map(async (remote) => {
+          const remoteDomain = ChainNameToDomainId[remote];
+          const multisigIsmConfig = this.configMap[remote].multisigIsm;
+          const unenrolledValidators = await Promise.all(
+            multisigIsmConfig.validators.filter(
+              async (validator) =>
+                !(await multisigIsm.isEnrolled(remoteDomain, validator)),
             ),
           );
-        }
+          const currentThreshold = await multisigIsm.threshold(remoteDomain);
+          const thresholdEntry = currentThreshold.eq(
+            multisigIsmConfig.threshold,
+          )
+            ? undefined
+            : multisigIsmConfig.threshold;
+          const validatorsEntry =
+            unenrolledValidators.length > 0 ? unenrolledValidators : undefined;
+          this.logger(remote, validatorsEntry);
+          return [remoteDomain, thresholdEntry, validatorsEntry];
+        }),
+      );
+      const validatorEntries = configEntries.filter(
+        (entry): entry is [number, number, string[]] => entry[2] !== undefined,
+      );
+      const validatorDomains = validatorEntries.map(([id]) => id);
+      const validatorAddresses = validatorEntries.map(
+        ([, , addresses]) => addresses,
+      );
+      for (const entry of validatorEntries) {
+        this.logger(
+          `Enroll ${DomainIdToChainName[entry[0]]} validators on ${chain}: ${
+            entry[2]
+          }`,
+        );
       }
+      await chainConnection.handleTx(
+        multisigIsm.enrollValidators(
+          validatorDomains,
+          validatorAddresses,
+          chainConnection.overrides,
+        ),
+      );
+
+      const thresholdEntries = configEntries.filter(
+        (entry): entry is [number, number, string[]] => entry[1] !== undefined,
+      );
+      const thresholdDomains = thresholdEntries.map(([id]) => id);
+      const thresholdChains = thresholdDomains.map(
+        (id) => DomainIdToChainName[id],
+      );
+      const thresholds = thresholdEntries.map(([, threshold]) => threshold);
+      this.logger(
+        `Set remote (${thresholdChains}) thresholds on ${chain}: ${thresholds}`,
+      );
+      await chainConnection.handleTx(
+        multisigIsm.setThresholds(
+          thresholdDomains,
+          thresholds,
+          chainConnection.overrides,
+        ),
+      );
     });
 
     return multisigIsm;

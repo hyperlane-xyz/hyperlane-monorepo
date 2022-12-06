@@ -44,13 +44,11 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      * @param domain The remote domain of the validator set.
      * @param validator The address of the validator.
      * @param validatorCount The number of enrolled validators in the validator set.
-     * @param commitment A commitment to the validator set and threshold.
      */
     event ValidatorEnrolled(
         uint32 indexed domain,
         address indexed validator,
-        uint256 validatorCount,
-        bytes32 commitment
+        uint256 validatorCount
     );
 
     /**
@@ -58,26 +56,21 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      * @param domain The remote domain of the validator set.
      * @param validator The address of the validator.
      * @param validatorCount The number of enrolled validators in the validator set.
-     * @param commitment A commitment to the validator set and threshold.
      */
     event ValidatorUnenrolled(
         uint32 indexed domain,
         address indexed validator,
-        uint256 validatorCount,
-        bytes32 commitment
+        uint256 validatorCount
     );
+
+    event CommitmentUpdated(uint32 domain, bytes32 commitment);
 
     /**
      * @notice Emitted when the quorum threshold is set.
      * @param domain The remote domain of the validator set.
      * @param threshold The new quorum threshold.
-     * @param commitment A commitment to the validator set and threshold.
      */
-    event ThresholdSet(
-        uint32 indexed domain,
-        uint256 threshold,
-        bytes32 commitment
-    );
+    event ThresholdSet(uint32 indexed domain, uint256 threshold);
 
     // ============ Constructor ============
 
@@ -87,24 +80,43 @@ contract MultisigIsm is IMultisigIsm, Ownable {
     // ============ External Functions ============
 
     /**
+     * @notice Enrolls multiple validators into a validator set.
+     * @dev Reverts if `_validator` is already in the validator set.
+     * @param _domains The remote domains of the validator sets.
+     * @param _validators The validators to add to the validator sets.
+     */
+    function enrollValidators(
+        uint32[] calldata _domains,
+        address[][] calldata _validators
+    ) external onlyOwner {
+        require(_domains.length == _validators.length, "!length");
+        for (uint256 i = 0; i < _domains.length; i += 1) {
+            address[] calldata _domainValidators = _validators[i];
+            for (uint256 j = 0; j < _domainValidators.length; j += 1) {
+                _enrollValidator(_domains[i], _domainValidators[j]);
+            }
+            _updateCommitment(_domains[i]);
+        }
+    }
+
+    /**
      * @notice Enrolls a validator into a validator set.
      * @dev Reverts if `_validator` is already in the validator set.
      * @param _domain The remote domain of the validator set.
      * @param _validator The validator to add to the validator set.
      */
     function enrollValidator(uint32 _domain, address _validator)
-        external
+        public
         onlyOwner
     {
+        _enrollValidator(_domain, _validator);
+        _updateCommitment(_domain);
+    }
+
+    function _enrollValidator(uint32 _domain, address _validator) internal {
         require(_validator != address(0), "zero address");
         require(validatorSet[_domain].add(_validator), "already enrolled");
-        bytes32 _commitment = _updateCommitment(_domain);
-        emit ValidatorEnrolled(
-            _domain,
-            _validator,
-            validatorCount(_domain),
-            _commitment
-        );
+        emit ValidatorEnrolled(_domain, _validator, validatorCount(_domain));
     }
 
     /**
@@ -123,13 +135,18 @@ contract MultisigIsm is IMultisigIsm, Ownable {
             _validatorCount >= threshold[_domain],
             "violates quorum threshold"
         );
-        bytes32 _commitment = _updateCommitment(_domain);
-        emit ValidatorUnenrolled(
-            _domain,
-            _validator,
-            _validatorCount,
-            _commitment
-        );
+        _updateCommitment(_domain);
+        emit ValidatorUnenrolled(_domain, _validator, _validatorCount);
+    }
+
+    function setThresholds(
+        uint32[] calldata _domains,
+        uint256[] calldata _thresholds
+    ) external onlyOwner {
+        require(_domains.length == _thresholds.length, "!length");
+        for (uint256 i = 0; i < _domains.length; i += 1) {
+            setThreshold(_domains[i], _thresholds[i]);
+        }
     }
 
     /**
@@ -137,17 +154,18 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      * @param _domain The remote domain of the validator set.
      * @param _threshold The new quorum threshold.
      */
-    function setThreshold(uint32 _domain, uint256 _threshold)
-        external
-        onlyOwner
-    {
+    function setThreshold(uint32 _domain, uint256 _threshold) public onlyOwner {
+        _setThreshold(_domain, _threshold);
+        _updateCommitment(_domain);
+    }
+
+    function _setThreshold(uint32 _domain, uint256 _threshold) internal {
         require(
             _threshold > 0 && _threshold <= validatorCount(_domain),
             "!range"
         );
         threshold[_domain] = _threshold;
-        bytes32 _commitment = _updateCommitment(_domain);
-        emit ThresholdSet(_domain, _threshold, _commitment);
+        emit ThresholdSet(_domain, _threshold);
     }
 
     /**
@@ -222,6 +240,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
             abi.encodePacked(_threshold, _validators)
         );
         commitment[_domain] = _commitment;
+        emit CommitmentUpdated(_domain, _commitment);
         return _commitment;
     }
 
