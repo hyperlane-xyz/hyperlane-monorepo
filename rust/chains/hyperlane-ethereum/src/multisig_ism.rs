@@ -170,22 +170,16 @@ where
         checkpoint: &MultisigSignedCheckpoint,
         proof: Proof,
     ) -> Result<Vec<u8>, ChainCommunicationError> {
-        let threshold = self.threshold(checkpoint.checkpoint.mailbox_domain).await?;
-        let validator_addresses: Vec<H160> = self
-            .validators(checkpoint.checkpoint.mailbox_domain)
-            .await?;
-        let validators: Vec<H256> = validator_addresses.iter().map(|&x| H256::from(x)).collect();
-        let validator_tokens: Vec<Token> = validators
-            .iter()
-            .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
-            .collect();
+        let root_bytes = checkpoint.checkpoint.root.to_fixed_bytes().into();
+
+        let index_bytes = checkpoint.checkpoint.index.to_be_bytes().into();
+
         let proof_tokens: Vec<Token> = proof
             .path
             .iter()
             .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
             .collect();
-        let root_bytes = checkpoint.checkpoint.root.to_fixed_bytes().into();
-        let mailbox_and_proof = ethers::abi::encode(&[
+        let mailbox_and_proof_bytes = ethers::abi::encode(&[
             Token::FixedBytes(
                 checkpoint
                     .checkpoint
@@ -195,14 +189,28 @@ where
             ),
             Token::FixedArray(proof_tokens),
         ]);
+
+        let threshold = self.threshold(checkpoint.checkpoint.mailbox_domain).await?;
         let threshold_bytes = threshold.to_be_bytes().into();
+
+        let validator_addresses: Vec<H160> = self
+            .validators(checkpoint.checkpoint.mailbox_domain)
+            .await?;
+
         // The ethers encoder likes to zero-pad non word-aligned byte arrays.
         // Thus, we pack the signatures, which are not word-aligned, ourselves.
         let signature_vecs: Vec<Vec<u8>> =
             order_signatures(&validator_addresses, &checkpoint.signatures);
         let signature_bytes = signature_vecs.concat();
-        let suffix = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
-        let metadata = [root_bytes, mailbox_and_proof, threshold_bytes, signature_bytes, suffix].concat();
+
+        let validators: Vec<H256> = validator_addresses.iter().map(|&x| H256::from(x)).collect();
+        let validator_tokens: Vec<Token> = validators
+            .iter()
+            .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
+            .collect();
+        let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
+
+        let metadata = [root_bytes, index_bytes, mailbox_and_proof_bytes, threshold_bytes, signature_bytes, validator_bytes].concat();
         Ok(metadata)
     }
 
