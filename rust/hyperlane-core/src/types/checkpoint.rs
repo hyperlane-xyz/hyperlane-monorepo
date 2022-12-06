@@ -73,9 +73,8 @@ impl Decode for Checkpoint {
 
 impl Checkpoint {
     fn signing_hash(&self) -> H256 {
-        // let buffer = [0u8; 28];
         // sign:
-        // domain_hash(mailbox_address, mailbox_domain) || root || index (as u256)
+        // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32)
         H256::from_slice(
             Keccak256::new()
                 .chain(domain_hash(self.mailbox_address, self.mailbox_domain))
