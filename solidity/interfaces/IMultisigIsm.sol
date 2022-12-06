@@ -9,7 +9,7 @@ interface IMultisigIsm is IInterchainSecurityModule {
         view
         returns (bool);
 
-    function threshold(uint32 _domain) external view returns (uint256);
+    function threshold(uint32 _domain) external view returns (uint8);
 
     function validators(uint32 _domain)
         external

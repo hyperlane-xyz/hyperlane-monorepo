@@ -199,9 +199,9 @@
         "type": "uint32"
       },
       {
-        "internalType": "uint256",
+        "internalType": "uint8",
         "name": "_threshold",
-        "type": "uint256"
+        "type": "uint8"
       }
     ],
     "name": "setThreshold",
@@ -220,9 +220,9 @@
     "name": "threshold",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint8",
         "name": "",
-        "type": "uint256"
+        "type": "uint8"
       }
     ],
     "stateMutability": "view",

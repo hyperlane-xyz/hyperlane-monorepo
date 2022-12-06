@@ -29,7 +29,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
     // ============ Mutable Storage ============
 
     /// @notice The validator threshold for each remote domain.
-    mapping(uint32 => uint256) public threshold;
+    mapping(uint32 => uint8) public threshold;
 
     /// @notice The validator set for each remote domain.
     mapping(uint32 => EnumerableSet.AddressSet) private validatorSet;
@@ -69,7 +69,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      * @param domain The remote domain of the validator set.
      * @param threshold The new quorum threshold.
      */
-    event ThresholdSet(uint32 indexed domain, uint256 threshold);
+    event ThresholdSet(uint32 indexed domain, uint8 threshold);
 
     /**
      * @notice Emitted when the validator set or threshold changes.
@@ -146,7 +146,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      */
     function setThresholds(
         uint32[] calldata _domains,
-        uint256[] calldata _thresholds
+        uint8[] calldata _thresholds
     ) external onlyOwner {
         require(_domains.length == _thresholds.length, "!length");
         for (uint256 i = 0; i < _domains.length; i += 1) {
@@ -176,7 +176,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      * @param _domain The remote domain of the validator set.
      * @param _threshold The new quorum threshold.
      */
-    function setThreshold(uint32 _domain, uint256 _threshold) public onlyOwner {
+    function setThreshold(uint32 _domain, uint8 _threshold) public onlyOwner {
         require(
             _threshold > 0 && _threshold <= validatorCount(_domain),
             "!range"
@@ -249,7 +249,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      */
     function _updateCommitment(uint32 _domain) internal returns (bytes32) {
         address[] memory _validators = validators(_domain);
-        uint256 _threshold = threshold[_domain];
+        uint8 _threshold = threshold[_domain];
         bytes32 _commitment = keccak256(
             abi.encodePacked(_threshold, _validators)
         );
@@ -287,7 +287,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
         bytes calldata _metadata,
         bytes calldata _message
     ) internal view returns (bool) {
-        uint256 _threshold = _metadata.threshold();
+        uint8 _threshold = _metadata.threshold();
         bytes32 _digest;
         {
             uint32 _origin = _message.origin();

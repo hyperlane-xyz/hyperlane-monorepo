@@ -2,7 +2,7 @@
 //! It has common utils and tools for configuring the app, interacting with the
 //! smart contracts, etc.
 //!
-//! Implementations of the `Outbox` and `Inbox` traits on different chains
+//! Implementations of the `Mailbox` traits on different chains
 //! ought to live here.
 
 // Forbid unsafe code outside of tests

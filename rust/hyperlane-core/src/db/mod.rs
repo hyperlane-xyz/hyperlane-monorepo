@@ -10,7 +10,7 @@ pub mod iterator;
 mod typed_db;
 pub use typed_db::*;
 
-/// DB operations tied to specific Outbox
+/// DB operations tied to specific Mailbox
 mod hyperlane_db;
 pub use hyperlane_db::*;
 

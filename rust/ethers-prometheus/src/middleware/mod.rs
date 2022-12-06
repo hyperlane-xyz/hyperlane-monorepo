@@ -68,7 +68,7 @@ pub struct WalletInfo {
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub struct ContractInfo {
     /// A human-friendly name for the contract. This should be a short string
-    /// like "inbox".
+    /// like "mailbox".
     pub name: Option<String>,
     /// Mapping from function selectors to human readable names.
     pub functions: HashMap<Selector, String>,

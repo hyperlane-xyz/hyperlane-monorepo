@@ -163,7 +163,7 @@ impl SponsoredCallOp {
         loop {
             sleep(self.opts.poll_interval).await;
 
-            // Check if the message has been processed. Checking with the Inbox directly
+            // Check if the message has been processed. Checking with the Mailbox directly
             // is the best source of truth, and is the only way in which a message can be
             // marked as processed.
             if let Ok(true) = self.message_delivered().await {

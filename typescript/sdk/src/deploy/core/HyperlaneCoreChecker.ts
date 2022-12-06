@@ -122,9 +122,7 @@ export class HyperlaneCoreChecker<
     const expectedThreshold = multisigIsmConfig.threshold;
     utils.assert(expectedThreshold !== undefined);
 
-    const actualThreshold = (
-      await multisigIsm.threshold(remoteDomain)
-    ).toNumber();
+    const actualThreshold = await multisigIsm.threshold(remoteDomain);
 
     if (expectedThreshold !== actualThreshold) {
       const violation: ThresholdViolation = {
