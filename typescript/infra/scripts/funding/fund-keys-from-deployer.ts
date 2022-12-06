@@ -37,7 +37,7 @@ import {
 } from '../utils';
 
 // Missing types declaration for bufio
-const CrossChainMessenger = require('@eth-optimism/sdk').CrossChainMessenger;
+const CrossChainMessenger = require('@eth-optimism/sdk').CrossChainMessenger; // eslint-disable-line
 
 const constMetricLabels = {
   // this needs to get set in main because of async reasons
