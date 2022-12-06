@@ -48,7 +48,6 @@ pub struct CoreMetrics {
 
     messages_processed_count: IntCounterVec,
 
-    outbox_state: IntGaugeVec,
     latest_checkpoint: IntGaugeVec,
 
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
@@ -146,20 +145,10 @@ impl CoreMetrics {
             registry
         )?;
 
-        let outbox_state = register_int_gauge_vec_with_registry!(
-            opts!(
-                namespaced!("outbox_state"),
-                "Outbox contract state value",
-                const_labels_ref
-            ),
-            &["chain"],
-            registry
-        )?;
-
         let latest_checkpoint = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("latest_checkpoint"),
-                "Outbox latest checkpoint",
+                "Mailbox latest checkpoint",
                 const_labels_ref
             ),
             &["phase", "chain"],
@@ -192,7 +181,6 @@ impl CoreMetrics {
 
             messages_processed_count,
 
-            outbox_state,
             latest_checkpoint,
 
             json_rpc_client_metrics: OnceCell::new(),
@@ -305,7 +293,7 @@ impl CoreMetrics {
     ///   the nonces are contiguous by origin not remote.
     ///
     /// The following phases are implemented:
-    /// - `dispatch`: Highest nonce which has been indexed on the outbox
+    /// - `dispatch`: Highest nonce which has been indexed on the mailbox
     ///   contract syncer and stored in the relayer DB.
     /// - `signed_offchain_checkpoint`: Highest nonce of a checkpoint which is
     ///   known to have been signed by a quorum of validators.
@@ -325,21 +313,11 @@ impl CoreMetrics {
         self.validator_checkpoint_index.clone()
     }
 
-    /// Gauge for reporting the current outbox state. This is either 0 (for
-    /// UnInitialized), 1 (for Active), or 2 (for Failed). These are from the
-    /// outbox contract States enum.
-    ///
-    /// Labels:
-    /// - `chain`: The chain the outbox is for.
-    pub fn outbox_state(&self) -> IntGaugeVec {
-        self.outbox_state.clone()
-    }
-
     /// Latest message nonce in the validator.
     ///
     /// Phase:
     /// - `validator_observed`: When the validator has observed the checkpoint
-    ///   on the outbox contract.
+    ///   on the mailbox contract.
     /// - `validator_processed`: When the validator has written this checkpoint.
     pub fn latest_checkpoint(&self) -> IntGaugeVec {
         self.latest_checkpoint.clone()

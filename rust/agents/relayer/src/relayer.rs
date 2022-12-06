@@ -263,10 +263,10 @@ impl Relayer {
         let process_fut = message_processor.spawn();
         tokio::spawn(async move {
             let res = tokio::try_join!(submit_fut, process_fut)?;
-            info!(?res, "try_join finished for inbox");
+            info!(?res, "try_join finished for mailbox");
             Ok(())
         })
-        .instrument(info_span!("run inbox"))
+        .instrument(info_span!("run mailbox"))
     }
 }
 
