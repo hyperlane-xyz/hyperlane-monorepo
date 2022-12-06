@@ -9,6 +9,7 @@ import {
   CoreEnvironmentChain,
   HyperlaneCore,
 } from '../core/HyperlaneCore';
+import { ChainNameToDomainId } from '../domains';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName, Remotes } from '../types';
 import { convertDecimalValue, mulBigAndFixed } from '../utils/number';
@@ -313,8 +314,10 @@ export class InterchainGasCalculator<Chain extends ChainName> {
   ): Promise<BigNumber> {
     // TODO: Check the recipient module
     const module = this.core.getContracts(destination).multisigIsm;
-    const threshold = await module.threshold(origin);
-    return threshold.mul(GAS_OVERHEAD_PER_SIGNATURE).add(GAS_OVERHEAD_BASE);
+    const threshold = await module.threshold(ChainNameToDomainId[origin]);
+    return BigNumber.from(threshold)
+      .mul(GAS_OVERHEAD_PER_SIGNATURE)
+      .add(GAS_OVERHEAD_BASE);
   }
 
   /**

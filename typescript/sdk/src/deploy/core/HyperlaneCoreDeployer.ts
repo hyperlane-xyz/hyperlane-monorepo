@@ -60,6 +60,7 @@ export class HyperlaneCoreDeployer<
   ): Promise<MultisigIsm> {
     const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
     const configChains = Object.keys(this.configMap) as Chain[];
+    const chainConnection = this.multiProvider.getChainConnection(chain);
     const remotes = this.multiProvider
       .intersect(configChains, false)
       .multiProvider.remoteChains(chain);
@@ -68,21 +69,35 @@ export class HyperlaneCoreDeployer<
       for (const remote of remotes) {
         const multisigIsmConfig = this.configMap[remote].multisigIsm;
         const domain = ChainNameToDomainId[remote];
-        for (const validator of multisigIsmConfig.validators) {
-          const isValidator = await multisigIsm.isEnrolled(domain, validator);
-          if (!isValidator) {
-            this.logger(
-              `Enrolling ${validator} as ${remote} validator on ${chain}`,
-            );
-            await multisigIsm.enrollValidator(domain, validator);
-          }
-        }
+        await Promise.all(
+          multisigIsmConfig.validators.map(async (validator) => {
+            const isValidator = await multisigIsm.isEnrolled(domain, validator);
+            if (!isValidator) {
+              this.logger(
+                `Enrolling ${validator} as ${remote} validator on ${chain}`,
+              );
+              await chainConnection.handleTx(
+                multisigIsm.enrollValidator(
+                  domain,
+                  validator,
+                  chainConnection.overrides,
+                ),
+              );
+            }
+          }),
+        );
         const threshold = await multisigIsm.threshold(domain);
-        if (!threshold.eq(multisigIsmConfig.threshold)) {
+        if (threshold !== multisigIsmConfig.threshold) {
           this.logger(
             `Setting ${remote} threshold to ${multisigIsmConfig.threshold} on ${chain}`,
           );
-          await multisigIsm.setThreshold(domain, multisigIsmConfig.threshold);
+          await chainConnection.handleTx(
+            multisigIsm.setThreshold(
+              domain,
+              multisigIsmConfig.threshold,
+              chainConnection.overrides,
+            ),
+          );
         }
       }
     });

@@ -134,7 +134,7 @@ pub enum Message {
     Origin,
     /// Domain ID of the destination chain
     Destination,
-    /// Nonce of this message in the merkle tree of the outbox
+    /// Nonce of this message in the merkle tree of the mailbox
     Nonce,
     /// Address of the message sender on the origin chain (not necessarily the
     /// transaction signer)

@@ -107,11 +107,15 @@ async function ensureExternalSecretsRelease(infraConfig: InfrastructureConfig) {
     // Note `kubectl wait` exists and newer versions support the ability to wait for
     // arbitrary conditions. However this is a recent feature, so instead we poll to
     // avoid annoying kubectl versioning issues.
-    const readyReplicas = await execCmdAndParseJson(
-      `kubectl get deploy external-secrets-webhook -o jsonpath='{.status.readyReplicas}' --namespace ${infraConfig.externalSecrets.namespace}`,
-    );
-    if (readyReplicas > 0) {
-      return;
+    try {
+      const readyReplicas = await execCmdAndParseJson(
+        `kubectl get deploy external-secrets-webhook -o jsonpath='{.status.readyReplicas}' --namespace ${infraConfig.externalSecrets.namespace}`,
+      );
+      if (readyReplicas > 0) {
+        return;
+      }
+    } catch (_) {
+      console.log('Still not ready...');
     }
     // Sleep a second and try again
     await sleep(1000);

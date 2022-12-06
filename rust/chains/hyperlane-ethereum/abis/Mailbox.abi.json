@@ -28,8 +28,20 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint32",
+        "name": "destination",
+        "type": "uint32"
+      },
+      {
+        "indexed": true,
         "internalType": "bytes32",
-        "name": "messageId",
+        "name": "recipient",
         "type": "bytes32"
       },
       {
@@ -40,6 +52,19 @@
       }
     ],
     "name": "Dispatch",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "messageId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "DispatchId",
     "type": "event"
   },
   {
@@ -76,6 +101,37 @@
   },
   {
     "anonymous": false,
+    "inputs": [],
+    "name": "Paused",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint32",
+        "name": "origin",
+        "type": "uint32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "sender",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      }
+    ],
+    "name": "Process",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
     "inputs": [
       {
         "indexed": true,
@@ -84,7 +140,13 @@
         "type": "bytes32"
       }
     ],
-    "name": "Process",
+    "name": "ProcessId",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "Unpaused",
     "type": "event"
   },
   {
@@ -105,9 +167,9 @@
     "name": "VERSION",
     "outputs": [
       {
-        "internalType": "uint32",
+        "internalType": "uint8",
         "name": "",
-        "type": "uint32"
+        "type": "uint8"
       }
     ],
     "stateMutability": "view",
@@ -202,6 +264,19 @@
   },
   {
     "inputs": [],
+    "name": "isPaused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "latestCheckpoint",
     "outputs": [
       {
@@ -242,6 +317,13 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -319,6 +401,13 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "unpause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   }
 ]

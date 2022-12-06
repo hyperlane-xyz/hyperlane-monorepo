@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {ILiquidityLayerMessageRecipient} from "../middleware/liquidity-layer/interfaces/ILiquidityLayerMessageRecipient.sol";
+import {ILiquidityLayerMessageRecipient} from "../../interfaces/ILiquidityLayerMessageRecipient.sol";
 
 contract TestLiquidityLayerMessageRecipient is ILiquidityLayerMessageRecipient {
     event HandledWithTokens(

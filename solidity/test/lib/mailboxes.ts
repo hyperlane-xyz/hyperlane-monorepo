@@ -40,12 +40,13 @@ export const dispatchMessageAndReturnProof = async (
   messageStr: string,
 ): Promise<MessageAndProof> => {
   const nonce = await mailbox.count();
-  const { message, messageId } = await dispatchMessage(
+  const { message } = await dispatchMessage(
     mailbox,
     destination,
     utils.addressToBytes32(recipient),
     messageStr,
   );
+  const messageId = utils.messageId(message);
   const proof = await mailbox.proof();
   return {
     proof: {
@@ -114,7 +115,7 @@ export function getCommitment(
   validators: types.Address[],
 ): string {
   const packed = ethers.utils.solidityPack(
-    ['uint256', 'address[]'],
+    ['uint8', 'address[]'],
     [threshold, validators],
   );
   return ethers.utils.solidityKeccak256(['bytes'], [packed]);

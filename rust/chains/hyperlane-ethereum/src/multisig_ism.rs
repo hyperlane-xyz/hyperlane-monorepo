@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use ethers::abi::Token;
 use ethers::providers::Middleware;
-use ethers::types::{Selector, H160, H256, U256};
+use ethers::types::{Selector, H160, H256};
 use eyre::Result;
 use tokio::sync::RwLock;
 use tracing::instrument;
@@ -17,7 +17,7 @@ use tracing::instrument;
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
     ChainCommunicationError, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    MultisigIsm, MultisigSignedCheckpoint,
+    MultisigIsm, MultisigSignedCheckpoint, SignatureWithSigner,
 };
 
 use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
@@ -112,7 +112,7 @@ where
     chain_name: String,
     #[allow(dead_code)]
     provider: Arc<M>,
-    threshold_cache: RwLock<ExpiringCache<u32, U256>>,
+    threshold_cache: RwLock<ExpiringCache<u32, u8>>,
     validators_cache: RwLock<ExpiringCache<u32, Vec<H160>>>,
 }
 
@@ -170,25 +170,16 @@ where
         checkpoint: &MultisigSignedCheckpoint,
         proof: Proof,
     ) -> Result<Vec<u8>, ChainCommunicationError> {
-        let threshold = self.threshold(checkpoint.checkpoint.mailbox_domain).await?;
-        let validators: Vec<H256> = self
-            .validators(checkpoint.checkpoint.mailbox_domain)
-            .await?
-            .iter()
-            .map(|&x| H256::from(x))
-            .collect();
-        let validator_tokens: Vec<Token> = validators
-            .iter()
-            .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
-            .collect();
+        let root_bytes = checkpoint.checkpoint.root.to_fixed_bytes().into();
+
+        let index_bytes = checkpoint.checkpoint.index.to_be_bytes().into();
+
         let proof_tokens: Vec<Token> = proof
             .path
             .iter()
             .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
             .collect();
-        let prefix = ethers::abi::encode(&[
-            Token::FixedBytes(checkpoint.checkpoint.root.to_fixed_bytes().into()),
-            Token::Uint(U256::from(checkpoint.checkpoint.index)),
+        let mailbox_and_proof_bytes = ethers::abi::encode(&[
             Token::FixedBytes(
                 checkpoint
                     .checkpoint
@@ -197,20 +188,42 @@ where
                     .into(),
             ),
             Token::FixedArray(proof_tokens),
-            Token::Uint(threshold),
         ]);
-        let suffix = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
+
+        let threshold = self.threshold(checkpoint.checkpoint.mailbox_domain).await?;
+        let threshold_bytes = threshold.to_be_bytes().into();
+
+        let validator_addresses: Vec<H160> = self
+            .validators(checkpoint.checkpoint.mailbox_domain)
+            .await?;
+
         // The ethers encoder likes to zero-pad non word-aligned byte arrays.
         // Thus, we pack the signatures, which are not word-aligned, ourselves.
         let signature_vecs: Vec<Vec<u8>> =
-            checkpoint.signatures.iter().map(|x| x.to_vec()).collect();
+            order_signatures(&validator_addresses, &checkpoint.signatures);
         let signature_bytes = signature_vecs.concat();
-        let metadata = [prefix, signature_bytes, suffix].concat();
+
+        let validators: Vec<H256> = validator_addresses.iter().map(|&x| H256::from(x)).collect();
+        let validator_tokens: Vec<Token> = validators
+            .iter()
+            .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
+            .collect();
+        let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
+
+        let metadata = [
+            root_bytes,
+            index_bytes,
+            mailbox_and_proof_bytes,
+            threshold_bytes,
+            signature_bytes,
+            validator_bytes,
+        ]
+        .concat();
         Ok(metadata)
     }
 
     #[instrument(err, ret, skip(self))]
-    async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
+    async fn threshold(&self, domain: u32) -> Result<u8, ChainCommunicationError> {
         let entry = self.threshold_cache.read().await.get(domain).cloned();
         if let Some(threshold) = entry {
             Ok(threshold)
@@ -243,4 +256,34 @@ impl HyperlaneAbi for EthereumMultisigIsmAbi {
     fn fn_map() -> HashMap<Selector, &'static str> {
         super::extract_fn_map(&MULTISIGISM_ABI)
     }
+}
+
+/// Orders `signatures` by the signers according to the `desired_order`.
+/// Returns a Vec of the signature raw bytes in the correct order.
+/// Panics if any signers in `signatures` are not present in `desired_order`
+fn order_signatures(desired_order: &[H160], signatures: &[SignatureWithSigner]) -> Vec<Vec<u8>> {
+    // Signer address => index to sort by
+    let ordering_map: HashMap<H160, usize> = desired_order
+        .iter()
+        .cloned()
+        .enumerate()
+        .map(|(index, a)| (a, index))
+        .collect();
+
+    // Create a tuple of (SignatureWithSigner, index to sort by)
+    let mut ordered_signatures = signatures
+        .iter()
+        .cloned()
+        .map(|s| {
+            let order_index = ordering_map.get(&s.signer).unwrap();
+            (s, *order_index)
+        })
+        .collect::<Vec<(SignatureWithSigner, usize)>>();
+    // Sort by the index
+    ordered_signatures.sort_by_key(|s| s.1);
+    // Now collect only the raw signature bytes
+    ordered_signatures
+        .iter()
+        .map(|s| s.0.signature.to_vec())
+        .collect()
 }

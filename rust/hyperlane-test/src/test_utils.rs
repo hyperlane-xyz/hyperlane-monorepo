@@ -39,8 +39,8 @@ mod test {
     #[tokio::test]
     async fn db_stores_and_retrieves_messages() {
         run_test_db(|db| async move {
-            let outbox_name = "outbox_1".to_owned();
-            let db = HyperlaneDB::new(outbox_name, db);
+            let mailbox_name = "mailbox_1".to_owned();
+            let db = HyperlaneDB::new(mailbox_name, db);
 
             let m = HyperlaneMessage {
                 nonce: 100,
@@ -72,8 +72,8 @@ mod test {
     #[tokio::test]
     async fn db_stores_and_retrieves_proofs() {
         run_test_db(|db| async move {
-            let outbox_name = "outbox_1".to_owned();
-            let db = HyperlaneDB::new(outbox_name, db);
+            let mailbox_name = "mailbox_1".to_owned();
+            let db = HyperlaneDB::new(mailbox_name, db);
 
             let proof = Proof {
                 leaf: H256::from_low_u64_be(15),

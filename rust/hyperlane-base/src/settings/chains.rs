@@ -1,4 +1,4 @@
-use ethers::{abi::AbiEncode, signers::Signer};
+use ethers::signers::Signer;
 use eyre::Context;
 use serde::Deserialize;
 
@@ -53,7 +53,7 @@ pub struct GelatoConf {
     pub sponsorapikey: String,
 }
 
-/// Addresses for outbox chain contracts
+/// Addresses for mailbox chain contracts
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CoreContractAddresses {
@@ -65,14 +65,14 @@ pub struct CoreContractAddresses {
     pub interchain_gas_paymaster: String,
 }
 
-/// Outbox indexing settings
+/// Indexing settings
 #[derive(Debug, Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexSettings {
     /// The height at which to start indexing the Outbox contract
     pub from: Option<String>,
     /// The number of blocks to query at once at which to start indexing the
-    /// Outbox contract
+    /// Mailbox contract
     pub chunk: Option<String>,
 }
 
@@ -94,8 +94,8 @@ impl IndexSettings {
     }
 }
 
-/// A chain setup is a domain ID, an address on that chain (where the outbox or
-/// inbox is deployed) and details for connecting to the chain API.
+/// A chain setup is a domain ID, an address on that chain (where the mailbox is deployed) and
+/// details for connecting to the chain API.
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainSetup {
@@ -150,9 +150,9 @@ impl ChainSetup {
         };
 
         let address = match &self.chain {
-            ChainConf::Ethereum(_) => ethers::types::Address::zero().encode_hex(),
+            ChainConf::Ethereum(_) => "0x0000000000000000000000000000000000000000",
         };
-        self.build(&address, None, metrics, metrics_conf, builder)
+        self.build(address, None, metrics, metrics_conf, builder)
             .await
     }
 
@@ -167,10 +167,11 @@ impl ChainSetup {
         let builder = MailboxBuilder {};
         self.build(address, signer, metrics, metrics_conf, builder)
             .await
-            .context("Building outbox")
+            .context("Building mailbox")
     }
 
-    /// Try to convert the chain setting into an interchain gas paymaster contract
+    /// Try to convert the chain setting into an interchain gas paymaster
+    /// contract
     pub async fn try_into_interchain_gas_paymaster(
         &self,
         signer: Option<Signers>,
@@ -181,7 +182,7 @@ impl ChainSetup {
         let builder = InterchainGasPaymasterBuilder {};
         self.build(address, signer, metrics, metrics_conf, builder)
             .await
-            .context("Building igp")
+            .context("Building IGP")
     }
 
     /// Try to convert the chain setting into a Multisig Ism contract

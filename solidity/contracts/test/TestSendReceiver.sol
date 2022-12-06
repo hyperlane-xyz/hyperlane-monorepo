@@ -10,15 +10,17 @@ import {IMailbox} from "../../interfaces/IMailbox.sol";
 contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
 
+    uint256 public constant HANDLE_GAS_AMOUNT = 50_000;
+
     event Handled(bytes32 blockHash);
 
     function dispatchToSelf(
-        IMailbox _outbox,
+        IMailbox _mailbox,
         IInterchainGasPaymaster _paymaster,
         uint32 _destinationDomain,
         bytes calldata _messageBody
     ) external payable {
-        bytes32 _messageId = _outbox.dispatch(
+        bytes32 _messageId = _mailbox.dispatch(
             _destinationDomain,
             address(this).addressToBytes32(),
             _messageBody
@@ -27,15 +29,28 @@ contract TestSendReceiver is IMessageRecipient {
         uint256 _value = msg.value;
         if (_blockHashNum % 5 == 0) {
             // Pay in two separate calls, resulting in 2 distinct events
-            uint256 _half = _value / 2;
-            _paymaster.payGasFor{value: _half}(_messageId, _destinationDomain);
-            _paymaster.payGasFor{value: _value - _half}(
+            uint256 _halfPayment = _value / 2;
+            uint256 _halfGasAmount = HANDLE_GAS_AMOUNT / 2;
+            _paymaster.payForGas{value: _halfPayment}(
                 _messageId,
-                _destinationDomain
+                _destinationDomain,
+                _halfGasAmount,
+                msg.sender
+            );
+            _paymaster.payForGas{value: _value - _halfPayment}(
+                _messageId,
+                _destinationDomain,
+                HANDLE_GAS_AMOUNT - _halfGasAmount,
+                msg.sender
             );
         } else {
             // Pay the entire msg.value in one call
-            _paymaster.payGasFor{value: _value}(_messageId, _destinationDomain);
+            _paymaster.payForGas{value: _value}(
+                _messageId,
+                _destinationDomain,
+                HANDLE_GAS_AMOUNT,
+                msg.sender
+            );
         }
     }
 

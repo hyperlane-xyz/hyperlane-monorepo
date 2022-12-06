@@ -60,7 +60,6 @@ impl From<&'_ Address> for ethers::types::H160 {
 pub enum HyperlaneDomain {
     Ethereum = 1,
     Goerli = 5,
-    Kovan = 3000,
 
     Polygon = 137,
     Mumbai = 80001,
@@ -69,11 +68,9 @@ pub enum HyperlaneDomain {
     Fuji = 43113,
 
     Arbitrum = 42161,
-    ArbitrumRinkeby = 421611,
     ArbitrumGoerli = 421613,
 
     Optimism = 10,
-    OptimismKovan = 69,
     OptimismGoerli = 420,
 
     #[strum(serialize = "bsc")]
@@ -84,8 +81,8 @@ pub enum HyperlaneDomain {
     Celo = 42220,
     Alfajores = 44787,
 
-    MoonbaseAlpha = 1287,
     Moonbeam = 1284,
+    MoonbaseAlpha = 1287,
 
     Zksync2Testnet = 280,
 
@@ -128,7 +125,6 @@ impl HyperlaneDomain {
         match self {
             HyperlaneDomain::Ethereum => HyperlaneDomainType::Mainnet,
             HyperlaneDomain::Goerli => HyperlaneDomainType::Testnet,
-            HyperlaneDomain::Kovan => HyperlaneDomainType::Testnet,
 
             HyperlaneDomain::Polygon => HyperlaneDomainType::Mainnet,
             HyperlaneDomain::Mumbai => HyperlaneDomainType::Testnet,
@@ -137,11 +133,9 @@ impl HyperlaneDomain {
             HyperlaneDomain::Fuji => HyperlaneDomainType::Testnet,
 
             HyperlaneDomain::Arbitrum => HyperlaneDomainType::Mainnet,
-            HyperlaneDomain::ArbitrumRinkeby => HyperlaneDomainType::Testnet,
             HyperlaneDomain::ArbitrumGoerli => HyperlaneDomainType::Testnet,
 
             HyperlaneDomain::Optimism => HyperlaneDomainType::Mainnet,
-            HyperlaneDomain::OptimismKovan => HyperlaneDomainType::Testnet,
             HyperlaneDomain::OptimismGoerli => HyperlaneDomainType::Testnet,
 
             HyperlaneDomain::BinanceSmartChain => HyperlaneDomainType::Mainnet,
@@ -150,8 +144,8 @@ impl HyperlaneDomain {
             HyperlaneDomain::Celo => HyperlaneDomainType::Mainnet,
             HyperlaneDomain::Alfajores => HyperlaneDomainType::Testnet,
 
-            HyperlaneDomain::MoonbaseAlpha => HyperlaneDomainType::Testnet,
             HyperlaneDomain::Moonbeam => HyperlaneDomainType::Mainnet,
+            HyperlaneDomain::MoonbaseAlpha => HyperlaneDomainType::Testnet,
 
             HyperlaneDomain::Zksync2Testnet => HyperlaneDomainType::Testnet,
 
@@ -266,7 +260,7 @@ mod tests {
         hyperlane_settings()
             .iter()
             .flat_map(|x: &Settings| {
-                x.chain.chains.iter().map(|(_, v)| ChainCoordinate {
+                x.chains.iter().map(|(_, v)| ChainCoordinate {
                     name: v.name.clone(),
                     domain: v.domain.parse().unwrap(),
                 })
