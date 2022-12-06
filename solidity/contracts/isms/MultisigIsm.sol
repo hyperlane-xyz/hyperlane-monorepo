@@ -64,14 +64,19 @@ contract MultisigIsm is IMultisigIsm, Ownable {
         uint256 validatorCount
     );
 
-    event CommitmentUpdated(uint32 domain, bytes32 commitment);
-
     /**
      * @notice Emitted when the quorum threshold is set.
      * @param domain The remote domain of the validator set.
      * @param threshold The new quorum threshold.
      */
     event ThresholdSet(uint32 indexed domain, uint256 threshold);
+
+    /**
+     * @notice Emitted when the validator set or threshold changes.
+     * @param domain The remote domain of the validator set.
+     * @param commitment A commitment to the validator set and threshold.
+     */
+    event CommitmentUpdated(uint32 domain, bytes32 commitment);
 
     // ============ Constructor ============
 
@@ -107,17 +112,11 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      * @param _validator The validator to add to the validator set.
      */
     function enrollValidator(uint32 _domain, address _validator)
-        public
+        external
         onlyOwner
     {
         _enrollValidator(_domain, _validator);
         _updateCommitment(_domain);
-    }
-
-    function _enrollValidator(uint32 _domain, address _validator) internal {
-        require(_validator != address(0), "zero address");
-        require(validatorSet[_domain].add(_validator), "already enrolled");
-        emit ValidatorEnrolled(_domain, _validator, validatorCount(_domain));
     }
 
     /**
@@ -140,6 +139,11 @@ contract MultisigIsm is IMultisigIsm, Ownable {
         emit ValidatorUnenrolled(_domain, _validator, _validatorCount);
     }
 
+    /**
+     * @notice Sets the quorum threshold for multiple domains.
+     * @param _domains The remote domains of the validator sets.
+     * @param _thresholds The new quorum thresholds.
+     */
     function setThresholds(
         uint32[] calldata _domains,
         uint256[] calldata _thresholds
@@ -148,25 +152,6 @@ contract MultisigIsm is IMultisigIsm, Ownable {
         for (uint256 i = 0; i < _domains.length; i += 1) {
             setThreshold(_domains[i], _thresholds[i]);
         }
-    }
-
-    /**
-     * @notice Sets the quorum threshold.
-     * @param _domain The remote domain of the validator set.
-     * @param _threshold The new quorum threshold.
-     */
-    function setThreshold(uint32 _domain, uint256 _threshold) public onlyOwner {
-        _setThreshold(_domain, _threshold);
-        _updateCommitment(_domain);
-    }
-
-    function _setThreshold(uint32 _domain, uint256 _threshold) internal {
-        require(
-            _threshold > 0 && _threshold <= validatorCount(_domain),
-            "!range"
-        );
-        threshold[_domain] = _threshold;
-        emit ThresholdSet(_domain, _threshold);
     }
 
     /**
@@ -185,6 +170,22 @@ contract MultisigIsm is IMultisigIsm, Ownable {
     }
 
     // ============ Public Functions ============
+
+    /**
+     * @notice Sets the quorum threshold.
+     * @param _domain The remote domain of the validator set.
+     * @param _threshold The new quorum threshold.
+     */
+    function setThreshold(uint32 _domain, uint256 _threshold) public onlyOwner {
+        require(
+            _threshold > 0 && _threshold <= validatorCount(_domain),
+            "!range"
+        );
+        threshold[_domain] = _threshold;
+        emit ThresholdSet(_domain, _threshold);
+
+        _updateCommitment(_domain);
+    }
 
     /**
      * @notice Verifies that a quorum of the origin domain's validators signed
@@ -228,6 +229,18 @@ contract MultisigIsm is IMultisigIsm, Ownable {
     }
 
     // ============ Internal Functions ============
+
+    /**
+     * @notice Enrolls a validator into a validator set.
+     * @dev Reverts if `_validator` is already in the validator set.
+     * @param _domain The remote domain of the validator set.
+     * @param _validator The validator to add to the validator set.
+     */
+    function _enrollValidator(uint32 _domain, address _validator) internal {
+        require(_validator != address(0), "zero address");
+        require(validatorSet[_domain].add(_validator), "already enrolled");
+        emit ValidatorEnrolled(_domain, _validator, validatorCount(_domain));
+    }
 
     /**
      * @notice Updates the commitment to the validator set for `_domain`.
