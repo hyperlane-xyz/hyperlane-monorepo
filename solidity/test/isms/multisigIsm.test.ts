@@ -179,10 +179,10 @@ describe('MultisigIsm', async () => {
 
   describe('#validators', () => {
     beforeEach(async () => {
-      // Must be done sequentially so gas estimation is correct.
-      for (const v of validators) {
-        await multisigIsm.enrollValidator(ORIGIN_DOMAIN, v.address);
-      }
+      await multisigIsm.enrollValidators(
+        [ORIGIN_DOMAIN],
+        [validators.map((v) => v.address)],
+      );
     });
 
     it('returns the validators', async () => {

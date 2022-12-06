@@ -85,7 +85,7 @@ export class HyperlaneCoreDeployer<
   ): Promise<MultisigIsm> {
     const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
     // TODO: Config is broken somehow, skipping
-    if (multisigIsm.address) return multisigIsm;
+    // if (multisigIsm.address) return multisigIsm;
     const configChains = Object.keys(this.configMap) as Chain[];
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const remotes = this.multiProvider
