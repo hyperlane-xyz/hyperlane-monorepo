@@ -55,7 +55,7 @@ impl ScraperDb {
             .map(|idx| idx as u32))
     }
 
-    /// Store deliveries from an mailbox into the database (or update an existing
+    /// Store deliveries from a mailbox into the database (or update an existing
     /// one).
     #[instrument(skip_all)]
     pub async fn store_deliveries(
@@ -96,7 +96,7 @@ impl ScraperDb {
         Ok(())
     }
 
-    /// Store messages from an mailbox into the database (or update an existing
+    /// Store messages from a mailbox into the database (or update an existing
     /// one).
     #[instrument(skip_all)]
     pub async fn store_messages(

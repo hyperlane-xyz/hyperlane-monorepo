@@ -4,7 +4,7 @@
 //!
 //! Hyperlane Agents have a shared core, which contains connection info for rpc,
 //! relevant contract addresses on each chain, etc. In addition, each agent has
-//! agent-specific settings. Be convention, we represent these as a base config
+//! agent-specific settings. Be convention above, we represent these as a base config
 //! per-Mailbox contract, and a "partial" config per agent. On bootup, the agent
 //! loads the configuration, establishes RPC connections, and monitors each
 //! configured chain.

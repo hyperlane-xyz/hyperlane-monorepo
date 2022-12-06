@@ -238,14 +238,13 @@ impl SerialSubmitter {
 
     /// Returns the message's status. If the message is processed, either by a transaction
     /// in this fn or by a view call to the Mailbox contract discovering the message has already
-    /// been processed, Ok(MessageStatus::Processed) is returned. If this message is unable to
+    /// been processed, Ok(true) is returned. If this message is unable to
     /// be processed, either due to failed gas estimation or an insufficient gas payment,
-    /// Ok(MessageStatus::None) is returned.
+    /// Ok(false) is returned.
     #[instrument(skip(self, msg), fields(msg_nonce=msg.message.nonce))]
     async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<bool> {
-        // If the message has already been processed according to message_status call on
-        // mailbox, e.g. due to another relayer having already processed, then mark it as
-        // already-processed, and move on to the next tick.
+        // If the message has already been processed, e.g. due to another relayer having already
+        // processed, then mark it as already-processed, and move on to the next tick.
         // TODO(webbhorn): Make this robust to re-orgs on mailbox.
         if self.mailbox.delivered(msg.message.id()).await? {
             info!("Message already processed");
