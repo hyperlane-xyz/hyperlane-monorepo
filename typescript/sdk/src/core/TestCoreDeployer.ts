@@ -1,10 +1,12 @@
 import { ethers } from 'ethers';
 
 import {
+  MultisigIsm,
   TestIsm__factory,
   TestMailbox,
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
+import { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
@@ -51,12 +53,10 @@ export class TestCoreDeployer<
     super(multiProvider, configs, testCoreFactories);
   }
 
-  // skip proxying
-  async deployMailbox<LocalChain extends TestChain>(
+  // deploy a test ISM in place of a multisig ISM
+  async deployMultisigIsm<LocalChain extends TestChain>(
     chain: LocalChain,
-  ): Promise<ProxiedContract<TestMailbox, BeaconProxyAddresses>> {
-    const localDomain = chainMetadata[chain].id;
-
+  ): Promise<MultisigIsm> {
     const testIsm = await this.deployContractFromFactory(
       chain,
       testCoreFactories.testIsm,
@@ -64,9 +64,18 @@ export class TestCoreDeployer<
       [],
     );
     await testIsm.setAccept(true);
+    return testIsm as unknown as MultisigIsm;
+  }
+
+  // skip proxying
+  async deployMailbox<LocalChain extends TestChain>(
+    chain: LocalChain,
+    defaultIsmAddress: types.Address,
+  ): Promise<ProxiedContract<TestMailbox, BeaconProxyAddresses>> {
+    const localDomain = chainMetadata[chain].id;
 
     const mailbox = await this.deployContract(chain, 'mailbox', [localDomain]);
-    await mailbox.initialize(testIsm.address);
+    await mailbox.initialize(defaultIsmAddress);
     return new ProxiedContract(mailbox, {
       kind: ProxyKind.UpgradeBeacon,
       proxy: mailbox.address,

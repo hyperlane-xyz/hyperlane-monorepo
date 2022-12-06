@@ -1,9 +1,12 @@
 use std::fmt::Debug;
+use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::prelude::{Middleware, H256};
 use eyre::eyre;
+use tokio::time::sleep;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -44,11 +47,7 @@ where
 {
     #[instrument(err, skip(self))]
     async fn get_block_by_hash(&self, hash: &H256) -> eyre::Result<BlockInfo> {
-        let block = self
-            .provider
-            .get_block(*hash)
-            .await?
-            .ok_or_else(|| eyre!("Could not find block with hash {}", hash))?;
+        let block = get_with_retry_on_none(|| self.provider.get_block(*hash)).await?;
         Ok(BlockInfo {
             hash: *hash,
             timestamp: block.timestamp.as_u64(),
@@ -61,11 +60,7 @@ where
 
     #[instrument(err, skip(self))]
     async fn get_txn_by_hash(&self, hash: &H256) -> eyre::Result<TxnInfo> {
-        let txn = self
-            .provider
-            .get_transaction(*hash)
-            .await?
-            .ok_or_else(|| eyre!("Could not find txn with hash {}", hash))?;
+        let txn = get_with_retry_on_none(|| self.provider.get_transaction(*hash)).await?;
         let receipt = self
             .provider
             .get_transaction_receipt(*hash)
@@ -113,4 +108,24 @@ impl MakeableWithProvider for HyperlaneProviderBuilder {
             domain: locator.domain,
         })
     }
+}
+
+/// Call a get function that returns a Result<Option<T>> and retry if the inner
+/// option is None. This can happen because the provider has not discovered the
+/// object we are looking for yet.
+async fn get_with_retry_on_none<T, F, O, E>(get: F) -> eyre::Result<T>
+where
+    F: Fn() -> O,
+    O: Future<Output = Result<Option<T>, E>>,
+    E: std::error::Error + Send + Sync + 'static,
+{
+    for _ in 0..3 {
+        if let Some(t) = get().await? {
+            return Ok(t);
+        } else {
+            sleep(Duration::from_secs(5)).await;
+            continue;
+        };
+    }
+    Err(eyre!("Could not find object from provider"))
 }

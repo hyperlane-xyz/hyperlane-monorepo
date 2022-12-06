@@ -11,7 +11,7 @@ config = "0.13"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false }
 serde_path_to_error = "0.1"
-ethers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-10-28-01" }
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01" }
 thiserror = { version = "1.0", default-features = false }
 async-trait = { version = "0.1", default-features = false }
 futures-util = "0.3"
@@ -54,7 +54,7 @@ rusoto_kms = "*"
 rusoto_s3 = "*"
 
 lazy_static = "1.4"
-once_cell = "1.12"
+once_cell = "1.16"
 
 [dev-dependencies]
 color-eyre = "0.6"

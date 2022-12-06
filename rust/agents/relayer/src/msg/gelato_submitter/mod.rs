@@ -213,7 +213,6 @@ pub fn hyperlane_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
 
     Ok(match hyperlane_domain {
         HyperlaneDomain::Ethereum => Chain::Ethereum,
-        HyperlaneDomain::Kovan => Chain::Kovan,
         HyperlaneDomain::Goerli => Chain::Goerli,
 
         HyperlaneDomain::Polygon => Chain::Polygon,
@@ -223,11 +222,9 @@ pub fn hyperlane_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
         HyperlaneDomain::Fuji => Chain::Fuji,
 
         HyperlaneDomain::Arbitrum => Chain::Arbitrum,
-        HyperlaneDomain::ArbitrumRinkeby => Chain::ArbitrumRinkeby,
         HyperlaneDomain::ArbitrumGoerli => Chain::ArbitrumGoerli,
 
         HyperlaneDomain::Optimism => Chain::Optimism,
-        HyperlaneDomain::OptimismKovan => Chain::OptimismKovan,
         HyperlaneDomain::OptimismGoerli => Chain::OptimismGoerli,
 
         HyperlaneDomain::BinanceSmartChain => Chain::BinanceSmartChain,
@@ -236,8 +233,8 @@ pub fn hyperlane_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
         HyperlaneDomain::Celo => Chain::Celo,
         HyperlaneDomain::Alfajores => Chain::Alfajores,
 
-        HyperlaneDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
         HyperlaneDomain::Moonbeam => Chain::Moonbeam,
+        HyperlaneDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
 
         HyperlaneDomain::Zksync2Testnet => Chain::Zksync2Testnet,
 

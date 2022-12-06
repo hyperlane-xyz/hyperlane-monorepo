@@ -53,16 +53,14 @@ export class TestCoreApp<
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
-      const message = utils.parseMessage(dispatch.args.message);
-      const destination = message.destination;
+      const destination = dispatch.args.destination;
       if (destination === chainMetadata[origin].id) {
         throw new Error('Dispatched message to local domain');
       }
-      const destinationChain = DomainIdToChainName[destination];
-      const inbox: TestMailbox =
-        // @ts-ignore
-        this.getContracts(destinationChain).mailbox.contract;
-      const delivered = await inbox.delivered(dispatch.args.messageId);
+      const destinationChain = DomainIdToChainName[destination] as TestChain;
+      const inbox = this.getContracts(destinationChain).mailbox.contract;
+      const id = utils.messageId(dispatch.args.message);
+      const delivered = await inbox.delivered(id);
       if (!delivered) {
         const response = await inbox.process('0x', dispatch.args.message);
         const destinationResponses = responses.get(destinationChain) || [];

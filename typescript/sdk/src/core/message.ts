@@ -368,9 +368,9 @@ export class HyperlaneMessage {
   }
 
   /**
-   * The messageId committed to the tree in the Outbox contract.
+   * The messageId committed to the tree in the Mailbox contract.
    */
   get id(): string {
-    return this.dispatch.event.args.messageId;
+    return utils.messageId(this.dispatch.event.args.message);
   }
 }
