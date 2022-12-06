@@ -116,10 +116,12 @@ export abstract class HyperlaneDeployer<
     const dc = this.multiProvider.getChainConnection(chain);
     const address = await dc.signer!.getAddress();
     const owner = await ownable.owner();
-    this.logger({ owner });
-    this.logger({ signer: address });
+    const logObj = { owner, signer: address };
     if (address === owner) {
+      this.logger('Owner and signer are equal, proceeding', logObj);
       return fn();
+    } else {
+      this.logger('Owner and signer NOT equal, skipping', logObj);
     }
   }
 
