@@ -65,6 +65,26 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-central-1',
         },
       },
+      {
+        address: '0x54e2f79e458fa17e2a5b90cf74ace79fe98cc8d0',
+        readonly: true,
+        name: 'everstake-celo',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'hyperlane-validator-signatures-everstake-celo',
+          region: 'eu-central-1',
+        },
+      },
+      {
+        address: '0x97d91c1d5157338d3d53d452da5e94621a028873',
+        readonly: true,
+        name: 'staked-celo',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'hyperlane-validator-signatures-production-eu-west-1-celo',
+          region: 'eu-west-1',
+        },
+      },
     ],
   },
   ethereum: {
@@ -115,6 +135,27 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           type: CheckpointSyncerType.S3,
           bucket: 'abacus-validator-signatures-zplabs-eth',
           region: 'eu-central-1',
+        },
+      },
+      {
+        address: '0x7a8974723a559d71d16af3f13663cf5bffea0b5e',
+        readonly: true,
+        name: 'everstake-ethereum',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'hyperlane-validator-signatures-everstake-ethereum',
+          region: 'eu-central-1',
+        },
+      },
+      {
+        address: '0x4ed6a1249f4ade53a831def7dd5a44a74e488939',
+        readonly: true,
+        name: 'staked-ethereum',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'hyperlane-validator-signatures-production-eu-west-1-ethereum',
+          region: 'eu-west-1',
         },
       },
     ],
@@ -169,6 +210,27 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-central-1',
         },
       },
+      {
+        address: '0x39b505266aff2d52602f05ceaa7d4261e9494a50',
+        readonly: true,
+        name: 'everstake-avalanche',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'hyperlane-validator-signatures-everstake-avalanche',
+          region: 'eu-central-1',
+        },
+      },
+      {
+        address: '0x46b1023a1d936a4ce1908810f5a3cfabf0e36c15',
+        readonly: true,
+        name: 'staked-avalanche',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'hyperlane-validator-signatures-production-eu-west-1-avalanche',
+          region: 'eu-west-1',
+        },
+      },
     ],
   },
   polygon: {
@@ -219,6 +281,26 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           type: CheckpointSyncerType.S3,
           bucket: 'abacus-validator-signatures-zplabs-pgon',
           region: 'eu-central-1',
+        },
+      },
+      {
+        address: '0x860979ccaee9e432d3684e580987bed3e8f04846',
+        readonly: true,
+        name: 'everstake-polygon',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'hyperlane-validator-signatures-everstake-polygon',
+          region: 'eu-central-1',
+        },
+      },
+      {
+        address: '0x55b74e07f240d28dd3a72d52a01f3b703322b185',
+        readonly: true,
+        name: 'staked-polygon',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'hyperlane-validator-signatures-production-eu-west-1-polygon',
+          region: 'eu-west-1',
         },
       },
     ],
@@ -273,6 +355,26 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-central-1',
         },
       },
+      {
+        address: '0x73c7d898546a6c595ca7c32d52aa45d75f428a7d',
+        readonly: true,
+        name: 'everstake-bsc',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'hyperlane-validator-signatures-everstake-bsc',
+          region: 'eu-central-1',
+        },
+      },
+      {
+        address: '0x417fe403198c7d817a4fcd8cd59d8d7421626296',
+        readonly: true,
+        name: 'staked-bsc',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'hyperlane-validator-signatures-production-eu-west-1-bsc',
+          region: 'eu-west-1',
+        },
+      },
     ],
   },
   arbitrum: {
@@ -323,6 +425,27 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           type: CheckpointSyncerType.S3,
           bucket: 'abacus-validator-signatures-zplabs-arbitrum',
           region: 'eu-central-1',
+        },
+      },
+      {
+        address: '0x5acbfc1493252110b698534bca12ec65bf3b5f1f',
+        readonly: true,
+        name: 'everstake-arbitrum',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'hyperlane-validator-signatures-everstake-arbitrum',
+          region: 'eu-central-1',
+        },
+      },
+      {
+        address: '0xee699d14bb61e3931bad94e09668be5524bae350',
+        readonly: true,
+        name: 'staked-arbitrum',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'hyperlane-validator-signatures-production-eu-west-1-arbitrum',
+          region: 'eu-west-1',
         },
       },
     ],
@@ -377,6 +500,27 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-central-1',
         },
       },
+      {
+        address: '0xbae7166acd15d8f0ab1d432c5d874bb24718edb8',
+        readonly: true,
+        name: 'everstake-optimism',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'hyperlane-validator-signatures-everstake-optimism',
+          region: 'eu-central-1',
+        },
+      },
+      {
+        address: '0x8d96ffabd6b2283092ec08ae5cf65e06fd4dbaa1',
+        readonly: true,
+        name: 'staked-optimism',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'hyperlane-validator-signatures-production-eu-west-1-optimism',
+          region: 'eu-west-1',
+        },
+      },
     ],
   },
   moonbeam: {
@@ -407,6 +551,27 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('moonbeam', 2),
           region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x2b3c6844a3968bb613c46bda43223f0700f91917',
+        readonly: true,
+        name: 'everstake-moonbeam',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: 'hyperlane-validator-signatures-everstake-moonbeam',
+          region: 'eu-central-1',
+        },
+      },
+      {
+        address: '0x12c31e401ef4a5c494f76ae4c8ed065e3fa0a898',
+        readonly: true,
+        name: 'staked-moonbeam',
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket:
+            'hyperlane-validator-signatures-production-eu-west-1-moonbeam',
+          region: 'eu-west-1',
         },
       },
     ],
