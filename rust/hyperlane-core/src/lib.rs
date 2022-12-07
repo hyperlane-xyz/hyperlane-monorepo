@@ -182,7 +182,7 @@ impl<T> SignerExt for T where T: Signer {}
 mod test {
     use super::*;
 
-    use ethers::core::types::H256;
+    use crate::H256;
 
     #[test]
     fn it_sign() {

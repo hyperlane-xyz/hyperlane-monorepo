@@ -1,6 +1,7 @@
-use crate::accumulator::merkle::Proof;
-use ethers::core::types::H256;
 use std::{fs::File, io::Read, path::PathBuf};
+
+use crate::accumulator::merkle::Proof;
+use crate::H256;
 
 /// Struct representing a single merkle test case
 #[derive(serde::Deserialize, serde::Serialize)]
