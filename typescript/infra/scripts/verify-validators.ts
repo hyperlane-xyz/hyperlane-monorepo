@@ -1,8 +1,6 @@
-import { ethers } from 'ethers';
-
 import { ChainNameToDomainId, objMap } from '@hyperlane-xyz/sdk';
 
-import { S3Validator } from '../src/agents/aws/validator';
+import { CheckpointStatus, S3Validator } from '../src/agents/aws/validator';
 import { CheckpointSyncerType } from '../src/config/agent';
 
 import { getContext, getCoreEnvironmentConfig, getEnvironment } from './utils';
@@ -21,7 +19,7 @@ async function main() {
       const checkpointSyncer = validator.checkpointSyncer;
       if (checkpointSyncer.type == CheckpointSyncerType.S3) {
         return new S3Validator(
-          ethers.constants.AddressZero,
+          validator.address,
           domainId,
           checkpointSyncer.bucket,
           checkpointSyncer.region,
@@ -33,7 +31,16 @@ async function main() {
     for (let i = 1; i < validators.length; i++) {
       const prospectiveValidator = validators[i];
       const metrics = await prospectiveValidator.compare(controlValidator);
-      console.log(JSON.stringify(metrics, null, 2));
+      const valid =
+        metrics.filter((metric) => metric.status !== CheckpointStatus.VALID)
+          .length === 0;
+      const name = validatorSet.validators[i].name;
+      if (!valid) {
+        console.log(`${name} has >=1 non-valid checkpoints for ${chain}`);
+        console.log(JSON.stringify(metrics, null, 2));
+      } else {
+        console.log(`${name} has valid checkpoints for ${chain}`);
+      }
     }
   });
 }
