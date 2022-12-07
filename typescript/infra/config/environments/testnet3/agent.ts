@@ -58,9 +58,11 @@ export const hyperlane: AgentConfig<TestnetChains> = {
       goerli: {
         reorgPeriod: 3,
       },
+      /*
       moonbasealpha: {
         reorgPeriod: 0,
       },
+      */
     },
   },
   relayer: {
