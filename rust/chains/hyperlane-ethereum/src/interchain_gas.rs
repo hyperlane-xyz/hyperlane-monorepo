@@ -18,7 +18,7 @@ use hyperlane_core::{
 use crate::contracts::interchain_gas_paymaster::{
     InterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, INTERCHAINGASPAYMASTER_ABI,
 };
-use crate::trait_builder::MakeableWithProvider;
+use crate::trait_builder::BuildableWithProvider;
 
 impl<M> Display for EthereumInterchainGasPaymasterInternal<M>
 where
@@ -35,10 +35,10 @@ pub struct InterchainGasPaymasterIndexerBuilder {
 }
 
 #[async_trait]
-impl MakeableWithProvider for InterchainGasPaymasterIndexerBuilder {
+impl BuildableWithProvider for InterchainGasPaymasterIndexerBuilder {
     type Output = Box<dyn InterchainGasPaymasterIndexer>;
 
-    async fn make_with_provider<M: Middleware + 'static>(
+    async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -133,10 +133,10 @@ where
 pub struct InterchainGasPaymasterBuilder {}
 
 #[async_trait]
-impl MakeableWithProvider for InterchainGasPaymasterBuilder {
+impl BuildableWithProvider for InterchainGasPaymasterBuilder {
     type Output = Box<dyn InterchainGasPaymaster>;
 
-    async fn make_with_provider<M: Middleware + 'static>(
+    async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
