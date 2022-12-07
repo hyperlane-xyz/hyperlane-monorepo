@@ -45,9 +45,14 @@ const LATEST_KEY = 'checkpoint_latest_index.json';
 export class S3Validator extends BaseValidator {
   private s3Bucket: S3Wrapper;
 
-  constructor(address: string, localDomain: number, s3Bucket: string) {
+  constructor(
+    address: string,
+    localDomain: number,
+    s3Bucket: string,
+    s3Region: string,
+  ) {
     super(address, localDomain);
-    this.s3Bucket = new S3Wrapper(s3Bucket);
+    this.s3Bucket = new S3Wrapper(s3Bucket, s3Region);
   }
 
   async getLatestCheckpointIndex() {

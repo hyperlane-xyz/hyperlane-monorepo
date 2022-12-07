@@ -27,10 +27,9 @@ async function main() {
         // @ts-ignore
         ChainNameToDomainId[chain],
         // @ts-ignore
-        `https://${validator.checkpointSyncer.bucket!}.s3.${
-          // @ts-ignore
-          validator.checkpointSyncer.region
-        }.amazonaws.com`,
+        validator.checkpointSyncer.bucket,
+        // @ts-ignore
+        validator.checkpointSyncer.region,
       );
 
       return {
