@@ -5,9 +5,9 @@ use auto_impl::auto_impl;
 use eyre::Result;
 
 use crate::{
-    Checkpoint,
-    H256,
-    HyperlaneContract, HyperlaneMessage, traits::{ChainCommunicationError, TxOutcome}, TxCostEstimate, U256, utils::domain_hash
+    traits::{ChainCommunicationError, TxOutcome},
+    utils::domain_hash,
+    Checkpoint, HyperlaneContract, HyperlaneMessage, TxCostEstimate, H256, U256,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different

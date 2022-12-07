@@ -5,11 +5,11 @@ use eyre::Result;
 use tokio::time::sleep;
 use tracing::{debug, info, trace};
 
+use crate::db::{DbError, TypedDB, DB};
 use crate::{
-    accumulator::merkle::Proof, H256, HyperlaneMessage, InterchainGasPayment,
-    InterchainGasPaymentMeta, InterchainGasPaymentWithMeta, U256
+    accumulator::merkle::Proof, HyperlaneMessage, InterchainGasPayment, InterchainGasPaymentMeta,
+    InterchainGasPaymentWithMeta, H256, U256,
 };
-use crate::db::{DB, DbError, TypedDB};
 
 static MESSAGE_ID: &str = "message_id_";
 static PROOF: &str = "proof_";

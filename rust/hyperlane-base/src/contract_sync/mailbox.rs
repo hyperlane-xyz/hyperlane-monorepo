@@ -229,7 +229,7 @@ async fn create_cursor<I: Indexer>(
 mod test {
     use std::sync::Arc;
     use std::time::Duration;
-    
+
     use eyre::eyre;
     use mockall::predicate::eq;
     use mockall::*;

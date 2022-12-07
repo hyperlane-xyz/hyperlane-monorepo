@@ -1,8 +1,7 @@
 use crate::accumulator::{
-    H256,
     hash_concat,
-    merkle::{merkle_root_from_branch, Proof}, TREE_DEPTH,
-    ZERO_HASHES
+    merkle::{merkle_root_from_branch, Proof},
+    H256, TREE_DEPTH, ZERO_HASHES,
 };
 
 #[derive(Debug, Clone, Copy)]
