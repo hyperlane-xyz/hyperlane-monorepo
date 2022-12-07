@@ -5,6 +5,8 @@ pragma solidity >=0.8.0;
 import {MultisigIsm} from "../isms/MultisigIsm.sol";
 
 contract TestMultisigIsm is MultisigIsm {
+    constructor() MultisigIsm(msg.sender) {}
+
     function getDomainHash(uint32 _origin, bytes32 _originMailbox)
         external
         pure

@@ -82,7 +82,9 @@ contract MultisigIsm is IMultisigIsm, Ownable {
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
-    constructor() Ownable() {}
+    constructor(address owner) {
+        _transferOwnership(owner);
+    }
 
     // ============ External Functions ============
 

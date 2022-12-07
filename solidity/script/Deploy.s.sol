@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.6.0;
 
-import "forge-std/Script.sol";
 import "forge-std/console.sol";
+import "forge-std/Script.sol";
 import "forge-std/StdJson.sol";
 
 import {ICREATE3Factory} from "../lib/create3-factory/src/ICREATE3Factory.sol";
 
 import {Mailbox} from "../contracts/Mailbox.sol";
+import {MultisigIsm} from "../contracts/isms/MultisigIsm.sol";
 import {BytesLib} from "../contracts/libs/BytesLib.sol";
 
 contract Deploy is Script {
@@ -69,21 +70,81 @@ contract Deploy is Script {
         return MultisigIsmConfig(threshold, validators);
     }
 
+    struct NetworkConfig {
+        uint32 domainId;
+        ICREATE3Factory factory;
+        MultisigIsmConfig ism;
+    }
+
+    function getConfig(string[] memory networks)
+        internal
+        view
+        returns (NetworkConfig[] memory)
+    {
+        NetworkConfig[] memory configs = new NetworkConfig[](networks.length);
+        for (uint256 i = 0; i < networks.length; i++) {
+            string memory network = networks[i];
+            configs[i] = NetworkConfig({
+                domainId: getDomainId(network),
+                ism: getMultisigIsmConfig(network),
+                factory: getCreate3Factory(network)
+            });
+        }
+        return configs;
+    }
+
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        string memory network = vm.envString("NETWORK");
-        MultisigIsmConfig memory config = getMultisigIsmConfig(network);
-
         // string memory salt = vm.envString("SALT");
-        bytes32 salt = keccak256("SALT");
+        uint256 nonce = 0;
 
-        uint32 domain = getDomainId(network);
-        ICREATE3Factory factory = getCreate3Factory(network);
-        factory.deploy(
-            salt,
-            abi.encodePacked(type(Mailbox).creationCode, abi.encode(domain))
-        );
+        string[] memory networks = vm.envString("NETWORKS", ",");
+        NetworkConfig[] memory configs = getConfig(networks);
+
+        // deploy each network
+        for (uint256 i = 0; i < configs.length; i++) {
+            NetworkConfig memory config = configs[i];
+            // TODO: switch network forks if not local
+
+            MultisigIsm ism = MultisigIsm(
+                config.factory.deploy(
+                    bytes32(nonce),
+                    abi.encodePacked(type(MultisigIsm).creationCode)
+                )
+            );
+            for (uint256 n = 0; n < networks.length; n++) {
+                if (n != i) {
+                    NetworkConfig memory remoteConfig = configs[n];
+                    for (
+                        uint256 v = 0;
+                        v < remoteConfig.ism.validators.length;
+                        v++
+                    ) {
+                        ism.enrollValidator(
+                            remoteConfig.domainId,
+                            remoteConfig.ism.validators[v]
+                        );
+                    }
+                    ism.setThreshold(
+                        remoteConfig.domainId,
+                        remoteConfig.ism.threshold
+                    );
+                }
+            }
+
+            // deploy Mailbox
+            Mailbox mailbox = Mailbox(
+                config.factory.deploy(
+                    bytes32(nonce + 1),
+                    abi.encodePacked(
+                        type(Mailbox).creationCode,
+                        abi.encode(config.domainId)
+                    )
+                )
+            );
+            mailbox.initialize(address(ism));
+        }
     }
 }

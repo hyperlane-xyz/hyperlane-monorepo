@@ -33,8 +33,8 @@ export interface DeployOptions {
   initCalldata?: string;
 }
 
-export const CREATE2FACTORY_ADDRESS =
-  '0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a';
+export const CREATE3_FACTORY_ADDRESS =
+  '0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1';
 export abstract class HyperlaneDeployer<
   Chain extends ChainName,
   Config,
@@ -143,7 +143,7 @@ export abstract class HyperlaneDeployer<
     if (
       deployOpts &&
       deployOpts.create2Salt &&
-      (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
+      (await chainConnection.provider.getCode(CREATE3_FACTORY_ADDRESS)) != '0x'
     ) {
       if (args.length > 0) {
         throw new Error("Can't use CREATE2 with deployment args");
@@ -151,7 +151,7 @@ export abstract class HyperlaneDeployer<
       this.logger(`Deploying with CREATE2 factory`);
 
       const create2Factory = Create2Factory__factory.connect(
-        CREATE2FACTORY_ADDRESS,
+        CREATE3_FACTORY_ADDRESS,
         signer,
       );
       const salt = ethers.utils.keccak256(
