@@ -189,7 +189,44 @@
       "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
     }
   ],
-  "moonbasealpha": [],
+  "moonbasealpha": [
+    {
+      "name": "multisigIsm",
+      "address": "0xaA3022A7e114D4eaF9BBcA552B850346C55E5550",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "proxyAdmin",
+      "address": "0xc0403D2880dD291C59456c3b70504E8e7101e06F",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "interchainGasPaymaster",
+      "address": "0x6Ce5d8e67020d25e03431976B9DE6d6656D31Ae1",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    },
+    {
+      "name": "TransparentUpgradableProxy",
+      "address": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
+      "isProxy": false,
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "mailbox",
+      "address": "0xDb18e073eC01d91b1Bbd5ee348804aFCa66A0ea7",
+      "isProxy": false,
+      "constructorArguments": "0x0000000000000000000000000000000000000000000000000000000000000507"
+    },
+    {
+      "name": "TransparentUpgradableProxy",
+      "address": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
+      "isProxy": false,
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
   "optimismgoerli": [
     {
       "name": "multisigIsm",

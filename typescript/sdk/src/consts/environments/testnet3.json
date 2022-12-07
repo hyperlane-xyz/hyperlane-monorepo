@@ -96,5 +96,19 @@
       "implementation": "0x648CDd491DA5B5036E6011e2aF9a54427b9dd424"
     },
     "multisigIsm": "0x772926Ffc5FE8B3ae9a85cB085700748606aE283"
+  },
+  "moonbasealpha": {
+    "proxyAdmin": "0xc0403D2880dD291C59456c3b70504E8e7101e06F",
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
+      "implementation": "0x6Ce5d8e67020d25e03431976B9DE6d6656D31Ae1"
+    },
+    "mailbox": {
+      "kind": "Transparent",
+      "proxy": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
+      "implementation": "0xDb18e073eC01d91b1Bbd5ee348804aFCa66A0ea7"
+    },
+    "multisigIsm": "0xaA3022A7e114D4eaF9BBcA552B850346C55E5550"
   }
 }

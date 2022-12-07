@@ -16,7 +16,7 @@
         "url": ""
       },
       "index": {
-        "from": "14863532"
+        "from": "15002977"
       }
     },
     "fuji": {
@@ -34,7 +34,7 @@
         "url": ""
       },
       "index": {
-        "from": "16330615"
+        "from": "16640057"
       }
     },
     "mumbai": {
@@ -52,7 +52,7 @@
         "url": ""
       },
       "index": {
-        "from": "29390033"
+        "from": "29529071"
       }
     },
     "bsctestnet": {
@@ -70,7 +70,7 @@
         "url": ""
       },
       "index": {
-        "from": "25001629"
+        "from": "25233763"
       }
     },
     "goerli": {
@@ -88,7 +88,25 @@
         "url": ""
       },
       "index": {
-        "from": "8039005"
+        "from": "8089049"
+      }
+    },
+    "moonbasealpha": {
+      "name": "moonbasealpha",
+      "domain": "1287",
+      "addresses": {
+        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
+        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
+        "multisigIsm": "0xaA3022A7e114D4eaF9BBcA552B850346C55E5550"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "3310405"
       }
     },
     "optimismgoerli": {
@@ -106,7 +124,7 @@
         "url": ""
       },
       "index": {
-        "from": "3055263"
+        "from": "3247564"
       }
     },
     "arbitrumgoerli": {
@@ -124,7 +142,7 @@
         "url": ""
       },
       "index": {
-        "from": "1941997"
+        "from": "2357474"
       }
     }
   },
