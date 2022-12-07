@@ -1,15 +1,15 @@
-use crate::db::{DbError, TypedDB, DB};
-use crate::{
-    accumulator::merkle::Proof, HyperlaneMessage, InterchainGasPayment, InterchainGasPaymentMeta,
-    InterchainGasPaymentWithMeta,
-};
-use ethers::core::types::{H256, U256};
+use std::future::Future;
+use std::time::Duration;
+
 use eyre::Result;
 use tokio::time::sleep;
 use tracing::{debug, info, trace};
 
-use std::future::Future;
-use std::time::Duration;
+use crate::db::{DbError, TypedDB, DB};
+use crate::{
+    accumulator::merkle::Proof, HyperlaneMessage, InterchainGasPayment, InterchainGasPaymentMeta,
+    InterchainGasPaymentWithMeta, H256, U256,
+};
 
 static MESSAGE_ID: &str = "message_id_";
 static PROOF: &str = "proof_";

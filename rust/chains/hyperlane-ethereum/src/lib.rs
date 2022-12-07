@@ -4,16 +4,18 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
+use ethers::abi::FunctionExt;
 use std::collections::HashMap;
 
-use ethers::prelude::*;
+use ethers::prelude::{
+    abi, BlockId, BlockNumber, Http, Lazy, Middleware, NameOrAddress, Provider, Selector,
+};
 use eyre::Result;
 use num::Num;
 
 use hyperlane_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
-use crate::abi::FunctionExt;
 #[cfg(not(doctest))]
 pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*};
 
@@ -49,7 +51,7 @@ mod retrying;
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum Connection {
+pub enum ConnectionConf {
     /// A HTTP-only quorum.
     HttpQuorum {
         /// List of fully qualified strings to connect to
@@ -67,7 +69,7 @@ pub enum Connection {
     },
 }
 
-impl Default for Connection {
+impl Default for ConnectionConf {
     fn default() -> Self {
         Self::Http {
             url: Default::default(),
@@ -78,7 +80,7 @@ impl Default for Connection {
 #[allow(dead_code)]
 /// A live connection to an ethereum-compatible chain.
 pub struct Chain {
-    creation_metadata: Connection,
+    creation_metadata: ConnectionConf,
     ethers: Provider<Http>,
 }
 

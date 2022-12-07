@@ -1,11 +1,10 @@
 #![allow(non_snake_case)]
 
 use async_trait::async_trait;
-use ethers::types::H256;
 use eyre::Result;
 use mockall::*;
 
-use hyperlane_core::{Indexer, MailboxIndexer, *};
+use hyperlane_core::{HyperlaneMessage, Indexer, LogMeta, MailboxIndexer, H256};
 
 mock! {
     pub Indexer {

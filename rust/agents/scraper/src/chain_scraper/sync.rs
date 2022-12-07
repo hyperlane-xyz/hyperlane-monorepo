@@ -2,15 +2,16 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use ethers::prelude::H256;
 use eyre::Result;
-use hyperlane_base::RateLimitedSyncBlockRangeCursor;
 use itertools::Itertools;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_base::last_message::validate_message_continuity;
-use hyperlane_core::{name_from_domain_id, ListValidity, MailboxIndexer, SyncBlockRangeCursor};
+use hyperlane_base::RateLimitedSyncBlockRangeCursor;
+use hyperlane_core::{
+    name_from_domain_id, ListValidity, MailboxIndexer, SyncBlockRangeCursor, H256,
+};
 
 use crate::chain_scraper::{Delivery, HyperlaneMessageWithMeta, SqlChainScraper, TxnWithIdAndTime};
 

@@ -10,7 +10,7 @@ use hyperlane_core::{
     Signers,
 };
 use hyperlane_ethereum::{
-    Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi, EthereumMultisigIsmAbi,
+    ConnectionConf, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi, EthereumMultisigIsmAbi,
     HyperlaneProviderBuilder, InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider,
     MultisigIsmBuilder,
 };
@@ -24,7 +24,7 @@ use crate::CoreMetrics;
 #[serde(tag = "rpcStyle", content = "connection", rename_all = "camelCase")]
 pub enum ChainConf {
     /// Ethereum configuration
-    Ethereum(Connection),
+    Ethereum(ConnectionConf),
 }
 
 impl Default for ChainConf {

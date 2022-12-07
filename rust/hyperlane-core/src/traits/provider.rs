@@ -1,9 +1,8 @@
 use async_trait::async_trait;
-use ethers::prelude::H256;
 use eyre::Result;
 use std::fmt::Debug;
 
-use crate::{BlockInfo, HyperlaneChain, TxnInfo};
+use crate::{BlockInfo, HyperlaneChain, TxnInfo, H256};
 
 /// Interface for a provider. Allows abstraction over different provider types
 /// for different chains.

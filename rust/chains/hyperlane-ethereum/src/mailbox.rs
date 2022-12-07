@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
-use ethers::prelude::*;
+use ethers::prelude::{Middleware, Selector};
 use ethers_contract::builders::ContractCall;
 use eyre::{eyre, Result};
 use tracing::instrument;
@@ -14,7 +14,7 @@ use tracing::instrument;
 use hyperlane_core::{
     ChainCommunicationError, Checkpoint, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneMessage, Indexer, LogMeta, Mailbox, MailboxIndexer,
-    RawHyperlaneMessage, TxCostEstimate, TxOutcome,
+    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};

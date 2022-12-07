@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use ethers::types::{H256, U256};
 use eyre::Result;
+
 use hyperlane_core::{
     db::{DbError, HyperlaneDB},
-    HyperlaneMessage, TxCostEstimate,
+    HyperlaneMessage, TxCostEstimate, H256, U256,
 };
 
 use crate::settings::GasPaymentEnforcementPolicy;

@@ -1,9 +1,9 @@
 use std::convert::TryFrom;
 use std::io::{Error, ErrorKind};
 
-use ethers::prelude::{Signature, SignatureError, H256, U256};
+use ethers::prelude::{Signature, SignatureError};
 
-use crate::HyperlaneError;
+use crate::{HyperlaneError, H256, U256};
 
 /// Simple trait for types with a canonical encoding
 pub trait Encode {

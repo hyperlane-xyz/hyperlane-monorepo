@@ -4,8 +4,6 @@ use async_trait::async_trait;
 use eyre::Result;
 use mockall::*;
 
-use ethers::{core::types::H256, types::U256};
-
 use hyperlane_core::*;
 
 mock! {
