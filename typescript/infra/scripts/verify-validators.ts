@@ -9,12 +9,11 @@ async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const context = await getContext();
-  const validatorSets = coreConfig.agents[context]?.validatorSets!;
+  const validatorSets = coreConfig.agents[context]?.validatorSets;
+  if (!validatorSets)
+    throw Error(`No validator sets found for ${environment}:${context}`);
   objMap(validatorSets, async (chain, validatorSet) => {
     const domainId = ChainNameToDomainId[chain];
-    const controlCheckpointSyncer = validatorSet.validators[0].checkpointSyncer;
-    if (controlCheckpointSyncer.type == CheckpointSyncerType.S3) {
-    }
     const validators = validatorSet.validators.map((validator) => {
       const checkpointSyncer = validator.checkpointSyncer;
       if (checkpointSyncer.type == CheckpointSyncerType.S3) {
