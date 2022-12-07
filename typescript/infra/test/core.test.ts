@@ -40,7 +40,11 @@ describe('core', async () => {
   });
 
   it('deploys', async () => {
-    deployer = new HyperlaneCoreInfraDeployer(multiProvider, coreConfig);
+    deployer = new HyperlaneCoreInfraDeployer(
+      multiProvider,
+      coreConfig,
+      environment,
+    );
     contracts = await deployer.deploy();
   });
 
@@ -48,7 +52,7 @@ describe('core', async () => {
     const base = './test/outputs/core';
     writeJSON(base, 'contracts.json', serializeContracts(contracts));
     writeJSON(base, 'verification.json', deployer.verificationInputs);
-    deployer.writeRustConfigs(environment, base);
+    deployer.writeRustConfigs(base);
   });
 
   it('transfers ownership', async () => {
@@ -58,7 +62,11 @@ describe('core', async () => {
 
   describe('failure modes', async () => {
     beforeEach(async () => {
-      deployer = new HyperlaneCoreInfraDeployer(multiProvider, coreConfig);
+      deployer = new HyperlaneCoreInfraDeployer(
+        multiProvider,
+        coreConfig,
+        environment,
+      );
       const stub = sinon.stub(deployer, 'deployContracts');
       stub.withArgs('test3', sinon.match.any).rejects();
       // @ts-ignore

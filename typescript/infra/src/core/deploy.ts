@@ -1,9 +1,22 @@
+import { ethers } from 'ethers';
+
 import {
+  InterchainGasPaymaster,
+  Mailbox,
+  ProxyAdmin,
+} from '@hyperlane-xyz/core';
+import {
+  ChainMap,
   ChainName,
+  CoreConfig,
   HyperlaneCoreDeployer,
+  MultiProvider,
+  ProxiedContract,
+  TransparentProxyAddresses,
   chainMetadata,
   objMap,
 } from '@hyperlane-xyz/sdk';
+import { types } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';
 import { ConnectionType } from '../config/agent';
@@ -12,9 +25,53 @@ import { writeJSON } from '../utils/utils';
 export class HyperlaneCoreInfraDeployer<
   Chain extends ChainName,
 > extends HyperlaneCoreDeployer<Chain> {
-  writeRustConfigs(environment: DeployEnvironment, directory: string) {
+  environment: DeployEnvironment;
+
+  constructor(
+    multiProvider: MultiProvider<Chain>,
+    configMap: ChainMap<Chain, CoreConfig>,
+    environment: DeployEnvironment,
+  ) {
+    super(multiProvider, configMap);
+    this.environment = environment;
+  }
+  async deployInterchainGasPaymaster<LocalChain extends Chain>(
+    chain: LocalChain,
+    proxyAdmin: ProxyAdmin,
+  ): Promise<
+    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
+  > {
+    const deployOpts = {
+      create2Salt: ethers.utils.solidityKeccak256(
+        ['string', 'string'],
+        [this.environment, 'interchainGasPaymaster'],
+      ),
+    };
+    return super.deployInterchainGasPaymaster(chain, proxyAdmin, deployOpts);
+  }
+
+  async deployMailbox<LocalChain extends Chain>(
+    chain: LocalChain,
+    defaultIsmAddress: types.Address,
+    proxyAdmin: ProxyAdmin,
+  ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
+    const deployOpts = {
+      create2Salt: ethers.utils.solidityKeccak256(
+        ['string', 'string'],
+        [this.environment, 'mailbox'],
+      ),
+    };
+    return super.deployMailbox(
+      chain,
+      defaultIsmAddress,
+      proxyAdmin,
+      deployOpts,
+    );
+  }
+
+  writeRustConfigs(directory: string) {
     const rustConfig: RustConfig<Chain> = {
-      environment,
+      environment: this.environment,
       chains: {},
       signers: {},
       db: 'db_path',
@@ -59,6 +116,6 @@ export class HyperlaneCoreInfraDeployer<
       }
       rustConfig.chains[chain] = chainConfig;
     });
-    writeJSON(directory, `${environment}_config.json`, rustConfig);
+    writeJSON(directory, `${this.environment}_config.json`, rustConfig);
   }
 }

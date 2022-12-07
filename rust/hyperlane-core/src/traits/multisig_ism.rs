@@ -6,7 +6,7 @@ use eyre::Result;
 
 use crate::{
     accumulator::merkle::Proof, traits::ChainCommunicationError, HyperlaneContract,
-    MultisigSignedCheckpoint, H160, U256,
+    MultisigSignedCheckpoint, H160,
 };
 
 /// Interface for the MultisigIsm chain contract. Allows abstraction over
@@ -22,7 +22,7 @@ pub trait MultisigIsm: HyperlaneContract + Send + Sync + Debug {
     ) -> Result<Vec<u8>, ChainCommunicationError>;
 
     /// Fetch the threshold for the provided domain
-    async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError>;
+    async fn threshold(&self, domain: u32) -> Result<u8, ChainCommunicationError>;
 
     /// Fetch the validators for the provided domain
     async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError>;

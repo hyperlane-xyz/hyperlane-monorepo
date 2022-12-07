@@ -152,7 +152,7 @@ impl MakeableWithProvider for MailboxBuilder {
     }
 }
 
-/// A reference to an Mailbox contract on some Ethereum chain
+/// A reference to a Mailbox contract on some Ethereum chain
 #[derive(Debug)]
 pub struct EthereumMailbox<M>
 where

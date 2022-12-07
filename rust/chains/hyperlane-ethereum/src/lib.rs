@@ -22,7 +22,7 @@ pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, tra
 #[cfg(not(doctest))]
 mod tx;
 
-/// Outbox abi
+/// Mailbox abi
 #[cfg(not(doctest))]
 mod mailbox;
 

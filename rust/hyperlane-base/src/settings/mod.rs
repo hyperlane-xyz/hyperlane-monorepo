@@ -4,8 +4,8 @@
 //!
 //! Hyperlane Agents have a shared core, which contains connection info for rpc,
 //! relevant contract addresses on each chain, etc. In addition, each agent has
-//! agent-specific settings. Be convention, we represent these as a base config
-//! per-Outbox contract, and a "partial" config per agent. On bootup, the agent
+//! agent-specific settings. By convention above, we represent these as a base config
+//! per-Mailbox contract, and a "partial" config per agent. On bootup, the agent
 //! loads the configuration, establishes RPC connections, and monitors each
 //! configured chain.
 //!
@@ -41,7 +41,7 @@
 //! {
 //!   "environment": "test",
 //!   "signers": {},
-//!   "inboxes": {
+//!   "chains": {
 //!     "test2": {
 //!       "domain": "13372",
 //!       ...
@@ -52,7 +52,7 @@
 //! ```
 //!
 //! and an environment variable is supplied which defines
-//! `HYP_BASE_INBOXES_TEST3_DOMAIN=1`, then the `decl_settings` macro in
+//! `HYP_BASE_CHAINS_TEST2_DOMAIN=1`, then the `decl_settings` macro in
 //! `rust/hyperlane-base/src/macros.rs` will directly override the 'domain'
 //! field found in the json config to be `1`, since the fields in the
 //! environment variable name describe the path traversal to arrive at this

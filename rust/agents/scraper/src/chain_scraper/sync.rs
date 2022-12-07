@@ -219,7 +219,7 @@ impl Syncer {
             from,
             to,
             message_count = sorted_messages.len(),
-            "Filtered any messages already indexed for outbox."
+            "Filtered any messages already indexed for mailbox"
         );
 
         Ok((sorted_messages, deliveries))

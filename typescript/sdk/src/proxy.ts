@@ -5,7 +5,7 @@ import type { types } from '@hyperlane-xyz/utils';
 import { Connection } from './types';
 
 export enum ProxyKind {
-  UpgradeBeacon = 'UpgradeBeacon',
+  Transparent = 'Transparent',
 }
 
 export interface ProxyAddresses<Kind extends ProxyKind> {
@@ -27,10 +27,7 @@ export function isProxyAddresses(
   );
 }
 
-export interface BeaconProxyAddresses
-  extends ProxyAddresses<ProxyKind.UpgradeBeacon> {
-  beacon: types.Address;
-}
+export type TransparentProxyAddresses = ProxyAddresses<ProxyKind.Transparent>;
 
 export class ProxiedContract<
   C extends Contract,
