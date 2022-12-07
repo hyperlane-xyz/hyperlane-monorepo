@@ -39,7 +39,14 @@
       "isProxy": false
     }
   ],
-  "moonbasealpha": [],
+  "moonbasealpha": [
+    {
+      "name": "router",
+      "address": "0x4D40f433F2f89cBa4BB9D994FD18D8302C378D26",
+      "constructorArguments": "000000000000000000000000a6fd89630eaa6a404633e2d87a863277b1d19fc6000000000000000000000000a45fc9c331e91985e3d1e5c4f6ab1da9ea4b043d",
+      "isProxy": false
+    }
+  ],
   "optimismgoerli": [
     {
       "name": "router",

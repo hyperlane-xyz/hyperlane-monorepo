@@ -1,4 +1,3 @@
-/*
 import { HelloWorldConfig } from '../../../src/config';
 import { ConnectionType } from '../../../src/config/agent';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
@@ -32,4 +31,3 @@ export const helloWorld: Partial<
 > = {
   [Contexts.Hyperlane]: hyperlane,
 };
-*/

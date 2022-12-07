@@ -19,5 +19,8 @@
   },
   "arbitrumgoerli": {
     "router": "0xB2A79c5e63A3e949e4b3982052958E3eEbD3AA83"
+  },
+  "moonbasealpha": {
+    "router": "0x4D40f433F2f89cBa4BB9D994FD18D8302C378D26"
   }
 }
