@@ -1,14 +1,4 @@
-use std::collections::HashMap;
-use std::error::Error as StdError;
-use std::fmt::Debug;
-
-use auto_impl::auto_impl;
-use ethers::prelude::Selector;
-use ethers::{
-    contract::ContractError,
-    core::types::{TransactionReceipt, H256},
-    providers::{Middleware, ProviderError},
-};
+use ethers::types::H256;
 
 pub use cursor::*;
 pub use encode::*;
@@ -17,8 +7,6 @@ pub use interchain_gas::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
-
-use crate::{db::DbError, HyperlaneError};
 
 mod cursor;
 mod encode;
@@ -38,8 +26,8 @@ pub struct TxOutcome {
     // TODO: more? What can be abstracted across all chains?
 }
 
-impl From<TransactionReceipt> for TxOutcome {
-    fn from(t: TransactionReceipt) -> Self {
+impl From<ethers::prelude::TransactionReceipt> for TxOutcome {
+    fn from(t: ethers::prelude::TransactionReceipt) -> Self {
         Self {
             txid: t.transaction_hash,
             executed: t.status.unwrap().low_u32() == 1,
@@ -47,45 +35,9 @@ impl From<TransactionReceipt> for TxOutcome {
     }
 }
 
-/// ChainCommunicationError contains errors returned when attempting to
-/// call a chain or dispatch a transaction
-#[derive(Debug, thiserror::Error)]
-pub enum ChainCommunicationError {
-    /// Hyperlane Error
-    #[error("{0}")]
-    HyperlaneError(#[from] HyperlaneError),
-    /// Contract Error
-    #[error("{0}")]
-    ContractError(Box<dyn StdError + Send + Sync>),
-    /// Provider Error
-    #[error("{0}")]
-    ProviderError(#[from] ProviderError),
-    /// A transaction was dropped from the mempool
-    #[error("Transaction dropped from mempool {0:?}")]
-    DroppedError(H256),
-    /// DB Error
-    #[error("{0}")]
-    DbError(#[from] DbError),
-    /// Any other error
-    #[error("{0}")]
-    CustomError(#[from] Box<dyn StdError + Send + Sync>),
-    /// A transaction submission timed out
-    #[error("Transaction submission timed out")]
-    TransactionTimeout(),
-}
-
-impl<M> From<ContractError<M>> for ChainCommunicationError
-where
-    M: Middleware + 'static,
-{
-    fn from(e: ContractError<M>) -> Self {
-        Self::ContractError(Box::new(e))
-    }
-}
-
 /// Interface for features of something deployed on/in a domain or is otherwise
 /// connected to it.
-#[auto_impl(Box, Arc)]
+#[auto_impl::auto_impl(Box, Arc)]
 pub trait HyperlaneChain {
     /// Return an identifier (not necessarily unique) for the chain this
     /// is connected to
@@ -98,21 +50,21 @@ pub trait HyperlaneChain {
 /// Interface for a deployed contract.
 /// This trait is intended to expose attributes of any contract, and
 /// should not consider the purpose or implementation details of the contract.
-#[auto_impl(Box, Arc)]
+#[auto_impl::auto_impl(Box, Arc)]
 pub trait HyperlaneContract: HyperlaneChain {
     /// Return the address of this contract.
     fn address(&self) -> H256;
 }
 
 /// Static contract ABI information.
-#[auto_impl(Box, Arc)]
+#[auto_impl::auto_impl(Box, Arc)]
 pub trait HyperlaneAbi {
     /// Get a mapping from function selectors to human readable function names.
-    fn fn_map() -> HashMap<Selector, &'static str>;
+    fn fn_map() -> std::collections::HashMap<ethers::prelude::Selector, &'static str>;
 
     /// Get a mapping from function selectors to owned human readable function
     /// names.
-    fn fn_map_owned() -> HashMap<Selector, String> {
+    fn fn_map_owned() -> std::collections::HashMap<ethers::prelude::Selector, String> {
         Self::fn_map()
             .into_iter()
             .map(|(sig, name)| (sig, name.to_owned()))

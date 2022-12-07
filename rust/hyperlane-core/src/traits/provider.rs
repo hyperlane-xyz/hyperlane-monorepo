@@ -1,8 +1,9 @@
-use async_trait::async_trait;
-use eyre::Result;
 use std::fmt::Debug;
 
-use crate::{BlockInfo, HyperlaneChain, TxnInfo, H256};
+use async_trait::async_trait;
+use thiserror::Error;
+
+use crate::{BlockInfo, ChainResult, HyperlaneChain, TxnInfo, H256};
 
 /// Interface for a provider. Allows abstraction over different provider types
 /// for different chains.
@@ -14,8 +15,22 @@ use crate::{BlockInfo, HyperlaneChain, TxnInfo, H256};
 #[async_trait]
 pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
     /// Get block info for a given block hash
-    async fn get_block_by_hash(&self, hash: &H256) -> Result<BlockInfo>;
+    async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo>;
 
     /// Get txn info for a given txn hash
-    async fn get_txn_by_hash(&self, hash: &H256) -> Result<TxnInfo>;
+    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo>;
+}
+
+/// Errors when querying for provider information.
+#[derive(Error, Debug)]
+pub enum HyperlaneProviderError {
+    /// The requested block hash is not yet known by the provider
+    #[error("Block is not part of chain yet {0}")]
+    BlockIsNotPartOfChainYet(H256),
+    /// The provider did not return the gas which was used
+    #[error("Provider did not return gas used")]
+    NoGasUsed,
+    /// Could not find a transaction, block, or other object
+    #[error("Could not find object from provider")]
+    CouldNotFindObject,
 }

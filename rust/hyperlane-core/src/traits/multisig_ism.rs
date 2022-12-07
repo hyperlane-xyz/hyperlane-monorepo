@@ -2,11 +2,9 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use eyre::Result;
 
 use crate::{
-    accumulator::merkle::Proof, traits::ChainCommunicationError, HyperlaneContract,
-    MultisigSignedCheckpoint, H160,
+    accumulator::merkle::Proof, ChainResult, HyperlaneContract, MultisigSignedCheckpoint, H160,
 };
 
 /// Interface for the MultisigIsm chain contract. Allows abstraction over
@@ -19,11 +17,11 @@ pub trait MultisigIsm: HyperlaneContract + Send + Sync + Debug {
         &self,
         checkpoint: &MultisigSignedCheckpoint,
         proof: Proof,
-    ) -> Result<Vec<u8>, ChainCommunicationError>;
+    ) -> ChainResult<Vec<u8>>;
 
     /// Fetch the threshold for the provided domain
-    async fn threshold(&self, domain: u32) -> Result<u8, ChainCommunicationError>;
+    async fn threshold(&self, domain: u32) -> ChainResult<u8>;
 
     /// Fetch the validators for the provided domain
-    async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError>;
+    async fn validators(&self, domain: u32) -> ChainResult<Vec<H160>>;
 }

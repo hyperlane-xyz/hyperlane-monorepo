@@ -2,13 +2,12 @@
 
 use std::str::FromStr;
 
-use eyre::Result;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, EnumString};
 
-use crate::H160;
+use crate::{ChainResult, HyperlaneProtocolError, H160};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Address(pub bytes::Bytes);
@@ -35,7 +34,7 @@ impl std::fmt::Display for ContractLocator {
 #[async_trait::async_trait]
 pub trait Chain {
     /// Query the balance on a chain
-    async fn query_balance(&self, addr: Address) -> Result<Balance>;
+    async fn query_balance(&self, addr: Address) -> ChainResult<Balance>;
 }
 
 impl From<Address> for H160 {
@@ -104,11 +103,10 @@ impl From<HyperlaneDomain> for u32 {
 }
 
 impl TryFrom<u32> for HyperlaneDomain {
-    type Error = eyre::Error;
+    type Error = HyperlaneProtocolError;
 
     fn try_from(domain_id: u32) -> Result<Self, Self::Error> {
-        FromPrimitive::from_u32(domain_id)
-            .ok_or_else(|| eyre::eyre!("Unknown domain ID {domain_id}"))
+        FromPrimitive::from_u32(domain_id).ok_or(HyperlaneProtocolError::UnknownDomainId(domain_id))
     }
 }
 
