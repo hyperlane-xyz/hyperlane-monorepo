@@ -22,7 +22,7 @@ export class S3Wrapper {
   }
 
   constructor(bucket: string, region: string) {
-    this.bucket = region;
+    this.bucket = bucket;
     this.client = new S3Client({ region });
   }
 
