@@ -175,7 +175,6 @@ export const validators: ChainValidatorSets<TestnetChains> = {
       },
     ],
   },
-  /*
   moonbasealpha: {
     threshold: 2,
     validators: [
@@ -208,7 +207,6 @@ export const validators: ChainValidatorSets<TestnetChains> = {
       },
     ],
   },
-  */
   optimismgoerli: {
     threshold: 2,
     validators: [
