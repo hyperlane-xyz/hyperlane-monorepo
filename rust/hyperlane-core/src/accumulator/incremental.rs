@@ -1,9 +1,7 @@
-use ethers::core::types::H256;
-
 use crate::accumulator::{
     hash_concat,
     merkle::{merkle_root_from_branch, Proof},
-    TREE_DEPTH, ZERO_HASHES,
+    H256, TREE_DEPTH, ZERO_HASHES,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -84,8 +82,9 @@ impl IncrementalMerkle {
 mod test {
     use ethers::utils::hash_message;
 
-    use super::*;
     use crate::test_utils;
+
+    use super::*;
 
     #[test]
     fn it_computes_branch_roots() {

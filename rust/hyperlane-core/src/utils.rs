@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
-use ethers::core::types::H256;
 use eyre::{bail, Report};
 use sha3::{Digest, Keccak256};
+
+use crate::H256;
 
 /// Strips the '0x' prefix off of hex string so it can be deserialized.
 ///

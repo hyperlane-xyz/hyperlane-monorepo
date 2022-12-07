@@ -18,7 +18,7 @@ use ethers_prometheus::middleware::{
 };
 use hyperlane_core::{ContractLocator, Signers};
 
-use crate::{Connection, RetryingProvider};
+use crate::{ConnectionConf, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
@@ -35,14 +35,14 @@ pub trait MakeableWithProvider {
     /// metrics and a signer as needed.
     async fn make_with_connection(
         &self,
-        conn: Connection,
+        conn: ConnectionConf,
         locator: &ContractLocator,
         signer: Option<Signers>,
         rpc_metrics: Option<impl FnOnce() -> JsonRpcClientMetrics + Send>,
         middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> eyre::Result<Self::Output> {
         Ok(match conn {
-            Connection::HttpQuorum { urls } => {
+            ConnectionConf::HttpQuorum { urls } => {
                 let rpc_metrics = rpc_metrics.map(|f| f());
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
                 let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
@@ -73,7 +73,7 @@ pub trait MakeableWithProvider {
                 self.wrap_with_metrics(quorum_provider, locator, signer, middleware_metrics)
                     .await?
             }
-            Connection::Http { url } => {
+            ConnectionConf::Http { url } => {
                 let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
                 let http_provider = Http::new_with_client(url.parse::<Url>()?, http_client);
                 let retrying_http_provider: RetryingProvider<Http> =
@@ -81,7 +81,7 @@ pub trait MakeableWithProvider {
                 self.wrap_with_metrics(retrying_http_provider, locator, signer, middleware_metrics)
                     .await?
             }
-            Connection::Ws { url } => {
+            ConnectionConf::Ws { url } => {
                 let ws = Ws::connect(url).await?;
                 self.wrap_with_metrics(ws, locator, signer, middleware_metrics)
                     .await?

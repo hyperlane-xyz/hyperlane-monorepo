@@ -5,11 +5,10 @@ use std::{
 
 use async_trait::async_trait;
 use coingecko::CoinGeckoClient;
-use ethers::types::U256;
 use eyre::{eyre, Result};
 use tokio::{sync::RwLock, time::timeout};
 
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TxCostEstimate};
+use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TxCostEstimate, U256};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
@@ -229,8 +228,7 @@ fn convert_tokens(amount: U256, from_price: f64, to_price: f64) -> Option<U256> 
 
 #[tokio::test]
 async fn test_gas_payment_policy_meets_estimated_cost() {
-    use ethers::types::H256;
-    use hyperlane_core::HyperlaneMessage;
+    use hyperlane_core::{HyperlaneMessage, H256};
 
     // Using a fake message from Celo -> Polygon, based off
     // hardcoded tx cost estimates and prices, assert that a payment

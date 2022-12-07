@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
-use ethers::prelude::H256;
 use eyre::{eyre, Context, Result};
 use sea_orm::{prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, NotSet, QuerySelect};
 use tracing::{instrument, trace};
 
-use hyperlane_core::TxnInfo;
+use hyperlane_core::{TxnInfo, H256, U256};
 
 use crate::conversions::{format_h256, parse_h256};
 use crate::date_time;
@@ -50,7 +49,7 @@ impl ScraperDb {
     /// Store a new transaction into the database (or update an existing one).
     #[instrument(skip_all)]
     pub async fn store_txns(&self, txns: impl Iterator<Item = StorableTxn>) -> Result<i64> {
-        let as_f64 = ethers::types::U256::to_f64_lossy;
+        let as_f64 = U256::to_f64_lossy;
         let models = txns
             .map(|txn| {
                 let receipt = txn

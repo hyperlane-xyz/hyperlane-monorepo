@@ -1,4 +1,3 @@
-use ethers::prelude::H256;
 use eyre::{Context, Result};
 use sea_orm::{
     prelude::*, ActiveValue::*, DbErr, EntityTrait, FromQueryResult, Insert, QueryResult,
@@ -6,7 +5,7 @@ use sea_orm::{
 };
 use tracing::trace;
 
-use hyperlane_core::BlockInfo;
+use hyperlane_core::{BlockInfo, H256};
 
 use crate::conversions::{format_h256, parse_h256};
 use crate::date_time;

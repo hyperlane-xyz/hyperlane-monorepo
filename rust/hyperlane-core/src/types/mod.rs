@@ -1,4 +1,11 @@
-use ethers::types::{H256, U256};
+pub use primitive_types::{H128, H160, H256, H512, U128, U256, U512};
+
+pub use chain_data::*;
+pub use checkpoint::*;
+pub use log_metadata::*;
+pub use message::*;
+
+use crate::{Decode, Encode, HyperlaneError};
 
 mod chain_data;
 mod checkpoint;
@@ -8,13 +15,6 @@ mod message;
 /// Unified 32-byte identifier with convenience tooling for handling
 /// 20-byte ids (e.g ethereum addresses)
 pub mod identifiers;
-
-pub use chain_data::*;
-pub use checkpoint::*;
-pub use log_metadata::*;
-pub use message::*;
-
-use crate::{Decode, Encode, HyperlaneError};
 
 /// A payment of native tokens for a message
 #[derive(Debug)]

@@ -230,7 +230,6 @@ mod test {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use ethers::core::types::H256;
     use eyre::eyre;
     use mockall::predicate::eq;
     use mockall::*;
@@ -238,7 +237,7 @@ mod test {
     use tokio::sync::Mutex;
     use tokio::time::{interval, sleep, timeout};
 
-    use hyperlane_core::{db::HyperlaneDB, HyperlaneMessage, LogMeta};
+    use hyperlane_core::{db::HyperlaneDB, HyperlaneMessage, LogMeta, H256};
     use hyperlane_test::mocks::cursor::MockSyncBlockRangeCursor;
     use hyperlane_test::mocks::indexer::MockHyperlaneIndexer;
     use hyperlane_test::test_utils;

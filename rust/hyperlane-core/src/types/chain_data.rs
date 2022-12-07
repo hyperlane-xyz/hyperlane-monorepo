@@ -1,4 +1,4 @@
-use ethers::prelude::{H256, U256};
+use crate::{H256, U256};
 
 /// Info about a given block in the chain.
 #[derive(Debug, Clone)]
@@ -34,7 +34,8 @@ pub struct TxnInfo {
     pub sender: H256,
     /// Address of the receiver or contract that was interacted with
     pub recipient: Option<H256>,
-    /// If the txn has been processed, we can also report some additional information.
+    /// If the txn has been processed, we can also report some additional
+    /// information.
     pub receipt: Option<TxnReceiptInfo>,
 }
 

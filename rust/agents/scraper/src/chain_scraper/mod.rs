@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 
-use ethers::types::H256;
 use eyre::{eyre, Result};
 use futures::TryFutureExt;
 use sea_orm::prelude::TimeDateTime;
@@ -15,7 +14,7 @@ use hyperlane_base::chains::IndexSettings;
 use hyperlane_base::ContractSyncMetrics;
 use hyperlane_core::{
     BlockInfo, HyperlaneContract, HyperlaneMessage, HyperlaneProvider, LogMeta, Mailbox,
-    MailboxIndexer,
+    MailboxIndexer, H256, U256,
 };
 
 use crate::chain_scraper::sync::Syncer;
@@ -230,7 +229,7 @@ impl SqlChainScraper {
             txns.iter_mut().filter(|(_, id)| id.0.is_none()).collect();
 
         let mut storable: Vec<StorableTxn> = Vec::with_capacity(txns_to_insert.len());
-        let as_f64 = ethers::types::U256::to_f64_lossy;
+        let as_f64 = U256::to_f64_lossy;
         for (hash, (_, block_id)) in txns_to_insert.iter() {
             storable.push(StorableTxn {
                 info: self.contracts.provider.get_txn_by_hash(hash).await?,

@@ -1,11 +1,10 @@
 use std::collections::{hash_map::Entry, HashMap};
 
 use ethers::prelude::Address;
-use ethers::types::H256;
-use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithSigner};
-
 use eyre::Result;
 use tracing::{debug, instrument};
+
+use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithSigner, H256};
 
 use crate::{CheckpointSyncer, CheckpointSyncers};
 
