@@ -1,6 +1,151 @@
 {
   "environment": "testnet3",
-  "chains": {},
+  "chains": {
+    "alfajores": {
+      "name": "alfajores",
+      "domain": "44787",
+      "addresses": {
+        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
+        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
+        "multisigIsm": "0x34dD0ab937c3A7280FeB86C8F9ba9EBa79463c1e"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "0",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "14863532"
+      }
+    },
+    "fuji": {
+      "name": "fuji",
+      "domain": "43113",
+      "addresses": {
+        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
+        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
+        "multisigIsm": "0x4bCe8b585057EFC347026F9f0F4f89885468D7d3"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "3",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "16330615"
+      }
+    },
+    "mumbai": {
+      "name": "mumbai",
+      "domain": "80001",
+      "addresses": {
+        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
+        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
+        "multisigIsm": "0x824ed1F5c1769261eDD7022700FA675Fd22C0C1F"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "32",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "29390033"
+      }
+    },
+    "bsctestnet": {
+      "name": "bsctestnet",
+      "domain": "97",
+      "addresses": {
+        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
+        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
+        "multisigIsm": "0x8b3131De3DD5d89C81b9AEaE2adFEA0EB7f4E4eB"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "9",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "25001629"
+      }
+    },
+    "goerli": {
+      "name": "goerli",
+      "domain": "5",
+      "addresses": {
+        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
+        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
+        "multisigIsm": "0x916B3999505656965A596A7710CEf27d2fEB4878"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "2",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "8039005"
+      }
+    },
+    "moonbasealpha": {
+      "name": "moonbasealpha",
+      "domain": "1287",
+      "addresses": {
+        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
+        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
+        "multisigIsm": "0xaA3022A7e114D4eaF9BBcA552B850346C55E5550"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "3310405"
+      }
+    },
+    "optimismgoerli": {
+      "name": "optimismgoerli",
+      "domain": "420",
+      "addresses": {
+        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
+        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
+        "multisigIsm": "0x99A42d6Bf191127667f55297Af0259708bd8c59e"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "3055263"
+      }
+    },
+    "arbitrumgoerli": {
+      "name": "arbitrumgoerli",
+      "domain": "421613",
+      "addresses": {
+        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
+        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
+        "multisigIsm": "0x772926Ffc5FE8B3ae9a85cB085700748606aE283"
+      },
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "1941997"
+      }
+    }
+  },
   "signers": {},
   "db": "db_path",
   "tracing": {
