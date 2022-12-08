@@ -1,9 +1,9 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "0.5.3",
+  "version": "1.0.0-beta0",
   "dependencies": {
-    "@hyperlane-xyz/utils": "0.5.3",
+    "@hyperlane-xyz/utils": "1.0.0-beta0",
     "@openzeppelin/contracts": "^4.8.0",
     "@openzeppelin/contracts-upgradeable": "^4.8.0"
   },

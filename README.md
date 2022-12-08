@@ -71,9 +71,9 @@ First, increment the version to the desired value:
 
 ```bash
 # An example of a prerelease version
-yarn version:prepare 0.5.0-beta0
-# Or for a release which increments the minor version
-yarn version:prepare minor
+yarn version:prepare 1.1.0-beta0
+# Or a release version
+yarn version:prepare 1.1.0
 ```
 
 Next, ensure packages are cleaned and rebuilt:
