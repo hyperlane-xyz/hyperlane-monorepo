@@ -81,15 +81,9 @@ pub enum ChainCommunicationError {
     #[error(transparent)]
     Other(HyperlaneCustomErrorWrapper),
 
-    // /// An eyre report
-    // #[error("{0:?}")]
-    // Report(#[from] Report),
     /// A transaction submission timed out
     #[error("Transaction submission timed out")]
     TransactionTimeout(),
-    // #[cfg(test)]
-    // #[error("Testing error: {0}")]
-    // TestError(&'static str)
 }
 
 impl ChainCommunicationError {
