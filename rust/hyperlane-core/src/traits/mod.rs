@@ -1,5 +1,3 @@
-use ethers::types::H256;
-
 pub use cursor::*;
 pub use encode::*;
 pub use indexer::*;
@@ -7,6 +5,8 @@ pub use interchain_gas::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
+
+use crate::H256;
 
 mod cursor;
 mod encode;
