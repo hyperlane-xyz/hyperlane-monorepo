@@ -34,7 +34,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "v2-rust"
-          shared-key: "common"
+          shared-key: "e2e"
           workspaces: |
             ./rust
       - name: node module cache

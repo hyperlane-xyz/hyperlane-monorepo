@@ -45,7 +45,6 @@ jobs:
 
   test-rs:
     runs-on: ubuntu-latest
-    needs: [build-rs]
 
     steps:
       - uses: actions/checkout@v3
@@ -60,12 +59,12 @@ jobs:
           shared-key: "common"
           workspaces: |
             ./rust
+          save-if: false # only allow the main build to get cached
       - name: Run tests
         run: cargo test
 
   lint-rs:
     runs-on: ubuntu-latest
-    needs: [build-rs]
 
     steps:
       - uses: actions/checkout@v3
@@ -81,6 +80,7 @@ jobs:
           shared-key: "common"
           workspaces: |
             ./rust
+          save-if: false # only allow the main build to get cached
       - name: Check
         run: cargo check --all-features --all-targets
       - name: Rustfmt
