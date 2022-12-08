@@ -47,7 +47,7 @@ where
 {
     #[instrument(err, skip(self))]
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
-        let block = get_with_retry_on_none(|| self.provider.get_block(*hash)).await?;
+        let block = get_with_retry_on_none(hash, |h| self.provider.get_block(*h)).await?;
         Ok(BlockInfo {
             hash: *hash,
             timestamp: block.timestamp.as_u64(),
@@ -60,7 +60,7 @@ where
 
     #[instrument(err, skip(self))]
     async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
-        let txn = get_with_retry_on_none(|| self.provider.get_transaction(*hash)).await?;
+        let txn = get_with_retry_on_none(hash, |h| self.provider.get_transaction(*h)).await?;
         let receipt = self
             .provider
             .get_transaction_receipt(*hash)
@@ -112,19 +112,22 @@ impl BuildableWithProvider for HyperlaneProviderBuilder {
 /// Call a get function that returns a Result<Option<T>> and retry if the inner
 /// option is None. This can happen because the provider has not discovered the
 /// object we are looking for yet.
-async fn get_with_retry_on_none<T, F, O, E>(get: F) -> ChainResult<T>
+async fn get_with_retry_on_none<T, F, O, E>(hash: &H256, get: F) -> ChainResult<T>
 where
-    F: Fn() -> O,
+    F: Fn(&H256) -> O,
     O: Future<Output = Result<Option<T>, E>>,
     E: std::error::Error + Send + Sync + 'static,
 {
     for _ in 0..3 {
-        if let Some(t) = get().await.map_err(ChainCommunicationError::from_other)? {
+        if let Some(t) = get(hash)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+        {
             return Ok(t);
         } else {
             sleep(Duration::from_secs(5)).await;
             continue;
         };
     }
-    Err(HyperlaneProviderError::CouldNotFindObject.into())
+    Err(HyperlaneProviderError::CouldNotFindObjectByHash(*hash).into())
 }

@@ -25,12 +25,12 @@ pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
 #[derive(Error, Debug)]
 pub enum HyperlaneProviderError {
     /// The requested block hash is not yet known by the provider
-    #[error("Block is not part of chain yet {0}")]
+    #[error("Block is not part of chain yet {0:?}")]
     BlockIsNotPartOfChainYet(H256),
     /// The provider did not return the gas which was used
     #[error("Provider did not return gas used")]
     NoGasUsed,
     /// Could not find a transaction, block, or other object
-    #[error("Could not find object from provider")]
-    CouldNotFindObject,
+    #[error("Could not find object from provider with hash {0:?}")]
+    CouldNotFindObjectByHash(H256),
 }
