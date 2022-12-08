@@ -1,18 +1,18 @@
 use ethers::signers::Signer;
 use eyre::Context;
+use eyre::Result;
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    ContractLocator, HyperlaneAbi, HyperlaneProvider, InterchainGasPaymaster, Mailbox, MultisigIsm,
-    Signers,
+    ContractLocator, HyperlaneAbi, HyperlaneProvider, InterchainGasPaymaster,
+    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers,
 };
 use hyperlane_ethereum::{
-    Connection, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi, EthereumMultisigIsmAbi,
-    HyperlaneProviderBuilder, InterchainGasPaymasterBuilder, MailboxBuilder, MakeableWithProvider,
-    MultisigIsmBuilder,
+    BuildableWithProvider, ConnectionConf, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
+    EthereumMultisigIsmAbi,
 };
 
 use crate::CoreMetrics;
@@ -24,7 +24,7 @@ use crate::CoreMetrics;
 #[serde(tag = "rpcStyle", content = "connection", rename_all = "camelCase")]
 pub enum ChainConf {
     /// Ethereum configuration
-    Ethereum(Connection),
+    Ethereum(ConnectionConf),
 }
 
 impl Default for ChainConf {
@@ -94,8 +94,8 @@ impl IndexSettings {
     }
 }
 
-/// A chain setup is a domain ID, an address on that chain (where the mailbox is deployed) and
-/// details for connecting to the chain API.
+/// A chain setup is a domain ID, an address on that chain (where the mailbox is
+/// deployed) and details for connecting to the chain API.
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainSetup {
@@ -124,88 +124,170 @@ pub struct ChainSetup {
 }
 
 impl ChainSetup {
+    /// Try to convert the chain settings into an HyperlaneProvider.
+    pub async fn build_provider(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn HyperlaneProvider>> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
+
+        match &self.chain {
+            ChainConf::Ethereum(conf) => {
+                hyperlane_ethereum::HyperlaneProviderBuilder {}
+                    .build_with_connection_conf(
+                        conf.clone(),
+                        &self.locator("0x0000000000000000000000000000000000000000")?,
+                        signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some((metrics.provider_metrics(), metrics_conf)),
+                    )
+                    .await
+            }
+        }
+        .context("Building provider")
+    }
+
+    /// Try to convert the chain setting into a Mailbox contract
+    pub async fn build_mailbox(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn Mailbox>> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
+        let locator = self.locator(&self.addresses.mailbox)?;
+        match &self.chain {
+            ChainConf::Ethereum(conf) => {
+                hyperlane_ethereum::MailboxBuilder {}
+                    .build_with_connection_conf(
+                        conf.clone(),
+                        &locator,
+                        signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some((metrics.provider_metrics(), metrics_conf)),
+                    )
+                    .await
+            }
+        }
+        .context("Building mailbox")
+    }
+
+    /// Try to convert the chain settings into a mailbox indexer
+    pub async fn build_mailbox_indexer(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn MailboxIndexer>> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
+        let locator = self.locator(&self.addresses.mailbox)?;
+
+        match &self.chain {
+            ChainConf::Ethereum(conf) => {
+                hyperlane_ethereum::MailboxIndexerBuilder {
+                    finality_blocks: self.finality_blocks(),
+                }
+                .build_with_connection_conf(
+                    conf.clone(),
+                    &locator,
+                    signer,
+                    Some(|| metrics.json_rpc_client_metrics()),
+                    Some((metrics.provider_metrics(), metrics_conf)),
+                )
+                .await
+            }
+        }
+        .context("Building mailbox indexer")
+    }
+
+    /// Try to convert the chain setting into an interchain gas paymaster
+    /// contract
+    pub async fn build_interchain_gas_paymaster(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn InterchainGasPaymaster>> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
+        let locator = self.locator(&self.addresses.interchain_gas_paymaster)?;
+
+        match &self.chain {
+            ChainConf::Ethereum(conf) => {
+                hyperlane_ethereum::InterchainGasPaymasterBuilder {}
+                    .build_with_connection_conf(
+                        conf.clone(),
+                        &locator,
+                        signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some((metrics.provider_metrics(), metrics_conf)),
+                    )
+                    .await
+            }
+        }
+        .context("Building IGP")
+    }
+
+    /// Try to convert the chain settings into a IGP indexer
+    pub async fn build_interchain_gas_paymaster_indexer(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn InterchainGasPaymasterIndexer>> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
+        let locator = self.locator(&self.addresses.interchain_gas_paymaster)?;
+
+        match &self.chain {
+            ChainConf::Ethereum(conf) => {
+                hyperlane_ethereum::InterchainGasPaymasterIndexerBuilder {
+                    mailbox_address: self.addresses.mailbox.parse()?,
+                    finality_blocks: self.finality_blocks(),
+                }
+                .build_with_connection_conf(
+                    conf.clone(),
+                    &locator,
+                    signer,
+                    Some(|| metrics.json_rpc_client_metrics()),
+                    Some((metrics.provider_metrics(), metrics_conf)),
+                )
+                .await
+            }
+        }
+        .context("Building IGP indexer")
+    }
+
+    /// Try to convert the chain setting into a Multisig Ism contract
+    pub async fn build_multisig_ism(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn MultisigIsm>> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
+        let locator = self.locator(&self.addresses.multisig_ism)?;
+
+        match &self.chain {
+            ChainConf::Ethereum(conf) => {
+                hyperlane_ethereum::MultisigIsmBuilder {}
+                    .build_with_connection_conf(
+                        conf.clone(),
+                        &locator,
+                        signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some((metrics.provider_metrics(), metrics_conf)),
+                    )
+                    .await
+            }
+        }
+        .context("Building multisig ISM")
+    }
+
     /// Get the number of blocks until finality
-    pub fn finality_blocks(&self) -> u32 {
+    fn finality_blocks(&self) -> u32 {
         self.finality_blocks
             .parse::<u32>()
             .expect("could not parse finality_blocks")
     }
 
-    /// Try to convert the chain settings into an HyperlaneProvider.
-    pub async fn try_into_provider(
-        &self,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn HyperlaneProvider>> {
-        let builder = HyperlaneProviderBuilder {};
-        let metrics_conf = {
-            let mut cfg = self.metrics_conf.clone();
-
-            if cfg.chain.is_none() {
-                cfg.chain = Some(ChainInfo {
-                    name: Some(self.name.clone()),
-                });
-            }
-
-            cfg
-        };
-
-        let address = match &self.chain {
-            ChainConf::Ethereum(_) => "0x0000000000000000000000000000000000000000",
-        };
-        self.build(address, None, metrics, metrics_conf, builder)
-            .await
-    }
-
-    /// Try to convert the chain setting into a Mailbox contract
-    pub async fn try_into_mailbox(
-        &self,
-        signer: Option<Signers>,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn Mailbox>> {
-        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
-        let address = &self.addresses.mailbox;
-        let builder = MailboxBuilder {};
-        self.build(address, signer, metrics, metrics_conf, builder)
-            .await
-            .context("Building mailbox")
-    }
-
-    /// Try to convert the chain setting into an interchain gas paymaster
-    /// contract
-    pub async fn try_into_interchain_gas_paymaster(
-        &self,
-        signer: Option<Signers>,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn InterchainGasPaymaster>> {
-        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
-        let address = &self.addresses.interchain_gas_paymaster;
-        let builder = InterchainGasPaymasterBuilder {};
-        self.build(address, signer, metrics, metrics_conf, builder)
-            .await
-            .context("Building IGP")
-    }
-
-    /// Try to convert the chain setting into a Multisig Ism contract
-    pub async fn try_into_multisig_ism(
-        &self,
-        signer: Option<Signers>,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn MultisigIsm>> {
-        let address = &self.addresses.multisig_ism;
-        let builder = MultisigIsmBuilder {};
-        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
-        self.build(address, signer, metrics, metrics_conf, builder)
-            .await
-            .context("Building multisig ISM")
-    }
-
     /// Get a clone of the metrics conf with correctly configured contract
     /// information.
-    pub fn metrics_conf(
-        &self,
-        agent_name: &str,
-        signer: &Option<Signers>,
-    ) -> PrometheusMiddlewareConf {
+    fn metrics_conf(&self, agent_name: &str, signer: &Option<Signers>) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
 
         if cfg.chain.is_none() {
@@ -243,31 +325,16 @@ impl ChainSetup {
         cfg
     }
 
-    /// Try to convert the chain setting into a contract
-    pub async fn build<B: MakeableWithProvider + Sync>(
-        &self,
-        address: &str,
-        signer: Option<Signers>,
-        metrics: &CoreMetrics,
-        metrics_conf: PrometheusMiddlewareConf,
-        builder: B,
-    ) -> eyre::Result<B::Output> {
-        match &self.chain {
-            ChainConf::Ethereum(conf) => {
-                builder
-                    .make_with_connection(
-                        conf.clone(),
-                        &ContractLocator {
-                            chain_name: self.name.clone(),
-                            domain: self.domain.parse().expect("invalid uint"),
-                            address: address.parse::<ethers::types::Address>()?.into(),
-                        },
-                        signer,
-                        Some(|| metrics.json_rpc_client_metrics()),
-                        Some((metrics.provider_metrics(), metrics_conf)),
-                    )
-                    .await
-            }
-        }
+    fn locator(&self, address: &str) -> Result<ContractLocator> {
+        Ok(ContractLocator {
+            chain_name: self.name.clone(),
+            domain: self.domain.parse().context("invalid uint")?,
+            address: match self.chain {
+                ChainConf::Ethereum(_) => address
+                    .parse::<ethers::types::Address>()
+                    .context("Invalid ethereum address")?
+                    .into(),
+            },
+        })
     }
 }

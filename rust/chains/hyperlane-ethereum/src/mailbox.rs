@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
-use ethers::prelude::*;
+use ethers::prelude::{Middleware, Selector};
 use ethers_contract::builders::ContractCall;
 use eyre::{eyre, Result};
 use tracing::instrument;
@@ -14,11 +14,11 @@ use tracing::instrument;
 use hyperlane_core::{
     ChainCommunicationError, Checkpoint, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneMessage, Indexer, LogMeta, Mailbox, MailboxIndexer,
-    RawHyperlaneMessage, TxCostEstimate, TxOutcome,
+    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
-use crate::trait_builder::MakeableWithProvider;
+use crate::trait_builder::BuildableWithProvider;
 use crate::tx::report_tx;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
@@ -35,10 +35,10 @@ pub struct MailboxIndexerBuilder {
 }
 
 #[async_trait]
-impl MakeableWithProvider for MailboxIndexerBuilder {
+impl BuildableWithProvider for MailboxIndexerBuilder {
     type Output = Box<dyn MailboxIndexer>;
 
-    async fn make_with_provider<M: Middleware + 'static>(
+    async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -140,10 +140,10 @@ where
 pub struct MailboxBuilder {}
 
 #[async_trait]
-impl MakeableWithProvider for MailboxBuilder {
+impl BuildableWithProvider for MailboxBuilder {
     type Output = Box<dyn Mailbox>;
 
-    async fn make_with_provider<M: Middleware + 'static>(
+    async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,

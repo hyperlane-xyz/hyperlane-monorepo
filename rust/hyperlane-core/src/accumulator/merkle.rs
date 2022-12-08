@@ -1,10 +1,9 @@
-use ethers::core::types::H256;
 use lazy_static::lazy_static;
 use thiserror::Error;
 
 use crate::{
     accumulator::{hash_concat, EMPTY_SLICE, TREE_DEPTH, ZERO_HASHES},
-    Decode, Encode,
+    Decode, Encode, H256,
 };
 
 // Some code has been derived from

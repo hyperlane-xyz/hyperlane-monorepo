@@ -96,17 +96,17 @@ impl Scraper {
         let ctx = || format!("Loading chain {chain_name}");
         Ok(Contracts {
             provider: config
-                .try_provider(chain_name, metrics)
+                .build_provider(chain_name, metrics)
                 .await
                 .with_context(ctx)?
                 .into(),
             mailbox: config
-                .try_mailbox(chain_name, metrics)
+                .build_mailbox(chain_name, metrics)
                 .await
                 .with_context(ctx)?
                 .into(),
             indexer: config
-                .try_mailbox_indexer(chain_name, metrics)
+                .build_mailbox_indexer(chain_name, metrics)
                 .await
                 .with_context(ctx)?
                 .into(),

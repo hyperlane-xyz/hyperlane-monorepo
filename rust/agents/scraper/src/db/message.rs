@@ -1,11 +1,10 @@
-use ethers::prelude::H256;
 use eyre::Result;
 use sea_orm::{
     prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QueryOrder, QuerySelect,
 };
 use tracing::{instrument, trace};
 
-use hyperlane_core::{HyperlaneMessage, LogMeta};
+use hyperlane_core::{HyperlaneMessage, LogMeta, H256};
 use migration::OnConflict;
 
 use crate::conversions::format_h256;

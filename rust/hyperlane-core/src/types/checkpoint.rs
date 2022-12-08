@@ -1,7 +1,6 @@
-use crate::{utils::domain_hash, Decode, Encode, HyperlaneError, SignerExt};
+use crate::{utils::domain_hash, Decode, Encode, HyperlaneError, SignerExt, H256};
 use ethers::{
     prelude::{Address, Signature},
-    types::H256,
     utils::hash_message,
 };
 use ethers_signers::Signer;

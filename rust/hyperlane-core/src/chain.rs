@@ -8,6 +8,8 @@ use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, EnumString};
 
+use crate::H160;
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Address(pub bytes::Bytes);
 
@@ -36,21 +38,21 @@ pub trait Chain {
     async fn query_balance(&self, addr: Address) -> Result<Balance>;
 }
 
-impl From<Address> for ethers::types::H160 {
+impl From<Address> for H160 {
     fn from(addr: Address) -> Self {
-        ethers::types::H160::from_slice(addr.0.as_ref())
+        H160::from_slice(addr.0.as_ref())
     }
 }
 
-impl From<ethers::types::H160> for Address {
-    fn from(addr: ethers::types::H160) -> Self {
+impl From<H160> for Address {
+    fn from(addr: H160) -> Self {
         Address(bytes::Bytes::from(addr.as_bytes().to_owned()))
     }
 }
 
-impl From<&'_ Address> for ethers::types::H160 {
+impl From<&'_ Address> for H160 {
     fn from(addr: &Address) -> Self {
-        ethers::types::H160::from_slice(addr.0.as_ref())
+        H160::from_slice(addr.0.as_ref())
     }
 }
 
@@ -174,13 +176,15 @@ pub fn domain_id_from_name(name: &'static str) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use config::{Config, File, FileFormat};
-    use hyperlane_base::Settings;
     use std::collections::BTreeSet;
     use std::fs::read_to_string;
     use std::path::Path;
     use std::str::FromStr;
+
+    use config::{Config, File, FileFormat};
     use walkdir::WalkDir;
+
+    use hyperlane_base::Settings;
 
     use crate::{domain_id_from_name, name_from_domain_id, HyperlaneDomain};
 

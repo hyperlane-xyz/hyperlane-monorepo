@@ -3,11 +3,10 @@ use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::num::ParseIntError;
 
-use ethers::prelude::*;
 use serde::de::{Error, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::{HyperlaneMessage, H160, H256};
 
 /// Defines a set of patterns for determining if a message should or should not
 /// be relayed. This is useful for determine if a message matches a given set or
@@ -271,7 +270,7 @@ fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
 #[cfg(test)]
 mod test {
     use crate::settings::matching_list::MatchInfo;
-    use ethers::prelude::*;
+    use hyperlane_core::{H160, H256};
 
     use super::{Filter::*, MatchingList};
 

@@ -18,7 +18,7 @@ use ethers_prometheus::middleware::{
 };
 use hyperlane_core::{ContractLocator, Signers};
 
-use crate::{Connection, RetryingProvider};
+use crate::{ConnectionConf, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
@@ -26,23 +26,23 @@ const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// A trait for dynamic trait creation with provider initialization.
 #[async_trait]
-pub trait MakeableWithProvider {
+pub trait BuildableWithProvider {
     /// The type that will be created.
     type Output;
 
     /// Construct a new instance of the associated trait using a connection
     /// config. This is the first step and will wrap the provider with
     /// metrics and a signer as needed.
-    async fn make_with_connection(
+    async fn build_with_connection_conf(
         &self,
-        conn: Connection,
+        conn: ConnectionConf,
         locator: &ContractLocator,
         signer: Option<Signers>,
         rpc_metrics: Option<impl FnOnce() -> JsonRpcClientMetrics + Send>,
         middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> eyre::Result<Self::Output> {
         Ok(match conn {
-            Connection::HttpQuorum { urls } => {
+            ConnectionConf::HttpQuorum { urls } => {
                 let rpc_metrics = rpc_metrics.map(|f| f());
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
                 let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
@@ -73,7 +73,7 @@ pub trait MakeableWithProvider {
                 self.wrap_with_metrics(quorum_provider, locator, signer, middleware_metrics)
                     .await?
             }
-            Connection::Http { url } => {
+            ConnectionConf::Http { url } => {
                 let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
                 let http_provider = Http::new_with_client(url.parse::<Url>()?, http_client);
                 let retrying_http_provider: RetryingProvider<Http> =
@@ -81,7 +81,7 @@ pub trait MakeableWithProvider {
                 self.wrap_with_metrics(retrying_http_provider, locator, signer, middleware_metrics)
                     .await?
             }
-            Connection::Ws { url } => {
+            ConnectionConf::Ws { url } => {
                 let ws = Ws::connect(url).await?;
                 self.wrap_with_metrics(ws, locator, signer, middleware_metrics)
                     .await?
@@ -159,21 +159,21 @@ pub trait MakeableWithProvider {
         M: Middleware + 'static,
     {
         Ok(if let Some(signer) = signer {
-            let signing_provider = make_signing_provider(provider, signer).await?;
-            self.make_with_provider(signing_provider, locator)
+            let signing_provider = build_signing_provider(provider, signer).await?;
+            self.build_with_provider(signing_provider, locator)
         } else {
-            self.make_with_provider(provider, locator)
+            self.build_with_provider(provider, locator)
         }
         .await)
     }
 
     /// Construct a new instance of the associated trait using a provider.
-    async fn make_with_provider<M>(&self, provider: M, locator: &ContractLocator) -> Self::Output
+    async fn build_with_provider<M>(&self, provider: M, locator: &ContractLocator) -> Self::Output
     where
         M: Middleware + 'static;
 }
 
-async fn make_signing_provider<M: Middleware>(
+async fn build_signing_provider<M: Middleware>(
     provider: M,
     signer: Signers,
 ) -> Result<SignerMiddleware<NonceManagerMiddleware<M>, Signers>, M::Error> {

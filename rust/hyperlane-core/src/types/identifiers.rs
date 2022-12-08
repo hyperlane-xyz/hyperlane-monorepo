@@ -1,6 +1,4 @@
-use ethers::prelude::{H160, H256};
-
-use crate::{Decode, Encode};
+use crate::{Decode, Encode, H160, H256};
 
 /// Identifier type.
 ///

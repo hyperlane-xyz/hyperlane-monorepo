@@ -2,13 +2,12 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use ethers::{core::types::H256, types::U256};
 use eyre::Result;
 
 use crate::{
     traits::{ChainCommunicationError, TxOutcome},
     utils::domain_hash,
-    Checkpoint, HyperlaneContract, HyperlaneMessage, TxCostEstimate,
+    Checkpoint, HyperlaneContract, HyperlaneMessage, TxCostEstimate, H256, U256,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
