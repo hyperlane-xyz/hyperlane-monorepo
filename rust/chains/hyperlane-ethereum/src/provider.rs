@@ -13,7 +13,7 @@ use hyperlane_core::{
     BlockInfo, ContractLocator, HyperlaneChain, HyperlaneProvider, TxnInfo, TxnReceiptInfo, H256,
 };
 
-use crate::MakeableWithProvider;
+use crate::BuildableWithProvider;
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
@@ -94,10 +94,10 @@ where
 pub struct HyperlaneProviderBuilder {}
 
 #[async_trait]
-impl MakeableWithProvider for HyperlaneProviderBuilder {
+impl BuildableWithProvider for HyperlaneProviderBuilder {
     type Output = Box<dyn HyperlaneProvider>;
 
-    async fn make_with_provider<M: Middleware + 'static>(
+    async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,

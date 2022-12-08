@@ -4,10 +4,10 @@
 //!
 //! Hyperlane Agents have a shared core, which contains connection info for rpc,
 //! relevant contract addresses on each chain, etc. In addition, each agent has
-//! agent-specific settings. By convention above, we represent these as a base config
-//! per-Mailbox contract, and a "partial" config per agent. On bootup, the agent
-//! loads the configuration, establishes RPC connections, and monitors each
-//! configured chain.
+//! agent-specific settings. By convention above, we represent these as a base
+//! config per-Mailbox contract, and a "partial" config per agent. On bootup,
+//! the agent loads the configuration, establishes RPC connections, and monitors
+//! each configured chain.
 //!
 //! All agents share the [`Settings`] struct in this crate, and then define any
 //! additional `Settings` in their own crate. By convention this is done in
@@ -88,7 +88,6 @@ use hyperlane_core::{
     HyperlaneProvider, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox,
     MailboxIndexer, MultisigIsm, Signers,
 };
-use hyperlane_ethereum::{InterchainGasPaymasterIndexerBuilder, MailboxIndexerBuilder};
 pub use signers::SignerConf;
 
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
@@ -162,13 +161,13 @@ impl Settings {
         };
 
         let mailboxes = self
-            .try_into_mailboxes(chain_names.as_slice(), &metrics, db.clone())
+            .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
             .await?;
         let interchain_gas_paymasters = self
-            .try_into_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db.clone())
+            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db.clone())
             .await?;
         let multisig_isms = self
-            .try_into_multisig_isms(chain_names.as_slice(), &metrics)
+            .build_all_multisig_isms(chain_names.as_slice(), &metrics)
             .await?;
 
         Ok(HyperlaneAgentCore {
@@ -187,7 +186,7 @@ impl Settings {
     }
 
     /// Try to get a map of chain name -> mailbox contract
-    pub async fn try_into_mailboxes(
+    pub async fn build_all_mailboxes(
         &self,
         chain_names: &[&str],
         metrics: &CoreMetrics,
@@ -196,7 +195,7 @@ impl Settings {
         let mut result = HashMap::new();
         for &chain_name in chain_names {
             let mailbox = self
-                .try_caching_mailbox(chain_name, db.clone(), metrics)
+                .build_caching_mailbox(chain_name, db.clone(), metrics)
                 .await?;
             result.insert(chain_name.into(), mailbox);
         }
@@ -204,7 +203,7 @@ impl Settings {
     }
 
     /// Try to get a map of chain name -> interchain gas paymaster contract
-    pub async fn try_into_interchain_gas_paymasters(
+    pub async fn build_all_interchain_gas_paymasters(
         &self,
         chain_names: &[&str],
         metrics: &CoreMetrics,
@@ -213,7 +212,7 @@ impl Settings {
         let mut result = HashMap::new();
         for &chain_name in chain_names {
             let mailbox = self
-                .try_caching_interchain_gas_paymaster(chain_name, db.clone(), metrics)
+                .build_caching_interchain_gas_paymaster(chain_name, db.clone(), metrics)
                 .await?;
             result.insert(chain_name.into(), mailbox);
         }
@@ -221,52 +220,28 @@ impl Settings {
     }
 
     /// Try to get a map of chain name -> multisig ism contract
-    pub async fn try_into_multisig_isms(
+    pub async fn build_all_multisig_isms(
         &self,
         chain_names: &[&str],
         metrics: &CoreMetrics,
     ) -> eyre::Result<HashMap<String, Arc<dyn MultisigIsm>>> {
         let mut result: HashMap<String, Arc<dyn MultisigIsm>> = HashMap::new();
         for &chain_name in chain_names {
-            let multisig_ism = self.try_multisig_ism(chain_name, metrics).await?;
+            let multisig_ism = self.build_multisig_ism(chain_name, metrics).await?;
             result.insert(chain_name.into(), multisig_ism.into());
         }
         Ok(result)
     }
 
-    /// Try to get an HyperlaneProvider
-    pub async fn try_provider(
-        &self,
-        chain_name: &str,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn HyperlaneProvider>> {
-        self.chains
-            .get(chain_name)
-            .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))?
-            .try_into_provider(metrics)
-            .await
-    }
-
-    /// Try to get a Mailbox
-    pub async fn try_mailbox(
-        &self,
-        chain_name: &str,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn Mailbox>> {
-        let signer = self.get_signer(chain_name).await;
-        let setup = self.try_chain_setup(chain_name)?;
-        setup.try_into_mailbox(signer, metrics).await
-    }
-
     /// Try to get a CachingMailbox
-    async fn try_caching_mailbox(
+    async fn build_caching_mailbox(
         &self,
         chain_name: &str,
         db: DB,
         metrics: &CoreMetrics,
     ) -> eyre::Result<CachingMailbox> {
-        let mailbox = self.try_mailbox(chain_name, metrics).await?;
-        let indexer = self.try_mailbox_indexer(chain_name, metrics).await?;
+        let mailbox = self.build_mailbox(chain_name, metrics).await?;
+        let indexer = self.build_mailbox_indexer(chain_name, metrics).await?;
         let hyperlane_db = HyperlaneDB::new(chain_name, db);
         Ok(CachingMailbox::new(
             mailbox.into(),
@@ -275,31 +250,18 @@ impl Settings {
         ))
     }
 
-    /// Try to get an IGP
-    pub async fn try_interchain_gas_paymaster(
-        &self,
-        chain_name: &str,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn InterchainGasPaymaster>> {
-        let signer = self.get_signer(chain_name).await;
-        let setup = self.try_chain_setup(chain_name)?;
-        setup
-            .try_into_interchain_gas_paymaster(signer, metrics)
-            .await
-    }
-
     /// Try to get a CachingInterchainGasPaymaster
-    async fn try_caching_interchain_gas_paymaster(
+    async fn build_caching_interchain_gas_paymaster(
         &self,
         chain_name: &str,
         db: DB,
         metrics: &CoreMetrics,
     ) -> eyre::Result<CachingInterchainGasPaymaster> {
         let interchain_gas_paymaster = self
-            .try_interchain_gas_paymaster(chain_name, metrics)
+            .build_interchain_gas_paymaster(chain_name, metrics)
             .await?;
         let indexer = self
-            .try_interchain_gas_paymaster_indexer(chain_name, metrics)
+            .build_interchain_gas_paymaster_indexer(chain_name, metrics)
             .await?;
         let hyperlane_db = HyperlaneDB::new(chain_name, db);
         Ok(CachingInterchainGasPaymaster::new(
@@ -309,73 +271,15 @@ impl Settings {
         ))
     }
 
-    /// Try to get a Multisig ISM
-    pub async fn try_multisig_ism(
-        &self,
-        chain_name: &str,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn MultisigIsm>> {
-        let signer = self.get_signer(chain_name).await;
-        let chain_setup = self.try_chain_setup(chain_name)?;
-        chain_setup.try_into_multisig_ism(signer, metrics).await
-    }
-
-    /// Try to get an indexer object for a given mailbox
-    pub async fn try_mailbox_indexer(
-        &self,
-        chain_name: &str,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn MailboxIndexer>> {
-        let chain_setup = self.try_chain_setup(chain_name)?;
-        let signer = self.get_signer(&chain_setup.name).await;
-        let metrics_conf = chain_setup.metrics_conf(metrics.agent_name(), &signer);
-        chain_setup
-            .build(
-                &chain_setup.addresses.mailbox,
-                signer,
-                metrics,
-                metrics_conf,
-                MailboxIndexerBuilder {
-                    finality_blocks: chain_setup.finality_blocks(),
-                },
-            )
-            .await
-            .context("Building mailbox indexer")
-    }
-
-    /// Try to get an indexer object for a given interchain gas paymaster
-    async fn try_interchain_gas_paymaster_indexer(
-        &self,
-        chain_name: &str,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Box<dyn InterchainGasPaymasterIndexer>> {
-        let chain_setup = self.try_chain_setup(chain_name)?;
-        let signer = self.get_signer(&chain_setup.name).await;
-        let metrics_conf = chain_setup.metrics_conf(metrics.agent_name(), &signer);
-        chain_setup
-            .build(
-                &chain_setup.addresses.interchain_gas_paymaster,
-                signer,
-                metrics,
-                metrics_conf,
-                InterchainGasPaymasterIndexerBuilder {
-                    mailbox_address: chain_setup.addresses.mailbox.parse()?,
-                    finality_blocks: chain_setup.finality_blocks(),
-                },
-            )
-            .await
-            .context("Building mailbox indexer")
-    }
-
     /// Try to get the chain setup for the provided chain name
-    pub fn try_chain_setup(&self, chain_name: &str) -> eyre::Result<&ChainSetup> {
+    pub fn chain_setup(&self, chain_name: &str) -> eyre::Result<&ChainSetup> {
         self.chains
             .get(chain_name)
             .ok_or_else(|| eyre!("No chain setup found for {chain_name}"))
     }
 
     /// Create the core metrics from the settings given the name of the agent.
-    pub fn try_into_metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
+    pub fn metrics(&self, name: &str) -> eyre::Result<Arc<CoreMetrics>> {
         Ok(Arc::new(CoreMetrics::new(
             name,
             self.metrics
@@ -398,4 +302,29 @@ impl Settings {
             tracing: self.tracing.clone(),
         }
     }
+}
+
+/// Generate a call to ChainSetup for the given builder
+macro_rules! delegate_fn {
+    ($name:ident -> $ret:ty) => {
+        /// Delegates building to ChainSetup
+        pub async fn $name(
+            &self,
+            chain_name: &str,
+            metrics: &CoreMetrics,
+        ) -> eyre::Result<Box<$ret>> {
+            let signer = self.get_signer(chain_name).await;
+            let setup = self.chain_setup(chain_name)?;
+            setup.$name(signer, metrics).await
+        }
+    };
+}
+
+impl Settings {
+    delegate_fn!(build_interchain_gas_paymaster -> dyn InterchainGasPaymaster);
+    delegate_fn!(build_interchain_gas_paymaster_indexer -> dyn InterchainGasPaymasterIndexer);
+    delegate_fn!(build_mailbox -> dyn Mailbox);
+    delegate_fn!(build_mailbox_indexer -> dyn MailboxIndexer);
+    delegate_fn!(build_multisig_ism -> dyn MultisigIsm);
+    delegate_fn!(build_provider -> dyn HyperlaneProvider);
 }

@@ -21,7 +21,7 @@ use hyperlane_core::{
 };
 
 use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
-use crate::trait_builder::MakeableWithProvider;
+use crate::trait_builder::BuildableWithProvider;
 
 #[derive(Debug)]
 struct Timestamped<Value> {
@@ -88,10 +88,10 @@ where
 pub struct MultisigIsmBuilder {}
 
 #[async_trait]
-impl MakeableWithProvider for MultisigIsmBuilder {
+impl BuildableWithProvider for MultisigIsmBuilder {
     type Output = Box<dyn MultisigIsm>;
 
-    async fn make_with_provider<M: Middleware + 'static>(
+    async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
