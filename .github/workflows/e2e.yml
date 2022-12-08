@@ -31,9 +31,12 @@ jobs:
           profile: minimal
 
       - name: rust cache
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
         with:
-          working-directory: ./rust
+          prefix-key: "v2-rust"
+          shared-key: "common"
+          workspaces: |
+            ./rust
       - name: node module cache
         uses: actions/cache@v3
         with:

@@ -33,9 +33,14 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
-      - uses: Swatinem/rust-cache@v1
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          working-directory: ./rust
+          prefix-key: "v2-rust"
+          shared-key: "common"
+          cache-on-failure: true
+          workspaces: |
+            ./rust
       - name: Build
         run: cargo build --verbose
 
@@ -49,9 +54,14 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
-      - uses: Swatinem/rust-cache@v1
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          working-directory: ./rust
+          prefix-key: "v2-rust"
+          shared-key: "common"
+          workspaces: |
+            ./rust
+          cache-on-failure: true
       - name: Run tests
         run: cargo test --verbose
 
@@ -66,9 +76,14 @@ jobs:
           toolchain: stable
           profile: minimal
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v1
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          working-directory: ./rust
+          prefix-key: "v2-rust"
+          shared-key: "common"
+          workspaces: |
+            ./rust
+          cache-on-failure: true
       - name: Check
         run: cargo check --all-features --all-targets --verbose
       - name: Rustfmt
