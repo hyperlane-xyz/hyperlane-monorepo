@@ -47,6 +47,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-central-1',
         },
       },
+      /*
       {
         address: '0x54e2f79e458fa17e2a5b90cf74ace79fe98cc8d0',
         readonly: true,
@@ -67,6 +68,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-west-1',
         },
       },
+      */
     ],
   },
   ethereum: {
@@ -101,6 +103,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-central-1',
         },
       },
+      /*
       {
         address: '0x7a8974723a559d71d16af3f13663cf5bffea0b5e',
         readonly: true,
@@ -122,6 +125,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-west-1',
         },
       },
+      */
     ],
   },
   avalanche: {
@@ -156,6 +160,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-central-1',
         },
       },
+      /*
       {
         address: '0x39b505266aff2d52602f05ceaa7d4261e9494a50',
         readonly: true,
@@ -177,6 +182,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-west-1',
         },
       },
+      */
     ],
   },
   polygon: {
@@ -211,6 +217,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-central-1',
         },
       },
+      /*
       {
         address: '0x860979ccaee9e432d3684e580987bed3e8f04846',
         readonly: true,
@@ -231,6 +238,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-west-1',
         },
       },
+      */
     ],
   },
   bsc: {
@@ -265,6 +273,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-central-1',
         },
       },
+      /*
       {
         address: '0x73c7d898546a6c595ca7c32d52aa45d75f428a7d',
         readonly: true,
@@ -285,6 +294,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-west-1',
         },
       },
+      */
     ],
   },
   arbitrum: {
@@ -319,6 +329,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-central-1',
         },
       },
+      /*
       {
         address: '0x5acbfc1493252110b698534bca12ec65bf3b5f1f',
         readonly: true,
@@ -340,6 +351,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-west-1',
         },
       },
+      */
     ],
   },
   optimism: {
@@ -374,6 +386,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-central-1',
         },
       },
+      /*
       {
         address: '0xbae7166acd15d8f0ab1d432c5d874bb24718edb8',
         readonly: true,
@@ -395,10 +408,11 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-west-1',
         },
       },
+      */
     ],
   },
   moonbeam: {
-    threshold: 3,
+    threshold: 2,
     validators: [
       {
         address: '0x3da42c84aaf9d548feb219bfdf5fcb2217fbfb48',
@@ -418,6 +432,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
+      /*
       {
         address: '0x2b3c6844a3968bb613c46bda43223f0700f91917',
         readonly: true,
@@ -439,6 +454,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
           region: 'eu-west-1',
         },
       },
+      */
     ],
   },
 };
