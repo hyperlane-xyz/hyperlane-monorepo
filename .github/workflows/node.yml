@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: '**/node_modules'
           key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
@@ -39,13 +39,13 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: yarn-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: '**/node_modules'
           key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ./*
           key: ${{ github.sha }}
@@ -58,7 +58,7 @@ jobs:
     needs: [yarn-install]
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: '**/node_modules'
           key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
@@ -80,7 +80,7 @@ jobs:
     needs: [yarn-build]
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: ./*
           key: ${{ github.sha }}
@@ -101,7 +101,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: ./*
           key: ${{ github.sha }}
