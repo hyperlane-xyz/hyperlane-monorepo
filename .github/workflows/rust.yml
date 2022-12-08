@@ -38,7 +38,6 @@ jobs:
         with:
           prefix-key: "v2-rust"
           shared-key: "common"
-          cache-on-failure: true
           workspaces: |
             ./rust
       - name: Build
@@ -61,7 +60,6 @@ jobs:
           shared-key: "common"
           workspaces: |
             ./rust
-          cache-on-failure: true
       - name: Run tests
         run: cargo test
 
@@ -83,7 +81,6 @@ jobs:
           shared-key: "common"
           workspaces: |
             ./rust
-          cache-on-failure: true
       - name: Check
         run: cargo check --all-features --all-targets
       - name: Rustfmt
