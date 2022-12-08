@@ -75,12 +75,10 @@ pub enum ChainCommunicationError {
     /// DB Error
     #[error(transparent)]
     DbError(#[from] DbError),
-
     /// Any other error; does not implement `From` to prevent
     /// conflicting/absorbing other errors.
     #[error(transparent)]
     Other(HyperlaneCustomErrorWrapper),
-
     /// A transaction submission timed out
     #[error("Transaction submission timed out")]
     TransactionTimeout(),
