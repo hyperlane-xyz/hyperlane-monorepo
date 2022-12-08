@@ -2,7 +2,7 @@ name: rust
 
 on:
   push:
-    branches: [main, v2]
+    branches: [main]
   pull_request:
     paths:
       - 'rust/**'
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -44,7 +44,7 @@ jobs:
     needs: [build-rs]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -60,7 +60,7 @@ jobs:
     needs: [build-rs]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
