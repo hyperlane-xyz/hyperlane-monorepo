@@ -1,6 +1,6 @@
+use crate::ChainResult;
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use eyre::Result;
 
 /// Tool for handling the logic of what the next block range that should be
 /// queried and may perform rate limiting on `next_range` queries.
@@ -25,7 +25,7 @@ pub trait SyncBlockRangeCursor {
     /// This assumes the caller will call next_range again automatically on Err,
     /// but it returns the error to allow for tailored logging or different end
     /// cases.
-    async fn next_range(&mut self) -> Result<(u32, u32)>;
+    async fn next_range(&mut self) -> ChainResult<(u32, u32)>;
 
     /// If there was an issue when a range of data was fetched, this rolls back
     /// so the next range fetched will be from `start_from`. Note that it is a

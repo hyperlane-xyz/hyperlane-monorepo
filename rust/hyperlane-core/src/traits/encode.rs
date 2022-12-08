@@ -3,7 +3,7 @@ use std::io::{Error, ErrorKind};
 
 use ethers::prelude::{Signature, SignatureError};
 
-use crate::{HyperlaneError, H256, U256};
+use crate::{HyperlaneProtocolError, H256, U256};
 
 /// Simple trait for types with a canonical encoding
 pub trait Encode {
@@ -23,7 +23,7 @@ pub trait Encode {
 /// Simple trait for types with a canonical encoding
 pub trait Decode {
     /// Try to read from some source
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized;
@@ -40,7 +40,7 @@ impl Encode for Signature {
 }
 
 impl Decode for Signature {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
     {
@@ -65,7 +65,7 @@ impl Encode for H256 {
 }
 
 impl Decode for H256 {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized,
@@ -89,7 +89,7 @@ impl Encode for U256 {
 }
 
 impl Decode for U256 {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized,
@@ -111,7 +111,7 @@ impl Encode for u32 {
 }
 
 impl Decode for u32 {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized,
@@ -133,7 +133,7 @@ impl Encode for u64 {
 }
 
 impl Decode for u64 {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized,
@@ -155,7 +155,7 @@ impl Encode for bool {
 }
 
 impl Decode for bool {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized,
@@ -165,7 +165,7 @@ impl Decode for bool {
         match buf[0] {
             0 => Ok(false),
             1 => Ok(true),
-            _ => Err(HyperlaneError::IoError(Error::new(
+            _ => Err(HyperlaneProtocolError::IoError(Error::new(
                 ErrorKind::InvalidData,
                 "decoded bool invalid",
             ))),

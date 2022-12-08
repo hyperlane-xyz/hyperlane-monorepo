@@ -5,14 +5,12 @@ use ethers::prelude::{NameOrAddress, TransactionReceipt};
 use ethers_contract::builders::ContractCall;
 use tracing::{error, info};
 
-use hyperlane_core::{ChainCommunicationError, H256};
+use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
 
 use crate::Middleware;
 
 /// Dispatches a transaction, logs the tx id, and returns the result
-pub(crate) async fn report_tx<M, D>(
-    tx: ContractCall<M, D>,
-) -> Result<TransactionReceipt, ChainCommunicationError>
+pub(crate) async fn report_tx<M, D>(tx: ContractCall<M, D>) -> ChainResult<TransactionReceipt>
 where
     M: Middleware + 'static,
     D: Detokenize,
@@ -58,7 +56,7 @@ where
             Ok(receipt)
         }
         // ethers-rs will return None if it can no longer poll for the tx in the mempool
-        Ok(Ok(None)) => Err(ChainCommunicationError::DroppedError(tx_hash)),
+        Ok(Ok(None)) => Err(ChainCommunicationError::TransactionDropped(tx_hash)),
         // Received error, pass it through
         Ok(Err(x)) => {
             error!(

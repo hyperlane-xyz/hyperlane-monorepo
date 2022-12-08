@@ -6,13 +6,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::prelude::{Middleware, Selector};
-use eyre::Result;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, Indexer,
-    InterchainGasPaymaster, InterchainGasPaymasterIndexer, InterchainGasPayment,
-    InterchainGasPaymentMeta, InterchainGasPaymentWithMeta, H160, H256,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
+    HyperlaneContract, Indexer, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
+    InterchainGasPayment, InterchainGasPaymentMeta, InterchainGasPaymentWithMeta, H160, H256,
 };
 
 use crate::contracts::interchain_gas_paymaster::{
@@ -85,11 +84,12 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, ret, skip(self))]
-    async fn get_finalized_block_number(&self) -> Result<u32> {
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
             .provider
             .get_block_number()
-            .await?
+            .await
+            .map_err(ChainCommunicationError::from_other)?
             .as_u32()
             .saturating_sub(self.finality_blocks))
     }
@@ -105,7 +105,7 @@ where
         &self,
         from_block: u32,
         to_block: u32,
-    ) -> Result<Vec<InterchainGasPaymentWithMeta>> {
+    ) -> ChainResult<Vec<InterchainGasPaymentWithMeta>> {
         let events = self
             .contract
             .gas_payment_filter()

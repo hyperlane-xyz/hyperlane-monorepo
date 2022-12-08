@@ -13,18 +13,17 @@ ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05
 ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01", features = ["aws"] }
 ethers-contract = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01", features=["legacy"] }
 async-trait = { version = "0.1", default-features = false }
-thiserror = { version = "1.0", default-features = false }
+thiserror = "1.0"
 tracing = "0.1"
-eyre = "0.6"
 num = "0.4"
 tokio = "1"
 hex = "0.4.3"
-rocksdb = "0.18"
 tracing-futures = "0.2"
 reqwest = "0.11"
+url = "2.3"
 
 hyperlane-core = { path = "../../hyperlane-core" }
-ethers-prometheus = { path = "../../ethers-prometheus" }
+ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
 
 
 [build-dependencies]
