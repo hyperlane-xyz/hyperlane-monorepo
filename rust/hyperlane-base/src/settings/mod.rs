@@ -321,10 +321,10 @@ macro_rules! delegate_fn {
 }
 
 impl Settings {
-    delegate_fn!(build_provider -> dyn HyperlaneProvider);
-    delegate_fn!(build_mailbox -> dyn Mailbox);
     delegate_fn!(build_interchain_gas_paymaster -> dyn InterchainGasPaymaster);
+    delegate_fn!(build_interchain_gas_paymaster_indexer -> dyn InterchainGasPaymasterIndexer);
+    delegate_fn!(build_mailbox -> dyn Mailbox);
     delegate_fn!(build_mailbox_indexer -> dyn MailboxIndexer);
     delegate_fn!(build_multisig_ism -> dyn MultisigIsm);
-    delegate_fn!(build_interchain_gas_paymaster_indexer -> dyn InterchainGasPaymasterIndexer);
+    delegate_fn!(build_provider -> dyn HyperlaneProvider);
 }
