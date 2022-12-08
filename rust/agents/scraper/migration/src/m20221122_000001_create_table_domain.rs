@@ -74,7 +74,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "ethereum",
         token: "ETH",
-        domain: 0x657468,
+        domain: 1,
         chain_id: 1,
         is_test_net: false,
         is_deprecated: false,
