@@ -8,7 +8,6 @@
 // Forbid unsafe code outside of tests
 #![cfg_attr(not(test), forbid(unsafe_code))]
 #![warn(missing_docs)]
-#![warn(unused_extern_crates)]
 
 mod settings;
 pub use settings::*;

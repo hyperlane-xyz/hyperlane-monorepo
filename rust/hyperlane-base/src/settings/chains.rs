@@ -25,6 +25,8 @@ use crate::CoreMetrics;
 pub enum ChainConf {
     /// Ethereum configuration
     Ethereum(ConnectionConf),
+    /// Fuel configuration
+    Fuel,
 }
 
 impl Default for ChainConf {
@@ -144,6 +146,8 @@ impl ChainSetup {
                     )
                     .await
             }
+
+            ChainConf::Fuel => todo!(),
         }
         .context("Building provider")
     }
@@ -168,6 +172,8 @@ impl ChainSetup {
                     )
                     .await
             }
+
+            ChainConf::Fuel => todo!(),
         }
         .context("Building mailbox")
     }
@@ -195,6 +201,8 @@ impl ChainSetup {
                 )
                 .await
             }
+
+            ChainConf::Fuel => todo!(),
         }
         .context("Building mailbox indexer")
     }
@@ -221,6 +229,8 @@ impl ChainSetup {
                     )
                     .await
             }
+
+            ChainConf::Fuel => todo!(),
         }
         .context("Building IGP")
     }
@@ -249,6 +259,8 @@ impl ChainSetup {
                 )
                 .await
             }
+
+            ChainConf::Fuel => todo!(),
         }
         .context("Building IGP indexer")
     }
@@ -274,6 +286,8 @@ impl ChainSetup {
                     )
                     .await
             }
+
+            ChainConf::Fuel => todo!(),
         }
         .context("Building multisig ISM")
     }
@@ -334,6 +348,7 @@ impl ChainSetup {
                     .parse::<ethers::types::Address>()
                     .context("Invalid ethereum address")?
                     .into(),
+                ChainConf::Fuel => todo!(),
             },
         })
     }
