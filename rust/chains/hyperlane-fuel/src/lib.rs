@@ -14,3 +14,4 @@ mod interchain_gas;
 mod mailbox;
 mod multisig_ism;
 mod provider;
+mod contracts;

@@ -18,6 +18,8 @@ version = "0.1.0"
 dependencies = [
  "Inflector",
  "ethers",
+ "fuels",
+ "which",
 ]
 
 [[package]]
@@ -3217,6 +3219,7 @@ dependencies = [
 name = "hyperlane-fuel"
 version = "0.1.0"
 dependencies = [
+ "abigen",
  "async-trait",
  "fuels",
  "hyperlane-core",
