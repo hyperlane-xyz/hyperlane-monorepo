@@ -1,6 +1,7 @@
 use crate::db::{DbError, DB};
 use crate::{Decode, Encode};
-use eyre::Result;
+
+type Result<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific type/entity.
 ///
@@ -37,7 +38,7 @@ impl TypedDB {
         prefix: impl AsRef<[u8]>,
         key: impl AsRef<[u8]>,
         value: &V,
-    ) -> Result<(), DbError> {
+    ) -> Result<()> {
         self.db
             .store_encodable(self.full_prefix(prefix), key, value)
     }
@@ -47,7 +48,7 @@ impl TypedDB {
         &self,
         prefix: impl AsRef<[u8]>,
         key: impl AsRef<[u8]>,
-    ) -> Result<Option<V>, DbError> {
+    ) -> Result<Option<V>> {
         self.db.retrieve_decodable(self.full_prefix(prefix), key)
     }
 
@@ -57,7 +58,7 @@ impl TypedDB {
         prefix: impl AsRef<[u8]>,
         key: &K,
         value: &V,
-    ) -> Result<(), DbError> {
+    ) -> Result<()> {
         self.db
             .store_keyed_encodable(self.full_prefix(prefix), key, value)
     }
@@ -67,7 +68,7 @@ impl TypedDB {
         &self,
         prefix: impl AsRef<[u8]>,
         key: &K,
-    ) -> Result<Option<V>, DbError> {
+    ) -> Result<Option<V>> {
         self.db
             .retrieve_keyed_decodable(self.full_prefix(prefix), key)
     }
