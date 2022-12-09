@@ -9,6 +9,8 @@ import {
   LiquidityLayerRouter__factory,
   PortalAdapter,
   PortalAdapter__factory,
+  V2CompatibilityRouter,
+  V2CompatibilityRouter__factory,
 } from '@hyperlane-xyz/core';
 
 import { RouterContracts, RouterFactories } from './router';
@@ -46,3 +48,11 @@ export type LiquidityLayerContracts = RouterContracts<LiquidityLayerRouter> & {
   circleBridgeAdapter?: CircleBridgeAdapter;
   portalAdapter?: PortalAdapter;
 };
+
+export type V2CompatibilityFactories = RouterFactories<V2CompatibilityRouter>;
+
+export const v2CompatibilityFactories: V2CompatibilityFactories = {
+  router: new V2CompatibilityRouter__factory(),
+};
+
+export type V2CompatibilityContracts = RouterContracts<V2CompatibilityRouter>;

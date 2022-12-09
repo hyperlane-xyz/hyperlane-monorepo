@@ -121,6 +121,10 @@ export {
   InterchainQueryDeployer,
 } from './deploy/middleware/deploy';
 export {
+  V2CompatibilityConfig,
+  V2CompatibilityRouterDeployer,
+} from './deploy/middleware/V2CompatibilityMiddlewareDeployer';
+export {
   LiquidityLayerDeployer,
   BridgeAdapterType,
   BridgeAdapterConfig,
@@ -134,6 +138,7 @@ export {
   interchainAccountFactories,
   interchainQueryFactories,
   liquidityLayerFactories,
+  v2CompatibilityFactories,
 } from './middleware';
 export { RouterConfig } from './deploy/router/types';
 export { getTestMultiProvider, getChainToOwnerMap } from './deploy/utils';

@@ -1,0 +1,66 @@
+{
+  "bsc": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "avalanche": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "polygon": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "celo": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "arbitrum": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "optimism": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "ethereum": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "moonbeam": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ]
+}
