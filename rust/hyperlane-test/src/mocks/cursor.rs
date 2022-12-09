@@ -1,14 +1,15 @@
 #![allow(non_snake_case)]
 
-use async_trait::async_trait;
-use eyre::Result;
-use hyperlane_core::SyncBlockRangeCursor;
-use mockall::mock;
 use std::future::Future;
+
+use async_trait::async_trait;
+use mockall::mock;
+
+use hyperlane_core::{ChainResult, SyncBlockRangeCursor};
 
 mock! {
     pub SyncBlockRangeCursor {
-        pub fn _next_range(&mut self) -> impl Future<Output=Result<(u32, u32)>> + Send {}
+        pub fn _next_range(&mut self) -> impl Future<Output=ChainResult<(u32, u32)>> + Send {}
 
         pub fn _current_position(&self) -> u32 {}
 
@@ -22,7 +23,7 @@ impl SyncBlockRangeCursor for MockSyncBlockRangeCursor {
         self._current_position()
     }
 
-    async fn next_range(&mut self) -> Result<(u32, u32)> {
+    async fn next_range(&mut self) -> ChainResult<(u32, u32)> {
         self._next_range().await
     }
 

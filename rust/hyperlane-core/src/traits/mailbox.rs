@@ -2,12 +2,10 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use eyre::Result;
 
 use crate::{
-    traits::{ChainCommunicationError, TxOutcome},
-    utils::domain_hash,
-    Checkpoint, HyperlaneContract, HyperlaneMessage, TxCostEstimate, H256, U256,
+    traits::TxOutcome, utils::domain_hash, ChainResult, Checkpoint, HyperlaneContract,
+    HyperlaneMessage, TxCostEstimate, H256, U256,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
@@ -21,19 +19,16 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     }
 
     /// Gets the current leaf count of the merkle tree
-    async fn count(&self) -> Result<u32, ChainCommunicationError>;
+    async fn count(&self) -> ChainResult<u32>;
 
     /// Fetch the status of a message
-    async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError>;
+    async fn delivered(&self, id: H256) -> ChainResult<bool>;
 
     /// Get the latest checkpoint.
-    async fn latest_checkpoint(
-        &self,
-        lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError>;
+    async fn latest_checkpoint(&self, lag: Option<u64>) -> ChainResult<Checkpoint>;
 
     /// Fetch the current default interchain security module value
-    async fn default_ism(&self) -> Result<H256, ChainCommunicationError>;
+    async fn default_ism(&self) -> ChainResult<H256>;
 
     /// Process a message with a proof against the provided signed checkpoint
     async fn process(
@@ -41,14 +36,14 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
-    ) -> Result<TxOutcome, ChainCommunicationError>;
+    ) -> ChainResult<TxOutcome>;
 
     /// Estimate transaction costs to process a message.
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-    ) -> Result<TxCostEstimate>;
+    ) -> ChainResult<TxCostEstimate>;
 
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint

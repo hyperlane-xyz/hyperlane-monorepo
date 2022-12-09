@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use eyre::{bail, Report};
 use sha3::{Digest, Keccak256};
+use thiserror::Error;
 
 use crate::H256;
 
@@ -34,6 +34,22 @@ pub fn domain_hash(address: H256, domain: u32) -> H256 {
 #[derive(Debug, Clone)]
 pub struct HexString<const N: usize>(String);
 
+/// An hex string parsing error
+#[derive(Error, Debug)]
+pub enum HexStringError {
+    /// String was expected to be of a different length
+    #[error("Expected string of length {expected}, got {actual}")]
+    InvalidStringLength {
+        /// expected string length
+        expected: usize,
+        /// actual string length
+        actual: usize,
+    },
+    /// Provided string was not hex
+    #[error("The provided string is not hex: {0:?}")]
+    NotHex(String),
+}
+
 impl<const N: usize> AsRef<String> for HexString<N> {
     fn as_ref(&self) -> &String {
         &self.0
@@ -44,24 +60,27 @@ impl<const N: usize> HexString<N> {
     /// Instantiate a new HexString from any `AsRef<str>`. Tolerates 0x
     /// prefixing. A succesful instantiation will create an owned copy of the
     /// string.
-    pub fn from_string<S: AsRef<str>>(candidate: S) -> Result<Self, Report> {
+    pub fn from_string<S: AsRef<str>>(candidate: S) -> Result<Self, HexStringError> {
         let s = strip_0x_prefix(candidate.as_ref());
 
         if s.len() != N {
-            bail!("Expected string of length {}, got {}", N, s.len());
+            return Err(HexStringError::InvalidStringLength {
+                actual: s.len(),
+                expected: N,
+            });
         }
 
         // Lazy. Should do the check as a cheaper action
         #[allow(clippy::question_mark)]
         if hex::decode(s).is_err() {
-            bail!("String is not hex");
+            return Err(HexStringError::NotHex(s.to_owned()));
         }
         Ok(Self(s.to_owned()))
     }
 }
 
 impl<const N: usize> FromStr for HexString<N> {
-    type Err = Report;
+    type Err = HexStringError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::from_string(s)
