@@ -3220,7 +3220,6 @@ dependencies = [
  "async-trait",
  "fuels",
  "hyperlane-core",
- "primitive-types",
  "thiserror",
 ]
 
