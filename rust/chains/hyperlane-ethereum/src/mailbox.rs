@@ -84,7 +84,7 @@ impl<M> Indexer for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip(self), level="DEBUG")]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
             .provider
@@ -235,17 +235,17 @@ impl<M> Mailbox for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip(self), level="DEBUG")]
     async fn count(&self) -> ChainResult<u32> {
         Ok(self.contract.count().call().await?)
     }
 
-    #[instrument(err, ret)]
+    #[instrument(err, ret, skip(self), level="DEBUG")]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         Ok(self.contract.delivered(id.into()).call().await?)
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip(self), level="DEBUG")]
     async fn latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {
         let base_call = self.contract.latest_checkpoint();
         let call_with_lag = match maybe_lag {
@@ -269,12 +269,13 @@ where
         })
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip_all, level="DEBUG")]
     async fn default_ism(&self) -> ChainResult<H256> {
         Ok(self.contract.default_ism().call().await?.into())
     }
 
-    #[instrument(err, ret, skip(self))]
+    // #[instrument(skip_all, fields(nonce=message.nonce, id=hex::format_h256_raw(&message.id().to_fixed_bytes())))]
+    #[instrument(skip_all, fields(nonce=message.nonce))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -288,7 +289,7 @@ where
         Ok(receipt.into())
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip(self), level="DEBUG")]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

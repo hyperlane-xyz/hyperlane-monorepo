@@ -124,7 +124,7 @@ where
                     .map(|(msg, _)| msg)
                     .collect();
 
-                info!(from, to, message_count = sorted_messages.len(), "[Messages]: indexed block range");
+                debug!(from, to, message_count = sorted_messages.len(), "[Messages]: indexed block range");
 
                 // Get the latest known nonce. All messages whose indices are <= this index
                 // have been stored in the DB.

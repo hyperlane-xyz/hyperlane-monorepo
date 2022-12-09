@@ -94,7 +94,7 @@ impl HyperlaneDB {
             nonce = &message.nonce,
             origin = &message.origin,
             destination = &message.destination,
-            "Storing new message in db.",
+            "Storing new message in db",
         );
         self.store_message_id(message.nonce, message.destination, id)?;
         self.store_keyed_encodable(MESSAGE, &id, message)?;
@@ -258,7 +258,7 @@ impl HyperlaneDB {
         let existing_payment = self.retrieve_gas_payment_for_message_id(*message_id)?;
         let total = existing_payment + payment;
 
-        info!(message_id=?message_id, gas_payment_amount=?payment, new_total_gas_payment=?total, "Storing gas payment");
+        info!(id=?message_id, payment=?payment, total_payment=?total, "Storing gas payment");
         self.store_keyed_encodable(GAS_PAYMENT_FOR_MESSAGE_ID, &gas_payment.message_id, &total)?;
 
         Ok(())

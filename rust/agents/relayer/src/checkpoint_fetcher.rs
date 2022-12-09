@@ -38,7 +38,7 @@ impl CheckpointFetcher {
     }
 
     // Returns the latest signed checkpoint index
-    #[instrument(ret, err, skip(self))]
+    #[instrument(ret, err, skip(self), level="DEBUG")]
     async fn fetch_and_send_signed_checkpoint(
         &mut self,
         latest_signed_checkpoint_index: u32,

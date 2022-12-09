@@ -156,7 +156,7 @@ impl SerialSubmitter {
             .instrument(info_span!("serial submitter work loop"))
     }
 
-    #[instrument(skip_all, fields(mbx=self.mailbox.chain_name()))]
+    #[instrument(skip_all, fields(destination=self.mailbox.chain_name()))]
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.tick().await?;
@@ -214,16 +214,18 @@ impl SerialSubmitter {
 
         match self.process_message(&msg).await {
             Ok(true) => {
-                info!(id=?msg.message.id(), nonce=msg.message.nonce, "Message processed");
+                // info!(id=?msg.message.id(), nonce=msg.message.nonce, "Message processed");
                 self.record_message_process_success(&msg)?;
                 return Ok(());
             }
             Ok(false) => {
+                // TODO: Nonce and ID should be in the span?
                 info!(id=?msg.message.id(), nonce=msg.message.nonce, "Message not processed");
             }
             // We expect this branch to be hit when there is unexpected behavior -
             // defined behavior like gas estimation failing will not hit this branch.
             Err(err) => {
+                // TODO: Nonce and ID should be in the span?
                 warn!(id=?msg.message.id(), nonce=msg.message.nonce, error=?err, "Error occurred when attempting to process message");
             }
         }
@@ -241,13 +243,14 @@ impl SerialSubmitter {
     /// been processed, Ok(true) is returned. If this message is unable to
     /// be processed, either due to failed gas estimation or an insufficient gas payment,
     /// Ok(false) is returned.
-    #[instrument(skip(self, msg), fields(msg_nonce=msg.message.nonce))]
+    // TODO: Instrument message id
+    #[instrument(skip(self, msg), fields(nonce=msg.message.nonce))]
     async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<bool> {
         // If the message has already been processed, e.g. due to another relayer having already
         // processed, then mark it as already-processed, and move on to the next tick.
         // TODO(webbhorn): Make this robust to re-orgs on mailbox.
         if self.mailbox.delivered(msg.message.id()).await? {
-            info!("Message already processed");
+            info!(id=?msg.message.id(), nonce=msg.message.nonce, "Message already processed");
             return Ok(true);
         }
         let metadata = self
@@ -265,7 +268,7 @@ impl SerialSubmitter {
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
             Err(err) => {
-                info!(msg=?msg, error=?err, "Error estimating process costs");
+                info!(id=?msg.message.id(), nonce=msg.message.nonce, error=?err, "Error estimating process gas");
                 return Ok(false);
             }
         };
@@ -276,12 +279,12 @@ impl SerialSubmitter {
             .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
             .await?;
         if !meets_gas_requirement {
-            tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
+            info!(id=?msg.message.id(), nonce=msg.message.nonce, gas_payment=?gas_payment, "Gas payment requirement not met yet");
             return Ok(false);
         }
 
         // Go ahead and attempt processing of message to destination chain.
-        debug!(gas_payment=?gas_payment, msg=?msg, "Ready to process message");
+        debug!(id=?msg.message.id(), nonce=msg.message.nonce, gas_payment=?gas_payment, "Ready to process message");
 
         // TODO: consider differentiating types of processing errors, and pushing to the front of the
         // run queue for intermittent types of errors that can occur even if a message's processing isn't
@@ -301,13 +304,14 @@ impl SerialSubmitter {
 
             // Only mark the message as processed if the transaction didn't revert.
             Ok(outcome) if outcome.executed => {
-                info!(hash=?outcome.txid,
-                    wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
-                    "Message successfully processed by transaction");
+                info!(tx_hash=?outcome.txid,
+                      id=?msg.message.id(), nonce=msg.message.nonce,
+                      wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
+                      "Message successfully processed");
                 Ok(true)
             }
             Ok(outcome) => {
-                info!(hash=?outcome.txid, "Transaction attempting to process transaction reverted");
+                warn!(tx_hash=?outcome.txid, id=?msg.message.id(), nonce=msg.message.nonce, "Message processing transaction reverted");
                 Ok(false)
             }
             Err(e) => Err(e.into()),

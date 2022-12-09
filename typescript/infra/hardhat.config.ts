@@ -10,6 +10,7 @@ import {
   HyperlaneCore,
   getTestMultiProvider,
 } from '@hyperlane-xyz/sdk';
+import { sum } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { getCoreEnvironmentConfig } from './scripts/utils';
 import { sleep } from './src/utils/utils';
@@ -21,16 +22,24 @@ const chainSummary = async <Chain extends ChainName>(
   const coreContracts = core.getContracts(chain);
   const mailbox = coreContracts.mailbox.contract;
   const dispatched = await mailbox.count();
-  // TODO: Allow processed messages to be filtered by
-  // origin, possibly sender and recipient.
-  const processFilter = mailbox.filters.Process();
-  const processes = await mailbox.queryFilter(processFilter);
-  const processed = processes.length;
+  const processed = await Promise.all(
+    core
+      .chains()
+      .filter((c) => c != chain)
+      .map(async (remote) => {
+        const remoteMailbox = core.getContracts(remote).mailbox.contract;
+        const processFilter = remoteMailbox.filters.Process(
+          ChainNameToDomainId[chain],
+        );
+        const processes = await mailbox.queryFilter(processFilter);
+        return processes.length;
+      }),
+  );
 
   const summary = {
     chain,
     dispatched,
-    processed,
+    processed: sum(processed),
   };
   return summary;
 };
@@ -41,7 +50,7 @@ task('kathy', 'Dispatches random hyperlane messages')
     'Number of message sending rounds to perform; defaults to having no limit',
     '0',
   )
-  .addParam('timeout', 'Time to wait between rounds in ms.', '5000')
+  .addParam('timeout', 'Time to wait between rounds in ms.', '1000')
   .setAction(
     async (
       taskArgs: { rounds: string; timeout: string },
@@ -114,8 +123,8 @@ module.exports = {
   networks: {
     hardhat: {
       mining: {
-        auto: true,
-        interval: 2000,
+        auto: false,
+        interval: 1000,
       },
     },
   },

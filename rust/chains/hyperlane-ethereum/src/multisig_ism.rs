@@ -219,7 +219,7 @@ where
         Ok(metadata)
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip(self), level="DEBUG")]
     async fn threshold(&self, domain: u32) -> ChainResult<u8> {
         let entry = self.threshold_cache.read().await.get(domain).cloned();
         if let Some(threshold) = entry {
@@ -231,7 +231,7 @@ where
         }
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip(self), level="DEBUG")]
     async fn validators(&self, domain: u32) -> ChainResult<Vec<H160>> {
         let entry = self.validators_cache.read().await.get(domain).cloned();
         if let Some(validators) = entry {

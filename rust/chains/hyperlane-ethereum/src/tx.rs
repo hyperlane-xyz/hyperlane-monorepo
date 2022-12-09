@@ -16,6 +16,7 @@ where
     D: Detokenize,
 {
     // "0x..."
+    /*
     let data = format!(
         "0x{}",
         hex::encode(&tx.tx.data().map(|b| b.to_vec()).unwrap_or_default())
@@ -32,6 +33,8 @@ where
         data = %data,
         "Dispatching transaction"
     );
+    */
+
     // We can set the gas higher here!
     let dispatch_fut = tx.send();
     let dispatched = dispatch_fut.await?;
@@ -39,10 +42,10 @@ where
     let tx_hash: H256 = *dispatched;
 
     info!(
-        to = ?to,
-        data = %data,
+        //to = ?to,
+        //data = %data,
         tx_hash = ?tx_hash,
-        "Dispatched tx"
+        "Dispatched transaction"
     );
 
     match tokio::time::timeout(Duration::from_secs(300), dispatched).await {
@@ -50,7 +53,7 @@ where
         Ok(Ok(Some(receipt))) => {
             info!(
                 tx_hash = ?tx_hash,
-                "confirmed transaction"
+                "Confirmed transaction"
             );
 
             Ok(receipt)
@@ -62,7 +65,7 @@ where
             error!(
                 tx_hash = ?tx_hash,
                 error = ?x,
-                "encountered error when waiting for receipt",
+                "Encountered error when waiting for receipt",
             );
             Err(x.into())
         }
@@ -71,7 +74,7 @@ where
             error!(
                 tx_hash = ?tx_hash,
                 error = ?x,
-                "waiting for receipt timed out",
+                "Waiting for receipt timed out",
             );
             Err(ChainCommunicationError::TransactionTimeout())
         }

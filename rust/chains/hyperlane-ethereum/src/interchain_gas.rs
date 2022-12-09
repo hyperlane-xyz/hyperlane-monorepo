@@ -83,7 +83,7 @@ impl<M> Indexer for EthereumInterchainGasPaymasterIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip(self), level="DEBUG")]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
             .provider
