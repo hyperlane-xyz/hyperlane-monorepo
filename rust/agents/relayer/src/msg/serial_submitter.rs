@@ -185,7 +185,7 @@ impl SerialSubmitter {
         for msg in self.wait_queue.drain(..).rev() {
             // TODO(webbhorn): Check against interchain gas paymaster. If now enough payment,
             // promote to run queue.
-            self.run_queue.push_front(msg.into());
+            self.run_queue.push_front(msg);
         }
 
         self.metrics
