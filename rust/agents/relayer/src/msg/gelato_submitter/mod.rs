@@ -1,16 +1,15 @@
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use abacus_base::chains::GelatoConf;
-use abacus_base::{CoreMetrics, InboxContracts};
-use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusChain, AbacusDomain};
 use eyre::{bail, Result};
-use gelato::types::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio::time::{sleep, Duration, Instant};
-use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
+use tokio::sync::mpsc::{self, error::TryRecvError, UnboundedReceiver, UnboundedSender};
+use tokio::{task::JoinHandle, time::sleep};
 use tracing::{info_span, instrument::Instrumented, Instrument};
+
+use abacus_base::{chains::GelatoConf, CoreMetrics, InboxContracts};
+use abacus_core::{db::AbacusDB, AbacusChain, AbacusDomain};
+use gelato::types::Chain;
 
 use crate::msg::gelato_submitter::sponsored_call_op::{
     SponsoredCallOp, SponsoredCallOpArgs, SponsoredCallOptions,
@@ -28,7 +27,7 @@ pub(crate) struct GelatoSubmitter {
     /// The Gelato config.
     gelato_config: GelatoConf,
     /// Source of messages to submit.
-    message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+    message_receiver: UnboundedReceiver<SubmitMessageArgs>,
     /// Inbox / InboxValidatorManager on the destination chain.
     inbox_contracts: InboxContracts,
     /// The inbox chain in the format expected by the Gelato crate.
@@ -49,7 +48,7 @@ pub(crate) struct GelatoSubmitter {
 
 impl GelatoSubmitter {
     pub fn new(
-        message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+        message_receiver: UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         abacus_db: AbacusDB,
         gelato_config: GelatoConf,
