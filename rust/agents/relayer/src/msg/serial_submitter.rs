@@ -207,7 +207,7 @@ impl SerialSubmitter {
                     i if i < 10 => unreachable!(),
                     i if i > 10 && i < 20 => 60 * 5,  // wait 5 min
                     i if i > 20 && i < 30 => 60 * 30, // wait 30 min
-                    _ => 60 * 60, // max timeout of 1hr beyond that
+                    _ => 60 * 60,                     // max timeout of 1hr beyond that
                 });
                 if Instant::now().duration_since(last_attempted_at) < required_duration {
                     self.run_queue.push_back(msg);
