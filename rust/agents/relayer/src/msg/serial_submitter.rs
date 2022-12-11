@@ -27,7 +27,7 @@ use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 /// message delivery latency and delivery order), as well as message delivery eligibility (e.g.
 /// due to (non-)existence of source chain gas payments).
 ///
-/// Messages which failed delivery due to a retrievable error are also retained within the
+/// Messages which failed delivery due to a retriable error are also retained within the
 /// SerialSubmitter, and will eventually be retried according to our prioritization rule.
 ///
 /// Finally, the SerialSubmitter ensures that message delivery is robust to destination chain
