@@ -201,16 +201,18 @@ impl SerialSubmitter {
             None => return Ok(()),
         };
 
-        if msg.num_retries >= 10 {
-            let required_duration = Duration::from_secs(match msg.num_retries {
-                i if i < 10 => unreachable!(),
-                i if i > 10 && i < 20 => 60 * 5,  // wait 5 min
-                i if i > 20 && i < 30 => 60 * 30, // wait 30 min
-                _ => 60 * 60,                     // max timeout of 1hr beyond that
-            });
-            if Instant::now().duration_since(msg.last_attempted_at) < required_duration {
-                self.run_queue.push_back(msg);
-                return Ok(());
+        if let Some(last_attempted_at) = msg.last_attempted_at {
+            if msg.num_retries >= 10 {
+                let required_duration = Duration::from_secs(match msg.num_retries {
+                    i if i < 10 => unreachable!(),
+                    i if i > 10 && i < 20 => 60 * 5,  // wait 5 min
+                    i if i > 20 && i < 30 => 60 * 30, // wait 30 min
+                    _ => 60 * 60,                     // max timeout of 1hr beyond that
+                });
+                if Instant::now().duration_since(last_attempted_at) < required_duration {
+                    self.run_queue.push_back(msg);
+                    return Ok(());
+                }
             }
         }
 

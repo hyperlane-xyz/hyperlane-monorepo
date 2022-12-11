@@ -35,7 +35,7 @@ pub struct SubmitMessageArgs {
     pub proof: Proof,
     pub enqueue_time: Instant,
     num_retries: u32,
-    last_attempted_at: Instant,
+    last_attempted_at: Option<Instant>,
 }
 
 impl SubmitMessageArgs {
@@ -53,7 +53,7 @@ impl SubmitMessageArgs {
             proof,
             enqueue_time,
             num_retries: 0,
-            last_attempted_at: Instant::now(),
+            last_attempted_at: None,
         }
     }
 }
