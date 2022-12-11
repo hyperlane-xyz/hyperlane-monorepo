@@ -269,13 +269,12 @@ where
         })
     }
 
-    #[instrument(err, ret, skip_all, level="DEBUG")]
+    #[instrument(err, ret, skip(self), level="DEBUG")]
     async fn default_ism(&self) -> ChainResult<H256> {
         Ok(self.contract.default_ism().call().await?.into())
     }
 
-    // #[instrument(skip_all, fields(nonce=message.nonce, id=hex::format_h256_raw(&message.id().to_fixed_bytes())))]
-    #[instrument(skip_all, fields(nonce=message.nonce))]
+    #[instrument(err, ret, skip(self), level="DEBUG")]
     async fn process(
         &self,
         message: &HyperlaneMessage,
