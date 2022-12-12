@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use eyre::{bail, Result};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, error::TryRecvError};
-use tokio::task::JoinHandle;
+use tokio::task::{yield_now, JoinHandle};
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use abacus_base::{CoreMetrics, InboxContracts};
@@ -149,7 +149,7 @@ impl SerialSubmitter {
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.tick().await?;
-            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+            yield_now().await;
         }
     }
 
@@ -201,18 +201,17 @@ impl SerialSubmitter {
             None => return Ok(()),
         };
 
-        if let Some(last_attempted_at) = msg.last_attempted_at {
-            if msg.num_retries >= 10 {
-                let required_duration = Duration::from_secs(match msg.num_retries {
-                    i if i < 10 => unreachable!(),
-                    i if i > 10 && i < 20 => 60 * 5,  // wait 5 min
-                    i if i > 20 && i < 30 => 60 * 30, // wait 30 min
-                    _ => 60 * 60,                     // max timeout of 1hr beyond that
-                });
-                if Instant::now().duration_since(last_attempted_at) < required_duration {
-                    self.run_queue.push_back(msg);
-                    return Ok(());
-                }
+        if msg.num_retries >= 2 {
+            let required_duration = Duration::from_secs(match msg.num_retries {
+                i if i < 2 => unreachable!(),
+                i if (2..8).contains(&i) => 60,        // wait 1 min
+                i if (8..16).contains(&i) => 60 * 5,   // wait 5 min
+                i if (16..24).contains(&i) => 60 * 30, // wait 30 min
+                _ => 60 * 60,                          // max timeout of 1hr beyond that
+            });
+            if Instant::now().duration_since(msg.last_attempted_at) < required_duration {
+                self.run_queue.push_back(msg);
+                return Ok(());
             }
         }
 
@@ -235,6 +234,7 @@ impl SerialSubmitter {
         // The message was not processed, so increment the # of retries and add
         // it back to the run_queue so it will be processed again at some point.
         msg.num_retries += 1;
+        msg.last_attempted_at = Instant::now();
         self.run_queue.push_back(msg);
 
         Ok(())
@@ -283,7 +283,7 @@ impl SerialSubmitter {
             .message_meets_gas_payment_requirement(&msg.committed_message, &tx_cost_estimate)
             .await?;
         if !meets_gas_requirement {
-            tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
+            info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
             return Ok(MessageStatus::None);
         }
 
