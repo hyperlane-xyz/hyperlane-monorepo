@@ -1,16 +1,15 @@
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use eyre::{bail, Result};
-use gelato::types::Chain;
-use hyperlane_base::chains::GelatoConf;
-use hyperlane_base::{CachingMailbox, CoreMetrics};
-use hyperlane_core::db::HyperlaneDB;
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, MultisigIsm};
 use prometheus::{Histogram, IntCounter, IntGauge};
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio::time::{sleep, Duration, Instant};
-use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
+use tokio::sync::mpsc::{self, error::TryRecvError, UnboundedReceiver, UnboundedSender};
+use tokio::{task::JoinHandle, time::sleep};
 use tracing::{info_span, instrument::Instrumented, Instrument};
+
+use gelato::types::Chain;
+use hyperlane_base::{chains::GelatoConf, CachingMailbox, CoreMetrics};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, MultisigIsm};
 
 use crate::msg::gelato_submitter::sponsored_call_op::{
     SponsoredCallOp, SponsoredCallOpArgs, SponsoredCallOptions,
@@ -28,7 +27,7 @@ pub(crate) struct GelatoSubmitter {
     /// The Gelato config.
     gelato_config: GelatoConf,
     /// Source of messages to submit.
-    message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+    message_receiver: UnboundedReceiver<SubmitMessageArgs>,
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
     /// Multisig ISM on the destination chain.
@@ -51,7 +50,7 @@ pub(crate) struct GelatoSubmitter {
 
 impl GelatoSubmitter {
     pub fn new(
-        message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+        message_receiver: UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
         multisig_ism: Arc<dyn MultisigIsm>,
         hyperlane_db: HyperlaneDB,
