@@ -26,7 +26,7 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-d599c2d',
+    tag: 'sha-6bdb257',
   },
   aws: {
     region: 'us-east-1',
