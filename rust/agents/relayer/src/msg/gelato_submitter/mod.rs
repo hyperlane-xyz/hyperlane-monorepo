@@ -6,9 +6,9 @@ use hyperlane_base::chains::GelatoConf;
 use hyperlane_base::{CachingMailbox, CoreMetrics};
 use hyperlane_core::db::HyperlaneDB;
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, MultisigIsm};
-use prometheus::{Histogram, IntCounter, IntGauge};
+use prometheus::{IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{sleep, Duration};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
@@ -158,9 +158,6 @@ impl GelatoSubmitter {
         self.db.mark_nonce_as_processed(msg.message.nonce)?;
 
         self.metrics.active_sponsored_call_ops_gauge.sub(1);
-        self.metrics
-            .queue_duration_hist
-            .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
         self.metrics.highest_submitted_nonce =
             std::cmp::max(self.metrics.highest_submitted_nonce, msg.message.nonce);
         self.metrics
@@ -173,7 +170,6 @@ impl GelatoSubmitter {
 
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitterMetrics {
-    queue_duration_hist: Histogram,
     processed_gauge: IntGauge,
     messages_processed_count: IntCounter,
     active_sponsored_call_ops_gauge: IntGauge,
@@ -184,9 +180,6 @@ pub(crate) struct GelatoSubmitterMetrics {
 impl GelatoSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, origin_chain: &str, destination_chain: &str) -> Self {
         Self {
-            queue_duration_hist: metrics
-                .submitter_queue_duration_histogram()
-                .with_label_values(&[origin_chain, destination_chain]),
             messages_processed_count: metrics
                 .messages_processed_count()
                 .with_label_values(&[origin_chain, destination_chain]),

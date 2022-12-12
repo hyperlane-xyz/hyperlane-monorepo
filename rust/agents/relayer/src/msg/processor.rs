@@ -5,7 +5,6 @@ use prometheus::IntGauge;
 use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
-    time::Instant,
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
@@ -188,7 +187,7 @@ impl MessageProcessor {
                 "Sending message to submitter"
             );
             // Finally, build the submit arg and dispatch it to the submitter.
-            let submit_args = SubmitMessageArgs::new(message, checkpoint, proof, Instant::now());
+            let submit_args = SubmitMessageArgs::new(message, checkpoint, proof);
             self.tx_msg.send(submit_args)?;
             self.message_nonce += 1;
         } else {
