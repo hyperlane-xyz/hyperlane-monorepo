@@ -5,7 +5,6 @@ use prometheus::IntGauge;
 use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
-    time::Instant,
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
@@ -203,7 +202,6 @@ impl MessageProcessor {
                 message,
                 checkpoint,
                 proof,
-                Instant::now(),
             );
             self.tx_msg.send(submit_args)?;
             self.message_leaf_index += 1;

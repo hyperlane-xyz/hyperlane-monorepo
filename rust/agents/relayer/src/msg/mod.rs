@@ -2,8 +2,6 @@ use std::cmp::Ordering;
 
 use abacus_core::{accumulator::merkle::Proof, CommittedMessage, MultisigSignedCheckpoint};
 
-use tokio::time::Instant;
-
 pub mod gas_payment;
 pub mod gelato_submitter;
 pub mod processor;
@@ -34,7 +32,6 @@ pub struct SubmitMessageArgs {
     pub committed_message: CommittedMessage,
     pub checkpoint: MultisigSignedCheckpoint,
     pub proof: Proof,
-    pub enqueue_time: Instant,
     num_retries: u32,
 }
 
@@ -44,14 +41,12 @@ impl SubmitMessageArgs {
         committed_message: CommittedMessage,
         checkpoint: MultisigSignedCheckpoint,
         proof: Proof,
-        enqueue_time: Instant,
     ) -> Self {
         SubmitMessageArgs {
             leaf_index,
             committed_message,
             checkpoint,
             proof,
-            enqueue_time,
             num_retries: 0,
         }
     }

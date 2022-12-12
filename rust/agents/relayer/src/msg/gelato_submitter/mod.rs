@@ -6,9 +6,9 @@ use abacus_core::db::AbacusDB;
 use abacus_core::{AbacusChain, AbacusDomain};
 use eyre::{bail, Result};
 use gelato::types::Chain;
-use prometheus::{Histogram, IntCounter, IntGauge};
+use prometheus::{IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{sleep, Duration};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
@@ -155,9 +155,6 @@ impl GelatoSubmitter {
         self.db.mark_leaf_as_processed(msg.leaf_index)?;
 
         self.metrics.active_sponsored_call_ops_gauge.sub(1);
-        self.metrics
-            .queue_duration_hist
-            .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
         self.metrics.highest_submitted_leaf_index =
             std::cmp::max(self.metrics.highest_submitted_leaf_index, msg.leaf_index);
         self.metrics
@@ -170,7 +167,6 @@ impl GelatoSubmitter {
 
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitterMetrics {
-    queue_duration_hist: Histogram,
     processed_gauge: IntGauge,
     messages_processed_count: IntCounter,
     active_sponsored_call_ops_gauge: IntGauge,
@@ -181,9 +177,6 @@ pub(crate) struct GelatoSubmitterMetrics {
 impl GelatoSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
         Self {
-            queue_duration_hist: metrics
-                .submitter_queue_duration_histogram()
-                .with_label_values(&[outbox_chain, inbox_chain]),
             messages_processed_count: metrics
                 .messages_processed_count()
                 .with_label_values(&[outbox_chain, inbox_chain]),
