@@ -271,4 +271,8 @@ export const validators: ChainValidatorSets<TestnetChains> = {
       },
     ],
   },
+  wallaby: {
+    threshold: 2,
+    validators: [],
+  },
 };

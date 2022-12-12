@@ -81,6 +81,7 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   optimismgoerli: '0.1',
   arbitrumgoerli: '0.1',
   // unused
+  wallaby: '0',
   test1: '0',
   test2: '0',
   test3: '0',

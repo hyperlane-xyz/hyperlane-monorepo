@@ -22,5 +22,8 @@
   },
   "arbitrumgoerli": {
     "router": "0x0De2F539569Fb1e2e3C1d233f7A63a18B9A17110"
+  },
+  "wallaby": {
+    "router": ""
   }
 }

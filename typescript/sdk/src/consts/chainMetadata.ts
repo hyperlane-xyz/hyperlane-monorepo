@@ -165,6 +165,11 @@ export const moonbeam: ChainMetadata = {
   finalityBlocks: 1,
 };
 
+export const wallaby: ChainMetadata = {
+  id: 31415,
+  finalityBlocks: 1,
+};
+
 export const chainMetadata = {
   arbitrum,
   bsc,
@@ -183,5 +188,6 @@ export const chainMetadata = {
   optimismgoerli,
   arbitrumgoerli,
   zksync2testnet,
+  wallaby,
   ...testChains,
 } as Record<ChainName, ChainMetadata>;

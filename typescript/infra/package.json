@@ -52,6 +52,7 @@
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "scripts": {
     "hyperlane": "ts-node scripts/core.ts -e test --context hyperlane",
+    "hyperlane-testnet3": "ts-node scripts/core.ts -e testnet3 -c hyperlane",
     "build": "tsc",
     "clean": "rm -rf ./dist ./cache",
     "check": "tsc --noEmit",

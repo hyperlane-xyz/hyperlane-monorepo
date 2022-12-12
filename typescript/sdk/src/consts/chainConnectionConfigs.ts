@@ -155,6 +155,16 @@ export const moonbeam: IChainConnection = {
   apiPrefix: 'api-moonbeam.',
 };
 
+export const wallaby: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://wallaby.node.glif.io/rpc/v0',
+    31415,
+  ),
+  confirmations: 1,
+  blockExplorerUrl: 'https://wallaby.filfox.info/en',
+  apiPrefix: 'api-',
+};
+
 export const test1: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'http://localhost:8545',
@@ -196,6 +206,7 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   moonbeam,
   optimismgoerli,
   arbitrumgoerli,
+  wallaby,
   test1,
   test2,
   test3,
