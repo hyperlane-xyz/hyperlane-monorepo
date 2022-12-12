@@ -33,7 +33,6 @@ pub struct SubmitMessageArgs {
     pub committed_message: CommittedMessage,
     pub checkpoint: MultisigSignedCheckpoint,
     pub proof: Proof,
-    pub enqueue_time: Instant,
     num_retries: u32,
     last_attempted_at: Instant,
 }
@@ -44,14 +43,12 @@ impl SubmitMessageArgs {
         committed_message: CommittedMessage,
         checkpoint: MultisigSignedCheckpoint,
         proof: Proof,
-        enqueue_time: Instant,
     ) -> Self {
         SubmitMessageArgs {
             leaf_index,
             committed_message,
             checkpoint,
             proof,
-            enqueue_time,
             num_retries: 0,
             last_attempted_at: Instant::now(),
         }

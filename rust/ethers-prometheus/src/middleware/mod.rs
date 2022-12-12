@@ -16,7 +16,7 @@ use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::utils::hex::ToHex;
 use log::{debug, trace, warn};
 use maplit::hashmap;
-use prometheus::{CounterVec, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec};
+use prometheus::{CounterVec, GaugeVec, IntCounterVec, IntGaugeVec};
 use static_assertions::assert_impl_all;
 use tokio::sync::RwLock;
 use tokio::time::MissedTickBehavior;
@@ -136,7 +136,8 @@ pub const LOGS_QUERY_COUNT_LABELS: &[&str] = &[
 pub const LOG_QUERY_COUNT_HELP: &str = "Discrete number of log queries by address and topic.";
 
 /// Expected label names for the `transaction_send_duration_seconds` metric.
-pub const TRANSACTION_SEND_DURATION_SECONDS_LABELS: &[&str] = &["chain", "address_from"];
+pub const TRANSACTION_SEND_DURATION_SECONDS_LABELS: &[&str] =
+    &["chain", "address_from", "address_to", "txn_status"];
 /// Help string for the metric.
 pub const TRANSACTION_SEND_DURATION_SECONDS_HELP: &str =
     "Time taken to submit the transaction (not counting time for it to be included)";
@@ -224,14 +225,17 @@ pub struct MiddlewareMetrics {
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the
     ///   chain the tx occurred on.
     /// - `address_from`: source address of the transaction.
+    /// - `address_to`: destination address of the transaction.
+    /// - `txn_status`: `completed` or `failed`
     #[builder(setter(into, strip_option), default)]
-    transaction_send_duration_seconds: Option<HistogramVec>,
+    transaction_send_duration_seconds: Option<CounterVec>,
 
     /// Number of transactions sent.
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the
     ///   chain the tx occurred on.
     /// - `address_from`: source address of the transaction.
     /// - `address_to`: destination address of the transaction.
+    /// - `txn_status`: `dispatched`, `completed`, or `failed`
     #[builder(setter(into, strip_option), default)]
     transaction_send_total: Option<IntCounterVec>,
 
@@ -340,8 +344,10 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
             m.with(&hashmap! {
                 "chain" => chain.as_str(),
                 "address_from" => addr_from.as_str(),
+                "address_to" => addr_to.as_str(),
+                "txn_status" => if result.is_ok() { "completed" } else { "failed" }
             })
-            .observe(duration);
+            .inc_by(duration);
         }
         if let Some(m) = &self.metrics.transaction_send_total {
             m.with(&hashmap! {
