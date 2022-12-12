@@ -1,5 +1,9 @@
 # Hyperlane
 
+## Versioning
+
+Note this is the branch for Hyperlane v2. At the moment, v2 is not deployed. If you are looking for code relating to the existing deployments of the `testnet2` or `mainnet` environments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
+
 ## Overview
 
 Hyperlane is an interchain messaging protocol that allows applications to communicate between blockchains.
