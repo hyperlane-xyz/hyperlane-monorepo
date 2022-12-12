@@ -1,11 +1,13 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
-    time::Instant,
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
