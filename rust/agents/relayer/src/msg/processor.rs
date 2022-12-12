@@ -1,7 +1,4 @@
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
 use eyre::Result;
 use prometheus::IntGauge;
@@ -200,12 +197,8 @@ impl MessageProcessor {
                 self.message_leaf_index
             );
             // Finally, build the submit arg and dispatch it to the submitter.
-            let submit_args = SubmitMessageArgs::new(
-                self.message_leaf_index,
-                message,
-                checkpoint,
-                proof,
-            );
+            let submit_args =
+                SubmitMessageArgs::new(self.message_leaf_index, message, checkpoint, proof);
             self.tx_msg.send(submit_args)?;
             self.message_leaf_index += 1;
         } else {
