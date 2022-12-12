@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::time::Instant;
 
 use abacus_core::{accumulator::merkle::Proof, CommittedMessage, MultisigSignedCheckpoint};
 
@@ -33,6 +34,7 @@ pub struct SubmitMessageArgs {
     pub checkpoint: MultisigSignedCheckpoint,
     pub proof: Proof,
     num_retries: u32,
+    last_attempted_at: Instant,
 }
 
 impl SubmitMessageArgs {
@@ -48,6 +50,7 @@ impl SubmitMessageArgs {
             checkpoint,
             proof,
             num_retries: 0,
+            last_attempted_at: Instant::now(),
         }
     }
 }

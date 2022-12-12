@@ -23,7 +23,7 @@ export const abacus: AgentConfig<MainnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-9b17834',
+    tag: 'sha-6bdb257',
   },
   aws: {
     region: 'us-east-1',
