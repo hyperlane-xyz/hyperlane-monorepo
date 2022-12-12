@@ -5,7 +5,8 @@ use std::time::{Duration, Instant};
 use eyre::{bail, Result};
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, error::TryRecvError};
-use tokio::task::{yield_now, JoinHandle};
+use tokio::task::JoinHandle;
+use tokio::time::sleep;
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use abacus_base::{CoreMetrics, InboxContracts};
@@ -149,7 +150,7 @@ impl SerialSubmitter {
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.tick().await?;
-            yield_now().await;
+            sleep(Duration::from_secs(1)).await;
         }
     }
 
