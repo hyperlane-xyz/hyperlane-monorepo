@@ -28,8 +28,6 @@ contract MockPausableReentrancyGuard is PausableReentrancyGuardUpgradeable {
     }
 
     function f3() external notPaused {}
-
-    function f4() external nonReentrantAndNotPaused {}
 }
 
 contract PausableReentrancyGuardTest is Test {
