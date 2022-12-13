@@ -141,7 +141,7 @@ impl ChainSetup {
                         conf.clone(),
                         &self.locator("0x0000000000000000000000000000000000000000")?,
                         signer,
-                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some(metrics.json_rpc_client_metrics()),
                         Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await
@@ -167,7 +167,7 @@ impl ChainSetup {
                         conf.clone(),
                         &locator,
                         signer,
-                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some(metrics.json_rpc_client_metrics()),
                         Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await
@@ -196,7 +196,7 @@ impl ChainSetup {
                     conf.clone(),
                     &locator,
                     signer,
-                    Some(|| metrics.json_rpc_client_metrics()),
+                    Some(metrics.json_rpc_client_metrics()),
                     Some((metrics.provider_metrics(), metrics_conf)),
                 )
                 .await
@@ -224,7 +224,7 @@ impl ChainSetup {
                         conf.clone(),
                         &locator,
                         signer,
-                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some(metrics.json_rpc_client_metrics()),
                         Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await
@@ -254,7 +254,7 @@ impl ChainSetup {
                     conf.clone(),
                     &locator,
                     signer,
-                    Some(|| metrics.json_rpc_client_metrics()),
+                    Some(metrics.json_rpc_client_metrics()),
                     Some((metrics.provider_metrics(), metrics_conf)),
                 )
                 .await
@@ -281,7 +281,7 @@ impl ChainSetup {
                         conf.clone(),
                         &locator,
                         signer,
-                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some(metrics.json_rpc_client_metrics()),
                         Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await
