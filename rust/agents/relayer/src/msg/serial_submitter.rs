@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use eyre::{bail, Result};
-use prometheus::{Histogram, IntCounter, IntGauge};
+use prometheus::{IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, error::TryRecvError};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -331,9 +331,6 @@ impl SerialSubmitter {
     /// this message again, even after the relayer restarts.
     fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         self.db.mark_nonce_as_processed(msg.message.nonce)?;
-        self.metrics
-            .queue_duration_hist
-            .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
         self.metrics.max_submitted_nonce =
             std::cmp::max(self.metrics.max_submitted_nonce, msg.message.nonce);
         self.metrics
@@ -348,7 +345,6 @@ impl SerialSubmitter {
 pub(crate) struct SerialSubmitterMetrics {
     run_queue_length_gauge: IntGauge,
     wait_queue_length_gauge: IntGauge,
-    queue_duration_hist: Histogram,
     processed_gauge: IntGauge,
     messages_processed_count: IntCounter,
 
@@ -369,9 +365,6 @@ impl SerialSubmitterMetrics {
                 destination_chain,
                 "wait_queue",
             ]),
-            queue_duration_hist: metrics
-                .submitter_queue_duration_histogram()
-                .with_label_values(&[origin_chain, destination_chain]),
             messages_processed_count: metrics
                 .messages_processed_count()
                 .with_label_values(&[origin_chain, destination_chain]),

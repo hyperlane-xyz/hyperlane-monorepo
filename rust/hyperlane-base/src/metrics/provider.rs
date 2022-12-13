@@ -2,7 +2,7 @@ use eyre::Result;
 
 use ethers_prometheus::middleware::*;
 
-use crate::{CoreMetrics, NETWORK_HISTOGRAM_BUCKETS};
+use crate::CoreMetrics;
 
 pub(crate) fn create_provider_metrics(metrics: &CoreMetrics) -> Result<MiddlewareMetrics> {
     Ok(MiddlewareMetricsBuilder::default()
@@ -36,11 +36,10 @@ pub(crate) fn create_provider_metrics(metrics: &CoreMetrics) -> Result<Middlewar
             LOG_QUERY_COUNT_HELP,
             LOGS_QUERY_COUNT_LABELS,
         )?)
-        .transaction_send_duration_seconds(metrics.new_histogram(
+        .transaction_send_duration_seconds(metrics.new_counter(
             "transaction_send_duration_seconds",
             TRANSACTION_SEND_DURATION_SECONDS_HELP,
             TRANSACTION_SEND_DURATION_SECONDS_LABELS,
-            NETWORK_HISTOGRAM_BUCKETS.into(),
         )?)
         .transaction_send_total(metrics.new_int_counter(
             "transaction_send_total",
