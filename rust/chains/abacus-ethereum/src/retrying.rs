@@ -2,6 +2,7 @@ use std::{fmt::Debug, str::FromStr, time::Duration};
 
 use async_trait::async_trait;
 use ethers::providers::{Http, JsonRpcClient, ProviderError};
+use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -157,10 +158,10 @@ where
 }
 
 #[async_trait]
-impl JsonRpcClient for RetryingProvider<Http> {
-    type Error = RetryingProviderError<Http>;
+impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
+    type Error = RetryingProviderError<PrometheusJsonRpcClient<Http>>;
 
-    #[instrument(skip(self), fields(provider_host = %self.inner.url().host_str().unwrap_or("unknown")))]
+    #[instrument(skip(self), fields(provider_host = %self.inner.node_host(), chain_name = %self.inner.chain_name()))]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
         T: Debug + Serialize + Send + Sync,
