@@ -136,6 +136,23 @@ where
     }
 }
 
+impl<C> PrometheusJsonRpcClient<C> {
+    /// The "host" part of the URL this node is connecting to. E.g. `avalanche.api.onfinality.io`.
+    pub fn node_host(&self) -> &str {
+        self.config.node_host()
+    }
+
+    /// Chain name this RPC client is connected to.
+    pub fn chain_name(&self) -> &str {
+        self.config.chain_name()
+    }
+
+    /// The inner RpcClient implementation
+    pub fn inner(&self) -> &C {
+        &self.inner
+    }
+}
+
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<C> JsonRpcClient for PrometheusJsonRpcClient<C>
