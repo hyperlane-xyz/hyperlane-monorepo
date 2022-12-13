@@ -3,12 +3,12 @@ use std::time::Duration;
 
 use eyre::{bail, Result};
 use prometheus::{IntCounter, IntGauge};
-use tokio::{task::JoinHandle, time::sleep};
 use tokio::sync::mpsc::{self, error::TryRecvError, UnboundedReceiver, UnboundedSender};
-use tracing::{info_span, Instrument, instrument::Instrumented};
+use tokio::{task::JoinHandle, time::sleep};
+use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use gelato::types::Chain;
-use hyperlane_base::{CachingMailbox, chains::GelatoConf, CoreMetrics};
+use hyperlane_base::{chains::GelatoConf, CachingMailbox, CoreMetrics};
 use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, MultisigIsm};
 
 use crate::msg::gelato_submitter::sponsored_call_op::{

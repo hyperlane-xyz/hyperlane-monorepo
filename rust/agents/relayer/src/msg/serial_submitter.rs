@@ -7,7 +7,7 @@ use prometheus::{IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, error::TryRecvError};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::{debug, info, info_span, instrument, Instrument, instrument::Instrumented, warn};
+use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{CachingMailbox, CoreMetrics};
 use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, Mailbox, MultisigIsm};
