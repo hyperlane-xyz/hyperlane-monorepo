@@ -59,22 +59,22 @@ pub trait BuildableWithProvider {
         conn: ConnectionConf,
         locator: &ContractLocator,
         signer: Option<Signers>,
-        rpc_metrics: Option<impl FnOnce() -> JsonRpcClientMetrics + Send>,
+        rpc_metrics: Option<JsonRpcClientMetrics>,
         middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> ChainResult<Self::Output> {
         Ok(match conn {
             ConnectionConf::HttpQuorum { urls } => {
-                let rpc_metrics = rpc_metrics.map(|f| f());
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
                 let http_client = Client::builder()
                     .timeout(HTTP_CLIENT_TIMEOUT)
                     .build()
                     .map_err(EthereumProviderConnectionError::from)?;
                 for url in urls.split(',') {
+                    let parsed_url = url.parse::<Url>().map_err(|e| {
+                        EthereumProviderConnectionError::InvalidUrl(e, url.to_owned())
+                    })?;
                     let http_provider = Http::new_with_client(
-                        url.parse::<Url>().map_err(|e| {
-                            EthereumProviderConnectionError::InvalidUrl(e, url.to_owned())
-                        })?,
+                        parsed_url.clone(),
                         http_client.clone(),
                     );
                     // Wrap the inner providers as RetryingProviders rather than the QuorumProvider.
@@ -86,17 +86,15 @@ pub trait BuildableWithProvider {
                     // RPCs being retried, while retrying at the inner provider
                     // level will result in only the second RPC being retried
                     // (the one with the error), which is the desired behavior.
-                    let retrying_provider =
-                        RetryingProvider::new(http_provider, Some(5), Some(1000));
                     let metrics_provider = self.wrap_rpc_with_metrics(
-                        retrying_provider,
-                        Url::parse(url).map_err(|e| {
-                            EthereumProviderConnectionError::InvalidUrl(e, url.to_owned())
-                        })?,
+                        http_provider,
+                        parsed_url,
                         &rpc_metrics,
                         &middleware_metrics,
                     );
-                    let weighted_provider = WeightedProvider::new(metrics_provider);
+                    let retrying_provider =
+                        RetryingProvider::new(metrics_provider, Some(5), Some(1000));
+                    let weighted_provider = WeightedProvider::new(retrying_provider);
                     builder = builder.add_provider(weighted_provider);
                 }
                 let quorum_provider = builder.build();
@@ -108,13 +106,20 @@ pub trait BuildableWithProvider {
                     .timeout(HTTP_CLIENT_TIMEOUT)
                     .build()
                     .map_err(EthereumProviderConnectionError::from)?;
+                let parsed_url = url.parse::<Url>()
+                    .map_err(|e| EthereumProviderConnectionError::InvalidUrl(e, url))?;
                 let http_provider = Http::new_with_client(
-                    url.parse::<Url>()
-                        .map_err(|e| EthereumProviderConnectionError::InvalidUrl(e, url))?,
+                    parsed_url.clone(),
                     http_client,
                 );
+                let metrics_provider = self.wrap_rpc_with_metrics(
+                    http_provider,
+                    parsed_url,
+                    &rpc_metrics,
+                    &middleware_metrics,
+                );
                 let retrying_http_provider: RetryingProvider<Http> =
-                    RetryingProvider::new(http_provider, None, None);
+                    RetryingProvider::new(metrics_provider, None, None);
                 self.wrap_with_metrics(retrying_http_provider, locator, signer, middleware_metrics)
                     .await?
             }
