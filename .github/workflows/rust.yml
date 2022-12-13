@@ -2,7 +2,7 @@ name: rust
 
 on:
   push:
-    branches: [main, v1]
+    branches: [v1]
   pull_request:
     paths:
       - 'rust/**'
@@ -24,53 +24,44 @@ defaults:
     working-directory: ./rust
 
 jobs:
-  build-rs:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-      - uses: Swatinem/rust-cache@v1
-        with:
-          working-directory: ./rust
-      - name: Build
-        run: cargo build --verbose
-
   test-rs:
     runs-on: ubuntu-latest
-    needs: [build-rs]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           profile: minimal
-      - uses: Swatinem/rust-cache@v1
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          working-directory: ./rust
+          prefix-key: "v1-rust"
+          shared-key: "test"
+          workspaces: |
+            ./rust
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test
 
   lint-rs:
     runs-on: ubuntu-latest
-    needs: [build-rs]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           profile: minimal
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v1
+      - name: rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          working-directory: ./rust
+          prefix-key: "v1-rust"
+          shared-key: "lint"
+          workspaces: |
+            ./rust
       - name: Check
-        run: cargo check --all-features --all-targets --verbose
+        run: cargo check --all-features --all-targets
       - name: Rustfmt
         run: cargo fmt --all -- --check
       - name: Clippy
