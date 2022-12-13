@@ -209,9 +209,9 @@ impl SerialSubmitter {
         if msg.num_retries >= 16 {
             let required_duration = Duration::from_secs(match msg.num_retries {
                 i if i < 16 => unreachable!(),
-                i if (16..24).contains(&i) => 60 * 5,  // wait 5 min
+                i if (16..24).contains(&i) => 60 * 5, // wait 5 min
                 i if (24..32).contains(&i) => 60 * 30, // wait 30 min
-                _ => 60 * 60,                          // max timeout of 1hr beyond that
+                _ => 60 * 60,                         // max timeout of 1hr beyond that
             });
             if Instant::now().duration_since(msg.last_attempted_at) < required_duration {
                 self.run_queue.push_back(msg);
