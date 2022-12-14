@@ -89,7 +89,7 @@ export class InterchainQueryDeployer<
   ): Promise<InterchainQueryContracts> {
     const initCalldata =
       InterchainQueryRouter__factory.createInterface().encodeFunctionData(
-        'initialize',
+        'initialize(address,address,address)',
         [
           config.mailbox,
           config.interchainGasPaymaster,

@@ -15,6 +15,10 @@ contract OwnableMulticall is OwnableUpgradeable {
         _transferOwnership(msg.sender);
     }
 
+    function initialize() external initializer {
+        _transferOwnership(msg.sender);
+    }
+
     function proxyCalls(Call[] calldata calls) external onlyOwner {
         for (uint256 i = 0; i < calls.length; i += 1) {
             (bool success, bytes memory returnData) = calls[i].to.call(

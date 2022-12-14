@@ -60,4 +60,18 @@ contract InterchainAccountRouterTest is Test {
         environment.processNextPendingMessage();
         assertEq(recipient.lastCallMessage(), "Test");
     }
+
+    function testOwner() public {
+        OwnableMulticall remoteIca = remoteRouter.getDeployedInterchainAccount(
+            originDomain,
+            address(this)
+        );
+        assertEq(remoteIca.owner(), address(remoteRouter));
+
+        OwnableMulticall localIca = originRouter.getDeployedInterchainAccount(
+            remoteDomain,
+            address(this)
+        );
+        assertEq(localIca.owner(), address(originRouter));
+    }
 }
