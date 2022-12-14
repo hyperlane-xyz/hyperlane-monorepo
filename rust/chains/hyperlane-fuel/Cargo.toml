@@ -10,6 +10,7 @@ fuels = "0.31"
 hyperlane-core = { path = "../../hyperlane-core" }
 async-trait = { version = "0.1", default-features = false }
 thiserror = "1.0"
+serde = "1.0"
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["fuels"] }

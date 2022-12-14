@@ -3223,6 +3223,7 @@ dependencies = [
  "async-trait",
  "fuels",
  "hyperlane-core",
+ "serde",
  "thiserror",
 ]
 

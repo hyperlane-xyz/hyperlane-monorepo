@@ -15,3 +15,4 @@ mod mailbox;
 mod multisig_ism;
 mod provider;
 mod contracts;
+mod trait_builder;
