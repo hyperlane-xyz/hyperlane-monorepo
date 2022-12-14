@@ -20,9 +20,8 @@ contract MockInterchainAccountRouter is InterchainAccountRouter {
     uint256 totalCalls = 0;
     uint256 callsProcessed = 0;
 
-    constructor(uint32 _originDomain) {
+    constructor(uint32 _originDomain) InterchainAccountRouter() {
         originDomain = _originDomain;
-        implementation = address(new OwnableMulticall());
     }
 
     function _dispatch(uint32, bytes memory _messageBody)

@@ -17,13 +17,20 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @dev You can use this simple app as a starting point for your own application.
  */
 contract InterchainAccountRouter is Router, IInterchainAccountRouter {
-    address public implementation;
+    address immutable implementation;
+    bytes32 immutable bytecodeHash;
 
     event InterchainAccountCreated(
         uint32 indexed origin,
         address sender,
         address account
     );
+
+    constructor() {
+        implementation = address(new OwnableMulticall());
+        bytes memory bytecode = MinimalProxy.bytecode(implementation);
+        bytecodeHash = keccak256(bytecode);
+    }
 
     function initialize(
         address _mailbox,
@@ -36,7 +43,6 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
             _interchainGasPaymaster,
             _interchainSecurityModule
         );
-        implementation = address(new OwnableMulticall());
     }
 
     function dispatch(uint32 _destinationDomain, Call[] calldata calls)
@@ -61,8 +67,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         view
         returns (address)
     {
-        bytes memory bytecode = MinimalProxy.bytecode(implementation);
-        return _getInterchainAccount(_salt(_origin, _sender), bytecode);
+        return _getInterchainAccount(_salt(_origin, _sender));
     }
 
     function getDeployedInterchainAccount(uint32 _origin, address _sender)
@@ -70,10 +75,13 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         returns (OwnableMulticall)
     {
         bytes32 salt = _salt(_origin, _sender);
-        bytes memory bytecode = MinimalProxy.bytecode(implementation);
-        address interchainAccount = _getInterchainAccount(salt, bytecode);
+        address interchainAccount = _getInterchainAccount(salt);
         if (!Address.isContract(interchainAccount)) {
-            interchainAccount = Create2.deploy(0, salt, bytecode);
+            interchainAccount = Create2.deploy(
+                0,
+                salt,
+                MinimalProxy.bytecode(implementation)
+            );
             OwnableMulticall(interchainAccount).initialize();
             emit InterchainAccountCreated(_origin, _sender, interchainAccount);
         }
@@ -88,12 +96,11 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         return bytes32(abi.encodePacked(_origin, _sender));
     }
 
-    function _getInterchainAccount(bytes32 salt, bytes memory bytecode)
+    function _getInterchainAccount(bytes32 salt)
         internal
         view
         returns (address)
     {
-        bytes32 bytecodeHash = keccak256(bytecode);
         return Create2.computeAddress(salt, bytecodeHash);
     }
 
