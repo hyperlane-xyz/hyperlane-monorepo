@@ -116,3 +116,6 @@ jobs:
 
       - name: core
         run: yarn workspace @hyperlane-xyz/core run test
+
+      - name: gas
+        run: yarn workspace @hyperlane-xyz/core run gas
