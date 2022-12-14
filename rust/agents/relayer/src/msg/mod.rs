@@ -32,7 +32,6 @@ pub struct SubmitMessageArgs {
     pub message: HyperlaneMessage,
     pub checkpoint: MultisigSignedCheckpoint,
     pub proof: Proof,
-    pub enqueue_time: Instant,
     num_retries: u32,
     last_attempted_at: Instant,
 }
@@ -42,13 +41,11 @@ impl SubmitMessageArgs {
         message: HyperlaneMessage,
         checkpoint: MultisigSignedCheckpoint,
         proof: Proof,
-        enqueue_time: Instant,
     ) -> Self {
         SubmitMessageArgs {
             message,
             checkpoint,
             proof,
-            enqueue_time,
             num_retries: 0,
             last_attempted_at: Instant::now(),
         }
