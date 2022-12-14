@@ -4,12 +4,13 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::prelude::{
-    Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
-    SignerMiddleware, WeightedProvider, Ws, WsClientError,
+    Http, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider, SignerMiddleware,
+    WeightedProvider, Ws, WsClientError,
 };
 use reqwest::{Client, Url};
 use thiserror::Error;
 
+use ethers_caching::{CachingMiddleware, CachingMiddlewareConfigBuilder};
 use ethers_prometheus::json_rpc_client::{
     JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, NodeInfo, PrometheusJsonRpcClient,
     PrometheusJsonRpcClientConfig,
@@ -99,11 +100,21 @@ pub trait BuildableWithProvider {
                     let weighted_provider = WeightedProvider::new(metrics_provider);
                     builder = builder.add_provider(weighted_provider);
                 }
-                let quorum_provider = builder.build();
-                self.wrap_with_metrics(quorum_provider, locator, signer, middleware_metrics)
+                let quorum_provider = Provider::new(builder.build());
+                let caching_middleware = CachingMiddleware::new(
+                    quorum_provider,
+                    CachingMiddlewareConfigBuilder::default()
+                        .cache_key(format!("quorum-{}", locator.domain))
+                        .default_max_age(Duration::from_secs(5))
+                        .build()
+                        .unwrap(),
+                );
+
+                self.wrap_with_metrics(caching_middleware, locator, signer, middleware_metrics)
                     .await?
             }
             ConnectionConf::Http { url } => {
+                let cache_key = format!("http-{}", locator.domain);
                 let http_client = Client::builder()
                     .timeout(HTTP_CLIENT_TIMEOUT)
                     .build()
@@ -115,14 +126,22 @@ pub trait BuildableWithProvider {
                 );
                 let retrying_http_provider: RetryingProvider<Http> =
                     RetryingProvider::new(http_provider, None, None);
-                self.wrap_with_metrics(retrying_http_provider, locator, signer, middleware_metrics)
+                let caching_middleware = CachingMiddleware::new(
+                    Provider::new(retrying_http_provider),
+                    CachingMiddlewareConfigBuilder::default()
+                        .cache_key(cache_key)
+                        .default_max_age(Duration::from_secs(5))
+                        .build()
+                        .unwrap(),
+                );
+                self.wrap_with_metrics(caching_middleware, locator, signer, middleware_metrics)
                     .await?
             }
             ConnectionConf::Ws { url } => {
                 let ws = Ws::connect(url)
                     .await
                     .map_err(EthereumProviderConnectionError::from)?;
-                self.wrap_with_metrics(ws, locator, signer, middleware_metrics)
+                self.wrap_with_metrics(Provider::new(ws), locator, signer, middleware_metrics)
                     .await?
             }
         })
@@ -168,15 +187,14 @@ pub trait BuildableWithProvider {
     /// step
     async fn wrap_with_metrics<P>(
         &self,
-        client: P,
+        provider: P,
         locator: &ContractLocator,
         signer: Option<Signers>,
         metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> ChainResult<Self::Output>
     where
-        P: JsonRpcClient + 'static,
+        P: Middleware + 'static,
     {
-        let provider = Provider::new(client);
         Ok(if let Some(metrics) = metrics {
             let provider = Arc::new(PrometheusMiddleware::new(provider, metrics.0, metrics.1));
             tokio::spawn(provider.start_updating_on_interval(METRICS_SCRAPE_INTERVAL));

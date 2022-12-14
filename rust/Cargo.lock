@@ -1866,6 +1866,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethers-caching"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "derive_builder",
+ "ethers",
+ "lazy_static",
+ "tokio",
+]
+
+[[package]]
 name = "ethers-contract"
 version = "1.0.2"
 source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2022-12-05-01#85140ace77ab61538c3ca140b9549f8b1b3600e3"
@@ -2003,7 +2014,6 @@ dependencies = [
  "futures",
  "log",
  "maplit",
- "parking_lot 0.12.1",
  "primitive-types",
  "prometheus",
  "serde",
@@ -3197,6 +3207,7 @@ dependencies = [
  "abigen",
  "async-trait",
  "ethers",
+ "ethers-caching",
  "ethers-contract",
  "ethers-prometheus",
  "ethers-signers",
