@@ -28,6 +28,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
 
     constructor() {
         implementation = address(new OwnableMulticall());
+        // cannot be stored immutably because it is dynamically sized
         bytes memory bytecode = MinimalProxy.bytecode(implementation);
         bytecodeHash = keccak256(bytecode);
     }
@@ -77,11 +78,8 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         bytes32 salt = _salt(_origin, _sender);
         address interchainAccount = _getInterchainAccount(salt);
         if (!Address.isContract(interchainAccount)) {
-            interchainAccount = Create2.deploy(
-                0,
-                salt,
-                MinimalProxy.bytecode(implementation)
-            );
+            bytes memory bytecode = MinimalProxy.bytecode(implementation);
+            interchainAccount = Create2.deploy(0, salt, bytecode);
             OwnableMulticall(interchainAccount).initialize();
             emit InterchainAccountCreated(_origin, _sender, interchainAccount);
         }
