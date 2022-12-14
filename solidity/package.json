@@ -48,7 +48,7 @@
     "coverage": "hardhat coverage",
     "prettier": "prettier --write ./contracts ./interfaces ./test",
     "test": "hardhat test && forge test -vvv",
-    "gas": "forge snapshot --check .gas-snapshot"
+    "gas": "forge snapshot --diff .gas-snapshot"
   },
   "types": "dist/index.d.ts"
 }
