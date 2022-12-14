@@ -1,25 +1,20 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use eyre::{bail, Result};
-use hyperlane_base::CachingMailbox;
-use hyperlane_base::CoreMetrics;
-use hyperlane_core::db::HyperlaneDB;
-use hyperlane_core::{HyperlaneChain, Mailbox, MultisigIsm};
-use prometheus::{Histogram, IntCounter, IntGauge};
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::TryRecvError;
+use prometheus::{IntCounter, IntGauge};
+use tokio::sync::mpsc::{self, error::TryRecvError};
 use tokio::task::JoinHandle;
-use tokio::time::Instant;
-use tracing::debug;
-use tracing::instrument;
-use tracing::warn;
-use tracing::{info, info_span, instrument::Instrumented, Instrument};
+use tokio::time::sleep;
+use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
-use super::gas_payment::GasPaymentEnforcer;
-use super::SubmitMessageArgs;
+use hyperlane_base::{CachingMailbox, CoreMetrics};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, Mailbox, MultisigIsm};
 
-/// SerialSubmitter accepts undelivered messages over a channel from a MessageProcessor.  It is
+use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
+
+/// SerialSubmitter accepts undelivered messages over a channel from a MessageProcessor. It is
 /// responsible for executing the right strategy to deliver those messages to the destination
 /// chain. It is designed to be used in a scenario allowing only one simultaneously in-flight
 /// submission, a consequence imposed by strictly ordered nonces at the target chain combined
@@ -71,7 +66,7 @@ use super::SubmitMessageArgs;
 ///
 /// Implementation
 /// --------------
-///     
+///
 /// Messages may have been received from the MessageProcessor but not yet be eligible for submission.
 /// The reasons a message might not be eligible are:
 ///
@@ -97,7 +92,7 @@ use super::SubmitMessageArgs;
 /// retry count.
 ///
 /// To summarize: each scheduler `tick()`, new messages from the processor are inserted onto
-/// the wait queue.  We then scan the wait_queue, looking for messages which can be promoted to
+/// the wait queue. We then scan the wait_queue, looking for messages which can be promoted to
 /// the runnable_queue, e.g. by comparing with a recent checkpoint or latest gas payments on
 /// source chain. If eligible for delivery, the message is promoted to the runnable queue and
 /// prioritized accordingly. These messages that have never been tried before are pushed to
@@ -106,7 +101,6 @@ use super::SubmitMessageArgs;
 // TODO(webbhorn): Do we also want to await finality_blocks on source chain before attempting
 // submission? Does this already happen?
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct SerialSubmitter {
     /// Receiver for new messages to submit.
@@ -160,7 +154,7 @@ impl SerialSubmitter {
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.tick().await?;
-            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+            sleep(Duration::from_secs(1)).await;
         }
     }
 
@@ -194,7 +188,7 @@ impl SerialSubmitter {
         // is preserved and pushed at the front of the run_queue to ensure that new messages
         // are evaluated first.
         for msg in self.wait_queue.drain(..).rev() {
-            // TODO(webbhorn): Check against interchain gas paymaster.  If now enough payment,
+            // TODO(webbhorn): Check against interchain gas paymaster. If now enough payment,
             // promote to run queue.
             self.run_queue.push_front(msg);
         }
@@ -211,6 +205,19 @@ impl SerialSubmitter {
             Some(m) => m,
             None => return Ok(()),
         };
+
+        if msg.num_retries >= 16 {
+            let required_duration = Duration::from_secs(match msg.num_retries {
+                i if i < 16 => unreachable!(),
+                i if (16..24).contains(&i) => 60 * 5, // wait 5 min
+                i if (24..32).contains(&i) => 60 * 30, // wait 30 min
+                _ => 60 * 60,                         // max timeout of 1hr beyond that
+            });
+            if Instant::now().duration_since(msg.last_attempted_at) < required_duration {
+                self.run_queue.push_back(msg);
+                return Ok(());
+            }
+        }
 
         match self.process_message(&msg).await {
             Ok(true) => {
@@ -231,6 +238,7 @@ impl SerialSubmitter {
         // The message was not processed, so increment the # of retries and add
         // it back to the run_queue so it will be processed again at some point.
         msg.num_retries += 1;
+        msg.last_attempted_at = Instant::now();
         self.run_queue.push_back(msg);
 
         Ok(())
@@ -276,7 +284,7 @@ impl SerialSubmitter {
             .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
             .await?;
         if !meets_gas_requirement {
-            tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
+            info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
             return Ok(false);
         }
 
@@ -321,9 +329,6 @@ impl SerialSubmitter {
     /// this message again, even after the relayer restarts.
     fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         self.db.mark_nonce_as_processed(msg.message.nonce)?;
-        self.metrics
-            .queue_duration_hist
-            .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
         self.metrics.max_submitted_nonce =
             std::cmp::max(self.metrics.max_submitted_nonce, msg.message.nonce);
         self.metrics
@@ -338,7 +343,6 @@ impl SerialSubmitter {
 pub(crate) struct SerialSubmitterMetrics {
     run_queue_length_gauge: IntGauge,
     wait_queue_length_gauge: IntGauge,
-    queue_duration_hist: Histogram,
     processed_gauge: IntGauge,
     messages_processed_count: IntCounter,
 
@@ -359,9 +363,6 @@ impl SerialSubmitterMetrics {
                 destination_chain,
                 "wait_queue",
             ]),
-            queue_duration_hist: metrics
-                .submitter_queue_duration_histogram()
-                .with_label_values(&[origin_chain, destination_chain]),
             messages_processed_count: metrics
                 .messages_processed_count()
                 .with_label_values(&[origin_chain, destination_chain]),

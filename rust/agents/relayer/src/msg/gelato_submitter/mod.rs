@@ -1,16 +1,15 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use eyre::{bail, Result};
-use gelato::types::Chain;
-use hyperlane_base::chains::GelatoConf;
-use hyperlane_base::{CachingMailbox, CoreMetrics};
-use hyperlane_core::db::HyperlaneDB;
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, MultisigIsm};
-use prometheus::{Histogram, IntCounter, IntGauge};
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio::time::{sleep, Duration, Instant};
-use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
+use prometheus::{IntCounter, IntGauge};
+use tokio::sync::mpsc::{self, error::TryRecvError, UnboundedReceiver, UnboundedSender};
+use tokio::{task::JoinHandle, time::sleep};
 use tracing::{info_span, instrument::Instrumented, Instrument};
+
+use gelato::types::Chain;
+use hyperlane_base::{chains::GelatoConf, CachingMailbox, CoreMetrics};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, MultisigIsm};
 
 use crate::msg::gelato_submitter::sponsored_call_op::{
     SponsoredCallOp, SponsoredCallOpArgs, SponsoredCallOptions,
@@ -28,7 +27,7 @@ pub(crate) struct GelatoSubmitter {
     /// The Gelato config.
     gelato_config: GelatoConf,
     /// Source of messages to submit.
-    message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+    message_receiver: UnboundedReceiver<SubmitMessageArgs>,
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
     /// Multisig ISM on the destination chain.
@@ -51,7 +50,7 @@ pub(crate) struct GelatoSubmitter {
 
 impl GelatoSubmitter {
     pub fn new(
-        message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+        message_receiver: UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
         multisig_ism: Arc<dyn MultisigIsm>,
         hyperlane_db: HyperlaneDB,
@@ -158,9 +157,6 @@ impl GelatoSubmitter {
         self.db.mark_nonce_as_processed(msg.message.nonce)?;
 
         self.metrics.active_sponsored_call_ops_gauge.sub(1);
-        self.metrics
-            .queue_duration_hist
-            .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
         self.metrics.highest_submitted_nonce =
             std::cmp::max(self.metrics.highest_submitted_nonce, msg.message.nonce);
         self.metrics
@@ -173,7 +169,6 @@ impl GelatoSubmitter {
 
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitterMetrics {
-    queue_duration_hist: Histogram,
     processed_gauge: IntGauge,
     messages_processed_count: IntCounter,
     active_sponsored_call_ops_gauge: IntGauge,
@@ -184,9 +179,6 @@ pub(crate) struct GelatoSubmitterMetrics {
 impl GelatoSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, origin_chain: &str, destination_chain: &str) -> Self {
         Self {
-            queue_duration_hist: metrics
-                .submitter_queue_duration_histogram()
-                .with_label_values(&[origin_chain, destination_chain]),
             messages_processed_count: metrics
                 .messages_processed_count()
                 .with_label_values(&[origin_chain, destination_chain]),

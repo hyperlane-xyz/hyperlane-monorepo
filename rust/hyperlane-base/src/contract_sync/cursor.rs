@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use eyre::Result;
 use tokio::time::sleep;
 
-use hyperlane_core::{Indexer, SyncBlockRangeCursor};
+use hyperlane_core::{ChainResult, Indexer, SyncBlockRangeCursor};
 
 /// Tool for handling the logic of what the next block range that should be
 /// queried is and also handling rate limiting. Rate limiting is automatically
@@ -35,7 +35,7 @@ where
 
     /// Wait based on how close we are to the tip and update the tip,
     /// i.e. the highest block we may scrape.
-    async fn rate_limit(&mut self) -> Result<()> {
+    async fn rate_limit(&mut self) -> ChainResult<()> {
         if self.from + self.chunk_size < self.tip {
             // If doing the full chunk wouldn't exceed the already known tip,
             // we don't necessarily need to fetch the new tip. Sleep a tiny bit
@@ -78,7 +78,7 @@ impl<I: Indexer> SyncBlockRangeCursor for RateLimitedSyncBlockRangeCursor<I> {
         self.from
     }
 
-    async fn next_range(&mut self) -> Result<(u32, u32)> {
+    async fn next_range(&mut self) -> ChainResult<(u32, u32)> {
         self.rate_limit().await?;
         let to = u32::min(self.tip, self.from + self.chunk_size);
         let from = to.saturating_sub(self.chunk_size);

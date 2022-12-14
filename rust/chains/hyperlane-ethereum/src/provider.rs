@@ -5,12 +5,12 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::prelude::Middleware;
-use eyre::eyre;
 use tokio::time::sleep;
 use tracing::instrument;
 
 use hyperlane_core::{
-    BlockInfo, ContractLocator, HyperlaneChain, HyperlaneProvider, TxnInfo, TxnReceiptInfo, H256,
+    BlockInfo, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
+    HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
 };
 
 use crate::BuildableWithProvider;
@@ -46,30 +46,29 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn get_block_by_hash(&self, hash: &H256) -> eyre::Result<BlockInfo> {
-        let block = get_with_retry_on_none(|| self.provider.get_block(*hash)).await?;
+    async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
+        let block = get_with_retry_on_none(hash, |h| self.provider.get_block(*h)).await?;
         Ok(BlockInfo {
             hash: *hash,
             timestamp: block.timestamp.as_u64(),
             number: block
                 .number
-                .ok_or_else(|| eyre!("Block is not part of the chain yet {}", hash))?
+                .ok_or(HyperlaneProviderError::BlockIsNotPartOfChainYet(*hash))?
                 .as_u64(),
         })
     }
 
     #[instrument(err, skip(self))]
-    async fn get_txn_by_hash(&self, hash: &H256) -> eyre::Result<TxnInfo> {
-        let txn = get_with_retry_on_none(|| self.provider.get_transaction(*hash)).await?;
+    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
+        let txn = get_with_retry_on_none(hash, |h| self.provider.get_transaction(*h)).await?;
         let receipt = self
             .provider
             .get_transaction_receipt(*hash)
-            .await?
-            .map(|r| -> eyre::Result<_> {
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .map(|r| -> Result<_, HyperlaneProviderError> {
                 Ok(TxnReceiptInfo {
-                    gas_used: r
-                        .gas_used
-                        .ok_or_else(|| eyre!("Provider did not return gas used"))?,
+                    gas_used: r.gas_used.ok_or(HyperlaneProviderError::NoGasUsed)?,
                     cumulative_gas_used: r.cumulative_gas_used,
                     effective_gas_price: r.effective_gas_price,
                 })
@@ -113,19 +112,22 @@ impl BuildableWithProvider for HyperlaneProviderBuilder {
 /// Call a get function that returns a Result<Option<T>> and retry if the inner
 /// option is None. This can happen because the provider has not discovered the
 /// object we are looking for yet.
-async fn get_with_retry_on_none<T, F, O, E>(get: F) -> eyre::Result<T>
+async fn get_with_retry_on_none<T, F, O, E>(hash: &H256, get: F) -> ChainResult<T>
 where
-    F: Fn() -> O,
+    F: Fn(&H256) -> O,
     O: Future<Output = Result<Option<T>, E>>,
     E: std::error::Error + Send + Sync + 'static,
 {
     for _ in 0..3 {
-        if let Some(t) = get().await? {
+        if let Some(t) = get(hash)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+        {
             return Ok(t);
         } else {
             sleep(Duration::from_secs(5)).await;
             continue;
         };
     }
-    Err(eyre!("Could not find object from provider"))
+    Err(HyperlaneProviderError::CouldNotFindObjectByHash(*hash).into())
 }

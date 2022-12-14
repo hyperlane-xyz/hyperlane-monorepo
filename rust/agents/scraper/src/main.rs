@@ -12,7 +12,6 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
-#![warn(unused_extern_crates)]
 
 use eyre::Result;
 

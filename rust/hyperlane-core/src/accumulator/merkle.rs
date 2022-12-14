@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use crate::{
     accumulator::{hash_concat, EMPTY_SLICE, TREE_DEPTH, ZERO_HASHES},
-    Decode, Encode, H256,
+    Decode, Encode, HyperlaneProtocolError, H256,
 };
 
 // Some code has been derived from
@@ -72,7 +72,7 @@ impl Encode for Proof {
 }
 
 impl Decode for Proof {
-    fn read_from<R>(reader: &mut R) -> Result<Self, crate::HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized,
@@ -181,7 +181,8 @@ impl MerkleTree {
                     (Leaf(_), Zero(_)) => {
                         *right = MerkleTree::create(&[elem], depth - 1);
                     }
-                    // Try inserting on the left node -> if it fails because it is full, insert in right side.
+                    // Try inserting on the left node -> if it fails because it is full, insert in
+                    // right side.
                     (Node(_, _, _), Zero(_)) => {
                         match left.push_leaf(elem, depth - 1) {
                             Ok(_) => (),
@@ -249,10 +250,12 @@ impl MerkleTree {
     }
 }
 
-/// Verify a proof that `leaf` exists at `index` in a Merkle tree rooted at `root`.
+/// Verify a proof that `leaf` exists at `index` in a Merkle tree rooted at
+/// `root`.
 ///
-/// The `branch` argument is the main component of the proof: it should be a list of internal
-/// node hashes such that the root can be reconstructed (in bottom-up order).
+/// The `branch` argument is the main component of the proof: it should be a
+/// list of internal node hashes such that the root can be reconstructed (in
+/// bottom-up order).
 pub fn verify_merkle_proof(
     leaf: H256,
     branch: &[H256],

@@ -5,7 +5,7 @@ pub use checkpoint::*;
 pub use log_metadata::*;
 pub use message::*;
 
-use crate::{Decode, Encode, HyperlaneError};
+use crate::{Decode, Encode, HyperlaneProtocolError};
 
 mod chain_data;
 mod checkpoint;
@@ -47,7 +47,7 @@ impl Encode for InterchainGasPaymentMeta {
 }
 
 impl Decode for InterchainGasPaymentMeta {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized,

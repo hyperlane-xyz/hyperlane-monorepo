@@ -1,4 +1,3 @@
-use crate::{utils::domain_hash, Decode, Encode, HyperlaneError, SignerExt, H256};
 use ethers::{
     prelude::{Address, Signature},
     utils::hash_message,
@@ -6,6 +5,8 @@ use ethers::{
 use ethers_signers::Signer;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
+
+use crate::{utils::domain_hash, Decode, Encode, HyperlaneProtocolError, SignerExt, H256};
 
 /// An Hyperlane checkpoint
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -44,7 +45,7 @@ impl Encode for Checkpoint {
 }
 
 impl Decode for Checkpoint {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized,
@@ -122,7 +123,7 @@ impl Encode for SignedCheckpoint {
 }
 
 impl Decode for SignedCheckpoint {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized,
@@ -138,12 +139,12 @@ impl Decode for SignedCheckpoint {
 
 impl SignedCheckpoint {
     /// Recover the Ethereum address of the signer
-    pub fn recover(&self) -> Result<Address, HyperlaneError> {
+    pub fn recover(&self) -> Result<Address, HyperlaneProtocolError> {
         Ok(self.signature.recover(self.checkpoint.prepended_hash())?)
     }
 
     /// Check whether a message was signed by a specific address
-    pub fn verify(&self, signer: Address) -> Result<(), HyperlaneError> {
+    pub fn verify(&self, signer: Address) -> Result<(), HyperlaneProtocolError> {
         Ok(self
             .signature
             .verify(self.checkpoint.prepended_hash(), signer)?)
@@ -191,7 +192,8 @@ pub enum MultisigSignedCheckpointError {
 impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
     type Error = MultisigSignedCheckpointError;
 
-    /// Given multiple signed checkpoints with their signer, creates a MultisigSignedCheckpoint
+    /// Given multiple signed checkpoints with their signer, creates a
+    /// MultisigSignedCheckpoint
     fn try_from(signed_checkpoints: &Vec<SignedCheckpointWithSigner>) -> Result<Self, Self::Error> {
         if signed_checkpoints.is_empty() {
             return Err(MultisigSignedCheckpointError::EmptySignatures());

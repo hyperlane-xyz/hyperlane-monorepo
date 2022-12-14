@@ -1,8 +1,7 @@
 use std::cmp::Ordering;
+use std::time::Instant;
 
 use hyperlane_core::{accumulator::merkle::Proof, HyperlaneMessage, MultisigSignedCheckpoint};
-
-use tokio::time::Instant;
 
 pub mod gas_payment;
 pub mod gelato_submitter;
@@ -33,8 +32,8 @@ pub struct SubmitMessageArgs {
     pub message: HyperlaneMessage,
     pub checkpoint: MultisigSignedCheckpoint,
     pub proof: Proof,
-    pub enqueue_time: Instant,
     num_retries: u32,
+    last_attempted_at: Instant,
 }
 
 impl SubmitMessageArgs {
@@ -42,14 +41,13 @@ impl SubmitMessageArgs {
         message: HyperlaneMessage,
         checkpoint: MultisigSignedCheckpoint,
         proof: Proof,
-        enqueue_time: Instant,
     ) -> Self {
         SubmitMessageArgs {
             message,
             checkpoint,
             proof,
-            enqueue_time,
             num_retries: 0,
+            last_attempted_at: Instant::now(),
         }
     }
 }

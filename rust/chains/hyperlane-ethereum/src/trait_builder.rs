@@ -5,9 +5,10 @@ use std::time::Duration;
 use async_trait::async_trait;
 use ethers::prelude::{
     Http, JsonRpcClient, Middleware, NonceManagerMiddleware, Provider, Quorum, QuorumProvider,
-    SignerMiddleware, WeightedProvider, Ws,
+    SignerMiddleware, WeightedProvider, Ws, WsClientError,
 };
 use reqwest::{Client, Url};
+use thiserror::Error;
 
 use ethers_prometheus::json_rpc_client::{
     JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, NodeInfo, PrometheusJsonRpcClient,
@@ -16,13 +17,33 @@ use ethers_prometheus::json_rpc_client::{
 use ethers_prometheus::middleware::{
     MiddlewareMetrics, PrometheusMiddleware, PrometheusMiddlewareConf,
 };
-use hyperlane_core::{ContractLocator, Signers};
+use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, Signers};
 
 use crate::{ConnectionConf, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// An error when connecting to an ethereum provider.
+#[derive(Error, Debug)]
+pub enum EthereumProviderConnectionError {
+    /// Underlying reqwest lib threw an error
+    #[error(transparent)]
+    ReqwestError(#[from] reqwest::Error),
+    /// A URL string could not be parsed
+    #[error("Failed to parse url {1:?}: {0}")]
+    InvalidUrl(url::ParseError, String),
+    /// Underlying websocket library threw an error
+    #[error(transparent)]
+    WebsocketClientError(#[from] WsClientError),
+}
+
+impl From<EthereumProviderConnectionError> for ChainCommunicationError {
+    fn from(e: EthereumProviderConnectionError) -> Self {
+        ChainCommunicationError::from_other(e)
+    }
+}
 
 /// A trait for dynamic trait creation with provider initialization.
 #[async_trait]
@@ -40,15 +61,22 @@ pub trait BuildableWithProvider {
         signer: Option<Signers>,
         rpc_metrics: Option<impl FnOnce() -> JsonRpcClientMetrics + Send>,
         middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
-    ) -> eyre::Result<Self::Output> {
+    ) -> ChainResult<Self::Output> {
         Ok(match conn {
             ConnectionConf::HttpQuorum { urls } => {
                 let rpc_metrics = rpc_metrics.map(|f| f());
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
-                let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
+                let http_client = Client::builder()
+                    .timeout(HTTP_CLIENT_TIMEOUT)
+                    .build()
+                    .map_err(EthereumProviderConnectionError::from)?;
                 for url in urls.split(',') {
-                    let http_provider =
-                        Http::new_with_client(url.parse::<Url>()?, http_client.clone());
+                    let http_provider = Http::new_with_client(
+                        url.parse::<Url>().map_err(|e| {
+                            EthereumProviderConnectionError::InvalidUrl(e, url.to_owned())
+                        })?,
+                        http_client.clone(),
+                    );
                     // Wrap the inner providers as RetryingProviders rather than the QuorumProvider.
                     // We've observed issues where the QuorumProvider will first get the latest
                     // block number and then submit an RPC at that block height,
@@ -62,7 +90,9 @@ pub trait BuildableWithProvider {
                         RetryingProvider::new(http_provider, Some(5), Some(1000));
                     let metrics_provider = self.wrap_rpc_with_metrics(
                         retrying_provider,
-                        Url::parse(url)?,
+                        Url::parse(url).map_err(|e| {
+                            EthereumProviderConnectionError::InvalidUrl(e, url.to_owned())
+                        })?,
                         &rpc_metrics,
                         &middleware_metrics,
                     );
@@ -74,15 +104,24 @@ pub trait BuildableWithProvider {
                     .await?
             }
             ConnectionConf::Http { url } => {
-                let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
-                let http_provider = Http::new_with_client(url.parse::<Url>()?, http_client);
+                let http_client = Client::builder()
+                    .timeout(HTTP_CLIENT_TIMEOUT)
+                    .build()
+                    .map_err(EthereumProviderConnectionError::from)?;
+                let http_provider = Http::new_with_client(
+                    url.parse::<Url>()
+                        .map_err(|e| EthereumProviderConnectionError::InvalidUrl(e, url))?,
+                    http_client,
+                );
                 let retrying_http_provider: RetryingProvider<Http> =
                     RetryingProvider::new(http_provider, None, None);
                 self.wrap_with_metrics(retrying_http_provider, locator, signer, middleware_metrics)
                     .await?
             }
             ConnectionConf::Ws { url } => {
-                let ws = Ws::connect(url).await?;
+                let ws = Ws::connect(url)
+                    .await
+                    .map_err(EthereumProviderConnectionError::from)?;
                 self.wrap_with_metrics(ws, locator, signer, middleware_metrics)
                     .await?
             }
@@ -133,7 +172,7 @@ pub trait BuildableWithProvider {
         locator: &ContractLocator,
         signer: Option<Signers>,
         metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
-    ) -> eyre::Result<Self::Output>
+    ) -> ChainResult<Self::Output>
     where
         P: JsonRpcClient + 'static,
     {
@@ -154,12 +193,14 @@ pub trait BuildableWithProvider {
         provider: M,
         locator: &ContractLocator,
         signer: Option<Signers>,
-    ) -> eyre::Result<Self::Output>
+    ) -> ChainResult<Self::Output>
     where
         M: Middleware + 'static,
     {
         Ok(if let Some(signer) = signer {
-            let signing_provider = build_signing_provider(provider, signer).await?;
+            let signing_provider = build_signing_provider(provider, signer)
+                .await
+                .map_err(ChainCommunicationError::from_other)?;
             self.build_with_provider(signing_provider, locator)
         } else {
             self.build_with_provider(provider, locator)

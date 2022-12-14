@@ -2,16 +2,13 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
-#![warn(unused_extern_crates)]
 
-use ethers::abi::FunctionExt;
 use std::collections::HashMap;
 
+use ethers::abi::FunctionExt;
 use ethers::prelude::{
     abi, BlockId, BlockNumber, Http, Lazy, Middleware, NameOrAddress, Provider, Selector,
 };
-use eyre::Result;
-use num::Num;
 
 use hyperlane_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
@@ -86,7 +83,9 @@ pub struct Chain {
 
 #[async_trait::async_trait]
 impl hyperlane_core::Chain for Chain {
-    async fn query_balance(&self, addr: hyperlane_core::Address) -> Result<Balance> {
+    async fn query_balance(&self, addr: Address) -> ChainResult<Balance> {
+        use num::{BigInt, Num};
+
         let balance = format!(
             "{:x}",
             self.ethers
@@ -96,8 +95,10 @@ impl hyperlane_core::Chain for Chain {
                 )
                 .await?
         );
+        let balance =
+            BigInt::from_str_radix(&balance, 16).map_err(ChainCommunicationError::from_other)?;
 
-        Ok(Balance(num::BigInt::from_str_radix(&balance, 16)?))
+        Ok(Balance(balance))
     }
 }
 

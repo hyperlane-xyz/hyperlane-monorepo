@@ -2,51 +2,48 @@
 //! implementations.
 
 #![warn(missing_docs)]
-#![warn(unused_extern_crates)]
 #![forbid(unsafe_code)]
 #![forbid(where_clauses_object_safety)]
+
+use async_trait::async_trait;
+use ethers::{
+    core::types::{
+        transaction::{eip2718::TypedTransaction, eip712::Eip712},
+        Address as EthAddress, Signature,
+    },
+    prelude::AwsSigner,
+    signers::{AwsSignerError, LocalWallet, Signer},
+};
+use ethers_signers::WalletError;
+
+pub use chain::*;
+pub use error::{ChainCommunicationError, ChainResult, HyperlaneProtocolError};
+pub use identifiers::HyperlaneIdentifier;
+pub use traits::*;
+pub use types::*;
 
 /// Accumulator management
 pub mod accumulator;
 
 /// Async Traits for contract instances for use in applications
 mod traits;
-use ethers_signers::WalletError;
-pub use traits::*;
-
 /// Utilities to match contract values
 pub mod utils;
 
 /// Testing utilities
 pub mod test_utils;
 
-/// Core hyperlane system data structures
-mod types;
-pub use types::*;
-
 /// DB related utilities
 pub mod db;
+/// Core hyperlane system data structures
+mod types;
 
 /// Test functions that output json files for Solidity tests
 #[cfg(feature = "output")]
 pub mod test_output;
 
 mod chain;
-pub use chain::*;
-
-use std::convert::Infallible;
-
-pub use identifiers::HyperlaneIdentifier;
-
-use async_trait::async_trait;
-use ethers::{
-    core::types::{
-        transaction::{eip2718::TypedTransaction, eip712::Eip712},
-        Address as EthAddress, Signature, SignatureError,
-    },
-    prelude::AwsSigner,
-    signers::{AwsSignerError, LocalWallet, Signer},
-};
+mod error;
 
 /// Enum for validity of a list of messages
 #[derive(Debug)]
@@ -61,17 +58,6 @@ pub enum ListValidity {
     ContainsGaps,
 }
 
-/// Error types for Hyperlane
-#[derive(Debug, thiserror::Error)]
-pub enum HyperlaneError {
-    /// Signature Error pasthrough
-    #[error(transparent)]
-    SignatureError(#[from] SignatureError),
-    /// IO error from Read/Write usage
-    #[error(transparent)]
-    IoError(#[from] std::io::Error),
-}
-
 /// Error types for Signers
 #[derive(Debug, thiserror::Error)]
 pub enum SignersError {
@@ -83,8 +69,8 @@ pub enum SignersError {
     WalletError(#[from] WalletError),
 }
 
-impl From<Infallible> for SignersError {
-    fn from(_error: Infallible) -> Self {
+impl From<std::convert::Infallible> for SignersError {
+    fn from(_error: std::convert::Infallible) -> Self {
         panic!("infallible")
     }
 }

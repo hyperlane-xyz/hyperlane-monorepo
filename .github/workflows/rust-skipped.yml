@@ -3,7 +3,7 @@ name: rust
 
 on:
   pull_request:
-    branches: [main, v2]
+    branches: [main]
     paths-ignore:
       - 'rust/**'
 
@@ -11,11 +11,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-rs:
-    runs-on: ubuntu-latest
-    steps:
-      - run: 'echo "No build required" '
-
   test-rs:
     runs-on: ubuntu-latest
 
