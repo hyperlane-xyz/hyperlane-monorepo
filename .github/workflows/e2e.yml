@@ -2,9 +2,9 @@ name: e2e
 
 on:
   push:
-    branches: [main, v1]
+    branches: [v1]
   pull_request:
-    branches: [main, v1]
+    branches: [v1]
   workflow_dispatch:
 
 concurrency:
@@ -23,7 +23,7 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: setup rust
         uses: actions-rs/toolchain@v1
@@ -32,16 +32,19 @@ jobs:
           profile: minimal
 
       - name: rust cache
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
         with:
-          working-directory: ./rust
+          prefix-key: "v1-rust"
+          shared-key: "e2e"
+          workspaces: |
+            ./rust
       - name: node module cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: '**/node_modules'
           key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
       - name: node build cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ./*
           key: ${{ github.sha }}

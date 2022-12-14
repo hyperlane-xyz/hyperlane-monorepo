@@ -20,12 +20,6 @@ use crate::metrics::provider::create_provider_metrics;
 
 use super::NAMESPACE;
 
-/// Recommended default histogram buckets for network communication.
-pub const NETWORK_HISTOGRAM_BUCKETS: &[f64] = &[0.005, 0.01, 0.05, 0.1, 0.5, 1., 5., 10.];
-/// Recommended default histogram buckets for internal process logic.
-pub const PROCESS_HISTOGRAM_BUCKETS: &[f64] = &[
-    0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1., 5., 10.,
-];
 /// Macro to prefix a string with the namespace.
 macro_rules! namespaced {
     ($name:expr) => {
@@ -41,12 +35,12 @@ pub struct CoreMetrics {
     listen_port: Option<u16>,
     agent_name: String,
 
-    span_durations: HistogramVec,
+    span_durations: CounterVec,
+    span_counts: IntCounterVec,
     span_events: IntCounterVec,
     last_known_message_leaf_index: IntGaugeVec,
     validator_checkpoint_index: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
-    submitter_queue_duration_histogram: HistogramVec,
 
     messages_processed_count: IntCounterVec,
 
@@ -82,12 +76,21 @@ impl CoreMetrics {
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect::<HashMap<_, _>>();
 
-        let span_durations = register_histogram_vec_with_registry!(
-            histogram_opts!(
+        let span_durations = register_counter_vec_with_registry!(
+            opts!(
                 namespaced!("span_duration_seconds"),
                 "Duration from tracing span creation to span destruction",
-                PROCESS_HISTOGRAM_BUCKETS.into(),
-                const_labels.clone()
+                const_labels_ref
+            ),
+            &["span_name", "span_target"],
+            registry
+        )?;
+
+        let span_counts = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("span_count"),
+                "Number of times a span was exited",
+                const_labels_ref
             ),
             &["span_name", "span_target"],
             registry
@@ -133,21 +136,6 @@ impl CoreMetrics {
             registry
         )?;
 
-        let submitter_queue_duration_histogram = register_histogram_vec_with_registry!(
-            histogram_opts!(
-                namespaced!("submitter_queue_duration_seconds"),
-                concat!(
-                    "Time a message spends queued in the serial submitter measured from ",
-                    "insertion into channel from processor, ending after successful delivery ",
-                    "to provider."
-                ),
-                prometheus::exponential_buckets(0.5, 2., 19).unwrap(),
-                const_labels.clone()
-            ),
-            &["origin", "remote"],
-            registry
-        )?;
-
         let outbox_state = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("outbox_state"),
@@ -185,12 +173,12 @@ impl CoreMetrics {
             const_labels,
 
             span_durations,
+            span_counts,
             span_events,
             last_known_message_leaf_index,
             validator_checkpoint_index,
 
             submitter_queue_length,
-            submitter_queue_duration_histogram,
 
             messages_processed_count,
 
@@ -357,18 +345,6 @@ impl CoreMetrics {
         self.submitter_queue_length.clone()
     }
 
-    /// Time a message spends queued in the serial submitter measured from
-    /// the moment the message was discovered as "sendable" from AbacusDB and
-    /// being enqueued and being enqueued with the relevant `submitter` ending
-    /// on message processing success.
-    ///
-    /// Labels:
-    /// - `origin`: Origin chain the messages are being sent from.
-    /// - `remote`: Remote chain the messages are being sent to.
-    pub fn submitter_queue_duration_histogram(&self) -> HistogramVec {
-        self.submitter_queue_duration_histogram.clone()
-    }
-
     /// The number of messages successfully submitted by this process during its
     /// lifetime.
     ///
@@ -392,8 +368,18 @@ impl CoreMetrics {
     /// - `span_name`: name of the span. e.g. the function name.
     /// - `span_target`: a string that categorizes part of the system where the
     ///   span or event occurred. e.g. module path.
-    pub fn span_duration(&self) -> HistogramVec {
+    pub fn span_duration_seconds(&self) -> CounterVec {
         self.span_durations.clone()
+    }
+
+    /// Histogram for measuring how many given times a span was exited.
+    ///
+    /// Labels:
+    /// - `span_name`: name of the span. e.g. the function name.
+    /// - `span_target`: a string that categorizes part of the system where the
+    ///   span or event occurred. e.g. module path.
+    pub fn span_count(&self) -> IntCounterVec {
+        self.span_counts.clone()
     }
 
     /// Counts of tracing (logging framework) span events.

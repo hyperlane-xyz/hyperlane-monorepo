@@ -1,16 +1,15 @@
 use std::sync::Arc;
+use std::time::Duration;
 
-use abacus_base::chains::GelatoConf;
-use abacus_base::{CoreMetrics, InboxContracts};
-use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusChain, AbacusDomain};
 use eyre::{bail, Result};
-use gelato::types::Chain;
-use prometheus::{Histogram, IntCounter, IntGauge};
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio::time::{sleep, Duration, Instant};
-use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
+use prometheus::{IntCounter, IntGauge};
+use tokio::sync::mpsc::{self, error::TryRecvError, UnboundedReceiver, UnboundedSender};
+use tokio::{task::JoinHandle, time::sleep};
 use tracing::{info_span, instrument::Instrumented, Instrument};
+
+use abacus_base::{chains::GelatoConf, CoreMetrics, InboxContracts};
+use abacus_core::{db::AbacusDB, AbacusChain, AbacusDomain};
+use gelato::types::Chain;
 
 use crate::msg::gelato_submitter::sponsored_call_op::{
     SponsoredCallOp, SponsoredCallOpArgs, SponsoredCallOptions,
@@ -28,7 +27,7 @@ pub(crate) struct GelatoSubmitter {
     /// The Gelato config.
     gelato_config: GelatoConf,
     /// Source of messages to submit.
-    message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+    message_receiver: UnboundedReceiver<SubmitMessageArgs>,
     /// Inbox / InboxValidatorManager on the destination chain.
     inbox_contracts: InboxContracts,
     /// The inbox chain in the format expected by the Gelato crate.
@@ -49,7 +48,7 @@ pub(crate) struct GelatoSubmitter {
 
 impl GelatoSubmitter {
     pub fn new(
-        message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+        message_receiver: UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         abacus_db: AbacusDB,
         gelato_config: GelatoConf,
@@ -155,9 +154,6 @@ impl GelatoSubmitter {
         self.db.mark_leaf_as_processed(msg.leaf_index)?;
 
         self.metrics.active_sponsored_call_ops_gauge.sub(1);
-        self.metrics
-            .queue_duration_hist
-            .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
         self.metrics.highest_submitted_leaf_index =
             std::cmp::max(self.metrics.highest_submitted_leaf_index, msg.leaf_index);
         self.metrics
@@ -170,7 +166,6 @@ impl GelatoSubmitter {
 
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitterMetrics {
-    queue_duration_hist: Histogram,
     processed_gauge: IntGauge,
     messages_processed_count: IntCounter,
     active_sponsored_call_ops_gauge: IntGauge,
@@ -181,9 +176,6 @@ pub(crate) struct GelatoSubmitterMetrics {
 impl GelatoSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
         Self {
-            queue_duration_hist: metrics
-                .submitter_queue_duration_histogram()
-                .with_label_values(&[outbox_chain, inbox_chain]),
             messages_processed_count: metrics
                 .messages_processed_count()
                 .with_label_values(&[outbox_chain, inbox_chain]),

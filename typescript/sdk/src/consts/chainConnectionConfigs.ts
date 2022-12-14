@@ -95,7 +95,7 @@ export const fuji: IChainConnection = {
 
 export const goerli: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
-    'https://rpc.ankr.com/eth_goerli',
+    'https://eth-goerli.public.blastapi.io',
     5,
   ),
   confirmations: 1,

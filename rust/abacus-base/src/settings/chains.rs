@@ -156,7 +156,7 @@ impl<T> ChainSetup<T> {
                             address: address.parse::<ethers::types::Address>()?.into(),
                         },
                         signer,
-                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some(metrics.json_rpc_client_metrics()),
                         Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await

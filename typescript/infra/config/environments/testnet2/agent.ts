@@ -26,13 +26,13 @@ export const abacus: AgentConfig<TestnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-a58c245',
+    tag: 'sha-01fc263',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
-  contextChainNames: chainNames.filter((chain) => chain !== 'moonbasealpha'),
+  contextChainNames: chainNames,
   validatorSets: validators,
   gelato: {
     enabledChains: [
@@ -127,7 +127,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
-  contextChainNames: chainNames.filter((chain) => chain !== 'moonbasealpha'),
+  contextChainNames: chainNames,
   validatorSets: validators,
   gelato: {
     enabledChains: [
