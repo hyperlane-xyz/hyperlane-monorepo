@@ -35,12 +35,8 @@ export async function getSafeDelegates(
   service: SafeServiceClient,
   safe: string,
 ) {
-  try {
-    const delegateResponse = await service.getSafeDelegates(safe);
-    return delegateResponse.results.map((r) => r.delegate);
-  } catch (_) {
-    return [];
-  }
+  const delegateResponse = await service.getSafeDelegates(safe);
+  return delegateResponse.results.map((r) => r.delegate);
 }
 
 export async function canProposeSafeTransactions(
@@ -49,16 +45,9 @@ export async function canProposeSafeTransactions(
   connection: ChainConnection,
   safeAddress: string,
 ): Promise<boolean> {
-  console.log('getting safe service');
   const safeService = getSafeService(chain, connection);
-  console.log('getting safe');
   const safe = await getSafe(connection, safeAddress);
-  console.log('getting safe delegates');
-  try {
-    const delegates = await getSafeDelegates(safeService, safeAddress);
-    const owners = await safe.getOwners();
-    return delegates.includes(proposer) || owners.includes(proposer);
-  } catch (_) {
-    throw new Error(`No safe delegates found for ${safeAddress} on ${chain}`);
-  }
+  const delegates = await getSafeDelegates(safeService, safeAddress);
+  const owners = await safe.getOwners();
+  return delegates.includes(proposer) || owners.includes(proposer);
 }

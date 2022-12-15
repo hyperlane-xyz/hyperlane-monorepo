@@ -48,7 +48,6 @@ async function delegate() {
   const delegateConfig: SafeDelegateConfig = {
     safe,
     delegate,
-    // @ts-ignore different Signer versions
     signer,
     label: 'delegate',
   };

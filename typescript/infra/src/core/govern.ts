@@ -154,7 +154,6 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
 
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls) as Chain[]) {
-      if (chain !== 'moonbeam') continue;
       console.log('Inferring submission type for', chain);
       for (const call of this.calls[chain]) {
         const submissionType = await this.inferCallSubmissionType(chain, call);
