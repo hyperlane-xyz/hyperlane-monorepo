@@ -168,6 +168,8 @@ export const moonbasealpha: ChainMetadata = {
 export const moonbeam: ChainMetadata = {
   id: 0x6d6f2d6d, // b'mo-a' interpreted as an int
   finalityBlocks: 1,
+  gnosisSafeTransactionServiceUrl:
+    'https://transaction.multisig.moonbeam.network',
 };
 
 export const chainMetadata = {
