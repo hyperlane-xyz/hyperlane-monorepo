@@ -1,7 +1,7 @@
 import { LedgerSigner } from '@ethersproject/hardware-wallets';
 // Due to TS funkiness, the following needs to be imported in order for this
 // code to build, but needs to be removed in order for the code to run.
-// import '@ethersproject/hardware-wallets/thirdparty';
+import '@ethersproject/hardware-wallets/thirdparty';
 import { SafeDelegateConfig } from '@safe-global/safe-service-client';
 import yargs from 'yargs';
 

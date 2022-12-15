@@ -3545,7 +3545,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ethersproject/providers@npm:5.7.2":
+"@ethersproject/providers@npm:5.7.2, @ethersproject/providers@npm:^5.7.2":
   version: 5.7.2
   resolution: "@ethersproject/providers@npm:5.7.2"
   dependencies:
@@ -3955,7 +3955,7 @@ __metadata:
     eslint: ^8.16.0
     eslint-config-prettier: ^8.5.0
     ethereum-waffle: ^3.4.4
-    ethers: ^5.6.8
+    ethers: ^5.7.2
     hardhat: ^2.8.4
     hardhat-gas-reporter: ^1.0.7
     prettier: ^2.4.1
@@ -3978,6 +3978,7 @@ __metadata:
     "@aws-sdk/client-s3": ^3.74.0
     "@ethersproject/experimental": ^5.6.2
     "@ethersproject/hardware-wallets": ^5.7.0
+    "@ethersproject/providers": ^5.7.2
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
     "@hyperlane-xyz/helloworld": 0.5.6
     "@hyperlane-xyz/sdk": 0.5.6
@@ -3986,6 +3987,7 @@ __metadata:
     "@nomiclabs/hardhat-etherscan": ^3.0.3
     "@nomiclabs/hardhat-waffle": ^2.0.2
     "@safe-global/safe-core-sdk": ^3.2.1
+    "@safe-global/safe-core-sdk-types": ^1.7.0
     "@safe-global/safe-ethers-lib": ^1.7.0
     "@safe-global/safe-service-client": ^1.4.0
     "@types/chai": ^4.2.21
@@ -4058,7 +4060,7 @@ __metadata:
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
     chai: ^4.3.0
-    ethers: ^5.6.8
+    ethers: ^5.7.2
     prettier: ^2.4.1
     typescript: ^4.7.2
   languageName: unknown
