@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::num::NonZeroU64;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -100,7 +101,7 @@ impl Mailbox for CachingMailbox {
         self.mailbox.delivered(id).await
     }
 
-    async fn latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         self.mailbox.latest_checkpoint(maybe_lag).await
     }
 

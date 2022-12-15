@@ -1,3 +1,4 @@
+use std::num::NonZeroU64;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -10,8 +11,8 @@ use hyperlane_base::{CachingMailbox, CheckpointSyncer, CheckpointSyncers, CoreMe
 use hyperlane_core::{Mailbox, Signers};
 
 pub(crate) struct ValidatorSubmitter {
-    interval: u64,
-    reorg_period: u64,
+    interval: Duration,
+    reorg_period: Option<NonZeroU64>,
     signer: Arc<Signers>,
     mailbox: CachingMailbox,
     checkpoint_syncer: Arc<CheckpointSyncers>,
@@ -20,7 +21,7 @@ pub(crate) struct ValidatorSubmitter {
 
 impl ValidatorSubmitter {
     pub(crate) fn new(
-        interval: u64,
+        interval: Duration,
         reorg_period: u64,
         mailbox: CachingMailbox,
         signer: Arc<Signers>,
@@ -28,7 +29,7 @@ impl ValidatorSubmitter {
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {
         Self {
-            reorg_period,
+            reorg_period: NonZeroU64::new(reorg_period),
             interval,
             mailbox,
             signer,
@@ -43,11 +44,6 @@ impl ValidatorSubmitter {
     }
 
     async fn main_task(self) -> Result<()> {
-        let reorg_period = if self.reorg_period == 0 {
-            None
-        } else {
-            Some(self.reorg_period)
-        };
         // Ensure that the mailbox has > 0 messages before we enter the main
         // validator submit loop. This is to avoid an underflow / reverted
         // call when we invoke the `mailbox.latest_checkpoint()` method,
@@ -57,7 +53,7 @@ impl ValidatorSubmitter {
         // more details.
         while self.mailbox.count().await? == 0 {
             info!("Waiting for non-zero mailbox size");
-            sleep(Duration::from_secs(self.interval)).await;
+            sleep(self.interval).await;
         }
 
         // current_index will be None if the validator cannot find
@@ -90,7 +86,7 @@ impl ValidatorSubmitter {
         info!(current_index = current_index, "Starting Validator");
         loop {
             // Check the latest checkpoint
-            let latest_checkpoint = self.mailbox.latest_checkpoint(reorg_period).await?;
+            let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;
 
             self.metrics
                 .latest_checkpoint_observed
@@ -133,7 +129,7 @@ impl ValidatorSubmitter {
                     .set(signed_checkpoint.checkpoint.index as i64);
             }
 
-            sleep(Duration::from_secs(self.interval)).await;
+            sleep(self.interval).await;
         }
     }
 }

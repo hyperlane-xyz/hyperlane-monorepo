@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use ethers::signers::Signer;
+use ethers::types::Selector;
 use eyre::Context;
 use eyre::Result;
 use serde::Deserialize;
@@ -318,22 +321,28 @@ impl ChainSetup {
                 });
         }
 
+        let functions = |m: HashMap<Vec<u8>, String>| {
+            m.into_iter()
+                .map(|s| (Selector::try_from(s.0).unwrap(), s.1))
+                .collect()
+        };
+
         if let Ok(addr) = self.addresses.mailbox.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("mailbox".into()),
-                functions: EthereumMailboxAbi::fn_map_owned(),
+                functions: functions(EthereumMailboxAbi::fn_map_owned()),
             });
         }
         if let Ok(addr) = self.addresses.interchain_gas_paymaster.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("igp".into()),
-                functions: EthereumInterchainGasPaymasterAbi::fn_map_owned(),
+                functions: functions(EthereumInterchainGasPaymasterAbi::fn_map_owned()),
             });
         }
         if let Ok(addr) = self.addresses.multisig_ism.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("msm".into()),
-                functions: EthereumMultisigIsmAbi::fn_map_owned(),
+                functions: functions(EthereumMultisigIsmAbi::fn_map_owned()),
             });
         }
         cfg

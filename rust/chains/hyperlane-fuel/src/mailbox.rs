@@ -1,44 +1,80 @@
-use std::fmt::Debug;
+use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
+use std::num::NonZeroU64;
 
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneMessage, Indexer, LogMeta,
-    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    ChainCommunicationError, ChainResult, Checkpoint, HyperlaneAbi, HyperlaneChain,
+    HyperlaneContract, HyperlaneMessage, Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate,
+    TxOutcome, H256, U256,
 };
 
+use crate::contracts::mailbox::Mailbox as FuelMailboxInner;
+use crate::conversions::*;
+
 /// A reference to a Mailbox contract on some Fuel chain
-#[derive(Debug)]
-pub struct FuelMailbox {}
+pub struct FuelMailbox {
+    contract: FuelMailboxInner,
+    domain: u32,
+    chain_name: String,
+}
 
 impl HyperlaneContract for FuelMailbox {
     fn address(&self) -> H256 {
-        todo!()
+        self.contract.get_contract_id().into_h256()
     }
 }
 
 impl HyperlaneChain for FuelMailbox {
     fn chain_name(&self) -> &str {
-        todo!()
+        &self.chain_name
     }
 
     fn domain(&self) -> u32 {
-        todo!()
+        self.domain
+    }
+}
+
+impl Debug for FuelMailbox {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self as &dyn HyperlaneContract)
     }
 }
 
 #[async_trait]
 impl Mailbox for FuelMailbox {
     async fn count(&self) -> ChainResult<u32> {
-        todo!()
+        self.contract
+            .methods()
+            .count()
+            .simulate()
+            .await
+            .map(|r| r.value)
+            .map_err(ChainCommunicationError::from_other)
     }
 
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         todo!()
     }
 
-    async fn latest_checkpoint(&self, lag: Option<u64>) -> ChainResult<Checkpoint> {
-        todo!()
+    async fn latest_checkpoint(&self, _lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
+        // TODO: does fuel even support querying at a given block number?
+        let (root, index) = self
+            .contract
+            .methods()
+            .latest_checkpoint()
+            .simulate()
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .value;
+
+        Ok(Checkpoint {
+            mailbox_address: self.address(),
+            mailbox_domain: self.domain,
+            root: root.into_h256(),
+            index,
+        })
     }
 
     async fn default_ism(&self) -> ChainResult<H256> {
@@ -93,6 +129,17 @@ impl MailboxIndexer for FuelMailboxIndexer {
         from: u32,
         to: u32,
     ) -> ChainResult<Vec<(H256, LogMeta)>> {
+        todo!()
+    }
+}
+
+struct FuelMailboxAbi;
+
+impl HyperlaneAbi for FuelMailboxAbi {
+    const SELECTOR_SIZE_BYTES: usize = 8;
+
+    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
+        // Can't support this without Fuels exporting it in the generated code
         todo!()
     }
 }

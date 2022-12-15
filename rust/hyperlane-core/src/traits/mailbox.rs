@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::num::NonZeroU64;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
@@ -25,7 +26,10 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     async fn delivered(&self, id: H256) -> ChainResult<bool>;
 
     /// Get the latest checkpoint.
-    async fn latest_checkpoint(&self, lag: Option<u64>) -> ChainResult<Checkpoint>;
+    ///
+    /// - `lag` is how far behind the current block to query, if not specified
+    ///   it will query at the latest block.
+    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint>;
 
     /// Fetch the current default interchain security module value
     async fn default_ism(&self) -> ChainResult<H256>;

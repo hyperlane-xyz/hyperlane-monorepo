@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -19,30 +20,9 @@ pub struct Validator {
     origin_chain_name: String,
     signer: Arc<Signers>,
     reorg_period: u64,
-    interval: u64,
+    interval: Duration,
     checkpoint_syncer: Arc<CheckpointSyncers>,
     pub(crate) core: HyperlaneAgentCore,
-}
-
-impl Validator {
-    /// Instantiate a new validator
-    pub fn new(
-        origin_chain_name: String,
-        signer: Signers,
-        reorg_period: u64,
-        interval: u64,
-        checkpoint_syncer: CheckpointSyncers,
-        core: HyperlaneAgentCore,
-    ) -> Self {
-        Self {
-            origin_chain_name,
-            signer: Arc::new(signer),
-            reorg_period,
-            interval,
-            checkpoint_syncer: Arc::new(checkpoint_syncer),
-            core,
-        }
-    }
 }
 
 impl AsRef<HyperlaneAgentCore> for Validator {
@@ -61,23 +41,24 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
-        let signer = settings.validator.try_into_signer().await?;
+        let signer = Arc::new(settings.validator.try_into_signer().await?);
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
-        let origin_chain_name = &settings.originchainname;
-        let interval = settings.interval.parse().expect("invalid uint");
+        let interval = Duration::from_secs(settings.interval.parse().expect("invalid uint"));
+        let checkpoint_syncer =
+            Arc::new(settings.checkpointsyncer.try_into_checkpoint_syncer(None)?);
         let core = settings
-            .try_into_hyperlane_core(metrics, Some(vec![origin_chain_name]))
+            .try_into_hyperlane_core(metrics, Some(vec![&settings.originchainname]))
             .await?;
-        let checkpoint_syncer = settings.checkpointsyncer.try_into_checkpoint_syncer(None)?;
+        let origin_chain_name = settings.originchainname;
 
-        Ok(Self::new(
-            origin_chain_name.clone(),
+        Ok(Self {
+            origin_chain_name,
             signer,
             reorg_period,
             interval,
             checkpoint_syncer,
             core,
-        ))
+        })
     }
 
     #[allow(clippy::async_yields_async)]

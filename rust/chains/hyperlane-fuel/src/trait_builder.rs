@@ -14,7 +14,7 @@ pub enum ConnectionConf {
 
 fn make_client(conf: ConnectionConf) -> Result<FuelClient, ()> {
     match conf {
-        ConnectionConf::Http { url } => FuelClient::new(url),
+        ConnectionConf::Http { url } => FuelClient::new(url).map_err(|_| todo!()),
     }
 }
 

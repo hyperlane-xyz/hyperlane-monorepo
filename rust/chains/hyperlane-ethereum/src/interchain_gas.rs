@@ -5,7 +5,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::prelude::{Middleware, Selector};
+use ethers::prelude::Middleware;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -210,7 +210,9 @@ impl<M> InterchainGasPaymaster for EthereumInterchainGasPaymaster<M> where M: Mi
 pub struct EthereumInterchainGasPaymasterAbi;
 
 impl HyperlaneAbi for EthereumInterchainGasPaymasterAbi {
-    fn fn_map() -> HashMap<Selector, &'static str> {
+    const SELECTOR_SIZE_BYTES: usize = 4;
+
+    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
         super::extract_fn_map(&INTERCHAINGASPAYMASTER_ABI)
     }
 }
