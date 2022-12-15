@@ -10,7 +10,7 @@ use tracing::instrument;
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
 };
 
 use crate::BuildableWithProvider;
@@ -23,19 +23,14 @@ where
     M: Middleware,
 {
     provider: Arc<M>,
-    chain_name: String,
-    domain: u32,
+    domain: HyperlaneDomain,
 }
 
 impl<M> HyperlaneChain for EthereumProvider<M>
 where
     M: Middleware + 'static,
 {
-    fn chain_name(&self) -> &str {
-        &self.chain_name
-    }
-
-    fn domain(&self) -> u32 {
+    fn domain(&self) -> HyperlaneDomain {
         self.domain
     }
 }
@@ -103,7 +98,6 @@ impl BuildableWithProvider for HyperlaneProviderBuilder {
     ) -> Self::Output {
         Box::new(EthereumProvider {
             provider: Arc::new(provider),
-            chain_name: locator.chain_name.clone(),
             domain: locator.domain,
         })
     }

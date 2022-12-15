@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    accumulator::merkle::Proof, ChainResult, HyperlaneChain, HyperlaneContract, MultisigIsm,
-    MultisigSignedCheckpoint, H160, H256,
+    accumulator::merkle::Proof, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    MultisigIsm, MultisigSignedCheckpoint, H160, H256,
 };
 
 /// A reference to a MultisigIsm contract on some Fuel chain
@@ -16,11 +16,7 @@ impl HyperlaneContract for FuelMultisigIsm {
 }
 
 impl HyperlaneChain for FuelMultisigIsm {
-    fn chain_name(&self) -> &str {
-        todo!()
-    }
-
-    fn domain(&self) -> u32 {
+    fn domain(&self) -> HyperlaneDomain {
         todo!()
     }
 }

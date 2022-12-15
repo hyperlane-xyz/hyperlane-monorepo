@@ -6,8 +6,8 @@ use async_trait::async_trait;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneMessage, Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate,
-    TxOutcome, H256, U256,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, Indexer, LogMeta, Mailbox,
+    MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::contracts::mailbox::Mailbox as FuelMailboxInner;
@@ -16,8 +16,7 @@ use crate::conversions::*;
 /// A reference to a Mailbox contract on some Fuel chain
 pub struct FuelMailbox {
     contract: FuelMailboxInner,
-    domain: u32,
-    chain_name: String,
+    domain: HyperlaneDomain,
 }
 
 impl HyperlaneContract for FuelMailbox {
@@ -27,11 +26,7 @@ impl HyperlaneContract for FuelMailbox {
 }
 
 impl HyperlaneChain for FuelMailbox {
-    fn chain_name(&self) -> &str {
-        &self.chain_name
-    }
-
-    fn domain(&self) -> u32 {
+    fn domain(&self) -> HyperlaneDomain {
         self.domain
     }
 }
@@ -71,7 +66,7 @@ impl Mailbox for FuelMailbox {
 
         Ok(Checkpoint {
             mailbox_address: self.address(),
-            mailbox_domain: self.domain,
+            mailbox_domain: self.domain as u32,
             root: root.into_h256(),
             index,
         })

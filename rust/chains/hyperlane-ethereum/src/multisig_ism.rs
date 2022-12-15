@@ -14,8 +14,8 @@ use tracing::instrument;
 
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, MultisigIsm,
-    MultisigSignedCheckpoint, SignatureWithSigner, H160, H256,
+    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    MultisigIsm, MultisigSignedCheckpoint, SignatureWithSigner, H160, H256,
 };
 
 use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
@@ -105,11 +105,7 @@ where
     M: Middleware,
 {
     contract: Arc<EthereumMultisigIsmInternal<M>>,
-    #[allow(dead_code)]
-    domain: u32,
-    chain_name: String,
-    #[allow(dead_code)]
-    provider: Arc<M>,
+    domain: HyperlaneDomain,
     threshold_cache: RwLock<ExpiringCache<u32, u8>>,
     validators_cache: RwLock<ExpiringCache<u32, Vec<H160>>>,
 }
@@ -122,13 +118,8 @@ where
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumMultisigIsmInternal::new(
-                &locator.address,
-                provider.clone(),
-            )),
+            contract: Arc::new(EthereumMultisigIsmInternal::new(&locator.address, provider)),
             domain: locator.domain,
-            chain_name: locator.chain_name.to_owned(),
-            provider,
             threshold_cache: RwLock::new(ExpiringCache::new(Duration::from_secs(60))),
             validators_cache: RwLock::new(ExpiringCache::new(Duration::from_secs(60))),
         }
@@ -139,11 +130,7 @@ impl<M> HyperlaneChain for EthereumMultisigIsm<M>
 where
     M: Middleware + 'static,
 {
-    fn chain_name(&self) -> &str {
-        &self.chain_name
-    }
-
-    fn domain(&self) -> u32 {
+    fn domain(&self) -> HyperlaneDomain {
         self.domain
     }
 }

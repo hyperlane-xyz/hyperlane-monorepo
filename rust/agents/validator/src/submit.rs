@@ -8,7 +8,7 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{CachingMailbox, CheckpointSyncer, CheckpointSyncers, CoreMetrics};
-use hyperlane_core::{Mailbox, Signers};
+use hyperlane_core::{HyperlaneDomain, Mailbox, Signers};
 
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
@@ -140,14 +140,15 @@ pub(crate) struct ValidatorSubmitterMetrics {
 }
 
 impl ValidatorSubmitterMetrics {
-    pub fn new(metrics: &CoreMetrics, mailbox_chain: &str) -> Self {
+    pub fn new(metrics: &CoreMetrics, mailbox_chain: &HyperlaneDomain) -> Self {
+        let chain_name = mailbox_chain.to_string();
         Self {
             latest_checkpoint_observed: metrics
                 .latest_checkpoint()
-                .with_label_values(&["validator_observed", mailbox_chain]),
+                .with_label_values(&["validator_observed", &chain_name]),
             latest_checkpoint_processed: metrics
                 .latest_checkpoint()
-                .with_label_values(&["validator_processed", mailbox_chain]),
+                .with_label_values(&["validator_processed", &chain_name]),
         }
     }
 }

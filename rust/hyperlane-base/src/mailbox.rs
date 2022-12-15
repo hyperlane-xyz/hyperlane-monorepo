@@ -10,8 +10,8 @@ use tracing::{info_span, Instrument};
 
 use hyperlane_core::db::HyperlaneDB;
 use hyperlane_core::{
-    ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneMessage, Mailbox,
-    MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::chains::IndexSettings;
@@ -65,7 +65,7 @@ impl CachingMailbox {
         let span = info_span!("MailboxContractSync", self = %self);
 
         let sync = ContractSync::new(
-            self.mailbox.chain_name().into(),
+            self.mailbox.domain(),
             self.db.clone(),
             self.indexer.clone(),
             index_settings,
@@ -133,11 +133,7 @@ impl Mailbox for CachingMailbox {
 }
 
 impl HyperlaneChain for CachingMailbox {
-    fn chain_name(&self) -> &str {
-        self.mailbox.chain_name()
-    }
-
-    fn domain(&self) -> u32 {
+    fn domain(&self) -> HyperlaneDomain {
         self.mailbox.domain()
     }
 }

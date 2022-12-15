@@ -85,8 +85,8 @@ use serde::Deserialize;
 pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
-    HyperlaneProvider, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox,
-    MailboxIndexer, MultisigIsm, Signers,
+    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
+    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers,
 };
 pub use signers::SignerConf;
 
@@ -155,10 +155,8 @@ impl Settings {
     ) -> eyre::Result<HyperlaneAgentCore> {
         let db = DB::from_path(&self.db)?;
         // If not provided, default to using every chain listed in self.chains.
-        let chain_names = match chain_names {
-            Some(x) => x,
-            None => Vec::from_iter(self.chains.keys().map(String::as_str)),
-        };
+        let chain_names =
+            chain_names.unwrap_or_else(|| Vec::from_iter(self.chains.keys().map(String::as_str)));
 
         let mailboxes = self
             .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
@@ -191,13 +189,13 @@ impl Settings {
         chain_names: &[&str],
         metrics: &CoreMetrics,
         db: DB,
-    ) -> eyre::Result<HashMap<String, CachingMailbox>> {
+    ) -> eyre::Result<HashMap<HyperlaneDomain, CachingMailbox>> {
         let mut result = HashMap::new();
         for &chain_name in chain_names {
             let mailbox = self
                 .build_caching_mailbox(chain_name, db.clone(), metrics)
                 .await?;
-            result.insert(chain_name.into(), mailbox);
+            result.insert(mailbox.domain(), mailbox);
         }
         Ok(result)
     }
@@ -208,13 +206,13 @@ impl Settings {
         chain_names: &[&str],
         metrics: &CoreMetrics,
         db: DB,
-    ) -> eyre::Result<HashMap<String, CachingInterchainGasPaymaster>> {
+    ) -> eyre::Result<HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>> {
         let mut result = HashMap::new();
         for &chain_name in chain_names {
-            let mailbox = self
+            let igp = self
                 .build_caching_interchain_gas_paymaster(chain_name, db.clone(), metrics)
                 .await?;
-            result.insert(chain_name.into(), mailbox);
+            result.insert(igp.paymaster().domain(), igp);
         }
         Ok(result)
     }
@@ -224,11 +222,11 @@ impl Settings {
         &self,
         chain_names: &[&str],
         metrics: &CoreMetrics,
-    ) -> eyre::Result<HashMap<String, Arc<dyn MultisigIsm>>> {
-        let mut result: HashMap<String, Arc<dyn MultisigIsm>> = HashMap::new();
+    ) -> eyre::Result<HashMap<HyperlaneDomain, Arc<dyn MultisigIsm>>> {
+        let mut result = HashMap::new();
         for &chain_name in chain_names {
             let multisig_ism = self.build_multisig_ism(chain_name, metrics).await?;
-            result.insert(chain_name.into(), multisig_ism.into());
+            result.insert(multisig_ism.domain(), multisig_ism.into());
         }
         Ok(result)
     }

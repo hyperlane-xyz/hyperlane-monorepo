@@ -9,9 +9,7 @@ use tracing::{debug, info, instrument, warn};
 
 use hyperlane_base::last_message::validate_message_continuity;
 use hyperlane_base::RateLimitedSyncBlockRangeCursor;
-use hyperlane_core::{
-    name_from_domain_id, ListValidity, MailboxIndexer, SyncBlockRangeCursor, H256,
-};
+use hyperlane_core::{HyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor, H256};
 
 use crate::chain_scraper::{Delivery, HyperlaneMessageWithMeta, SqlChainScraper, TxnWithIdAndTime};
 
@@ -52,9 +50,9 @@ impl Syncer {
     /// **Note:** Run must be called for syncing to commence.
     #[instrument(skip_all)]
     pub async fn new(scraper: SqlChainScraper) -> Result<Self> {
-        let chain_name = scraper.chain_name();
-        let message_labels = ["messages", chain_name];
-        let deliveries_labels = ["deliveries", chain_name];
+        let chain_name = scraper.domain().to_string();
+        let message_labels = ["messages", &chain_name];
+        let deliveries_labels = ["deliveries", &chain_name];
 
         let indexed_message_height = scraper
             .metrics
@@ -105,7 +103,7 @@ impl Syncer {
     }
 
     /// Sync contract and other blockchain data with the current chain state.
-    #[instrument(skip(self), fields(chain_name = self.chain_name(), chunk_size = self.chunk_size))]
+    #[instrument(skip(self), fields(domain = %self.domain(), chunk_size = self.chunk_size))]
     pub async fn run(mut self) -> Result<()> {
         let start_block = self.sync_cursor.current_position();
         info!(from = start_block, "Resuming chain sync");
@@ -258,10 +256,11 @@ impl Syncer {
 
             for m in sorted_messages.iter() {
                 let nonce = m.message.nonce;
-                let dst =
-                    name_from_domain_id(m.message.destination).unwrap_or_else(|| "unknown".into());
+                let dst = HyperlaneDomain::try_from(m.message.destination)
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|_| "unknown".into());
                 self.message_nonce
-                    .with_label_values(&["dispatch", self.chain_name(), &dst])
+                    .with_label_values(&["dispatch", &self.domain().to_string(), &dst])
                     .set(nonce as i64);
             }
             Ok(Some(max_nonce_of_batch))

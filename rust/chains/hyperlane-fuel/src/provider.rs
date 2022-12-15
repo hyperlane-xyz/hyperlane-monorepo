@@ -1,17 +1,15 @@
 use async_trait::async_trait;
 
-use hyperlane_core::{BlockInfo, ChainResult, HyperlaneChain, HyperlaneProvider, TxnInfo, H256};
+use hyperlane_core::{
+    BlockInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, H256,
+};
 
 /// A wrapper around a fuel provider to get generic blockchain information.
 #[derive(Debug)]
 pub struct FuelProvider {}
 
 impl HyperlaneChain for FuelProvider {
-    fn chain_name(&self) -> &str {
-        todo!()
-    }
-
-    fn domain(&self) -> u32 {
+    fn domain(&self) -> HyperlaneDomain {
         todo!()
     }
 }

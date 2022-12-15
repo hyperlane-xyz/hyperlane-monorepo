@@ -9,7 +9,7 @@ use tracing::instrument::Instrumented;
 use hyperlane_base::{
     run_all, Agent, BaseAgent, CheckpointSyncers, CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::Signers;
+use hyperlane_core::{HyperlaneDomain, Signers};
 
 use crate::submit::ValidatorSubmitterMetrics;
 use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
@@ -17,7 +17,7 @@ use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
 /// A validator agent
 #[derive(Debug)]
 pub struct Validator {
-    origin_chain_name: String,
+    origin_chain: HyperlaneDomain,
     signer: Arc<Signers>,
     reorg_period: u64,
     interval: Duration,
@@ -49,10 +49,10 @@ impl BaseAgent for Validator {
         let core = settings
             .try_into_hyperlane_core(metrics, Some(vec![&settings.originchainname]))
             .await?;
-        let origin_chain_name = settings.originchainname;
+        let origin_chain = settings.originchainname.parse()?;
 
         Ok(Self {
-            origin_chain_name,
+            origin_chain,
             signer,
             reorg_period,
             interval,
@@ -66,10 +66,10 @@ impl BaseAgent for Validator {
         let submit = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,
-            self.mailbox(&self.origin_chain_name).unwrap().clone(),
+            self.mailbox(&self.origin_chain).unwrap().clone(),
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
-            ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain_name),
+            ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 
         run_all(vec![submit.spawn()])

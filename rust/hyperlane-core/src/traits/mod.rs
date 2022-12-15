@@ -1,3 +1,5 @@
+use std::fmt;
+
 pub use cursor::*;
 pub use encode::*;
 pub use indexer::*;
@@ -5,9 +7,8 @@ pub use interchain_gas::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
-use std::fmt;
 
-use crate::H256;
+use crate::{HyperlaneDomain, H256};
 
 mod cursor;
 mod encode;
@@ -40,12 +41,8 @@ impl From<ethers::prelude::TransactionReceipt> for TxOutcome {
 /// connected to it.
 #[auto_impl::auto_impl(Box, Arc)]
 pub trait HyperlaneChain {
-    /// Return an identifier (not necessarily unique) for the chain this
-    /// is connected to
-    fn chain_name(&self) -> &str;
-
     /// Return the domain ID
-    fn domain(&self) -> u32;
+    fn domain(&self) -> HyperlaneDomain;
 }
 
 /// Interface for a deployed contract.
@@ -78,23 +75,20 @@ pub trait HyperlaneAbi {
 
 impl fmt::Debug for dyn HyperlaneChain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "HyperlaneChain({} ({}))",
-            self.chain_name(),
-            self.domain()
-        )
+        let domain = self.domain();
+        write!(f, "HyperlaneChain({} ({}))", domain, domain as u32)
     }
 }
 
 impl fmt::Debug for dyn HyperlaneContract {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let domain = self.domain();
         write!(
             f,
             "HyperlaneContract({:?} @ {} ({}))",
             self.address(),
-            self.chain_name(),
-            self.domain()
+            domain,
+            domain as u32,
         )
     }
 }

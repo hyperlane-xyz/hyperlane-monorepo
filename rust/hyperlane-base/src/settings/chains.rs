@@ -2,16 +2,17 @@ use std::collections::HashMap;
 
 use ethers::signers::Signer;
 use ethers::types::Selector;
-use eyre::Context;
 use eyre::Result;
+use eyre::{ensure, Context};
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    ContractLocator, HyperlaneAbi, HyperlaneProvider, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers,
+    ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainImpl, HyperlaneProvider,
+    InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm,
+    Signers,
 };
 use hyperlane_ethereum::{
     BuildableWithProvider, ConnectionConf, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -135,10 +136,9 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn HyperlaneProvider>> {
-        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
-
         match &self.chain {
             ChainConf::Ethereum(conf) => {
+                let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
                 hyperlane_ethereum::HyperlaneProviderBuilder {}
                     .build_with_connection_conf(
                         conf.clone(),
@@ -161,10 +161,11 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn Mailbox>> {
-        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         let locator = self.locator(&self.addresses.mailbox)?;
+
         match &self.chain {
             ChainConf::Ethereum(conf) => {
+                let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
                 hyperlane_ethereum::MailboxBuilder {}
                     .build_with_connection_conf(
                         conf.clone(),
@@ -187,11 +188,11 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MailboxIndexer>> {
-        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         let locator = self.locator(&self.addresses.mailbox)?;
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {
+                let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
                 hyperlane_ethereum::MailboxIndexerBuilder {
                     finality_blocks: self.finality_blocks(),
                 }
@@ -217,11 +218,11 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn InterchainGasPaymaster>> {
-        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         let locator = self.locator(&self.addresses.interchain_gas_paymaster)?;
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {
+                let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
                 hyperlane_ethereum::InterchainGasPaymasterBuilder {}
                     .build_with_connection_conf(
                         conf.clone(),
@@ -244,11 +245,11 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn InterchainGasPaymasterIndexer>> {
-        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         let locator = self.locator(&self.addresses.interchain_gas_paymaster)?;
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {
+                let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
                 hyperlane_ethereum::InterchainGasPaymasterIndexerBuilder {
                     mailbox_address: self.addresses.mailbox.parse()?,
                     finality_blocks: self.finality_blocks(),
@@ -274,11 +275,11 @@ impl ChainSetup {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MultisigIsm>> {
-        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         let locator = self.locator(&self.addresses.multisig_ism)?;
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {
+                let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
                 hyperlane_ethereum::MultisigIsmBuilder {}
                     .build_with_connection_conf(
                         conf.clone(),
@@ -349,16 +350,39 @@ impl ChainSetup {
     }
 
     fn locator(&self, address: &str) -> Result<ContractLocator> {
-        Ok(ContractLocator {
-            chain_name: self.name.clone(),
-            domain: self.domain.parse().context("invalid uint")?,
-            address: match self.chain {
-                ChainConf::Ethereum(_) => address
+        let domain = self.domain()?;
+        let address = match self.chain {
+            ChainConf::Ethereum(_) => {
+                ensure!(
+                    domain.domain_impl() == HyperlaneDomainImpl::Ethereum,
+                    "Excepted an ethereum chain config"
+                );
+                address
                     .parse::<ethers::types::Address>()
                     .context("Invalid ethereum address")?
-                    .into(),
-                ChainConf::Fuel => todo!(),
-            },
-        })
+                    .into()
+            }
+            ChainConf::Fuel => {
+                ensure!(
+                    domain.domain_impl() == HyperlaneDomainImpl::Fuel,
+                    "Expected a fuel chain config"
+                );
+                todo!()
+            }
+        };
+
+        Ok(ContractLocator { domain, address })
+    }
+
+    fn domain(&self) -> Result<HyperlaneDomain> {
+        let d1: HyperlaneDomain = self
+            .domain
+            .parse::<u32>()
+            .context("domain is an invalid uint")?
+            .try_into()
+            .context("unknown domain id")?;
+        let d2: HyperlaneDomain = self.name.parse().context("unknown domain name")?;
+        ensure!(d1 == d2, "The domain id does not match the chain name!");
+        Ok(d1)
     }
 }

@@ -13,8 +13,9 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneMessage, HyperlaneProtocolError, Indexer, LogMeta,
-    Mailbox, MailboxIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
+    Indexer, LogMeta, Mailbox, MailboxIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome,
+    H256, U256,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
@@ -164,8 +165,7 @@ where
     M: Middleware,
 {
     contract: Arc<EthereumMailboxInternal<M>>,
-    domain: u32,
-    chain_name: String,
+    domain: HyperlaneDomain,
     provider: Arc<M>,
 }
 
@@ -182,7 +182,6 @@ where
                 provider.clone(),
             )),
             domain: locator.domain,
-            chain_name: locator.chain_name.to_owned(),
             provider,
         }
     }
@@ -213,11 +212,7 @@ impl<M> HyperlaneChain for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
-    fn chain_name(&self) -> &str {
-        &self.chain_name
-    }
-
-    fn domain(&self) -> u32 {
+    fn domain(&self) -> HyperlaneDomain {
         self.domain
     }
 }
@@ -264,7 +259,7 @@ where
         let (root, index) = call_with_lag.call().await?;
         Ok(Checkpoint {
             mailbox_address: self.address(),
-            mailbox_domain: self.domain,
+            mailbox_domain: self.domain as u32,
             root: root.into(),
             index,
         })
