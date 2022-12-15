@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { BigNumberish, Contract, ContractTransaction } from 'ethers';
+import { BigNumberish, ContractTransaction } from 'ethers';
 import { ethers } from 'hardhat';
 
 import { utils } from '@hyperlane-xyz/utils';

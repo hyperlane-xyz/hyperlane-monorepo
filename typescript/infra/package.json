@@ -6,8 +6,6 @@
     "@aws-sdk/client-iam": "^3.74.0",
     "@aws-sdk/client-kms": "3.48.0",
     "@aws-sdk/client-s3": "^3.74.0",
-    "@ethersproject/abstract-provider": "^5.7.0",
-    "@ethersproject/contracts": "^5.7.0",
     "@ethersproject/experimental": "^5.7.0",
     "@ethersproject/hardware-wallets": "^5.7.0",
     "@ethersproject/providers": "^5.7.2",

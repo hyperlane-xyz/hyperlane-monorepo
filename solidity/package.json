@@ -3,12 +3,9 @@
   "description": "Core solidity contracts for Hyperlane",
   "version": "1.0.0-beta1",
   "dependencies": {
-    "@ethersproject/providers": "^5.7.2",
     "@hyperlane-xyz/utils": "1.0.0-beta1",
     "@openzeppelin/contracts": "^4.8.0",
-    "@openzeppelin/contracts-upgradeable": "^4.8.0",
-    "ethereum-waffle": "^3.4.4",
-    "ethers": "^5.7.2"
+    "@openzeppelin/contracts-upgradeable": "^4.8.0"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.1",
@@ -16,6 +13,8 @@
     "@typechain/ethers-v5": "10.0.0",
     "@typechain/hardhat": "^6.0.0",
     "chai": "^4.3.0",
+    "ethereum-waffle": "^3.4.4",
+    "ethers": "^5.7.2",
     "hardhat": "^2.8.4",
     "hardhat-gas-reporter": "^1.0.7",
     "prettier": "^2.4.1",
