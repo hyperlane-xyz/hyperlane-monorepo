@@ -1966,7 +1966,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/types@npm:3.226.0":
+"@aws-sdk/types@npm:3.226.0, @aws-sdk/types@npm:^3.226.0":
   version: 3.226.0
   resolution: "@aws-sdk/types@npm:3.226.0"
   dependencies:
@@ -3976,6 +3976,7 @@ __metadata:
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
+    "@aws-sdk/types": ^3.226.0
     "@ethersproject/experimental": ^5.6.2
     "@ethersproject/hardware-wallets": ^5.7.0
     "@ethersproject/providers": ^5.7.2
@@ -3986,8 +3987,7 @@ __metadata:
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-etherscan": ^3.0.3
     "@nomiclabs/hardhat-waffle": ^2.0.2
-    "@safe-global/safe-core-sdk": ^3.2.1
-    "@safe-global/safe-core-sdk-types": ^1.7.0
+    "@safe-global/safe-core-sdk": 3.2.0
     "@safe-global/safe-ethers-lib": ^1.7.0
     "@safe-global/safe-service-client": ^1.4.0
     "@types/chai": ^4.2.21
@@ -4431,9 +4431,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@safe-global/safe-core-sdk@npm:^3.2.1":
-  version: 3.2.1
-  resolution: "@safe-global/safe-core-sdk@npm:3.2.1"
+"@safe-global/safe-core-sdk@npm:3.2.0":
+  version: 3.2.0
+  resolution: "@safe-global/safe-core-sdk@npm:3.2.0"
   dependencies:
     "@ethersproject/solidity": ^5.7.0
     "@gnosis.pm/safe-deployments": 1.17.0
@@ -4441,7 +4441,7 @@ __metadata:
     ethereumjs-util: ^7.1.5
     semver: ^7.3.8
     web3-utils: ^1.8.1
-  checksum: 0f7c16432c86ce44620d523e3a7a01e9801d66efa1aac503c19128d09aeea91d7e1a0407792cbb21af47e83906cd8b4c614c134dfea870efcd5113d6c1b6ea6f
+  checksum: 91fdca37c4648c70976cb730ea9d865001bc12b85b304632b4a9d7af014b75b412fa876f2d85ea9224c8978ed1c0c01ebc59ded271e39d57bd043a78b0d7536f
   languageName: node
   linkType: hard
 
