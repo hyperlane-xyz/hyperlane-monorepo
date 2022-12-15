@@ -3138,30 +3138,30 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ethersproject/experimental@npm:^5.6.2":
-  version: 5.6.2
-  resolution: "@ethersproject/experimental@npm:5.6.2"
+"@ethersproject/experimental@npm:^5.7.0":
+  version: 5.7.0
+  resolution: "@ethersproject/experimental@npm:5.7.0"
   dependencies:
-    "@ethersproject/web": ^5.6.1
-    ethers: ^5.6.8
+    "@ethersproject/web": ^5.7.0
+    ethers: ^5.7.0
     scrypt-js: 3.0.1
-  checksum: 66d4aa7b2f808e574b7d51fd8ff7dea941da14d8f8e0e05d98a457fdf07e125cdba0da1d5f84694461171b7cd1da754a66389701be1a9e8ca8fccf5b1b08eb1a
+  checksum: a4973371be9b984d5834df5d6fe3d4d1641204ec859a6d4e11e4a972a3a4a2dd7c0eae6a9a86b90f30faa3633a86ab153197bff6e853fb3ff8f847e0340a3c24
   languageName: node
   linkType: hard
 
-"@ethersproject/hardware-wallets@npm:~5.6":
-  version: 5.6.1
-  resolution: "@ethersproject/hardware-wallets@npm:5.6.1"
+"@ethersproject/hardware-wallets@npm:^5.7.0":
+  version: 5.7.0
+  resolution: "@ethersproject/hardware-wallets@npm:5.7.0"
   dependencies:
     "@ledgerhq/hw-app-eth": 5.27.2
     "@ledgerhq/hw-transport": 5.26.0
     "@ledgerhq/hw-transport-node-hid": 5.26.0
     "@ledgerhq/hw-transport-u2f": 5.26.0
-    ethers: ^5.6.8
+    ethers: ^5.7.0
   dependenciesMeta:
     "@ledgerhq/hw-transport-node-hid":
       optional: true
-  checksum: 60e8cad6f54c9925257f85aa3777e257837a44c88ba61e9aa9ab77d189efc6192e8616819f0bcbe5d52ab2e959d5defe1dfeb0a67bd911f1fa2df251f4ee70f2
+  checksum: 3b78efdfa1d42dddf627bfdbe36ede6ff7ddc447cfb5f11990456d2bdffc41ded4a6af467823cf2c927c67cca7c1cbf971b688bc25dc597c811c35ee21254b70
   languageName: node
   linkType: hard
 
@@ -3398,7 +3398,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ethersproject/providers@npm:5.7.2":
+"@ethersproject/providers@npm:5.7.2, @ethersproject/providers@npm:^5.7.2":
   version: 5.7.2
   resolution: "@ethersproject/providers@npm:5.7.2"
   dependencies:
@@ -3767,16 +3767,17 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
+    "@ethersproject/providers": ^5.7.2
     "@hyperlane-xyz/utils": 1.0.0-beta1
-    "@nomiclabs/hardhat-ethers": ^2.0.5
-    "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@nomiclabs/hardhat-ethers": ^2.2.1
+    "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts": ^4.8.0
     "@openzeppelin/contracts-upgradeable": ^4.8.0
     "@typechain/ethers-v5": 10.0.0
     "@typechain/hardhat": ^6.0.0
     chai: ^4.3.0
     ethereum-waffle: ^3.4.4
-    ethers: ^5.6.8
+    ethers: ^5.7.2
     hardhat: ^2.8.4
     hardhat-gas-reporter: ^1.0.7
     prettier: ^2.4.1
@@ -3785,7 +3786,7 @@ __metadata:
     solhint-plugin-prettier: ^0.0.5
     solidity-coverage: ^0.7.14
     ts-generator: ^0.1.1
-    typechain: 8.0.0
+    typechain: ^8.1.1
     typescript: ^4.7.2
   languageName: unknown
   linkType: soft
@@ -3795,8 +3796,8 @@ __metadata:
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@hyperlane-xyz/sdk": 1.0.0-beta1
-    "@nomiclabs/hardhat-ethers": ^2.0.5
-    "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@nomiclabs/hardhat-ethers": ^2.2.1
+    "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts-upgradeable": ^4.8.0
     "@trivago/prettier-plugin-sort-imports": ^3.2.0
     "@typechain/ethers-v5": 10.0.0
@@ -3808,7 +3809,7 @@ __metadata:
     eslint: ^8.16.0
     eslint-config-prettier: ^8.5.0
     ethereum-waffle: ^3.4.4
-    ethers: ^5.6.8
+    ethers: ^5.7.2
     hardhat: ^2.8.4
     hardhat-gas-reporter: ^1.0.7
     prettier: ^2.4.1
@@ -3829,15 +3830,18 @@ __metadata:
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
-    "@ethersproject/experimental": ^5.6.2
-    "@ethersproject/hardware-wallets": ~5.6
+    "@ethersproject/abstract-provider": ^5.7.0
+    "@ethersproject/contracts": ^5.7.0
+    "@ethersproject/experimental": ^5.7.0
+    "@ethersproject/hardware-wallets": ^5.7.0
+    "@ethersproject/providers": ^5.7.2
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
     "@hyperlane-xyz/helloworld": 1.0.0-beta1
     "@hyperlane-xyz/sdk": 1.0.0-beta1
     "@hyperlane-xyz/utils": 1.0.0-beta1
-    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-etherscan": ^3.0.3
-    "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@nomiclabs/hardhat-waffle": ^2.0.3
     "@safe-global/safe-core-sdk": 3.2.0
     "@safe-global/safe-ethers-lib": ^1.7.0
     "@safe-global/safe-service-client": ^1.4.0
@@ -3851,7 +3855,7 @@ __metadata:
     chai: ^4.3.4
     dotenv: ^10.0.0
     ethereum-waffle: ^3.4.4
-    ethers: ^5.6.8
+    ethers: ^5.7.2
     hardhat: ^2.8.4
     prettier: ^2.4.1
     prom-client: ^14.0.1
@@ -3884,8 +3888,8 @@ __metadata:
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
     "@hyperlane-xyz/core": 1.0.0-beta1
     "@hyperlane-xyz/utils": 1.0.0-beta1
-    "@nomiclabs/hardhat-ethers": ^2.0.5
-    "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@nomiclabs/hardhat-ethers": ^2.2.1
+    "@nomiclabs/hardhat-waffle": ^2.0.3
     "@types/coingecko-api": ^1.0.10
     "@types/debug": ^4.1.7
     "@types/node": ^16.9.1
@@ -3895,7 +3899,7 @@ __metadata:
     debug: ^4.3.4
     dotenv: ^10.0.0
     ethereum-waffle: ^3.4.4
-    ethers: ^5.6.8
+    ethers: ^5.7.2
     fs: 0.0.1-security
     hardhat: ^2.8.4
     mocha: ^9.2.2
@@ -3911,7 +3915,7 @@ __metadata:
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
     chai: ^4.3.0
-    ethers: ^5.6.8
+    ethers: ^5.7.2
     prettier: ^2.4.1
     typescript: ^4.7.2
   languageName: unknown
@@ -4134,13 +4138,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nomiclabs/hardhat-ethers@npm:^2.0.5":
-  version: 2.0.6
-  resolution: "@nomiclabs/hardhat-ethers@npm:2.0.6"
+"@nomiclabs/hardhat-ethers@npm:^2.2.1":
+  version: 2.2.1
+  resolution: "@nomiclabs/hardhat-ethers@npm:2.2.1"
   peerDependencies:
     ethers: ^5.0.0
     hardhat: ^2.0.0
-  checksum: 82319a2615804abae2ca70834a20bfc2874c742094fadeaea55e5c788e589794836a3a2eaaf19d8aecdadf1fd0bd7a4f9eac2c32bbda9ed081c8e2e3d4fe55cc
+  checksum: 8cdbf7068f15ee993142ab600074938d05b42af73392a5b12c8eb607a5bca2fac977a6a85955e0b0285541415ad520626e7fb3d33ca7cc112d61ee928358e2f6
   languageName: node
   linkType: hard
 
@@ -4164,7 +4168,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nomiclabs/hardhat-waffle@npm:^2.0.2":
+"@nomiclabs/hardhat-waffle@npm:^2.0.3":
   version: 2.0.3
   resolution: "@nomiclabs/hardhat-waffle@npm:2.0.3"
   dependencies:
@@ -9173,7 +9177,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethers@npm:^5.0.1, ethers@npm:^5.0.2, ethers@npm:^5.5.2, ethers@npm:^5.6.8":
+"ethers@npm:^5.0.1, ethers@npm:^5.0.2, ethers@npm:^5.5.2":
   version: 5.6.8
   resolution: "ethers@npm:5.6.8"
   dependencies:
@@ -9211,7 +9215,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethers@npm:^5.7.2":
+"ethers@npm:^5.7.0, ethers@npm:^5.7.2":
   version: 5.7.2
   resolution: "ethers@npm:5.7.2"
   dependencies:
@@ -12878,10 +12882,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"minimist@npm:^1.2.0, minimist@npm:^1.2.3, minimist@npm:^1.2.5, minimist@npm:^1.2.6, minimist@npm:~1.2.6":
+"minimist@npm:^1.2.0, minimist@npm:^1.2.5, minimist@npm:^1.2.6, minimist@npm:~1.2.6":
   version: 1.2.6
   resolution: "minimist@npm:1.2.6"
   checksum: d15428cd1e11eb14e1233bcfb88ae07ed7a147de251441d61158619dfb32c4d7e9061d09cab4825fdee18ecd6fce323228c8c47b5ba7cd20af378ca4048fb3fb
+  languageName: node
+  linkType: hard
+
+"minimist@npm:^1.2.3":
+  version: 1.2.7
+  resolution: "minimist@npm:1.2.7"
+  checksum: 7346574a1038ca23c32e02252f603801f09384dd1d78b69a943a4e8c2c28730b80e96193882d3d3b22a063445f460e48316b29b8a25addca2d7e5e8f75478bec
   languageName: node
   linkType: hard
 
@@ -13203,11 +13214,11 @@ __metadata:
   linkType: hard
 
 "nan@npm:^2.14.0":
-  version: 2.16.0
-  resolution: "nan@npm:2.16.0"
+  version: 2.17.0
+  resolution: "nan@npm:2.17.0"
   dependencies:
     node-gyp: latest
-  checksum: cb16937273ea55b01ea47df244094c12297ce6b29b36e845d349f1f7c268b8d7c5abd126a102c5678a1e1afd0d36bba35ea0cc959e364928ce60561c9306064a
+  checksum: ec609aeaf7e68b76592a3ba96b372aa7f5df5b056c1e37410b0f1deefbab5a57a922061e2c5b369bae9c7c6b5e6eecf4ad2dac8833a1a7d3a751e0a7c7f849ed
   languageName: node
   linkType: hard
 
@@ -16988,6 +16999,28 @@ __metadata:
   bin:
     typechain: ./dist/cli/cli.js
   checksum: a38aff5e89c41e20e2c3a1f7b5f04666dbc94b5592eba70ba7d1e0aeb49089d22ed3d35e55a0b0d1f0bfdcea9818157fa4ee3854ef818f46f6aa899520fe7c25
+  languageName: node
+  linkType: hard
+
+"typechain@npm:^8.1.1":
+  version: 8.1.1
+  resolution: "typechain@npm:8.1.1"
+  dependencies:
+    "@types/prettier": ^2.1.1
+    debug: ^4.3.1
+    fs-extra: ^7.0.0
+    glob: 7.1.7
+    js-sha3: ^0.8.0
+    lodash: ^4.17.15
+    mkdirp: ^1.0.4
+    prettier: ^2.3.1
+    ts-command-line-args: ^2.2.0
+    ts-essentials: ^7.0.1
+  peerDependencies:
+    typescript: ">=4.3.0"
+  bin:
+    typechain: dist/cli/cli.js
+  checksum: 77984239d9728befe5a484c4e1b55c8f194696fc8a78c44754f8e25ca8fd6d0208ddfcd9e71c90c1c35ac0689f5c3053107b54fdc2aab691c980614f6daf209b
   languageName: node
   linkType: hard
 

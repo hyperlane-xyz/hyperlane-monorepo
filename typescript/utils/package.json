@@ -2,9 +2,6 @@
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities for the Hyperlane network",
   "version": "1.0.0-beta1",
-  "dependencies": {
-    "ethers": "^5.6.8"
-  },
   "devDependencies": {
     "chai": "^4.3.0",
     "prettier": "^2.4.1",
@@ -29,5 +26,8 @@
   "types": "dist/index.d.ts",
   "files": [
     "/dist"
-  ]
+  ],
+  "dependencies": {
+    "ethers": "^5.7.2"
+  }
 }
