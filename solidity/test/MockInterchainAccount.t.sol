@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
+import "../contracts/OwnableMulticall.sol";
 
 import "../contracts/mock/MockInterchainAccountRouter.sol";
 

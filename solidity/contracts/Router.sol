@@ -182,6 +182,7 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
      */
     function _dispatch(uint32 _destinationDomain, bytes memory _messageBody)
         internal
+        virtual
         returns (bytes32)
     {
         // Ensure that destination chain has an enrolled router.
