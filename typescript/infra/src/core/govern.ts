@@ -4,12 +4,15 @@ import {
   ChainMap,
   ChainName,
   ChainNameToDomainId,
+  ConnectionManagerViolation,
+  ConnectionManagerViolationType,
   CoreViolationType,
+  EnrolledInboxesViolation,
   EnrolledValidatorsViolation,
   HyperlaneCoreChecker,
-  MultisigIsmViolation,
-  MultisigIsmViolationType,
   OwnerViolation,
+  ValidatorManagerViolation,
+  ValidatorManagerViolationType,
   ViolationType,
   objMap,
 } from '@hyperlane-xyz/sdk';
@@ -38,21 +41,26 @@ type AnnotatedCallData = types.CallData & {
 export class HyperlaneCoreGovernor<Chain extends ChainName> {
   readonly checker: HyperlaneCoreChecker<Chain>;
   private calls: ChainMap<Chain, AnnotatedCallData[]>;
+  private canPropose: ChainMap<Chain, Map<string, boolean>>;
 
   constructor(checker: HyperlaneCoreChecker<Chain>) {
     this.checker = checker;
     this.calls = objMap(this.checker.app.contractsMap, () => []);
+    this.canPropose = objMap(this.checker.app.contractsMap, () => new Map());
   }
 
   async govern() {
     // 1. Produce calls from checker violations.
+    console.log('Mapping violations to calls');
     await this.mapViolationsToCalls();
 
     // 2. For each call, infer how it should be submitted on-chain.
+    console.log('Inferring submission type');
     await this.inferCallSubmissionTypes();
 
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
+    console.log('Sending calls');
     for (const chain of Object.keys(this.calls) as Chain[]) {
       await this.sendCalls(chain);
     }
@@ -124,12 +132,20 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
   protected async mapViolationsToCalls() {
     for (const violation of this.checker.violations) {
       switch (violation.type) {
-        case CoreViolationType.MultisigIsm: {
-          this.handleMultisigIsmViolation(violation as MultisigIsmViolation);
+        case CoreViolationType.ValidatorManager: {
+          this.handleValidatorManagerViolation(
+            violation as ValidatorManagerViolation,
+          );
           break;
         }
         case ViolationType.Owner: {
           this.handleOwnerViolation(violation as OwnerViolation);
+          break;
+        }
+        case CoreViolationType.ConnectionManager: {
+          this.handleHyperlaneConnectionManagerViolation(
+            violation as ConnectionManagerViolation,
+          );
           break;
         }
         default:
@@ -140,6 +156,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
 
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls) as Chain[]) {
+      console.log('Inferring submission type for', chain);
       for (const call of this.calls[chain]) {
         const submissionType = await this.inferCallSubmissionType(chain, call);
         call.submissionType = submissionType;
@@ -167,15 +184,22 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     const signer = connection.signer;
     if (!signer) throw new Error(`no signer found`);
     const signerAddress = await signer.getAddress();
-    const proposer = await canProposeSafeTransactions(
-      signerAddress,
-      chain,
-      connection,
-      safeAddress,
-    );
+    console.log('Checking if can propose via safe for', chain, signerAddress);
+    if (!this.canPropose[chain].has(safeAddress)) {
+      console.log('cache miss');
+      this.canPropose[chain].set(
+        safeAddress,
+        await canProposeSafeTransactions(
+          signerAddress,
+          chain,
+          connection,
+          safeAddress,
+        ),
+      );
+    }
 
     // 2b. Check if calling from the owner will succeed.
-    if (proposer) {
+    if (this.canPropose[chain].get(safeAddress)) {
       try {
         await connection.provider.estimateGas({
           ...call,
@@ -211,38 +235,73 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
       );
   }
 
-  handleMultisigIsmViolation(violation: MultisigIsmViolation) {
-    const multisigIsm = violation.contract;
-    const remoteDomainId = ChainNameToDomainId[violation.remote];
-    switch (violation.subType) {
-      case MultisigIsmViolationType.EnrolledValidators: {
+  handleHyperlaneConnectionManagerViolation(
+    violation: ConnectionManagerViolation,
+  ) {
+    const connectionManager = violation.contract;
+    switch (violation.connectionManagerType) {
+      case ConnectionManagerViolationType.EnrolledInboxes: {
+        const typedViolation = violation as EnrolledInboxesViolation;
+        const remoteId = ChainNameToDomainId[typedViolation.remote];
+        const baseDescription = `as ${typedViolation.remote} Inbox on ${typedViolation.chain}`;
+        this.pushSetReconcilationCalls({
+          ...typedViolation,
+          add: (inbox) => ({
+            to: connectionManager.address,
+            data: connectionManager.interface.encodeFunctionData(
+              'enrollInbox',
+              [remoteId, inbox],
+            ),
+            description: `Enroll ${inbox} ${baseDescription}`,
+          }),
+          remove: (inbox) => ({
+            to: connectionManager.address,
+            data: connectionManager.interface.encodeFunctionData(
+              'unenrollInbox',
+              [inbox],
+            ),
+            description: `Unenroll ${inbox} ${baseDescription}`,
+          }),
+        });
+        break;
+      }
+      default:
+        throw new Error(
+          `Unsupported connection manager violation type ${violation.connectionManagerType}`,
+        );
+    }
+  }
+
+  handleValidatorManagerViolation(violation: ValidatorManagerViolation) {
+    const validatorManager = violation.contract;
+    switch (violation.validatorManagerType) {
+      case ValidatorManagerViolationType.EnrolledValidators: {
         const baseDescription = `as ${violation.remote} validator on ${violation.chain}`;
         this.pushSetReconcilationCalls({
           ...(violation as EnrolledValidatorsViolation),
           add: (validator) => ({
-            to: multisigIsm.address,
-            data: multisigIsm.interface.encodeFunctionData('enrollValidator', [
-              remoteDomainId,
-              validator,
-            ]),
+            to: validatorManager.address,
+            data: validatorManager.interface.encodeFunctionData(
+              'enrollValidator',
+              [validator],
+            ),
             description: `Enroll ${validator} ${baseDescription}`,
           }),
           remove: (validator) => ({
-            to: multisigIsm.address,
-            data: multisigIsm.interface.encodeFunctionData(
+            to: validatorManager.address,
+            data: validatorManager.interface.encodeFunctionData(
               'unenrollValidator',
-              [remoteDomainId, validator],
+              [validator],
             ),
             description: `Unenroll ${validator} ${baseDescription}`,
           }),
         });
         break;
       }
-      case MultisigIsmViolationType.Threshold: {
+      case ValidatorManagerViolationType.Threshold: {
         this.pushCall(violation.chain as Chain, {
-          to: multisigIsm.address,
-          data: multisigIsm.interface.encodeFunctionData('setThreshold', [
-            remoteDomainId,
+          to: validatorManager.address,
+          data: validatorManager.interface.encodeFunctionData('setThreshold', [
             violation.expected,
           ]),
           description: `Set threshold to ${violation.expected} for ${violation.remote} on ${violation.chain}`,
@@ -251,7 +310,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
       }
       default:
         throw new Error(
-          `Unsupported multisig module violation subtype ${violation.subType}`,
+          `Unsupported validator manager violation type ${violation.validatorManagerType}`,
         );
     }
   }

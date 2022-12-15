@@ -2,7 +2,7 @@ import { LedgerSigner } from '@ethersproject/hardware-wallets';
 // Due to TS funkiness, the following needs to be imported in order for this
 // code to build, but needs to be removed in order for the code to run.
 import '@ethersproject/hardware-wallets/thirdparty';
-import { SafeDelegateConfig } from '@gnosis.pm/safe-service-client';
+import { SafeDelegateConfig } from '@safe-global/safe-service-client';
 import yargs from 'yargs';
 
 import { AllChains } from '@hyperlane-xyz/sdk';
@@ -38,6 +38,7 @@ async function delegate() {
   const safeService = getSafeService(chain, connection);
   const delegates = await getSafeDelegates(safeService, safe);
 
+  console.log('Connecting to ledger, ensure plugged in and unlocked...');
   // Ledger Live derivation path, vary by changing the index i.e.
   // "m/44'/60'/{CHANGE_ME}'/0/0";
   const path = "m/44'/60'/0'/0/0";
