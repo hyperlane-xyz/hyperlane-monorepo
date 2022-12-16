@@ -143,7 +143,9 @@ impl Decode for SignedCheckpoint {
 impl SignedCheckpoint {
     /// Recover the Ethereum address of the signer
     pub fn recover(&self) -> Result<Address, HyperlaneProtocolError> {
-        Ok(self.signature.recover(self.checkpoint.eth_signed_message_hash())?)
+        Ok(self
+            .signature
+            .recover(self.checkpoint.eth_signed_message_hash())?)
     }
 
     /// Check whether a message was signed by a specific address
