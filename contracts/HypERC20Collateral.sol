@@ -6,7 +6,7 @@ import {TokenRouter} from "./libs/TokenRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
- * @title Collateralize ERC20 token and route messages to HypERC20 tokens.
+ * @title Hyperlane ERC20 Token Collateral that wraps an existing ERC20 with remote transfer functionality.
  * @author Abacus Works
  */
 contract HypERC20Collateral is TokenRouter {
@@ -16,6 +16,12 @@ contract HypERC20Collateral is TokenRouter {
         wrappedToken = IERC20(erc20);
     }
 
+    /**
+     * @notice Initializes the Hyperlane router.
+     * @param _mailbox The address of the mailbox contract.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
+     * @param _interchainSecurityModule The address of the interchain security module contract.
+     */
     function initialize(
         address _mailbox,
         address _interchainGasPaymaster,
@@ -28,14 +34,31 @@ contract HypERC20Collateral is TokenRouter {
         );
     }
 
-    function _transferFromSender(uint256 _amount) internal override {
-        require(wrappedToken.transferFrom(msg.sender, address(this), _amount));
-    }
-
-    function _transferTo(address _recipient, uint256 _amount)
+    /**
+     * @dev Transfers `_amount` of `wrappedToken` from `msg.sender` to this contract.
+     * @inheritdoc TokenRouter
+     */
+    function _transferFromSender(uint256 _amount)
         internal
         override
+        returns (bytes memory)
     {
-        require(wrappedToken.transfer(_recipient, _amount));
+        require(
+            wrappedToken.transferFrom(msg.sender, address(this), _amount),
+            "!transferFrom"
+        );
+        return bytes(""); // no metadata
+    }
+
+    /**
+     * @dev Transfers `_amount` of `wrappedToken` from this contract to `_recipient`.
+     * @inheritdoc TokenRouter
+     */
+    function _transferTo(
+        address _recipient,
+        uint256 _amount,
+        bytes calldata // no metadata
+    ) internal override {
+        require(wrappedToken.transfer(_recipient, _amount), "!transfer");
     }
 }

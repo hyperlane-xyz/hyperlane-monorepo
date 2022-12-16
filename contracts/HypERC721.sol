@@ -6,7 +6,7 @@ import {TokenRouter} from "./libs/TokenRouter.sol";
 import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 
 /**
- * @title Hyperlane Token that extends the ERC721 token standard to enable native interchain transfers.
+ * @title Hyperlane ERC721 Token Router that extends ERC721 with remote transfer functionality.
  * @author Abacus Works
  */
 contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
@@ -40,17 +40,30 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
         }
     }
 
-    // called in `TokenRouter.transferRemote` before `Mailbox.dispatch`
-    function _transferFromSender(uint256 _tokenId) internal override {
+    /**
+     * @dev Asserts `msg.sender` is owner and burns `_tokenId`.
+     * @inheritdoc TokenRouter
+     */
+    function _transferFromSender(uint256 _tokenId)
+        internal
+        virtual
+        override
+        returns (bytes memory)
+    {
         require(ownerOf(_tokenId) == msg.sender, "!owner");
         _burn(_tokenId);
+        return bytes(""); // no metadata
     }
 
-    // called by `TokenRouter.handle`
-    function _transferTo(address _recipient, uint256 _tokenId)
-        internal
-        override
-    {
+    /**
+     * @dev Mints `_tokenId` to `_recipient`.
+     * @inheritdoc TokenRouter
+     */
+    function _transferTo(
+        address _recipient,
+        uint256 _tokenId,
+        bytes calldata // no metadata
+    ) internal virtual override {
         _mint(_recipient, _tokenId);
     }
 }

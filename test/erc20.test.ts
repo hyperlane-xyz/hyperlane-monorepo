@@ -18,6 +18,7 @@ import {
   HypERC20CollateralConfig,
   HypERC20Config,
   SyntheticConfig,
+  TokenType,
 } from '../src/config';
 import { HypERC20Contracts } from '../src/contracts';
 import { HypERC20Deployer } from '../src/deploy';
@@ -38,7 +39,7 @@ const amount = 10;
 const testInterchainGasPayment = 123456789;
 
 const tokenConfig: SyntheticConfig = {
-  type: 'SYNTHETIC',
+  type: TokenType.synthetic,
   name: 'HypERC20',
   symbol: 'HYP',
   totalSupply,
@@ -80,7 +81,7 @@ for (const withCollateral of [true, false]) {
         );
         configWithTokenInfo.test1 = {
           ...configWithTokenInfo.test1,
-          type: 'COLLATERAL',
+          type: TokenType.collateral,
           token: erc20.address,
         };
       }
@@ -123,18 +124,16 @@ for (const withCollateral of [true, false]) {
       await expectBalance(remote, owner, totalSupply);
     });
 
-    it('should allow for local transfers', async () => {
-      // do not test underlying ERC20 collateral functionality
-      if (withCollateral) {
-        return;
-      }
-
-      await (local as HypERC20).transfer(recipient.address, amount);
-      await expectBalance(local, recipient, amount);
-      await expectBalance(local, owner, totalSupply - amount);
-      await expectBalance(remote, recipient, 0);
-      await expectBalance(remote, owner, totalSupply);
-    });
+    // do not test underlying ERC20 collateral functionality
+    if (!withCollateral) {
+      it('should allow for local transfers', async () => {
+        await (local as HypERC20).transfer(recipient.address, amount);
+        await expectBalance(local, recipient, amount);
+        await expectBalance(local, owner, totalSupply - amount);
+        await expectBalance(remote, recipient, 0);
+        await expectBalance(remote, owner, totalSupply);
+      });
+    }
 
     it('should allow for remote transfers', async () => {
       await local.transferRemote(

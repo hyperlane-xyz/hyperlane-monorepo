@@ -11,12 +11,13 @@ import {
   HypERC721Config,
   isCollateralConfig,
   HypERC721CollateralConfig,
+  isUriConfig,
 } from './config';
 import {
   HypERC20Contracts,
   HypERC721Contracts,
 } from './contracts';
-import { HypERC20Collateral__factory, HypERC20__factory, HypERC721Collateral__factory, HypERC721__factory } from './types';
+import { HypERC20Collateral__factory, HypERC20__factory, HypERC721Collateral__factory, HypERC721URICollateral__factory, HypERC721URIStorage__factory, HypERC721__factory } from './types';
 
 export class HypERC20Deployer<
   Chain extends ChainName // inferred from configured chains passed to constructor
@@ -85,8 +86,8 @@ export class HypERC721Deployer<
     if (isCollateralConfig(config)) {
       const router = await this.deployContractFromFactory(
         chain,
-        new HypERC721Collateral__factory(),
-        'HypERC721Collateral',
+        isUriConfig(config) ? new HypERC721URICollateral__factory() : new HypERC721Collateral__factory(),
+        `HypERC721${isUriConfig(config) ? 'URI' : ''}Collateral`,
         [config.token],
       );
       await connection.handleTx(
@@ -100,8 +101,8 @@ export class HypERC721Deployer<
     } else {
       const router = await this.deployContractFromFactory(
         chain,
-        new HypERC721__factory(),
-        'HypERC721',
+        isUriConfig(config) ? new HypERC721URIStorage__factory() : new HypERC721__factory(),
+        `HypERC721${isUriConfig(config) ? 'URIStorage' : ''}`,
         [],
       );
       await connection.handleTx(router.initialize(

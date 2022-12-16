@@ -13,4 +13,8 @@ contract ERC721Test is ERC721 {
             _mint(msg.sender, i);
         }
     }
+
+    function _baseURI() internal pure override returns (string memory) {
+        return "TEST-BASE-URI";
+    }
 }
