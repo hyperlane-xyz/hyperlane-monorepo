@@ -51,10 +51,9 @@ abstract contract TokenRouter is Router {
         uint256 _amountOrId
     ) external payable {
         bytes memory metadata = _transferFromSender(_amountOrId);
-        _dispatchWithGas(
+        _dispatch(
             _destination,
-            Message.format(_recipient, _amountOrId, metadata),
-            msg.value
+            Message.format(_recipient, _amountOrId, metadata)
         );
         emit SentTransferRemote(_destination, _recipient, _amountOrId);
     }

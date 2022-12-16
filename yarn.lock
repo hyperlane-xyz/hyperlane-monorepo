@@ -1201,14 +1201,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/core@npm:0.5.4-3":
-  version: 0.5.4-3
-  resolution: "@hyperlane-xyz/core@npm:0.5.4-3"
+"@hyperlane-xyz/core@npm:1.0.0-beta1":
+  version: 1.0.0-beta1
+  resolution: "@hyperlane-xyz/core@npm:1.0.0-beta1"
   dependencies:
-    "@hyperlane-xyz/utils": 0.5.4-3
-    "@openzeppelin/contracts": ^4.6.0
-    "@openzeppelin/contracts-upgradeable": ^4.6.0
-  checksum: d1e7f0bc7bb749b4731f8d8e33652dfef854ca98084ef89cd224ba1b9428380169b7db97ae079d0575fc11e4261e70da5bbca95c444af3d0c5631d90924f3b87
+    "@hyperlane-xyz/utils": 1.0.0-beta1
+    "@openzeppelin/contracts": ^4.8.0
+    "@openzeppelin/contracts-upgradeable": ^4.8.0
+  checksum: c5c30dddd7a1856d7883ae33e1d70ce93ecb2c3866b31d1838d92e88bef2a4f6f831e8b45085094745ced895a9d1eb6d8d8281e4aaa93d59f43ab98d7a852e9b
   languageName: node
   linkType: hard
 
@@ -1216,9 +1216,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/hyperlane-token@workspace:."
   dependencies:
-    "@hyperlane-xyz/core": 0.5.4-3
-    "@hyperlane-xyz/sdk": 0.5.4-3
-    "@hyperlane-xyz/utils": 0.5.4-3
+    "@hyperlane-xyz/core": 1.0.0-beta1
+    "@hyperlane-xyz/sdk": 1.0.0-beta1
+    "@hyperlane-xyz/utils": 1.0.0-beta1
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts-upgradeable": ^4.6.0
@@ -1246,28 +1246,28 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@npm:0.5.4-3":
-  version: 0.5.4-3
-  resolution: "@hyperlane-xyz/sdk@npm:0.5.4-3"
+"@hyperlane-xyz/sdk@npm:1.0.0-beta1":
+  version: 1.0.0-beta1
+  resolution: "@hyperlane-xyz/sdk@npm:1.0.0-beta1"
   dependencies:
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
-    "@hyperlane-xyz/core": 0.5.4-3
-    "@hyperlane-xyz/utils": 0.5.4-3
+    "@hyperlane-xyz/core": 1.0.0-beta1
+    "@hyperlane-xyz/utils": 1.0.0-beta1
     "@types/debug": ^4.1.7
     coingecko-api: ^1.0.10
     cross-fetch: ^3.1.5
     debug: ^4.3.4
     ethers: ^5.6.8
-  checksum: ec6447de817a325f3335926bf81ea44af3f894af66779b3dc99d4050bfc5fcfcb079c4b93b60059ac0277b0e2cf1bd4dfbc44db6d18ceb5a25fd5b86d0f4bf24
+  checksum: 7461ad3bae090dcb8f04c1e475cab08a8a48b5f2c53f81d6f3435a7b8716f1f510d84f209d0b0be907fbafcea5208a9481b7e62ee03d522d268ce886b39c243d
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/utils@npm:0.5.4-3":
-  version: 0.5.4-3
-  resolution: "@hyperlane-xyz/utils@npm:0.5.4-3"
+"@hyperlane-xyz/utils@npm:1.0.0-beta1":
+  version: 1.0.0-beta1
+  resolution: "@hyperlane-xyz/utils@npm:1.0.0-beta1"
   dependencies:
     ethers: ^5.6.8
-  checksum: 146fdaf9753700c80127072d6fdc0c93a7b90a14a6cd3d9b3f90159bfd20723068c80930c848e2a26bfac72f0c1218bea219d359158a0bc1b85c018a48414b3b
+  checksum: fc7fa9f413913e8a0e6495d8a76c3dcff8b94dd6e1c016fb89498e5f09fd4103fedc7b8a3d6e0956c5e1958cd92e4208482dc1c5557440b2bc735664fa1f28b6
   languageName: node
   linkType: hard
 
@@ -1439,10 +1439,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts@npm:^4.6.0":
-  version: 4.7.3
-  resolution: "@openzeppelin/contracts@npm:4.7.3"
-  checksum: 18382fcacf7cfd652f5dd0e70c08f08ea74eaa8ff11e9f9850639ada70198ae01a3f9493d89a52d724f2db394e9616bf6258017804612ba273167cf657fbb073
+"@openzeppelin/contracts-upgradeable@npm:^4.8.0":
+  version: 4.8.0
+  resolution: "@openzeppelin/contracts-upgradeable@npm:4.8.0"
+  checksum: c39f3a719830c068d0ae413a8beee4072fa19f777b55bf6155fe21023414eab0633a641318845ac50929837b71848de1efbd00d4c181ddd6d8b735ceb0a82070
+  languageName: node
+  linkType: hard
+
+"@openzeppelin/contracts@npm:^4.8.0":
+  version: 4.8.0
+  resolution: "@openzeppelin/contracts@npm:4.8.0"
+  checksum: dfab51a7f91735cfb1e94dd5074736b0dac0207e4ebf26eb46b32defd3b67adce5a36b248daa7b841c21be74863c1e37cf92ed194a9c36d3f8c5326d1a24242a
   languageName: node
   linkType: hard
 

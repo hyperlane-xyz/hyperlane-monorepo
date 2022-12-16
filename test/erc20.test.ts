@@ -155,7 +155,7 @@ for (const withCollateral of [true, false]) {
       await expectBalance(remote, owner, totalSupply);
     });
 
-    it('allows interchain gas payment for remote transfers', async () => {
+    it.skip('allows interchain gas payment for remote transfers', async () => {
       const interchainGasPaymaster =
         core.contractsMap[localChain].interchainGasPaymaster.contract;
       await expect(
