@@ -479,7 +479,7 @@ export const polygon: ChainMetadata = {
 };
 
 export const test1: ChainMetadata = {
-  id: 31337,
+  id: 13371,
   name: Chains.test1,
   displayName: 'Test 1',
   nativeToken: etherToken,
@@ -492,7 +492,7 @@ export const test1: ChainMetadata = {
 };
 
 export const test2: ChainMetadata = {
-  id: 31337,
+  id: 13372,
   name: Chains.test2,
   displayName: 'Test 2',
   nativeToken: etherToken,
@@ -505,7 +505,7 @@ export const test2: ChainMetadata = {
 };
 
 export const test3: ChainMetadata = {
-  id: 31337,
+  id: 13373,
   name: Chains.test3,
   displayName: 'Test 3',
   nativeToken: etherToken,
