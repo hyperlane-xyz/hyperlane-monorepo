@@ -1,6 +1,8 @@
+import type { Chain as WagmiChain } from '@wagmi/chains';
+
 import { objMap } from '../utils/objects';
 
-import { ChainName, Chains } from './chains';
+import { ChainName, Chains, Mainnets, Testnets } from './chains';
 
 enum ExplorerFamily {
   Etherscan = 'etherscan',
@@ -557,7 +559,7 @@ export const chainMetadata = {
 } as Record<ChainName, ChainMetadata>;
 
 export const partialChainMetadata: Record<ChainName, PartialChainMetadata> =
-  objMap(chainMetadata, (chain, metadata) => ({
+  objMap(chainMetadata, (_, metadata) => ({
     id: metadata.id,
     finalityBlocks: metadata.blocks.finalityConfirmations,
     nativeTokenDecimals: metadata.nativeCurrency.decimals,
@@ -565,3 +567,36 @@ export const partialChainMetadata: Record<ChainName, PartialChainMetadata> =
     gasCurrencyCoinGeckoId: metadata.gasCurrencyCoinGeckoId,
     gnosisSafeTransactionServiceUrl: metadata.gnosisSafeTransactionServiceUrl,
   }));
+
+// For convenient use in wagmi-based apps
+export const wagmiChainMetadata: Record<ChainName, WagmiChain> = objMap(
+  chainMetadata,
+  (_, metadata) => ({
+    id: metadata.id,
+    name: metadata.displayName,
+    network: metadata.name as string,
+    nativeCurrency: metadata.nativeCurrency,
+    rpcUrls: { default: { http: [metadata.publicRpcUrls[0].http] } },
+    blockExplorers: {
+      default: {
+        name: metadata.blockExplorers[0].name,
+        url: metadata.blockExplorers[0].url,
+      },
+    },
+    testnet: Testnets.includes(metadata.name),
+  }),
+);
+
+export const chainIdToMetadata = Object.values(chainMetadata).reduce<
+  Record<number, ChainMetadata>
+>((result, chain) => {
+  result[chain.id] = chain;
+  return result;
+}, {});
+
+export const mainnetChainsMetadata: Array<ChainMetadata> = Mainnets.map(
+  (chainName) => chainMetadata[chainName],
+);
+export const testnetChainsMetadata: Array<ChainMetadata> = Testnets.map(
+  (chainName) => chainMetadata[chainName],
+);
