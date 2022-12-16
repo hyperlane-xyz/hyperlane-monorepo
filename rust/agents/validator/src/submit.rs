@@ -141,14 +141,14 @@ pub(crate) struct ValidatorSubmitterMetrics {
 
 impl ValidatorSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, mailbox_chain: &HyperlaneDomain) -> Self {
-        let chain_name = mailbox_chain.to_string();
+        let chain_name = mailbox_chain.name();
         Self {
             latest_checkpoint_observed: metrics
                 .latest_checkpoint()
-                .with_label_values(&["validator_observed", &chain_name]),
+                .with_label_values(&["validator_observed", chain_name]),
             latest_checkpoint_processed: metrics
                 .latest_checkpoint()
-                .with_label_values(&["validator_processed", &chain_name]),
+                .with_label_values(&["validator_processed", chain_name]),
         }
     }
 }

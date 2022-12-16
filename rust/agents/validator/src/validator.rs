@@ -49,7 +49,9 @@ impl BaseAgent for Validator {
         let core = settings
             .try_into_hyperlane_core(metrics, Some(vec![&settings.originchainname]))
             .await?;
-        let origin_chain = settings.originchainname.parse()?;
+
+        // TODO: this should support unknown chains as well; use HyperlaneDomain::from_cfg()
+        let origin_chain = HyperlaneDomain::Known(settings.originchainname.parse()?);
 
         Ok(Self {
             origin_chain,

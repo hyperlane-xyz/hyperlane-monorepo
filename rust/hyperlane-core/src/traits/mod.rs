@@ -41,8 +41,8 @@ impl From<ethers::prelude::TransactionReceipt> for TxOutcome {
 /// connected to it.
 #[auto_impl::auto_impl(Box, Arc)]
 pub trait HyperlaneChain {
-    /// Return the domain ID
-    fn domain(&self) -> HyperlaneDomain;
+    /// Return the domain
+    fn domain(&self) -> &HyperlaneDomain;
 }
 
 /// Interface for a deployed contract.
@@ -76,7 +76,7 @@ pub trait HyperlaneAbi {
 impl fmt::Debug for dyn HyperlaneChain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let domain = self.domain();
-        write!(f, "HyperlaneChain({} ({}))", domain, domain as u32)
+        write!(f, "HyperlaneChain({} ({}))", domain, domain.id())
     }
 }
 
@@ -88,7 +88,7 @@ impl fmt::Debug for dyn HyperlaneContract {
             "HyperlaneContract({:?} @ {} ({}))",
             self.address(),
             domain,
-            domain as u32,
+            domain.id(),
         )
     }
 }

@@ -61,7 +61,7 @@ impl CachingInterchainGasPaymaster {
         let span = info_span!("InterchainGasPaymasterContractSync", self = %self);
 
         let sync = ContractSync::new(
-            self.paymaster.domain(),
+            self.paymaster.domain().clone(),
             self.db.clone(),
             self.indexer.clone(),
             index_settings,

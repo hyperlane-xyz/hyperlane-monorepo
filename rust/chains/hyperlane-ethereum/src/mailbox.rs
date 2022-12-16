@@ -181,7 +181,7 @@ where
                 &locator.address,
                 provider.clone(),
             )),
-            domain: locator.domain,
+            domain: locator.domain.clone(),
             provider,
         }
     }
@@ -212,8 +212,8 @@ impl<M> HyperlaneChain for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
-    fn domain(&self) -> HyperlaneDomain {
-        self.domain
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
     }
 }
 
@@ -259,7 +259,7 @@ where
         let (root, index) = call_with_lag.call().await?;
         Ok(Checkpoint {
             mailbox_address: self.address(),
-            mailbox_domain: self.domain as u32,
+            mailbox_domain: self.domain.id(),
             root: root.into(),
             index,
         })

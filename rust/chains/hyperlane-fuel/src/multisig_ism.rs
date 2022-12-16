@@ -16,7 +16,7 @@ impl HyperlaneContract for FuelMultisigIsm {
 }
 
 impl HyperlaneChain for FuelMultisigIsm {
-    fn domain(&self) -> HyperlaneDomain {
+    fn domain(&self) -> &HyperlaneDomain {
         todo!()
     }
 }

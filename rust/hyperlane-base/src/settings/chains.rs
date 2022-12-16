@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use ethers::signers::Signer;
 use ethers::types::Selector;
-use eyre::{eyre, Result};
 use eyre::{ensure, Context};
+use eyre::{eyre, Result};
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
@@ -179,7 +179,7 @@ impl ChainSetup {
 
             ChainConf::Fuel(conf) => {
                 hyperlane_fuel::FuelMailbox::new(conf).map(|m| Box::new(m) as Box<dyn Mailbox>)
-            },
+            }
         }
         .context("Building mailbox")
     }
@@ -380,14 +380,12 @@ impl ChainSetup {
     }
 
     fn domain(&self) -> Result<HyperlaneDomain> {
-        let d1: HyperlaneDomain = self
-            .domain
-            .parse::<u32>()
-            .context("domain is an invalid uint")?
-            .try_into()
-            .context("unknown domain id")?;
-        let d2: HyperlaneDomain = self.name.parse().context("unknown domain name")?;
-        ensure!(d1 == d2, "The domain id does not match the chain name!");
-        Ok(d1)
+        HyperlaneDomain::from_config(
+            self.domain
+                .parse::<u32>()
+                .context("domain is an invalid uint")?,
+            &self.name,
+        )
+        .map_err(|e| eyre!("{e}"))
     }
 }

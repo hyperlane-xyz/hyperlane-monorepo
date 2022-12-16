@@ -119,7 +119,7 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(EthereumMultisigIsmInternal::new(&locator.address, provider)),
-            domain: locator.domain,
+            domain: locator.domain.clone(),
             threshold_cache: RwLock::new(ExpiringCache::new(Duration::from_secs(60))),
             validators_cache: RwLock::new(ExpiringCache::new(Duration::from_secs(60))),
         }
@@ -130,8 +130,8 @@ impl<M> HyperlaneChain for EthereumMultisigIsm<M>
 where
     M: Middleware + 'static,
 {
-    fn domain(&self) -> HyperlaneDomain {
-        self.domain
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
     }
 }
 

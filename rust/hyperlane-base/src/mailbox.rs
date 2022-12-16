@@ -65,7 +65,7 @@ impl CachingMailbox {
         let span = info_span!("MailboxContractSync", self = %self);
 
         let sync = ContractSync::new(
-            self.mailbox.domain(),
+            self.mailbox.domain().clone(),
             self.db.clone(),
             self.indexer.clone(),
             index_settings,
@@ -133,7 +133,7 @@ impl Mailbox for CachingMailbox {
 }
 
 impl HyperlaneChain for CachingMailbox {
-    fn domain(&self) -> HyperlaneDomain {
+    fn domain(&self) -> &HyperlaneDomain {
         self.mailbox.domain()
     }
 }

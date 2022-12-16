@@ -12,6 +12,8 @@ pub enum ConnectionConf {
     },
 }
 
+// struct FuelConnectionError(anyhow::Error);
+
 fn make_client(conf: &ConnectionConf) -> Result<FuelClient, ()> {
     match conf {
         ConnectionConf::Http { url } => FuelClient::new(url).map_err(|_| todo!()),

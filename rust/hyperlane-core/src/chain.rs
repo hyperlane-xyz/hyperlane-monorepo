@@ -1,5 +1,8 @@
 #![allow(missing_docs)]
 
+use std::fmt::{Debug, Display, Formatter};
+use std::hash::{Hash, Hasher};
+
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use strum::{EnumIter, EnumString, IntoStaticStr};
@@ -17,12 +20,14 @@ pub struct ContractLocator {
     pub domain: HyperlaneDomain,
     pub address: Address,
 }
-impl std::fmt::Display for ContractLocator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ContractLocator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}[@{}]+contract:0x{:x}",
-            self.domain, self.domain as u32, self.address.0
+            self.domain.name(),
+            self.domain.id(),
+            self.address.0
         )
     }
 }
@@ -59,18 +64,29 @@ impl From<fuels::tx::ContractId> for Address {
 
 impl From<Address> for fuels::tx::ContractId {
     fn from(addr: Address) -> Self {
-        addr.0.as_ref().try_into().expect("Failed to convert address")
+        addr.0
+            .as_ref()
+            .try_into()
+            .expect("Failed to convert address")
     }
 }
 
-
 /// All domains supported by Hyperlane.
 #[derive(
-    FromPrimitive, EnumString, IntoStaticStr, strum::Display, EnumIter, PartialEq, Eq, Debug, Clone, Copy, Hash,
+    FromPrimitive,
+    EnumString,
+    IntoStaticStr,
+    strum::Display,
+    EnumIter,
+    PartialEq,
+    Eq,
+    Debug,
+    Clone,
+    Copy,
+    Hash,
 )]
 #[strum(serialize_all = "lowercase", ascii_case_insensitive)]
-#[repr(u32)]
-pub enum HyperlaneDomain {
+pub enum KnownHyperlaneDomain {
     Ethereum = 1,
     Goerli = 5,
 
@@ -108,34 +124,22 @@ pub enum HyperlaneDomain {
     Test3 = 13373,
 }
 
-impl From<HyperlaneDomain> for u32 {
-    fn from(domain: HyperlaneDomain) -> Self {
-        domain as u32
-    }
-}
-
-impl TryFrom<u32> for HyperlaneDomain {
-    type Error = HyperlaneProtocolError;
-
-    fn try_from(domain_id: u32) -> Result<Self, Self::Error> {
-        FromPrimitive::from_u32(domain_id).ok_or(HyperlaneProtocolError::UnknownDomainId(domain_id))
-    }
-}
-
-impl PartialEq<u32> for HyperlaneDomain {
-    fn eq(&self, other: &u32) -> bool {
-        (*self as u32).eq(other)
-    }
-}
-
-impl PartialEq<HyperlaneDomain> for u32 {
-    fn eq(&self, other: &HyperlaneDomain) -> bool {
-        self.eq(&(*other as u32))
-    }
+#[derive(Clone)]
+pub enum HyperlaneDomain {
+    Known(KnownHyperlaneDomain),
+    Unknown {
+        domain_id: u32,
+        chain_name: String,
+        domain_type: HyperlaneDomainType,
+        domain_impl: HyperlaneDomainImpl,
+    },
 }
 
 /// Types of Hyperlane domains.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(
+    FromPrimitive, EnumString, IntoStaticStr, strum::Display, Copy, Clone, Eq, PartialEq, Debug,
+)]
+#[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 pub enum HyperlaneDomainType {
     /// A mainnet.
     Mainnet,
@@ -143,21 +147,32 @@ pub enum HyperlaneDomainType {
     Testnet,
     /// A local chain for testing (i.e. Hardhat node).
     LocalTestChain,
+    /// User provided chain of an unknown domain type.
+    Unknown,
 }
 
 /// A selector for which base library should handle this domain.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(
+    FromPrimitive, EnumString, IntoStaticStr, strum::Display, Copy, Clone, Eq, PartialEq, Debug,
+)]
+#[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 pub enum HyperlaneDomainImpl {
     /// An EVM-based chain type which uses hyperlane-ethereum.
     Ethereum,
     /// A Fuel-based chain type which uses hyperlane-fuel.
     Fuel,
+    /// Unspecified implementation, use whatever is configured.
+    Unknown,
 }
 
-impl HyperlaneDomain {
-    pub fn domain_type(&self) -> HyperlaneDomainType {
-        use HyperlaneDomain::*;
+impl KnownHyperlaneDomain {
+    pub fn as_str(self) -> &'static str {
+        self.into()
+    }
+
+    pub const fn domain_type(self) -> HyperlaneDomainType {
         use HyperlaneDomainType::*;
+        use KnownHyperlaneDomain::*;
 
         match self {
             Ethereum => Mainnet,
@@ -192,9 +207,9 @@ impl HyperlaneDomain {
         }
     }
 
-    pub fn domain_impl(&self) -> HyperlaneDomainImpl {
-        use HyperlaneDomain::*;
+    pub const fn domain_impl(self) -> HyperlaneDomainImpl {
         use HyperlaneDomainImpl::Ethereum as Evm;
+        use KnownHyperlaneDomain::*;
 
         match self {
             Ethereum => Evm,
@@ -230,15 +245,117 @@ impl HyperlaneDomain {
     }
 }
 
-impl From<HyperlaneDomain> for HyperlaneDomainType {
-    fn from(d: HyperlaneDomain) -> Self {
+impl PartialEq<Self> for HyperlaneDomain {
+    fn eq(&self, other: &Self) -> bool {
+        self.id() == other.id()
+    }
+}
+
+impl Eq for HyperlaneDomain {}
+
+impl Hash for HyperlaneDomain {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id().hash(state)
+    }
+}
+
+impl AsRef<str> for HyperlaneDomain {
+    fn as_ref(&self) -> &str {
+        self.name()
+    }
+}
+
+impl From<&HyperlaneDomain> for u32 {
+    fn from(domain: &HyperlaneDomain) -> Self {
+        domain.id()
+    }
+}
+
+impl TryFrom<u32> for KnownHyperlaneDomain {
+    type Error = HyperlaneProtocolError;
+
+    fn try_from(domain_id: u32) -> Result<Self, Self::Error> {
+        FromPrimitive::from_u32(domain_id).ok_or(HyperlaneProtocolError::UnknownDomainId(domain_id))
+    }
+}
+
+impl From<&HyperlaneDomain> for HyperlaneDomainType {
+    fn from(d: &HyperlaneDomain) -> Self {
         d.domain_type()
     }
 }
 
-impl From<HyperlaneDomain> for HyperlaneDomainImpl {
-    fn from(d: HyperlaneDomain) -> Self {
+impl From<&HyperlaneDomain> for HyperlaneDomainImpl {
+    fn from(d: &HyperlaneDomain) -> Self {
         d.domain_impl()
+    }
+}
+
+impl Display for HyperlaneDomain {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+impl Debug for HyperlaneDomain {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "HyperlaneDomain({} ({}))", self.name(), self.id())
+    }
+}
+
+impl HyperlaneDomain {
+    pub fn from_config(domain_id: u32, name: &str) -> Result<Self, &'static str> {
+        if let Ok(domain) = KnownHyperlaneDomain::try_from(domain_id) {
+            if name
+                .parse::<KnownHyperlaneDomain>()
+                .map(|d2| d2 == domain)
+                .unwrap_or(false)
+            {
+                Err("Chain name does not match known domain id")
+            } else {
+                Ok(HyperlaneDomain::Known(domain))
+            }
+        } else {
+            Ok(HyperlaneDomain::Unknown {
+                domain_id,
+                chain_name: name.to_owned(),
+                // we might want to support accepting these from the config later
+                domain_type: HyperlaneDomainType::Unknown,
+                domain_impl: HyperlaneDomainImpl::Unknown,
+            })
+        }
+    }
+
+    /// The chain name
+    pub fn name(&self) -> &str {
+        match self {
+            HyperlaneDomain::Known(domain) => domain.as_str(),
+            HyperlaneDomain::Unknown { chain_name, .. } => chain_name.as_str(),
+        }
+    }
+
+    /// The domain id
+    pub const fn id(&self) -> u32 {
+        match self {
+            HyperlaneDomain::Known(domain) => *domain as u32,
+            HyperlaneDomain::Unknown { domain_id, .. } => *domain_id,
+        }
+    }
+
+    /// Type of domain this is
+    pub const fn domain_type(&self) -> HyperlaneDomainType {
+        match self {
+            HyperlaneDomain::Known(domain) => domain.domain_type(),
+            HyperlaneDomain::Unknown { domain_type, .. } => *domain_type,
+        }
+    }
+
+    /// Backend implementation for this domain
+    pub const fn domain_impl(&self) -> HyperlaneDomainImpl {
+        match self {
+            HyperlaneDomain::Known(domain) => domain.domain_impl(),
+            HyperlaneDomain::Unknown { domain_impl, .. } => *domain_impl,
+        }
     }
 }
 
@@ -254,7 +371,7 @@ mod tests {
 
     use hyperlane_base::Settings;
 
-    use crate::HyperlaneDomain;
+    use crate::KnownHyperlaneDomain;
 
     /// Relative path to the `hyperlane-monorepo/rust/config/`
     /// directory, which is where the agent's config files
@@ -352,16 +469,14 @@ mod tests {
         // and in agreement with our on-disk json-based
         // configuration data.
         let chain_coords = chain_name_domain_records();
-        for ChainCoordinate { name, domain } in chain_coords.iter() {
+        for ChainCoordinate { name, domain } in chain_coords.into_iter() {
             assert_eq!(
-                HyperlaneDomain::try_from(domain.to_owned())
-                    .unwrap()
-                    .to_string(),
-                name.to_owned()
+                KnownHyperlaneDomain::try_from(domain).unwrap().to_string(),
+                name
             );
             assert_eq!(
-                u32::from(HyperlaneDomain::from_str(name).unwrap()),
-                domain.to_owned()
+                KnownHyperlaneDomain::from_str(&name).unwrap() as u32,
+                domain
             );
         }
     }
@@ -369,11 +484,11 @@ mod tests {
     #[test]
     fn domain_strings() {
         assert_eq!(
-            HyperlaneDomain::from_str("ethereum").unwrap(),
-            HyperlaneDomain::Ethereum,
+            KnownHyperlaneDomain::from_str("ethereum").unwrap(),
+            KnownHyperlaneDomain::Ethereum,
         );
         assert_eq!(
-            HyperlaneDomain::Ethereum.to_string(),
+            KnownHyperlaneDomain::Ethereum.to_string(),
             "ethereum".to_string(),
         );
     }
@@ -381,28 +496,40 @@ mod tests {
     #[test]
     fn domain_ids() {
         assert_eq!(
-            HyperlaneDomain::try_from(1).unwrap(),
-            HyperlaneDomain::Ethereum,
+            KnownHyperlaneDomain::try_from(1).unwrap(),
+            KnownHyperlaneDomain::Ethereum,
         );
 
-        assert_eq!(u32::from(HyperlaneDomain::Ethereum), 1);
+        assert_eq!(KnownHyperlaneDomain::Ethereum as u32, 1);
     }
 
     #[test]
     fn test_name_from_domain_id() {
         assert_eq!(
-            HyperlaneDomain::try_from(1).unwrap().to_string(),
+            KnownHyperlaneDomain::try_from(1).unwrap().to_string(),
             "ethereum"
         );
-        assert!(HyperlaneDomain::try_from(0xf00u32).is_err());
+        assert_eq!(
+            KnownHyperlaneDomain::try_from(1).unwrap().as_str(),
+            "ethereum"
+        );
+        assert!(KnownHyperlaneDomain::try_from(0xf00u32).is_err());
     }
 
     #[test]
     fn test_domain_id_from_name() {
         assert_eq!(
-            "ethereum".parse::<HyperlaneDomain>().map(|v| v as u32),
+            "ethereum".parse::<KnownHyperlaneDomain>().map(|v| v as u32),
             Ok(1)
         );
-        assert!("foo".parse::<HyperlaneDomain>().is_err());
+        assert_eq!(
+            "EthEreum".parse::<KnownHyperlaneDomain>().map(|v| v as u32),
+            Ok(1)
+        );
+        assert_eq!(
+            "Bsc".parse::<KnownHyperlaneDomain>().map(|v| v as u32),
+            Ok(56)
+        );
+        assert!("foo".parse::<KnownHyperlaneDomain>().is_err());
     }
 }

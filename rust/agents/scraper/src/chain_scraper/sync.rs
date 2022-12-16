@@ -9,7 +9,9 @@ use tracing::{debug, info, instrument, warn};
 
 use hyperlane_base::last_message::validate_message_continuity;
 use hyperlane_base::RateLimitedSyncBlockRangeCursor;
-use hyperlane_core::{HyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor, H256};
+use hyperlane_core::{
+    KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor, H256,
+};
 
 use crate::chain_scraper::{Delivery, HyperlaneMessageWithMeta, SqlChainScraper, TxnWithIdAndTime};
 
@@ -50,9 +52,10 @@ impl Syncer {
     /// **Note:** Run must be called for syncing to commence.
     #[instrument(skip_all)]
     pub async fn new(scraper: SqlChainScraper) -> Result<Self> {
-        let chain_name = scraper.domain().to_string();
-        let message_labels = ["messages", &chain_name];
-        let deliveries_labels = ["deliveries", &chain_name];
+        let domain = scraper.domain();
+        let chain_name = domain.name();
+        let message_labels = ["messages", chain_name];
+        let deliveries_labels = ["deliveries", chain_name];
 
         let indexed_message_height = scraper
             .metrics
@@ -256,11 +259,11 @@ impl Syncer {
 
             for m in sorted_messages.iter() {
                 let nonce = m.message.nonce;
-                let dst = HyperlaneDomain::try_from(m.message.destination)
-                    .map(|v| v.to_string())
-                    .unwrap_or_else(|_| "unknown".into());
+                let dst = KnownHyperlaneDomain::try_from(m.message.destination)
+                    .map(Into::into)
+                    .unwrap_or("unknown");
                 self.message_nonce
-                    .with_label_values(&["dispatch", &self.domain().to_string(), &dst])
+                    .with_label_values(&["dispatch", self.domain().name(), dst])
                     .set(nonce as i64);
             }
             Ok(Some(max_nonce_of_batch))

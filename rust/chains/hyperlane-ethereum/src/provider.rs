@@ -30,8 +30,8 @@ impl<M> HyperlaneChain for EthereumProvider<M>
 where
     M: Middleware + 'static,
 {
-    fn domain(&self) -> HyperlaneDomain {
-        self.domain
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
     }
 }
 
@@ -98,7 +98,7 @@ impl BuildableWithProvider for HyperlaneProviderBuilder {
     ) -> Self::Output {
         Box::new(EthereumProvider {
             provider: Arc::new(provider),
-            domain: locator.domain,
+            domain: locator.domain.clone(),
         })
     }
 }

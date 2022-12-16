@@ -17,7 +17,7 @@ impl HyperlaneContract for FuelInterchainGasPaymaster {
 }
 
 impl HyperlaneChain for FuelInterchainGasPaymaster {
-    fn domain(&self) -> HyperlaneDomain {
+    fn domain(&self) -> &HyperlaneDomain {
         todo!()
     }
 }

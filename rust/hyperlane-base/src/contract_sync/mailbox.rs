@@ -2,7 +2,7 @@ use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
 use hyperlane_core::{
-    HyperlaneDomain, Indexer, ListValidity, MailboxIndexer, SyncBlockRangeCursor,
+    Indexer, KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor,
 };
 
 use crate::contract_sync::last_message::validate_message_continuity;
@@ -148,9 +148,9 @@ where
 
                         // Report latest nonce to gauge by dst
                         for msg in sorted_messages.iter() {
-                            let dst = HyperlaneDomain::try_from(msg.destination).map(|d| d.to_string()).unwrap_or_else(|_| "unknown".to_owned());
+                            let dst = KnownHyperlaneDomain::try_from(msg.destination).map(|d| d.as_str()).unwrap_or("unknown");
                             message_nonce
-                                .with_label_values(&["dispatch", &chain_name, &dst])
+                                .with_label_values(&["dispatch", &chain_name, dst])
                                 .set(max_nonce_of_batch as i64);
                         }
 
@@ -236,7 +236,9 @@ mod test {
     use tokio::sync::Mutex;
     use tokio::time::{interval, sleep, timeout};
 
-    use hyperlane_core::{db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage, LogMeta, H256};
+    use hyperlane_core::{
+        db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, LogMeta, H256,
+    };
     use hyperlane_test::mocks::cursor::MockSyncBlockRangeCursor;
     use hyperlane_test::mocks::indexer::MockHyperlaneIndexer;
     use hyperlane_test::test_utils;
@@ -404,7 +406,7 @@ mod test {
             let sync_metrics = ContractSyncMetrics::new(metrics);
 
             let contract_sync = ContractSync::new(
-                HyperlaneDomain::Test1,
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Test1),
                 hyperlane_db.clone(),
                 indexer,
                 IndexSettings {

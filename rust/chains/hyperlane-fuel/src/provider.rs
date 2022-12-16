@@ -9,7 +9,7 @@ use hyperlane_core::{
 pub struct FuelProvider {}
 
 impl HyperlaneChain for FuelProvider {
-    fn domain(&self) -> HyperlaneDomain {
+    fn domain(&self) -> &HyperlaneDomain {
         todo!()
     }
 }

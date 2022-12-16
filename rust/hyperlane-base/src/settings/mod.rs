@@ -195,7 +195,7 @@ impl Settings {
             let mailbox = self
                 .build_caching_mailbox(chain_name, db.clone(), metrics)
                 .await?;
-            result.insert(mailbox.domain(), mailbox);
+            result.insert(mailbox.domain().clone(), mailbox);
         }
         Ok(result)
     }
@@ -212,7 +212,7 @@ impl Settings {
             let igp = self
                 .build_caching_interchain_gas_paymaster(chain_name, db.clone(), metrics)
                 .await?;
-            result.insert(igp.paymaster().domain(), igp);
+            result.insert(igp.paymaster().domain().clone(), igp);
         }
         Ok(result)
     }
@@ -226,7 +226,7 @@ impl Settings {
         let mut result = HashMap::new();
         for &chain_name in chain_names {
             let multisig_ism = self.build_multisig_ism(chain_name, metrics).await?;
-            result.insert(multisig_ism.domain(), multisig_ism.into());
+            result.insert(multisig_ism.domain().clone(), multisig_ism.into());
         }
         Ok(result)
     }

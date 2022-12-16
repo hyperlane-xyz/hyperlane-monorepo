@@ -16,7 +16,7 @@ use crate::{
 pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     /// Return the domain hash
     fn domain_hash(&self) -> H256 {
-        domain_hash(self.address(), self.domain())
+        domain_hash(self.address(), self.domain().id())
     }
 
     /// Gets the current leaf count of the merkle tree

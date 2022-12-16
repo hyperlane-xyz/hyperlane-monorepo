@@ -119,7 +119,7 @@ impl MessageProcessor {
         };
 
         // Skip if for different domain.
-        if message.destination != self.destination_mailbox.domain() {
+        if message.destination != self.destination_mailbox.domain().id() {
             debug!(
                 id=?message.id(),
                 destination=message.destination,
@@ -209,14 +209,14 @@ pub(crate) struct MessageProcessorMetrics {
 impl MessageProcessorMetrics {
     pub fn new(
         metrics: &CoreMetrics,
-        origin: HyperlaneDomain,
-        destination: HyperlaneDomain,
+        origin: &HyperlaneDomain,
+        destination: &HyperlaneDomain,
     ) -> Self {
         Self {
             processor_loop_gauge: metrics.last_known_message_nonce().with_label_values(&[
                 "processor_loop",
-                &origin.to_string(),
-                &destination.to_string(),
+                origin.name(),
+                destination.name(),
             ]),
         }
     }

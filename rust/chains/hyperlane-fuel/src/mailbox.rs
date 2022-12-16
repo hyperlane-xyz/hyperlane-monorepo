@@ -4,12 +4,12 @@ use std::num::NonZeroU64;
 
 use async_trait::async_trait;
 
+use crate::{make_provider, ConnectionConf};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneMessage, Indexer, LogMeta, Mailbox,
     MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
-use crate::{ConnectionConf, make_provider};
 
 use crate::contracts::mailbox::Mailbox as FuelMailboxInner;
 use crate::conversions::*;
@@ -36,8 +36,8 @@ impl HyperlaneContract for FuelMailbox {
 }
 
 impl HyperlaneChain for FuelMailbox {
-    fn domain(&self) -> HyperlaneDomain {
-        self.domain
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
     }
 }
 
@@ -76,7 +76,7 @@ impl Mailbox for FuelMailbox {
 
         Ok(Checkpoint {
             mailbox_address: self.address(),
-            mailbox_domain: self.domain as u32,
+            mailbox_domain: self.domain.id(),
             root: root.into_h256(),
             index,
         })

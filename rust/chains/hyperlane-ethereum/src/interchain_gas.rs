@@ -171,7 +171,7 @@ where
                 &locator.address,
                 provider,
             )),
-            domain: locator.domain,
+            domain: locator.domain.clone(),
         }
     }
 }
@@ -180,8 +180,8 @@ impl<M> HyperlaneChain for EthereumInterchainGasPaymaster<M>
 where
     M: Middleware + 'static,
 {
-    fn domain(&self) -> HyperlaneDomain {
-        self.domain
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
     }
 }
 

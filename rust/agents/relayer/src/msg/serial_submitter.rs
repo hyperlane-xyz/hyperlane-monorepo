@@ -355,29 +355,29 @@ pub(crate) struct SerialSubmitterMetrics {
 impl SerialSubmitterMetrics {
     pub fn new(
         metrics: &CoreMetrics,
-        origin: HyperlaneDomain,
-        destination: HyperlaneDomain,
+        origin: &HyperlaneDomain,
+        destination: &HyperlaneDomain,
     ) -> Self {
-        let origin = origin.to_string();
-        let destination = destination.to_string();
+        let origin = origin.name();
+        let destination = destination.name();
         Self {
             run_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                &origin,
-                &destination,
+                origin,
+                destination,
                 "run_queue",
             ]),
             wait_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                &origin,
-                &destination,
+                origin,
+                destination,
                 "wait_queue",
             ]),
             messages_processed_count: metrics
                 .messages_processed_count()
-                .with_label_values(&[&origin, &destination]),
+                .with_label_values(&[origin, destination]),
             processed_gauge: metrics.last_known_message_nonce().with_label_values(&[
                 "message_processed",
-                &origin,
-                &destination,
+                origin,
+                destination,
             ]),
             max_submitted_nonce: 0,
         }
