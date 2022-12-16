@@ -551,12 +551,14 @@ export const wagmiChainMetadata: Record<ChainName, WagmiChain> = objMap(
     network: metadata.name as string,
     nativeCurrency: metadata.nativeToken,
     rpcUrls: { default: { http: [metadata.publicRpcUrls[0].http] } },
-    blockExplorers: {
-      default: {
-        name: metadata.blockExplorers[0].name,
-        url: metadata.blockExplorers[0].url,
-      },
-    },
+    blockExplorers: metadata.blockExplorers.length
+      ? {
+          default: {
+            name: metadata.blockExplorers[0].name,
+            url: metadata.blockExplorers[0].url,
+          },
+        }
+      : undefined,
     testnet: Testnets.includes(metadata.name),
   }),
 );
