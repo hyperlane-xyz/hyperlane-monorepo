@@ -1,38 +1,40 @@
-import { ChainName } from '../types';
-
 /**
  * Enumeration of Hyperlane supported chains
+ * Must be string type to be used with Object.keys
  */
-export enum Chains { // must be string type to be used with Object.keys
-  arbitrum = 'arbitrum',
+export enum Chains {
   alfajores = 'alfajores',
+  arbitrum = 'arbitrum',
+  arbitrumgoerli = 'arbitrumgoerli',
+  avalanche = 'avalanche',
   bsc = 'bsc',
-  mumbai = 'mumbai',
-  goerli = 'goerli',
-  fuji = 'fuji',
+  bsctestnet = 'bsctestnet',
   celo = 'celo',
   ethereum = 'ethereum',
-  avalanche = 'avalanche',
-  optimism = 'optimism',
-  polygon = 'polygon',
-  bsctestnet = 'bsctestnet',
+  fuji = 'fuji',
+  goerli = 'goerli',
   moonbasealpha = 'moonbasealpha',
   moonbeam = 'moonbeam',
+  mumbai = 'mumbai',
+  optimism = 'optimism',
   optimismgoerli = 'optimismgoerli',
-  arbitrumgoerli = 'arbitrumgoerli',
+  polygon = 'polygon',
   test1 = 'test1',
   test2 = 'test2',
   test3 = 'test3',
 }
 
+export type ChainName = keyof typeof Chains;
+
 export enum DeprecatedChains {
-  rinkeby = 'rinkeby',
-  optimismrinkeby = 'optimismrinkeby',
+  arbitrumkovan = 'arbitrumkovan',
   arbitrumrinkeby = 'arbitrumrinkeby',
   kovan = 'kovan',
+  rinkeby = 'rinkeby',
   optimismkovan = 'optimismkovan',
-  arbitrumkovan = 'arbitrumkovan',
+  optimismrinkeby = 'optimismrinkeby',
 }
+
 export const AllDeprecatedChains = Object.keys(DeprecatedChains) as string[];
 
 export const Mainnets = [
@@ -44,6 +46,17 @@ export const Mainnets = [
   Chains.optimism,
   Chains.polygon,
   Chains.moonbeam,
+] as Array<ChainName>;
+
+export const Testnets = [
+  Chains.alfajores,
+  Chains.arbitrumgoerli,
+  Chains.bsctestnet,
+  Chains.fuji,
+  Chains.goerli,
+  Chains.moonbasealpha,
+  Chains.mumbai,
+  Chains.optimismgoerli,
 ] as Array<ChainName>;
 
 export const AllChains = Object.keys(Chains) as Array<ChainName>;
