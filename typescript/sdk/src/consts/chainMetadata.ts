@@ -4,7 +4,7 @@ import { objMap } from '../utils/objects';
 
 import { ChainName, Chains, Mainnets, Testnets } from './chains';
 
-enum ExplorerFamily {
+export enum ExplorerFamily {
   Etherscan = 'etherscan',
   Blockscout = 'blockscout',
   Other = 'other',
@@ -21,8 +21,8 @@ export interface ChainMetadata {
   displayName: string;
   /** Shorter human-readable name */
   displayNameShort?: string;
-  /** Currency used by chain */
-  nativeCurrency: {
+  /** Default currency/token used by chain */
+  nativeToken: {
     name: string;
     symbol: string;
     decimals: number;
@@ -51,22 +51,6 @@ export interface ChainMetadata {
   // URL of the gnosis safe transaction service.
   gnosisSafeTransactionServiceUrl?: string;
 }
-
-/**
- * @deprecated use ChainMetadata
- * A Chain and its characteristics
- */
-export type PartialChainMetadata = {
-  id: number;
-  finalityBlocks: number;
-  nativeTokenDecimals?: number;
-  paginate?: RpcPagination;
-  // The CoinGecko API expects, in some cases, IDs that do not match
-  // ChainNames.
-  gasCurrencyCoinGeckoId?: string;
-  // URL of the gnosis safe transaction service.
-  gnosisSafeTransactionServiceUrl?: string;
-};
 
 export interface RpcPagination {
   blocks: number;
@@ -102,7 +86,7 @@ export const alfajores: ChainMetadata = {
   id: 44787,
   name: Chains.alfajores,
   displayName: 'Alfajores',
-  nativeCurrency: celoToken,
+  nativeToken: celoToken,
   publicRpcUrls: [{ http: 'https://alfajores-forno.celo-testnet.org' }],
   blockExplorers: [
     {
@@ -126,7 +110,7 @@ export const arbitrum: ChainMetadata = {
   id: 42161,
   name: Chains.arbitrum,
   displayName: 'Arbitrum',
-  nativeCurrency: etherToken,
+  nativeToken: etherToken,
   publicRpcUrls: [{ http: 'https://arb1.arbitrum.io/rpc' }],
   blockExplorers: [
     {
@@ -150,7 +134,7 @@ export const arbitrumgoerli: ChainMetadata = {
   name: Chains.arbitrumgoerli,
   displayName: 'Arbitrum Goerli',
   displayNameShort: 'Arb. Goerli',
-  nativeCurrency: etherToken,
+  nativeToken: etherToken,
   publicRpcUrls: [{ http: 'https://goerli-rollup.arbitrum.io/rpc' }],
   blockExplorers: [
     {
@@ -170,7 +154,7 @@ export const avalanche: ChainMetadata = {
   id: 43114,
   name: Chains.avalanche,
   displayName: 'Avalanche',
-  nativeCurrency: avaxToken,
+  nativeToken: avaxToken,
   publicRpcUrls: [
     {
       http: 'https://api.avax.network/ext/bc/C/rpc',
@@ -202,7 +186,7 @@ export const bsc: ChainMetadata = {
   name: Chains.bsc,
   displayName: 'Binance Smart Chain',
   displayNameShort: 'Binance',
-  nativeCurrency: bnbToken,
+  nativeToken: bnbToken,
   publicRpcUrls: [
     { http: 'https://bsc-dataseed.binance.org' },
     { http: 'https://rpc.ankr.com/bsc' },
@@ -227,7 +211,7 @@ export const bsctestnet: ChainMetadata = {
   id: 97,
   name: Chains.bsctestnet,
   displayName: 'BSC Testnet',
-  nativeCurrency: bnbToken,
+  nativeToken: bnbToken,
   publicRpcUrls: [{ http: 'https://data-seed-prebsc-1-s3.binance.org:8545' }],
   blockExplorers: [
     {
@@ -247,7 +231,7 @@ export const celo: ChainMetadata = {
   id: 42220,
   name: Chains.celo,
   displayName: 'Celo',
-  nativeCurrency: celoToken,
+  nativeToken: celoToken,
   publicRpcUrls: [{ http: 'https://forno.celo.org' }],
   blockExplorers: [
     {
@@ -274,7 +258,7 @@ export const ethereum: ChainMetadata = {
   id: 1,
   name: Chains.ethereum,
   displayName: 'Ethereum',
-  nativeCurrency: etherToken,
+  nativeToken: etherToken,
   publicRpcUrls: [{ http: 'https://cloudflare-eth.com' }],
   blockExplorers: [
     {
@@ -300,7 +284,7 @@ export const fuji: ChainMetadata = {
   id: 43113,
   name: Chains.fuji,
   displayName: 'Fuji',
-  nativeCurrency: avaxToken,
+  nativeToken: avaxToken,
   publicRpcUrls: [{ http: 'https://api.avax-test.network/ext/bc/C/rpc' }],
   blockExplorers: [
     {
@@ -320,7 +304,7 @@ export const goerli: ChainMetadata = {
   id: 5,
   name: Chains.goerli,
   displayName: 'Goerli',
-  nativeCurrency: etherToken,
+  nativeToken: etherToken,
   publicRpcUrls: [{ http: 'https://rpc.ankr.com/eth_goerli' }],
   blockExplorers: [
     {
@@ -341,7 +325,7 @@ export const moonbasealpha: ChainMetadata = {
   name: Chains.moonbasealpha,
   displayName: 'Moonbase Alpha',
   displayNameShort: 'Moonbase',
-  nativeCurrency: {
+  nativeToken: {
     decimals: 18,
     name: 'DEV',
     symbol: 'DEV',
@@ -365,7 +349,7 @@ export const moonbeam: ChainMetadata = {
   id: 1284,
   name: Chains.moonbeam,
   displayName: 'Moonbeam',
-  nativeCurrency: {
+  nativeToken: {
     decimals: 18,
     name: 'GLMR',
     symbol: 'GLMR',
@@ -389,7 +373,7 @@ export const mumbai: ChainMetadata = {
   id: 80001,
   name: Chains.mumbai,
   displayName: 'Mumbai',
-  nativeCurrency: maticToken,
+  nativeToken: maticToken,
   publicRpcUrls: [
     {
       http: 'https://rpc-mumbai.maticvigil.com',
@@ -421,7 +405,7 @@ export const optimism: ChainMetadata = {
   id: 10,
   name: Chains.optimism,
   displayName: 'Optimism',
-  nativeCurrency: etherToken,
+  nativeToken: etherToken,
   publicRpcUrls: [{ http: 'https://mainnet.optimism.io' }],
   blockExplorers: [
     {
@@ -445,7 +429,7 @@ export const optimismgoerli: ChainMetadata = {
   name: Chains.optimismgoerli,
   displayName: 'Optimism Goerli',
   displayNameShort: 'Opt. Goerli',
-  nativeCurrency: etherToken,
+  nativeToken: etherToken,
   publicRpcUrls: [{ http: 'https://goerli.optimism.io' }],
   blockExplorers: [
     {
@@ -465,7 +449,7 @@ export const polygon: ChainMetadata = {
   id: 137,
   name: Chains.polygon,
   displayName: 'Polygon',
-  nativeCurrency: etherToken,
+  nativeToken: etherToken,
   publicRpcUrls: [
     {
       http: 'https://rpc-mainnet.matic.quiknode.pro',
@@ -498,7 +482,7 @@ export const test1: ChainMetadata = {
   id: 31337,
   name: Chains.test1,
   displayName: 'Test 1',
-  nativeCurrency: etherToken,
+  nativeToken: etherToken,
   publicRpcUrls: [{ http: 'http://localhost:8545' }],
   blockExplorers: [],
   blocks: {
@@ -511,7 +495,7 @@ export const test2: ChainMetadata = {
   id: 31337,
   name: Chains.test2,
   displayName: 'Test 2',
-  nativeCurrency: etherToken,
+  nativeToken: etherToken,
   publicRpcUrls: [{ http: 'http://localhost:8545' }],
   blockExplorers: [],
   blocks: {
@@ -524,7 +508,7 @@ export const test3: ChainMetadata = {
   id: 31337,
   name: Chains.test3,
   displayName: 'Test 3',
-  nativeCurrency: etherToken,
+  nativeToken: etherToken,
   publicRpcUrls: [{ http: 'http://localhost:8545' }],
   blockExplorers: [],
   blocks: {
@@ -558,16 +542,6 @@ export const chainMetadata = {
   test3,
 } as Record<ChainName, ChainMetadata>;
 
-export const partialChainMetadata: Record<ChainName, PartialChainMetadata> =
-  objMap(chainMetadata, (_, metadata) => ({
-    id: metadata.id,
-    finalityBlocks: metadata.blocks.finalityConfirmations,
-    nativeTokenDecimals: metadata.nativeCurrency.decimals,
-    paginate: metadata.publicRpcUrls[0]?.pagination,
-    gasCurrencyCoinGeckoId: metadata.gasCurrencyCoinGeckoId,
-    gnosisSafeTransactionServiceUrl: metadata.gnosisSafeTransactionServiceUrl,
-  }));
-
 // For convenient use in wagmi-based apps
 export const wagmiChainMetadata: Record<ChainName, WagmiChain> = objMap(
   chainMetadata,
@@ -575,7 +549,7 @@ export const wagmiChainMetadata: Record<ChainName, WagmiChain> = objMap(
     id: metadata.id,
     name: metadata.displayName,
     network: metadata.name as string,
-    nativeCurrency: metadata.nativeCurrency,
+    nativeCurrency: metadata.nativeToken,
     rpcUrls: { default: { http: [metadata.publicRpcUrls[0].http] } },
     blockExplorers: {
       default: {
@@ -600,3 +574,31 @@ export const mainnetChainsMetadata: Array<ChainMetadata> = Mainnets.map(
 export const testnetChainsMetadata: Array<ChainMetadata> = Testnets.map(
   (chainName) => chainMetadata[chainName],
 );
+
+/**
+ * @deprecated use ChainMetadata
+ */
+export type PartialChainMetadata = {
+  id: number;
+  finalityBlocks: number;
+  nativeTokenDecimals?: number;
+  paginate?: RpcPagination;
+  // The CoinGecko API expects, in some cases, IDs that do not match
+  // ChainNames.
+  gasCurrencyCoinGeckoId?: string;
+  // URL of the gnosis safe transaction service.
+  gnosisSafeTransactionServiceUrl?: string;
+};
+
+/**
+ * @deprecated use chainMetadata
+ */
+export const partialChainMetadata: Record<ChainName, PartialChainMetadata> =
+  objMap(chainMetadata, (_, metadata) => ({
+    id: metadata.id,
+    finalityBlocks: metadata.blocks.finalityConfirmations,
+    nativeTokenDecimals: metadata.nativeToken.decimals,
+    paginate: metadata.publicRpcUrls[0]?.pagination,
+    gasCurrencyCoinGeckoId: metadata.gasCurrencyCoinGeckoId,
+    gnosisSafeTransactionServiceUrl: metadata.gnosisSafeTransactionServiceUrl,
+  }));
