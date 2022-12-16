@@ -12,12 +12,12 @@ pub enum ConnectionConf {
     },
 }
 
-fn make_client(conf: ConnectionConf) -> Result<FuelClient, ()> {
+fn make_client(conf: &ConnectionConf) -> Result<FuelClient, ()> {
     match conf {
         ConnectionConf::Http { url } => FuelClient::new(url).map_err(|_| todo!()),
     }
 }
 
-pub fn make_provider(conf: ConnectionConf) -> Result<Provider, ()> {
+pub fn make_provider(conf: &ConnectionConf) -> Result<Provider, ()> {
     Ok(Provider::new(make_client(conf)?))
 }

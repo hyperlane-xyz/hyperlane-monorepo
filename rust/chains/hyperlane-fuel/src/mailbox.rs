@@ -9,6 +9,7 @@ use hyperlane_core::{
     HyperlaneContract, HyperlaneDomain, HyperlaneMessage, Indexer, LogMeta, Mailbox,
     MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
+use crate::{ConnectionConf, make_provider};
 
 use crate::contracts::mailbox::Mailbox as FuelMailboxInner;
 use crate::conversions::*;
@@ -17,6 +18,15 @@ use crate::conversions::*;
 pub struct FuelMailbox {
     contract: FuelMailboxInner,
     domain: HyperlaneDomain,
+}
+
+impl FuelMailbox {
+    /// Create a new fuel mailbox
+    pub fn new(conf: &ConnectionConf) -> ChainResult<Self> {
+        let provider = make_provider(conf);
+        // FuelMailboxInner::new()
+        todo!()
+    }
 }
 
 impl HyperlaneContract for FuelMailbox {

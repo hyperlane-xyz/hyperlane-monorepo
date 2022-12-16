@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ethers::signers::Signer;
 use ethers::types::Selector;
-use eyre::Result;
+use eyre::{eyre, Result};
 use eyre::{ensure, Context};
 use serde::Deserialize;
 
@@ -15,7 +15,7 @@ use hyperlane_core::{
     Signers,
 };
 use hyperlane_ethereum::{
-    BuildableWithProvider, ConnectionConf, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
+    BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
     EthereumMultisigIsmAbi,
 };
 
@@ -28,9 +28,9 @@ use crate::CoreMetrics;
 #[serde(tag = "rpcStyle", content = "connection", rename_all = "camelCase")]
 pub enum ChainConf {
     /// Ethereum configuration
-    Ethereum(ConnectionConf),
+    Ethereum(hyperlane_ethereum::ConnectionConf),
     /// Fuel configuration
-    Fuel,
+    Fuel(hyperlane_fuel::ConnectionConf),
 }
 
 impl Default for ChainConf {
@@ -150,7 +150,7 @@ impl ChainSetup {
                     .await
             }
 
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(_) => todo!(),
         }
         .context("Building provider")
     }
@@ -177,7 +177,9 @@ impl ChainSetup {
                     .await
             }
 
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(conf) => {
+                hyperlane_fuel::FuelMailbox::new(conf).map(|m| Box::new(m) as Box<dyn Mailbox>)
+            },
         }
         .context("Building mailbox")
     }
@@ -206,7 +208,7 @@ impl ChainSetup {
                 .await
             }
 
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(_) => todo!(),
         }
         .context("Building mailbox indexer")
     }
@@ -234,7 +236,7 @@ impl ChainSetup {
                     .await
             }
 
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(_) => todo!(),
         }
         .context("Building IGP")
     }
@@ -264,7 +266,7 @@ impl ChainSetup {
                 .await
             }
 
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(_) => todo!(),
         }
         .context("Building IGP indexer")
     }
@@ -291,7 +293,7 @@ impl ChainSetup {
                     .await
             }
 
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(_) => todo!(),
         }
         .context("Building multisig ISM")
     }
@@ -362,12 +364,15 @@ impl ChainSetup {
                     .context("Invalid ethereum address")?
                     .into()
             }
-            ChainConf::Fuel => {
+            ChainConf::Fuel(_) => {
                 ensure!(
                     domain.domain_impl() == HyperlaneDomainImpl::Fuel,
                     "Expected a fuel chain config"
                 );
-                todo!()
+                address
+                    .parse::<fuels::tx::ContractId>()
+                    .map_err(|e| eyre!("Invalid fuel contract id: {e}"))?
+                    .into()
             }
         };
 

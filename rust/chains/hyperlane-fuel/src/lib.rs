@@ -9,6 +9,7 @@ pub use interchain_gas::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
+pub use trait_builder::*;
 
 mod contracts;
 mod conversions;
@@ -17,5 +18,3 @@ mod mailbox;
 mod multisig_ism;
 mod provider;
 mod trait_builder;
-
-pub use conversions::*;

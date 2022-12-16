@@ -2,7 +2,7 @@
 
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use strum::{EnumIter, EnumString};
+use strum::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::{ChainResult, HyperlaneProtocolError, H160};
 
@@ -41,7 +41,7 @@ impl From<Address> for H160 {
 
 impl From<H160> for Address {
     fn from(addr: H160) -> Self {
-        Address(bytes::Bytes::from(addr.as_bytes().to_owned()))
+        Address(addr.as_bytes().to_owned().into())
     }
 }
 
@@ -51,11 +51,24 @@ impl From<&'_ Address> for H160 {
     }
 }
 
+impl From<fuels::tx::ContractId> for Address {
+    fn from(id: fuels::tx::ContractId) -> Self {
+        Address(id.to_vec().into())
+    }
+}
+
+impl From<Address> for fuels::tx::ContractId {
+    fn from(addr: Address) -> Self {
+        addr.0.as_ref().try_into().expect("Failed to convert address")
+    }
+}
+
+
 /// All domains supported by Hyperlane.
 #[derive(
-    FromPrimitive, EnumString, strum::Display, EnumIter, PartialEq, Eq, Debug, Clone, Copy, Hash,
+    FromPrimitive, EnumString, IntoStaticStr, strum::Display, EnumIter, PartialEq, Eq, Debug, Clone, Copy, Hash,
 )]
-#[strum(serialize_all = "lowercase")]
+#[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 #[repr(u32)]
 pub enum HyperlaneDomain {
     Ethereum = 1,
