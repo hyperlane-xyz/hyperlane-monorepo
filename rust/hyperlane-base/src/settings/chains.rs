@@ -178,7 +178,7 @@ impl ChainSetup {
             }
 
             ChainConf::Fuel(conf) => {
-                hyperlane_fuel::FuelMailbox::new(conf).map(|m| Box::new(m) as Box<dyn Mailbox>)
+                hyperlane_fuel::FuelMailbox::new(conf, locator).map(|m| Box::new(m) as Box<dyn Mailbox>)
             }
         }
         .context("Building mailbox")
@@ -356,7 +356,10 @@ impl ChainSetup {
         let address = match self.chain {
             ChainConf::Ethereum(_) => {
                 ensure!(
-                    domain.domain_impl() == HyperlaneDomainImpl::Ethereum,
+                    matches!(
+                        domain.domain_impl(),
+                        HyperlaneDomainImpl::Ethereum | HyperlaneDomainImpl::Unknown
+                    ),
                     "Excepted an ethereum chain config"
                 );
                 address
@@ -366,7 +369,10 @@ impl ChainSetup {
             }
             ChainConf::Fuel(_) => {
                 ensure!(
-                    domain.domain_impl() == HyperlaneDomainImpl::Fuel,
+                    matches!(
+                        domain.domain_impl(),
+                        HyperlaneDomainImpl::Fuel | HyperlaneDomainImpl::Unknown
+                    ),
                     "Expected a fuel chain config"
                 );
                 address

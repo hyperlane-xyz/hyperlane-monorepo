@@ -3,13 +3,10 @@ use std::fmt::{Debug, Formatter};
 use std::num::NonZeroU64;
 
 use async_trait::async_trait;
+use fuels::prelude::{Bech32ContractId, WalletUnlocked};
 
 use crate::{make_provider, ConnectionConf};
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, Indexer, LogMeta, Mailbox,
-    MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
-};
+use hyperlane_core::{ChainCommunicationError, ChainResult, Checkpoint, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256, ContractLocator};
 
 use crate::contracts::mailbox::Mailbox as FuelMailboxInner;
 use crate::conversions::*;
@@ -22,10 +19,12 @@ pub struct FuelMailbox {
 
 impl FuelMailbox {
     /// Create a new fuel mailbox
-    pub fn new(conf: &ConnectionConf) -> ChainResult<Self> {
+    pub fn new(conf: &ConnectionConf, locator: ContractLocator, signer: &SignerConf) -> ChainResult<Self> {
         let provider = make_provider(conf);
-        // FuelMailboxInner::new()
-        todo!()
+        let address: Bech32ContractId = locator.address.into();
+        
+        let wallet: WalletUnlocked = WalletUnlocked::new_from_private_key();
+        FuelMailboxInner::new(address, wallet)
     }
 }
 

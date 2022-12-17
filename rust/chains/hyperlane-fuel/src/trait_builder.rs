@@ -1,15 +1,18 @@
 use fuels::client::FuelClient;
 use fuels::prelude::Provider;
 
-/// Fuel connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum ConnectionConf {
-    /// HTTP connection details
-    Http {
-        /// Fully qualified string to connect to
-        url: String,
-    },
+pub enum WalletConf {
+
+}
+
+/// Fuel connection configuration
+#[derive(Debug, serde::Deserialize, Clone)]
+pub struct ConnectionConf {
+    /// Fully qualified string to connect to
+    url: String,
+    wallet: WalletConf,
 }
 
 // struct FuelConnectionError(anyhow::Error);

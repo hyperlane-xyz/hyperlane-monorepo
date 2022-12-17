@@ -8,6 +8,7 @@ use rusoto_core::HttpClient;
 use rusoto_kms::KmsClient;
 use tracing::instrument;
 
+/// TODO: this has to support ethereum and fuel
 /// Ethereum signer types
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]

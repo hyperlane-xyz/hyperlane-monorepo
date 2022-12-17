@@ -115,7 +115,6 @@ impl BaseAgent for Relayer {
                 signed_checkpoint_receiver.clone(),
                 self.core.settings.chains[chain.name()].txsubmission,
                 self.core.settings.gelato.as_ref(),
-                signer,
                 gas_payment_enforcer.clone(),
             ));
         }
@@ -206,7 +205,6 @@ impl Relayer {
         signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
         tx_submission: TransactionSubmissionType,
         gelato_config: Option<&GelatoConf>,
-        signer: Signers,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let origin_mailbox = self.mailbox(&self.origin_chain).unwrap();

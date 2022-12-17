@@ -43,6 +43,8 @@ mod contracts;
 /// Retrying Provider
 mod retrying;
 
+mod signers;
+
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]

@@ -4,7 +4,7 @@ pub mod output_functions {
 
     use std::{fs::OpenOptions, io::Write, str::FromStr};
 
-    use ethers::signers::Signer;
+    use hyperlane_ethereum::Signers;
     use hex::FromHex;
     use serde_json::{json, Value};
 
@@ -126,10 +126,11 @@ pub mod output_functions {
         let mailbox =
             H256::from(H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
         let t = async {
-            let signer: ethers::signers::LocalWallet =
+            let signer: Signers =
                 "1111111111111111111111111111111111111111111111111111111111111111"
-                    .parse()
-                    .unwrap();
+                    .parse::<ethers::signers::LocalWallet>()
+                    .unwrap()
+                    .into();
 
             let mut test_cases: Vec<Value> = Vec::new();
 
