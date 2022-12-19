@@ -1,0 +1,59 @@
+{
+  "bsc": [
+    {
+      "name": "Create2Factory",
+      "address": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "avalanche": [
+    {
+      "name": "Create2Factory",
+      "address": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "polygon": [
+    {
+      "name": "Create2Factory",
+      "address": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "celo": [
+    {
+      "name": "Create2Factory",
+      "address": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "arbitrum": [
+    {
+      "name": "Create2Factory",
+      "address": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "optimism": [
+    {
+      "name": "Create2Factory",
+      "address": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ],
+  "ethereum": [
+    {
+      "name": "Create2Factory",
+      "address": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+      "constructorArguments": "",
+      "isProxy": false
+    }
+  ]
+}
+
