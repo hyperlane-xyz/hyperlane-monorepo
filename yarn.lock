@@ -3745,6 +3745,40 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/hyperlane-token@workspace:typescript/token":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/hyperlane-token@workspace:typescript/token"
+  dependencies:
+    "@hyperlane-xyz/core": 1.0.0-beta1
+    "@hyperlane-xyz/sdk": 1.0.0-beta1
+    "@hyperlane-xyz/utils": 1.0.0-beta1
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@openzeppelin/contracts-upgradeable": ^4.6.0
+    "@trivago/prettier-plugin-sort-imports": ^3.2.0
+    "@typechain/ethers-v5": 10.0.0
+    "@typechain/hardhat": ^6.0.0
+    "@types/mocha": ^9.1.0
+    "@typescript-eslint/eslint-plugin": ^5.27.0
+    "@typescript-eslint/parser": ^5.27.0
+    chai: ^4.3.0
+    eslint: ^8.16.0
+    eslint-config-prettier: ^8.5.0
+    ethereum-waffle: ^3.4.4
+    ethers: ^5.6.8
+    hardhat: ^2.8.4
+    hardhat-gas-reporter: ^1.0.7
+    prettier: ^2.4.1
+    prettier-plugin-solidity: ^1.0.0-beta.5
+    solhint: ^3.3.2
+    solhint-plugin-prettier: ^0.0.5
+    solidity-coverage: ^0.7.14
+    ts-node: ^10.8.0
+    typechain: 8.0.0
+    typescript: ^4.7.2
+  languageName: unknown
+  linkType: soft
+
 "@hyperlane-xyz/infra@workspace:typescript/infra":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/infra@workspace:typescript/infra"
@@ -4122,7 +4156,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts-upgradeable@npm:^4.8.0":
+"@openzeppelin/contracts-upgradeable@npm:^4.6.0, @openzeppelin/contracts-upgradeable@npm:^4.8.0":
   version: 4.8.0
   resolution: "@openzeppelin/contracts-upgradeable@npm:4.8.0"
   checksum: c39f3a719830c068d0ae413a8beee4072fa19f777b55bf6155fe21023414eab0633a641318845ac50929837b71848de1efbd00d4c181ddd6d8b735ceb0a82070
