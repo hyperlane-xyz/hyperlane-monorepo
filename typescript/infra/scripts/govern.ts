@@ -28,7 +28,7 @@ async function check() {
   //   1 enrolled validators violation
   coreChecker.expectViolations(
     [CoreViolationType.ValidatorManager],
-    [2 * 7 * 7],
+    [2 * 8 * 8],
   );
 
   const governor = new HyperlaneCoreGovernor(coreChecker);

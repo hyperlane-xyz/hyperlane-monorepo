@@ -41,21 +41,26 @@ type AnnotatedCallData = types.CallData & {
 export class HyperlaneCoreGovernor<Chain extends ChainName> {
   readonly checker: HyperlaneCoreChecker<Chain>;
   private calls: ChainMap<Chain, AnnotatedCallData[]>;
+  private canPropose: ChainMap<Chain, Map<string, boolean>>;
 
   constructor(checker: HyperlaneCoreChecker<Chain>) {
     this.checker = checker;
     this.calls = objMap(this.checker.app.contractsMap, () => []);
+    this.canPropose = objMap(this.checker.app.contractsMap, () => new Map());
   }
 
   async govern() {
     // 1. Produce calls from checker violations.
+    console.log('Mapping violations to calls');
     await this.mapViolationsToCalls();
 
     // 2. For each call, infer how it should be submitted on-chain.
+    console.log('Inferring submission type');
     await this.inferCallSubmissionTypes();
 
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
+    console.log('Sending calls');
     for (const chain of Object.keys(this.calls) as Chain[]) {
       await this.sendCalls(chain);
     }
@@ -151,6 +156,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
 
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls) as Chain[]) {
+      console.log('Inferring submission type for', chain);
       for (const call of this.calls[chain]) {
         const submissionType = await this.inferCallSubmissionType(chain, call);
         call.submissionType = submissionType;
@@ -178,15 +184,22 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     const signer = connection.signer;
     if (!signer) throw new Error(`no signer found`);
     const signerAddress = await signer.getAddress();
-    const proposer = await canProposeSafeTransactions(
-      signerAddress,
-      chain,
-      connection,
-      safeAddress,
-    );
+    console.log('Checking if can propose via safe for', chain, signerAddress);
+    if (!this.canPropose[chain].has(safeAddress)) {
+      console.log('cache miss');
+      this.canPropose[chain].set(
+        safeAddress,
+        await canProposeSafeTransactions(
+          signerAddress,
+          chain,
+          connection,
+          safeAddress,
+        ),
+      );
+    }
 
     // 2b. Check if calling from the owner will succeed.
-    if (proposer) {
+    if (this.canPropose[chain].get(safeAddress)) {
       try {
         await connection.provider.estimateGas({
           ...call,

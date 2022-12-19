@@ -14,7 +14,7 @@
     "@typechain/hardhat": "^6.0.0",
     "chai": "^4.3.0",
     "ethereum-waffle": "^3.4.4",
-    "ethers": "^5.6.8",
+    "ethers": "^5.7.2",
     "hardhat": "^2.8.4",
     "hardhat-gas-reporter": "^1.0.7",
     "prettier": "^2.4.1",
