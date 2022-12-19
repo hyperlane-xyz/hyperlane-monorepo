@@ -6,11 +6,11 @@ import {
 } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 
-import { TestnetChains, chainNames, environment } from './chains';
+import { MainnetChains, chainNames, environment } from './chains';
 // import { helloWorld } from './helloworld';
 import { validators } from './validators';
 
-export const hyperlane: AgentConfig<TestnetChains> = {
+export const hyperlane: AgentConfig<MainnetChains> = {
   environment,
   namespace: environment,
   runEnv: environment,
