@@ -1,0 +1,114 @@
+{
+  "celo": {
+    "proxyAdmin": "0x1228f5A5Ccf83F5618d8b14062C6ff7Da171D614",
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x616AC8Bd65bEcF4b184eC92F5C1a45a454B7F211",
+      "implementation": "0x5bc68C82d33160cF4EA34d0bab3F7c27cD9eD8D6"
+    },
+    "mailbox": {
+      "kind": "Transparent",
+      "proxy": "0x76E7Af1677832404757bF3dE465Eb3cCf44Cc35e",
+      "implementation": "0x40F96106140C25c22EADd2d65CBc9f070912C802"
+    },
+    "multisigIsm": "0xC8667385a16324dD1d73fA775F0A5fBb7BaF4Abd"
+  },
+  "ethereum": {
+    "proxyAdmin": "0x854B2BCd07e55A71A05CE90921E419B2dBACB483",
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x616AC8Bd65bEcF4b184eC92F5C1a45a454B7F211",
+      "implementation": "0x5bc68C82d33160cF4EA34d0bab3F7c27cD9eD8D6"
+    },
+    "mailbox": {
+      "kind": "Transparent",
+      "proxy": "0x76E7Af1677832404757bF3dE465Eb3cCf44Cc35e",
+      "implementation": "0x88c619dC2FA6BA49304997F5776e9c5cb6ca1C18"
+    },
+    "multisigIsm": "0xCBC928268870F216A510c207C456544660ec8566"
+  },
+  "avalanche": {
+    "proxyAdmin": "0xdcce84126BFc6C0dB1428B3D9CC2F3A4De1eBb97",
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x616AC8Bd65bEcF4b184eC92F5C1a45a454B7F211",
+      "implementation": "0x5bc68C82d33160cF4EA34d0bab3F7c27cD9eD8D6"
+    },
+    "mailbox": {
+      "kind": "Transparent",
+      "proxy": "0x76E7Af1677832404757bF3dE465Eb3cCf44Cc35e",
+      "implementation": "0xa71DEfBE75498e610C17817370C4Bbbc54315997"
+    },
+    "multisigIsm": "0x56e081B2e61C2D07a464A7448aa055ea29b801bD"
+  },
+  "polygon": {
+    "proxyAdmin": "0xEcB04120AcEb67aB918E51b452914716E94d80C3",
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x616AC8Bd65bEcF4b184eC92F5C1a45a454B7F211",
+      "implementation": "0x5bc68C82d33160cF4EA34d0bab3F7c27cD9eD8D6"
+    },
+    "mailbox": {
+      "kind": "Transparent",
+      "proxy": "0x76E7Af1677832404757bF3dE465Eb3cCf44Cc35e",
+      "implementation": "0x321324Ba3CEAEe95931b053304731f4bF202984d"
+    },
+    "multisigIsm": "0x803C106425f67Ac5f568A34b5Da4A4860272eE0c"
+  },
+  "bsc": {
+    "proxyAdmin": "0x618D509E899137b8C4A56Db8E93684f7F19b8294",
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x616AC8Bd65bEcF4b184eC92F5C1a45a454B7F211",
+      "implementation": "0x5bc68C82d33160cF4EA34d0bab3F7c27cD9eD8D6"
+    },
+    "mailbox": {
+      "kind": "Transparent",
+      "proxy": "0x76E7Af1677832404757bF3dE465Eb3cCf44Cc35e",
+      "implementation": "0xb8B0b5a26B1507f5687A711De869A78d307A71C2"
+    },
+    "multisigIsm": "0x508Bb9997b3Fa35781A696c4faFC501Bf4880D57"
+  },
+  "arbitrum": {
+    "proxyAdmin": "0x7a23B331A99FB74183Ad86523a1D026F03719B32",
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x616AC8Bd65bEcF4b184eC92F5C1a45a454B7F211",
+      "implementation": "0x5bc68C82d33160cF4EA34d0bab3F7c27cD9eD8D6"
+    },
+    "mailbox": {
+      "kind": "Transparent",
+      "proxy": "0x76E7Af1677832404757bF3dE465Eb3cCf44Cc35e",
+      "implementation": "0x0cd67493a628527bc17EBDB745FB21035dC9dA56"
+    },
+    "multisigIsm": "0x14C7900B4156152Ea6d7A0821659e8B0A0Dc0ebF"
+  },
+  "optimism": {
+    "proxyAdmin": "0x4023f865e24A8ef4d3dB85858d7bFDF2fEaeb5c3",
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x616AC8Bd65bEcF4b184eC92F5C1a45a454B7F211",
+      "implementation": "0x5bc68C82d33160cF4EA34d0bab3F7c27cD9eD8D6"
+    },
+    "mailbox": {
+      "kind": "Transparent",
+      "proxy": "0x76E7Af1677832404757bF3dE465Eb3cCf44Cc35e",
+      "implementation": "0x28aa24760946Ac624a385c97453363e637841256"
+    },
+    "multisigIsm": "0x64D8b60C2d5F4FF35D61B3f039df327618FD0896"
+  },
+  "moonbeam": {
+    "proxyAdmin": "0x3fdBF466bCe4b2dBD651E929FA5BC2d92042e49F",
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x616AC8Bd65bEcF4b184eC92F5C1a45a454B7F211",
+      "implementation": "0x5bc68C82d33160cF4EA34d0bab3F7c27cD9eD8D6"
+    },
+    "mailbox": {
+      "kind": "Transparent",
+      "proxy": "0x76E7Af1677832404757bF3dE465Eb3cCf44Cc35e",
+      "implementation": "0xfaABFB39CD465E06eB0CAF43c783fC4e795c994b"
+    },
+    "multisigIsm": "0x0a88bB1a2fF110AdDEc1125Cb2563099A8923b28"
+  }
+}
