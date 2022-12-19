@@ -2,7 +2,7 @@ import { InfrastructureConfig } from '../../../src/config';
 
 export const infrastructure: InfrastructureConfig = {
   kubernetes: {
-    clusterName: 'hyperlane-testnet',
+    clusterName: 'hyperlane-mainnet',
   },
   monitoring: {
     namespace: 'monitoring',
@@ -36,9 +36,12 @@ export const infrastructure: InfrastructureConfig = {
       'hyperlane-testnet-',
       'testnet-',
       'hyperlane-testnet3-',
+      'hyperlane-mainnet2-',
       'flowcarbon-testnet3-',
       'rc-testnet3-',
+      'rc-mainnet2-',
       'testnet3-',
+      'mainnet2-',
     ],
   },
 };

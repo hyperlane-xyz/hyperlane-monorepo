@@ -10,13 +10,6 @@ import { TestnetChains, chainNames, environment } from './chains';
 // import { helloWorld } from './helloworld';
 import { validators } from './validators';
 
-/*
-const releaseCandidateHelloworldMatchingList = helloworldMatchingList(
-  helloWorld,
-  Contexts.ReleaseCandidate,
-);
-*/
-
 export const hyperlane: AgentConfig<TestnetChains> = {
   environment,
   namespace: environment,
@@ -24,7 +17,6 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // TODO: Update to a commit from main
     tag: 'sha-275771b',
   },
   aws: {
@@ -43,22 +35,28 @@ export const hyperlane: AgentConfig<TestnetChains> = {
       reorgPeriod: 1,
     },
     chainOverrides: {
-      alfajores: {
+      celo: {
         reorgPeriod: 0,
       },
-      fuji: {
+      ethereum: {
+        reorgPeriod: 20,
+      },
+      bsc: {
+        reorgPeriod: 15,
+      },
+      optimism: {
+        reorgPeriod: 0,
+      },
+      arbitrum: {
+        reorgPeriod: 0,
+      },
+      avalanche: {
         reorgPeriod: 3,
       },
-      mumbai: {
-        reorgPeriod: 32,
+      polygon: {
+        reorgPeriod: 256,
       },
-      bsctestnet: {
-        reorgPeriod: 9,
-      },
-      goerli: {
-        reorgPeriod: 3,
-      },
-      moonbasealpha: {
+      moonbeam: {
         reorgPeriod: 0,
       },
     },
@@ -66,7 +64,6 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      // blacklist: releaseCandidateHelloworldMatchingList,
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
       },
