@@ -6,8 +6,8 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 
 /*
- * @title The Hello World App
- * @dev You can use this simple app as a starting point for your own application.
+ * @title V2CompatabilityRouter
+ * @dev You can use this middleware to deploy an app on v1 with the v2 interface
  */
 contract V2CompatibilityRouter is Router {
     mapping(uint32 => uint32) v1ToV2Domain;
@@ -21,7 +21,6 @@ contract V2CompatibilityRouter is Router {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
         // Set the addresses for the ACM and IGP
-        // Alternatively, this could be done later in an initialize method
         _setAbacusConnectionManager(_abacusConnectionManager);
         _setInterchainGasPaymaster(_interchainGasPaymaster);
     }
@@ -67,7 +66,10 @@ contract V2CompatibilityRouter is Router {
     }
 
     /**
-     * Calls the recipient of the message with the translated v2 domain ID
+     * @notice The internal Router `handle` function which just extracts the true recipient of the message and passes the translated v2 domain ID
+     * @param _originV1Domain the origin domain as specified by the v1 Inbox
+     * @param _sender The sender of the message which for middlewares is just the router on the origin chain
+     * @param _message The wrapped message to include sender and recipient
      */
     function _handle(
         uint32 _originV1Domain,

@@ -75,7 +75,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
 
     /**
      * @notice Batch version of `enrollRemoteRouter`
-     * @param _domains The domaisn of the remote Application Routers
+     * @param _domains The domains of the remote Application Routers
      * @param _routers The addresses of the remote Application Routers
      */
     function enrollRemoteRouters(
