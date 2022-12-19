@@ -20,16 +20,13 @@ mod traits;
 pub mod utils;
 
 /// Testing utilities
+#[cfg(test)]
 pub mod test_utils;
 
 /// DB related utilities
 pub mod db;
 /// Core hyperlane system data structures
 mod types;
-
-/// Test functions that output json files for Solidity tests
-#[cfg(feature = "output")]
-pub mod test_output;
 
 mod chain;
 mod error;
