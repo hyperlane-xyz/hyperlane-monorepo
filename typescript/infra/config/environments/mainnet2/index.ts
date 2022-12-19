@@ -6,25 +6,25 @@ import { Contexts } from '../../contexts';
 
 import { agents } from './agent';
 import {
-  TestnetChains,
+  MainnetChains,
   environment as environmentName,
-  testnetConfigs,
+  mainnetConfigs,
 } from './chains';
 import { core } from './core';
 import { keyFunderConfig } from './funding';
-import { helloWorld } from './helloworld';
+//import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
 
-export const environment: CoreEnvironmentConfig<TestnetChains> = {
+export const environment: CoreEnvironmentConfig<MainnetChains> = {
   environment: environmentName,
-  transactionConfigs: testnetConfigs,
+  transactionConfigs: mainnetConfigs,
   getMultiProvider: (
     context: Contexts = Contexts.Hyperlane,
     role: KEY_ROLE_ENUM = KEY_ROLE_ENUM.Deployer,
     connectionType?: ConnectionType,
   ) =>
     getMultiProviderForRole(
-      testnetConfigs,
+      mainnetConfigs,
       environmentName,
       context,
       role,
@@ -34,6 +34,6 @@ export const environment: CoreEnvironmentConfig<TestnetChains> = {
   agents,
   core,
   infra: infrastructure,
-  helloWorld,
+  //helloWorld,
   keyFunderConfig,
 };

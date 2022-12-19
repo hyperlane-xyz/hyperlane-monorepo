@@ -1,23 +1,36 @@
 import { chainConnectionConfigs } from '@hyperlane-xyz/sdk';
 
-export const testnetConfigs = {
-  alfajores: chainConnectionConfigs.alfajores,
-  fuji: chainConnectionConfigs.fuji,
-  mumbai: {
-    ...chainConnectionConfigs.mumbai,
-    confirmations: 3,
+export const mainnetConfigs = {
+  bsc: {
+    ...chainConnectionConfigs.bsc,
     overrides: {
-      maxFeePerGas: 70 * 10 ** 9, // 70 gwei
-      maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
+      gasPrice: 7 * 10 ** 9, // 7 gwei
     },
   },
-  bsctestnet: chainConnectionConfigs.bsctestnet,
-  goerli: chainConnectionConfigs.goerli,
-  moonbasealpha: chainConnectionConfigs.moonbasealpha,
-  optimismgoerli: chainConnectionConfigs.optimismgoerli,
-  arbitrumgoerli: chainConnectionConfigs.arbitrumgoerli,
+  avalanche: chainConnectionConfigs.avalanche,
+  polygon: {
+    ...chainConnectionConfigs.polygon,
+    confirmations: 3,
+    overrides: {
+      maxFeePerGas: 1000 * 10 ** 9, // 1000 gwei
+      maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
+      // gasPrice: 50 * 10 ** 9, // 50 gwei
+    },
+  },
+  celo: chainConnectionConfigs.celo,
+  arbitrum: chainConnectionConfigs.arbitrum,
+  optimism: chainConnectionConfigs.optimism,
+  ethereum: {
+    ...chainConnectionConfigs.ethereum,
+    confirmations: 3,
+    overrides: {
+      maxFeePerGas: 150 * 10 ** 9, // gwei
+      maxPriorityFeePerGas: 5 * 10 ** 9, // gwei
+    },
+  },
+  moonbeam: chainConnectionConfigs.moonbeam,
 };
 
-export type TestnetChains = keyof typeof testnetConfigs;
-export const chainNames = Object.keys(testnetConfigs) as TestnetChains[];
-export const environment = 'testnet3';
+export type MainnetChains = keyof typeof mainnetConfigs;
+export const chainNames = Object.keys(mainnetConfigs) as MainnetChains[];
+export const environment = 'mainnet2';
