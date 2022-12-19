@@ -1,5 +1,6 @@
 node_modules
 dist
 coverage
-src/types
+types
 hardhat.config.ts
+scripts

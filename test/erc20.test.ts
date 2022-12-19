@@ -102,10 +102,8 @@ for (const withCollateral of [true, false]) {
         ? (local as HypERC20Collateral).initialize(
             ethers.constants.AddressZero,
             ethers.constants.AddressZero,
-            ethers.constants.AddressZero,
           )
         : (local as HypERC20).initialize(
-            ethers.constants.AddressZero,
             ethers.constants.AddressZero,
             ethers.constants.AddressZero,
             0,

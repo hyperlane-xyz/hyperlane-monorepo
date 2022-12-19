@@ -14,7 +14,6 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
      * @notice Initializes the Hyperlane router, ERC721 metadata, and mints initial supply to deployer.
      * @param _mailbox The address of the mailbox contract.
      * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
-     * @param _interchainSecurityModule The address of the interchain security module contract.
      * @param _mintAmount The amount of NFTs to mint to `msg.sender`.
      * @param _name The name of the token.
      * @param _symbol The symbol of the token.
@@ -22,7 +21,6 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
     function initialize(
         address _mailbox,
         address _interchainGasPaymaster,
-        address _interchainSecurityModule,
         uint256 _mintAmount,
         string memory _name,
         string memory _symbol
@@ -30,8 +28,7 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
         // transfers ownership to `msg.sender`
         __HyperlaneConnectionClient_initialize(
             _mailbox,
-            _interchainGasPaymaster,
-            _interchainSecurityModule
+            _interchainGasPaymaster
         );
 
         __ERC721_init(_name, _symbol);
