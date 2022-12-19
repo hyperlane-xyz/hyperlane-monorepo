@@ -100,12 +100,6 @@ impl BaseAgent for Relayer {
             if *chain == self.origin_chain {
                 continue;
             }
-            let signer = self
-                .core
-                .settings
-                .get_signer(chain.name())
-                .await
-                .expect("expected signer for mailbox");
             let mailbox = self.mailbox(chain).unwrap();
             let multisig_ism = self.multisig_ism(chain).unwrap();
 

@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+use primitive_types::H256;
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::{ChainResult, HyperlaneProtocolError, H160};
@@ -18,7 +19,7 @@ pub struct Balance(pub num::BigInt);
 #[derive(Debug, Clone)]
 pub struct ContractLocator {
     pub domain: HyperlaneDomain,
-    pub address: Address,
+    pub address: H256,
 }
 impl Display for ContractLocator {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -27,7 +28,7 @@ impl Display for ContractLocator {
             "{}[@{}]+contract:0x{:x}",
             self.domain.name(),
             self.domain.id(),
-            self.address.0
+            self.address
         )
     }
 }

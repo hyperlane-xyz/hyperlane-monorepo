@@ -1,21 +1,59 @@
 //! Test functions that output json files
 
+#![cfg(test)]
+
+use std::fs::File;
+use std::io::Read;
+use std::path::PathBuf;
 use std::{fs::OpenOptions, io::Write, str::FromStr};
 
-use hyperlane_ethereum::Signers;
 use hex::FromHex;
 use serde_json::{json, Value};
 
 use hyperlane_core::{
     accumulator::{
-        merkle::{merkle_root_from_branch, MerkleTree},
+        merkle::{merkle_root_from_branch, MerkleTree, Proof},
         TREE_DEPTH,
     },
-    test_utils::find_vector,
-    HyperlaneSigner,
     utils::domain_hash,
     Checkpoint, HyperlaneMessage, H160, H256,
 };
+use hyperlane_ethereum::Signers;
+use ethers::signers::Signer;
+
+/// Struct representing a single merkle test case
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MerkleTestCase {
+    /// Test case name
+    pub test_name: String,
+    /// Leaves of merkle tree
+    pub leaves: Vec<String>,
+    /// Proofs for leaves in tree
+    pub proofs: Vec<Proof>,
+    /// Root of tree
+    pub expected_root: H256,
+}
+
+/// Find a vector file assuming that a git checkout exists
+// TODO: look instead for the workspace `Cargo.toml`? use a cargo env var?
+pub fn find_vector(final_component: &str) -> PathBuf {
+    let cwd = std::env::current_dir().expect("no cwd?");
+    let git_dir = cwd
+        .ancestors() // . ; ../ ; ../../ ; ...
+        .find(|d| d.join(".git").is_dir())
+        .expect("could not find .git somewhere! confused about workspace layout");
+
+    git_dir.join("vectors").join(final_component)
+}
+
+/// Reads merkle test case json file and returns a vector of `MerkleTestCase`s
+pub fn load_merkle_test_json() -> Vec<MerkleTestCase> {
+    let mut file = File::open(find_vector("merkle.json")).unwrap();
+    let mut data = String::new();
+    file.read_to_string(&mut data).unwrap();
+    serde_json::from_str(&data).unwrap()
+}
 
 /// Output proof to /vector/message.json
 pub fn output_message() {
@@ -23,9 +61,7 @@ pub fn output_message() {
         nonce: 0,
         version: 0,
         origin: 1000,
-        sender: H256::from(
-            H160::from_str("0x1111111111111111111111111111111111111111").unwrap(),
-        ),
+        sender: H256::from(H160::from_str("0x1111111111111111111111111111111111111111").unwrap()),
         destination: 2000,
         recipient: H256::from(
             H160::from_str("0x2222222222222222222222222222222222222222").unwrap(),
@@ -69,14 +105,14 @@ pub fn output_merkle_proof() {
             .unwrap(),
         TREE_DEPTH,
     )
-        .unwrap();
+    .unwrap();
     tree.push_leaf(
         "0x5068ac60cb6f9c5202bbe8e7a1babdd972133ea3ad37d7e0e753c7e4ddd7ffbd"
             .parse()
             .unwrap(),
         TREE_DEPTH,
     )
-        .unwrap();
+    .unwrap();
     let proof = tree.generate_proof(index, TREE_DEPTH);
 
     let proof_json = json!({ "leaf": proof.0, "path": proof.1, "index": index});
@@ -95,8 +131,7 @@ pub fn output_merkle_proof() {
 
 /// Outputs domain hash test cases in /vector/domainHash.json
 pub fn output_domain_hashes() {
-    let mailbox =
-        H256::from(H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
+    let mailbox = H256::from(H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
     let test_cases: Vec<Value> = (1..=3)
         .map(|i| {
             json!({
@@ -122,14 +157,12 @@ pub fn output_domain_hashes() {
 
 /// Outputs signed checkpoint test cases in /vector/signedCheckpoint.json
 pub fn output_signed_checkpoints() {
-    let mailbox =
-        H256::from(H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
+    let mailbox = H256::from(H160::from_str("0x2222222222222222222222222222222222222222").unwrap());
     let t = async {
-        let signer: Signers =
-            "1111111111111111111111111111111111111111111111111111111111111111"
-                .parse::<ethers::signers::LocalWallet>()
-                .unwrap()
-                .into();
+        let signer: Signers = "1111111111111111111111111111111111111111111111111111111111111111"
+            .parse::<ethers::signers::LocalWallet>()
+            .unwrap()
+            .into();
 
         let mut test_cases: Vec<Value> = Vec::new();
 
@@ -141,9 +174,9 @@ pub fn output_signed_checkpoints() {
                 root: H256::repeat_byte(i + 1),
                 index: i as u32,
             }
-                .sign_with(&signer)
-                .await
-                .expect("!sign_with");
+            .sign_with(&signer)
+            .await
+            .expect("!sign_with");
 
             test_cases.push(json!({
                 "mailbox": signed_checkpoint.checkpoint.mailbox_address,

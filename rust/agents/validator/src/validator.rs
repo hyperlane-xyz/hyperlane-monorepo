@@ -41,7 +41,7 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
-        let signer = Arc::new(settings.validator.try_into_signer().await?);
+        let signer = Arc::new(settings.validator.build_signer().await?);
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
         let interval = Duration::from_secs(settings.interval.parse().expect("invalid uint"));
         let checkpoint_syncer =

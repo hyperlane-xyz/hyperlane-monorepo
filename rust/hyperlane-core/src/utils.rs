@@ -50,8 +50,8 @@ pub enum HexStringError {
     NotHex(String),
 }
 
-impl<const N: usize> AsRef<String> for HexString<N> {
-    fn as_ref(&self) -> &String {
+impl<const N: usize> AsRef<str> for HexString<N> {
+    fn as_ref(&self) -> &str {
         &self.0
     }
 }
@@ -92,7 +92,7 @@ impl<'de, const N: usize> serde::Deserialize<'de> for HexString<N> {
     where
         D: serde::Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
+        let s = <&str>::deserialize(deserializer)?;
         Self::from_string(s).map_err(serde::de::Error::custom)
     }
 }

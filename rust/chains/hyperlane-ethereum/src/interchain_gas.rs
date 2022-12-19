@@ -70,7 +70,7 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         Self {
             contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
-                &locator.address,
+                locator.address,
                 provider.clone(),
             )),
             provider,
@@ -168,7 +168,7 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
-                &locator.address,
+                locator.address,
                 provider,
             )),
             domain: locator.domain.clone(),

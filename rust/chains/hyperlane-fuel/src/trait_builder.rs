@@ -1,28 +1,29 @@
 use fuels::client::FuelClient;
 use fuels::prelude::Provider;
 
-#[derive(Debug, serde::Deserialize, Clone)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum WalletConf {
-
-}
+use hyperlane_core::{ChainCommunicationError, ChainResult};
 
 /// Fuel connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
     url: String,
-    wallet: WalletConf,
 }
 
-// struct FuelConnectionError(anyhow::Error);
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+struct FuelNewConnectionError(#[from] anyhow::Error);
 
-fn make_client(conf: &ConnectionConf) -> Result<FuelClient, ()> {
-    match conf {
-        ConnectionConf::Http { url } => FuelClient::new(url).map_err(|_| todo!()),
+impl From<FuelNewConnectionError> for ChainCommunicationError {
+    fn from(err: FuelNewConnectionError) -> Self {
+        ChainCommunicationError::from_other(err)
     }
 }
 
-pub fn make_provider(conf: &ConnectionConf) -> Result<Provider, ()> {
+fn make_client(conf: &ConnectionConf) -> ChainResult<FuelClient> {
+    FuelClient::new(&conf.url).map_err(|e| FuelNewConnectionError(e).into())
+}
+
+pub fn make_provider(conf: &ConnectionConf) -> ChainResult<Provider> {
     Ok(Provider::new(make_client(conf)?))
 }

@@ -2780,6 +2780,7 @@ name = "hyperlane-fuel"
 version = "0.1.0"
 dependencies = [
  "abigen",
+ "anyhow",
  "async-trait",
  "fuels",
  "hyperlane-core",

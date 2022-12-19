@@ -2,26 +2,9 @@ use async_trait::async_trait;
 use ethers::prelude::{Address, Signature};
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::transaction::eip712::Eip712;
-use hyperlane_core::{H256, HyperlaneSigner, HyperlaneSignerError};
 use ethers_signers::{AwsSigner, AwsSignerError, LocalWallet, Signer, WalletError};
 
-
-/// Error types for Signers
-#[derive(Debug, thiserror::Error)]
-pub enum SignersError {
-    /// AWS Signer Error
-    #[error("{0}")]
-    AwsSignerError(#[from] AwsSignerError),
-    /// Wallet Signer Error
-    #[error("{0}")]
-    WalletError(#[from] WalletError),
-}
-
-impl From<std::convert::Infallible> for SignersError {
-    fn from(_error: std::convert::Infallible) -> Self {
-        panic!("infallible")
-    }
-}
+use hyperlane_core::{HyperlaneSigner, HyperlaneSignerError, H256};
 
 /// Ethereum-supported signer types
 #[derive(Debug, Clone)]
@@ -43,7 +26,6 @@ impl From<AwsSigner<'static>> for Signers {
         Signers::Aws(s)
     }
 }
-
 
 #[async_trait]
 impl Signer for Signers {
@@ -100,17 +82,42 @@ impl Signer for Signers {
 
 #[async_trait]
 impl HyperlaneSigner for Signers {
+    fn address(&self) -> H256 {
+        Signer::address(self).into()
+    }
+
     async fn sign_hash(&self, hash: &H256) -> Result<Signature, HyperlaneSignerError> {
-        let mut signature = self.sign_message(hash).await?;
+        let mut signature = Signer::sign_message(self, hash).await.map_err(|err| {
+            HyperlaneSignerError::from(Box::new(err) as Box<dyn std::error::Error>)
+        })?;
         signature.v = 28 - (signature.v % 2);
         Ok(signature)
+    }
+}
+
+/// Error types for Signers
+#[derive(Debug, thiserror::Error)]
+pub enum SignersError {
+    /// AWS Signer Error
+    #[error("{0}")]
+    AwsSignerError(#[from] AwsSignerError),
+    /// Wallet Signer Error
+    #[error("{0}")]
+    WalletError(#[from] WalletError),
+}
+
+impl From<std::convert::Infallible> for SignersError {
+    fn from(_error: std::convert::Infallible) -> Self {
+        panic!("infallible")
     }
 }
 
 #[cfg(test)]
 mod test {
     use ethers_signers::Signer;
+
     use hyperlane_core::{Checkpoint, H256};
+
     use crate::signers::Signers;
 
     #[test]
@@ -139,4 +146,3 @@ mod test {
             .block_on(t)
     }
 }
-

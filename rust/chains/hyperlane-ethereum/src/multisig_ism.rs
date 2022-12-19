@@ -118,7 +118,7 @@ where
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumMultisigIsmInternal::new(&locator.address, provider)),
+            contract: Arc::new(EthereumMultisigIsmInternal::new(locator.address, provider)),
             domain: locator.domain.clone(),
             threshold_cache: RwLock::new(ExpiringCache::new(Duration::from_secs(60))),
             validators_cache: RwLock::new(ExpiringCache::new(Duration::from_secs(60))),

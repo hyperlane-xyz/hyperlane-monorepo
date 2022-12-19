@@ -70,7 +70,7 @@ where
     /// Create new EthereumMailboxIndexer
     pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         let contract = Arc::new(EthereumMailboxInternal::new(
-            &locator.address,
+            locator.address,
             provider.clone(),
         ));
         Self {
@@ -178,7 +178,7 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(EthereumMailboxInternal::new(
-                &locator.address,
+                locator.address,
                 provider.clone(),
             )),
             domain: locator.domain.clone(),

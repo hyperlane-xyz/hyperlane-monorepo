@@ -5,11 +5,15 @@ use std::num::NonZeroU64;
 use async_trait::async_trait;
 use fuels::prelude::{Bech32ContractId, WalletUnlocked};
 
-use crate::{make_provider, ConnectionConf};
-use hyperlane_core::{ChainCommunicationError, ChainResult, Checkpoint, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256, ContractLocator};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, Indexer, LogMeta,
+    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+};
 
 use crate::contracts::mailbox::Mailbox as FuelMailboxInner;
 use crate::conversions::*;
+use crate::{make_provider, ConnectionConf};
 
 /// A reference to a Mailbox contract on some Fuel chain
 pub struct FuelMailbox {
@@ -19,12 +23,19 @@ pub struct FuelMailbox {
 
 impl FuelMailbox {
     /// Create a new fuel mailbox
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator, signer: &SignerConf) -> ChainResult<Self> {
-        let provider = make_provider(conf);
-        let address: Bech32ContractId = locator.address.into();
-        
-        let wallet: WalletUnlocked = WalletUnlocked::new_from_private_key();
-        FuelMailboxInner::new(address, wallet)
+    pub fn new(
+        conf: &ConnectionConf,
+        locator: ContractLocator,
+        mut wallet: WalletUnlocked,
+    ) -> ChainResult<Self> {
+        let provider = make_provider(conf)?;
+        wallet.set_provider(provider);
+        let address = Bech32ContractId::from_h256(&locator.address);
+
+        Ok(FuelMailbox {
+            contract: FuelMailboxInner::new(address, wallet),
+            domain: locator.domain,
+        })
     }
 }
 

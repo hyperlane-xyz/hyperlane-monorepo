@@ -86,7 +86,7 @@ pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers,
+    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm,
 };
 pub use signers::SignerConf;
 
@@ -134,8 +134,6 @@ static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainSetup>,
-    /// Transaction signers
-    pub signers: HashMap<String, SignerConf>,
     /// Gelato config
     pub gelato: Option<GelatoConf>,
     /// Database connection string (might be a path on the fs or a remote db)
@@ -176,11 +174,6 @@ impl Settings {
             metrics,
             settings: self.clone(),
         })
-    }
-
-    /// Try to get a signer instance by name
-    pub async fn get_signer(&self, name: &str) -> Option<Signers> {
-        self.signers.get(name)?.try_into_signer().await.ok()
     }
 
     /// Try to get a map of chain name -> mailbox contract
@@ -293,7 +286,6 @@ impl Settings {
     fn clone(&self) -> Self {
         Self {
             chains: self.chains.clone(),
-            signers: self.signers.clone(),
             gelato: self.gelato.clone(),
             db: self.db.clone(),
             metrics: self.metrics.clone(),
@@ -311,9 +303,8 @@ macro_rules! delegate_fn {
             chain_name: &str,
             metrics: &CoreMetrics,
         ) -> eyre::Result<Box<$ret>> {
-            let signer = self.get_signer(chain_name).await;
             let setup = self.chain_setup(chain_name)?;
-            setup.$name(signer, metrics).await
+            setup.$name(metrics).await
         }
     };
 }
