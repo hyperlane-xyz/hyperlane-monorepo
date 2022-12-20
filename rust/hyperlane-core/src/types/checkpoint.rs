@@ -74,7 +74,9 @@ impl Decode for Checkpoint {
 }
 
 impl Checkpoint {
-    fn signing_hash(&self) -> H256 {
+    /// A hash of the checkpoint contents.
+    /// The EIP-191 compliant version of this hash is signed by validators.
+    pub fn signing_hash(&self) -> H256 {
         // sign:
         // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32)
         H256::from_slice(
@@ -87,7 +89,8 @@ impl Checkpoint {
         )
     }
 
-    fn prepended_hash(&self) -> H256 {
+    /// EIP-191 compliant hash of the signing hash of the checkpoint.
+    pub fn eth_signed_message_hash(&self) -> H256 {
         hash_message(self.signing_hash())
     }
 
@@ -143,14 +146,16 @@ impl Decode for SignedCheckpoint {
 impl SignedCheckpoint {
     /// Recover the Ethereum address of the signer
     pub fn recover(&self) -> Result<Address, HyperlaneProtocolError> {
-        Ok(self.signature.recover(self.checkpoint.prepended_hash())?)
+        Ok(self
+            .signature
+            .recover(self.checkpoint.eth_signed_message_hash())?)
     }
 
     /// Check whether a message was signed by a specific address
     pub fn verify(&self, signer: Address) -> Result<(), HyperlaneProtocolError> {
         Ok(self
             .signature
-            .verify(self.checkpoint.prepended_hash(), signer)?)
+            .verify(self.checkpoint.eth_signed_message_hash(), signer)?)
     }
 }
 

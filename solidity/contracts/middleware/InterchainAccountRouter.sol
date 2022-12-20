@@ -5,6 +5,7 @@ pragma solidity ^0.8.13;
 import {OwnableMulticall, Call} from "../OwnableMulticall.sol";
 import {Router} from "../Router.sol";
 import {IInterchainAccountRouter} from "../../interfaces/IInterchainAccountRouter.sol";
+import {MinimalProxy} from "../libs/MinimalProxy.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -16,14 +17,21 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @dev You can use this simple app as a starting point for your own application.
  */
 contract InterchainAccountRouter is Router, IInterchainAccountRouter {
-    bytes constant bytecode = type(OwnableMulticall).creationCode;
-    bytes32 constant bytecodeHash = bytes32(keccak256(bytecode));
+    address immutable implementation;
+    bytes32 immutable bytecodeHash;
 
     event InterchainAccountCreated(
         uint32 indexed origin,
         address sender,
         address account
     );
+
+    constructor() {
+        implementation = address(new OwnableMulticall());
+        // cannot be stored immutably because it is dynamically sized
+        bytes memory bytecode = MinimalProxy.bytecode(implementation);
+        bytecodeHash = keccak256(bytecode);
+    }
 
     function initialize(
         address _mailbox,
@@ -70,7 +78,9 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         bytes32 salt = _salt(_origin, _sender);
         address interchainAccount = _getInterchainAccount(salt);
         if (!Address.isContract(interchainAccount)) {
+            bytes memory bytecode = MinimalProxy.bytecode(implementation);
             interchainAccount = Create2.deploy(0, salt, bytecode);
+            OwnableMulticall(interchainAccount).initialize();
             emit InterchainAccountCreated(_origin, _sender, interchainAccount);
         }
         return OwnableMulticall(interchainAccount);

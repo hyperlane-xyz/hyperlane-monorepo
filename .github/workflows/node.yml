@@ -91,6 +91,8 @@ jobs:
         run: yarn workspace @hyperlane-xyz/infra run test
       - name: helloworld
         run: yarn workspace @hyperlane-xyz/helloworld run test
+      - name: hyperlane-token
+        run: yarn workspace @hyperlane-xyz/hyperlane-token run test
 
   test-sol:
     env:
@@ -116,3 +118,7 @@ jobs:
 
       - name: core
         run: yarn workspace @hyperlane-xyz/core run test
+
+      - name: gas
+        run: yarn workspace @hyperlane-xyz/core run gas || echo "Manually update gas snapshot"
+
