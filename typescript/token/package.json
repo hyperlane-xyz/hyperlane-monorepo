@@ -1,0 +1,62 @@
+{
+  "name": "@hyperlane-xyz/hyperlane-token",
+  "description": "A template for interchain ERC20 and ERC721 tokens using Hyperlane",
+  "version": "1.0.0-beta1",
+  "dependencies": {
+    "@hyperlane-xyz/core": "1.0.0-beta1",
+    "@hyperlane-xyz/sdk": "1.0.0-beta1",
+    "@hyperlane-xyz/utils": "1.0.0-beta1",
+    "@openzeppelin/contracts-upgradeable": "^4.8.0",
+    "ethers": "^5.6.8"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.5",
+    "@nomiclabs/hardhat-waffle": "^2.0.2",
+    "@trivago/prettier-plugin-sort-imports": "^3.2.0",
+    "@typechain/ethers-v5": "10.0.0",
+    "@typechain/hardhat": "^6.0.0",
+    "@types/mocha": "^9.1.0",
+    "@typescript-eslint/eslint-plugin": "^5.27.0",
+    "@typescript-eslint/parser": "^5.27.0",
+    "chai": "^4.3.0",
+    "eslint": "^8.16.0",
+    "eslint-config-prettier": "^8.5.0",
+    "ethereum-waffle": "^3.4.4",
+    "hardhat": "^2.8.4",
+    "hardhat-gas-reporter": "^1.0.7",
+    "prettier": "^2.4.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.5",
+    "solhint": "^3.3.2",
+    "solhint-plugin-prettier": "^0.0.5",
+    "solidity-coverage": "^0.7.14",
+    "ts-node": "^10.8.0",
+    "typechain": "8.0.0",
+    "typescript": "^4.7.2"
+  },
+  "files": [
+    "/dist",
+    "/contracts"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "keywords": [
+    "Hyperlane",
+    "Solidity",
+    "Token"
+  ],
+  "license": "Apache-2.0",
+  "main": "dist/index.js",
+  "packageManager": "yarn@3.2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hyperlane-xyz/hyperlane-token"
+  },
+  "scripts": {
+    "clean": "hardhat clean && rm -rf dist cache src/types",
+    "build": "hardhat compile && tsc",
+    "coverage": "hardhat coverage",
+    "lint": "eslint . --ext .ts",
+    "prettier": "prettier --write ./contracts ./test",
+    "test": "hardhat test ./test/*.test.ts"
+  },
+  "types": "dist/index.d.ts"
+}
