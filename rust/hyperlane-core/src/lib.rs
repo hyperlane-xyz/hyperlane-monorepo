@@ -20,7 +20,6 @@ mod traits;
 pub mod utils;
 
 /// Testing utilities
-#[cfg(test)]
 pub mod test_utils;
 
 /// DB related utilities

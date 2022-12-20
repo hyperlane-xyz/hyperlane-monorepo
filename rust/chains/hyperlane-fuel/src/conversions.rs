@@ -6,7 +6,9 @@ pub trait FuelIntoH256 {
     fn into_h256(self) -> H256;
 }
 
+/// Conversion from an H256 primitive to a type to an H256 primitive
 pub trait FuelFromH256 {
+    /// Convert an H256 primitive to this type.
     fn from_h256(v: &H256) -> Self;
 }
 
@@ -45,4 +47,10 @@ impl_h256!(
     fuels::prelude::Bits256,
     |v| fuels::prelude::Bits256(v.0),
     |v| H256::from(v.0)
+);
+
+impl_h256!(
+    fuels::prelude::ContractId,
+    |v| fuels::prelude::ContractId::new(v.0),
+    |v| H256::from(<[u8; 32]>::from(v))
 );

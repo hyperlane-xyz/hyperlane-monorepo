@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use ethers::signers::Signer;
 use ethers::types::Selector;
 use eyre::{ensure, Context};
 use eyre::{eyre, Result};
@@ -18,7 +17,7 @@ use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
     EthereumMultisigIsmAbi,
 };
-use hyperlane_fuel as h_fuel;
+use hyperlane_fuel::{self as h_fuel, prelude::*};
 
 use crate::settings::signers::BuildableWithSignerConf;
 use crate::{CoreMetrics, SignerConf};
@@ -363,7 +362,7 @@ impl ChainSetup {
                 address
                     .parse::<fuels::tx::ContractId>()
                     .map_err(|e| eyre!("Invalid fuel contract id: {e}"))?
-                    .into()
+                    .into_h256()
             }
         };
 
@@ -380,13 +379,16 @@ impl ChainSetup {
         .map_err(|e| eyre!("{e}"))
     }
 
-    async fn build_ethereum<B: BuildableWithProvider>(
+    async fn build_ethereum<B>(
         &self,
         conf: &h_eth::ConnectionConf,
         locator: &ContractLocator,
         metrics: &CoreMetrics,
         builder: B,
-    ) -> Result<B::Output> {
+    ) -> Result<B::Output>
+    where
+        B: BuildableWithProvider + Sync,
+    {
         let signer = self.ethereum_signer().await?;
         let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         let rpc_metrics = Some(|| metrics.json_rpc_client_metrics());

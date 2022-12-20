@@ -8,12 +8,12 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{CachingMailbox, CheckpointSyncer, CheckpointSyncers, CoreMetrics};
-use hyperlane_core::{HyperlaneDomain, Mailbox, Signers};
+use hyperlane_core::{HyperlaneDomain, HyperlaneSigner, Mailbox};
 
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
     reorg_period: Option<NonZeroU64>,
-    signer: Arc<Signers>,
+    signer: Arc<dyn HyperlaneSigner>,
     mailbox: CachingMailbox,
     checkpoint_syncer: Arc<CheckpointSyncers>,
     metrics: ValidatorSubmitterMetrics,
@@ -24,7 +24,7 @@ impl ValidatorSubmitter {
         interval: Duration,
         reorg_period: u64,
         mailbox: CachingMailbox,
-        signer: Arc<Signers>,
+        signer: Arc<dyn HyperlaneSigner>,
         checkpoint_syncer: Arc<CheckpointSyncers>,
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {

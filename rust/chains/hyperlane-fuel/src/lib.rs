@@ -18,3 +18,8 @@ mod mailbox;
 mod multisig_ism;
 mod provider;
 mod trait_builder;
+
+/// Safe default imports of commonly used traits/types.
+pub mod prelude {
+    pub use crate::conversions::*;
+}

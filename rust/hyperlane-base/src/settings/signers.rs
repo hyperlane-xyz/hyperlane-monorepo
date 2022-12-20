@@ -1,14 +1,12 @@
 use async_trait::async_trait;
 use ethers::prelude::AwsSigner;
 use eyre::{bail, Report};
-use fuels::prelude::Signer;
 use rusoto_core::credential::EnvironmentProvider;
 use rusoto_core::HttpClient;
 use rusoto_kms::KmsClient;
 use tracing::instrument;
 
 use hyperlane_core::utils::HexString;
-use hyperlane_core::{HyperlaneDomainImpl, HyperlaneSigner, H256};
 
 use crate::settings::KMS_CLIENT;
 
@@ -43,10 +41,8 @@ impl Default for SignerConf {
 impl SignerConf {
     /// Try to convert the ethereum signer to a local wallet
     #[instrument(err)]
-    pub async fn build<S: BuildableWithSignerConf>(
-        &self,
-    ) -> Result<S, Report> {
-        S::build(&self).await
+    pub async fn build<S: BuildableWithSignerConf>(&self) -> Result<S, Report> {
+        S::build(self).await
     }
 }
 
@@ -59,7 +55,7 @@ pub trait BuildableWithSignerConf: Sized {
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        match conf {
+        Ok(match conf {
             SignerConf::HexKey { key } => hyperlane_ethereum::Signers::Local(key.as_ref().parse()?),
             SignerConf::Aws { id, region } => {
                 let client = KMS_CLIENT.get_or_init(|| {
@@ -76,23 +72,20 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
                 hyperlane_ethereum::Signers::Aws(signer)
             }
             SignerConf::Node => bail!("Node signer"),
-        }
-        .into()
+        })
     }
 }
 
 #[async_trait]
 impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        match conf {
+        Ok(match conf {
             SignerConf::HexKey { key } => {
-                let key_bytes: H256 = key.as_ref().parse()?;
-                let key = fuels::signers::fuel_crypto::SecretKey::from(key_bytes.0);
+                let key = key.as_ref().parse()?;
                 fuels::prelude::WalletUnlocked::new_from_private_key(key, None)
             }
             SignerConf::Aws { .. } => bail!("Aws signer is not supported by fuel"),
             SignerConf::Node => bail!("Node signer is not supported by fuel"),
-        }
-        .into()
+        })
     }
 }

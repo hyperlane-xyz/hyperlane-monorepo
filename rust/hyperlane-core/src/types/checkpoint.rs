@@ -5,7 +5,10 @@ use ethers::{
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 
-use crate::{utils::domain_hash, Decode, Encode, HyperlaneProtocolError, H256, HyperlaneSigner, HyperlaneSignerError};
+use crate::{
+    utils::domain_hash, Decode, Encode, HyperlaneProtocolError, HyperlaneSigner,
+    HyperlaneSignerError, H256,
+};
 
 /// An Hyperlane checkpoint
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -89,10 +92,11 @@ impl Checkpoint {
     }
 
     /// Sign an checkpoint using the specified signer
-    pub async fn sign_with(self, signer: &impl HyperlaneSigner) -> Result<SignedCheckpoint, HyperlaneSignerError> {
-        let signature = signer
-            .sign_hash(&self.signing_hash())
-            .await?;
+    pub async fn sign_with(
+        self,
+        signer: impl HyperlaneSigner,
+    ) -> Result<SignedCheckpoint, HyperlaneSignerError> {
+        let signature = signer.sign_hash(&self.signing_hash()).await?;
         Ok(SignedCheckpoint {
             checkpoint: self,
             signature,

@@ -12,7 +12,7 @@ use crate::{
 /// Interface for the Mailbox chain contract. Allows abstraction over different
 /// chains
 #[async_trait]
-#[auto_impl(Box, Arc)]
+#[auto_impl(&, Box, Arc)]
 pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     /// Return the domain hash
     fn domain_hash(&self) -> H256 {

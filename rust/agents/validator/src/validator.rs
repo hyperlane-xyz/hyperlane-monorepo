@@ -9,7 +9,7 @@ use tracing::instrument::Instrumented;
 use hyperlane_base::{
     run_all, Agent, BaseAgent, CheckpointSyncers, CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::{HyperlaneDomain, Signers};
+use hyperlane_core::{HyperlaneDomain, HyperlaneSigner};
 
 use crate::submit::ValidatorSubmitterMetrics;
 use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
@@ -18,7 +18,7 @@ use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
 #[derive(Debug)]
 pub struct Validator {
     origin_chain: HyperlaneDomain,
-    signer: Arc<Signers>,
+    signer: Arc<dyn HyperlaneSigner>,
     reorg_period: u64,
     interval: Duration,
     checkpoint_syncer: Arc<CheckpointSyncers>,
@@ -41,7 +41,12 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
-        let signer = Arc::new(settings.validator.build_signer().await?);
+        let signer = settings
+            .validator
+            // Intentionally using hyperlane_ethereum for the validator's signer
+            .build::<hyperlane_ethereum::Signers>()
+            .await
+            .map(|validator| Arc::new(validator) as Arc<dyn HyperlaneSigner>)?;
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
         let interval = Duration::from_secs(settings.interval.parse().expect("invalid uint"));
         let checkpoint_syncer =
@@ -50,7 +55,8 @@ impl BaseAgent for Validator {
             .try_into_hyperlane_core(metrics, Some(vec![&settings.originchainname]))
             .await?;
 
-        // TODO: this should support unknown chains as well; use HyperlaneDomain::from_cfg()
+        // TODO: this should support unknown chains as well; use
+        // HyperlaneDomain::from_cfg()
         let origin_chain = HyperlaneDomain::Known(settings.originchainname.parse()?);
 
         Ok(Self {

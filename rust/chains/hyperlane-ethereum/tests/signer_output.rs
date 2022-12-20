@@ -2,58 +2,22 @@
 
 #![cfg(test)]
 
-use std::fs::File;
-use std::io::Read;
-use std::path::PathBuf;
 use std::{fs::OpenOptions, io::Write, str::FromStr};
 
 use hex::FromHex;
 use serde_json::{json, Value};
 
+use ethers::signers::Signer;
 use hyperlane_core::{
     accumulator::{
-        merkle::{merkle_root_from_branch, MerkleTree, Proof},
+        merkle::{merkle_root_from_branch, MerkleTree},
         TREE_DEPTH,
     },
+    test_utils,
     utils::domain_hash,
     Checkpoint, HyperlaneMessage, H160, H256,
 };
 use hyperlane_ethereum::Signers;
-use ethers::signers::Signer;
-
-/// Struct representing a single merkle test case
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MerkleTestCase {
-    /// Test case name
-    pub test_name: String,
-    /// Leaves of merkle tree
-    pub leaves: Vec<String>,
-    /// Proofs for leaves in tree
-    pub proofs: Vec<Proof>,
-    /// Root of tree
-    pub expected_root: H256,
-}
-
-/// Find a vector file assuming that a git checkout exists
-// TODO: look instead for the workspace `Cargo.toml`? use a cargo env var?
-pub fn find_vector(final_component: &str) -> PathBuf {
-    let cwd = std::env::current_dir().expect("no cwd?");
-    let git_dir = cwd
-        .ancestors() // . ; ../ ; ../../ ; ...
-        .find(|d| d.join(".git").is_dir())
-        .expect("could not find .git somewhere! confused about workspace layout");
-
-    git_dir.join("vectors").join(final_component)
-}
-
-/// Reads merkle test case json file and returns a vector of `MerkleTestCase`s
-pub fn load_merkle_test_json() -> Vec<MerkleTestCase> {
-    let mut file = File::open(find_vector("merkle.json")).unwrap();
-    let mut data = String::new();
-    file.read_to_string(&mut data).unwrap();
-    serde_json::from_str(&data).unwrap()
-}
 
 /// Output proof to /vector/message.json
 pub fn output_message() {
@@ -85,7 +49,7 @@ pub fn output_message() {
         .write(true)
         .create(true)
         .truncate(true)
-        .open(find_vector("message.json"))
+        .open(test_utils::find_vector("message.json"))
         .expect("Failed to open/create file");
 
     file.write_all(json.as_bytes())
@@ -122,7 +86,7 @@ pub fn output_merkle_proof() {
         .write(true)
         .create(true)
         .truncate(true)
-        .open(find_vector("proof.json"))
+        .open(test_utils::find_vector("proof.json"))
         .expect("Failed to open/create file");
 
     file.write_all(json.as_bytes())
@@ -148,7 +112,7 @@ pub fn output_domain_hashes() {
         .write(true)
         .create(true)
         .truncate(true)
-        .open(find_vector("domainHash.json"))
+        .open(test_utils::find_vector("domainHash.json"))
         .expect("Failed to open/create file");
 
     file.write_all(json.as_bytes())
@@ -194,7 +158,7 @@ pub fn output_signed_checkpoints() {
             .write(true)
             .create(true)
             .truncate(true)
-            .open(find_vector("signedCheckpoint.json"))
+            .open(test_utils::find_vector("signedCheckpoint.json"))
             .expect("Failed to open/create file");
 
         file.write_all(json.as_bytes())

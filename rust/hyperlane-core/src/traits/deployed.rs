@@ -1,6 +1,5 @@
-use std::fmt;
 use crate::{HyperlaneDomain, H256};
-
+use std::fmt;
 
 /// Interface for features of something deployed on/in a domain or is otherwise
 /// connected to it.

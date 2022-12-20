@@ -19,8 +19,8 @@ use ethers_prometheus::middleware::{
 };
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator};
 
-use crate::{ConnectionConf, RetryingProvider};
 use crate::signers::Signers;
+use crate::{ConnectionConf, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
