@@ -36,7 +36,7 @@ async function deployNFTWrapper() {
 
   const config = objMap(
     connectionConfigs,
-    (chain, c) =>
+    (chain, _) =>
       ({
         type: TokenType.synthetic,
         name: 'Dai',

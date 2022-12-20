@@ -35,7 +35,7 @@ export abstract class MiddlewareRouterDeployer<
   getInitArgs(
     config: MiddlewareRouterConfig,
     routerInterface: RouterInterface,
-  ) {
+  ): string {
     const initArgs: [string, string] | [string, string, string] = [
       config.mailbox,
       config.interchainGasPaymaster,
