@@ -74,6 +74,21 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     }
 
     /**
+     * @notice Batch version of `enrollRemoteRouter`
+     * @param _domains The domains of the remote Application Routers
+     * @param _routers The addresses of the remote Application Routers
+     */
+    function enrollRemoteRouters(
+        uint32[] calldata _domains,
+        bytes32[] calldata _routers
+    ) external virtual onlyOwner {
+        require(_domains.length == _routers.length, "!length");
+        for (uint256 i = 0; i < _domains.length; i += 1) {
+            _enrollRemoteRouter(_domains[i], _routers[i]);
+        }
+    }
+
+    /**
      * @notice Handles an incoming message
      * @param _origin The origin domain
      * @param _sender The sender address

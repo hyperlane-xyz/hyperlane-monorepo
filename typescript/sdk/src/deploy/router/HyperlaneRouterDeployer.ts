@@ -75,34 +75,43 @@ export abstract class HyperlaneRouterDeployer<
     );
     // Make all routers aware of each other.
     const deployedChains = Object.keys(contractsMap);
-    await promiseObjAll(
-      objMap(contractsMap, async (local, contracts) => {
-        const chainConnection = this.multiProvider.getChainConnection(local);
-        // only enroll chains which are deployed
-        const enrollChains = this.multiProvider
-          .remoteChains(local)
-          .filter((c) => deployedChains.includes(c));
-        for (const remote of enrollChains) {
+    for (const [chain, contracts] of Object.entries<RouterContracts>(
+      contractsMap,
+    )) {
+      const local = chain as Chain;
+      const chainConnection = this.multiProvider.getChainConnection(local);
+      // only enroll chains which are deployed
+      const deployedRemoteChains = this.multiProvider
+        .remoteChains(local)
+        .filter((c) => deployedChains.includes(c));
+      const enrollEntries = await Promise.all(
+        deployedRemoteChains.map(async (remote) => {
           const remoteDomain = chainMetadata[remote].id;
           const current = await contracts.router.routers(remoteDomain);
           const expected = utils.addressToBytes32(
             contractsMap[remote].router.address,
           );
-          if (current !== expected) {
-            await super.runIfOwner(local, contracts.router, async () => {
-              this.logger(`Enroll ${remote}'s router on ${local}`);
-              await chainConnection.handleTx(
-                contracts.router.enrollRemoteRouter(
-                  chainMetadata[remote].id,
-                  expected,
-                  chainConnection.overrides,
-                ),
-              );
-            });
-          }
-        }
-      }),
-    );
+          return current !== expected ? [remote, expected] : undefined;
+        }),
+      );
+      const entries = enrollEntries.filter(
+        (entry): entry is [Chain, string] => entry !== undefined,
+      );
+
+      const domains = entries.map(([chain]) => chainMetadata[chain].id);
+      const addresses = entries.map(([, address]) => address);
+
+      await super.runIfOwner(local, contracts.router, async () => {
+        this.logger(`Enroll remote (${domains}) routers on ${local}`);
+        await chainConnection.handleTx(
+          contracts.router.enrollRemoteRouters(
+            domains,
+            addresses,
+            chainConnection.overrides,
+          ),
+        );
+      });
+    }
   }
 
   async transferOwnership(

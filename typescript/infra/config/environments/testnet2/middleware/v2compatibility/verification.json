@@ -1,0 +1,66 @@
+{
+  "alfajores": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "fuji": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "goerli": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "moonbasealpha": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "optimismgoerli": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "arbitrumgoerli": [
+    {
+      "name": "V2CompatibilityRouter",
+      "address": "0x1d3aAC239538e6F1831C8708803e61A9EA299Eec",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ]
+}
