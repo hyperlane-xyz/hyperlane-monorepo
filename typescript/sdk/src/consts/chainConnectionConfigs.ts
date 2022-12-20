@@ -29,7 +29,7 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> =
 
     return {
       provider: new providerClass(metadata.publicRpcUrls[0].http, metadata.id),
-      confirmations: metadata.blocks.finalityConfirmations,
+      confirmations: metadata.blocks.confirmations,
       blockExplorerUrl: metadata.blockExplorers[0].url,
       blockExplorerApiUrl: metadata.blockExplorers[0].apiUrl,
     };

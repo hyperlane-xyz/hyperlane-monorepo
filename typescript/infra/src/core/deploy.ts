@@ -102,7 +102,7 @@ export class HyperlaneCoreInfraDeployer<
           multisigIsm: contracts.multisigIsm.address,
         },
         rpcStyle: 'ethereum',
-        finalityBlocks: metadata.blocks.finalityConfirmations.toString(),
+        finalityBlocks: metadata.blocks.reorgPeriod.toString(),
         connection: {
           type: ConnectionType.Http,
           url: '',
