@@ -411,7 +411,7 @@ export const mumbai: ChainMetadata = {
     },
   ],
   blocks: {
-    confirmations: 30,
+    confirmations: 3,
     reorgPeriod: 32,
     estimateBlockTime: 5,
   },
