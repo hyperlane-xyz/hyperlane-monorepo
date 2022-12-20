@@ -58,7 +58,11 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
 
     // ============ External functions ============
     function routers(uint32 _domain) public view returns (bytes32) {
-        return _routers.get(_domain);
+        if (_routers.contains(_domain)) {
+            return _routers.get(_domain);
+        } else {
+            return bytes32(0); // for backwards compatibility with storage mapping
+        }
     }
 
     /**
@@ -123,10 +127,6 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         emit RemoteRouterEnrolled(_domain, _address);
     }
 
-    function _hasRemoteRouter(uint32 _domain) internal view returns (bool) {
-        return _routers.contains(_domain);
-    }
-
     /**
      * @notice Return true if the given domain / router is the address of a remote Application Router
      * @param _domain The domain of the potential remote Application Router
@@ -137,7 +137,7 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         view
         returns (bool)
     {
-        return _hasRemoteRouter(_domain) && routers(_domain) == _address;
+        return routers(_domain) == _address;
     }
 
     /**
@@ -150,8 +150,8 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         view
         returns (bytes32 _router)
     {
-        require(_hasRemoteRouter(_domain), NO_ROUTER_ENROLLED_REVERT_MESSAGE);
         _router = routers(_domain);
+        require(_router != bytes32(0), NO_ROUTER_ENROLLED_REVERT_MESSAGE);
     }
 
     /**
