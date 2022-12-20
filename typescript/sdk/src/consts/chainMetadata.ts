@@ -41,8 +41,11 @@ export interface ChainMetadata {
     apiUrl?: string;
   }>;
   blocks: {
-    // Number of blocks to be considered final
-    finalityConfirmations: number;
+    // Number of blocks to wait before considering a transaction confirmed
+    confirmations: number;
+    // TODO consider merging with confirmations, require agent code changes
+    // Number of blocks before a transaction has a near-zero chance of reverting
+    reorgPeriod: number;
     // Rough estimate of time per block in seconds
     estimateBlockTime: number;
   };
@@ -101,7 +104,8 @@ export const alfajores: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 0,
     estimateBlockTime: 5,
   },
 };
@@ -121,7 +125,8 @@ export const arbitrum: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 0,
     estimateBlockTime: 3,
   },
   gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
@@ -145,7 +150,8 @@ export const arbitrumgoerli: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 1,
     estimateBlockTime: 3,
   },
 };
@@ -173,7 +179,8 @@ export const avalanche: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 3,
+    confirmations: 3,
+    reorgPeriod: 3,
     estimateBlockTime: 2,
   },
   gasCurrencyCoinGeckoId: 'avalanche-2',
@@ -200,7 +207,8 @@ export const bsc: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 15,
     estimateBlockTime: 3,
   },
   gasCurrencyCoinGeckoId: 'binancecoin',
@@ -222,7 +230,8 @@ export const bsctestnet: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 9,
     estimateBlockTime: 3,
   },
 };
@@ -247,7 +256,8 @@ export const celo: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 0,
     estimateBlockTime: 5,
   },
   gnosisSafeTransactionServiceUrl:
@@ -274,7 +284,8 @@ export const ethereum: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 7,
+    confirmations: 7,
+    reorgPeriod: 20,
     estimateBlockTime: 13,
   },
   gnosisSafeTransactionServiceUrl: 'https://safe-transaction.gnosis.io',
@@ -295,7 +306,8 @@ export const fuji: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 3,
+    confirmations: 3,
+    reorgPeriod: 3,
     estimateBlockTime: 2,
   },
 };
@@ -315,7 +327,8 @@ export const goerli: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 2,
     estimateBlockTime: 13,
   },
 };
@@ -340,7 +353,8 @@ export const moonbasealpha: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 1,
     estimateBlockTime: 12,
   },
 };
@@ -364,7 +378,8 @@ export const moonbeam: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 1,
     estimateBlockTime: 12,
   },
 };
@@ -396,7 +411,8 @@ export const mumbai: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 30,
+    confirmations: 30,
+    reorgPeriod: 32,
     estimateBlockTime: 5,
   },
 };
@@ -416,7 +432,8 @@ export const optimism: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 0,
     estimateBlockTime: 3,
   },
   gasCurrencyCoinGeckoId: 'ethereum', // ETH is used for gas
@@ -440,7 +457,8 @@ export const optimismgoerli: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 1,
     estimateBlockTime: 3,
   },
 };
@@ -470,7 +488,8 @@ export const polygon: ChainMetadata = {
     },
   ],
   blocks: {
-    finalityConfirmations: 200,
+    confirmations: 200,
+    reorgPeriod: 256,
     estimateBlockTime: 2,
   },
   gasCurrencyCoinGeckoId: 'matic-network',
@@ -486,7 +505,8 @@ export const test1: ChainMetadata = {
   publicRpcUrls: [{ http: 'http://localhost:8545' }],
   blockExplorers: [],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 0,
     estimateBlockTime: 3,
   },
 };
@@ -499,7 +519,8 @@ export const test2: ChainMetadata = {
   publicRpcUrls: [{ http: 'http://localhost:8545' }],
   blockExplorers: [],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 1,
     estimateBlockTime: 3,
   },
 };
@@ -512,7 +533,8 @@ export const test3: ChainMetadata = {
   publicRpcUrls: [{ http: 'http://localhost:8545' }],
   blockExplorers: [],
   blocks: {
-    finalityConfirmations: 1,
+    confirmations: 1,
+    reorgPeriod: 2,
     estimateBlockTime: 3,
   },
 };
@@ -598,7 +620,7 @@ export type PartialChainMetadata = {
 export const partialChainMetadata: Record<ChainName, PartialChainMetadata> =
   objMap(chainMetadata, (_, metadata) => ({
     id: metadata.id,
-    finalityBlocks: metadata.blocks.finalityConfirmations,
+    finalityBlocks: metadata.blocks.confirmations,
     nativeTokenDecimals: metadata.nativeToken.decimals,
     paginate: metadata.publicRpcUrls[0]?.pagination,
     gasCurrencyCoinGeckoId: metadata.gasCurrencyCoinGeckoId,
