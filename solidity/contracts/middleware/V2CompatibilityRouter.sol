@@ -68,7 +68,6 @@ contract V2CompatibilityRouter is Router {
     /**
      * @notice The internal Router `handle` function which just extracts the true recipient of the message and passes the translated v2 domain ID
      * @param _originV1Domain the origin domain as specified by the v1 Inbox
-     * @param _sender The sender of the message which for middlewares is just the router on the origin chain
      * @param _message The wrapped message to include sender and recipient
      */
     function _handle(
