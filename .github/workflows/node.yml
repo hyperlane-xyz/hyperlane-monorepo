@@ -18,13 +18,12 @@ jobs:
         with:
           submodules: recursive
 
-      - name: install submodules
-        run: git submodule foreach yarn install
+      - name: remove submodule locks
+        run: git submodule foreach rm yarn.lock
 
       - uses: actions/cache@v3
         with:
-          # account for submodules
-          path: '**/*/node_modules'
+          path: '**/node_modules'
           key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
 
       - name: yarn-install
@@ -47,11 +46,13 @@ jobs:
         with:
           submodules: recursive
 
+      - name: remove submodule locks
+        run: git submodule foreach rm yarn.lock
+
       - name: yarn-cache
         uses: actions/cache@v3
         with:
-          # account for submodules
-          path: '**/*/node_modules'
+          path: '**/node_modules'
           key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
