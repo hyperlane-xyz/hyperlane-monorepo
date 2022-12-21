@@ -59,4 +59,10 @@ export const Testnets = [
   Chains.optimismgoerli,
 ] as Array<ChainName>;
 
+export const TestChains = [
+  Chains.test1,
+  Chains.test2,
+  Chains.test3,
+] as Array<ChainName>;
+
 export const AllChains = Object.keys(Chains) as Array<ChainName>;
