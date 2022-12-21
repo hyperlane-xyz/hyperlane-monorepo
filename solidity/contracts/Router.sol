@@ -57,6 +57,15 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     }
 
     // ============ External functions ============
+    function domains() external view returns (uint32[] memory) {
+        bytes32[] storage rawKeys = _routers.keys();
+        uint32[] memory keys = new uint32[](rawKeys.length);
+        for (uint256 i = 0; i < rawKeys.length; i++) {
+            keys[i] = uint32(uint256(rawKeys[i]));
+        }
+        return keys;
+    }
+
     function routers(uint32 _domain) public view returns (bytes32) {
         if (_routers.contains(_domain)) {
             return _routers.get(_domain);
