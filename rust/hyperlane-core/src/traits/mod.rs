@@ -8,8 +8,6 @@ pub use multisig_ism::*;
 pub use provider::*;
 pub use signer::*;
 
-use crate::H256;
-
 mod cursor;
 mod deployed;
 mod encode;
@@ -24,7 +22,7 @@ mod signer;
 #[derive(Debug, Clone, Copy)]
 pub struct TxOutcome {
     /// The txid
-    pub txid: H256,
+    pub txid: crate::H256,
     /// True if executed, false otherwise (reverted, etc.)
     pub executed: bool,
     // TODO: more? What can be abstracted across all chains?

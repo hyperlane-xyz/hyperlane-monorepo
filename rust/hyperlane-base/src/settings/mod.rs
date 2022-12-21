@@ -146,7 +146,7 @@ pub struct Settings {
 
 impl Settings {
     /// Try to generate an agent core for a named agent
-    pub async fn try_into_hyperlane_core(
+    pub async fn build_hyperlane_core(
         &self,
         metrics: Arc<CoreMetrics>,
         chain_names: Option<Vec<&str>>,

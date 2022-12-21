@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::Result;
-use hyperlane_base::chains::TransactionSubmissionType;
-use hyperlane_base::CachingMailbox;
+use eyre::{Context, Result};
 use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
+use hyperlane_base::chains::TransactionSubmissionType;
+use hyperlane_base::CachingMailbox;
 use hyperlane_base::{
     chains::GelatoConf, run_all, Agent, BaseAgent, ContractSyncMetrics, CoreMetrics,
     HyperlaneAgentCore, MultisigCheckpointSyncer,
@@ -51,21 +51,23 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings.try_into_hyperlane_core(metrics, None).await?;
+        let core = settings.build_hyperlane_core(metrics, None).await?;
 
-        let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
-            .multisigcheckpointsyncer
-            .try_into_multisig_checkpoint_syncer(
-                &settings.originchainname,
-                core.metrics.validator_checkpoint_index(),
-            )?;
+        let multisig_checkpoint_syncer = settings.multisigcheckpointsyncer.build(
+            &settings.originchainname,
+            core.metrics.validator_checkpoint_index(),
+        )?;
 
         let whitelist = parse_matching_list(&settings.whitelist);
         let blacklist = parse_matching_list(&settings.blacklist);
         info!(whitelist = %whitelist, blacklist = %blacklist, "Whitelist configuration");
 
-        // TODO: we should support unknown chains
-        let origin_chain = HyperlaneDomain::Known(settings.originchainname.parse()?);
+        let origin_chain = core
+            .settings
+            .chain_setup(&settings.originchainname)
+            .context("Relayer must run on a configured chain")?
+            .domain()?;
+
         Ok(Self {
             origin_chain,
             signed_checkpoint_polling_interval: settings

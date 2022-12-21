@@ -31,10 +31,7 @@ pub enum CheckpointSyncerConf {
 
 impl CheckpointSyncerConf {
     /// Turn conf info a Checkpoint Syncer
-    pub fn try_into_checkpoint_syncer(
-        &self,
-        latest_index_gauge: Option<IntGauge>,
-    ) -> Result<CheckpointSyncers, Report> {
+    pub fn build(&self, latest_index_gauge: Option<IntGauge>) -> Result<CheckpointSyncers, Report> {
         match self {
             CheckpointSyncerConf::LocalStorage { path } => Ok(CheckpointSyncers::Local(
                 LocalStorage::new(path, latest_index_gauge),
@@ -62,7 +59,7 @@ pub struct MultisigCheckpointSyncerConf {
 
 impl MultisigCheckpointSyncerConf {
     /// Get a MultisigCheckpointSyncer from the config
-    pub fn try_into_multisig_checkpoint_syncer(
+    pub fn build(
         &self,
         origin: &str,
         validator_checkpoint_index: IntGaugeVec,
@@ -71,10 +68,7 @@ impl MultisigCheckpointSyncerConf {
         for (key, value) in self.checkpointsyncers.iter() {
             let gauge =
                 validator_checkpoint_index.with_label_values(&[origin, &key.to_lowercase()]);
-            checkpoint_syncers.insert(
-                Address::from_str(key)?,
-                value.try_into_checkpoint_syncer(Some(gauge))?,
-            );
+            checkpoint_syncers.insert(Address::from_str(key)?, value.build(Some(gauge))?);
         }
         Ok(MultisigCheckpointSyncer::new(
             self.threshold,
