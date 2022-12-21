@@ -48,7 +48,13 @@ async function relayPortalTransfers() {
 
       // Poll for attestation data and submit
       for (const message of portalMessages) {
-        await app.attemptPortalTransferCompletion(message);
+        try {
+          await app.attemptPortalTransferCompletion(message);
+        } catch (err) {
+          console.error(
+            `Error attempting portal transfer completion. Message: ${message}, error: ${err}`,
+          );
+        }
       }
       await sleep(10000);
     }
