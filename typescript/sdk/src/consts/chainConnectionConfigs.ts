@@ -6,7 +6,7 @@ import { ChainMap, ChainName, IChainConnection } from '../types';
 import { objMap } from '../utils/objects';
 
 import { chainMetadata } from './chainMetadata';
-import { Chains } from './chains';
+import { Chains, TestChains } from './chains';
 
 function testChainConnection() {
   return {
@@ -20,7 +20,7 @@ function testChainConnection() {
 
 export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> =
   objMap(chainMetadata, (chainName, metadata) => {
-    if (chainName.includes('test')) return testChainConnection();
+    if (TestChains.includes(chainName)) return testChainConnection();
 
     const providerClass =
       chainName === Chains.alfajores || chainName === Chains.celo
