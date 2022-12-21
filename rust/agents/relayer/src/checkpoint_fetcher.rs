@@ -26,7 +26,7 @@ impl CheckpointFetcher {
     ) -> Self {
         let signed_checkpoint_gauge = message_nonce_gauge.with_label_values(&[
             "signed_offchain_checkpoint",
-            mailbox.chain_name(),
+            mailbox.domain().name(),
             "unknown", // Checkpoints are not remote-specific
         ]);
         Self {

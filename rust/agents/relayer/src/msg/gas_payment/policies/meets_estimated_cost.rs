@@ -8,7 +8,7 @@ use coingecko::CoinGeckoClient;
 use eyre::{eyre, Result};
 use tokio::{sync::RwLock, time::timeout};
 
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TxCostEstimate, U256};
+use hyperlane_core::{HyperlaneMessage, KnownHyperlaneDomain, TxCostEstimate, U256};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
@@ -36,19 +36,20 @@ impl<T> From<T> for CachedValue<T> {
 /// If the domain isn't a mainnet (and therefore doesn't have a native
 /// token with a CoinGecko ID), an Err is returned.
 fn hyperlane_domain_id_to_native_token_coingecko_id(domain_id: u32) -> Result<&'static str> {
-    let hyperlane_domain = HyperlaneDomain::try_from(domain_id)?;
+    use KnownHyperlaneDomain::*;
+    let hyperlane_domain = KnownHyperlaneDomain::try_from(domain_id)?;
 
     Ok(match hyperlane_domain {
-        HyperlaneDomain::Ethereum => "ethereum",
-        HyperlaneDomain::Polygon => "matic-network",
-        HyperlaneDomain::Avalanche => "avalanche-2",
+        Ethereum => "ethereum",
+        Polygon => "matic-network",
+        Avalanche => "avalanche-2",
         // Arbitrum's native token is Ethereum
-        HyperlaneDomain::Arbitrum => "ethereum",
+        Arbitrum => "ethereum",
         // Optimism's native token is Ethereum
-        HyperlaneDomain::Optimism => "ethereum",
-        HyperlaneDomain::BinanceSmartChain => "binancecoin",
-        HyperlaneDomain::Celo => "celo",
-        HyperlaneDomain::Moonbeam => "moonbeam",
+        Optimism => "ethereum",
+        BinanceSmartChain => "binancecoin",
+        Celo => "celo",
+        Moonbeam => "moonbeam",
         _ => eyre::bail!("No CoinGecko ID for domain {hyperlane_domain}"),
     })
 }
@@ -237,8 +238,8 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
 
     let celo_price = 5.5f64;
     let polygon_price = 11.0f64;
-    let celo_domain_id = u32::from(HyperlaneDomain::Celo);
-    let polygon_domain_id = u32::from(HyperlaneDomain::Polygon);
+    let celo_domain_id = KnownHyperlaneDomain::Celo as u32;
+    let polygon_domain_id = KnownHyperlaneDomain::Polygon as u32;
 
     // Take advantage of the coingecko_price_getter caching already-stored values
     // by just writing to them directly.
@@ -370,11 +371,10 @@ fn test_hyperlane_domain_id_to_native_token_coingecko_id() {
 
     // Iterate through all HyperlaneDomains, ensuring all mainnet domains
     // are included in hyperlane_domain_id_to_native_token_coingecko_id.
-    for hyperlane_domain in HyperlaneDomain::iter() {
+    for hyperlane_domain in KnownHyperlaneDomain::iter() {
         if let HyperlaneDomainType::Mainnet = hyperlane_domain.domain_type() {
             assert!(
-                hyperlane_domain_id_to_native_token_coingecko_id(u32::from(hyperlane_domain))
-                    .is_ok()
+                hyperlane_domain_id_to_native_token_coingecko_id(hyperlane_domain as u32).is_ok()
             );
         }
     }
