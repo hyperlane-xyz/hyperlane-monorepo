@@ -31,7 +31,7 @@ jobs:
         # verify the lockfile matches what was committed.
         run: |
           yarn install
-          CHANGES=$(git status -s)
+          CHANGES=$(git status -s --ignore-submodules)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found: $CHANGES"
             git diff
