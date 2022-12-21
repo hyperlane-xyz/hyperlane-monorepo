@@ -10,7 +10,7 @@ mock! {
         // Mailbox
         pub fn _address(&self) -> H256 {}
 
-        pub fn _domain(&self) -> u32 {}
+        pub fn _domain(&self) -> &HyperlaneDomain {}
 
         pub fn _domain_hash(&self) -> H256 {}
 
@@ -50,9 +50,6 @@ mock! {
             message: &HyperlaneMessage,
             metadata: &[u8],
         ) -> Vec<u8> {}
-
-        // HyperlaneContract
-        pub fn _chain_name(&self) -> &str {}
     }
 }
 
@@ -103,12 +100,8 @@ impl Mailbox for MockMailboxContract {
 }
 
 impl HyperlaneChain for MockMailboxContract {
-    fn domain(&self) -> u32 {
+    fn domain(&self) -> &HyperlaneDomain {
         self._domain()
-    }
-
-    fn chain_name(&self) -> &str {
-        self._chain_name()
     }
 }
 

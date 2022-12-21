@@ -252,7 +252,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns The number of decimals of `chain`'s native token.
    */
   protected tokenDecimals(chain: Chain): number {
-    return chainMetadata[chain].nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS;
+    return chainMetadata[chain].nativeToken.decimals ?? DEFAULT_TOKEN_DECIMALS;
   }
 
   /**
