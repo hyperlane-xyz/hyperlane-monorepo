@@ -10,7 +10,7 @@ use tokio::time::sleep;
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{CachingMailbox, CoreMetrics};
-use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, Mailbox, MultisigIsm};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, MultisigIsm};
 
 use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
@@ -150,7 +150,7 @@ impl SerialSubmitter {
             .instrument(info_span!("serial submitter work loop"))
     }
 
-    #[instrument(skip_all, fields(mbx=self.mailbox.chain_name()))]
+    #[instrument(skip_all, fields(mbx=%self.mailbox.domain()))]
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.tick().await?;
@@ -351,25 +351,31 @@ pub(crate) struct SerialSubmitterMetrics {
 }
 
 impl SerialSubmitterMetrics {
-    pub fn new(metrics: &CoreMetrics, origin_chain: &str, destination_chain: &str) -> Self {
+    pub fn new(
+        metrics: &CoreMetrics,
+        origin: &HyperlaneDomain,
+        destination: &HyperlaneDomain,
+    ) -> Self {
+        let origin = origin.name();
+        let destination = destination.name();
         Self {
             run_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                origin_chain,
-                destination_chain,
+                origin,
+                destination,
                 "run_queue",
             ]),
             wait_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
-                origin_chain,
-                destination_chain,
+                origin,
+                destination,
                 "wait_queue",
             ]),
             messages_processed_count: metrics
                 .messages_processed_count()
-                .with_label_values(&[origin_chain, destination_chain]),
+                .with_label_values(&[origin, destination]),
             processed_gauge: metrics.last_known_message_nonce().with_label_values(&[
                 "message_processed",
-                origin_chain,
-                destination_chain,
+                origin,
+                destination,
             ]),
             max_submitted_nonce: 0,
         }

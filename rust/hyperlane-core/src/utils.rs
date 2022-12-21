@@ -19,10 +19,10 @@ pub fn strip_0x_prefix(s: &str) -> &str {
 }
 
 /// Computes hash of domain concatenated with "HYPERLANE"
-pub fn domain_hash(address: H256, domain: u32) -> H256 {
+pub fn domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
     H256::from_slice(
         Keccak256::new()
-            .chain(domain.to_be_bytes())
+            .chain(domain.into().to_be_bytes())
             .chain(address.as_ref())
             .chain("HYPERLANE".as_bytes())
             .finalize()
