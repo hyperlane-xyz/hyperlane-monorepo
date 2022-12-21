@@ -541,6 +541,9 @@ export const test3: ChainMetadata = {
 
 /**
  * Collection maps
+ *
+ * NOTE: When adding chains here, consider also adding the
+ * corresponding chain logo images in the /sdk/logos/* folders
  */
 export const chainMetadata = {
   alfajores,
