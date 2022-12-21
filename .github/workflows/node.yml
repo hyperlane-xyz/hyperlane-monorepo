@@ -22,6 +22,9 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
 
+      - name: install submodules
+        run: git submodule foreach yarn
+
       - name: yarn-install
         # Check out the lockfile from main, reinstall, and then
         # verify the lockfile matches what was committed.
