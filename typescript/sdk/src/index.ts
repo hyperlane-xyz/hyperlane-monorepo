@@ -1,10 +1,23 @@
 export {
-  AllChains,
   Chains,
+  ChainName,
+  DeprecatedChains,
+  AllChains,
   Mainnets,
   AllDeprecatedChains,
 } from './consts/chains';
-export { chainMetadata } from './consts/chainMetadata';
+export {
+  ChainMetadata,
+  RpcPagination,
+  ExplorerFamily,
+  chainMetadata,
+  chainIdToMetadata,
+  mainnetChainsMetadata,
+  testnetChainsMetadata,
+  wagmiChainMetadata,
+  PartialChainMetadata,
+  partialChainMetadata,
+} from './consts/chainMetadata';
 export {
   chainConnectionConfigs,
   testChainConnectionConfigs,
@@ -16,7 +29,6 @@ export {
 
 export {
   ChainMap,
-  ChainName,
   CompleteChainMap,
   Connection,
   NameOrDomain,

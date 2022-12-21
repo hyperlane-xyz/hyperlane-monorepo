@@ -9,7 +9,9 @@ use tokio::{
 use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{CachingMailbox, CoreMetrics};
-use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneMessage, MultisigSignedCheckpoint};
+use hyperlane_core::{
+    db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, MultisigSignedCheckpoint,
+};
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
 
@@ -57,7 +59,7 @@ impl MessageProcessor {
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 
-    #[instrument(ret, err, skip(self), fields(chain=self.destination_mailbox.chain_name(), domain=?self.destination_mailbox.domain()), level = "info")]
+    #[instrument(ret, err, skip(self), fields(domain=%self.destination_mailbox.domain()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
         // Ensure that there is at least one valid, known checkpoint before starting
         // work loop.
@@ -90,8 +92,7 @@ impl MessageProcessor {
             .is_some()
         {
             debug!(
-                chain=?self.destination_mailbox.chain_name(),
-                domain=?self.destination_mailbox.domain(),
+                domain=%self.destination_mailbox.domain(),
                 nonce=?self.message_nonce,
                 "Skipping since message_nonce already in DB");
             self.message_nonce += 1;
@@ -118,7 +119,7 @@ impl MessageProcessor {
         };
 
         // Skip if for different domain.
-        if message.destination != self.destination_mailbox.domain() {
+        if message.destination != self.destination_mailbox.domain().id() {
             debug!(
                 id=?message.id(),
                 destination=message.destination,
@@ -193,7 +194,7 @@ impl MessageProcessor {
         } else {
             warn!(
                 nonce=self.message_nonce,
-                chain=?self.destination_mailbox.chain_name(),
+                domain=%self.destination_mailbox.domain(),
                 "Unexpected missing message_id_by_nonce");
         }
         Ok(())
@@ -206,12 +207,16 @@ pub(crate) struct MessageProcessorMetrics {
 }
 
 impl MessageProcessorMetrics {
-    pub fn new(metrics: &CoreMetrics, origin_chain: &str, destination_chain: &str) -> Self {
+    pub fn new(
+        metrics: &CoreMetrics,
+        origin: &HyperlaneDomain,
+        destination: &HyperlaneDomain,
+    ) -> Self {
         Self {
             processor_loop_gauge: metrics.last_known_message_nonce().with_label_values(&[
                 "processor_loop",
-                origin_chain,
-                destination_chain,
+                origin.name(),
+                destination.name(),
             ]),
         }
     }

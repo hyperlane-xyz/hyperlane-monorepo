@@ -10,8 +10,9 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, Indexer, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    InterchainGasPayment, InterchainGasPaymentMeta, InterchainGasPaymentWithMeta, H160, H256,
+    HyperlaneContract, HyperlaneDomain, Indexer, InterchainGasPaymaster,
+    InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentMeta,
+    InterchainGasPaymentWithMeta, H160, H256,
 };
 
 use crate::contracts::interchain_gas_paymaster::{
@@ -69,7 +70,7 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         Self {
             contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
-                &locator.address,
+                locator.address,
                 provider.clone(),
             )),
             provider,
@@ -156,11 +157,7 @@ where
 {
     #[allow(dead_code)]
     contract: Arc<EthereumInterchainGasPaymasterInternal<M>>,
-    chain_name: String,
-    #[allow(dead_code)]
-    domain: u32,
-    #[allow(dead_code)]
-    provider: Arc<M>,
+    domain: HyperlaneDomain,
 }
 
 impl<M> EthereumInterchainGasPaymaster<M>
@@ -172,12 +169,10 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
-                &locator.address,
-                provider.clone(),
+                locator.address,
+                provider,
             )),
-            domain: locator.domain,
-            chain_name: locator.chain_name.to_owned(),
-            provider,
+            domain: locator.domain.clone(),
         }
     }
 }
@@ -186,12 +181,8 @@ impl<M> HyperlaneChain for EthereumInterchainGasPaymaster<M>
 where
     M: Middleware + 'static,
 {
-    fn chain_name(&self) -> &str {
-        &self.chain_name
-    }
-
-    fn domain(&self) -> u32 {
-        self.domain
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
     }
 }
 

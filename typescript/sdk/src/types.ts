@@ -1,9 +1,9 @@
 import type { ethers } from 'ethers';
 
-import type { Chains } from './consts/chains';
+import type { ChainName } from './consts/chains';
 
-// A union type of the keys in the Chains enum
-export type ChainName = keyof typeof Chains;
+// Re-export ChainName for convenience
+export { ChainName };
 // A full object map of all chains to a value type
 export type CompleteChainMap<Value> = Record<ChainName, Value>;
 export type LooseChainMap<Value> = Record<ChainName | string, Value>;
@@ -35,5 +35,5 @@ export interface IChainConnection {
   overrides?: ethers.Overrides;
   confirmations?: number;
   blockExplorerUrl?: string;
-  apiPrefix?: string;
+  blockExplorerApiUrl?: string;
 }

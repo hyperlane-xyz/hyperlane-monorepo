@@ -6,8 +6,6 @@ pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
 
-use crate::H256;
-
 mod cursor;
 mod encode;
 mod indexer;
@@ -20,7 +18,7 @@ mod provider;
 #[derive(Debug, Clone, Copy)]
 pub struct TxOutcome {
     /// The txid
-    pub txid: H256,
+    pub txid: crate::H256,
     /// True if executed, false otherwise (reverted, etc.)
     pub executed: bool,
     // TODO: more? What can be abstracted across all chains?
@@ -41,10 +39,7 @@ impl From<ethers::prelude::TransactionReceipt> for TxOutcome {
 pub trait HyperlaneChain {
     /// Return an identifier (not necessarily unique) for the chain this
     /// is connected to
-    fn chain_name(&self) -> &str;
-
-    /// Return the domain ID
-    fn domain(&self) -> u32;
+    fn domain(&self) -> &crate::HyperlaneDomain;
 }
 
 /// Interface for a deployed contract.
@@ -53,7 +48,7 @@ pub trait HyperlaneChain {
 #[auto_impl::auto_impl(Box, Arc)]
 pub trait HyperlaneContract: HyperlaneChain {
     /// Return the address of this contract.
-    fn address(&self) -> H256;
+    fn address(&self) -> crate::H256;
 }
 
 /// Static contract ABI information.
