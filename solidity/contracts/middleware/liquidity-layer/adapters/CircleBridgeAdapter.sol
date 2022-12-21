@@ -96,7 +96,7 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         uint32 _circleDomain = hyperlaneDomainToCircleDomain[
             _destinationDomain
         ];
-        bytes32 _remoteRouter = routers[_destinationDomain];
+        bytes32 _remoteRouter = routers(_destinationDomain);
         require(
             _remoteRouter != bytes32(0),
             "CircleBridgeAdapter: No router for domain"
