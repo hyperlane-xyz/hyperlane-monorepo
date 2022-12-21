@@ -92,7 +92,7 @@ jobs:
           path: ./*
           key: ${{ github.sha }}
 
-      - run: sdk
+      - name: sdk
         run: yarn workspace @hyperlane-xyz/sdk run test
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
