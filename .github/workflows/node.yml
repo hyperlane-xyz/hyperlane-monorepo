@@ -103,10 +103,6 @@ jobs:
         run: yarn workspace @hyperlane-xyz/sdk run test
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
-      - name: helloworld
-        run: yarn workspace @hyperlane-xyz/helloworld run test
-      - name: hyperlane-token
-        run: yarn workspace @hyperlane-xyz/hyperlane-token run test
 
   test-sol:
     env:
