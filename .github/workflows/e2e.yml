@@ -23,6 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: remove submodule locks
+        run: git submodule foreach rm yarn.lock
 
       - name: setup rust
         uses: actions-rs/toolchain@v1
