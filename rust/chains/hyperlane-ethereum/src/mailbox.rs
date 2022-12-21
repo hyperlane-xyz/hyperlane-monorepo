@@ -12,8 +12,9 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneMessage, HyperlaneProtocolError, Indexer, LogMeta,
-    Mailbox, MailboxIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
+    Indexer, LogMeta, Mailbox, MailboxIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome,
+    H256, U256,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
@@ -68,7 +69,7 @@ where
     /// Create new EthereumMailboxIndexer
     pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         let contract = Arc::new(EthereumMailboxInternal::new(
-            &locator.address,
+            locator.address,
             provider.clone(),
         ));
         Self {
@@ -163,8 +164,7 @@ where
     M: Middleware,
 {
     contract: Arc<EthereumMailboxInternal<M>>,
-    domain: u32,
-    chain_name: String,
+    domain: HyperlaneDomain,
     provider: Arc<M>,
 }
 
@@ -177,11 +177,10 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(EthereumMailboxInternal::new(
-                &locator.address,
+                locator.address,
                 provider.clone(),
             )),
-            domain: locator.domain,
-            chain_name: locator.chain_name.to_owned(),
+            domain: locator.domain.clone(),
             provider,
         }
     }
@@ -212,12 +211,8 @@ impl<M> HyperlaneChain for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
-    fn chain_name(&self) -> &str {
-        &self.chain_name
-    }
-
-    fn domain(&self) -> u32 {
-        self.domain
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
     }
 }
 
@@ -263,7 +258,7 @@ where
         let (root, index) = call_with_lag.call().await?;
         Ok(Checkpoint {
             mailbox_address: self.address(),
-            mailbox_domain: self.domain,
+            mailbox_domain: self.domain.id(),
             root: root.into(),
             index,
         })
