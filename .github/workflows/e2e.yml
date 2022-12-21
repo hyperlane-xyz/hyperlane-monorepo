@@ -55,4 +55,4 @@ jobs:
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
-          E2E_KATHY_ROUNDS: '4'
+          E2E_KATHY_ROUNDS: '3'
