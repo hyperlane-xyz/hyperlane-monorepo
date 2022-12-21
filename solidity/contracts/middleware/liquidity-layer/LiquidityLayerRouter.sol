@@ -32,6 +32,17 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
         );
     }
 
+    function initialize(address _mailbox, address _interchainGasPaymaster)
+        public
+        initializer
+    {
+        // Transfer ownership of the contract to `msg.sender`
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
+            _interchainGasPaymaster
+        );
+    }
+
     function dispatchWithTokens(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,

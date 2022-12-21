@@ -44,6 +44,17 @@ contract InterchainQueryRouter is
         );
     }
 
+    function initialize(address _mailbox, address _interchainGasPaymaster)
+        public
+        initializer
+    {
+        // Transfer ownership of the contract to `msg.sender`
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
+            _interchainGasPaymaster
+        );
+    }
+
     /**
      * @param _destinationDomain Domain of destination chain
      * @param target The address of the contract to query on destination chain.
