@@ -293,6 +293,11 @@ impl ChainSetup {
         .context("Building multisig ISM")
     }
 
+    /// Get the domain for this chain setup
+    pub fn domain(&self) -> Result<HyperlaneDomain> {
+        HyperlaneDomain::from_config_strs(&self.domain, &self.name).map_err(|e| eyre!("{e}"))
+    }
+
     /// Get the number of blocks until finality
     fn finality_blocks(&self) -> u32 {
         self.finality_blocks
@@ -369,15 +374,5 @@ impl ChainSetup {
         };
 
         Ok(ContractLocator { domain, address })
-    }
-
-    fn domain(&self) -> Result<HyperlaneDomain> {
-        HyperlaneDomain::from_config(
-            self.domain
-                .parse::<u32>()
-                .context("domain is an invalid uint")?,
-            &self.name,
-        )
-        .map_err(|e| eyre!("{e}"))
     }
 }

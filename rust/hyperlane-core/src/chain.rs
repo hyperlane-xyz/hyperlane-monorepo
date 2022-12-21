@@ -291,14 +291,10 @@ impl Debug for HyperlaneDomain {
 impl HyperlaneDomain {
     pub fn from_config(domain_id: u32, name: &str) -> Result<Self, &'static str> {
         if let Ok(domain) = KnownHyperlaneDomain::try_from(domain_id) {
-            if name
-                .parse::<KnownHyperlaneDomain>()
-                .map(|d2| d2 == domain)
-                .unwrap_or(false)
-            {
-                Err("Chain name does not match known domain id")
-            } else {
+            if name.to_ascii_lowercase().as_str() == domain.as_str() {
                 Ok(HyperlaneDomain::Known(domain))
+            } else {
+                Err("Chain name does not match the name of a known domain id; the config is probably wrong.")
             }
         } else {
             Ok(HyperlaneDomain::Unknown {
@@ -309,6 +305,15 @@ impl HyperlaneDomain {
                 domain_impl: HyperlaneDomainImpl::Unknown,
             })
         }
+    }
+
+    pub fn from_config_strs(domain_id: &str, name: &str) -> Result<Self, &'static str> {
+        HyperlaneDomain::from_config(
+            domain_id
+                .parse::<u32>()
+                .map_err(|_| "Domain id is an invalid uint")?,
+            name,
+        )
     }
 
     /// The chain name

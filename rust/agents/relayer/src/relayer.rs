@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::Result;
-use hyperlane_base::chains::TransactionSubmissionType;
-use hyperlane_base::CachingMailbox;
+use eyre::{Context, Result};
 use tokio::{sync::mpsc, sync::watch, task::JoinHandle};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
+use hyperlane_base::chains::TransactionSubmissionType;
+use hyperlane_base::CachingMailbox;
 use hyperlane_base::{
     chains::GelatoConf, run_all, Agent, BaseAgent, ContractSyncMetrics, CoreMetrics,
     HyperlaneAgentCore, MultisigCheckpointSyncer,
@@ -64,8 +64,12 @@ impl BaseAgent for Relayer {
         let blacklist = parse_matching_list(&settings.blacklist);
         info!(whitelist = %whitelist, blacklist = %blacklist, "Whitelist configuration");
 
-        // TODO: we should support unknown chains
-        let origin_chain = HyperlaneDomain::Known(settings.originchainname.parse()?);
+        let origin_chain = core
+            .settings
+            .chain_setup(&settings.originchainname)
+            .context("Relayer must run on a configured chain")?
+            .domain()?;
+
         Ok(Self {
             origin_chain,
             signed_checkpoint_polling_interval: settings

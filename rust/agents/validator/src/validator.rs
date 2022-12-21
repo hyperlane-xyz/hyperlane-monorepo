@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{Context, Result};
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
@@ -51,9 +51,11 @@ impl BaseAgent for Validator {
             .try_into_checkpoint_syncer(None)?
             .into();
 
-        // TODO: this should support unknown chains as well; use
-        // HyperlaneDomain::from_cfg()
-        let origin_chain = HyperlaneDomain::Known(settings.originchainname.parse()?);
+        let origin_chain = core
+            .settings
+            .chain_setup(&settings.originchainname)
+            .context("Validator must run on a configured chain")?
+            .domain()?;
 
         Ok(Self {
             origin_chain,
