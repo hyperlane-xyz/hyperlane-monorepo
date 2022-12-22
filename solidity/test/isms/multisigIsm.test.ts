@@ -3,7 +3,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { Validator, utils } from '@hyperlane-xyz/utils';
+import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
 import {
   TestMailbox,
@@ -13,6 +13,7 @@ import {
   TestRecipient__factory,
 } from '../../types';
 import {
+  dispatchMessage,
   dispatchMessageAndReturnMetadata,
   getCommitment,
   signCheckpoint,
@@ -51,6 +52,14 @@ describe('MultisigIsm', async () => {
   describe('#constructor', () => {
     it('sets the owner', async () => {
       expect(await multisigIsm.owner()).to.equal(signer.address);
+    });
+  });
+
+  describe('#moduleType', () => {
+    it('returns the correct type', async () => {
+      expect(await multisigIsm.moduleType()).to.equal(
+        types.InterchainSecurityModuleType.MULTISIG,
+      );
     });
   });
 
@@ -314,6 +323,32 @@ describe('MultisigIsm', async () => {
       expect(await multisigIsm.validators(ORIGIN_DOMAIN)).to.deep.equal(
         validators.map((v) => v.address),
       );
+    });
+  });
+
+  describe('#validatorsAndThreshold', () => {
+    const threshold = 7;
+    let message: string;
+    beforeEach(async () => {
+      await multisigIsm.enrollValidators(
+        [ORIGIN_DOMAIN],
+        [validators.map((v) => v.address)],
+      );
+      await multisigIsm.setThreshold(ORIGIN_DOMAIN, threshold);
+      const dispatch = await dispatchMessage(
+        mailbox,
+        DESTINATION_DOMAIN,
+        utils.addressToBytes32(multisigIsm.address),
+        'hello',
+      );
+      message = dispatch.message;
+    });
+
+    it('returns the validators and threshold', async () => {
+      expect(await multisigIsm.validatorsAndThreshold(message)).to.deep.equal([
+        validators.map((v) => v.address),
+        threshold,
+      ]);
     });
   });
 
