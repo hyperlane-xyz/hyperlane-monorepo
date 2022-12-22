@@ -133,6 +133,19 @@ describe('Router', async () => {
       expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
     });
 
+    describe('#domains', () => {
+      it('returns the domains', async () => {
+        await router.enrollRemoteRouters(
+          [origin, destination],
+          [
+            utils.addressToBytes32(nonOwner.address),
+            utils.addressToBytes32(nonOwner.address),
+          ],
+        );
+        expect(await router.domains()).to.deep.equal([origin, destination]);
+      });
+    });
+
     it('non-owner cannot enroll remote router', async () => {
       await expect(
         router
