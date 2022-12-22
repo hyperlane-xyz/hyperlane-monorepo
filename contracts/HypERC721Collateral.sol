@@ -12,7 +12,12 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 contract HypERC721Collateral is TokenRouter {
     address public immutable wrappedToken;
 
-    constructor(address erc721) {
+    /**
+     * @notice Constructor
+     * @param erc721 Address of the token to keep as collateral
+     * @param gasAmount Amount of destination gas to be paid for processing
+     */
+    constructor(address erc721, uint256 gasAmount) TokenRouter(gasAmount) {
         wrappedToken = erc721;
     }
 

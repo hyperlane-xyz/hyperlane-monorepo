@@ -14,6 +14,11 @@ abstract contract TokenRouter is Router {
     using Message for bytes;
 
     /**
+     * @notice Gas amount to use for destination chain processing, should be overriden by implementors
+     */
+    uint256 internal immutable gasAmount;
+
+    /**
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
      * @param destination The identifier of the destination chain.
      * @param recipient The address of the recipient on the destination chain.
@@ -37,6 +42,10 @@ abstract contract TokenRouter is Router {
         uint256 amount
     );
 
+    constructor(uint256 _gasAmount) {
+        gasAmount = _gasAmount;
+    }
+
     /**
      * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.
@@ -51,9 +60,12 @@ abstract contract TokenRouter is Router {
         uint256 _amountOrId
     ) external payable {
         bytes memory metadata = _transferFromSender(_amountOrId);
-        _dispatch(
+        _dispatchWithGas(
             _destination,
-            Message.format(_recipient, _amountOrId, metadata)
+            Message.format(_recipient, _amountOrId, metadata),
+            gasAmount,
+            msg.value,
+            msg.sender
         );
         emit SentTransferRemote(_destination, _recipient, _amountOrId);
     }

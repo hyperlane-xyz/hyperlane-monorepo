@@ -12,7 +12,12 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract HypERC20Collateral is TokenRouter {
     IERC20 public immutable wrappedToken;
 
-    constructor(address erc20) {
+    /**
+     * @notice Constructor
+     * @param erc20 Address of the token to keep as collateral
+     * @param gasAmount Amount of destination gas to be paid for processing
+     */
+    constructor(address erc20, uint256 gasAmount) TokenRouter(gasAmount) {
         wrappedToken = IERC20(erc20);
     }
 

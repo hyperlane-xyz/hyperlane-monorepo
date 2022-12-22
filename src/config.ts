@@ -14,10 +14,12 @@ export type SyntheticConfig = {
   name: string;
   symbol: string;
   totalSupply: ethers.BigNumberish;
+  gasAmount?: ethers.BigNumberish;
 };
 export type CollateralConfig = {
   type: TokenType.collateral | TokenType.collateralUri;
   token: string;
+  gasAmount?: ethers.BigNumberish;
 };
 
 export type TokenConfig = SyntheticConfig | CollateralConfig;
