@@ -16,8 +16,9 @@ import {
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
 import { objMap } from '../../utils/objects';
-import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
 import { RouterConfig } from '../router/types';
+
+import { MiddlewareRouterDeployer } from './deploy';
 
 export enum BridgeAdapterType {
   Circle = 'Circle',
@@ -42,7 +43,7 @@ export type LiquidityLayerConfig = RouterConfig & {
 
 export class LiquidityLayerDeployer<
   Chain extends ChainName,
-> extends HyperlaneRouterDeployer<
+> extends MiddlewareRouterDeployer<
   Chain,
   LiquidityLayerConfig,
   LiquidityLayerContracts,
@@ -77,15 +78,10 @@ export class LiquidityLayerDeployer<
     chain: Chain,
     config: LiquidityLayerConfig,
   ): Promise<LiquidityLayerContracts> {
-    const initCalldata =
-      LiquidityLayerRouter__factory.createInterface().encodeFunctionData(
-        'initialize',
-        [
-          config.mailbox,
-          config.interchainGasPaymaster,
-          config.interchainSecurityModule,
-        ],
-      );
+    const initCalldata = this.getInitArgs(
+      config,
+      LiquidityLayerRouter__factory.createInterface(),
+    );
     const router = await this.deployContract(chain, 'router', [], {
       create2Salt: this.create2salt,
       initCalldata,

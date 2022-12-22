@@ -1,9 +1,9 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "1.0.0-beta2",
+  "version": "1.0.0-beta3",
   "dependencies": {
-    "@hyperlane-xyz/utils": "1.0.0-beta2",
+    "@hyperlane-xyz/utils": "1.0.0-beta3",
     "@openzeppelin/contracts": "^4.8.0",
     "@openzeppelin/contracts-upgradeable": "^4.8.0"
   },
@@ -50,5 +50,6 @@
     "test": "hardhat test && forge test -vvv",
     "gas": "forge snapshot --check"
   },
-  "types": "dist/index.d.ts"
+  "types": "dist/index.d.ts",
+  "stableVersion": "1.0.0-beta2"
 }
