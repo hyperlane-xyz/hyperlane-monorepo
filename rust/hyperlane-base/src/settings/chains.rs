@@ -9,11 +9,10 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainImpl, HyperlaneProvider,
     InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm,
-    Signers,
+    Signers, H160, H256,
 };
 use hyperlane_ethereum::{
     BuildableWithProvider, ConnectionConf, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
-    EthereumMultisigIsmAbi,
 };
 
 use crate::CoreMetrics;
@@ -62,8 +61,6 @@ pub struct GelatoConf {
 pub struct CoreContractAddresses {
     /// Address of the mailbox contract
     pub mailbox: String,
-    /// Address of the MultisigIsm contract
-    pub multisig_ism: String,
     /// Address of the InterchainGasPaymaster contract
     pub interchain_gas_paymaster: String,
 }
@@ -271,12 +268,15 @@ impl ChainSetup {
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
+        address: H256,
     ) -> Result<Box<dyn MultisigIsm>> {
         let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
-        let locator = self.locator(&self.addresses.multisig_ism)?;
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {
+                let addr: H160 = address.into();
+                let addr_str = format!("{:#x}", addr);
+                let locator = self.locator(&addr_str)?;
                 hyperlane_ethereum::MultisigIsmBuilder {}
                     .build_with_connection_conf(
                         conf.clone(),
@@ -336,12 +336,7 @@ impl ChainSetup {
                 functions: EthereumInterchainGasPaymasterAbi::fn_map_owned(),
             });
         }
-        if let Ok(addr) = self.addresses.multisig_ism.parse() {
-            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
-                name: Some("msm".into()),
-                functions: EthereumMultisigIsmAbi::fn_map_owned(),
-            });
-        }
+        // TODO: How/where do I add this entry?
         cfg
     }
 

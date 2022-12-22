@@ -12,6 +12,7 @@ use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn
 use hyperlane_base::{CachingMailbox, CoreMetrics};
 use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, MultisigIsm};
 
+use super::IsmBuilder;
 use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
 /// SerialSubmitter accepts undelivered messages over a channel from a MessageProcessor. It is
@@ -103,6 +104,7 @@ use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
 #[derive(Debug)]
 pub(crate) struct SerialSubmitter {
+    ism_builder: IsmBuilder,
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// Messages we are aware of that we want to eventually submit, but haven't yet, for
@@ -114,8 +116,6 @@ pub(crate) struct SerialSubmitter {
     run_queue: VecDeque<SubmitMessageArgs>,
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
-    /// Multisig ism on the destination chain.
-    multisig_ism: Arc<dyn MultisigIsm>,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: HyperlaneDB,
     /// Metrics for serial submitter.
@@ -128,7 +128,7 @@ impl SerialSubmitter {
     pub(crate) fn new(
         rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_ism: Arc<dyn MultisigIsm>,
+        ism_builder: IsmBuilder,
         db: HyperlaneDB,
         metrics: SerialSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -138,7 +138,7 @@ impl SerialSubmitter {
             wait_queue: Vec::new(),
             run_queue: VecDeque::new(),
             mailbox,
-            multisig_ism,
+            ism_builder,
             db,
             metrics,
             gas_payment_enforcer,
@@ -258,8 +258,9 @@ impl SerialSubmitter {
             info!("Message already processed");
             return Ok(true);
         }
-        let metadata = self
-            .multisig_ism
+        let ism_address = self.mailbox.recipient_ism(msg.message.recipient).await?;
+        let multisig_ism = self.ism_builder.build_multisig_ism(ism_address).await?;
+        let metadata = multisig_ism
             .format_metadata(&msg.checkpoint, msg.proof)
             .await?;
 

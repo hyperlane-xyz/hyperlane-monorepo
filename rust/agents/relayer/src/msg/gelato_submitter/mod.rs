@@ -9,16 +9,13 @@ use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use gelato::types::Chain;
 use hyperlane_base::{chains::GelatoConf, CachingMailbox, CoreMetrics};
-use hyperlane_core::{
-    db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, KnownHyperlaneDomain, MultisigIsm,
-};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, KnownHyperlaneDomain};
 
+use super::gas_payment::GasPaymentEnforcer;
+use super::{IsmBuilder, SubmitMessageArgs};
 use crate::msg::gelato_submitter::sponsored_call_op::{
     SponsoredCallOp, SponsoredCallOpArgs, SponsoredCallOptions,
 };
-
-use super::gas_payment::GasPaymentEnforcer;
-use super::SubmitMessageArgs;
 
 mod sponsored_call_op;
 
@@ -26,14 +23,13 @@ const HTTP_CLIENT_REQUEST_SECONDS: u64 = 30;
 
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
+    ism_builder: IsmBuilder,
     /// The Gelato config.
     gelato_config: GelatoConf,
     /// Source of messages to submit.
     message_receiver: UnboundedReceiver<SubmitMessageArgs>,
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
-    /// Multisig ISM on the destination chain.
-    multisig_ism: Arc<dyn MultisigIsm>,
     /// The destination chain in the format expected by the Gelato crate.
     destination_gelato_chain: Chain,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
@@ -54,7 +50,7 @@ impl GelatoSubmitter {
     pub fn new(
         message_receiver: UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_ism: Arc<dyn MultisigIsm>,
+        ism_builder: IsmBuilder,
         hyperlane_db: HyperlaneDB,
         gelato_config: GelatoConf,
         metrics: GelatoSubmitterMetrics,
@@ -71,7 +67,7 @@ impl GelatoSubmitter {
             destination_gelato_chain: hyperlane_domain_id_to_gelato_chain(mailbox.domain())
                 .unwrap(),
             mailbox,
-            multisig_ism,
+            ism_builder,
             db: hyperlane_db,
             gelato_config,
             http_client,
@@ -116,11 +112,11 @@ impl GelatoSubmitter {
         for msg in received_messages.into_iter() {
             tracing::info!(msg=?msg, "Spawning sponsored call op for message");
             let mut op = SponsoredCallOp::new(SponsoredCallOpArgs {
+                message: msg,
                 opts: SponsoredCallOptions::default(),
                 http: self.http_client.clone(),
-                message: msg,
                 mailbox: self.mailbox.clone(),
-                multisig_ism: self.multisig_ism.clone(),
+                ism_builder: self.ism_builder.clone(),
                 sponsor_api_key: self.gelato_config.sponsorapikey.clone(),
                 destination_chain: self.destination_gelato_chain,
                 message_processed_sender: self.message_processed_sender.clone(),
