@@ -35,13 +35,24 @@ describe('Mailbox', async () => {
     module = await moduleFactory.deploy();
     const mailboxFactory = new TestMailbox__factory(signer);
     mailbox = await mailboxFactory.deploy(originDomain);
-    await mailbox.initialize(module.address);
+    await mailbox.initialize(signer.address, module.address);
   });
 
-  it('Cannot be initialized twice', async () => {
-    await expect(mailbox.initialize(module.address)).to.be.revertedWith(
-      'Initializable: contract is already initialized',
-    );
+  describe('#initialize', () => {
+    it('Sets the owner', async () => {
+      const mailboxFactory = new TestMailbox__factory(signer);
+      mailbox = await mailboxFactory.deploy(originDomain);
+      const expectedOwner = nonOwner.address;
+      await mailbox.initialize(expectedOwner, module.address);
+      const owner = await mailbox.owner();
+      expect(owner).equals(expectedOwner);
+    });
+
+    it('Cannot be initialized twice', async () => {
+      await expect(
+        mailbox.initialize(signer.address, module.address),
+      ).to.be.revertedWith('Initializable: contract is already initialized');
+    });
   });
 
   describe('#dispatch', () => {

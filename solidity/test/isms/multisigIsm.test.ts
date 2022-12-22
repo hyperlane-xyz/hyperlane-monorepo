@@ -401,7 +401,7 @@ describe('MultisigIsm', async () => {
       const destinationMailbox = await mailboxFactory.deploy(
         DESTINATION_DOMAIN,
       );
-      await destinationMailbox.initialize(multisigIsm.address);
+      await destinationMailbox.initialize(signer.address, multisigIsm.address);
       await destinationMailbox.process(metadata, message);
     });
 

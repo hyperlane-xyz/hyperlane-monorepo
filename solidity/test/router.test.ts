@@ -79,7 +79,7 @@ describe('Router', async () => {
       await router.initialize(mailbox.address);
       const ism = await new TestIsm__factory(signer).deploy();
       await ism.setAccept(true);
-      await mailbox.initialize(ism.address);
+      await mailbox.initialize(signer.address, ism.address);
     });
 
     it('accepts message from enrolled mailbox and router', async () => {
