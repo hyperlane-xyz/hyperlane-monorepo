@@ -173,19 +173,25 @@ export abstract class HyperlaneDeployer<
         salt,
       );
 
-      const deployTx = deployOpts.initCalldata
-        ? await create2Factory.deployAndInit(
-            bytecode,
-            salt,
-            deployOpts.initCalldata,
-            chainConnection.overrides,
-          )
-        : await create2Factory.deploy(
-            bytecode,
-            salt,
-            chainConnection.overrides,
-          );
-      await chainConnection.handleTx(deployTx);
+      if ((await chainConnection.provider.getCode(contractAddr)) === '0x') {
+        const deployTx = deployOpts.initCalldata
+          ? await create2Factory.deployAndInit(
+              bytecode,
+              salt,
+              deployOpts.initCalldata,
+              chainConnection.overrides,
+            )
+          : await create2Factory.deploy(
+              bytecode,
+              salt,
+              chainConnection.overrides,
+            );
+        await chainConnection.handleTx(deployTx);
+      } else {
+        this.logger(
+          `Found contract deployed at CREATE2 address, skipping contract deploy`,
+        );
+      }
 
       this.verificationInputs[chain].push({
         name: contractName,
@@ -295,6 +301,7 @@ export abstract class HyperlaneDeployer<
         proxy.address,
         implementation.address,
         initData,
+        chainConnection.overrides,
       );
     } else {
       const constructorArgs: Parameters<
