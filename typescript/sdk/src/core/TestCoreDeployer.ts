@@ -16,8 +16,9 @@ import { coreFactories } from './contracts';
 
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
-// dummy config as TestInbox and TestOutbox do not use deployed ValidatorManager
+// dummy config as TestInbox and TestOutbox do not use deployed ISM
 const testMultisigIsmConfig: CoreConfig = {
+  owner: nonZeroAddress,
   multisigIsm: {
     validators: [nonZeroAddress],
     threshold: 1,
