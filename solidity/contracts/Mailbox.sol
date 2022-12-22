@@ -263,7 +263,11 @@ contract Mailbox is
      * @param _recipient The message recipient whose ISM should be returned.
      * @return The ISM to use for `_recipient`.
      */
-    function recipientIsm(address _recipient) public view returns (address) {
+    function recipientIsm(address _recipient)
+        public
+        view
+        returns (IInterchainSecurityModule)
+    {
         // Use a default interchainSecurityModule if one is not specified by the
         // recipient.
         // This is useful for backwards compatibility and for convenience as
@@ -274,10 +278,10 @@ contract Mailbox is
         returns (IInterchainSecurityModule _val) {
             // If the recipient specifies a zero address, use the default ISM.
             if (address(_val) != address(0)) {
-                return address(_val);
+                return _val;
             }
         } catch {}
-        return address(defaultIsm);
+        return defaultIsm;
     }
 
     // ============ Internal Functions ============
