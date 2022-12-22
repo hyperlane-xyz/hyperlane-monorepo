@@ -3713,16 +3713,71 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@npm:1.0.0-beta3":
-  version: 1.0.0-beta3
-  resolution: "@hyperlane-xyz/helloworld@npm:1.0.0-beta3"
+"@hyperlane-xyz/helloworld@1.0.0-beta3, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@hyperlane-xyz/sdk": 1.0.0-beta3
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts-upgradeable": ^4.8.0
+    "@trivago/prettier-plugin-sort-imports": ^3.2.0
+    "@typechain/ethers-v5": 10.0.0
+    "@typechain/hardhat": ^6.0.0
+    "@types/mocha": ^9.1.0
+    "@typescript-eslint/eslint-plugin": ^5.27.0
+    "@typescript-eslint/parser": ^5.27.0
+    chai: ^4.3.0
+    eslint: ^8.16.0
+    eslint-config-prettier: ^8.5.0
+    ethereum-waffle: ^3.4.4
     ethers: ^5.6.8
-  checksum: ee13cfc499f1ed636b3d05151bff5316737f87189551f517fb9781838c68dd48eb89c1f353994f2728d0e8e8d8303f2a7c83ffca03ef931f1e859065596c747f
-  languageName: node
-  linkType: hard
+    hardhat: ^2.8.4
+    hardhat-gas-reporter: ^1.0.7
+    prettier: ^2.4.1
+    prettier-plugin-solidity: ^1.0.0-beta.5
+    solhint: ^3.3.2
+    solhint-plugin-prettier: ^0.0.5
+    solidity-coverage: ^0.7.14
+    ts-node: ^10.8.0
+    typechain: 8.0.0
+    typescript: ^4.7.2
+  languageName: unknown
+  linkType: soft
+
+"@hyperlane-xyz/hyperlane-token@workspace:typescript/token":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/hyperlane-token@workspace:typescript/token"
+  dependencies:
+    "@hyperlane-xyz/core": 1.0.0-beta3
+    "@hyperlane-xyz/sdk": 1.0.0-beta3
+    "@hyperlane-xyz/utils": 1.0.0-beta3
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@openzeppelin/contracts-upgradeable": ^4.8.0
+    "@trivago/prettier-plugin-sort-imports": ^3.2.0
+    "@typechain/ethers-v5": 10.0.0
+    "@typechain/hardhat": ^6.0.0
+    "@types/mocha": ^9.1.0
+    "@typescript-eslint/eslint-plugin": ^5.27.0
+    "@typescript-eslint/parser": ^5.27.0
+    chai: ^4.3.0
+    eslint: ^8.16.0
+    eslint-config-prettier: ^8.5.0
+    ethereum-waffle: ^3.4.4
+    ethers: ^5.6.8
+    hardhat: ^2.8.4
+    hardhat-gas-reporter: ^1.0.7
+    prettier: ^2.4.1
+    prettier-plugin-solidity: ^1.0.0-beta.5
+    solhint: ^3.3.2
+    solhint-plugin-prettier: ^0.0.5
+    solidity-coverage: ^0.7.14
+    ts-node: ^10.8.0
+    typechain: 8.0.0
+    typescript: ^4.7.2
+  languageName: unknown
+  linkType: soft
 
 "@hyperlane-xyz/infra@workspace:typescript/infra":
   version: 0.0.0-use.local
