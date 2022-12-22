@@ -73,7 +73,6 @@ export class HyperlaneCoreInfraDeployer<
     const rustConfig: RustConfig<Chain> = {
       environment: this.environment,
       chains: {},
-      signers: {},
       db: 'db_path',
       tracing: {
         level: 'debug',
@@ -101,7 +100,8 @@ export class HyperlaneCoreInfraDeployer<
           interchainGasPaymaster: contracts.interchainGasPaymaster.address,
           multisigIsm: contracts.multisigIsm.address,
         },
-        rpcStyle: 'ethereum',
+        signer: undefined,
+        implementation: 'ethereum',
         finalityBlocks: metadata.blocks.reorgPeriod.toString(),
         connection: {
           type: ConnectionType.Http,

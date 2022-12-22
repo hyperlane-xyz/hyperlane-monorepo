@@ -9,7 +9,7 @@
         "interchainGasPaymaster": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
         "multisigIsm": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
       },
-      "rpcStyle": "ethereum",
+      "implementation": "ethereum",
       "finalityBlocks": "0",
       "connection": {
         "type": "http",
@@ -27,14 +27,14 @@
         "interchainGasPaymaster": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
         "multisigIsm": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
       },
-      "rpcStyle": "ethereum",
+      "implementation": "ethereum",
       "finalityBlocks": "1",
       "connection": {
         "type": "http",
         "url": ""
       },
       "index": {
-        "from": "13"
+        "from": "12"
       }
     },
     "test3": {
@@ -45,7 +45,7 @@
         "interchainGasPaymaster": "0x59b670e9fA9D0A427751Af201D676719a970857b",
         "multisigIsm": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1"
       },
-      "rpcStyle": "ethereum",
+      "implementation": "ethereum",
       "finalityBlocks": "2",
       "connection": {
         "type": "http",
@@ -56,7 +56,6 @@
       }
     }
   },
-  "signers": {},
   "db": "db_path",
   "tracing": {
     "level": "debug",

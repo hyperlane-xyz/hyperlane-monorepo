@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use ethers::types::Selector;
-use eyre::{ensure, eyre, Context, Result};
+use eyre::{eyre, Context, Result};
 use serde::Deserialize;
 
 use ethers_prometheus::middleware::{
@@ -25,12 +25,25 @@ use crate::{CoreMetrics, SignerConf};
 ///
 /// Specify the chain name (enum variant) in toml under the `chain` key
 #[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "implementation", content = "connection", rename_all = "camelCase")]
+#[serde(
+    tag = "implementation",
+    content = "connection",
+    rename_all = "camelCase"
+)]
 pub enum ChainConf {
     /// Ethereum configuration
     Ethereum(h_eth::ConnectionConf),
     /// Fuel configuration
     Fuel(h_fuel::ConnectionConf),
+}
+
+impl ChainConf {
+    fn implementation(&self) -> HyperlaneDomainImpl {
+        match self {
+            ChainConf::Ethereum(_) => HyperlaneDomainImpl::Ethereum,
+            ChainConf::Fuel(_) => HyperlaneDomainImpl::Fuel,
+        }
+    }
 }
 
 impl Default for ChainConf {
@@ -261,7 +274,8 @@ impl ChainSetup {
 
     /// Get the domain for this chain setup
     pub fn domain(&self) -> Result<HyperlaneDomain> {
-        HyperlaneDomain::from_config_strs(&self.domain, &self.name).map_err(|e| eyre!("{e}"))
+        HyperlaneDomain::from_config_strs(&self.domain, &self.name, self.chain.implementation())
+            .map_err(|e| eyre!("{e}"))
     }
 
     /// Get the number of blocks until finality
@@ -342,32 +356,14 @@ impl ChainSetup {
     fn locator(&self, address: &str) -> Result<ContractLocator> {
         let domain = self.domain()?;
         let address = match self.chain {
-            ChainConf::Ethereum(_) => {
-                ensure!(
-                    matches!(
-                        domain.domain_impl(),
-                        HyperlaneDomainImpl::Ethereum | HyperlaneDomainImpl::Unknown
-                    ),
-                    "Excepted an ethereum chain config"
-                );
-                address
-                    .parse::<ethers::types::Address>()
-                    .context("Invalid ethereum address")?
-                    .into()
-            }
-            ChainConf::Fuel(_) => {
-                ensure!(
-                    matches!(
-                        domain.domain_impl(),
-                        HyperlaneDomainImpl::Fuel | HyperlaneDomainImpl::Unknown
-                    ),
-                    "Expected a fuel chain config"
-                );
-                address
-                    .parse::<fuels::tx::ContractId>()
-                    .map_err(|e| eyre!("Invalid fuel contract id: {e}"))?
-                    .into_h256()
-            }
+            ChainConf::Ethereum(_) => address
+                .parse::<ethers::types::Address>()
+                .context("Invalid ethereum address")?
+                .into(),
+            ChainConf::Fuel(_) => address
+                .parse::<fuels::tx::ContractId>()
+                .map_err(|e| eyre!("Invalid fuel contract id: {e}"))?
+                .into_h256(),
         };
 
         Ok(ContractLocator { domain, address })

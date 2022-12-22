@@ -9,7 +9,7 @@
         "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
         "multisigIsm": "0x34dD0ab937c3A7280FeB86C8F9ba9EBa79463c1e"
       },
-      "rpcStyle": "ethereum",
+      "implementation": "ethereum",
       "finalityBlocks": "0",
       "connection": {
         "type": "http",
@@ -27,7 +27,7 @@
         "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
         "multisigIsm": "0x4bCe8b585057EFC347026F9f0F4f89885468D7d3"
       },
-      "rpcStyle": "ethereum",
+      "implementation": "ethereum",
       "finalityBlocks": "3",
       "connection": {
         "type": "http",
@@ -45,7 +45,7 @@
         "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
         "multisigIsm": "0x824ed1F5c1769261eDD7022700FA675Fd22C0C1F"
       },
-      "rpcStyle": "ethereum",
+      "implementation": "ethereum",
       "finalityBlocks": "32",
       "connection": {
         "type": "http",
@@ -63,7 +63,7 @@
         "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
         "multisigIsm": "0x8b3131De3DD5d89C81b9AEaE2adFEA0EB7f4E4eB"
       },
-      "rpcStyle": "ethereum",
+      "implementation": "ethereum",
       "finalityBlocks": "9",
       "connection": {
         "type": "http",
@@ -81,7 +81,7 @@
         "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
         "multisigIsm": "0x916B3999505656965A596A7710CEf27d2fEB4878"
       },
-      "rpcStyle": "ethereum",
+      "implementation": "ethereum",
       "finalityBlocks": "2",
       "connection": {
         "type": "http",
@@ -99,7 +99,7 @@
         "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
         "multisigIsm": "0xaA3022A7e114D4eaF9BBcA552B850346C55E5550"
       },
-      "rpcStyle": "ethereum",
+      "implementation": "ethereum",
       "finalityBlocks": "1",
       "connection": {
         "type": "http",
@@ -117,7 +117,7 @@
         "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
         "multisigIsm": "0x99A42d6Bf191127667f55297Af0259708bd8c59e"
       },
-      "rpcStyle": "ethereum",
+      "implementation": "ethereum",
       "finalityBlocks": "1",
       "connection": {
         "type": "http",
@@ -135,7 +135,7 @@
         "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
         "multisigIsm": "0x772926Ffc5FE8B3ae9a85cB085700748606aE283"
       },
-      "rpcStyle": "ethereum",
+      "implementation": "ethereum",
       "finalityBlocks": "1",
       "connection": {
         "type": "http",
@@ -146,7 +146,6 @@
       }
     }
   },
-  "signers": {},
   "db": "db_path",
   "tracing": {
     "level": "debug",
