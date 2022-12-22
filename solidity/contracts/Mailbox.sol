@@ -192,8 +192,8 @@ contract Mailbox is
         delivered[_id] = true;
 
         // Verify the message via the ISM.
-        IInterchainSecurityModule _ism = _recipientIsm(
-            ISpecifiesInterchainSecurityModule(_message.recipientAddress())
+        IInterchainSecurityModule _ism = IInterchainSecurityModule(
+            recipientIsm(_message.recipientAddress())
         );
         require(_ism.verify(_metadata, _message), "!module");
 
@@ -257,6 +257,33 @@ contract Mailbox is
         return _isPaused();
     }
 
+    /**
+     * @notice Returns the ISM to use for the recipient, defaulting to the
+     * default ISM if none is specified.
+     * @param _recipient The message recipient whose ISM should be returned.
+     * @return The ISM to use for `_recipient`.
+     */
+    function recipientIsm(address _recipient)
+        public
+        view
+        returns (IInterchainSecurityModule)
+    {
+        // Use a default interchainSecurityModule if one is not specified by the
+        // recipient.
+        // This is useful for backwards compatibility and for convenience as
+        // recipients are not mandated to specify an ISM.
+        try
+            ISpecifiesInterchainSecurityModule(_recipient)
+                .interchainSecurityModule()
+        returns (IInterchainSecurityModule _val) {
+            // If the recipient specifies a zero address, use the default ISM.
+            if (address(_val) != address(0)) {
+                return _val;
+            }
+        } catch {}
+        return defaultIsm;
+    }
+
     // ============ Internal Functions ============
 
     /**
@@ -267,31 +294,5 @@ contract Mailbox is
         require(Address.isContract(_module), "!contract");
         defaultIsm = IInterchainSecurityModule(_module);
         emit DefaultIsmSet(_module);
-    }
-
-    /**
-     * @notice Returns the ISM to use for the recipient, defaulting to the
-     * default ISM if none is specified.
-     * @param _recipient The message recipient whose ISM should be returned.
-     * @return The ISM to use for `_recipient`.
-     */
-    function _recipientIsm(ISpecifiesInterchainSecurityModule _recipient)
-        internal
-        view
-        returns (IInterchainSecurityModule)
-    {
-        // Use a default interchainSecurityModule if one is not specified by the
-        // recipient.
-        // This is useful for backwards compatibility and for convenience as
-        // recipients are not mandated to specify an ISM.
-        try _recipient.interchainSecurityModule() returns (
-            IInterchainSecurityModule _val
-        ) {
-            // If the recipient specifies a zero address, use the default ISM.
-            if (address(_val) != address(0)) {
-                return _val;
-            }
-        } catch {}
-        return defaultIsm;
     }
 }

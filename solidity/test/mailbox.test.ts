@@ -14,6 +14,7 @@ import {
   TestIsm__factory,
   TestMailbox,
   TestMailbox__factory,
+  TestRecipient,
   TestRecipient__factory,
 } from '../types';
 
@@ -101,6 +102,28 @@ describe('Mailbox', async () => {
         );
 
       expect(actualId).equals(id);
+    });
+  });
+
+  describe('#recipientIsm', () => {
+    let recipient: TestRecipient;
+    beforeEach(async () => {
+      const recipientF = new TestRecipient__factory(signer);
+      recipient = await recipientF.deploy();
+    });
+
+    it('Returns the default module when unspecified', async () => {
+      expect(await mailbox.recipientIsm(recipient.address)).to.equal(
+        await mailbox.defaultIsm(),
+      );
+    });
+
+    it('Returns the recipient module when specified', async () => {
+      const recipientIsm = mailbox.address;
+      await recipient.setInterchainSecurityModule(recipientIsm);
+      expect(await mailbox.recipientIsm(recipient.address)).to.equal(
+        recipientIsm,
+      );
     });
   });
 
