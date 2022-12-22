@@ -123,8 +123,8 @@ export async function getEvents<T extends TypedEvent>(
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<T>> {
-  const domain = chainMetadata[chain];
-  if (domain.paginate) {
+  const mustPaginate = !!chainMetadata[chain].publicRpcUrls[0].pagination;
+  if (mustPaginate) {
     return getPaginatedEvents(
       multiprovider,
       chain,
@@ -144,8 +144,8 @@ export async function findEvent<T extends TypedEvent>(
   filter: TypedEventFilter<T>,
   startBlock?: number,
 ): Promise<Array<T>> {
-  const domain = chainMetadata[chain];
-  if (domain.paginate) {
+  const mustPaginate = !!chainMetadata[chain].publicRpcUrls[0].pagination;
+  if (mustPaginate) {
     return findFromPaginatedEvents(
       multiprovider,
       chain,
@@ -165,15 +165,15 @@ async function getPaginatedEvents<T extends TypedEvent>(
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<T>> {
-  const domain = chainMetadata[chain];
-  if (!domain.paginate) {
+  const pagination = chainMetadata[chain].publicRpcUrls[0].pagination;
+  if (!pagination) {
     throw new Error('Domain need not be paginated');
   }
   // get the first block by params
   // or domain deployment block
   const firstBlock = startBlock
-    ? Math.max(startBlock, domain.paginate.from)
-    : domain.paginate.from;
+    ? Math.max(startBlock, pagination.from)
+    : pagination.from;
   // get the last block by params
   // or current block number
   let lastBlock;
@@ -185,12 +185,8 @@ async function getPaginatedEvents<T extends TypedEvent>(
   }
   // query domain pagination limit at a time, concurrently
   const eventArrayPromises = [];
-  for (
-    let from = firstBlock;
-    from <= lastBlock;
-    from += domain.paginate.blocks
-  ) {
-    const nextFrom = from + domain.paginate.blocks;
+  for (let from = firstBlock; from <= lastBlock; from += pagination.blocks) {
+    const nextFrom = from + pagination.blocks;
     const to = Math.min(nextFrom, lastBlock);
     const eventArrayPromise = contract.queryFilter(filter, from, to);
     eventArrayPromises.push(eventArrayPromise);
@@ -212,15 +208,15 @@ async function findFromPaginatedEvents<T extends TypedEvent>(
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<T>> {
-  const domain = chainMetadata[chain];
-  if (!domain.paginate) {
+  const pagination = chainMetadata[chain].publicRpcUrls[0].pagination;
+  if (!pagination) {
     throw new Error('Domain need not be paginated');
   }
   // get the first block by params
   // or domain deployment block
   const firstBlock = startBlock
-    ? Math.max(startBlock, domain.paginate.from)
-    : domain.paginate.from;
+    ? Math.max(startBlock, pagination.from)
+    : pagination.from;
   // get the last block by params
   // or current block number
   let lastBlock;
@@ -232,8 +228,8 @@ async function findFromPaginatedEvents<T extends TypedEvent>(
   }
   // query domain pagination limit at a time, concurrently
   // eslint-disable-next-line for-direction
-  for (let end = lastBlock; end > firstBlock; end -= domain.paginate.blocks) {
-    const nextEnd = end - domain.paginate.blocks;
+  for (let end = lastBlock; end > firstBlock; end -= pagination.blocks) {
+    const nextEnd = end - pagination.blocks;
     const from = Math.max(nextEnd, firstBlock);
     const queriedEvents = await contract.queryFilter(filter, from, end);
     if (queriedEvents.length > 0) {
