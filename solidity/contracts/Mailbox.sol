@@ -114,12 +114,6 @@ contract Mailbox is
 
     // ============ Initializers ============
 
-    function initialize(address _defaultIsm) external initializer {
-        __PausableReentrancyGuard_init();
-        __Ownable_init();
-        _setDefaultIsm(_defaultIsm);
-    }
-
     function initialize(address _owner, address _defaultIsm)
         external
         initializer
