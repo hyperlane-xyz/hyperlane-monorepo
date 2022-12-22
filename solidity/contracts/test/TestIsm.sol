@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 
 contract TestIsm is IInterchainSecurityModule {
+    uint8 public constant moduleType = 0;
     bool public accept;
 
     function setAccept(bool _val) external {
