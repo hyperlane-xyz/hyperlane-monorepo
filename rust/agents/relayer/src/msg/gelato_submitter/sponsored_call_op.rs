@@ -107,7 +107,11 @@ impl SponsoredCallOp {
         let multisig_ism = self.ism_builder.build_multisig_ism(ism_address).await?;
 
         let metadata = multisig_ism
-            .format_metadata(&self.message.checkpoint, self.message.proof)
+            .format_metadata(
+                self.message.message.clone(),
+                &self.message.checkpoint,
+                self.message.proof,
+            )
             .await?;
 
         // Estimate transaction costs for the process call. If there are issues, it's

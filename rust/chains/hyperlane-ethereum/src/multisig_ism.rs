@@ -2,78 +2,22 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::hash::Hash;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use ethers::abi::Token;
 use ethers::providers::Middleware;
 use ethers::types::Selector;
-use tokio::sync::RwLock;
-use tracing::instrument;
 
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    MultisigIsm, MultisigSignedCheckpoint, SignatureWithSigner, H160, H256,
+    HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, RawHyperlaneMessage,
+    SignatureWithSigner, H160, H256,
 };
 
 use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
 use crate::trait_builder::BuildableWithProvider;
-
-#[derive(Debug)]
-struct Timestamped<Value> {
-    t: Instant,
-    value: Value,
-}
-
-impl<Value> Timestamped<Value> {
-    fn new(value: Value) -> Timestamped<Value> {
-        Timestamped {
-            t: Instant::now(),
-            value,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct ExpiringCache<Key, Value>
-where
-    Key: Eq + Hash,
-{
-    expiry: Duration,                        // cache endurance
-    cache: HashMap<Key, Timestamped<Value>>, // hashmap containing references to cached items
-}
-
-impl<Key, Value> ExpiringCache<Key, Value>
-where
-    Key: Copy + Eq + Hash + tracing::Value,
-    Value: Clone,
-{
-    pub fn new(expiry: Duration) -> ExpiringCache<Key, Value> {
-        ExpiringCache {
-            expiry,
-            cache: HashMap::new(),
-        }
-    }
-
-    pub fn put(&mut self, key: Key, value: Value) {
-        self.cache.insert(key, Timestamped::new(value));
-    }
-
-    pub fn get(&self, key: Key) -> Option<&Value> {
-        if let Some(entry) = self.cache.get(&key) {
-            if entry.t.elapsed() > self.expiry {
-                None
-            } else {
-                Some(&entry.value)
-            }
-        } else {
-            None
-        }
-    }
-}
 
 impl<M> std::fmt::Display for EthereumMultisigIsmInternal<M>
 where
@@ -107,8 +51,6 @@ where
 {
     contract: Arc<EthereumMultisigIsmInternal<M>>,
     domain: HyperlaneDomain,
-    threshold_cache: RwLock<ExpiringCache<u32, u8>>,
-    validators_cache: RwLock<ExpiringCache<u32, Vec<H160>>>,
 }
 
 impl<M> EthereumMultisigIsm<M>
@@ -121,8 +63,6 @@ where
         Self {
             contract: Arc::new(EthereumMultisigIsmInternal::new(locator.address, provider)),
             domain: locator.domain.clone(),
-            threshold_cache: RwLock::new(ExpiringCache::new(Duration::from_secs(60))),
-            validators_cache: RwLock::new(ExpiringCache::new(Duration::from_secs(60))),
         }
     }
 }
@@ -153,6 +93,7 @@ where
     /// Returns the metadata needed by the contract's verify function
     async fn format_metadata(
         &self,
+        message: HyperlaneMessage,
         checkpoint: &MultisigSignedCheckpoint,
         proof: Proof,
     ) -> ChainResult<Vec<u8>> {
@@ -173,13 +114,14 @@ where
             ),
             Token::FixedArray(proof_tokens),
         ]);
-
-        let threshold = self.threshold(checkpoint.checkpoint.mailbox_domain).await?;
-        let threshold_bytes = threshold.to_be_bytes().into();
-
-        let validator_addresses: Vec<H160> = self
-            .validators(checkpoint.checkpoint.mailbox_domain)
+        let validators_and_threshold = self
+            .contract
+            .validators_and_threshold(RawHyperlaneMessage::from(&message).to_vec().into())
+            .call()
             .await?;
+
+        let threshold_bytes = validators_and_threshold.1.to_be_bytes().into();
+        let validator_addresses = validators_and_threshold.0;
 
         // The ethers encoder likes to zero-pad non word-aligned byte arrays.
         // Thus, we pack the signatures, which are not word-aligned, ourselves.
@@ -204,33 +146,6 @@ where
         ]
         .concat();
         Ok(metadata)
-    }
-
-    #[instrument(err, ret, skip(self))]
-    async fn threshold(&self, domain: u32) -> ChainResult<u8> {
-        let entry = self.threshold_cache.read().await.get(domain).cloned();
-        if let Some(threshold) = entry {
-            Ok(threshold)
-        } else {
-            let threshold = self.contract.threshold(domain).call().await?;
-            self.threshold_cache.write().await.put(domain, threshold);
-            Ok(threshold)
-        }
-    }
-
-    #[instrument(err, ret, skip(self))]
-    async fn validators(&self, domain: u32) -> ChainResult<Vec<H160>> {
-        let entry = self.validators_cache.read().await.get(domain).cloned();
-        if let Some(validators) = entry {
-            Ok(validators)
-        } else {
-            let validators = self.contract.validators(domain).call().await?;
-            self.validators_cache
-                .write()
-                .await
-                .put(domain, validators.clone());
-            Ok(validators)
-        }
     }
 }
 

@@ -261,7 +261,7 @@ impl SerialSubmitter {
         let ism_address = self.mailbox.recipient_ism(msg.message.recipient).await?;
         let multisig_ism = self.ism_builder.build_multisig_ism(ism_address).await?;
         let metadata = multisig_ism
-            .format_metadata(&msg.checkpoint, msg.proof)
+            .format_metadata(msg.message.clone(), &msg.checkpoint, msg.proof)
             .await?;
 
         // Estimate transaction costs for the process call. If there are issues, it's likely
