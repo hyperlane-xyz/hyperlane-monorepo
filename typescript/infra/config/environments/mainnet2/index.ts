@@ -12,7 +12,7 @@ import {
 } from './chains';
 import { core } from './core';
 import { keyFunderConfig } from './funding';
-//import { helloWorld } from './helloworld';
+import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
 
 export const environment: CoreEnvironmentConfig<MainnetChains> = {
@@ -34,6 +34,11 @@ export const environment: CoreEnvironmentConfig<MainnetChains> = {
   agents,
   core,
   infra: infrastructure,
-  //helloWorld,
+  helloWorld,
   keyFunderConfig,
 };
+
+// On Mainnet2
+// MultisigIsm owned by the deployer(?)
+// ProxyAdmin owned by the deployer(?)
+// Mailbox owned by the ProxyAdmin
