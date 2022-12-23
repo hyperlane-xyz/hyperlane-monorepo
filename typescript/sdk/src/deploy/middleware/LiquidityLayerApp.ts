@@ -3,8 +3,8 @@ import { ethers } from 'ethers';
 
 import {
   CircleBridgeAdapter__factory,
-  ICircleBridge__factory,
   ICircleMessageTransmitter__factory,
+  ITokenMessenger__factory,
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
@@ -25,7 +25,7 @@ const CIRCLE_ATTESTATIONS_BASE_URL =
 
 const PORTAL_VAA_SERVICE_SUCCESS_CODE = 5;
 
-const CircleBridgeInterface = ICircleBridge__factory.createInterface();
+const CircleBridgeInterface = ITokenMessenger__factory.createInterface();
 const CircleBridgeAdapterInterface =
   CircleBridgeAdapter__factory.createInterface();
 const PortalAdapterInterface = PortalAdapter__factory.createInterface();
