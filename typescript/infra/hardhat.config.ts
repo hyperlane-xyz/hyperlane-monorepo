@@ -97,7 +97,9 @@ task('kathy', 'Dispatches random hyperlane messages')
               mailbox.address
             } on ${local} with nonce ${(await mailbox.count()) - 1}`,
           );
-          console.log(await chainSummary(core, local));
+          for (const chain of core.chains()) {
+            console.log(await chainSummary(core, chain));
+          }
           await sleep(timeout);
         }
       }

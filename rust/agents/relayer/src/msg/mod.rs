@@ -3,7 +3,7 @@ use std::{cmp::Ordering, sync::Arc};
 
 use hyperlane_base::{ChainSetup, CoreMetrics};
 use hyperlane_core::{
-    accumulator::merkle::Proof, HyperlaneMessage, MultisigSignedCheckpoint, Signers,
+    HyperlaneMessage, Signers,
 };
 use hyperlane_core::{MultisigIsm, H256};
 
@@ -60,22 +60,14 @@ impl IsmBuilder {
 #[derive(Clone, Debug)]
 pub struct SubmitMessageArgs {
     pub message: HyperlaneMessage,
-    pub checkpoint: MultisigSignedCheckpoint,
-    pub proof: Proof,
     num_retries: u32,
     last_attempted_at: Instant,
 }
 
 impl SubmitMessageArgs {
-    pub fn new(
-        message: HyperlaneMessage,
-        checkpoint: MultisigSignedCheckpoint,
-        proof: Proof,
-    ) -> Self {
+    pub fn new(message: HyperlaneMessage) -> Self {
         SubmitMessageArgs {
             message,
-            checkpoint,
-            proof,
             num_retries: 0,
             last_attempted_at: Instant::now(),
         }

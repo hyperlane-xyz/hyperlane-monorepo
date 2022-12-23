@@ -10,7 +10,7 @@ use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Inst
 
 use hyperlane_base::{CachingMailbox, CoreMetrics};
 use hyperlane_core::{
-    db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, MultisigSignedCheckpoint,
+    db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
 };
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
@@ -25,8 +25,6 @@ pub(crate) struct MessageProcessor {
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,
     tx_msg: mpsc::UnboundedSender<SubmitMessageArgs>,
-    ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
-    prover_sync: MerkleTreeBuilder,
     message_nonce: u32,
 }
 
@@ -39,7 +37,6 @@ impl MessageProcessor {
         blacklist: Arc<MatchingList>,
         metrics: MessageProcessorMetrics,
         tx_msg: mpsc::UnboundedSender<SubmitMessageArgs>,
-        ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
     ) -> Self {
         Self {
             db: db.clone(),
@@ -48,8 +45,6 @@ impl MessageProcessor {
             blacklist,
             metrics,
             tx_msg,
-            ckpt_rx,
-            prover_sync: MerkleTreeBuilder::new(db),
             message_nonce: 0,
         }
     }
@@ -61,14 +56,6 @@ impl MessageProcessor {
 
     #[instrument(ret, err, skip(self), fields(domain=%self.destination_mailbox.domain()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
-        // Ensure that there is at least one valid, known checkpoint before starting
-        // work loop.
-        loop {
-            self.ckpt_rx.changed().await?;
-            if self.ckpt_rx.borrow().clone().is_some() {
-                break;
-            }
-        }
         // Forever, scan HyperlaneDB looking for new messages to send. When criteria are
         // satisfied or the message is disqualified, push the message onto
         // self.tx_msg and then continue the scan at the next highest
@@ -153,36 +140,6 @@ impl MessageProcessor {
             return Ok(());
         }
 
-        // TODO: Fetch checkpoints dynamically based on validator set.
-
-        // If validator hasn't published checkpoint covering self.message_nonce
-        // yet, wait until it has, before forwarding the message to the
-        // submitter channel.
-        let mut ckpt;
-        loop {
-            ckpt = self.ckpt_rx.borrow().clone();
-            match &ckpt {
-                Some(ckpt) if ckpt.checkpoint.index >= self.message_nonce => {
-                    break;
-                }
-                _ => {
-                    self.ckpt_rx.changed().await?;
-                }
-            }
-        }
-        let checkpoint = ckpt.unwrap();
-        assert!(checkpoint.checkpoint.index >= self.message_nonce);
-
-        // Include proof against checkpoint for message in the args provided to the
-        // submitter.
-        if checkpoint.checkpoint.index >= self.prover_sync.count() {
-            self.prover_sync
-                .update_to_checkpoint(&checkpoint.checkpoint)
-                .await?;
-        }
-        assert_eq!(checkpoint.checkpoint.index + 1, self.prover_sync.count());
-        let proof = self.prover_sync.get_proof(self.message_nonce)?;
-
         if self.db.message_id_by_nonce(self.message_nonce)?.is_some() {
             debug!(
                 id=?message.id(),
@@ -190,7 +147,7 @@ impl MessageProcessor {
                 "Sending message to submitter"
             );
             // Finally, build the submit arg and dispatch it to the submitter.
-            let submit_args = SubmitMessageArgs::new(message, checkpoint, proof);
+            let submit_args = SubmitMessageArgs::new(message);
             self.tx_msg.send(submit_args)?;
             self.message_nonce += 1;
         } else {

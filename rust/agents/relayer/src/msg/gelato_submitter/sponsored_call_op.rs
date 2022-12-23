@@ -16,7 +16,7 @@ use gelato::{
     task_status::{TaskState, TaskStatusApiCall, TaskStatusApiCallArgs},
     types::Chain,
 };
-use hyperlane_base::CachingMailbox;
+use hyperlane_base::{CachingMailbox, MultisigCheckpointSyncer};
 use hyperlane_core::{ChainResult, HyperlaneContract, Mailbox, MultisigIsm};
 
 use crate::msg::{gas_payment::GasPaymentEnforcer, IsmBuilder, SubmitMessageArgs};
@@ -28,10 +28,10 @@ const TICK_SLEEP_DURATION_SECONDS: u64 = 30;
 pub struct SponsoredCallOpArgs {
     pub opts: SponsoredCallOptions,
     pub http: reqwest::Client,
-
     pub message: SubmitMessageArgs,
     pub mailbox: CachingMailbox,
     pub ism_builder: IsmBuilder,
+    pub multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     pub sponsor_api_key: String,
     pub destination_chain: Chain,
 
@@ -105,67 +105,76 @@ impl SponsoredCallOp {
             .recipient_ism(self.message.message.recipient)
             .await?;
         let multisig_ism = self.ism_builder.build_multisig_ism(ism_address).await?;
-
-        let metadata = multisig_ism
-            .format_metadata(
-                self.message.message.clone(),
-                &self.message.checkpoint,
-                self.message.proof,
-            )
+        let validators_and_threshold = multisig_ism
+            .validators_and_threshold(self.message.message.clone())
             .await?;
-
-        // Estimate transaction costs for the process call. If there are issues, it's
-        // likely that gas estimation has failed because the message is
-        // reverting. This is defined behavior, so we just log the error and
-        // move onto the next tick.
-        let tx_cost_estimate = match self
-            .mailbox
-            .process_estimate_costs(&self.message.message, &metadata)
-            .await
+        if let Some(checkpoint) = self
+            .multisig_checkpoint_syncer
+            .latest_checkpoint(
+                validators_and_threshold.0,
+                validators_and_threshold.1.into(),
+                Some(self.message.message.nonce),
+            )
+            .await?
         {
-            Ok(tx_cost_estimate) => tx_cost_estimate,
-            Err(err) => {
-                tracing::info!(error=?err, "Error estimating process costs");
+            let validators = validators_and_threshold.0;
+            let metadata = multisig_ism
+                .format_metadata(validators, &checkpoint, proof)
+                .await?;
+
+            // Estimate transaction costs for the process call. If there are issues, it's
+            // likely that gas estimation has failed because the message is
+            // reverting. This is defined behavior, so we just log the error and
+            // move onto the next tick.
+            let tx_cost_estimate = match self
+                .mailbox
+                .process_estimate_costs(&self.message.message, &metadata)
+                .await
+            {
+                Ok(tx_cost_estimate) => tx_cost_estimate,
+                Err(err) => {
+                    tracing::info!(error=?err, "Error estimating process costs");
+                    return Ok(false);
+                }
+            };
+
+            // If the gas payment requirement hasn't been met, sleep briefly and wait for
+            // the next tick.
+            let (meets_gas_requirement, gas_payment) = self
+                .gas_payment_enforcer
+                .message_meets_gas_payment_requirement(&self.message.message, &tx_cost_estimate)
+                .await?;
+
+            if !meets_gas_requirement {
+                tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
                 return Ok(false);
             }
-        };
 
-        // If the gas payment requirement hasn't been met, sleep briefly and wait for
-        // the next tick.
-        let (meets_gas_requirement, gas_payment) = self
-            .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&self.message.message, &tx_cost_estimate)
-            .await?;
+            // Send the sponsored call.
+            let sponsored_call_result = self.send_sponsored_call_api_call(&metadata).await?;
+            tracing::info!(
+                msg=?self.message,
+                task_id=sponsored_call_result.task_id,
+                "Sent sponsored call",
+            );
 
-        if !meets_gas_requirement {
-            tracing::info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
-            return Ok(false);
-        }
-
-        // Send the sponsored call.
-        let sponsored_call_result = self.send_sponsored_call_api_call(&metadata).await?;
-        tracing::info!(
-            msg=?self.message,
-            task_id=sponsored_call_result.task_id,
-            "Sent sponsored call",
-        );
-
-        // Wait for a terminal state, timing out according to the retry_submit_interval.
-        match timeout(
-            self.opts.retry_submit_interval,
-            self.poll_for_terminal_state(sponsored_call_result.task_id.clone()),
-        )
-        .await
-        {
-            Ok(result) => {
-                // Bubble up any error that may have occurred in `poll_for_terminal_state`.
-                result
-            }
-            // If a timeout occurred, don't bubble up an error, instead just log
-            // and set ourselves up for the next tick.
-            Err(err) => {
-                tracing::info!(err=?err, "Sponsored call timed out, reattempting");
-                Ok(false)
+            // Wait for a terminal state, timing out according to the retry_submit_interval.
+            match timeout(
+                self.opts.retry_submit_interval,
+                self.poll_for_terminal_state(sponsored_call_result.task_id.clone()),
+            )
+            .await
+            {
+                Ok(result) => {
+                    // Bubble up any error that may have occurred in `poll_for_terminal_state`.
+                    result
+                }
+                // If a timeout occurred, don't bubble up an error, instead just log
+                // and set ourselves up for the next tick.
+                Err(err) => {
+                    tracing::info!(err=?err, "Sponsored call timed out, reattempting");
+                    Ok(false)
+                }
             }
         }
     }

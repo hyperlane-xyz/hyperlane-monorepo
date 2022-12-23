@@ -248,6 +248,7 @@ impl MerkleTree {
 
         (current_node.hash(), proof)
     }
+
 }
 
 /// Verify a proof that `leaf` exists at `index` in a Merkle tree rooted at

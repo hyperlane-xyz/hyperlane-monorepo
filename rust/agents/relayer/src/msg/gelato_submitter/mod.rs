@@ -44,6 +44,7 @@ pub(crate) struct GelatoSubmitter {
     message_processed_receiver: UnboundedReceiver<SubmitMessageArgs>,
     /// Used to determine if messages have made sufficient gas payments.
     gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+    // TODO(asa): Add prover here!
 }
 
 impl GelatoSubmitter {
@@ -108,6 +109,8 @@ impl GelatoSubmitter {
             }
         }
 
+        // TODO: How do we pull the proof here given that we don't know what proof we need?
+        // Can we pass a reference to a prover?
         // Spawn a SponsoredCallOp for each received message.
         for msg in received_messages.into_iter() {
             tracing::info!(msg=?msg, "Spawning sponsored call op for message");

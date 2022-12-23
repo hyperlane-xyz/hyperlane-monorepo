@@ -81,8 +81,8 @@ impl MerkleTreeBuilder {
     }
 
     #[instrument(err, skip(self), level = "debug")]
-    pub fn get_proof(&self, nonce: u32) -> Result<Proof, MerkleTreeBuilderError> {
-        self.prover.prove(nonce as usize).map_err(Into::into)
+    pub fn get_proof(&self, nonce: u32, desired_count: u32) -> Result<Proof, MerkleTreeBuilderError> {
+        self.prover.prove(nonce as usize, desired_count as usize).map_err(Into::into)
     }
 
     fn ingest_nonce(&mut self, nonce: u32) -> Result<(), MerkleTreeBuilderError> {
@@ -106,6 +106,12 @@ impl MerkleTreeBuilder {
         self.prover.count() as u32
     }
 
+    // TODO(asa): I suspect we used to call this every time we got a 
+    // new checkpoint with a quorum.
+    // Instead, we probably want to just ingest messages whenever we have
+    // new ones...
+    // And probably we used to just have one of these objects, whereas now
+    // we have many, need to figure out how to pass a shared reference around...
     #[instrument(err, skip(self), level = "debug")]
     pub async fn update_to_checkpoint(
         &mut self,

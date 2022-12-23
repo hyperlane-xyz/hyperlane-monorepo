@@ -4,7 +4,7 @@
 
 use hyperlane_core::accumulator::{
     merkle::{merkle_root_from_branch, MerkleTree, MerkleTreeError, Proof},
-    TREE_DEPTH,
+    TREE_DEPTH, ZERO_HASHES
 };
 use hyperlane_core::H256;
 
@@ -54,6 +54,12 @@ impl Default for Prover {
     }
 }
 
+
+// Okay, what functions do I need?
+// reconstruct_leading_branch(index)
+// 
+
+// TODO(asa): Modify prover to return proofs of leaf indices against previous roots.
 impl Prover {
     /// Push a leaf to the tree. Appends it to the first unoccupied slot
     ///
@@ -74,20 +80,89 @@ impl Prover {
         self.count
     }
 
-    /// Create a proof of a leaf in this tree.
-    ///
-    /// Note, if the tree ingests more leaves, the root will need to be recalculated.
-    pub fn prove(&self, index: usize) -> Result<Proof, ProverError> {
-        if index > u32::MAX as usize {
-            return Err(ProverError::IndexTooHigh(index));
-        }
-        let count = self.count();
-        if index >= count {
-            return Err(ProverError::ZeroProof { index, count });
+    /// Returns a merkle proof of `index` against a historic version of the
+    /// tree where `index` was the most recent element pushed to the tree. 
+    /// 
+    /// We do this by creating a proof against the current root, and then
+    /// modifying it by replacing all "right nodes" in the proof with the
+    /// root of the empty tree at that height, as represented by ZERO_HASHES.
+    fn historic_proof_of_latest_index(&self, index: usize) -> Result<Proof, ProverError> {
+        // A proof against the current root.
+        let current_proof = self.prove_current(index)?;
+
+        // Replace the right nodes with zero hashes
+        let mut modified_path = [H256::zero(); 32];
+        for i in 0..32 {
+            let size = index >> i;
+            if (size & 1) == 1 {
+                modified_path[i] = ZERO_HASHES[i];
+            } else {
+                modified_path[i] = current_proof.path[i].clone();
+            }
         }
 
-        let (leaf, hashes) = self.tree.generate_proof(index, TREE_DEPTH);
+        Ok(Proof { leaf: current_proof.leaf, index, path: modified_path })
+    }
+
+    /// Returns the "leading branch" from a proof.
+    /// tree where `index` was the most recent element pushed to the tree. 
+    /// 
+    /// We do this by creating a proof against the current root, and then
+    /// modifying it by replacing all "right nodes" in the proof with the
+    /// root of the empty tree at that height, as represented by ZERO_HASHES.
+    fn historic_leading_branch_of_latest_index(&self, index: usize) -> Result<Proof, ProverError> {
+        // A proof against the current root.
+        let current_proof = self.prove_current(index)?;
+
+        // Replace the right nodes with zero hashes
+        let mut modified_path = [H256::zero(); 32];
+        for i in 0..32 {
+            let size = index >> i;
+            if (size & 1) == 1 {
+                modified_path[i] = ZERO_HASHES[i];
+            } else {
+                modified_path[i] = current_proof.path[i].clone();
+            }
+        }
+
+        Ok(Proof { leaf: current_proof.leaf, index, path: modified_path })
+    }
+
+    
+    
+
+    /// Create a proof of a leaf against the current or a previous checkpoint.
+    /// 
+    /// First creates a merkle proof against the current root, then subsitutes
+    /// elements of the proof that represent indices > `checkpoint_index` with the roots
+    /// of empty trees.
+    pub fn prove(&self, index: usize, checkpoint_index: usize) -> Result<Proof, ProverError> {
+        if index >= checkpoint_index {
+            return Err(ProverError::IndexTooHigh(index));
+        }
+        let current_proof = self.prove_current(index)?;
         let mut path = [H256::zero(); 32];
+        for node in current_proof.path {
+
+        }
+        let mut size = checkpoint_index;
+
+        /// Hmm the assumption was that "right nodes" could be set to zeroes.
+        /// But actually, we need to figure out *which* right nodes can be set to zeroes.
+        /// Those lower in the tree should be left alone, those higher in the tree should not
+        /// How do we decide how high? Maybe something in the difference in indices?
+        current_proof.path.iter().enumerate().for_each(|(i, elem)| {
+            if (size & 1) == 1 {
+                hash_concat(elem, node)
+            } else {
+                hash_concat(node, ZERO_HASHES[i])
+            };
+            size /= 2;
+        });
+
+
+
+
         path.copy_from_slice(&hashes[..32]);
         Ok(Proof { leaf, index, path })
     }
@@ -102,6 +177,21 @@ impl Prover {
         } else {
             Err(ProverError::VerificationFailed { expected, actual })
         }
+    }
+
+    fn prove_current(&self, index: usize) -> Result<Proof, ProverError> {
+        if index > u32::MAX as usize {
+            return Err(ProverError::IndexTooHigh(index));
+        }
+        let count = self.count();
+        if index >= count {
+            return Err(ProverError::ZeroProof { index, count });
+        }
+
+        let (leaf, hashes) = self.tree.generate_proof(index, TREE_DEPTH);
+        let mut path = [H256::zero(); 32];
+        path.copy_from_slice(&hashes[..32]);
+        Ok(Proof { leaf, index, path })
     }
 }
 

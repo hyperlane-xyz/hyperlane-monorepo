@@ -87,12 +87,9 @@ impl BaseAgent for Relayer {
 
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let (signed_checkpoint_sender, signed_checkpoint_receiver) =
-            watch::channel::<Option<MultisigSignedCheckpoint>>(None);
-
         let num_mailboxes = self.core.mailboxes.len();
 
-        let mut tasks = Vec::with_capacity(num_mailboxes + 2);
+        let mut tasks = Vec::with_capacity(num_mailboxes + 1);
 
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
             self.gas_payment_enforcement_policy.clone(),
@@ -116,15 +113,14 @@ impl BaseAgent for Relayer {
                 tasks.push(self.run_destination_mailbox(
                     mailbox.clone(),
                     ism_builder.clone(),
-                    signed_checkpoint_receiver.clone(),
+                    self.multisig_checkpoint_syncer.clone(),
+                    // signed_checkpoint_receiver.clone(),
                     self.core.settings.chains[chain.name()].txsubmission,
                     self.core.settings.gelato.as_ref(),
                     gas_payment_enforcer.clone(),
                 ));
             }
         }
-
-        tasks.push(self.run_checkpoint_fetcher(signed_checkpoint_sender));
 
         let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());
         tasks.push(self.run_origin_mailbox_sync(sync_metrics.clone()));
@@ -164,20 +160,6 @@ impl Relayer {
         sync
     }
 
-    fn run_checkpoint_fetcher(
-        &self,
-        signed_checkpoint_sender: watch::Sender<Option<MultisigSignedCheckpoint>>,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
-        let checkpoint_fetcher = CheckpointFetcher::new(
-            self.mailbox(&self.origin_chain).unwrap(),
-            self.signed_checkpoint_polling_interval,
-            self.multisig_checkpoint_syncer.clone(),
-            signed_checkpoint_sender,
-            self.core.metrics.last_known_message_nonce(),
-        );
-        checkpoint_fetcher.spawn()
-    }
-
     /// Helper to construct a new GelatoSubmitter instance for submission to a
     /// particular mailbox.
     fn make_gelato_submitter(
@@ -207,7 +189,8 @@ impl Relayer {
         &self,
         destination_mailbox: CachingMailbox,
         ism_builder: IsmBuilder,
-        signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
+        multisig_checkpoint_syncer: MultisigCheckpointSyncer,
+        //signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
         tx_submission: TransactionSubmissionType,
         gelato_config: Option<&GelatoConf>,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -231,6 +214,7 @@ impl Relayer {
                     msg_receive,
                     destination_mailbox.clone(),
                     ism_builder.clone(),
+                    multisig_checkpoint_syncer.clone(),
                     gelato_config.clone(),
                     gas_payment_enforcer,
                 )
@@ -241,6 +225,7 @@ impl Relayer {
                     msg_receive,
                     destination_mailbox.clone(),
                     ism_builder.clone(),
+                    multisig_checkpoint_syncer.clone(),
                     origin_mailbox.db().clone(),
                     SerialSubmitterMetrics::new(
                         &self.core.metrics,
@@ -260,7 +245,6 @@ impl Relayer {
             self.blacklist.clone(),
             metrics,
             msg_send,
-            signed_checkpoint_receiver,
         );
         info!(
             message_processor=?message_processor,
