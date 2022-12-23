@@ -153,8 +153,6 @@ impl MessageProcessor {
             return Ok(());
         }
 
-        // TODO: Fetch checkpoints dynamically based on validator set.
-
         // If validator hasn't published checkpoint covering self.message_nonce
         // yet, wait until it has, before forwarding the message to the
         // submitter channel.

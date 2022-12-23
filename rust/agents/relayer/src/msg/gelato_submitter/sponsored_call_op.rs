@@ -17,9 +17,11 @@ use gelato::{
     types::Chain,
 };
 use hyperlane_base::CachingMailbox;
-use hyperlane_core::{ChainResult, HyperlaneContract, Mailbox, MultisigIsm};
+use hyperlane_core::{ChainResult, HyperlaneContract, Mailbox};
 
-use crate::msg::{gas_payment::GasPaymentEnforcer, IsmBuilder, SubmitMessageArgs};
+use crate::msg::{
+    gas_payment::GasPaymentEnforcer, metadata_builder::MetadataBuilder, SubmitMessageArgs,
+};
 
 // The number of seconds after a tick to sleep before attempting the next tick.
 const TICK_SLEEP_DURATION_SECONDS: u64 = 30;
@@ -31,7 +33,7 @@ pub struct SponsoredCallOpArgs {
 
     pub message: SubmitMessageArgs,
     pub mailbox: CachingMailbox,
-    pub ism_builder: IsmBuilder,
+    pub metadata_builder: MetadataBuilder,
     pub sponsor_api_key: String,
     pub destination_chain: Chain,
 
@@ -100,16 +102,12 @@ impl SponsoredCallOp {
         if let Ok(true) = self.message_delivered().await {
             return Ok(true);
         }
-        let ism_address = self
-            .mailbox
-            .recipient_ism(self.message.message.recipient)
-            .await?;
-        let multisig_ism = self.ism_builder.build_multisig_ism(ism_address).await?;
-
-        let metadata = multisig_ism
-            .format_metadata(
+        let metadata = self
+            .metadata_builder
+            .fetch_metadata(
                 self.message.message.clone(),
-                &self.message.checkpoint,
+                self.mailbox.clone(),
+                self.message.checkpoint.clone(),
                 self.message.proof,
             )
             .await?;

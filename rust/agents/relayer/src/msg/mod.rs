@@ -1,14 +1,11 @@
+use std::cmp::Ordering;
 use std::time::Instant;
-use std::{cmp::Ordering, sync::Arc};
 
-use hyperlane_base::{ChainSetup, CoreMetrics};
-use hyperlane_core::{
-    accumulator::merkle::Proof, HyperlaneMessage, MultisigSignedCheckpoint, Signers,
-};
-use hyperlane_core::{MultisigIsm, H256};
+use hyperlane_core::{accumulator::merkle::Proof, HyperlaneMessage, MultisigSignedCheckpoint};
 
 pub mod gas_payment;
 pub mod gelato_submitter;
+pub mod metadata_builder;
 pub mod processor;
 pub mod serial_submitter;
 
@@ -30,32 +27,6 @@ pub mod serial_submitter;
 ///     nonces, recovery behavior)
 ///   - FallbackProviderSubmitter (Serialized, but if some RPC provider sucks,
 ///   switch everyone to new one)
-
-#[derive(Debug, Clone)]
-pub struct IsmBuilder {
-    metrics: Arc<CoreMetrics>,
-    signer: Option<Signers>,
-    chain_setup: ChainSetup,
-}
-
-impl IsmBuilder {
-    pub fn new(
-        metrics: Arc<CoreMetrics>,
-        signer: Option<Signers>,
-        chain_setup: ChainSetup,
-    ) -> Self {
-        IsmBuilder {
-            metrics,
-            signer,
-            chain_setup,
-        }
-    }
-    pub async fn build_multisig_ism(&self, address: H256) -> eyre::Result<Box<dyn MultisigIsm>> {
-        self.chain_setup
-            .build_multisig_ism(self.signer.clone(), &self.metrics, address)
-            .await
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct SubmitMessageArgs {

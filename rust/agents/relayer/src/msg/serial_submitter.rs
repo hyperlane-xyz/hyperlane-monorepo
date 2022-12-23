@@ -10,9 +10,9 @@ use tokio::time::sleep;
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{CachingMailbox, CoreMetrics};
-use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, MultisigIsm};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox};
 
-use super::IsmBuilder;
+use super::metadata_builder::MetadataBuilder;
 use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
 /// SerialSubmitter accepts undelivered messages over a channel from a MessageProcessor. It is
@@ -104,7 +104,7 @@ use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
 #[derive(Debug)]
 pub(crate) struct SerialSubmitter {
-    ism_builder: IsmBuilder,
+    metadata_builder: MetadataBuilder,
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// Messages we are aware of that we want to eventually submit, but haven't yet, for
@@ -128,7 +128,7 @@ impl SerialSubmitter {
     pub(crate) fn new(
         rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        ism_builder: IsmBuilder,
+        metadata_builder: MetadataBuilder,
         db: HyperlaneDB,
         metrics: SerialSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -138,7 +138,7 @@ impl SerialSubmitter {
             wait_queue: Vec::new(),
             run_queue: VecDeque::new(),
             mailbox,
-            ism_builder,
+            metadata_builder,
             db,
             metrics,
             gas_payment_enforcer,
@@ -258,10 +258,14 @@ impl SerialSubmitter {
             info!("Message already processed");
             return Ok(true);
         }
-        let ism_address = self.mailbox.recipient_ism(msg.message.recipient).await?;
-        let multisig_ism = self.ism_builder.build_multisig_ism(ism_address).await?;
-        let metadata = multisig_ism
-            .format_metadata(msg.message.clone(), &msg.checkpoint, msg.proof)
+        let metadata = self
+            .metadata_builder
+            .fetch_metadata(
+                msg.message.clone(),
+                self.mailbox.clone(),
+                msg.checkpoint.clone(),
+                msg.proof,
+            )
             .await?;
 
         // Estimate transaction costs for the process call. If there are issues, it's likely

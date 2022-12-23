@@ -12,7 +12,8 @@ use hyperlane_base::{chains::GelatoConf, CachingMailbox, CoreMetrics};
 use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, KnownHyperlaneDomain};
 
 use super::gas_payment::GasPaymentEnforcer;
-use super::{IsmBuilder, SubmitMessageArgs};
+use super::metadata_builder::MetadataBuilder;
+use super::SubmitMessageArgs;
 use crate::msg::gelato_submitter::sponsored_call_op::{
     SponsoredCallOp, SponsoredCallOpArgs, SponsoredCallOptions,
 };
@@ -23,13 +24,14 @@ const HTTP_CLIENT_REQUEST_SECONDS: u64 = 30;
 
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
-    ism_builder: IsmBuilder,
     /// The Gelato config.
     gelato_config: GelatoConf,
     /// Source of messages to submit.
     message_receiver: UnboundedReceiver<SubmitMessageArgs>,
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
+    /// Metadata builder for the destination chain.
+    metadata_builder: MetadataBuilder,
     /// The destination chain in the format expected by the Gelato crate.
     destination_gelato_chain: Chain,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
@@ -50,7 +52,7 @@ impl GelatoSubmitter {
     pub fn new(
         message_receiver: UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        ism_builder: IsmBuilder,
+        metadata_builder: MetadataBuilder,
         hyperlane_db: HyperlaneDB,
         gelato_config: GelatoConf,
         metrics: GelatoSubmitterMetrics,
@@ -67,7 +69,7 @@ impl GelatoSubmitter {
             destination_gelato_chain: hyperlane_domain_id_to_gelato_chain(mailbox.domain())
                 .unwrap(),
             mailbox,
-            ism_builder,
+            metadata_builder,
             db: hyperlane_db,
             gelato_config,
             http_client,
@@ -112,11 +114,11 @@ impl GelatoSubmitter {
         for msg in received_messages.into_iter() {
             tracing::info!(msg=?msg, "Spawning sponsored call op for message");
             let mut op = SponsoredCallOp::new(SponsoredCallOpArgs {
-                message: msg,
                 opts: SponsoredCallOptions::default(),
                 http: self.http_client.clone(),
+                message: msg,
                 mailbox: self.mailbox.clone(),
-                ism_builder: self.ism_builder.clone(),
+                metadata_builder: self.metadata_builder.clone(),
                 sponsor_api_key: self.gelato_config.sponsorapikey.clone(),
                 destination_chain: self.destination_gelato_chain,
                 message_processed_sender: self.message_processed_sender.clone(),
