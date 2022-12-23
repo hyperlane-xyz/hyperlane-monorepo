@@ -1,5 +1,3 @@
-use tracing::info;
-
 use crate::{
     H256,
     accumulator::{ZERO_HASHES, hash_concat,
@@ -16,19 +14,19 @@ impl MerkleTree {
     /// it can consume quite a lot of memory.
     pub fn merge(self, b: MerkleTree) -> MerkleTree {
         println!("Merging trees...");
-        // Mismatched nodes cannot be merged 
-        if !self.hash().eq(&b.hash()) {
-            return self
-        }
-
         match self {
             MerkleTree::Zero(_) => {
                 println!("I am a zero node, returning self");
                 return self
             },
             MerkleTree::Leaf(_) => {
-                println!("I am a leaf node, returning other");
-                return b
+                if self.hash().eq(&b.hash()) {
+                    println!("I am a leaf node that matches the other tree, returning other");
+                    return b
+                } else {
+                    println!("I am a leaf node that doesn't match the other tree, returning self");
+                    return self
+                }
             }
             MerkleTree::Node(a_hash, ref a_left, ref a_right) => {
                 match b {
@@ -57,7 +55,7 @@ impl MerkleTree {
 
 impl Proof {
     /// Return the proof of this index when it was the latest node in the tree
-    pub fn proof_as_latest(&self) -> Proof {
+    pub fn as_latest(&self) -> Proof {
         // Replace the right nodes with zero hashes
         let mut modified_path = [H256::zero(); TREE_DEPTH];
         for i in 0..32 {
@@ -93,71 +91,20 @@ impl Proof {
         }
         tree
     }
-
-    // Okay, so what we have here is actually a reconstruction of the partial merkle tree.
-    // What would I do with this?
-    // Well, I could have two partial merkle trees, one for 
-    /// Returns the internal nodes of 
-    pub fn internal_nodes(&self) -> (usize, [H256; TREE_DEPTH]) {
-        let latest_proof = self.proof_as_latest();
-
-        let mut branch = [H256::zero(); TREE_DEPTH];
-
-        let mut current = self.leaf;
-
-        for i in 0..TREE_DEPTH {
-            branch[i] = current;
-            let next = latest_proof.path[i];
-            let ith_bit = (self.index >> i) & 0x01;
-            if ith_bit == 1 {
-                current = hash_concat(current, next);
-            } else {
-                current = hash_concat(next, current);
-            }
-        }
-        (self.index, branch)
-    }
-
-    // TODO: Naming..
-    /// Returns the proof of this index when the latest node in the tree
-    /// was latest.index.
-    /// 
-    /// `latest` is expected to be a proof against the current version of the tree.
-    pub fn as_historic(&self, latest: Proof) -> Proof {
-        todo!();
-        /*
-
-        // Represents the leading edge branch of the merkle tree with the latest
-        // node at index latest_proof.index
-        let leading_branch = 
-
-        // For each element in proof, 
-        let mut modified_path = [H256::zero(); 32];
-        for i in 0..32 {
-            // Okay, the nodes we have from the latest proof will be of index latest_proof.index >> i;
-            // The nodes we need for the modified proof will be of index self.index >> i
-
-            let size = self.index >> i;
-            let need = self.index >> i 
-            if (size & 1) == 1 {
-                modified_path[i] = self.path[i].clone();
-            } else {
-                modified_path[i] = ZERO_HASHES[i];
-            }
-        }
-
-        Proof { leaf: self.leaf, index: self.index, path: modified_path }
-        */
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::thread::current;
-
-    use crate::accumulator::{merkle::{MerkleTree, verify_merkle_proof}, incremental::{IncrementalMerkle}, TREE_DEPTH};
+    use crate::accumulator::{merkle::{MerkleTree, verify_merkle_proof}, TREE_DEPTH};
 
     use super::*;
+    fn generate_proof(tree: &MerkleTree, index: usize) -> Proof {
+        // Generate a proof of index i from the full merkle tree
+        let (leaf, hashes) = tree.generate_proof(index, TREE_DEPTH);
+        let mut path = [H256::zero(); TREE_DEPTH];
+        path.copy_from_slice(&hashes[..TREE_DEPTH]);
+        Proof{index, path, leaf}
+    }
 
     #[test]
     fn as_latest() {
@@ -172,88 +119,43 @@ mod tests {
             roots[i] = tree.hash();
         }
 
-        let mut current_merged_tree = MerkleTree::Leaf(tree.hash());
-
         for i in 0..LEAF_COUNT {
-            let (actual_leaf, actual_hashes) = tree.generate_proof(i, TREE_DEPTH);
-            let mut path = [H256::zero(); TREE_DEPTH];
-            path.copy_from_slice(&actual_hashes[..TREE_DEPTH]);
+            // First, generate a proof of index i against the full tree
+            let current_proof_i = generate_proof(&tree, i);
 
-            let current_proof = Proof{index: i, path, leaf: actual_leaf};
-            let proof = current_proof.proof_as_latest();
-            assert!(verify_merkle_proof(proof.leaf, &proof.path, TREE_DEPTH, i, roots[i]));
+            // Generate a partial merkle tree from the proof of index i against the full tree
+            println!("Generating current partial tree i: {}", i);
+            let current_partial_tree_i = current_proof_i.partial_tree();
+            assert_eq!(current_partial_tree_i.hash(), tree.hash());
 
-            let current_partial_tree = current_proof.partial_tree();
-            assert_eq!(current_partial_tree.hash(), tree.hash());
-
-            current_merged_tree = current_merged_tree.merge(current_partial_tree);
-            assert_eq!(current_merged_tree.hash(), tree.hash());
-
-            let partial_tree = proof.partial_tree();
-            assert_eq!(partial_tree.hash(), roots[i]);
-        }
-    }
-
-    /*
-    #[test]
-    fn as_leading_branch() {
-        const LEAF_COUNT: usize = 47;
-        let all_leaves: Vec<H256> = (0..LEAF_COUNT).into_iter().map(|_| {
-            H256::from([0xAA; 32])
-        }).collect();
-        let mut branches = [[H256::zero(); TREE_DEPTH]; LEAF_COUNT];
-        let mut incremental_tree = IncrementalMerkle::default();
-        let mut full_tree = MerkleTree::create(&[], TREE_DEPTH);
-        for i in 0..LEAF_COUNT {
-            incremental_tree.ingest(all_leaves[i]);
-            full_tree.push_leaf(all_leaves[i], TREE_DEPTH).unwrap();
-            branches[i] = incremental_tree.branch().clone();
-        }
-
-
-        // Want to generate the proof of i when j was the latest node in the tree..
-        for i in 0..LEAF_COUNT {
-            // Pull the proof of i from full_tree
-            let (proof_leaf, proof_path) = full_tree.generate_proof(i, TREE_DEPTH);
-            let mut modified_path = [H256::zero(); TREE_DEPTH];
-            modified_path.copy_from_slice(&proof_path[..TREE_DEPTH]);
-            let proof = Proof{index: i, path: modified_path, leaf: proof_leaf};
-            let branch = proof.proof_as_latest().latest_branch();
-            assert_eq!(branch.1, branches[i]);
-        }
-    }
-
-    #[test]
-    fn as_historic() {
-        const LEAF_COUNT: usize = 47;
-        let all_leaves: Vec<H256> = (0..LEAF_COUNT).into_iter().map(|_| {
-            H256::from([0xAA; 32])
-        }).collect();
-        let mut roots = [H256::zero(); LEAF_COUNT];
-        let mut tree = MerkleTree::create(&[], TREE_DEPTH);
-        for i in 0..LEAF_COUNT {
-            tree.push_leaf(all_leaves[i], TREE_DEPTH).unwrap();
-            roots[i] = tree.hash();
-        }
-
-        // Want to generate the proof of i when j was the latest node in the tree..
-        for i in 0..LEAF_COUNT {
             for j in i..LEAF_COUNT {
-                // First, pull the proof of j when it was the latest element in the tree
-                let (latest_leaf, latest_hashes) = tree.generate_proof(j, TREE_DEPTH);
-                let mut latest_path = [H256::zero(); TREE_DEPTH];
-                latest_path.copy_from_slice(&latest_hashes[..TREE_DEPTH]);
-                let latest_proof = Proof{index: j, path: latest_path, leaf: latest_leaf}.as_latest();
+                println!("i: {}, j: {}", i, j);
+                // Generate a proof of index j >= i from the full merkle tree
+                println!("Generating current proof j: {}", j);
+                let current_proof_j = generate_proof(&tree, j);
 
-                // Then, pull the proof of i, when j was the latest element in the tree
-                let (index_leaf, index_hashes) = tree.generate_proof(i, TREE_DEPTH);
-                let mut index_path = [H256::zero(); TREE_DEPTH];
-                index_path.copy_from_slice(&index_hashes[..TREE_DEPTH]);
-                let historic_proof = Proof{index: i, path: index_path, leaf: index_leaf}.as_historic(latest_proof);
+                // From that, generate a proof of index j from when it was the latest node in the tree
+                // Verify that it matches the root that we collected as we populated the tree
+                println!("Generating latest proof j: {}", j);
+                let latest_proof_j = current_proof_j.as_latest();
+                assert!(verify_merkle_proof(latest_proof_j.leaf, &latest_proof_j.path, TREE_DEPTH, j, roots[j]));
 
-                assert!(verify_merkle_proof(historic_proof.leaf, &historic_proof.path, TREE_DEPTH, i, roots[j]));
+                // From that, generate the partial merkle tree from when index j was the latest node in the tree
+                println!("Generating latest partial tree j: {}", j);
+                let latest_partial_tree_j = latest_proof_j.partial_tree();
+                assert_eq!(latest_partial_tree_j.hash(), roots[j]);
+
+                // Merge the partial trees together 
+                println!("Merging current partial tree i: {} into latest partial tree j: {}", i, j);
+                let merged_tree = latest_partial_tree_j.clone().merge(current_partial_tree_i.clone());
+                assert_eq!(merged_tree.hash(), roots[j]);
+
+                // From the merged tree, pull a historical proof of index i when j was the latest node in the tree
+                println!("Generating a proof of i: {} against latest partial tree j: {}", i, j);
+                let historical_proof_i = generate_proof(&merged_tree, i);
+                assert_eq!(historical_proof_i.partial_tree().hash(), roots[j]);
+                assert!(verify_merkle_proof(historical_proof_i.leaf, &historical_proof_i.path, TREE_DEPTH, i, roots[j]));
             }
         }
     }
-    */
 }
