@@ -6,7 +6,7 @@ use crate::{
 use super::{merkle::MerkleTree, TREE_DEPTH};
 
 impl MerkleTree {
-    /// Merges the compatible nodes from another merkle tree via BFS.
+    /// Merges the compatible nodes from another merkle tree via DFS.
     ///
     /// This should only be run on sparse partial trees, as otherwise
     /// it can consume quite a lot of memory.
