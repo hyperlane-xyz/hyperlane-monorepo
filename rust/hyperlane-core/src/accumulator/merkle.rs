@@ -225,7 +225,6 @@ impl MerkleTree {
         let mut current_node = self;
         let mut current_depth = depth;
         while current_depth > 0 {
-            println!("Generating proof at depth: {}", current_depth);
             let ith_bit = (index >> (current_depth - 1)) & 0x01;
             // Note: unwrap is safe because leaves are only ever constructed at depth == 0.
             let (left, right) = current_node.left_and_right_branches().unwrap();

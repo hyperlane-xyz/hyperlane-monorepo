@@ -44,7 +44,7 @@ impl Proof {
     pub fn as_latest(&self) -> Proof {
         // Replace the right nodes with zero hashes
         let mut modified_path = [H256::zero(); TREE_DEPTH];
-        for i in 0..32 {
+        for i in 0..TREE_DEPTH {
             let size = self.index >> i;
             if (size & 1) == 1 {
                 modified_path[i] = self.path[i].clone();
@@ -64,7 +64,7 @@ impl Proof {
     pub fn partial_tree(&self) -> MerkleTree {
         let mut tree = MerkleTree::Leaf(self.leaf);
 
-        for i in 0..32 {
+        for i in 0..TREE_DEPTH {
             let index = self.index >> i;
             if (index & 1) == 1 {
                 let left = MerkleTree::Leaf(self.path[i]);
