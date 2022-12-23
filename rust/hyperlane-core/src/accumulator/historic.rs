@@ -9,6 +9,52 @@ use crate::{
 
 use super::{TREE_DEPTH, merkle::MerkleTree};
 
+impl MerkleTree {
+    /// Merges the compatible nodes from another merkle tree via BFS.
+    /// 
+    /// This should only be run on sparse partial trees, as otherwise
+    /// it can consume quite a lot of memory.
+    pub fn merge(self, b: MerkleTree) -> MerkleTree {
+        println!("Merging trees...");
+        // Mismatched nodes cannot be merged 
+        if !self.hash().eq(&b.hash()) {
+            return self
+        }
+
+        match self {
+            MerkleTree::Zero(_) => {
+                println!("I am a zero node, returning self");
+                return self
+            },
+            MerkleTree::Leaf(_) => {
+                println!("I am a leaf node, returning other");
+                return b
+            }
+            MerkleTree::Node(a_hash, ref a_left, ref a_right) => {
+                match b {
+                    MerkleTree::Leaf(_) => {
+                        println!("I am an internal node and other is a leaf, returning self");
+                        return self
+                    },
+                    MerkleTree::Zero(_) => {
+                        println!("I am an internal node and other is a zero, returning self");
+                        return self
+                    },
+                    MerkleTree::Node(_, b_left, b_right) => {
+                        println!("I am an internal node and other is an internal node, merging");
+                        // TODO: this can't be right...
+                        let merged_left = (**a_left).clone().merge((*b_left).clone());
+                        let merged_right = (**a_right).clone().merge((*b_right).clone());
+                        let merged_hash = hash_concat(merged_left.hash(), merged_right.hash());
+                        assert_eq!(merged_hash, a_hash);
+                        return MerkleTree::Node(a_hash.clone(), Box::new(merged_left), Box::new(merged_right));
+                    }
+                }
+            }
+        }
+    }
+}
+
 impl Proof {
     /// Return the proof of this index when it was the latest node in the tree
     pub fn proof_as_latest(&self) -> Proof {
@@ -126,6 +172,8 @@ mod tests {
             roots[i] = tree.hash();
         }
 
+        let mut current_merged_tree = MerkleTree::Leaf(tree.hash());
+
         for i in 0..LEAF_COUNT {
             let (actual_leaf, actual_hashes) = tree.generate_proof(i, TREE_DEPTH);
             let mut path = [H256::zero(); TREE_DEPTH];
@@ -137,6 +185,9 @@ mod tests {
 
             let current_partial_tree = current_proof.partial_tree();
             assert_eq!(current_partial_tree.hash(), tree.hash());
+
+            current_merged_tree = current_merged_tree.merge(current_partial_tree);
+            assert_eq!(current_merged_tree.hash(), tree.hash());
 
             let partial_tree = proof.partial_tree();
             assert_eq!(partial_tree.hash(), roots[i]);
