@@ -1,54 +1,40 @@
 use crate::{
+    accumulator::{hash_concat, merkle::Proof, ZERO_HASHES},
     H256,
-    accumulator::{ZERO_HASHES, hash_concat,
-    merkle::{Proof},
-    },
 };
 
-use super::{TREE_DEPTH, merkle::MerkleTree};
+use super::{merkle::MerkleTree, TREE_DEPTH};
 
 impl MerkleTree {
     /// Merges the compatible nodes from another merkle tree via BFS.
-    /// 
+    ///
     /// This should only be run on sparse partial trees, as otherwise
     /// it can consume quite a lot of memory.
     pub fn merge(self, b: MerkleTree) -> MerkleTree {
-        println!("Merging trees...");
         match self {
-            MerkleTree::Zero(_) => {
-                println!("I am a zero node, returning self");
-                return self
-            },
+            MerkleTree::Zero(_) => return self,
             MerkleTree::Leaf(_) => {
                 if self.hash().eq(&b.hash()) {
-                    println!("I am a leaf node that matches the other tree, returning other");
-                    return b
+                    return b;
                 } else {
-                    println!("I am a leaf node that doesn't match the other tree, returning self");
-                    return self
+                    return self;
                 }
             }
-            MerkleTree::Node(a_hash, ref a_left, ref a_right) => {
-                match b {
-                    MerkleTree::Leaf(_) => {
-                        println!("I am an internal node and other is a leaf, returning self");
-                        return self
-                    },
-                    MerkleTree::Zero(_) => {
-                        println!("I am an internal node and other is a zero, returning self");
-                        return self
-                    },
-                    MerkleTree::Node(_, b_left, b_right) => {
-                        println!("I am an internal node and other is an internal node, merging");
-                        // TODO: this can't be right...
-                        let merged_left = (**a_left).clone().merge((*b_left).clone());
-                        let merged_right = (**a_right).clone().merge((*b_right).clone());
-                        let merged_hash = hash_concat(merged_left.hash(), merged_right.hash());
-                        assert_eq!(merged_hash, a_hash);
-                        return MerkleTree::Node(a_hash.clone(), Box::new(merged_left), Box::new(merged_right));
-                    }
+            MerkleTree::Node(a_hash, ref a_left, ref a_right) => match b {
+                MerkleTree::Leaf(_) => return self,
+                MerkleTree::Zero(_) => return self,
+                MerkleTree::Node(_, b_left, b_right) => {
+                    let merged_left = (**a_left).clone().merge((*b_left).clone());
+                    let merged_right = (**a_right).clone().merge((*b_right).clone());
+                    let merged_hash = hash_concat(merged_left.hash(), merged_right.hash());
+                    assert_eq!(merged_hash, a_hash);
+                    return MerkleTree::Node(
+                        a_hash.clone(),
+                        Box::new(merged_left),
+                        Box::new(merged_right),
+                    );
                 }
-            }
+            },
         }
     }
 }
@@ -67,7 +53,11 @@ impl Proof {
             }
         }
 
-        Proof { leaf: self.leaf, index: self.index, path: modified_path }
+        Proof {
+            leaf: self.leaf,
+            index: self.index,
+            path: modified_path,
+        }
     }
 
     /// Creates a partial merkle tree out of the proof
@@ -79,13 +69,10 @@ impl Proof {
             if (index & 1) == 1 {
                 let left = MerkleTree::Leaf(self.path[i]);
                 let hash = hash_concat(left.hash(), tree.hash());
-                println!("Added left node {:x}", hash);
                 tree = MerkleTree::Node(hash, Box::new(left), Box::new(tree));
             } else {
-
                 let right = MerkleTree::Leaf(self.path[i]);
                 let hash = hash_concat(tree.hash(), right.hash());
-                println!("Added right node {:x}", hash);
                 tree = MerkleTree::Node(hash, Box::new(tree), Box::new(right));
             }
         }
@@ -95,7 +82,10 @@ impl Proof {
 
 #[cfg(test)]
 mod tests {
-    use crate::accumulator::{merkle::{MerkleTree, verify_merkle_proof}, TREE_DEPTH};
+    use crate::accumulator::{
+        merkle::{verify_merkle_proof, MerkleTree},
+        TREE_DEPTH,
+    };
 
     use super::*;
     fn generate_proof(tree: &MerkleTree, index: usize) -> Proof {
@@ -103,15 +93,16 @@ mod tests {
         let (leaf, hashes) = tree.generate_proof(index, TREE_DEPTH);
         let mut path = [H256::zero(); TREE_DEPTH];
         path.copy_from_slice(&hashes[..TREE_DEPTH]);
-        Proof{index, path, leaf}
+        Proof { index, path, leaf }
     }
 
     #[test]
     fn as_latest() {
         const LEAF_COUNT: usize = 47;
-        let all_leaves: Vec<H256> = (0..LEAF_COUNT).into_iter().map(|_| {
-            H256::from([0xAA; 32])
-        }).collect();
+        let all_leaves: Vec<H256> = (0..LEAF_COUNT)
+            .into_iter()
+            .map(|_| H256::from([0xAA; 32]))
+            .collect();
         let mut roots = [H256::zero(); LEAF_COUNT];
         let mut tree = MerkleTree::create(&[], TREE_DEPTH);
         for i in 0..LEAF_COUNT {
@@ -124,37 +115,44 @@ mod tests {
             let current_proof_i = generate_proof(&tree, i);
 
             // Generate a partial merkle tree from the proof of index i against the full tree
-            println!("Generating current partial tree i: {}", i);
             let current_partial_tree_i = current_proof_i.partial_tree();
             assert_eq!(current_partial_tree_i.hash(), tree.hash());
 
             for j in i..LEAF_COUNT {
-                println!("i: {}, j: {}", i, j);
                 // Generate a proof of index j >= i from the full merkle tree
-                println!("Generating current proof j: {}", j);
                 let current_proof_j = generate_proof(&tree, j);
 
                 // From that, generate a proof of index j from when it was the latest node in the tree
                 // Verify that it matches the root that we collected as we populated the tree
-                println!("Generating latest proof j: {}", j);
                 let latest_proof_j = current_proof_j.as_latest();
-                assert!(verify_merkle_proof(latest_proof_j.leaf, &latest_proof_j.path, TREE_DEPTH, j, roots[j]));
+                assert!(verify_merkle_proof(
+                    latest_proof_j.leaf,
+                    &latest_proof_j.path,
+                    TREE_DEPTH,
+                    j,
+                    roots[j]
+                ));
 
                 // From that, generate the partial merkle tree from when index j was the latest node in the tree
-                println!("Generating latest partial tree j: {}", j);
                 let latest_partial_tree_j = latest_proof_j.partial_tree();
                 assert_eq!(latest_partial_tree_j.hash(), roots[j]);
 
-                // Merge the partial trees together 
-                println!("Merging current partial tree i: {} into latest partial tree j: {}", i, j);
-                let merged_tree = latest_partial_tree_j.clone().merge(current_partial_tree_i.clone());
+                // Merge the partial trees together
+                let merged_tree = latest_partial_tree_j
+                    .clone()
+                    .merge(current_partial_tree_i.clone());
                 assert_eq!(merged_tree.hash(), roots[j]);
 
                 // From the merged tree, pull a historical proof of index i when j was the latest node in the tree
-                println!("Generating a proof of i: {} against latest partial tree j: {}", i, j);
                 let historical_proof_i = generate_proof(&merged_tree, i);
                 assert_eq!(historical_proof_i.partial_tree().hash(), roots[j]);
-                assert!(verify_merkle_proof(historical_proof_i.leaf, &historical_proof_i.path, TREE_DEPTH, i, roots[j]));
+                assert!(verify_merkle_proof(
+                    historical_proof_i.leaf,
+                    &historical_proof_i.path,
+                    TREE_DEPTH,
+                    i,
+                    roots[j]
+                ));
             }
         }
     }
