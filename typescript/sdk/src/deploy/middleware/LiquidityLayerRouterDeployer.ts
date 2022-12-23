@@ -28,7 +28,7 @@ export enum BridgeAdapterType {
 
 export interface CircleBridgeAdapterConfig {
   type: BridgeAdapterType.Circle;
-  circleBridgeAddress: string;
+  tokenMessengerAddress: string;
   messageTransmitterAddress: string;
   usdcAddress: string;
   circleDomainMapping: {
@@ -212,7 +212,7 @@ export class LiquidityLayerDeployer<
         'initialize',
         [
           owner,
-          adapterConfig.circleBridgeAddress,
+          adapterConfig.tokenMessengerAddress,
           adapterConfig.messageTransmitterAddress,
           router.address,
         ],

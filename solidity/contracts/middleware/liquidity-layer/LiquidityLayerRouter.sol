@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {Router} from "../../Router.sol";
 
 import {IMessageRecipient} from "../../../interfaces/IMessageRecipient.sol";
-import {ICircleBridge} from "./interfaces/circle/ICircleBridge.sol";
 import {ICircleMessageTransmitter} from "./interfaces/circle/ICircleMessageTransmitter.sol";
 import {ILiquidityLayerAdapter} from "./interfaces/ILiquidityLayerAdapter.sol";
 import {ILiquidityLayerMessageRecipient} from "./interfaces/ILiquidityLayerMessageRecipient.sol";

@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Router} from "../../../Router.sol";
 
-import {ICircleBridge} from "../interfaces/circle/ICircleBridge.sol";
+import {ITokenMessenger} from "../interfaces/circle/ITokenMessenger.sol";
 import {ICircleMessageTransmitter} from "../interfaces/circle/ICircleMessageTransmitter.sol";
 import {ILiquidityLayerAdapter} from "../interfaces/ILiquidityLayerAdapter.sol";
 
@@ -11,7 +11,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
     /// @notice The CircleBridge contract.
-    ICircleBridge public circleBridge;
+    ITokenMessenger public circleBridge;
 
     /// @notice The Circle MessageTransmitter contract.
     ICircleMessageTransmitter public circleMessageTransmitter;
@@ -78,7 +78,7 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         _setAbacusConnectionManager(address(0));
         _setInterchainGasPaymaster(address(0));
 
-        circleBridge = ICircleBridge(_circleBridge);
+        circleBridge = ITokenMessenger(_circleBridge);
         circleMessageTransmitter = ICircleMessageTransmitter(
             _circleMessageTransmitter
         );

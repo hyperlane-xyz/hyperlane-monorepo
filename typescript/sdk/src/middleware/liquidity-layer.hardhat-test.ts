@@ -78,7 +78,7 @@ describe('LiquidityLayerRouter', async () => {
           ...conf,
           circle: {
             type: BridgeAdapterType.Circle,
-            circleBridgeAddress: circleBridge.address,
+            tokenMessengerAddress: circleBridge.address,
             messageTransmitterAddress: messageTransmitter.address,
             usdcAddress: mockToken.address,
             circleDomainMapping: [
