@@ -8,6 +8,8 @@ use crate::H256;
 pub mod incremental;
 /// A full incremental merkle. Suitable for running off-chain.
 pub mod merkle;
+/// Utilities for manipulating proofs to reflect historic merkle trees.
+pub mod historic;
 
 /// Tree depth
 pub const TREE_DEPTH: usize = 32;
