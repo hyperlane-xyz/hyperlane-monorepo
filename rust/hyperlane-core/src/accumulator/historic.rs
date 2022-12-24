@@ -12,27 +12,27 @@ impl MerkleTree {
     /// it can consume quite a lot of memory.
     pub fn merge(self, b: MerkleTree) -> MerkleTree {
         match self {
-            MerkleTree::Zero(_) => return self,
+            MerkleTree::Zero(_) => self,
             MerkleTree::Leaf(_) => {
                 if self.hash().eq(&b.hash()) {
-                    return b;
+                    b
                 } else {
-                    return self;
+                    self
                 }
             }
             MerkleTree::Node(a_hash, ref a_left, ref a_right) => match b {
-                MerkleTree::Leaf(_) => return self,
-                MerkleTree::Zero(_) => return self,
+                MerkleTree::Leaf(_) => self,
+                MerkleTree::Zero(_) => self,
                 MerkleTree::Node(_, b_left, b_right) => {
                     let merged_left = (**a_left).clone().merge((*b_left).clone());
                     let merged_right = (**a_right).clone().merge((*b_right).clone());
                     let merged_hash = hash_concat(merged_left.hash(), merged_right.hash());
                     assert_eq!(merged_hash, a_hash);
-                    return MerkleTree::Node(
-                        a_hash.clone(),
+                    MerkleTree::Node(
+                        a_hash,
                         Box::new(merged_left),
                         Box::new(merged_right),
-                    );
+                    )
                 }
             },
         }
@@ -47,7 +47,7 @@ impl Proof {
         for i in 0..TREE_DEPTH {
             let size = self.index >> i;
             if (size & 1) == 1 {
-                modified_path[i] = self.path[i].clone();
+                modified_path[i] = self.path[i];
             } else {
                 modified_path[i] = ZERO_HASHES[i];
             }
