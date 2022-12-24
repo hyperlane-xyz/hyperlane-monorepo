@@ -54,8 +54,6 @@ impl CheckpointSyncerConf {
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub struct MultisigCheckpointSyncerConf {
-    /// The quorum threshold
-    threshold: usize,
     /// The checkpoint syncer for each valid validator signer address
     checkpointsyncers: HashMap<String, CheckpointSyncerConf>,
 }
@@ -77,7 +75,6 @@ impl MultisigCheckpointSyncerConf {
             );
         }
         Ok(MultisigCheckpointSyncer::new(
-            self.threshold,
             checkpoint_syncers,
         ))
     }

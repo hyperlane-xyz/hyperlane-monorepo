@@ -263,8 +263,8 @@ impl SerialSubmitter {
             .fetch_metadata(
                 msg.message.clone(),
                 self.mailbox.clone(),
-                msg.checkpoint.clone(),
                 msg.proof,
+                msg.proof_index
             )
             .await?;
 
