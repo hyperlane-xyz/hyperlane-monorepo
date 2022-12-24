@@ -3,6 +3,8 @@ use sha3::{Digest, Keccak256};
 
 use crate::H256;
 
+/// Utilities for manipulating proofs to reflect historic merkle trees.
+pub mod historic;
 /// A lightweight incremental merkle, suitable for running on-chain. Stores O
 /// (1) data
 pub mod incremental;
