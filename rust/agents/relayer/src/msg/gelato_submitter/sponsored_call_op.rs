@@ -107,8 +107,6 @@ impl SponsoredCallOp {
             .fetch_metadata(
                 self.message.message.clone(),
                 self.mailbox.clone(),
-                self.message.proof,
-                self.message.proof_index
             )
             .await?;
 

@@ -25,6 +25,7 @@ pub trait MultisigIsm: HyperlaneContract + Send + Sync + Debug {
         fn format_metadata(
             &self,
             validators: Vec<H256>,
+            threshold: u8,
             checkpoint: &MultisigSignedCheckpoint,
             proof: Proof,
         ) -> Vec<u8>;

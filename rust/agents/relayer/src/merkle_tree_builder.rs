@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use eyre::Result;
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, instrument, info};
 
 use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
@@ -78,15 +78,15 @@ impl MerkleTreeBuilder {
         }
     }
 
-    #[instrument(err, skip(self), level = "debug")]
-    pub fn get_proof(&self, nonce: u32) -> Result<Proof, MerkleTreeBuilderError> {
-        self.prover.prove(nonce as usize).map_err(Into::into)
+    #[instrument(err, skip(self), level="debug", fields(prover_latest_index=self.count()-1))]
+    pub fn get_proof(&self, nonce: u32, checkpoint_index: u32) -> Result<Proof, MerkleTreeBuilderError> {
+        self.prover.prove(nonce as usize, checkpoint_index as usize).map_err(Into::into)
     }
 
     fn ingest_nonce(&mut self, nonce: u32) -> Result<(), MerkleTreeBuilderError> {
         match self.db.message_id_by_nonce(nonce) {
             Ok(Some(leaf)) => {
-                debug!(nonce, "Ingesting leaf");
+                info!(nonce, "Ingesting leaf");
                 self.prover.ingest(leaf).expect("!tree full");
                 self.incremental.ingest(leaf);
                 assert_eq!(self.prover.root(), self.incremental.root());
@@ -109,19 +109,21 @@ impl MerkleTreeBuilder {
         &mut self,
         index: u32,
     ) -> Result<(), MerkleTreeBuilderError> {
-        let starting_index = self.prover.count() as u32;
-        for i in starting_index..=index {
-            self.db.wait_for_message_nonce(i).await?;
-            self.ingest_nonce(i)?;
-        }
+        if index >= self.count() {
+            let starting_index = self.prover.count() as u32;
+            for i in starting_index..=index {
+                self.db.wait_for_message_nonce(i).await?;
+                self.ingest_nonce(i)?;
+            }
 
-        let prover_root = self.prover.root();
-        let incremental_root = self.incremental.root();
-        if prover_root != incremental_root {
-            return Err(MerkleTreeBuilderError::MismatchedRoots {
-                prover_root,
-                incremental_root,
-            });
+            let prover_root = self.prover.root();
+            let incremental_root = self.incremental.root();
+            if prover_root != incremental_root {
+                return Err(MerkleTreeBuilderError::MismatchedRoots {
+                    prover_root,
+                    incremental_root,
+                });
+            }
         }
 
         Ok(())

@@ -1,16 +1,16 @@
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration, collections::HashMap};
 
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{
-    sync::{mpsc},
+    sync::{mpsc::{UnboundedSender}, RwLock},
     task::JoinHandle,
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
-use hyperlane_base::{CachingMailbox, CoreMetrics};
+use hyperlane_base::{CoreMetrics};
 use hyperlane_core::{
-    db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
+    db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage,
 };
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
@@ -20,43 +20,48 @@ use super::SubmitMessageArgs;
 #[derive(Debug)]
 pub(crate) struct MessageProcessor {
     db: HyperlaneDB,
-    destination_mailbox: CachingMailbox,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,
-    tx_msg: mpsc::UnboundedSender<SubmitMessageArgs>,
-    prover_sync: MerkleTreeBuilder,
+    prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     message_nonce: u32,
+    // TODO: Can we key on HyperlaneDomain?
+    send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>>,
 }
 
 impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         db: HyperlaneDB,
-        destination_mailbox: CachingMailbox,
         whitelist: Arc<MatchingList>,
         blacklist: Arc<MatchingList>,
         metrics: MessageProcessorMetrics,
-        tx_msg: mpsc::UnboundedSender<SubmitMessageArgs>,
+        prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
+        send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>>,
     ) -> Self {
         Self {
             db: db.clone(),
-            destination_mailbox,
             whitelist,
             blacklist,
             metrics,
-            tx_msg,
-            prover_sync: MerkleTreeBuilder::new(db),
+            prover_sync,
+            send_channels,
             message_nonce: 0,
+            //send_channels: HashMap::new(),
         }
     }
+
+    /*
+    pub fn add_send_channel(self, domain_id: u32, channel: UnboundedSender<SubmitMessageArgs>) {
+        self.send_channels.insert(domain_id, channel);
+    } */
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 
-    #[instrument(ret, err, skip(self), fields(domain=%self.destination_mailbox.domain()), level = "info")]
+    #[instrument(ret, err, skip(self), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
         // Forever, scan HyperlaneDB looking for new messages to send. When criteria are
         // satisfied or the message is disqualified, push the message onto
@@ -81,7 +86,6 @@ impl MessageProcessor {
             .is_some()
         {
             debug!(
-                domain=%self.destination_mailbox.domain(),
                 nonce=?self.message_nonce,
                 "Skipping since message_nonce already in DB");
             self.message_nonce += 1;
@@ -107,17 +111,6 @@ impl MessageProcessor {
             return Ok(());
         };
 
-        // Skip if for different domain.
-        if message.destination != self.destination_mailbox.domain().id() {
-            debug!(
-                id=?message.id(),
-                destination=message.destination,
-                nonce=message.nonce,
-                "Message destined for other domain, skipping");
-            self.message_nonce += 1;
-            return Ok(());
-        }
-
         // Skip if not whitelisted.
         if !self.whitelist.msg_matches(&message, true) {
             debug!(
@@ -142,18 +135,10 @@ impl MessageProcessor {
             return Ok(());
         }
 
-        // Create proof for message against the root for the most recent
-        // message that we've seen.
-        // Note that this may no longer be a root for which we have a signed
-        // checkpoint.
-        if message.nonce >= self.prover_sync.count() {
-            self.prover_sync
-                .update_to_index(message.nonce)
-                .await?;
-        }
-        assert_eq!(message.nonce + 1, self.prover_sync.count());
-        let proof = self.prover_sync.get_proof(self.message_nonce)?;
-        let proof_index = self.prover_sync.count() - 1;
+        // Feed the message to the prover sync
+        self.prover_sync.write().await
+            .update_to_index(message.nonce)
+            .await?;
 
         if self.db.message_id_by_nonce(self.message_nonce)?.is_some() {
             debug!(
@@ -162,13 +147,20 @@ impl MessageProcessor {
                 "Sending message to submitter"
             );
             // Finally, build the submit arg and dispatch it to the submitter.
-            let submit_args = SubmitMessageArgs::new(message, proof, proof_index);
-            self.tx_msg.send(submit_args)?;
+            let submit_args = SubmitMessageArgs::new(message.clone());
+            if let Some(send_channel) = self.send_channels.get(&message.destination) {
+                send_channel.send(submit_args)?;
+            } else {
+                debug!(
+                    id=?message.id(),
+                    destination=message.destination,
+                    nonce=message.nonce,
+                    "Message destined for unknown domain, skipping");
+            }
             self.message_nonce += 1;
         } else {
             warn!(
                 nonce=self.message_nonce,
-                domain=%self.destination_mailbox.domain(),
                 "Unexpected missing message_id_by_nonce");
         }
         Ok(())
@@ -184,13 +176,14 @@ impl MessageProcessorMetrics {
     pub fn new(
         metrics: &CoreMetrics,
         origin: &HyperlaneDomain,
-        destination: &HyperlaneDomain,
     ) -> Self {
         Self {
+            // This is failing for some reason!
             processor_loop_gauge: metrics.last_known_message_nonce().with_label_values(&[
                 "processor_loop",
                 origin.name(),
-                destination.name(),
+                // TODO: For some reason we fail if I remove this...
+                origin.name(),
             ]),
         }
     }

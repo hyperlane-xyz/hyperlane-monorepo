@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
 use hyperlane_base::{CachingMailbox, ChainSetup, CoreMetrics, MultisigCheckpointSyncer};
-use hyperlane_core::{
-    accumulator::merkle::Proof, HyperlaneMessage, Signers,
+use hyperlane_core::{HyperlaneMessage, Signers,
 };
 use hyperlane_core::{Mailbox, MultisigIsm, H256};
-use tracing::{instrument, error};
+use tokio::sync::RwLock;
+use tracing::{instrument, info};
+
+use crate::merkle_tree_builder::MerkleTreeBuilder;
 
 #[derive(Debug, Clone)]
 pub struct MetadataBuilder {
@@ -13,6 +15,7 @@ pub struct MetadataBuilder {
     signer: Option<Signers>,
     chain_setup: ChainSetup,
     checkpoint_syncer: MultisigCheckpointSyncer,
+    prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
 }
 
 impl MetadataBuilder {
@@ -21,30 +24,28 @@ impl MetadataBuilder {
         signer: Option<Signers>,
         chain_setup: ChainSetup,
         checkpoint_syncer: MultisigCheckpointSyncer,
+        prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     ) -> Self {
         MetadataBuilder {
             metrics,
             signer,
             chain_setup,
-            checkpoint_syncer
+            checkpoint_syncer,
+            prover_sync
         }
     }
 
-    #[instrument(err, skip_all, fields(msg_nonce=message.nonce, proof_index=proof.index))]
+    #[instrument(err, skip_all, fields(msg_nonce=message.nonce))]
     pub async fn fetch_metadata(
         &self,
         message: HyperlaneMessage,
         mailbox: CachingMailbox,
-        proof: Proof,
-        proof_index: u32,
     ) -> eyre::Result<Vec<u8>> {
         let ism_address = mailbox.recipient_ism(message.recipient).await?;
         let multisig_ism = self.build_multisig_ism(ism_address).await?;
         let validators_and_threshold = multisig_ism.validators_and_threshold(message.clone()).await?;
         let validators = validators_and_threshold.0;
-        // TODO: Actually should probably be looking for a specific proof index.
-        // But this will have to do since eventually we will let the checkpoint dictate
-        // the proof, not the other way around
+        // TODO: we don't want to fetch checkpoints that are more recent than what we can create a proof against?
         if let Some(checkpoint) = self
         .checkpoint_syncer
         .latest_checkpoint(
@@ -54,18 +55,15 @@ impl MetadataBuilder {
         )
         .await?
         {
-            // TOOD: Check indices
-            if checkpoint.checkpoint.root == proof.root() {
-                let metadata = multisig_ism
-                    .format_metadata(validators.clone(), &checkpoint, proof); 
-                Ok(metadata)
-            } else {
-                error!(checkpoint_index=checkpoint.checkpoint.index, proof_index=proof_index, "Checkpoint/proof mismatch");
-                // TODO: Figure out how to do proper error reporting
-                Err(eyre::eyre!(format!("Checkpoint/proof mismatch!")))
-            }
+            info!(checkpoint_index=checkpoint.checkpoint.index,signature_count=checkpoint.signatures.len(),"Found checkpoint with quorum");
+
+            let proof = self.prover_sync.read().await.get_proof(message.nonce, checkpoint.checkpoint.index)?;
+            assert_eq!(checkpoint.checkpoint.root, proof.root());
+            let metadata = multisig_ism
+                .format_metadata(validators.clone(), validators_and_threshold.1, &checkpoint, proof); 
+            Ok(metadata)
         } else {
-            // TODO: Figure out how to do proper error reporting
+            // TODO: Figure out how to do proper error reporting. Should probably have the checkpoint syncer return errors rather than an option
             Err(eyre::eyre!("Checkpoint not found!"))
         }
     }

@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::time::Instant;
 
-use hyperlane_core::{accumulator::merkle::Proof, HyperlaneMessage };
+use hyperlane_core::{HyperlaneMessage };
 
 pub mod gas_payment;
 pub mod gelato_submitter;
@@ -31,8 +31,6 @@ pub mod serial_submitter;
 #[derive(Clone, Debug)]
 pub struct SubmitMessageArgs {
     pub message: HyperlaneMessage,
-    pub proof: Proof,
-    pub proof_index: u32,
     num_retries: u32,
     last_attempted_at: Instant,
 }
@@ -40,13 +38,9 @@ pub struct SubmitMessageArgs {
 impl SubmitMessageArgs {
     pub fn new(
         message: HyperlaneMessage,
-        proof: Proof,
-        proof_index: u32,
     ) -> Self {
         SubmitMessageArgs {
             message,
-            proof,
-            proof_index,
             num_retries: 0,
             last_attempted_at: Instant::now(),
         }

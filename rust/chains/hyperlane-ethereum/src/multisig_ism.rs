@@ -111,9 +111,11 @@ where
     fn format_metadata(
         &self,
         validators: Vec<H256>,
+        threshold: u8,
         checkpoint: &MultisigSignedCheckpoint,
         proof: Proof,
     ) -> Vec<u8> {
+        assert_eq!(threshold as usize, checkpoint.signatures.len());
         let root_bytes = checkpoint.checkpoint.root.to_fixed_bytes().into();
         let index_bytes = checkpoint.checkpoint.index.to_be_bytes().into();
         let proof_tokens: Vec<Token> = proof
@@ -131,7 +133,6 @@ where
             ),
             Token::FixedArray(proof_tokens),
         ]);
-        let threshold_bytes = checkpoint.signatures.len().to_be_bytes().into();
 
         // The ethers encoder likes to zero-pad non word-aligned byte arrays.
         // Thus, we pack the signatures, which are not word-aligned, ourselves.
@@ -143,12 +144,13 @@ where
             .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
             .collect();
         let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
+        // info!(validator_bytes_len=validator_bytes.clone().len(), signature_bytes_len=signature_bytes.clone().len(), threshold_bytes_len=threshold_bytes.clone().len(), "Metadata info");
 
         let metadata = [
             root_bytes,
             index_bytes,
             mailbox_and_proof_bytes,
-            threshold_bytes,
+            Vec::from([threshold]),
             signature_bytes,
             validator_bytes,
         ]
