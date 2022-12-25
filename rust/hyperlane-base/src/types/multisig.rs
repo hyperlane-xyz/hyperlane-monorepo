@@ -32,11 +32,12 @@ impl MultisigCheckpointSyncer {
     ///
     /// Note it's possible to not find a quorum.
     #[instrument(err, skip(self))]
-    pub async fn latest_checkpoint(
+    pub async fn fetch_checkpoint_in_range(
         &self,
         validators: Vec<H256>,
         threshold: usize,
-        minimum_index: Option<u32>,
+        maximum_index: u32,
+        minimum_index: u32,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
         // Get the latest_index from each validator's checkpoint syncer.
         let mut latest_indices = Vec::with_capacity(validators.len());
@@ -59,8 +60,8 @@ impl MultisigCheckpointSyncer {
         // the highest index for which we (supposedly) have (n+1) signed checkpoints
         latest_indices.sort_by(|a, b| b.cmp(a));
         if let Some(highest_quorum_index) = latest_indices.get(threshold - 1) {
-            let mut i = *highest_quorum_index;
-            while i > minimum_index.unwrap_or(0) {
+            let mut i = std::cmp::min(*highest_quorum_index, maximum_index);
+            while i >= minimum_index {
                 if let Ok(Some(checkpoint)) = self
                     .fetch_checkpoint(i, validators.clone(), threshold)
                     .await

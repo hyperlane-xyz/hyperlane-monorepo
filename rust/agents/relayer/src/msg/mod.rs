@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::time::Instant;
 
-use hyperlane_core::{HyperlaneMessage };
+use hyperlane_core::HyperlaneMessage;
 
 pub mod gas_payment;
 pub mod gelato_submitter;
@@ -36,9 +36,7 @@ pub struct SubmitMessageArgs {
 }
 
 impl SubmitMessageArgs {
-    pub fn new(
-        message: HyperlaneMessage,
-    ) -> Self {
+    pub fn new(message: HyperlaneMessage) -> Self {
         SubmitMessageArgs {
             message,
             num_retries: 0,

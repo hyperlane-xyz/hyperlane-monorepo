@@ -22,10 +22,10 @@ use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
+use crate::msg::serial_submitter::SerialSubmitterMetrics;
 use crate::msg::{metadata_builder::MetadataBuilder, SubmitMessageArgs};
 use crate::settings::matching_list::MatchingList;
 use crate::settings::{GasPaymentEnforcementPolicy, RelayerSettings};
-use crate::{msg::serial_submitter::SerialSubmitterMetrics};
 
 /// A relayer agent
 #[derive(Debug)]
@@ -95,19 +95,23 @@ impl BaseAgent for Relayer {
             self.mailbox(&self.origin_chain).unwrap().db().clone(),
         ));
 
-
         // Okay, so we'll have a single message processor task, that takes a map of domain -> channel
         // and is responsible for updating the prover and passing the message to the right channel
         // Okay, the trick is going to be to update a single instance of prover_sync
         // and pass shared references to each of the run_destination_mailbox threads...
-        let prover_sync = Arc::new(RwLock::new(MerkleTreeBuilder::new(self.mailbox(&self.origin_chain).unwrap().db().clone())));
+        let prover_sync = Arc::new(RwLock::new(MerkleTreeBuilder::new(
+            self.mailbox(&self.origin_chain).unwrap().db().clone(),
+        )));
         let mut send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>> = HashMap::new();
 
         for chain in self.core.mailboxes.keys() {
             if *chain == self.origin_chain {
                 continue;
             }
-            let channels: (UnboundedSender<SubmitMessageArgs>, UnboundedReceiver<SubmitMessageArgs>) = mpsc::unbounded_channel();
+            let channels: (
+                UnboundedSender<SubmitMessageArgs>,
+                UnboundedReceiver<SubmitMessageArgs>,
+            ) = mpsc::unbounded_channel();
             let mailbox = self.mailbox(chain).unwrap();
             send_channels.insert(mailbox.domain().id(), channels.0);
             //message_processor.add_send_channel(mailbox.domain().id(), channels.0);
@@ -118,7 +122,7 @@ impl BaseAgent for Relayer {
                     self.core.settings.get_signer(chain.name()).await,
                     chain_setup.clone(),
                     self.multisig_checkpoint_syncer.clone(),
-                    prover_sync.clone()
+                    prover_sync.clone(),
                 );
                 tasks.push(self.run_destination_mailbox(
                     mailbox.clone(),
@@ -126,7 +130,7 @@ impl BaseAgent for Relayer {
                     self.core.settings.chains[chain.name()].txsubmission,
                     self.core.settings.gelato.as_ref(),
                     gas_payment_enforcer.clone(),
-                    channels.1
+                    channels.1,
                 ));
             }
         }
@@ -134,8 +138,7 @@ impl BaseAgent for Relayer {
         let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());
         tasks.push(self.run_origin_mailbox_sync(sync_metrics.clone()));
 
-        let metrics =
-            MessageProcessorMetrics::new(&self.core.metrics, &self.origin_chain);
+        let metrics = MessageProcessorMetrics::new(&self.core.metrics, &self.origin_chain);
         let message_processor = MessageProcessor::new(
             self.mailbox(&self.origin_chain).unwrap().db().clone(),
             self.whitelist.clone(),
@@ -204,7 +207,10 @@ impl Relayer {
         )
     }
 
-    fn run_message_processor(&self, message_processor: MessageProcessor) -> Instrumented<JoinHandle<Result<()>>> {
+    fn run_message_processor(
+        &self,
+        message_processor: MessageProcessor,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
         let process_fut = message_processor.spawn();
         tokio::spawn(async move {
             let res = tokio::try_join!(process_fut)?;

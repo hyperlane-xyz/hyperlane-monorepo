@@ -1,17 +1,15 @@
-use std::{sync::Arc, time::Duration, collections::HashMap};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{
-    sync::{mpsc::{UnboundedSender}, RwLock},
+    sync::{mpsc::UnboundedSender, RwLock},
     task::JoinHandle,
 };
 use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
-use hyperlane_base::{CoreMetrics};
-use hyperlane_core::{
-    db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage,
-};
+use hyperlane_base::CoreMetrics;
+use hyperlane_core::{db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage};
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
 
@@ -136,7 +134,9 @@ impl MessageProcessor {
         }
 
         // Feed the message to the prover sync
-        self.prover_sync.write().await
+        self.prover_sync
+            .write()
+            .await
             .update_to_index(message.nonce)
             .await?;
 
@@ -160,8 +160,9 @@ impl MessageProcessor {
             self.message_nonce += 1;
         } else {
             warn!(
-                nonce=self.message_nonce,
-                "Unexpected missing message_id_by_nonce");
+                nonce = self.message_nonce,
+                "Unexpected missing message_id_by_nonce"
+            );
         }
         Ok(())
     }
@@ -173,10 +174,7 @@ pub(crate) struct MessageProcessorMetrics {
 }
 
 impl MessageProcessorMetrics {
-    pub fn new(
-        metrics: &CoreMetrics,
-        origin: &HyperlaneDomain,
-    ) -> Self {
+    pub fn new(metrics: &CoreMetrics, origin: &HyperlaneDomain) -> Self {
         Self {
             // This is failing for some reason!
             processor_loop_gauge: metrics.last_known_message_nonce().with_label_values(&[

@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use eyre::Result;
-use tracing::{debug, error, instrument, info};
+use tracing::{debug, error, info, instrument};
 
 use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
@@ -79,8 +79,14 @@ impl MerkleTreeBuilder {
     }
 
     #[instrument(err, skip(self), level="debug", fields(prover_latest_index=self.count()-1))]
-    pub fn get_proof(&self, nonce: u32, checkpoint_index: u32) -> Result<Proof, MerkleTreeBuilderError> {
-        self.prover.prove(nonce as usize, checkpoint_index as usize).map_err(Into::into)
+    pub fn get_proof(
+        &self,
+        nonce: u32,
+        checkpoint_index: u32,
+    ) -> Result<Proof, MerkleTreeBuilderError> {
+        self.prover
+            .prove(nonce as usize, checkpoint_index as usize)
+            .map_err(Into::into)
     }
 
     fn ingest_nonce(&mut self, nonce: u32) -> Result<(), MerkleTreeBuilderError> {
@@ -105,10 +111,7 @@ impl MerkleTreeBuilder {
     }
 
     #[instrument(err, skip(self), level = "debug")]
-    pub async fn update_to_index(
-        &mut self,
-        index: u32,
-    ) -> Result<(), MerkleTreeBuilderError> {
+    pub async fn update_to_index(&mut self, index: u32) -> Result<(), MerkleTreeBuilderError> {
         if index >= self.count() {
             let starting_index = self.prover.count() as u32;
             for i in starting_index..=index {

@@ -7,7 +7,7 @@ use hyperlane_core::accumulator::{
     TREE_DEPTH,
 };
 use hyperlane_core::H256;
-use tracing::{instrument, error, info};
+use tracing::{error, info, instrument};
 
 fn get_proof(tree: &MerkleTree, index: usize) -> Proof {
     let (leaf, hashes) = tree.generate_proof(index, TREE_DEPTH);

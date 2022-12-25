@@ -34,6 +34,7 @@ impl MultisigIsm for FuelMultisigIsm {
     fn format_metadata(
         &self,
         validators: Vec<H256>,
+        threshold: u8,
         checkpoint: &MultisigSignedCheckpoint,
         proof: Proof,
     ) -> Vec<u8> {

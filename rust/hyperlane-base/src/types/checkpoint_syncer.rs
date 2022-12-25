@@ -74,9 +74,7 @@ impl MultisigCheckpointSyncerConf {
                 value.try_into_checkpoint_syncer(Some(gauge))?,
             );
         }
-        Ok(MultisigCheckpointSyncer::new(
-            checkpoint_syncers,
-        ))
+        Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))
     }
 }
 
