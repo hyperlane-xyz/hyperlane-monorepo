@@ -1,7 +1,7 @@
 import {
-  CoreViolationType,
   HyperlaneCore,
   HyperlaneCoreChecker,
+  ViolationType,
 } from '@hyperlane-xyz/sdk';
 
 import { HyperlaneCoreGovernor } from '../src/core/govern';
@@ -26,7 +26,7 @@ async function check() {
   // For each VM contract, on each chain:
   //   1 threshold violation
   //   1 enrolled validators violation
-  coreChecker.expectViolations([CoreViolationType.MultisigIsm], [2 * 7 * 7]);
+  coreChecker.expectViolations([ViolationType.Owner], [2 * 8]);
 
   const governor = new HyperlaneCoreGovernor(coreChecker);
   await governor.govern();
