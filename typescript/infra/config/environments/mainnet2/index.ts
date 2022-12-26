@@ -37,8 +37,3 @@ export const environment: CoreEnvironmentConfig<MainnetChains> = {
   helloWorld,
   keyFunderConfig,
 };
-
-// On Mainnet2
-// MultisigIsm owned by the deployer(?)
-// ProxyAdmin owned by the deployer(?)
-// Mailbox owned by the ProxyAdmin

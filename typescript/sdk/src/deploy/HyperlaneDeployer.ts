@@ -295,7 +295,6 @@ export abstract class HyperlaneDeployer<
         { ...deployOpts, initCalldata },
       );
       this.logger(`Upgrading and initializing transparent upgradable proxy`);
-      // TODO: We may need to transfer ownership here!!!
       // We now have a deployed proxy admin'd by ProxyAdmin.
       // Upgrade its implementation and initialize it
       await proxyAdmin.upgradeAndCall(
