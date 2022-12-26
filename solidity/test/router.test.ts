@@ -79,7 +79,7 @@ describe('Router', async () => {
       await router.initialize(mailbox.address);
       const ism = await new TestIsm__factory(signer).deploy();
       await ism.setAccept(true);
-      await mailbox.initialize(ism.address);
+      await mailbox.initialize(signer.address, ism.address);
     });
 
     it('accepts message from enrolled mailbox and router', async () => {
@@ -131,6 +131,19 @@ describe('Router', async () => {
       );
       expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(true);
       expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
+    });
+
+    describe('#domains', () => {
+      it('returns the domains', async () => {
+        await router.enrollRemoteRouters(
+          [origin, destination],
+          [
+            utils.addressToBytes32(nonOwner.address),
+            utils.addressToBytes32(nonOwner.address),
+          ],
+        );
+        expect(await router.domains()).to.deep.equal([origin, destination]);
+      });
     });
 
     it('non-owner cannot enroll remote router', async () => {

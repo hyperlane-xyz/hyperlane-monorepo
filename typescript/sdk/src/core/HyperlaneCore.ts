@@ -80,7 +80,6 @@ export class HyperlaneCore<
     return {
       mailbox: contracts.mailbox.address,
       interchainGasPaymaster: contracts.interchainGasPaymaster.address,
-      interchainSecurityModule: contracts.multisigIsm.address, // default ism
     };
   }
 
