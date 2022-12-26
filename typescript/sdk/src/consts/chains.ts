@@ -43,9 +43,9 @@ export const Mainnets = [
   Chains.bsc,
   Chains.celo,
   Chains.ethereum,
+  Chains.moonbeam,
   Chains.optimism,
   Chains.polygon,
-  Chains.moonbeam,
 ] as Array<ChainName>;
 
 export const Testnets = [
