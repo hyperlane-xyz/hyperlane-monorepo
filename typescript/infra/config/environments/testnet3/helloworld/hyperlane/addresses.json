@@ -1,0 +1,26 @@
+{
+  "alfajores": {
+    "router": "0x921D3A71386d3Ab8f3AD4eC91ce1556D5FC26859"
+  },
+  "fuji": {
+    "router": "0x1C847335D123632fC7D662AB87Ac7872aCD920f2"
+  },
+  "mumbai": {
+    "router": "0x854fd51C04408ad84DA3838A4fF7282522F7866E"
+  },
+  "bsctestnet": {
+    "router": "0x5447A1679f1Ce836A241c50ae1FC915d3DbA9c23"
+  },
+  "goerli": {
+    "router": "0x0637A1360Ea44602DAe5c4ba515c2BCb6C762fbc"
+  },
+  "moonbasealpha": {
+    "router": "0xE81De1d727Ba319185a86D92E8Eb4e41046CE6B7"
+  },
+  "optimismgoerli": {
+    "router": "0xa76A3E719E5ff7159a29B8876272052b89B3589F"
+  },
+  "arbitrumgoerli": {
+    "router": "0xa76A3E719E5ff7159a29B8876272052b89B3589F"
+  }
+}
