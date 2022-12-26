@@ -9,7 +9,6 @@ import {
   CoreContractsMap,
   HyperlaneCore,
   HyperlaneCoreChecker,
-  HyperlaneCoreDeployer,
   MultiProvider,
   getTestMultiProvider,
   objMap,
@@ -53,11 +52,6 @@ describe('core', async () => {
     writeJSON(base, 'contracts.json', serializeContracts(contracts));
     writeJSON(base, 'verification.json', deployer.verificationInputs);
     deployer.writeRustConfigs(base);
-  });
-
-  it('transfers ownership', async () => {
-    core = new HyperlaneCore(contracts, multiProvider);
-    await HyperlaneCoreDeployer.transferOwnership(core, owners, multiProvider);
   });
 
   describe('failure modes', async () => {
