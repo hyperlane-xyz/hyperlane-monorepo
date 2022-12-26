@@ -28,11 +28,7 @@ impl MerkleTree {
                     let merged_right = (**a_right).clone().merge((*b_right).clone());
                     let merged_hash = hash_concat(merged_left.hash(), merged_right.hash());
                     assert_eq!(merged_hash, a_hash);
-                    MerkleTree::Node(
-                        a_hash,
-                        Box::new(merged_left),
-                        Box::new(merged_right),
-                    )
+                    MerkleTree::Node(a_hash, Box::new(merged_left), Box::new(merged_right))
                 }
             },
         }
