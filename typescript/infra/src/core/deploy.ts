@@ -35,6 +35,7 @@ export class HyperlaneCoreInfraDeployer<
     super(multiProvider, configMap);
     this.environment = environment;
   }
+
   async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
