@@ -83,9 +83,7 @@ export abstract class HyperlaneAppChecker<
   ): Promise<void> {
     await Promise.all(
       ownables.map(async (contract) => {
-        console.log('checking ownership of', contract.address);
         const actual = await contract.owner();
-        console.log('got owner of', contract.address);
         if (actual.toLowerCase() != owner.toLowerCase()) {
           const violation: OwnerViolation = {
             chain,
