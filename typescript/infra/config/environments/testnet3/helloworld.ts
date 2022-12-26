@@ -1,4 +1,3 @@
-/*
 import { HelloWorldConfig } from '../../../src/config';
 import { ConnectionType } from '../../../src/config/agent';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
@@ -12,7 +11,7 @@ export const hyperlane: HelloWorldConfig<TestnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'sha-275771b',
+      tag: 'sha-7d4208d',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -32,4 +31,3 @@ export const helloWorld: Partial<
 > = {
   [Contexts.Hyperlane]: hyperlane,
 };
-*/
