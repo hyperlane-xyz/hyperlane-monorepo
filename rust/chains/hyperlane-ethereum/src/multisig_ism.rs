@@ -144,9 +144,8 @@ where
             .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
             .collect();
         let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
-        // info!(validator_bytes_len=validator_bytes.clone().len(), signature_bytes_len=signature_bytes.clone().len(), threshold_bytes_len=threshold_bytes.clone().len(), "Metadata info");
 
-        let metadata = [
+        [
             root_bytes,
             index_bytes,
             mailbox_and_proof_bytes,
@@ -154,8 +153,7 @@ where
             signature_bytes,
             validator_bytes,
         ]
-        .concat();
-        metadata
+        .concat()
     }
 }
 

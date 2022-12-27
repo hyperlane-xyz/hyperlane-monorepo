@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use eyre::Result;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, instrument};
 
 use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
@@ -43,7 +43,7 @@ impl Display for MerkleTreeBuilder {
 #[derive(Debug, thiserror::Error)]
 pub enum MerkleTreeBuilderError {
     /// Local tree up-to-date but root does not match signed checkpoint"
-    #[error("Local tree up-to-date but root does not match checkpoint. Local root: {prover_root}, incremental: {incremental_root}, WARNING: this could indicate malicious validator and/or long reorganization process!")]
+    #[error("Prover root does not match incremental root: {prover_root}, incremental: {incremental_root}")]
     MismatchedRoots {
         /// Root of prover's local merkle tree
         prover_root: H256,
@@ -85,14 +85,14 @@ impl MerkleTreeBuilder {
         checkpoint_index: u32,
     ) -> Result<Proof, MerkleTreeBuilderError> {
         self.prover
-            .prove(nonce as usize, checkpoint_index as usize)
+            .prove_against_historic(nonce as usize, checkpoint_index as usize)
             .map_err(Into::into)
     }
 
     fn ingest_nonce(&mut self, nonce: u32) -> Result<(), MerkleTreeBuilderError> {
         match self.db.message_id_by_nonce(nonce) {
             Ok(Some(leaf)) => {
-                info!(nonce, "Ingesting leaf");
+                debug!(nonce, "Ingesting leaf");
                 self.prover.ingest(leaf).expect("!tree full");
                 self.incremental.ingest(leaf);
                 assert_eq!(self.prover.root(), self.incremental.root());

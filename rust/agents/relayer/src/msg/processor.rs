@@ -23,7 +23,6 @@ pub(crate) struct MessageProcessor {
     metrics: MessageProcessorMetrics,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     message_nonce: u32,
-    // TODO: Can we key on HyperlaneDomain?
     send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>>,
 }
 
@@ -38,21 +37,15 @@ impl MessageProcessor {
         send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>>,
     ) -> Self {
         Self {
-            db: db.clone(),
+            db,
             whitelist,
             blacklist,
             metrics,
             prover_sync,
             send_channels,
             message_nonce: 0,
-            //send_channels: HashMap::new(),
         }
     }
-
-    /*
-    pub fn add_send_channel(self, domain_id: u32, channel: UnboundedSender<SubmitMessageArgs>) {
-        self.send_channels.insert(domain_id, channel);
-    } */
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
@@ -151,7 +144,7 @@ impl MessageProcessor {
             if let Some(send_channel) = self.send_channels.get(&message.destination) {
                 send_channel.send(submit_args)?;
             } else {
-                debug!(
+                warn!(
                     id=?message.id(),
                     destination=message.destination,
                     nonce=message.nonce,
@@ -176,7 +169,6 @@ pub(crate) struct MessageProcessorMetrics {
 impl MessageProcessorMetrics {
     pub fn new(metrics: &CoreMetrics, origin: &HyperlaneDomain) -> Self {
         Self {
-            // This is failing for some reason!
             processor_loop_gauge: metrics.last_known_message_nonce().with_label_values(&[
                 "processor_loop",
                 origin.name(),

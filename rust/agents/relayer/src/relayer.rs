@@ -95,10 +95,6 @@ impl BaseAgent for Relayer {
             self.mailbox(&self.origin_chain).unwrap().db().clone(),
         ));
 
-        // Okay, so we'll have a single message processor task, that takes a map of domain -> channel
-        // and is responsible for updating the prover and passing the message to the right channel
-        // Okay, the trick is going to be to update a single instance of prover_sync
-        // and pass shared references to each of the run_destination_mailbox threads...
         let prover_sync = Arc::new(RwLock::new(MerkleTreeBuilder::new(
             self.mailbox(&self.origin_chain).unwrap().db().clone(),
         )));
@@ -114,7 +110,6 @@ impl BaseAgent for Relayer {
             ) = mpsc::unbounded_channel();
             let mailbox = self.mailbox(chain).unwrap();
             send_channels.insert(mailbox.domain().id(), channels.0);
-            //message_processor.add_send_channel(mailbox.domain().id(), channels.0);
 
             if let Ok(chain_setup) = self.core.settings.chain_setup(chain.name()) {
                 let metadata_builder = MetadataBuilder::new(

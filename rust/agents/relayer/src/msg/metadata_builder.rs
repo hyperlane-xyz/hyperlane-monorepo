@@ -46,7 +46,6 @@ impl MetadataBuilder {
             .validators_and_threshold(message.clone())
             .await?;
         let validators = validators_and_threshold.0;
-        // TODO: we don't want to fetch checkpoints that are more recent than what we can create a proof against?
         if let Some(checkpoint) = self
             .checkpoint_syncer
             .fetch_checkpoint_in_range(

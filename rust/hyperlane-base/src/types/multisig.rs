@@ -4,7 +4,9 @@ use ethers::prelude::Address;
 use eyre::Result;
 use tracing::{debug, instrument, warn};
 
-use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithSigner, H160, H256};
+use hyperlane_core::{
+    utils::h256_to_h160, MultisigSignedCheckpoint, SignedCheckpointWithSigner, H160, H256,
+};
 
 use crate::{CheckpointSyncer, CheckpointSyncers};
 
@@ -42,7 +44,7 @@ impl MultisigCheckpointSyncer {
         // Get the latest_index from each validator's checkpoint syncer.
         let mut latest_indices = Vec::with_capacity(validators.len());
         for validator in validators.iter() {
-            let addr: H160 = validator.clone().into();
+            let addr = h256_to_h160(*validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
                 // Gracefully handle errors getting the latest_index
                 if let Ok(Some(index)) = checkpoint_syncer.latest_index().await {
@@ -68,7 +70,7 @@ impl MultisigCheckpointSyncer {
                 {
                     return Ok(Some(checkpoint));
                 }
-                i = i - 1;
+                i -= 1;
             }
         }
         Ok(None)
@@ -90,7 +92,7 @@ impl MultisigCheckpointSyncer {
             HashMap::new();
 
         for validator in validators.iter() {
-            let addr: H160 = validator.clone().into();
+            let addr: H160 = h256_to_h160(*validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
                 // Gracefully ignore an error fetching the checkpoint from a validator's checkpoint syncer,
                 // which can happen if the validator has not signed the checkpoint at `index`.
@@ -102,7 +104,7 @@ impl MultisigCheckpointSyncer {
                     }
                     // Ensure that the signature is actually by the validator
                     let signer = signed_checkpoint.recover()?;
-                    if H256::from(signer) != validator.clone() {
+                    if H256::from(signer) != *validator {
                         continue;
                     }
 

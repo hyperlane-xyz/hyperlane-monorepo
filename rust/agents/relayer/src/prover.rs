@@ -7,7 +7,7 @@ use hyperlane_core::accumulator::{
     TREE_DEPTH,
 };
 use hyperlane_core::H256;
-use tracing::{error, info, instrument};
+use tracing::{error, instrument};
 
 fn get_proof(tree: &MerkleTree, index: usize) -> Proof {
     let (leaf, hashes) = tree.generate_proof(index, TREE_DEPTH);
@@ -97,8 +97,11 @@ impl Prover {
     }
 
     #[instrument(err, skip(self), fields(prover_msg_count=self.count()))]
-    pub fn prove(&self, leaf_index: usize, tree_index: usize) -> Result<Proof, ProverError> {
-        info!("Attempting to create proof");
+    pub fn prove_against_historic(
+        &self,
+        leaf_index: usize,
+        tree_index: usize,
+    ) -> Result<Proof, ProverError> {
         let checkpoint_proof = self.prove_against_latest(tree_index)?;
         let checkpoint_proof_as_latest = checkpoint_proof.as_latest();
         let checkpoint_partial_tree = checkpoint_proof_as_latest.partial_tree();
