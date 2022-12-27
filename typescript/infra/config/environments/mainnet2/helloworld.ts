@@ -12,7 +12,7 @@ export const hyperlane: HelloWorldConfig<MainnetChains> = {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
       // TODO: Use an image built off of main
-      tag: 'sha-56525f2',
+      tag: 'sha-507557e',
     },
     chainsToSkip: [],
     runEnv: environment,
