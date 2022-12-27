@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
-use hyperlane_core::MultisigIsm;
+use hyperlane_core::{HyperlaneDomain, MultisigIsm};
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
@@ -20,11 +20,11 @@ use crate::{
 #[derive(Debug)]
 pub struct HyperlaneAgentCore {
     /// A map of mailbox contracts by chain name
-    pub mailboxes: HashMap<String, CachingMailbox>,
+    pub mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
     /// A map of interchain gas paymaster contracts by chain name
-    pub interchain_gas_paymasters: HashMap<String, CachingInterchainGasPaymaster>,
+    pub interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
     /// A map of interchain gas paymaster contracts by chain name
-    pub multisig_isms: HashMap<String, Arc<dyn MultisigIsm>>,
+    pub multisig_isms: HashMap<HyperlaneDomain, Arc<dyn MultisigIsm>>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -73,13 +73,16 @@ pub trait Agent: BaseAgent {
     fn db(&self) -> &DB;
 
     /// Return a reference to a Mailbox contract
-    fn mailbox(&self, chain_name: &str) -> Option<&CachingMailbox>;
+    fn mailbox(&self, domain: &HyperlaneDomain) -> Option<&CachingMailbox>;
 
     /// Return a reference to an InterchainGasPaymaster contract
-    fn interchain_gas_paymaster(&self, chain_name: &str) -> Option<&CachingInterchainGasPaymaster>;
+    fn interchain_gas_paymaster(
+        &self,
+        domain: &HyperlaneDomain,
+    ) -> Option<&CachingInterchainGasPaymaster>;
 
     /// Return a reference to a Multisig Ism contract
-    fn multisig_ism(&self, chain_name: &str) -> Option<&Arc<dyn MultisigIsm>>;
+    fn multisig_ism(&self, domain: &HyperlaneDomain) -> Option<&Arc<dyn MultisigIsm>>;
 }
 
 #[async_trait]
@@ -91,16 +94,19 @@ where
         &self.as_ref().db
     }
 
-    fn mailbox(&self, chain_name: &str) -> Option<&CachingMailbox> {
-        self.as_ref().mailboxes.get(chain_name)
+    fn mailbox(&self, domain: &HyperlaneDomain) -> Option<&CachingMailbox> {
+        self.as_ref().mailboxes.get(domain)
     }
 
-    fn interchain_gas_paymaster(&self, chain_name: &str) -> Option<&CachingInterchainGasPaymaster> {
-        self.as_ref().interchain_gas_paymasters.get(chain_name)
+    fn interchain_gas_paymaster(
+        &self,
+        domain: &HyperlaneDomain,
+    ) -> Option<&CachingInterchainGasPaymaster> {
+        self.as_ref().interchain_gas_paymasters.get(domain)
     }
 
-    fn multisig_ism(&self, chain_name: &str) -> Option<&Arc<dyn MultisigIsm>> {
-        self.as_ref().multisig_isms.get(chain_name)
+    fn multisig_ism(&self, domain: &HyperlaneDomain) -> Option<&Arc<dyn MultisigIsm>> {
+        self.as_ref().multisig_isms.get(domain)
     }
 }
 

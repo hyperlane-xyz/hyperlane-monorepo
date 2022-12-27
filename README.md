@@ -91,4 +91,6 @@ Finally, publish the packages to NPM
 ```bash
 # Note: If you have not yet logged in, first run yarn npm login
 yarn publish:all --otp YOUR_OTP_HERE
+# Or for a pre-release, include the tag
+yarn publish:all --otp YOUR_OTP_HERE --tag beta
 ```

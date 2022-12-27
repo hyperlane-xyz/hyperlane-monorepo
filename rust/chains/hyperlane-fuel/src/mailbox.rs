@@ -3,8 +3,8 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneMessage, Indexer, LogMeta,
-    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 /// A reference to a Mailbox contract on some Fuel chain
@@ -18,11 +18,7 @@ impl HyperlaneContract for FuelMailbox {
 }
 
 impl HyperlaneChain for FuelMailbox {
-    fn chain_name(&self) -> &str {
-        todo!()
-    }
-
-    fn domain(&self) -> u32 {
+    fn domain(&self) -> &HyperlaneDomain {
         todo!()
     }
 }
