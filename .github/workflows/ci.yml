@@ -50,8 +50,8 @@ jobs:
           path: ./*
           key: ${{ github.sha }}
 
-      - name: build
-        run: yarn run build
+      - name: build:dev
+        run: yarn run build:dev
 
   prettier:
     runs-on: ubuntu-latest

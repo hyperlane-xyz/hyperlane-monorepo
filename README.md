@@ -37,11 +37,12 @@ graph TB
 yarn
 
 # Build source and generate types
-yarn build
+yarn build:dev
 ```
 
 ### (Optional) Using local core contracts
-```
+
+```sh
 # yarn link does not work well with workspaces
 ln -s ~/path/to/monorepo/solidity node_modules/@hyperlane-xyz/core
 ```
