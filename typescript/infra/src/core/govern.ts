@@ -170,7 +170,6 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     if (!signer) throw new Error(`no signer found`);
     const signerAddress = await signer.getAddress();
     if (!this.canPropose[chain].has(safeAddress)) {
-      console.log('cache miss');
       this.canPropose[chain].set(
         safeAddress,
         await canProposeSafeTransactions(
