@@ -50,9 +50,10 @@ export class S3Validator extends BaseValidator {
     localDomain: number,
     mailbox: string,
     s3Bucket: string,
+    s3Region: string,
   ) {
     super(address, localDomain, mailbox);
-    this.s3Bucket = new S3Wrapper(s3Bucket);
+    this.s3Bucket = new S3Wrapper(s3Bucket, s3Region);
   }
 
   async getLatestCheckpointIndex() {
