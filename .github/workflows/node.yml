@@ -15,6 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: remove submodule locks
+        run: git submodule foreach rm yarn.lock
+
       - uses: actions/cache@v3
         with:
           path: '**/node_modules'
@@ -25,7 +31,7 @@ jobs:
         # verify the lockfile matches what was committed.
         run: |
           yarn install
-          CHANGES=$(git status -s)
+          CHANGES=$(git status -s --ignore-submodules)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found: $CHANGES"
             git diff
@@ -37,6 +43,11 @@ jobs:
     needs: [yarn-install]
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: remove submodule locks
+        run: git submodule foreach rm yarn.lock
 
       - name: yarn-cache
         uses: actions/cache@v3
@@ -80,6 +91,9 @@ jobs:
     needs: [yarn-build]
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
       - uses: actions/cache@v3
         with:
           path: ./*
@@ -89,8 +103,6 @@ jobs:
         run: yarn workspace @hyperlane-xyz/sdk run test
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
-      - name: helloworld
-        run: yarn workspace @hyperlane-xyz/helloworld run test
 
   test-sol:
     env:

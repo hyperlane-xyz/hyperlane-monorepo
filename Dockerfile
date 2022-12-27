@@ -14,6 +14,7 @@ COPY .yarn/releases ./.yarn/releases
 COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
+COPY typescript/token/package.json ./typescript/token/
 COPY typescript/infra/package.json ./typescript/infra/
 COPY solidity/package.json ./solidity/
 

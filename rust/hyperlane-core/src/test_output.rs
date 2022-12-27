@@ -103,7 +103,7 @@ pub mod output_functions {
                 json!({
                     "domain": i,
                     "mailbox": mailbox,
-                    "expectedDomainHash": domain_hash(mailbox, i)
+                    "expectedDomainHash": domain_hash(mailbox, i as u32)
                 })
             })
             .collect();

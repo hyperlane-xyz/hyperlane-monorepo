@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/infra",
   "description": "Infrastructure utilities for the Hyperlane Network",
-  "version": "1.0.0-beta1",
+  "version": "1.0.0-beta2",
   "dependencies": {
     "@aws-sdk/client-iam": "^3.74.0",
     "@aws-sdk/client-kms": "3.48.0",
@@ -10,9 +10,9 @@
     "@ethersproject/hardware-wallets": "^5.7.0",
     "@ethersproject/providers": "^5.7.2",
     "@hyperlane-xyz/celo-ethers-provider": "^0.1.1",
-    "@hyperlane-xyz/helloworld": "1.0.0-beta1",
-    "@hyperlane-xyz/sdk": "1.0.0-beta1",
-    "@hyperlane-xyz/utils": "1.0.0-beta1",
+    "@hyperlane-xyz/helloworld": "1.0.0-beta3",
+    "@hyperlane-xyz/sdk": "1.0.0-beta3",
+    "@hyperlane-xyz/utils": "1.0.0-beta3",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@safe-global/safe-core-sdk": "3.2.0",
     "@safe-global/safe-ethers-lib": "^1.7.0",

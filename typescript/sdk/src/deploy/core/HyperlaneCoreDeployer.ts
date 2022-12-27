@@ -68,13 +68,14 @@ export class HyperlaneCoreDeployer<
     deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
     const domain = chainMetadata[chain].id;
+    const owner = this.configMap[chain].owner;
 
     const mailbox = await this.deployProxiedContract(
       chain,
       'mailbox',
       [domain],
       proxyAdmin,
-      [defaultIsmAddress],
+      [owner, defaultIsmAddress],
       deployOpts,
     );
     return mailbox;
@@ -204,8 +205,8 @@ export class HyperlaneCoreDeployer<
     owner: types.Address,
     chainConnection: ChainConnection,
   ): Promise<ethers.ContractReceipt[]> {
+    // Mailbox ownership is transferred upon initialization.
     const ownables: Ownable[] = [
-      coreContracts.mailbox.contract,
       coreContracts.multisigIsm,
       coreContracts.proxyAdmin,
     ];

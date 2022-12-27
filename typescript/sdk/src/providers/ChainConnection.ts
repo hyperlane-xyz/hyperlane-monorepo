@@ -9,7 +9,7 @@ export class ChainConnection {
   overrides: ethers.Overrides;
   confirmations: number;
   blockExplorerUrl: string;
-  apiPrefix: string;
+  blockExplorerApiUrl: string;
   logger: Debugger;
 
   constructor(dc: IChainConnection) {
@@ -18,7 +18,7 @@ export class ChainConnection {
     this.overrides = dc.overrides ?? {};
     this.confirmations = dc.confirmations ?? 0;
     this.blockExplorerUrl = dc.blockExplorerUrl ?? 'UNKNOWN_EXPLORER';
-    this.apiPrefix = dc.apiPrefix ?? 'api.';
+    this.blockExplorerApiUrl = dc.blockExplorerApiUrl ?? this.blockExplorerUrl;
     this.logger = debug('hyperlane:ChainConnection');
   }
 
@@ -38,10 +38,7 @@ export class ChainConnection {
   }
 
   getApiUrl(): string {
-    const prefix = 'https://';
-    return `${prefix}${this.apiPrefix}${this.blockExplorerUrl.slice(
-      prefix.length,
-    )}/api`;
+    return this.blockExplorerApiUrl;
   }
 
   async handleTx(

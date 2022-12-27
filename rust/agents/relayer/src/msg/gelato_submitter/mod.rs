@@ -9,7 +9,9 @@ use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use gelato::types::Chain;
 use hyperlane_base::{chains::GelatoConf, CachingMailbox, CoreMetrics};
-use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, MultisigIsm};
+use hyperlane_core::{
+    db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, KnownHyperlaneDomain, MultisigIsm,
+};
 
 use crate::msg::gelato_submitter::sponsored_call_op::{
     SponsoredCallOp, SponsoredCallOpArgs, SponsoredCallOptions,
@@ -177,19 +179,25 @@ pub(crate) struct GelatoSubmitterMetrics {
 }
 
 impl GelatoSubmitterMetrics {
-    pub fn new(metrics: &CoreMetrics, origin_chain: &str, destination_chain: &str) -> Self {
+    pub fn new(
+        metrics: &CoreMetrics,
+        origin: &HyperlaneDomain,
+        destination: &HyperlaneDomain,
+    ) -> Self {
+        let origin_name = origin.name();
+        let destination_name = destination.name();
         Self {
             messages_processed_count: metrics
                 .messages_processed_count()
-                .with_label_values(&[origin_chain, destination_chain]),
+                .with_label_values(&[origin_name, destination_name]),
             processed_gauge: metrics.last_known_message_nonce().with_label_values(&[
                 "message_processed",
-                origin_chain,
-                destination_chain,
+                origin_name,
+                destination_name,
             ]),
             active_sponsored_call_ops_gauge: metrics.submitter_queue_length().with_label_values(&[
-                origin_chain,
-                destination_chain,
+                origin_name,
+                destination_name,
                 "active_sponsored_call_ops",
             ]),
             highest_submitted_nonce: 0,
@@ -200,52 +208,52 @@ impl GelatoSubmitterMetrics {
 // While this may be more ergonomic as an Into / From impl,
 // it feels a bit awkward to have hyperlane-base (where HyperlaneDomain)
 // is implemented to be aware of the gelato crate or vice versa.
-pub fn hyperlane_domain_id_to_gelato_chain(domain: u32) -> Result<Chain> {
-    let hyperlane_domain = HyperlaneDomain::try_from(domain)?;
+pub fn hyperlane_domain_id_to_gelato_chain(domain: &HyperlaneDomain) -> Result<Chain> {
+    Ok(match domain {
+        HyperlaneDomain::Known(d) => match d {
+            KnownHyperlaneDomain::Ethereum => Chain::Ethereum,
+            KnownHyperlaneDomain::Goerli => Chain::Goerli,
 
-    Ok(match hyperlane_domain {
-        HyperlaneDomain::Ethereum => Chain::Ethereum,
-        HyperlaneDomain::Goerli => Chain::Goerli,
+            KnownHyperlaneDomain::Polygon => Chain::Polygon,
+            KnownHyperlaneDomain::Mumbai => Chain::Mumbai,
 
-        HyperlaneDomain::Polygon => Chain::Polygon,
-        HyperlaneDomain::Mumbai => Chain::Mumbai,
+            KnownHyperlaneDomain::Avalanche => Chain::Avalanche,
+            KnownHyperlaneDomain::Fuji => Chain::Fuji,
 
-        HyperlaneDomain::Avalanche => Chain::Avalanche,
-        HyperlaneDomain::Fuji => Chain::Fuji,
+            KnownHyperlaneDomain::Arbitrum => Chain::Arbitrum,
+            KnownHyperlaneDomain::ArbitrumGoerli => Chain::ArbitrumGoerli,
 
-        HyperlaneDomain::Arbitrum => Chain::Arbitrum,
-        HyperlaneDomain::ArbitrumGoerli => Chain::ArbitrumGoerli,
+            KnownHyperlaneDomain::Optimism => Chain::Optimism,
+            KnownHyperlaneDomain::OptimismGoerli => Chain::OptimismGoerli,
 
-        HyperlaneDomain::Optimism => Chain::Optimism,
-        HyperlaneDomain::OptimismGoerli => Chain::OptimismGoerli,
+            KnownHyperlaneDomain::BinanceSmartChain => Chain::BinanceSmartChain,
+            KnownHyperlaneDomain::BinanceSmartChainTestnet => Chain::BinanceSmartChainTestnet,
 
-        HyperlaneDomain::BinanceSmartChain => Chain::BinanceSmartChain,
-        HyperlaneDomain::BinanceSmartChainTestnet => Chain::BinanceSmartChainTestnet,
+            KnownHyperlaneDomain::Celo => Chain::Celo,
+            KnownHyperlaneDomain::Alfajores => Chain::Alfajores,
 
-        HyperlaneDomain::Celo => Chain::Celo,
-        HyperlaneDomain::Alfajores => Chain::Alfajores,
+            KnownHyperlaneDomain::Moonbeam => Chain::Moonbeam,
+            KnownHyperlaneDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
 
-        HyperlaneDomain::Moonbeam => Chain::Moonbeam,
-        HyperlaneDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
+            KnownHyperlaneDomain::Zksync2Testnet => Chain::Zksync2Testnet,
 
-        HyperlaneDomain::Zksync2Testnet => Chain::Zksync2Testnet,
+            _ => bail!("No Gelato Chain for domain {domain}"),
+        },
 
-        _ => bail!("No Gelato Chain for domain {hyperlane_domain}"),
+        _ => bail!("No Gelato Chain for domain {domain}"),
     })
 }
 
 #[test]
 fn test_hyperlane_domain_id_to_gelato_chain() {
-    use hyperlane_core::HyperlaneDomainType;
+    use hyperlane_core::{HyperlaneDomainType, KnownHyperlaneDomain};
     use strum::IntoEnumIterator;
 
     // Iterate through all HyperlaneDomains, ensuring all mainnet and testnet domains
     // are included in hyperlane_domain_id_to_gelato_chain.
-    for hyperlane_domain in HyperlaneDomain::iter() {
-        if let HyperlaneDomainType::Mainnet | HyperlaneDomainType::Testnet =
-            hyperlane_domain.domain_type()
-        {
-            assert!(hyperlane_domain_id_to_gelato_chain(u32::from(hyperlane_domain)).is_ok());
+    for domain in KnownHyperlaneDomain::iter() {
+        if let HyperlaneDomainType::Mainnet | HyperlaneDomainType::Testnet = domain.domain_type() {
+            assert!(hyperlane_domain_id_to_gelato_chain(&HyperlaneDomain::Known(domain)).is_ok());
         }
     }
 }

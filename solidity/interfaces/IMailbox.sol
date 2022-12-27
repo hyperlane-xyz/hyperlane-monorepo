@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import {IInterchainSecurityModule} from "./IInterchainSecurityModule.sol";
+
 interface IMailbox {
     function localDomain() external view returns (uint32);
 
@@ -18,4 +20,9 @@ interface IMailbox {
     function root() external view returns (bytes32);
 
     function latestCheckpoint() external view returns (bytes32, uint32);
+
+    function recipientIsm(address _recipient)
+        external
+        view
+        returns (IInterchainSecurityModule);
 }
