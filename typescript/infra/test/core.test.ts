@@ -45,6 +45,7 @@ describe('core', async () => {
       environment,
     );
     contracts = await deployer.deploy();
+    core = new HyperlaneCore(contracts, multiProvider);
   });
 
   it('writes', async () => {
