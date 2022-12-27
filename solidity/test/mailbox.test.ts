@@ -14,6 +14,7 @@ import {
   TestIsm__factory,
   TestMailbox,
   TestMailbox__factory,
+  TestRecipient,
   TestRecipient__factory,
 } from '../types';
 
@@ -35,13 +36,24 @@ describe('Mailbox', async () => {
     module = await moduleFactory.deploy();
     const mailboxFactory = new TestMailbox__factory(signer);
     mailbox = await mailboxFactory.deploy(originDomain);
-    await mailbox.initialize(module.address);
+    await mailbox.initialize(signer.address, module.address);
   });
 
-  it('Cannot be initialized twice', async () => {
-    await expect(mailbox.initialize(module.address)).to.be.revertedWith(
-      'Initializable: contract is already initialized',
-    );
+  describe('#initialize', () => {
+    it('Sets the owner', async () => {
+      const mailboxFactory = new TestMailbox__factory(signer);
+      mailbox = await mailboxFactory.deploy(originDomain);
+      const expectedOwner = nonOwner.address;
+      await mailbox.initialize(expectedOwner, module.address);
+      const owner = await mailbox.owner();
+      expect(owner).equals(expectedOwner);
+    });
+
+    it('Cannot be initialized twice', async () => {
+      await expect(
+        mailbox.initialize(signer.address, module.address),
+      ).to.be.revertedWith('Initializable: contract is already initialized');
+    });
   });
 
   describe('#dispatch', () => {
@@ -90,6 +102,28 @@ describe('Mailbox', async () => {
         );
 
       expect(actualId).equals(id);
+    });
+  });
+
+  describe('#recipientIsm', () => {
+    let recipient: TestRecipient;
+    beforeEach(async () => {
+      const recipientF = new TestRecipient__factory(signer);
+      recipient = await recipientF.deploy();
+    });
+
+    it('Returns the default module when unspecified', async () => {
+      expect(await mailbox.recipientIsm(recipient.address)).to.equal(
+        await mailbox.defaultIsm(),
+      );
+    });
+
+    it('Returns the recipient module when specified', async () => {
+      const recipientIsm = mailbox.address;
+      await recipient.setInterchainSecurityModule(recipientIsm);
+      expect(await mailbox.recipientIsm(recipient.address)).to.equal(
+        recipientIsm,
+      );
     });
   });
 

@@ -25,6 +25,10 @@ contract MultisigIsm is IMultisigIsm, Ownable {
     using MultisigIsmMetadata for bytes;
     using MerkleLib for MerkleLib.Tree;
 
+    // ============ Constants ============
+
+    uint8 public constant moduleType = 3;
+
     // ============ Mutable Storage ============
 
     /// @notice The validator threshold for each remote domain.
@@ -217,6 +221,25 @@ contract MultisigIsm is IMultisigIsm, Ownable {
             _validators[i] = _validatorSet.at(i);
         }
         return _validators;
+    }
+
+    /**
+     * @notice Returns the set of validators responsible for verifying _message
+     * and the number of signatures required
+     * @dev Can change based on the content of _message
+     * @param _message Hyperlane formatted interchain message
+     * @return validators The array of validator addresses
+     * @return threshold The number of validator signatures needed
+     */
+    function validatorsAndThreshold(bytes calldata _message)
+        external
+        view
+        returns (address[] memory, uint8)
+    {
+        uint32 _origin = _message.origin();
+        address[] memory _validators = validators(_origin);
+        uint8 _threshold = threshold[_origin];
+        return (_validators, _threshold);
     }
 
     /**

@@ -3,6 +3,7 @@
 
 pub use cursor::*;
 use hyperlane_core::db::HyperlaneDB;
+use hyperlane_core::HyperlaneDomain;
 pub use interchain_gas::*;
 pub use mailbox::*;
 pub use metrics::ContractSyncMetrics;
@@ -23,7 +24,7 @@ mod schema;
 /// will use a contract sync to spawn syncing tasks to keep the db up-to-date.
 #[derive(Debug)]
 pub struct ContractSync<I> {
-    chain_name: String,
+    domain: HyperlaneDomain,
     db: HyperlaneDB,
     indexer: I,
     index_settings: IndexSettings,
@@ -33,14 +34,14 @@ pub struct ContractSync<I> {
 impl<I> ContractSync<I> {
     /// Instantiate new ContractSync
     pub fn new(
-        chain_name: String,
+        domain: HyperlaneDomain,
         db: HyperlaneDB,
         indexer: I,
         index_settings: IndexSettings,
         metrics: ContractSyncMetrics,
     ) -> Self {
         Self {
-            chain_name,
+            domain,
             db,
             indexer,
             index_settings,

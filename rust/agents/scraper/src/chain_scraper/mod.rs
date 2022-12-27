@@ -13,8 +13,8 @@ use tracing::trace;
 use hyperlane_base::chains::IndexSettings;
 use hyperlane_base::ContractSyncMetrics;
 use hyperlane_core::{
-    BlockInfo, HyperlaneContract, HyperlaneMessage, HyperlaneProvider, LogMeta, Mailbox,
-    MailboxIndexer, H256, U256,
+    BlockInfo, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, LogMeta,
+    Mailbox, MailboxIndexer, H256, U256,
 };
 
 use crate::chain_scraper::sync::Syncer;
@@ -54,8 +54,11 @@ impl SqlChainScraper {
         metrics: ContractSyncMetrics,
     ) -> Result<Self> {
         let cursor = Arc::new(
-            db.block_cursor(contracts.mailbox.domain(), index_settings.from() as u64)
-                .await?,
+            db.block_cursor(
+                contracts.mailbox.domain().id(),
+                index_settings.from() as u64,
+            )
+            .await?,
         );
         Ok(Self {
             db,
@@ -66,11 +69,7 @@ impl SqlChainScraper {
         })
     }
 
-    pub fn chain_name(&self) -> &str {
-        self.contracts.mailbox.chain_name()
-    }
-
-    pub fn domain(&self) -> u32 {
+    pub fn domain(&self) -> &HyperlaneDomain {
         self.contracts.mailbox.domain()
     }
 
@@ -83,7 +82,7 @@ impl SqlChainScraper {
     /// Fetch the highest message nonce we have seen for the local domain.
     async fn last_message_nonce(&self) -> Result<Option<u32>> {
         self.db
-            .last_message_nonce(self.domain(), &self.contracts.mailbox.address())
+            .last_message_nonce(self.domain().id(), &self.contracts.mailbox.address())
             .await
     }
 
@@ -137,7 +136,11 @@ impl SqlChainScraper {
         });
 
         self.db
-            .store_deliveries(self.domain(), self.contracts.mailbox.address(), storable)
+            .store_deliveries(
+                self.domain().id(),
+                self.contracts.mailbox.address(),
+                storable,
+            )
             .await
     }
 
@@ -310,7 +313,7 @@ impl SqlChainScraper {
             let mut cur_id = self
                 .db
                 .store_blocks(
-                    self.domain(),
+                    self.domain().id(),
                     blocks_to_insert
                         .iter_mut()
                         .map(|(_, info)| info.take().unwrap()),

@@ -58,3 +58,7 @@ export type ParsedMultisigIsmMetadata = {
   signatures: ethers.utils.BytesLike[];
   validators: ethers.utils.BytesLike[];
 };
+
+export enum InterchainSecurityModuleType {
+  MULTISIG = 3,
+}
