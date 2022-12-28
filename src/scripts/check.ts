@@ -33,7 +33,7 @@ async function check() {
     helloWorldFactories,
   ) as ChainMap<ChainName, HelloWorldContracts>;
 
-  const core = HyperlaneCore.fromEnvironment('testnet2', multiProvider);
+  const core = HyperlaneCore.fromEnvironment('testnet3', multiProvider);
   const app = new HelloWorldApp(core, contractsMap, multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(prodConfigs, ownerAddress),
