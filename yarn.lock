@@ -3785,7 +3785,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/core@1.0.0-beta4, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@1.0.0-beta4, @hyperlane-xyz/core@^1.0.0-beta4, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
@@ -3823,13 +3823,24 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/helloworld@1.0.0-beta3, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@npm:1.0.0-beta3":
+  version: 1.0.0-beta3
+  resolution: "@hyperlane-xyz/helloworld@npm:1.0.0-beta3"
+  dependencies:
+    "@hyperlane-xyz/sdk": 1.0.0-beta3
+    "@openzeppelin/contracts-upgradeable": ^4.8.0
+    ethers: ^5.6.8
+  checksum: ee13cfc499f1ed636b3d05151bff5316737f87189551f517fb9781838c68dd48eb89c1f353994f2728d0e8e8d8303f2a7c83ffca03ef931f1e859065596c747f
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
-    "@hyperlane-xyz/sdk": 1.0.0-beta3
-    "@nomiclabs/hardhat-ethers": ^2.0.5
-    "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@hyperlane-xyz/sdk": ^1.0.0-beta4
+    "@nomiclabs/hardhat-ethers": ^2.2.1
+    "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts-upgradeable": ^4.8.0
     "@trivago/prettier-plugin-sort-imports": ^3.2.0
     "@typechain/ethers-v5": 10.0.0
@@ -3841,7 +3852,7 @@ __metadata:
     eslint: ^8.16.0
     eslint-config-prettier: ^8.5.0
     ethereum-waffle: ^3.4.4
-    ethers: ^5.6.8
+    ethers: ^5.7.2
     hardhat: ^2.8.4
     hardhat-gas-reporter: ^1.0.7
     prettier: ^2.4.1
@@ -3859,11 +3870,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/hyperlane-token@workspace:typescript/token"
   dependencies:
-    "@hyperlane-xyz/core": 1.0.0-beta3
-    "@hyperlane-xyz/sdk": 1.0.0-beta3
-    "@hyperlane-xyz/utils": 1.0.0-beta3
-    "@nomiclabs/hardhat-ethers": ^2.0.5
-    "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@hyperlane-xyz/core": ^1.0.0-beta4
+    "@hyperlane-xyz/sdk": ^1.0.0-beta4
+    "@hyperlane-xyz/utils": ^1.0.0-beta4
+    "@nomiclabs/hardhat-ethers": ^2.2.1
+    "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts-upgradeable": ^4.8.0
     "@trivago/prettier-plugin-sort-imports": ^3.2.0
     "@typechain/ethers-v5": 10.0.0
@@ -3875,7 +3886,7 @@ __metadata:
     eslint: ^8.16.0
     eslint-config-prettier: ^8.5.0
     ethereum-waffle: ^3.4.4
-    ethers: ^5.6.8
+    ethers: ^5.7.2
     hardhat: ^2.8.4
     hardhat-gas-reporter: ^1.0.7
     prettier: ^2.4.1
@@ -3945,7 +3956,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@1.0.0-beta4, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@1.0.0-beta4, @hyperlane-xyz/sdk@^1.0.0-beta4, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
@@ -3991,7 +4002,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/utils@1.0.0-beta4, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@1.0.0-beta4, @hyperlane-xyz/utils@^1.0.0-beta4, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
@@ -4228,7 +4239,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nomiclabs/hardhat-ethers@npm:^2.0.5, @nomiclabs/hardhat-ethers@npm:^2.2.1":
+"@nomiclabs/hardhat-ethers@npm:^2.2.1":
   version: 2.2.1
   resolution: "@nomiclabs/hardhat-ethers@npm:2.2.1"
   peerDependencies:
@@ -4258,7 +4269,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nomiclabs/hardhat-waffle@npm:^2.0.2, @nomiclabs/hardhat-waffle@npm:^2.0.3":
+"@nomiclabs/hardhat-waffle@npm:^2.0.3":
   version: 2.0.3
   resolution: "@nomiclabs/hardhat-waffle@npm:2.0.3"
   dependencies:
