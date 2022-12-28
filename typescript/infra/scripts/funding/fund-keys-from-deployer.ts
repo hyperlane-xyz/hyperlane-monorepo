@@ -8,9 +8,11 @@ import {
   ChainConnection,
   ChainName,
   ChainNameToDomainId,
+  Chains,
   CompleteChainMap,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
+import { ChainMap } from '@hyperlane-xyz/sdk/dist/types';
 import { error, log } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
@@ -35,6 +37,26 @@ import {
   getArgs,
   getCoreEnvironmentConfig,
 } from '../utils';
+
+type L2Chain =
+  | Chains.optimism
+  | Chains.optimismgoerli
+  | Chains.arbitrum
+  | Chains.arbitrumgoerli;
+
+const L2Chains: ChainName[] = [
+  Chains.optimism,
+  Chains.optimismgoerli,
+  Chains.arbitrum,
+  Chains.arbitrumgoerli,
+];
+
+const L2ToL1: ChainMap<L2Chain, ChainName> = {
+  optimismgoerli: 'goerli',
+  arbitrumgoerli: 'goerli',
+  optimism: 'ethereum',
+  arbitrum: 'ethereum',
+};
 
 // Missing types declaration for bufio
 const CrossChainMessenger = require('@eth-optimism/sdk').CrossChainMessenger; // eslint-disable-line
@@ -197,7 +219,7 @@ class ContextFunder {
       keys.map((key) => key.chainName!).filter((chain) => chain !== undefined),
     );
 
-    this.chains = Array.from(uniqueChains);
+    this.chains = Array.from(uniqueChains) as ChainName[];
   }
 
   static fromSerializedAddressFile(
@@ -273,19 +295,27 @@ class ContextFunder {
   async fund(): Promise<boolean> {
     let failureOccurred = false;
 
-    const keysAndChains = this.getKeysAndChains();
-    const chains = keysAndChains.map((kAC) => kAC[1]);
-    await this.bridgeToL2s(chains);
-
-    for (const [key, chain] of keysAndChains) {
-      const failure = await this.attemptToFundKey(key, chain);
-      failureOccurred = failureOccurred || failure;
-    }
+    const chainKeys = this.getChainKeys();
+    await Promise.all(
+      Object.entries(chainKeys).map(async ([chain, keys]) => {
+        if (keys.length > 0) {
+          await this.bridgeIfL2(chain as ChainName);
+        }
+        keys.forEach(async (key) => {
+          const failure = await this.attemptToFundKey(key, chain as ChainName);
+          failureOccurred = failureOccurred || failure;
+        });
+      }),
+    );
     return failureOccurred;
   }
 
-  private getKeysAndChains() {
-    const keysAndChains: [BaseCloudAgentKey, ChainName][] = [];
+  private getChainKeys() {
+    const entries = AllChains.map((c) => {
+      return [c, []];
+    });
+    const chainKeys: CompleteChainMap<BaseCloudAgentKey[]> =
+      Object.fromEntries(entries);
     for (const role of this.rolesToFund) {
       const keys = this.getKeysWithRole(role);
       for (const chain of this.chains) {
@@ -293,10 +323,10 @@ class ContextFunder {
         const filteredKeys = keys.filter(
           (key) => role !== KEY_ROLE_ENUM.Relayer || key.chainName !== chain,
         );
-        filteredKeys.map((key) => keysAndChains.push([key, chain]));
+        chainKeys[chain] = filteredKeys;
       }
     }
-    return keysAndChains;
+    return chainKeys;
   }
 
   private async attemptToFundKey(
@@ -330,33 +360,25 @@ class ContextFunder {
     return failureOccurred;
   }
 
-  private async bridgeToL2s(chains: ChainName[]) {
-    const l2s: ChainName[] = [
-      'optimism',
-      'arbitrum',
-      'optimismgoerli',
-      'arbitrumgoerli',
-    ];
-    for (const l2 of l2s) {
-      if (chains.includes(l2)) {
-        const chainConnection = this.multiProvider.tryGetChainConnection(l2)!;
-        const funderAddress = await chainConnection.getAddress()!;
-        const desiredBalanceEther = ethers.utils.parseUnits(
-          desiredBalancePerChain[l2],
-          'ether',
-        );
-        // Optionally bridge ETH to L2 before funding the desired key.
-        // By bridging the funder with 10x the desired balance we save
-        // on L1 gas.
-        const bridgeAmount = await this.getFundingAmount(
-          chainConnection,
-          l2,
-          funderAddress,
-          desiredBalanceEther.mul(10),
-        );
-        if (bridgeAmount.gt(0)) {
-          await this.bridgeToL2(l2, funderAddress, bridgeAmount);
-        }
+  private async bridgeIfL2(chain: ChainName) {
+    if (L2Chains.includes(chain)) {
+      const chainConnection = this.multiProvider.tryGetChainConnection(chain)!;
+      const funderAddress = await chainConnection.getAddress()!;
+      const desiredBalanceEther = ethers.utils.parseUnits(
+        desiredBalancePerChain[chain],
+        'ether',
+      );
+      // Optionally bridge ETH to L2 before funding the desired key.
+      // By bridging the funder with 10x the desired balance we save
+      // on L1 gas.
+      const bridgeAmount = await this.getFundingAmount(
+        chainConnection,
+        chain,
+        funderAddress,
+        desiredBalanceEther.mul(10),
+      );
+      if (bridgeAmount.gt(0)) {
+        await this.bridgeToL2(chain as L2Chain, funderAddress, bridgeAmount);
       }
     }
   }
@@ -438,13 +460,14 @@ class ContextFunder {
     });
   }
 
-  private async bridgeToL2(l2Chain: ChainName, to: string, amount: BigNumber) {
-    const testnet = l2Chain.includes('goerli');
-    const l1Chain: ChainName = testnet ? 'goerli' : 'ethereum';
-    const l1ChainConnection =
-      this.multiProvider.tryGetChainConnection(l1Chain)!;
-    const l2ChainConnection =
-      this.multiProvider.tryGetChainConnection(l2Chain)!;
+  private async bridgeToL2(l2Chain: L2Chain, to: string, amount: BigNumber) {
+    const l1Chain = L2ToL1[l2Chain];
+    const l1ChainConnection = await this.multiProvider.tryGetChainConnection(
+      l1Chain,
+    )!;
+    const l2ChainConnection = await this.multiProvider.tryGetChainConnection(
+      l2Chain,
+    )!;
     log('Bridging ETH to L2', {
       amount: ethers.utils.formatEther(amount),
       l1Funder: await getAddressInfo(
@@ -456,28 +479,50 @@ class ContextFunder {
     });
     let tx;
     if (l2Chain.includes('optimism')) {
-      const crossChainMessenger = new CrossChainMessenger({
-        l1ChainId: ChainNameToDomainId[l1Chain],
-        l2ChainId: ChainNameToDomainId[l2Chain],
-        l1SignerOrProvider: l1ChainConnection.signer!,
-        l2SignerOrProvider: l2ChainConnection.provider,
-      });
-      tx = crossChainMessenger.depositETH(amount, {
-        recipient: to,
-        overrides: l1ChainConnection.overrides,
-      });
+      tx = await this.bridgeToOptimism(l2Chain, amount, to);
     } else if (l2Chain.includes('arbitrum')) {
-      const l2Network = await getL2Network(ChainNameToDomainId[l2Chain]);
-      const ethBridger = new EthBridger(l2Network);
-      tx = await ethBridger.deposit({
-        amount,
-        l1Signer: l1ChainConnection.signer!,
-        overrides: l1ChainConnection.overrides,
-      });
+      tx = await this.bridgeToArbitrum(l2Chain, amount);
     } else {
       throw new Error(`${l2Chain} is not an L2`);
     }
-    await l1ChainConnection.handleTx(tx);
+    await this.multiProvider
+      .tryGetChainConnection(L2ToL1[l2Chain])!
+      .handleTx(tx);
+  }
+
+  private async bridgeToOptimism(
+    l2Chain: L2Chain,
+    amount: BigNumber,
+    to: string,
+  ) {
+    const l1Chain = L2ToL1[l2Chain];
+    const l1ChainConnection =
+      this.multiProvider.tryGetChainConnection(l1Chain)!;
+    const l2ChainConnection =
+      this.multiProvider.tryGetChainConnection(l2Chain)!;
+    const crossChainMessenger = new CrossChainMessenger({
+      l1ChainId: ChainNameToDomainId[l1Chain],
+      l2ChainId: ChainNameToDomainId[l2Chain],
+      l1SignerOrProvider: l1ChainConnection.signer!,
+      l2SignerOrProvider: l2ChainConnection.provider,
+    });
+    return crossChainMessenger.depositETH(amount, {
+      recipient: to,
+      overrides: l1ChainConnection.overrides,
+    });
+  }
+
+  private async bridgeToArbitrum(l2Chain: L2Chain, amount: BigNumber) {
+    const l1Chain = L2ToL1[l2Chain];
+    const l1ChainConnection =
+      this.multiProvider.tryGetChainConnection(l1Chain)!;
+    const l2Network = await getL2Network(ChainNameToDomainId[l2Chain]);
+    const ethBridger = new EthBridger(l2Network);
+    return ethBridger.deposit({
+      amount,
+      l1Signer: l1ChainConnection.signer!,
+      overrides: l1ChainConnection.overrides,
+    });
   }
 
   private async updateWalletBalanceGauge(
