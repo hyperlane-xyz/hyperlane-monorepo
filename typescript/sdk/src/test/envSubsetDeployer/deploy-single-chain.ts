@@ -18,7 +18,7 @@ async function main() {
     },
   });
 
-  const core = HyperlaneCore.fromEnvironment('testnet3', multiProvider);
+  const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(alfajoresChainConfig, signer.address),
   );

@@ -15,7 +15,7 @@ import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { ConnectionType } from '../../src/config/agent';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getArgs, getCoreEnvironmentConfig } from '../utils';
+import { DeployEnvToSdkEnv, getArgs, getCoreEnvironmentConfig } from '../utils';
 
 import { getApp } from './utils';
 
@@ -149,7 +149,7 @@ async function main(): Promise<boolean> {
     connectionType,
   );
   const gasCalculator = InterchainGasCalculator.fromEnvironment(
-    environment,
+    DeployEnvToSdkEnv[environment],
     app.multiProvider as any,
   );
   const appChains = app.chains();

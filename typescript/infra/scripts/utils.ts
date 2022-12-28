@@ -7,6 +7,7 @@ import {
   ChainName,
   IChainConnection,
   MultiProvider,
+  coreEnvironments,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/sdk';
@@ -58,6 +59,13 @@ export function getCoreEnvironmentConfig<Env extends DeployEnvironment>(
 export async function getEnvironment() {
   return assertEnvironment(await getEnvironmentFromArgs());
 }
+
+type SdkEnvironment = keyof typeof coreEnvironments;
+export const DeployEnvToSdkEnv: Record<DeployEnvironment, SdkEnvironment> = {
+  mainnet2: 'mainnet',
+  testnet3: 'testnet',
+  test: 'test',
+};
 
 export async function getEnvironmentConfig() {
   return getCoreEnvironmentConfig(await getEnvironment());
