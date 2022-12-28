@@ -32,6 +32,22 @@ This monorepo uses [Yarn Workspaces](https://yarnpkg.com/features/workspaces). I
 
 If you are using [VSCode](https://code.visualstudio.com/), you can launch the [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) with `code mono.code-workspace`, install the recommended workspace extensions, and use the editor settings.
 
+### Submodules
+
+This repository uses [Git submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules) to manage the the [token](./typescript/token) and [helloworld](./typescript/helloworld/) packages.
+
+To clone the repository with the submodules, use the `--recurse-submodules` flag:
+
+```bash
+git clone --recurse-submodules
+```
+
+The [.gitconfig](./.gitconfig) file in the root of the repository is used to configure the `git pull` command to automatically update the submodules to the latest commit on the `main` branch and rebase any local changes on top. To use this configuration, run the following command from the root of the repository:
+
+```bash
+git config --local include.path .gitconfig`
+```
+
 ### Rust
 
 - install [`rustup`](https://rustup.rs)

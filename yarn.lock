@@ -3817,8 +3817,8 @@ __metadata:
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@hyperlane-xyz/sdk": 1.0.0-beta3
-    "@nomiclabs/hardhat-ethers": ^2.2.1
-    "@nomiclabs/hardhat-waffle": ^2.0.3
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts-upgradeable": ^4.8.0
     "@trivago/prettier-plugin-sort-imports": ^3.2.0
     "@typechain/ethers-v5": 10.0.0
@@ -3830,7 +3830,7 @@ __metadata:
     eslint: ^8.16.0
     eslint-config-prettier: ^8.5.0
     ethereum-waffle: ^3.4.4
-    ethers: ^5.7.2
+    ethers: ^5.6.8
     hardhat: ^2.8.4
     hardhat-gas-reporter: ^1.0.7
     prettier: ^2.4.1
@@ -3851,8 +3851,8 @@ __metadata:
     "@hyperlane-xyz/core": 1.0.0-beta3
     "@hyperlane-xyz/sdk": 1.0.0-beta3
     "@hyperlane-xyz/utils": 1.0.0-beta3
-    "@nomiclabs/hardhat-ethers": ^2.2.1
-    "@nomiclabs/hardhat-waffle": ^2.0.3
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
     "@openzeppelin/contracts-upgradeable": ^4.8.0
     "@trivago/prettier-plugin-sort-imports": ^3.2.0
     "@typechain/ethers-v5": 10.0.0
@@ -3864,7 +3864,7 @@ __metadata:
     eslint: ^8.16.0
     eslint-config-prettier: ^8.5.0
     ethereum-waffle: ^3.4.4
-    ethers: ^5.7.2
+    ethers: ^5.6.8
     hardhat: ^2.8.4
     hardhat-gas-reporter: ^1.0.7
     prettier: ^2.4.1
@@ -4192,7 +4192,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nomiclabs/hardhat-ethers@npm:^2.2.1":
+"@nomiclabs/hardhat-ethers@npm:^2.0.5, @nomiclabs/hardhat-ethers@npm:^2.2.1":
   version: 2.2.1
   resolution: "@nomiclabs/hardhat-ethers@npm:2.2.1"
   peerDependencies:
@@ -4222,7 +4222,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nomiclabs/hardhat-waffle@npm:^2.0.3":
+"@nomiclabs/hardhat-waffle@npm:^2.0.2, @nomiclabs/hardhat-waffle@npm:^2.0.3":
   version: 2.0.3
   resolution: "@nomiclabs/hardhat-waffle@npm:2.0.3"
   dependencies:
@@ -9221,7 +9221,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethers@npm:5.7.2, ethers@npm:^5.7.0, ethers@npm:^5.7.2":
+"ethers@npm:5.7.2, ethers@npm:^5.6.8, ethers@npm:^5.7.0, ethers@npm:^5.7.2":
   version: 5.7.2
   resolution: "ethers@npm:5.7.2"
   dependencies:

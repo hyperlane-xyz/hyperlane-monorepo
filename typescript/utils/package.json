@@ -29,6 +29,5 @@
   "types": "dist/index.d.ts",
   "files": [
     "/dist"
-  ],
-  "stableVersion": "1.0.0-beta2"
+  ]
 }
