@@ -1,8 +1,4 @@
-import {
-  HyperlaneCore,
-  HyperlaneCoreChecker,
-  ViolationType,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, HyperlaneCoreChecker } from '@hyperlane-xyz/sdk';
 
 import { HyperlaneCoreGovernor } from '../src/core/govern';
 
