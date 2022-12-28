@@ -1,7 +1,7 @@
 [submodule "typescript/token"]
 	path = typescript/token
 	url = git@github.com:hyperlane-xyz/hyperlane-token.git
-	branch = main
+	branch = asaj/update-deps
 [submodule "typescript/helloworld"]
 	path = typescript/helloworld
 	url = git@github.com:hyperlane-xyz/hyperlane-app-template.git
