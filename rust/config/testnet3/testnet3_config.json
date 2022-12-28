@@ -5,9 +5,9 @@
       "name": "alfajores",
       "domain": "44787",
       "addresses": {
-        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-        "multisigIsm": "0x34dD0ab937c3A7280FeB86C8F9ba9EBa79463c1e"
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+        "multisigIsm": "0x4D06A1671A2a345B14B15cbD50027979A5D1d8C9"
       },
       "rpcStyle": "ethereum",
       "finalityBlocks": "0",
@@ -23,9 +23,9 @@
       "name": "fuji",
       "domain": "43113",
       "addresses": {
-        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-        "multisigIsm": "0x4bCe8b585057EFC347026F9f0F4f89885468D7d3"
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+        "multisigIsm": "0xD713Db664509bd057aC2b378F4B65Db468F634A5"
       },
       "rpcStyle": "ethereum",
       "finalityBlocks": "3",
@@ -41,9 +41,9 @@
       "name": "mumbai",
       "domain": "80001",
       "addresses": {
-        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-        "multisigIsm": "0x824ed1F5c1769261eDD7022700FA675Fd22C0C1F"
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+        "multisigIsm": "0xd71f1A64659beC0781b2aa21bc7a72F7290F6Bf3"
       },
       "rpcStyle": "ethereum",
       "finalityBlocks": "32",
@@ -59,9 +59,9 @@
       "name": "bsctestnet",
       "domain": "97",
       "addresses": {
-        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-        "multisigIsm": "0x8b3131De3DD5d89C81b9AEaE2adFEA0EB7f4E4eB"
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+        "multisigIsm": "0x34add51924C500b4428067E251168807b3f5faED"
       },
       "rpcStyle": "ethereum",
       "finalityBlocks": "9",
@@ -77,9 +77,9 @@
       "name": "goerli",
       "domain": "5",
       "addresses": {
-        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-        "multisigIsm": "0x916B3999505656965A596A7710CEf27d2fEB4878"
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+        "multisigIsm": "0x32B34F0D86b275b92e9289d9054Db5Ec32d2CC6C"
       },
       "rpcStyle": "ethereum",
       "finalityBlocks": "2",
@@ -95,9 +95,9 @@
       "name": "moonbasealpha",
       "domain": "1287",
       "addresses": {
-        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-        "multisigIsm": "0xaA3022A7e114D4eaF9BBcA552B850346C55E5550"
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+        "multisigIsm": "0xec8875C7cE0a814A56654618D366641859F32C7A"
       },
       "rpcStyle": "ethereum",
       "finalityBlocks": "1",
@@ -113,9 +113,9 @@
       "name": "optimismgoerli",
       "domain": "420",
       "addresses": {
-        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-        "multisigIsm": "0x99A42d6Bf191127667f55297Af0259708bd8c59e"
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+        "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4"
       },
       "rpcStyle": "ethereum",
       "finalityBlocks": "1",
@@ -131,9 +131,9 @@
       "name": "arbitrumgoerli",
       "domain": "421613",
       "addresses": {
-        "mailbox": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-        "interchainGasPaymaster": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-        "multisigIsm": "0x772926Ffc5FE8B3ae9a85cB085700748606aE283"
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+        "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4"
       },
       "rpcStyle": "ethereum",
       "finalityBlocks": "1",
