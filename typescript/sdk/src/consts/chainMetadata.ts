@@ -78,6 +78,11 @@ const celoToken = {
   name: 'CELO',
   symbol: 'CELO',
 };
+const khalaToken = {
+  decimals: 18,
+  name: 'AXON',
+  symbol: 'AXON',
+};
 const etherToken = { name: 'Ether', symbol: 'ETH', decimals: 18 };
 const maticToken = { name: 'MATIC', symbol: 'MATIC', decimals: 18 };
 
@@ -333,6 +338,34 @@ export const goerli: ChainMetadata = {
   },
 };
 
+export const khala: ChainMetadata = {
+  id: 100012,
+  name: Chains.khala,
+  displayName: 'Khala',
+  nativeToken: khalaToken,
+  publicRpcUrls: [{ http: 'https://www.axon-node.info' }],
+  blockExplorers: [
+    {
+      name: 'Axon Scan',
+      url: 'https://axon-explorer.digipnyx.org',
+      apiUrl: 'https://axon-explorer.digipnyx.org/api',
+      family: ExplorerFamily.Blockscout,
+    },
+    {
+      name: 'Blockscout',
+      url: 'https://axon-explorer.digipnyx.org',
+      family: ExplorerFamily.Blockscout,
+    },
+  ],
+  blocks: {
+    confirmations: 15,
+    reorgPeriod: 0,
+    estimateBlockTime: 3,
+  },
+  gnosisSafeTransactionServiceUrl:
+    'https://transaction-service.gnosis-safe-staging.celo-networks-dev.org',
+};
+
 export const moonbasealpha: ChainMetadata = {
   id: 1287,
   name: Chains.moonbasealpha,
@@ -556,6 +589,7 @@ export const chainMetadata = {
   ethereum,
   fuji,
   goerli,
+  khala,
   moonbasealpha,
   moonbeam,
   mumbai,

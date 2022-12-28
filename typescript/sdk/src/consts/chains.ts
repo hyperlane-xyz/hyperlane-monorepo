@@ -18,6 +18,7 @@ export enum Chains {
   mumbai = 'mumbai',
   optimism = 'optimism',
   optimismgoerli = 'optimismgoerli',
+  khala = 'khala',
   polygon = 'polygon',
   test1 = 'test1',
   test2 = 'test2',
@@ -46,6 +47,7 @@ export const Mainnets = [
   Chains.moonbeam,
   Chains.optimism,
   Chains.polygon,
+  Chains.khala,
 ] as Array<ChainName>;
 
 export const Testnets = [
