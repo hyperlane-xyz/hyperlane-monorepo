@@ -11,6 +11,7 @@ const circleDomainMapping = [
   { hyperlaneDomain: chainMetadata[Chains.fuji].id, circleDomain: 1 },
 ];
 
+// Circle deployed contracts
 export const circleBridgeAdapterConfig: ChainMap<
   any,
   CircleBridgeAdapterConfig
