@@ -5,4 +5,4 @@
 [submodule "typescript/helloworld"]
 	path = typescript/helloworld
 	url = git@github.com:hyperlane-xyz/hyperlane-app-template.git
-	branch = main
+	branch = asaj/v2
