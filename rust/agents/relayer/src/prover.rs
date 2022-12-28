@@ -2,12 +2,11 @@
 //!
 //! Struct responsible for syncing Prover
 
-use ethers::core::types::H256;
-
 use hyperlane_core::accumulator::{
     merkle::{merkle_root_from_branch, MerkleTree, MerkleTreeError, Proof},
     TREE_DEPTH,
 };
+use hyperlane_core::H256;
 
 /// A depth-32 sparse Merkle tree capable of producing proofs for arbitrary
 /// elements.
@@ -139,9 +138,11 @@ impl std::iter::Extend<H256> for Prover {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use ethers::utils::hash_message;
+
     use hyperlane_core::test_utils;
+
+    use super::*;
 
     #[test]
     fn it_produces_and_verifies_proofs() {

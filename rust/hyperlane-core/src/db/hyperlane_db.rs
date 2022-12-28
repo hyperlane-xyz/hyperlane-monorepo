@@ -1,15 +1,14 @@
-use crate::db::{DbError, TypedDB, DB};
-use crate::{
-    accumulator::merkle::Proof, HyperlaneMessage, InterchainGasPayment, InterchainGasPaymentMeta,
-    InterchainGasPaymentWithMeta,
-};
-use ethers::core::types::{H256, U256};
-use eyre::Result;
+use std::future::Future;
+use std::time::Duration;
+
 use tokio::time::sleep;
 use tracing::{debug, info, trace};
 
-use std::future::Future;
-use std::time::Duration;
+use crate::db::{DbError, TypedDB, DB};
+use crate::{
+    accumulator::merkle::Proof, HyperlaneMessage, InterchainGasPayment, InterchainGasPaymentMeta,
+    InterchainGasPaymentWithMeta, H256, U256,
+};
 
 static MESSAGE_ID: &str = "message_id_";
 static PROOF: &str = "proof_";
@@ -19,6 +18,8 @@ static LATEST_NONCE_FOR_DESTINATION: &str = "latest_known_nonce_for_destination_
 static NONCE_PROCESSED: &str = "nonce_processed_";
 static GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_";
 static GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_";
+
+type Result<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
 ///
@@ -103,7 +104,7 @@ impl HyperlaneDB {
     /// Store the latest known nonce
     ///
     /// Key --> value: `LATEST_NONCE` --> `nonce`
-    pub fn update_latest_nonce(&self, nonce: u32) -> Result<(), DbError> {
+    pub fn update_latest_nonce(&self, nonce: u32) -> Result<()> {
         if let Ok(Some(n)) = self.retrieve_latest_nonce() {
             if nonce <= n {
                 return Ok(());
@@ -113,18 +114,14 @@ impl HyperlaneDB {
     }
 
     /// Retrieve the highest known nonce
-    pub fn retrieve_latest_nonce(&self) -> Result<Option<u32>, DbError> {
+    pub fn retrieve_latest_nonce(&self) -> Result<Option<u32>> {
         self.retrieve_decodable("", LATEST_NONCE)
     }
 
     /// Store the latest known nonce for a destination
     ///
     /// Key --> value: `destination` --> `nonce`
-    pub fn update_latest_nonce_for_destination(
-        &self,
-        destination: u32,
-        nonce: u32,
-    ) -> Result<(), DbError> {
+    pub fn update_latest_nonce_for_destination(&self, destination: u32, nonce: u32) -> Result<()> {
         if let Ok(Some(n)) = self.retrieve_latest_nonce_for_destination(destination) {
             if nonce <= n {
                 return Ok(());
@@ -134,15 +131,12 @@ impl HyperlaneDB {
     }
 
     /// Retrieve the highest known nonce for a destination
-    pub fn retrieve_latest_nonce_for_destination(
-        &self,
-        destination: u32,
-    ) -> Result<Option<u32>, DbError> {
+    pub fn retrieve_latest_nonce_for_destination(&self, destination: u32) -> Result<Option<u32>> {
         self.retrieve_keyed_decodable(LATEST_NONCE_FOR_DESTINATION, &destination)
     }
 
     /// Store the message id keyed by nonce
-    fn store_message_id(&self, nonce: u32, destination: u32, id: H256) -> Result<(), DbError> {
+    fn store_message_id(&self, nonce: u32, destination: u32, id: H256) -> Result<()> {
         debug!(
             nonce,
             id = ?id,
@@ -154,17 +148,17 @@ impl HyperlaneDB {
     }
 
     /// Retrieve a message by its id
-    pub fn message_by_id(&self, id: H256) -> Result<Option<HyperlaneMessage>, DbError> {
+    pub fn message_by_id(&self, id: H256) -> Result<Option<HyperlaneMessage>> {
         self.retrieve_keyed_decodable(MESSAGE, &id)
     }
 
     /// Retrieve the message id keyed by nonce
-    pub fn message_id_by_nonce(&self, nonce: u32) -> Result<Option<H256>, DbError> {
+    pub fn message_id_by_nonce(&self, nonce: u32) -> Result<Option<H256>> {
         self.retrieve_keyed_decodable(MESSAGE_ID, &nonce)
     }
 
     /// Retrieve a message by its nonce
-    pub fn message_by_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>, DbError> {
+    pub fn message_by_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>> {
         let id: Option<H256> = self.message_id_by_nonce(nonce)?;
         match id {
             None => Ok(None),
@@ -176,19 +170,19 @@ impl HyperlaneDB {
     ///
     /// Keys --> Values:
     /// - `nonce` --> `proof`
-    pub fn store_proof(&self, nonce: u32, proof: &Proof) -> Result<(), DbError> {
+    pub fn store_proof(&self, nonce: u32, proof: &Proof) -> Result<()> {
         debug!(nonce, "storing proof in DB");
         self.store_keyed_encodable(PROOF, &nonce, proof)
     }
 
     /// Retrieve a proof by its nonce
-    pub fn proof_by_nonce(&self, nonce: u32) -> Result<Option<Proof>, DbError> {
+    pub fn proof_by_nonce(&self, nonce: u32) -> Result<Option<Proof>> {
         self.retrieve_keyed_decodable(PROOF, &nonce)
     }
 
     // TODO(james): this is a quick-fix for the prover_sync and I don't like it
     /// poll db ever 100 milliseconds waitinf for a leaf.
-    pub fn wait_for_message_id(&self, nonce: u32) -> impl Future<Output = Result<H256, DbError>> {
+    pub fn wait_for_message_id(&self, nonce: u32) -> impl Future<Output = Result<H256>> {
         let slf = self.clone();
         async move {
             loop {
@@ -201,24 +195,24 @@ impl HyperlaneDB {
     }
 
     /// Mark nonce as processed
-    pub fn mark_nonce_as_processed(&self, nonce: u32) -> Result<(), DbError> {
+    pub fn mark_nonce_as_processed(&self, nonce: u32) -> Result<()> {
         debug!(nonce = ?nonce, "mark nonce as processed");
         self.store_keyed_encodable(NONCE_PROCESSED, &nonce, &true)
     }
 
     /// Retrieve nonce processed status
-    pub fn retrieve_message_processed(&self, nonce: u32) -> Result<Option<bool>, DbError> {
+    pub fn retrieve_message_processed(&self, nonce: u32) -> Result<Option<bool>> {
         let value: Option<bool> = self.retrieve_keyed_decodable(NONCE_PROCESSED, &nonce)?;
         Ok(value)
     }
 
-    /// If the provided gas payment, identified by its metadata, has not been processed,
-    /// processes the gas payment and records it as processed.
+    /// If the provided gas payment, identified by its metadata, has not been
+    /// processed, processes the gas payment and records it as processed.
     /// Returns whether the gas payment was processed for the first time.
     pub fn process_gas_payment(
         &self,
         gas_payment_with_meta: &InterchainGasPaymentWithMeta,
-    ) -> Result<bool, DbError> {
+    ) -> Result<bool> {
         let meta = &gas_payment_with_meta.meta;
         // If the gas payment has already been processed, do nothing
         if self.retrieve_gas_payment_meta_processed(meta)? {
@@ -240,25 +234,23 @@ impl HyperlaneDB {
     fn store_gas_payment_meta_processed(
         &self,
         gas_payment_meta: &InterchainGasPaymentMeta,
-    ) -> Result<(), DbError> {
+    ) -> Result<()> {
         self.store_keyed_encodable(GAS_PAYMENT_META_PROCESSED, gas_payment_meta, &true)
     }
 
-    /// Get whether a gas payment, identified by its metadata, has been processed already
+    /// Get whether a gas payment, identified by its metadata, has been
+    /// processed already
     fn retrieve_gas_payment_meta_processed(
         &self,
         gas_payment_meta: &InterchainGasPaymentMeta,
-    ) -> Result<bool, DbError> {
+    ) -> Result<bool> {
         Ok(self
             .retrieve_keyed_decodable(GAS_PAYMENT_META_PROCESSED, gas_payment_meta)?
             .unwrap_or(false))
     }
 
     /// Update the total gas payment for a message to include gas_payment
-    fn update_gas_payment_for_message_id(
-        &self,
-        gas_payment: &InterchainGasPayment,
-    ) -> Result<(), DbError> {
+    fn update_gas_payment_for_message_id(&self, gas_payment: &InterchainGasPayment) -> Result<()> {
         let InterchainGasPayment {
             message_id,
             payment,
@@ -273,7 +265,7 @@ impl HyperlaneDB {
     }
 
     /// Retrieve the total gas payment for a message
-    pub fn retrieve_gas_payment_for_message_id(&self, message_id: H256) -> Result<U256, DbError> {
+    pub fn retrieve_gas_payment_for_message_id(&self, message_id: H256) -> Result<U256> {
         Ok(self
             .retrieve_keyed_decodable(GAS_PAYMENT_FOR_MESSAGE_ID, &message_id)?
             .unwrap_or(U256::zero()))

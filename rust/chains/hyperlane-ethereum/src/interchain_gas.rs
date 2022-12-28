@@ -5,20 +5,20 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::prelude::*;
-use eyre::Result;
+use ethers::prelude::{Middleware, Selector};
 use tracing::instrument;
 
 use hyperlane_core::{
-    ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, Indexer,
-    InterchainGasPaymaster, InterchainGasPaymasterIndexer, InterchainGasPayment,
-    InterchainGasPaymentMeta, InterchainGasPaymentWithMeta,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, Indexer, InterchainGasPaymaster,
+    InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentMeta,
+    InterchainGasPaymentWithMeta, H160, H256,
 };
 
 use crate::contracts::interchain_gas_paymaster::{
     InterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, INTERCHAINGASPAYMASTER_ABI,
 };
-use crate::trait_builder::MakeableWithProvider;
+use crate::trait_builder::BuildableWithProvider;
 
 impl<M> Display for EthereumInterchainGasPaymasterInternal<M>
 where
@@ -35,10 +35,10 @@ pub struct InterchainGasPaymasterIndexerBuilder {
 }
 
 #[async_trait]
-impl MakeableWithProvider for InterchainGasPaymasterIndexerBuilder {
+impl BuildableWithProvider for InterchainGasPaymasterIndexerBuilder {
     type Output = Box<dyn InterchainGasPaymasterIndexer>;
 
-    async fn make_with_provider<M: Middleware + 'static>(
+    async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -70,7 +70,7 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         Self {
             contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
-                &locator.address,
+                locator.address,
                 provider.clone(),
             )),
             provider,
@@ -85,11 +85,12 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, ret, skip(self))]
-    async fn get_finalized_block_number(&self) -> Result<u32> {
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
             .provider
             .get_block_number()
-            .await?
+            .await
+            .map_err(ChainCommunicationError::from_other)?
             .as_u32()
             .saturating_sub(self.finality_blocks))
     }
@@ -105,7 +106,7 @@ where
         &self,
         from_block: u32,
         to_block: u32,
-    ) -> Result<Vec<InterchainGasPaymentWithMeta>> {
+    ) -> ChainResult<Vec<InterchainGasPaymentWithMeta>> {
         let events = self
             .contract
             .gas_payment_filter()
@@ -133,10 +134,10 @@ where
 pub struct InterchainGasPaymasterBuilder {}
 
 #[async_trait]
-impl MakeableWithProvider for InterchainGasPaymasterBuilder {
+impl BuildableWithProvider for InterchainGasPaymasterBuilder {
     type Output = Box<dyn InterchainGasPaymaster>;
 
-    async fn make_with_provider<M: Middleware + 'static>(
+    async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -156,28 +157,22 @@ where
 {
     #[allow(dead_code)]
     contract: Arc<EthereumInterchainGasPaymasterInternal<M>>,
-    chain_name: String,
-    #[allow(dead_code)]
-    domain: u32,
-    #[allow(dead_code)]
-    provider: Arc<M>,
+    domain: HyperlaneDomain,
 }
 
 impl<M> EthereumInterchainGasPaymaster<M>
 where
     M: Middleware + 'static,
 {
-    /// Create a reference to a outbox at a specific Ethereum address on some
+    /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
-                &locator.address,
-                provider.clone(),
+                locator.address,
+                provider,
             )),
-            domain: locator.domain,
-            chain_name: locator.chain_name.to_owned(),
-            provider,
+            domain: locator.domain.clone(),
         }
     }
 }
@@ -186,12 +181,8 @@ impl<M> HyperlaneChain for EthereumInterchainGasPaymaster<M>
 where
     M: Middleware + 'static,
 {
-    fn chain_name(&self) -> &str {
-        &self.chain_name
-    }
-
-    fn domain(&self) -> u32 {
-        self.domain
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
     }
 }
 

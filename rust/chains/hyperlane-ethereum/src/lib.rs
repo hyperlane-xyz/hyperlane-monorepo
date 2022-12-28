@@ -2,25 +2,24 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
-#![warn(unused_extern_crates)]
 
 use std::collections::HashMap;
 
-use ethers::prelude::*;
-use eyre::Result;
-use num::Num;
+use ethers::abi::FunctionExt;
+use ethers::prelude::{
+    abi, BlockId, BlockNumber, Http, Lazy, Middleware, NameOrAddress, Provider, Selector,
+};
 
 use hyperlane_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
-use crate::abi::FunctionExt;
 #[cfg(not(doctest))]
 pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*};
 
 #[cfg(not(doctest))]
 mod tx;
 
-/// Outbox abi
+/// Mailbox abi
 #[cfg(not(doctest))]
 mod mailbox;
 
@@ -49,7 +48,7 @@ mod retrying;
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum Connection {
+pub enum ConnectionConf {
     /// A HTTP-only quorum.
     HttpQuorum {
         /// List of fully qualified strings to connect to
@@ -67,7 +66,7 @@ pub enum Connection {
     },
 }
 
-impl Default for Connection {
+impl Default for ConnectionConf {
     fn default() -> Self {
         Self::Http {
             url: Default::default(),
@@ -78,13 +77,15 @@ impl Default for Connection {
 #[allow(dead_code)]
 /// A live connection to an ethereum-compatible chain.
 pub struct Chain {
-    creation_metadata: Connection,
+    creation_metadata: ConnectionConf,
     ethers: Provider<Http>,
 }
 
 #[async_trait::async_trait]
 impl hyperlane_core::Chain for Chain {
-    async fn query_balance(&self, addr: hyperlane_core::Address) -> Result<Balance> {
+    async fn query_balance(&self, addr: Address) -> ChainResult<Balance> {
+        use num::{BigInt, Num};
+
         let balance = format!(
             "{:x}",
             self.ethers
@@ -94,8 +95,10 @@ impl hyperlane_core::Chain for Chain {
                 )
                 .await?
         );
+        let balance =
+            BigInt::from_str_radix(&balance, 16).map_err(ChainCommunicationError::from_other)?;
 
-        Ok(Balance(num::BigInt::from_str_radix(&balance, 16)?))
+        Ok(Balance(balance))
     }
 }
 

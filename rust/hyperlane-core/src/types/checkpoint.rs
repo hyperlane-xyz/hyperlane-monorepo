@@ -1,12 +1,12 @@
-use crate::{utils::domain_hash, Decode, Encode, HyperlaneError, SignerExt};
 use ethers::{
     prelude::{Address, Signature},
-    types::H256,
     utils::hash_message,
 };
 use ethers_signers::Signer;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
+
+use crate::{utils::domain_hash, Decode, Encode, HyperlaneProtocolError, SignerExt, H256};
 
 /// An Hyperlane checkpoint
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -45,7 +45,7 @@ impl Encode for Checkpoint {
 }
 
 impl Decode for Checkpoint {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized,
@@ -72,22 +72,23 @@ impl Decode for Checkpoint {
 }
 
 impl Checkpoint {
-    fn signing_hash(&self) -> H256 {
-        let buffer = [0u8; 28];
+    /// A hash of the checkpoint contents.
+    /// The EIP-191 compliant version of this hash is signed by validators.
+    pub fn signing_hash(&self) -> H256 {
         // sign:
-        // domain_hash(mailbox_address, mailbox_domain) || root || index (as u256)
+        // domain_hash(mailbox_address, mailbox_domain) || root || index (as u32)
         H256::from_slice(
             Keccak256::new()
                 .chain(domain_hash(self.mailbox_address, self.mailbox_domain))
                 .chain(self.root)
-                .chain(buffer)
                 .chain(self.index.to_be_bytes())
                 .finalize()
                 .as_slice(),
         )
     }
 
-    fn prepended_hash(&self) -> H256 {
+    /// EIP-191 compliant hash of the signing hash of the checkpoint.
+    pub fn eth_signed_message_hash(&self) -> H256 {
         hash_message(self.signing_hash())
     }
 
@@ -125,7 +126,7 @@ impl Encode for SignedCheckpoint {
 }
 
 impl Decode for SignedCheckpoint {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized,
@@ -141,15 +142,17 @@ impl Decode for SignedCheckpoint {
 
 impl SignedCheckpoint {
     /// Recover the Ethereum address of the signer
-    pub fn recover(&self) -> Result<Address, HyperlaneError> {
-        Ok(self.signature.recover(self.checkpoint.prepended_hash())?)
+    pub fn recover(&self) -> Result<Address, HyperlaneProtocolError> {
+        Ok(self
+            .signature
+            .recover(self.checkpoint.eth_signed_message_hash())?)
     }
 
     /// Check whether a message was signed by a specific address
-    pub fn verify(&self, signer: Address) -> Result<(), HyperlaneError> {
+    pub fn verify(&self, signer: Address) -> Result<(), HyperlaneProtocolError> {
         Ok(self
             .signature
-            .verify(self.checkpoint.prepended_hash(), signer)?)
+            .verify(self.checkpoint.eth_signed_message_hash(), signer)?)
     }
 }
 
@@ -194,7 +197,8 @@ pub enum MultisigSignedCheckpointError {
 impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
     type Error = MultisigSignedCheckpointError;
 
-    /// Given multiple signed checkpoints with their signer, creates a MultisigSignedCheckpoint
+    /// Given multiple signed checkpoints with their signer, creates a
+    /// MultisigSignedCheckpoint
     fn try_from(signed_checkpoints: &Vec<SignedCheckpointWithSigner>) -> Result<Self, Self::Error> {
         if signed_checkpoints.is_empty() {
             return Err(MultisigSignedCheckpointError::EmptySignatures());

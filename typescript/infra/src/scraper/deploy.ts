@@ -9,7 +9,7 @@ import {
 } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
-const helmChartPath = '../../rust/helm/scraper/';
+const helmChartPath = '../../rust/helm/hyperlane-agent/';
 
 export async function runScraperHelmCommand<Chain extends ChainName>(
   action: HelmCommand,
@@ -22,7 +22,7 @@ export async function runScraperHelmCommand<Chain extends ChainName>(
       ? ` | kubectl diff -n ${agentConfig.namespace} --field-manager="Go-http-client" -f - || true`
       : '';
 
-  const helmReleaseName = getScraperHelmReleaseName(agentConfig);
+  const helmReleaseName = getScraperHelmReleaseName();
 
   if (action === HelmCommand.InstallOrUpgrade) {
     // Delete secrets to avoid them being stale
@@ -75,30 +75,31 @@ async function scraperHelmValues<Chain extends ChainName>(
     };
   }
 
-  const chains = agentConfig.environmentChainNames.map((name) => ({
-    name,
-    disabled: !agentConfig.contextChainNames.includes(name),
-    connection: baseConnectionConfig,
-  }));
-
   const valueDict = {
-    hyperlane: {
-      runEnv: agentConfig.environment,
-      context: agentConfig.context,
-      // Expects an array
-      inboxChains: chains,
-      outboxChains: chains,
-    },
     image: {
       repository: agentConfig.docker.repo,
       tag: agentConfig.docker.tag,
+    },
+    hyperlane: {
+      runEnv: agentConfig.environment,
+      context: agentConfig.context,
+      baseConfig: `${agentConfig.runEnv}_config.json`,
+      aws: false,
+      gelatoApiKeyRequired: false,
+      chains: agentConfig.environmentChainNames.map((name) => ({
+        name,
+        disabled: !agentConfig.contextChainNames.includes(name),
+        connection: baseConnectionConfig,
+      })),
+      scraper: {
+        enabled: true,
+        /* no extra settings at this time */
+      },
     },
   };
   return helmifyValues(valueDict);
 }
 
-function getScraperHelmReleaseName<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
-) {
-  return `${agentConfig.context}-scraper`;
+function getScraperHelmReleaseName() {
+  return `scraper`;
 }

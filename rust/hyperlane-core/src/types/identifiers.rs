@@ -1,11 +1,9 @@
-use ethers::prelude::{H160, H256};
-
-use crate::{Decode, Encode};
+use crate::{Decode, Encode, HyperlaneProtocolError, H160, H256};
 
 /// Identifier type.
 ///
-/// Normally these will map to address types for different networks. For Hyperlane,
-/// we choose to _always_ serialize as 32 bytes
+/// Normally these will map to address types for different networks. For
+/// Hyperlane, we choose to _always_ serialize as 32 bytes
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct HyperlaneIdentifier(H256);
 
@@ -70,7 +68,7 @@ impl Encode for HyperlaneIdentifier {
 }
 
 impl Decode for HyperlaneIdentifier {
-    fn read_from<R>(reader: &mut R) -> Result<Self, crate::HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
         Self: Sized,

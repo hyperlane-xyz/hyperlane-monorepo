@@ -2,9 +2,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::core::types::H256;
-use ethers::types::U256;
-use eyre::Result;
 use futures_util::future::select_all;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
@@ -12,8 +9,8 @@ use tracing::{info_span, Instrument};
 
 use hyperlane_core::db::HyperlaneDB;
 use hyperlane_core::{
-    ChainCommunicationError, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneMessage,
-    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome,
+    ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::chains::IndexSettings;
@@ -63,11 +60,11 @@ impl CachingMailbox {
         &self,
         index_settings: IndexSettings,
         metrics: ContractSyncMetrics,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
+    ) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         let span = info_span!("MailboxContractSync", self = %self);
 
         let sync = ContractSync::new(
-            self.mailbox.chain_name().into(),
+            self.mailbox.domain().clone(),
             self.db.clone(),
             self.indexer.clone(),
             index_settings,
@@ -94,24 +91,21 @@ impl Mailbox for CachingMailbox {
         self.mailbox.domain_hash()
     }
 
-    async fn count(&self) -> Result<u32, ChainCommunicationError> {
+    async fn count(&self) -> ChainResult<u32> {
         self.mailbox.count().await
     }
 
     /// Fetch the status of a message
-    async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
+    async fn delivered(&self, id: H256) -> ChainResult<bool> {
         self.mailbox.delivered(id).await
     }
 
-    async fn latest_checkpoint(
-        &self,
-        maybe_lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError> {
+    async fn latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {
         self.mailbox.latest_checkpoint(maybe_lag).await
     }
 
     /// Fetch the current default interchain security module value
-    async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
+    async fn default_ism(&self) -> ChainResult<H256> {
         self.mailbox.default_ism().await
     }
 
@@ -120,7 +114,7 @@ impl Mailbox for CachingMailbox {
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
+    ) -> ChainResult<TxOutcome> {
         self.mailbox.process(message, metadata, tx_gas_limit).await
     }
 
@@ -128,7 +122,7 @@ impl Mailbox for CachingMailbox {
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-    ) -> Result<TxCostEstimate> {
+    ) -> ChainResult<TxCostEstimate> {
         self.mailbox.process_estimate_costs(message, metadata).await
     }
 
@@ -138,11 +132,7 @@ impl Mailbox for CachingMailbox {
 }
 
 impl HyperlaneChain for CachingMailbox {
-    fn chain_name(&self) -> &str {
-        self.mailbox.chain_name()
-    }
-
-    fn domain(&self) -> u32 {
+    fn domain(&self) -> &HyperlaneDomain {
         self.mailbox.domain()
     }
 }

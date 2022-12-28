@@ -6,19 +6,19 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
-use ethers::prelude::*;
+use ethers::prelude::{Middleware, Selector};
 use ethers_contract::builders::ContractCall;
-use eyre::{eyre, Result};
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, Checkpoint, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneMessage, Indexer, LogMeta, Mailbox, MailboxIndexer,
-    RawHyperlaneMessage, TxCostEstimate, TxOutcome,
+    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
+    Indexer, LogMeta, Mailbox, MailboxIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome,
+    H256, U256,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
-use crate::trait_builder::MakeableWithProvider;
+use crate::trait_builder::BuildableWithProvider;
 use crate::tx::report_tx;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
@@ -35,10 +35,10 @@ pub struct MailboxIndexerBuilder {
 }
 
 #[async_trait]
-impl MakeableWithProvider for MailboxIndexerBuilder {
+impl BuildableWithProvider for MailboxIndexerBuilder {
     type Output = Box<dyn MailboxIndexer>;
 
-    async fn make_with_provider<M: Middleware + 'static>(
+    async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -69,7 +69,7 @@ where
     /// Create new EthereumMailboxIndexer
     pub fn new(provider: Arc<M>, locator: &ContractLocator, finality_blocks: u32) -> Self {
         let contract = Arc::new(EthereumMailboxInternal::new(
-            &locator.address,
+            locator.address,
             provider.clone(),
         ));
         Self {
@@ -86,11 +86,12 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, ret, skip(self))]
-    async fn get_finalized_block_number(&self) -> Result<u32> {
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
             .provider
             .get_block_number()
-            .await?
+            .await
+            .map_err(ChainCommunicationError::from_other)?
             .as_u32()
             .saturating_sub(self.finality_blocks))
     }
@@ -106,7 +107,7 @@ where
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<(HyperlaneMessage, LogMeta)>> {
+    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         let mut events: Vec<(HyperlaneMessage, LogMeta)> = self
             .contract
             .dispatch_filter()
@@ -123,7 +124,11 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>> {
+    async fn fetch_delivered_messages(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> ChainResult<Vec<(H256, LogMeta)>> {
         Ok(self
             .contract
             .process_id_filter()
@@ -140,10 +145,10 @@ where
 pub struct MailboxBuilder {}
 
 #[async_trait]
-impl MakeableWithProvider for MailboxBuilder {
+impl BuildableWithProvider for MailboxBuilder {
     type Output = Box<dyn Mailbox>;
 
-    async fn make_with_provider<M: Middleware + 'static>(
+    async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -152,15 +157,14 @@ impl MakeableWithProvider for MailboxBuilder {
     }
 }
 
-/// A reference to an Mailbox contract on some Ethereum chain
+/// A reference to a Mailbox contract on some Ethereum chain
 #[derive(Debug)]
 pub struct EthereumMailbox<M>
 where
     M: Middleware,
 {
     contract: Arc<EthereumMailboxInternal<M>>,
-    domain: u32,
-    chain_name: String,
+    domain: HyperlaneDomain,
     provider: Arc<M>,
 }
 
@@ -173,11 +177,10 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(EthereumMailboxInternal::new(
-                &locator.address,
+                locator.address,
                 provider.clone(),
             )),
-            domain: locator.domain,
-            chain_name: locator.chain_name.to_owned(),
+            domain: locator.domain.clone(),
             provider,
         }
     }
@@ -189,7 +192,7 @@ where
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
-    ) -> Result<ContractCall<M, ()>, ChainCommunicationError> {
+    ) -> ChainResult<ContractCall<M, ()>> {
         let tx = self.contract.process(
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
@@ -208,12 +211,8 @@ impl<M> HyperlaneChain for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
-    fn chain_name(&self) -> &str {
-        &self.chain_name
-    }
-
-    fn domain(&self) -> u32 {
-        self.domain
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
     }
 }
 
@@ -232,20 +231,17 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, ret, skip(self))]
-    async fn count(&self) -> Result<u32, ChainCommunicationError> {
+    async fn count(&self) -> ChainResult<u32> {
         Ok(self.contract.count().call().await?)
     }
 
     #[instrument(err, ret)]
-    async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
+    async fn delivered(&self, id: H256) -> ChainResult<bool> {
         Ok(self.contract.delivered(id.into()).call().await?)
     }
 
     #[instrument(err, ret, skip(self))]
-    async fn latest_checkpoint(
-        &self,
-        maybe_lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError> {
+    async fn latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {
         let base_call = self.contract.latest_checkpoint();
         let call_with_lag = match maybe_lag {
             Some(lag) => {
@@ -253,7 +249,7 @@ where
                     .provider
                     .get_block_number()
                     .await
-                    .map_err(|x| ChainCommunicationError::CustomError(Box::new(x)))?
+                    .map_err(ChainCommunicationError::from_other)?
                     .as_u64();
                 base_call.block(if lag > tip { 0 } else { tip - lag })
             }
@@ -262,14 +258,14 @@ where
         let (root, index) = call_with_lag.call().await?;
         Ok(Checkpoint {
             mailbox_address: self.address(),
-            mailbox_domain: self.domain,
+            mailbox_domain: self.domain.id(),
             root: root.into(),
             index,
         })
     }
 
     #[instrument(err, ret, skip(self))]
-    async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
+    async fn default_ism(&self) -> ChainResult<H256> {
         Ok(self.contract.default_ism().call().await?.into())
     }
 
@@ -279,7 +275,7 @@ where
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
+    ) -> ChainResult<TxOutcome> {
         let contract_call = self
             .process_contract_call(message, metadata, tx_gas_limit)
             .await?;
@@ -292,14 +288,17 @@ where
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-    ) -> Result<TxCostEstimate> {
+    ) -> ChainResult<TxCostEstimate> {
         let contract_call = self.process_contract_call(message, metadata, None).await?;
-
         let gas_limit = contract_call
             .tx
             .gas()
-            .ok_or_else(|| eyre!("Expected gas limit for process contract call"))?;
-        let gas_price = self.provider.get_gas_price().await?;
+            .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?;
+        let gas_price = self
+            .provider
+            .get_gas_price()
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
 
         Ok(TxCostEstimate {
             gas_limit: *gas_limit,
@@ -312,7 +311,8 @@ where
             message: RawHyperlaneMessage::from(message).to_vec().into(),
             metadata: metadata.to_vec().into(),
         };
-        process_call.encode()
+
+        AbiEncode::encode(process_call)
     }
 }
 

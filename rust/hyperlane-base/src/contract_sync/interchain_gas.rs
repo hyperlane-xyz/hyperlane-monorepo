@@ -19,15 +19,15 @@ where
         let db = self.db.clone();
         let indexer = self.indexer.clone();
 
+        let chain_name = self.domain.name();
         let indexed_height = self
             .metrics
             .indexed_height
-            .with_label_values(&[GAS_PAYMENTS_LABEL, &self.chain_name]);
-
+            .with_label_values(&[GAS_PAYMENTS_LABEL, chain_name]);
         let stored_messages = self
             .metrics
             .stored_events
-            .with_label_values(&[GAS_PAYMENTS_LABEL, &self.chain_name]);
+            .with_label_values(&[GAS_PAYMENTS_LABEL, chain_name]);
 
         let cursor = {
             let config_initial_height = self.index_settings.from();

@@ -1,20 +1,21 @@
-use eyre::WrapErr;
+use std::path::PathBuf;
+use std::{io, path::Path, sync::Arc};
+
 use rocksdb::{DBIterator, Options, DB as Rocks};
-use std::{path::Path, sync::Arc};
 use tracing::info;
+
+pub use hyperlane_db::*;
+pub use typed_db::*;
+
+use crate::{Decode, Encode, HyperlaneProtocolError};
 
 /// Shared functionality surrounding use of rocksdb
 pub mod iterator;
 
+/// DB operations tied to specific Mailbox
+mod hyperlane_db;
 /// Type-specific db operations
 mod typed_db;
-pub use typed_db::*;
-
-/// DB operations tied to specific Outbox
-mod hyperlane_db;
-pub use hyperlane_db::*;
-
-use crate::{Decode, Encode, HyperlaneError};
 
 #[derive(Debug, Clone)]
 /// A KV Store
@@ -32,9 +33,23 @@ pub enum DbError {
     /// Rocks DB Error
     #[error("{0}")]
     RockError(#[from] rocksdb::Error),
+    #[error("Failed to open {path}, canonicalized as {canonicalized}: {source}")]
+    /// Error opening the database
+    OpeningError {
+        /// Rocksdb error during opening
+        #[source]
+        source: rocksdb::Error,
+        /// Raw database path provided
+        path: String,
+        /// Parsed path used
+        canonicalized: PathBuf,
+    },
+    /// Could not parse the provided database path string
+    #[error("Invalid database path supplied {1:?}; {0}")]
+    InvalidDbPath(#[source] io::Error, String),
     /// Hyperlane Error
     #[error("{0}")]
-    HyperlaneError(#[from] HyperlaneError),
+    HyperlaneError(#[from] HyperlaneProtocolError),
 }
 
 type Result<T> = std::result::Result<T, DbError>;
@@ -42,9 +57,11 @@ type Result<T> = std::result::Result<T, DbError>;
 impl DB {
     /// Opens db at `db_path` and creates if missing
     #[tracing::instrument(err)]
-    pub fn from_path(db_path: &str) -> eyre::Result<DB> {
+    pub fn from_path(db_path: &str) -> Result<DB> {
         // Canonicalize ensures existence, so we have to do that, then extend
-        let mut path = Path::new(".").canonicalize()?;
+        let mut path = Path::new(".")
+            .canonicalize()
+            .map_err(|e| DbError::InvalidDbPath(e, db_path.to_owned()))?;
         path.extend([db_path]);
 
         match path.is_dir() {
@@ -59,10 +76,11 @@ impl DB {
         opts.create_if_missing(true);
 
         Rocks::open(&opts, &path)
-            .wrap_err(format!(
-                "Failed to open db path {}, canonicalized as {:?}",
-                db_path, path
-            ))
+            .map_err(|e| DbError::OpeningError {
+                source: e,
+                path: db_path.to_owned(),
+                canonicalized: path,
+            })
             .map(Into::into)
     }
 

@@ -5,18 +5,19 @@ use std::{
 };
 
 use eyre::Result;
+use tokio::{
+    sync::mpsc::UnboundedSender,
+    time::{sleep, timeout},
+};
+use tracing::instrument;
+
 use gelato::{
     sponsored_call::{SponsoredCallApiCall, SponsoredCallApiCallResult, SponsoredCallArgs},
     task_status::{TaskState, TaskStatusApiCall, TaskStatusApiCallArgs},
     types::Chain,
 };
 use hyperlane_base::CachingMailbox;
-use hyperlane_core::{ChainCommunicationError, HyperlaneContract, Mailbox, MultisigIsm};
-use tokio::{
-    sync::mpsc::UnboundedSender,
-    time::{sleep, timeout},
-};
-use tracing::instrument;
+use hyperlane_core::{ChainResult, HyperlaneContract, Mailbox, MultisigIsm};
 
 use crate::msg::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
@@ -36,7 +37,8 @@ pub struct SponsoredCallOpArgs {
 
     pub gas_payment_enforcer: Arc<GasPaymentEnforcer>,
 
-    /// A channel to send the message over upon the message being successfully processed.
+    /// A channel to send the message over upon the message being successfully
+    /// processed.
     pub message_processed_sender: UnboundedSender<SubmitMessageArgs>,
 }
 
@@ -91,8 +93,8 @@ impl SponsoredCallOp {
         }
     }
 
-    /// One tick will submit a sponsored call to Gelato and wait for a terminal state
-    /// or timeout.
+    /// One tick will submit a sponsored call to Gelato and wait for a terminal
+    /// state or timeout.
     async fn tick(&self) -> Result<bool> {
         // Before doing anything, first check if the message has already been processed.
         if let Ok(true) = self.message_delivered().await {
@@ -103,9 +105,10 @@ impl SponsoredCallOp {
             .format_metadata(&self.message.checkpoint, self.message.proof)
             .await?;
 
-        // Estimate transaction costs for the process call. If there are issues, it's likely
-        // that gas estimation has failed because the message is reverting. This is defined behavior,
-        // so we just log the error and move onto the next tick.
+        // Estimate transaction costs for the process call. If there are issues, it's
+        // likely that gas estimation has failed because the message is
+        // reverting. This is defined behavior, so we just log the error and
+        // move onto the next tick.
         let tx_cost_estimate = match self
             .mailbox
             .process_estimate_costs(&self.message.message, &metadata)
@@ -118,7 +121,8 @@ impl SponsoredCallOp {
             }
         };
 
-        // If the gas payment requirement hasn't been met, sleep briefly and wait for the next tick.
+        // If the gas payment requirement hasn't been met, sleep briefly and wait for
+        // the next tick.
         let (meets_gas_requirement, gas_payment) = self
             .gas_payment_enforcer
             .message_meets_gas_payment_requirement(&self.message.message, &tx_cost_estimate)
@@ -157,13 +161,13 @@ impl SponsoredCallOp {
         }
     }
 
-    // Waits until the message has either been processed or the task id has been cancelled
-    // by Gelato.
+    // Waits until the message has either been processed or the task id has been
+    // cancelled by Gelato.
     async fn poll_for_terminal_state(&self, task_id: String) -> Result<bool> {
         loop {
             sleep(self.opts.poll_interval).await;
 
-            // Check if the message has been processed. Checking with the Inbox directly
+            // Check if the message has been processed. Checking with the Mailbox directly
             // is the best source of truth, and is the only way in which a message can be
             // marked as processed.
             if let Ok(true) = self.message_delivered().await {
@@ -189,9 +193,9 @@ impl SponsoredCallOp {
                 "Polled sponsored call status",
             );
 
-            // The only terminal state status is if the task was cancelled, which happens after
-            // Gelato has reached the max # of retries for a task. Currently, the default is
-            // after about 30 seconds.
+            // The only terminal state status is if the task was cancelled, which happens
+            // after Gelato has reached the max # of retries for a task.
+            // Currently, the default is after about 30 seconds.
             if let TaskState::Cancelled = task_state {
                 return Ok(false);
             }
@@ -230,7 +234,7 @@ impl SponsoredCallOp {
         })
     }
 
-    async fn message_delivered(&self) -> Result<bool, ChainCommunicationError> {
+    async fn message_delivered(&self) -> ChainResult<bool> {
         self.mailbox.delivered(self.message.message.id()).await
     }
 

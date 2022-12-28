@@ -2,8 +2,13 @@
 pragma solidity >=0.8.0;
 
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
+import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 
-contract TestRecipient is IMessageRecipient {
+contract TestRecipient is
+    IMessageRecipient,
+    ISpecifiesInterchainSecurityModule
+{
+    IInterchainSecurityModule public interchainSecurityModule;
     bytes32 public lastSender;
     bytes public lastData;
 
@@ -17,6 +22,10 @@ contract TestRecipient is IMessageRecipient {
     );
 
     event ReceivedCall(address indexed caller, uint256 amount, string message);
+
+    function setInterchainSecurityModule(address _ism) external {
+        interchainSecurityModule = IInterchainSecurityModule(_ism);
+    }
 
     function handle(
         uint32 _origin,

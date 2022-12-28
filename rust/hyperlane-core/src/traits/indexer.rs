@@ -2,30 +2,25 @@
 //! event-data to another entity (e.g. a `ContractSync`). For example, the only
 //! way to retrieve data such as the chain's latest block number or a list of
 //! checkpoints/messages emitted within a certain block range by calling out to
-//! a chain-specific library and provider (e.g. ethers::provider). A
-//! chain-specific mailbox or inbox should implement one or both of the Indexer
-//! traits (CommonIndexer or MailboxIndexer) to provide an common interface
-//! which other entities can retrieve this chain-specific info.
+//! a chain-specific library and provider (e.g. ethers::provider).
 
 use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use ethers::types::H256;
-use eyre::Result;
 
-use crate::{HyperlaneMessage, InterchainGasPaymentWithMeta, LogMeta};
+use crate::{ChainResult, HyperlaneMessage, InterchainGasPaymentWithMeta, LogMeta, H256};
 
 /// Interface for an indexer.
 #[async_trait]
 #[auto_impl(Box, Arc)]
 pub trait Indexer: Send + Sync + Debug {
     /// Get the chain's latest block number that has reached finality
-    async fn get_finalized_block_number(&self) -> Result<u32>;
+    async fn get_finalized_block_number(&self) -> ChainResult<u32>;
 }
 
 /// Interface for Mailbox contract indexer. Interface for allowing other
-/// entities to retrieve chain-specific data from an mailbox.
+/// entities to retrieve chain-specific data from a mailbox.
 #[async_trait]
 #[auto_impl(Box, Arc)]
 pub trait MailboxIndexer: Indexer {
@@ -35,10 +30,14 @@ pub trait MailboxIndexer: Indexer {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<(HyperlaneMessage, LogMeta)>>;
+    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>>;
 
     /// Fetch a list of delivered message IDs between blocks `from` and `to`.
-    async fn fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>>;
+    async fn fetch_delivered_messages(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> ChainResult<Vec<(H256, LogMeta)>>;
 }
 
 /// Interface for InterchainGasPaymaster contract indexer.
@@ -51,5 +50,5 @@ pub trait InterchainGasPaymasterIndexer: Indexer {
         &self,
         from_block: u32,
         to_block: u32,
-    ) -> Result<Vec<InterchainGasPaymentWithMeta>>;
+    ) -> ChainResult<Vec<InterchainGasPaymentWithMeta>>;
 }

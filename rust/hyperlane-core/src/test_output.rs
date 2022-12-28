@@ -1,27 +1,22 @@
-use crate::{
-    accumulator::{
-        merkle::{merkle_root_from_branch, MerkleTree},
-        TREE_DEPTH,
-    },
-    test_utils::find_vector,
-    utils::domain_hash,
-    Checkpoint, HyperlaneMessage,
-};
-use ethers::{
-    core::types::{H160, H256},
-    signers::Signer,
-};
-use hex::FromHex;
-
-use serde_json::{json, Value};
-use std::{fs::OpenOptions, io::Write};
-
 /// Test functions that output json files
 #[cfg(feature = "output")]
 pub mod output_functions {
-    use std::str::FromStr;
 
-    use super::*;
+    use std::{fs::OpenOptions, io::Write, str::FromStr};
+
+    use ethers::signers::Signer;
+    use hex::FromHex;
+    use serde_json::{json, Value};
+
+    use crate::{
+        accumulator::{
+            merkle::{merkle_root_from_branch, MerkleTree},
+            TREE_DEPTH,
+        },
+        test_utils::find_vector,
+        utils::domain_hash,
+        Checkpoint, HyperlaneMessage, H160, H256,
+    };
 
     /// Output proof to /vector/message.json
     pub fn output_message() {
@@ -108,7 +103,7 @@ pub mod output_functions {
                 json!({
                     "domain": i,
                     "mailbox": mailbox,
-                    "expectedDomainHash": domain_hash(mailbox, i)
+                    "expectedDomainHash": domain_hash(mailbox, i as u32)
                 })
             })
             .collect();

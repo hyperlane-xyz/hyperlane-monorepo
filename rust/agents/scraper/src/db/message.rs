@@ -1,11 +1,10 @@
-use ethers::prelude::H256;
 use eyre::Result;
 use sea_orm::{
     prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QueryOrder, QuerySelect,
 };
 use tracing::{instrument, trace};
 
-use hyperlane_core::{HyperlaneMessage, LogMeta};
+use hyperlane_core::{HyperlaneMessage, LogMeta, H256};
 use migration::OnConflict;
 
 use crate::conversions::format_h256;
@@ -55,7 +54,7 @@ impl ScraperDb {
             .map(|idx| idx as u32))
     }
 
-    /// Store deliveries from an inbox into the database (or update an existing
+    /// Store deliveries from a mailbox into the database (or update an existing
     /// one).
     #[instrument(skip_all)]
     pub async fn store_deliveries(
@@ -96,7 +95,7 @@ impl ScraperDb {
         Ok(())
     }
 
-    /// Store messages from an outbox into the database (or update an existing
+    /// Store messages from a mailbox into the database (or update an existing
     /// one).
     #[instrument(skip_all)]
     pub async fn store_messages(

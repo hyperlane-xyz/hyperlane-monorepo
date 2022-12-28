@@ -1,12 +1,13 @@
+use lazy_static::lazy_static;
+use sha3::{Digest, Keccak256};
+
+use crate::H256;
+
 /// A lightweight incremental merkle, suitable for running on-chain. Stores O
 /// (1) data
 pub mod incremental;
 /// A full incremental merkle. Suitable for running off-chain.
 pub mod merkle;
-
-use ethers::core::types::H256;
-use lazy_static::lazy_static;
-use sha3::{Digest, Keccak256};
 
 /// Tree depth
 pub const TREE_DEPTH: usize = 32;
@@ -39,6 +40,7 @@ lazy_static! {
 #[cfg(test)]
 mod test {
     use super::*;
+
     #[test]
     fn it_calculates_the_initial_root() {
         assert_eq!(

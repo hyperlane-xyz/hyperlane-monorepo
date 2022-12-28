@@ -1,5 +1,9 @@
 # Hyperlane
 
+## Versioning
+
+Note this is the branch for Hyperlane v2. At the moment, v2 is not deployed. If you are looking for code relating to the existing deployments of the `testnet2` or `mainnet` environments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
+
 ## Overview
 
 Hyperlane is an interchain messaging protocol that allows applications to communicate between blockchains.
@@ -71,9 +75,9 @@ First, increment the version to the desired value:
 
 ```bash
 # An example of a prerelease version
-yarn version:prepare 0.5.0-beta0
-# Or for a release which increments the minor version
-yarn version:prepare minor
+yarn version:prepare 1.1.0-beta0
+# Or a release version
+yarn version:prepare 1.1.0
 ```
 
 Next, ensure packages are cleaned and rebuilt:
@@ -87,4 +91,6 @@ Finally, publish the packages to NPM
 ```bash
 # Note: If you have not yet logged in, first run yarn npm login
 yarn publish:all --otp YOUR_OTP_HERE
+# Or for a pre-release, include the tag
+yarn publish:all --otp YOUR_OTP_HERE --tag beta
 ```

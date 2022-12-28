@@ -2,16 +2,13 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use ethers::types::{H160, U256};
-use eyre::Result;
 
 use crate::{
-    accumulator::merkle::Proof, traits::ChainCommunicationError, HyperlaneContract,
-    MultisigSignedCheckpoint,
+    accumulator::merkle::Proof, ChainResult, HyperlaneContract, MultisigSignedCheckpoint, H160,
 };
 
-/// Interface for the MultisigIsm chain contract. Allows abstraction over different
-/// chains
+/// Interface for the MultisigIsm chain contract. Allows abstraction over
+/// different chains
 #[async_trait]
 #[auto_impl(Box, Arc)]
 pub trait MultisigIsm: HyperlaneContract + Send + Sync + Debug {
@@ -20,11 +17,11 @@ pub trait MultisigIsm: HyperlaneContract + Send + Sync + Debug {
         &self,
         checkpoint: &MultisigSignedCheckpoint,
         proof: Proof,
-    ) -> Result<Vec<u8>, ChainCommunicationError>;
+    ) -> ChainResult<Vec<u8>>;
 
     /// Fetch the threshold for the provided domain
-    async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError>;
+    async fn threshold(&self, domain: u32) -> ChainResult<u8>;
 
     /// Fetch the validators for the provided domain
-    async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError>;
+    async fn validators(&self, domain: u32) -> ChainResult<Vec<H160>>;
 }

@@ -1,138 +1,114 @@
 {
   "alfajores": {
-    "upgradeBeaconController": "0x7256A4D01Fc8C3DdAf6415cbb48a5a5464d1E034",
+    "proxyAdmin": "0x4e4D563e2cBFC35c4BC16003685443Fae2FA702f",
     "interchainGasPaymaster": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x974cC4516FdEE100c8f8f5338C7461DfD544a884",
-      "implementation": "0x945E59Cd57c7E6a3B62997D5876D427f198d32e2",
-      "beacon": "0x350068a409bF7823aeefE674a5963fA4DbbC020C"
+      "kind": "Transparent",
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x4dea8886b520450aD19e35206dDFb951fFcDFb17",
-      "implementation": "0x389bffa5Af799130e7D77D13FA3f1a2A7c2c6324",
-      "beacon": "0x7eDdB0E12909D7713A99CBB1F69475F7D119938C"
+      "kind": "Transparent",
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x39b3cb005C4225B88A8b3a090563e2e763407222"
     },
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "multisigIsm": "0xcF6bA9D5f6101232C065aD3462F365f0D1bD7fb4"
+    "multisigIsm": "0x4D06A1671A2a345B14B15cbD50027979A5D1d8C9"
   },
   "fuji": {
-    "upgradeBeaconController": "0x9d29eA8F9e7a04871C30C9d4C4129F0Fad5ab5a0",
+    "proxyAdmin": "0x13474f85b808034C911B7697dee60B7d8d50ee36",
     "interchainGasPaymaster": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0xe0a9bf21Ddee4a0B0F354b25981924A767C6183E",
-      "implementation": "0x041EbFaE9AD18c2f9bC248832b644c0D2256D3B9",
-      "beacon": "0x900567ec8701D387e62b85fb01A9E22C862779bC"
+      "kind": "Transparent",
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x9BA855357227f62263683A275291f3a923C13903",
-      "implementation": "0xc392687AA3491cb010E0216fb6Caa5Dd7Cbf60b7",
-      "beacon": "0xad442d59B0a83e51DdF4CaBD9Ee39F28852005D8"
+      "kind": "Transparent",
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x3388A1D46337631F3597d50e98930B52eb9E710E"
     },
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "multisigIsm": "0x12Ac803eeD2707D5845e7c5E73BeDf0Dca331555"
+    "multisigIsm": "0xD713Db664509bd057aC2b378F4B65Db468F634A5"
   },
   "mumbai": {
-    "upgradeBeaconController": "0x54bDe7D3b78c05b7A686cc5D1211C30483eeAC45",
+    "proxyAdmin": "0x96b49e136581f8dfF370aDB3015D48465572a318",
     "interchainGasPaymaster": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x0b8978f247fEFae77dE328706fD5895B187BCa95",
-      "implementation": "0xe04777c63989C271dBff3Af3f783B5CF84F40D0A",
-      "beacon": "0x1D15E801F21b5f6ca07c8933D7FE94b29438e405"
+      "kind": "Transparent",
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x2342eb763F3efeFE5A0BA2a21481fD5Ba7f59A90",
-      "implementation": "0x2Ad9aFb9bee28cB96C263c469612078E468A8Fe9",
-      "beacon": "0x9067ebbAf4f28dBDf97b37BC4C7F2b5bF8d54164"
+      "kind": "Transparent",
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x179c2Da65187C2614FbeD3Af8eB3098FEEb0a958"
     },
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "multisigIsm": "0x4E95F7Bf8a4D963C593A25bb6A8C83942211104A"
+    "multisigIsm": "0xd71f1A64659beC0781b2aa21bc7a72F7290F6Bf3"
   },
   "bsctestnet": {
-    "upgradeBeaconController": "0xb10202cA1656A74f793d50EbfcC7F8F78CAab464",
+    "proxyAdmin": "0xfB149BC17dD3FE858fA64D678bA0c706DEac61eE",
     "interchainGasPaymaster": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x81bbe1D62798A9c0ca42F1a41834a6C5E659cAEd",
-      "implementation": "0x95ADDeb18912d6e6A9FbeF8B40cE44eA8cF2566e",
-      "beacon": "0xA68774aCEF2D13c1894295d801Bf0FB5b402D10e"
+      "kind": "Transparent",
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x056d6CAe959B4266291d6BCB3364cdF1Bc8C9814",
-      "implementation": "0xB99Cf0bf4500BB66469bf949e2CB58535846BD1c",
-      "beacon": "0xeCc72e8D4E3404175700DE71dfc3474eEa17a89B"
+      "kind": "Transparent",
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x87891AA323d0c98D9A1F417E9F02219EBc4274CC"
     },
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "multisigIsm": "0xdE0Cbd9A17A99348785DA7625cB44a24b5A337be"
+    "multisigIsm": "0x34add51924C500b4428067E251168807b3f5faED"
   },
   "goerli": {
-    "upgradeBeaconController": "0xB9C0c168917aD137D0B75896ee273c3Ed2420012",
+    "proxyAdmin": "0x8f919348F9C4619A196Acb5e377f49E5E2C0B569",
     "interchainGasPaymaster": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0xaC47a6318AdF660ea24994617B27171e85c6b5BE",
-      "implementation": "0x7e3fb42377ffa28b7B649AE5319d3eB7C2128103",
-      "beacon": "0x3ddeA0c17578242A17042F2cCf1b09fbBE51AFC3"
+      "kind": "Transparent",
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x5D5F9793Bc52CfF1522cDEf7206470717d2bae29",
-      "implementation": "0x7387e72A8F455A2bfb5E211B01d8B6AE2a56c60E",
-      "beacon": "0x20cC3a33C49fa13627303669edf2DcA7F1E76a50"
+      "kind": "Transparent",
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x1ADF2D247E08348D18d77e69D5807a413b92Fe8E"
     },
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "multisigIsm": "0x2a13C3bD245166D1C6515f15fcd1441367FAb675"
+    "multisigIsm": "0x32B34F0D86b275b92e9289d9054Db5Ec32d2CC6C"
   },
   "moonbasealpha": {
-    "upgradeBeaconController": "0x0C16e730090cb681460516428c3b2D1BBCB1b647",
+    "proxyAdmin": "0xEed449c54156163bf50CFf30408975AF43F43115",
     "interchainGasPaymaster": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x1fe349d93078B26C8c7350A401e2B60f100952F5",
-      "implementation": "0x890eB21B76DCB165A1807cBE279f883716eA47D4",
-      "beacon": "0xBA3f3A84F149842529993bc38A7b4cF8131c17c2"
+      "kind": "Transparent",
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x711166cE892CBa0Fc01FdD74cFBE73b027678e15",
-      "implementation": "0x0De2F539569Fb1e2e3C1d233f7A63a18B9A17110",
-      "beacon": "0x111F4f782B47881898755Bd2F67f12876893300E"
+      "kind": "Transparent",
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0xC1081e289564fd20a4a93C00042692E168Fd0378"
     },
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "multisigIsm": "0xD221ffdAa65518BF56c8623e04eA0380CE1BfaE2"
+    "multisigIsm": "0xec8875C7cE0a814A56654618D366641859F32C7A"
   },
   "optimismgoerli": {
-    "upgradeBeaconController": "0x69181Ea49C2F5F7904cEb7299a75620bAd0954FA",
+    "proxyAdmin": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
     "interchainGasPaymaster": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x62A3fC7873AC96fFF1975663Aa41Ab9100cDe2FB",
-      "implementation": "0x15846844baD5E06a98056e6c3F87C0ABB0A40d21",
-      "beacon": "0x5f2fFCF69c58AcA2b521690400756FAe8CC99117"
+      "kind": "Transparent",
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0xd876C01aB40e8cE42Db417fBC79c726d45504dE4",
-      "implementation": "0x14EE2f01907707Ce8d13C4F5DBC40778b5b664e0",
-      "beacon": "0x23cD67A76c99578f77C73A306A29905D63D203b4"
+      "kind": "Transparent",
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x2D076fE2370950044572cB168924B8AffDA26689"
     },
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "multisigIsm": "0xDA7f1997D52a5f442E83948F7529BceAA6e1fda2"
+    "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4"
   },
   "arbitrumgoerli": {
-    "upgradeBeaconController": "0xDA7f1997D52a5f442E83948F7529BceAA6e1fda2",
+    "proxyAdmin": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
     "interchainGasPaymaster": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x0C16e730090cb681460516428c3b2D1BBCB1b647",
-      "implementation": "0xa1C91dd4F3050DE9C4184BD8B4403A0C81D5463C",
-      "beacon": "0x603d9041D636CD3218888F1C6F18A4BfeDcdB7F0"
+      "kind": "Transparent",
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
-      "kind": "UpgradeBeacon",
-      "proxy": "0x957ff8ca77Af405D620e47350327fDA24b83070b",
-      "implementation": "0x11467b49e7BBE3090EC25aF85E172D5ed6F2DA23",
-      "beacon": "0xC60C145f1e1904f9d6483A611BF1416697CCc1FE"
+      "kind": "Transparent",
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x0840f126eD0302B37d7476A303340a92B9eC0c5b"
     },
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "multisigIsm": "0x890eB21B76DCB165A1807cBE279f883716eA47D4"
+    "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4"
   }
 }

@@ -40,14 +40,6 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
-        name: "arbitrumrinkeby",
-        token: "ETH",
-        domain: 421611,
-        chain_id: 421611,
-        is_test_net: true,
-        is_deprecated: true,
-    },
-    RawDomain {
         name: "avalanche",
         token: "AVAX",
         domain: 43114,
@@ -82,7 +74,7 @@ const DOMAINS: &[RawDomain] = &[
     RawDomain {
         name: "ethereum",
         token: "ETH",
-        domain: 0x657468,
+        domain: 1,
         chain_id: 1,
         is_test_net: false,
         is_deprecated: false,
@@ -102,14 +94,6 @@ const DOMAINS: &[RawDomain] = &[
         chain_id: 5,
         is_test_net: true,
         is_deprecated: false,
-    },
-    RawDomain {
-        name: "kovan",
-        token: "ETH",
-        domain: 3000,
-        chain_id: 42,
-        is_test_net: true,
-        is_deprecated: true,
     },
     RawDomain {
         name: "moonbasealpha",
@@ -150,14 +134,6 @@ const DOMAINS: &[RawDomain] = &[
         chain_id: 420,
         is_test_net: true,
         is_deprecated: false,
-    },
-    RawDomain {
-        name: "optimismkovan",
-        token: "ETH",
-        domain: 69,
-        chain_id: 69,
-        is_test_net: true,
-        is_deprecated: true,
     },
     RawDomain {
         name: "polygon",
@@ -242,7 +218,7 @@ impl MigrationTrait for Migration {
             let now = {
                 let sys = time::SystemTime::now();
                 let dur = sys.duration_since(UNIX_EPOCH).unwrap();
-                DateTime::from_timestamp(dur.as_secs() as i64, dur.subsec_nanos())
+                DateTime::from_timestamp_opt(dur.as_secs() as i64, dur.subsec_nanos()).unwrap()
             };
 
             EntityTrait::insert(domain::ActiveModel {

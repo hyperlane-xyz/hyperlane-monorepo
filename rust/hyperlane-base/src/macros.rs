@@ -97,19 +97,13 @@ macro_rules! decl_settings {
                 }
             }
 
-            impl AsRef<hyperlane_base::DomainSettings> for [<$name Settings>] {
-                fn as_ref(&self) -> &hyperlane_base::DomainSettings {
-                    &self.base.chain
+            impl AsRef<hyperlane_base::Settings> for [<$name Settings>] {
+                fn as_ref(&self) -> &hyperlane_base::Settings {
+                    &self.base
                 }
             }
 
-            impl AsRef<hyperlane_base::AgentSettings> for [<$name Settings>] {
-                fn as_ref(&self) -> &hyperlane_base::AgentSettings {
-                    &self.base.app
-                }
-            }
-
-            impl hyperlane_base::NewFromAgentSettings for [<$name Settings>] {
+            impl hyperlane_base::NewFromSettings for [<$name Settings>] {
                 type Error = eyre::Report;
 
                 /// See `load_settings_object` for more information about how settings are loaded.
@@ -122,11 +116,12 @@ macro_rules! decl_settings {
 }
 
 /// Static logic called by the decl_settings! macro. Do not call directly!
+#[doc(hidden)]
 pub fn _new_settings<'de, T: Deserialize<'de>>(name: &str) -> eyre::Result<T> {
-    use crate::settings;
+    use crate::settings::loader::load_settings_object;
     use std::env;
 
-    settings::load_settings_object::<_, &str>(
+    load_settings_object::<T, &str>(
         name,
         Some(&env::var("BASE_CONFIG").unwrap_or_else(|_| "base".into())),
         &[],

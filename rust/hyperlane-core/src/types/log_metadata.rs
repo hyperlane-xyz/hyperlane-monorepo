@@ -1,7 +1,9 @@
 use std::cmp::Ordering;
 
-use ethers::prelude::{LogMeta as EthersLogMeta, H256, U256};
+use ethers::prelude::LogMeta as EthersLogMeta;
 use serde::{Deserialize, Serialize};
+
+use crate::{H256, U256};
 
 /// A close clone of the Ethereum `LogMeta`, this is designed to be a more
 /// generic metadata that we can use for other blockchains later. Some changes

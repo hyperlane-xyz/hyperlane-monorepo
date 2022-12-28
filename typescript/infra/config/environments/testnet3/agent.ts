@@ -1,3 +1,5 @@
+import { chainMetadata } from '@hyperlane-xyz/sdk';
+
 import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
 import {
@@ -25,7 +27,7 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
     // TODO: Update to a commit from main
-    tag: 'sha-8088b79',
+    tag: 'sha-7d4208d',
   },
   aws: {
     region: 'us-east-1',
@@ -44,22 +46,22 @@ export const hyperlane: AgentConfig<TestnetChains> = {
     },
     chainOverrides: {
       alfajores: {
-        reorgPeriod: 0,
+        reorgPeriod: chainMetadata.alfajores.blocks.reorgPeriod,
       },
       fuji: {
-        reorgPeriod: 3,
+        reorgPeriod: chainMetadata.fuji.blocks.reorgPeriod,
       },
       mumbai: {
-        reorgPeriod: 32,
+        reorgPeriod: chainMetadata.mumbai.blocks.reorgPeriod,
       },
       bsctestnet: {
-        reorgPeriod: 9,
+        reorgPeriod: chainMetadata.bsctestnet.blocks.reorgPeriod,
       },
       goerli: {
-        reorgPeriod: 3,
+        reorgPeriod: chainMetadata.goerli.blocks.reorgPeriod,
       },
       moonbasealpha: {
-        reorgPeriod: 0,
+        reorgPeriod: chainMetadata.moonbasealpha.blocks.reorgPeriod,
       },
     },
   },

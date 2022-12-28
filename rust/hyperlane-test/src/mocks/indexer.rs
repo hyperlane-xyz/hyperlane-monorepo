@@ -1,17 +1,15 @@
 #![allow(non_snake_case)]
 
 use async_trait::async_trait;
-use ethers::types::H256;
-use eyre::Result;
 use mockall::*;
 
-use hyperlane_core::{Indexer, MailboxIndexer, *};
+use hyperlane_core::{ChainResult, HyperlaneMessage, Indexer, LogMeta, MailboxIndexer, H256};
 
 mock! {
     pub Indexer {
-        pub fn _get_finalized_block_number(&self) -> Result<u32> {}
+        pub fn _get_finalized_block_number(&self) -> ChainResult<u32> {}
 
-        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(HyperlaneMessage, LogMeta)>> {}
+        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {}
     }
 }
 
@@ -23,10 +21,9 @@ impl std::fmt::Debug for MockIndexer {
 
 mock! {
     pub HyperlaneIndexer {
-        pub fn _get_finalized_block_number(&self) -> Result<u32> {}
-
-        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<(HyperlaneMessage, LogMeta)>> {}
-        pub fn _fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>> {}
+        pub fn _get_finalized_block_number(&self) -> ChainResult<u32> {}
+        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {}
+        pub fn _fetch_delivered_messages(&self, from: u32, to: u32) -> ChainResult<Vec<(H256, LogMeta)>> {}
     }
 }
 
@@ -38,7 +35,7 @@ impl std::fmt::Debug for MockHyperlaneIndexer {
 
 #[async_trait]
 impl Indexer for MockHyperlaneIndexer {
-    async fn get_finalized_block_number(&self) -> Result<u32> {
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self._get_finalized_block_number()
     }
 }
@@ -49,11 +46,15 @@ impl MailboxIndexer for MockHyperlaneIndexer {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<(HyperlaneMessage, LogMeta)>> {
+    ) -> ChainResult<Vec<(HyperlaneMessage, LogMeta)>> {
         self._fetch_sorted_messages(from, to)
     }
 
-    async fn fetch_delivered_messages(&self, from: u32, to: u32) -> Result<Vec<(H256, LogMeta)>> {
+    async fn fetch_delivered_messages(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> ChainResult<Vec<(H256, LogMeta)>> {
         self._fetch_delivered_messages(from, to)
     }
 }

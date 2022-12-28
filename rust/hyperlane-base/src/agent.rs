@@ -4,14 +4,13 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
-use hyperlane_core::MultisigIsm;
+use hyperlane_core::{HyperlaneDomain, MultisigIsm};
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
 use hyperlane_core::db::DB;
 
-use crate::AgentSettings;
 use crate::{
     cancel_task, metrics::CoreMetrics, settings::Settings, CachingInterchainGasPaymaster,
     CachingMailbox,
@@ -21,11 +20,11 @@ use crate::{
 #[derive(Debug)]
 pub struct HyperlaneAgentCore {
     /// A map of mailbox contracts by chain name
-    pub mailboxes: HashMap<String, CachingMailbox>,
+    pub mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
     /// A map of interchain gas paymaster contracts by chain name
-    pub interchain_gas_paymasters: HashMap<String, CachingInterchainGasPaymaster>,
+    pub interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
     /// A map of interchain gas paymaster contracts by chain name
-    pub multisig_isms: HashMap<String, Arc<dyn MultisigIsm>>,
+    pub multisig_isms: HashMap<HyperlaneDomain, Arc<dyn MultisigIsm>>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -35,7 +34,7 @@ pub struct HyperlaneAgentCore {
 }
 
 /// Settings of an agent.
-pub trait NewFromAgentSettings: AsRef<AgentSettings> + Sized {
+pub trait NewFromSettings: AsRef<Settings> + Sized {
     /// The error type returned by new on failures to parse.
     type Error: Into<Report>;
 
@@ -52,7 +51,7 @@ pub trait BaseAgent: Send + Sync + Debug {
     const AGENT_NAME: &'static str;
 
     /// The settings object for this agent
-    type Settings: NewFromAgentSettings;
+    type Settings: NewFromSettings;
 
     /// Instantiate the agent from the standard settings object
     async fn from_settings(settings: Self::Settings, metrics: Arc<CoreMetrics>) -> Result<Self>
@@ -74,13 +73,16 @@ pub trait Agent: BaseAgent {
     fn db(&self) -> &DB;
 
     /// Return a reference to a Mailbox contract
-    fn mailbox(&self, chain_name: &str) -> Option<&CachingMailbox>;
+    fn mailbox(&self, domain: &HyperlaneDomain) -> Option<&CachingMailbox>;
 
     /// Return a reference to an InterchainGasPaymaster contract
-    fn interchain_gas_paymaster(&self, chain_name: &str) -> Option<&CachingInterchainGasPaymaster>;
+    fn interchain_gas_paymaster(
+        &self,
+        domain: &HyperlaneDomain,
+    ) -> Option<&CachingInterchainGasPaymaster>;
 
     /// Return a reference to a Multisig Ism contract
-    fn multisig_ism(&self, chain_name: &str) -> Option<&Arc<dyn MultisigIsm>>;
+    fn multisig_ism(&self, domain: &HyperlaneDomain) -> Option<&Arc<dyn MultisigIsm>>;
 }
 
 #[async_trait]
@@ -92,16 +94,19 @@ where
         &self.as_ref().db
     }
 
-    fn mailbox(&self, chain_name: &str) -> Option<&CachingMailbox> {
-        self.as_ref().mailboxes.get(chain_name)
+    fn mailbox(&self, domain: &HyperlaneDomain) -> Option<&CachingMailbox> {
+        self.as_ref().mailboxes.get(domain)
     }
 
-    fn interchain_gas_paymaster(&self, chain_name: &str) -> Option<&CachingInterchainGasPaymaster> {
-        self.as_ref().interchain_gas_paymasters.get(chain_name)
+    fn interchain_gas_paymaster(
+        &self,
+        domain: &HyperlaneDomain,
+    ) -> Option<&CachingInterchainGasPaymaster> {
+        self.as_ref().interchain_gas_paymasters.get(domain)
     }
 
-    fn multisig_ism(&self, chain_name: &str) -> Option<&Arc<dyn MultisigIsm>> {
-        self.as_ref().multisig_isms.get(chain_name)
+    fn multisig_ism(&self, domain: &HyperlaneDomain) -> Option<&Arc<dyn MultisigIsm>> {
+        self.as_ref().multisig_isms.get(domain)
     }
 }
 
@@ -115,9 +120,9 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     color_eyre::install()?;
 
     let settings = A::Settings::new().map_err(|e| e.into())?;
-    let core_settings: &AgentSettings = settings.as_ref();
+    let core_settings: &Settings = settings.as_ref();
 
-    let metrics = settings.as_ref().try_into_metrics(A::AGENT_NAME)?;
+    let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
     core_settings.tracing.start_tracing(&metrics)?;
     let agent = A::from_settings(settings, metrics.clone()).await?;
     let _ = metrics.run_http_server();

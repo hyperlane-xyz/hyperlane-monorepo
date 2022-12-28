@@ -23,7 +23,7 @@ export class BaseValidator {
 
   message(root: HexString, index: number) {
     return ethers.utils.solidityPack(
-      ['bytes32', 'bytes32', 'uint256'],
+      ['bytes32', 'bytes32', 'uint32'],
       [this.domainHash(), root, index],
     );
   }

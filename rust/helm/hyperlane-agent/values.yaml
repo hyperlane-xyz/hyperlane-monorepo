@@ -76,7 +76,7 @@ hyperlane:
     resources:
       requests:
         cpu: 100m
-        memory: 250m
+        memory: 256Mi
     # -- Transaction Signing keys for home and replica(s)
     signer: {}
     # -- How long to wait between checking for updates
@@ -100,7 +100,7 @@ hyperlane:
     resources:
       requests:
         cpu: 250m
-        memory: 1Gi
+        memory: 256Mi
     signers:
       - name: 'kovan'
         # aws:
@@ -112,6 +112,24 @@ hyperlane:
       multisigCheckpointSyncer:
         threshold:
         checkpointSyncers:
+
+  scraper:
+    enabled: false
+    podAnnotations:
+      prometheus.io/port: '9090'
+      prometheus.io/scrape: 'true'
+    podLabels: { }
+    storage:
+      size: 10Mi
+      snapshot:
+        enabled: false
+        name: ''
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    signers:
+    config:
 
   kathy:
     enabled: false

@@ -19,7 +19,11 @@ async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment) as any;
   const multiProvider = await config.getMultiProvider();
-  const deployer = new HyperlaneCoreInfraDeployer(multiProvider, config.core);
+  const deployer = new HyperlaneCoreInfraDeployer(
+    multiProvider,
+    config.core,
+    environment,
+  );
 
   let previousContracts = {};
   previousAddressParsing: try {
@@ -60,7 +64,7 @@ async function main() {
       deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
     );
   }
-  deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
+  deployer.writeRustConfigs(getCoreRustDirectory(environment));
 }
 
 main().then(console.log).catch(console.error);

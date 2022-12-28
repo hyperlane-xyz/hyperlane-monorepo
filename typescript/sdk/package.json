@@ -1,12 +1,12 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "0.5.3",
+  "version": "1.0.0-beta3",
   "dependencies": {
     "@hyperlane-xyz/celo-ethers-provider": "^0.1.1",
-    "@hyperlane-xyz/core": "0.5.3",
-    "@hyperlane-xyz/utils": "0.5.3",
-    "@types/debug": "^4.1.7",
+    "@hyperlane-xyz/core": "1.0.0-beta3",
+    "@hyperlane-xyz/utils": "1.0.0-beta3",
+    "@wagmi/chains": "^0.1.3",
     "coingecko-api": "^1.0.10",
     "cross-fetch": "^3.1.5",
     "debug": "^4.3.4",
@@ -16,6 +16,7 @@
     "@nomiclabs/hardhat-ethers": "^2.2.1",
     "@nomiclabs/hardhat-waffle": "^2.0.3",
     "@types/coingecko-api": "^1.0.10",
+    "@types/debug": "^4.1.7",
     "@types/node": "^16.9.1",
     "chai": "^4.3.6",
     "dotenv": "^10.0.0",
@@ -29,7 +30,8 @@
     "typescript": "^4.7.2"
   },
   "files": [
-    "/dist"
+    "/dist",
+    "/logos"
   ],
   "homepage": "https://www.hyperlane.xyz",
   "keywords": [
@@ -50,5 +52,6 @@
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts'",
     "test:hardhat": "hardhat test ./src/**/*.hardhat-test.ts"
   },
-  "types": "dist/index.d.ts"
+  "types": "dist/index.d.ts",
+  "stableVersion": "1.0.0-beta2"
 }

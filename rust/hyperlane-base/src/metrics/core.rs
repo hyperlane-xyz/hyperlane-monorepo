@@ -18,12 +18,6 @@ use ethers_prometheus::middleware::MiddlewareMetrics;
 use crate::metrics::json_rpc_client::create_json_rpc_client_metrics;
 use crate::metrics::provider::create_provider_metrics;
 
-/// Recommended default histogram buckets for network communication.
-pub const NETWORK_HISTOGRAM_BUCKETS: &[f64] = &[0.005, 0.01, 0.05, 0.1, 0.5, 1., 5., 10.];
-/// Recommended default histogram buckets for internal process logic.
-pub const PROCESS_HISTOGRAM_BUCKETS: &[f64] = &[
-    0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1., 5., 10.,
-];
 /// Macro to prefix a string with the namespace.
 macro_rules! namespaced {
     ($name:expr) => {
@@ -39,16 +33,15 @@ pub struct CoreMetrics {
     listen_port: Option<u16>,
     agent_name: String,
 
-    span_durations: HistogramVec,
+    span_durations: CounterVec,
+    span_counts: IntCounterVec,
     span_events: IntCounterVec,
     last_known_message_nonce: IntGaugeVec,
     validator_checkpoint_index: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
-    submitter_queue_duration_histogram: HistogramVec,
 
     messages_processed_count: IntCounterVec,
 
-    outbox_state: IntGaugeVec,
     latest_checkpoint: IntGaugeVec,
 
     /// Set of metrics that tightly wrap the JsonRpcClient for use with the
@@ -80,12 +73,21 @@ impl CoreMetrics {
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect::<HashMap<_, _>>();
 
-        let span_durations = register_histogram_vec_with_registry!(
-            histogram_opts!(
+        let span_durations = register_counter_vec_with_registry!(
+            opts!(
                 namespaced!("span_duration_seconds"),
                 "Duration from tracing span creation to span destruction",
-                PROCESS_HISTOGRAM_BUCKETS.into(),
-                const_labels.clone()
+                const_labels_ref
+            ),
+            &["span_name", "span_target"],
+            registry
+        )?;
+
+        let span_counts = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("span_count"),
+                "Number of times a span was exited",
+                const_labels_ref
             ),
             &["span_name", "span_target"],
             registry
@@ -131,35 +133,10 @@ impl CoreMetrics {
             registry
         )?;
 
-        let submitter_queue_duration_histogram = register_histogram_vec_with_registry!(
-            histogram_opts!(
-                namespaced!("submitter_queue_duration_seconds"),
-                concat!(
-                    "Time a message spends queued in the serial submitter measured from ",
-                    "insertion into channel from processor, ending after successful delivery ",
-                    "to provider."
-                ),
-                prometheus::exponential_buckets(0.5, 2., 19).unwrap(),
-                const_labels.clone()
-            ),
-            &["origin", "remote"],
-            registry
-        )?;
-
-        let outbox_state = register_int_gauge_vec_with_registry!(
-            opts!(
-                namespaced!("outbox_state"),
-                "Outbox contract state value",
-                const_labels_ref
-            ),
-            &["chain"],
-            registry
-        )?;
-
         let latest_checkpoint = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("latest_checkpoint"),
-                "Outbox latest checkpoint",
+                "Mailbox latest checkpoint",
                 const_labels_ref
             ),
             &["phase", "chain"],
@@ -183,16 +160,15 @@ impl CoreMetrics {
             const_labels,
 
             span_durations,
+            span_counts,
             span_events,
             last_known_message_nonce,
             validator_checkpoint_index,
 
             submitter_queue_length,
-            submitter_queue_duration_histogram,
 
             messages_processed_count,
 
-            outbox_state,
             latest_checkpoint,
 
             json_rpc_client_metrics: OnceCell::new(),
@@ -305,7 +281,7 @@ impl CoreMetrics {
     ///   the nonces are contiguous by origin not remote.
     ///
     /// The following phases are implemented:
-    /// - `dispatch`: Highest nonce which has been indexed on the outbox
+    /// - `dispatch`: Highest nonce which has been indexed on the mailbox
     ///   contract syncer and stored in the relayer DB.
     /// - `signed_offchain_checkpoint`: Highest nonce of a checkpoint which is
     ///   known to have been signed by a quorum of validators.
@@ -325,21 +301,11 @@ impl CoreMetrics {
         self.validator_checkpoint_index.clone()
     }
 
-    /// Gauge for reporting the current outbox state. This is either 0 (for
-    /// UnInitialized), 1 (for Active), or 2 (for Failed). These are from the
-    /// outbox contract States enum.
-    ///
-    /// Labels:
-    /// - `chain`: The chain the outbox is for.
-    pub fn outbox_state(&self) -> IntGaugeVec {
-        self.outbox_state.clone()
-    }
-
     /// Latest message nonce in the validator.
     ///
     /// Phase:
     /// - `validator_observed`: When the validator has observed the checkpoint
-    ///   on the outbox contract.
+    ///   on the mailbox contract.
     /// - `validator_processed`: When the validator has written this checkpoint.
     pub fn latest_checkpoint(&self) -> IntGaugeVec {
         self.latest_checkpoint.clone()
@@ -353,18 +319,6 @@ impl CoreMetrics {
     /// - `queue_name`: Which queue the message is in.
     pub fn submitter_queue_length(&self) -> IntGaugeVec {
         self.submitter_queue_length.clone()
-    }
-
-    /// Time a message spends queued in the serial submitter measured from
-    /// the moment the message was discovered as "sendable" from HyperlaneDB and
-    /// being enqueued and being enqueued with the relevant `submitter` ending
-    /// on message processing success.
-    ///
-    /// Labels:
-    /// - `origin`: Origin chain the messages are being sent from.
-    /// - `remote`: Remote chain the messages are being sent to.
-    pub fn submitter_queue_duration_histogram(&self) -> HistogramVec {
-        self.submitter_queue_duration_histogram.clone()
     }
 
     /// The number of messages successfully submitted by this process during its
@@ -384,14 +338,24 @@ impl CoreMetrics {
         self.messages_processed_count.clone()
     }
 
-    /// Histogram for measuring span durations provided by tracing.
+    /// Measure of span durations provided by tracing.
     ///
     /// Labels:
     /// - `span_name`: name of the span. e.g. the function name.
     /// - `span_target`: a string that categorizes part of the system where the
     ///   span or event occurred. e.g. module path.
-    pub fn span_duration(&self) -> HistogramVec {
+    pub fn span_duration_seconds(&self) -> CounterVec {
         self.span_durations.clone()
+    }
+
+    /// Measure of measuring how many given times a span was exited.
+    ///
+    /// Labels:
+    /// - `span_name`: name of the span. e.g. the function name.
+    /// - `span_target`: a string that categorizes part of the system where the
+    ///   span or event occurred. e.g. module path.
+    pub fn span_count(&self) -> IntCounterVec {
+        self.span_counts.clone()
     }
 
     /// Counts of tracing (logging framework) span events.

@@ -1,0 +1,12 @@
+[package]
+name = "hyperlane-fuel"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+fuels = "0.31"
+hyperlane-core = { path = "../../hyperlane-core" }
+async-trait = { version = "0.1", default-features = false }
+thiserror = "1.0"

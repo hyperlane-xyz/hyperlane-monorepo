@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities for the Hyperlane network",
-  "version": "0.5.3",
+  "version": "1.0.0-beta3",
   "dependencies": {
     "ethers": "^5.7.2"
   },
@@ -29,5 +29,6 @@
   "types": "dist/index.d.ts",
   "files": [
     "/dist"
-  ]
+  ],
+  "stableVersion": "1.0.0-beta2"
 }

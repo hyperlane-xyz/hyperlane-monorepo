@@ -4,10 +4,10 @@ import { ethers } from 'ethers';
 import {
   Create2Factory__factory,
   Ownable,
-  UpgradeBeaconProxy__factory,
-  UpgradeBeacon__factory,
+  ProxyAdmin,
+  TransparentUpgradeableProxy,
+  TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import type { types } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneContract,
@@ -17,7 +17,11 @@ import {
   serializeContracts,
 } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import { BeaconProxyAddresses, ProxiedContract, ProxyKind } from '../proxy';
+import {
+  ProxiedContract,
+  ProxyKind,
+  TransparentProxyAddresses,
+} from '../proxy';
 import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 
@@ -112,10 +116,12 @@ export abstract class HyperlaneDeployer<
     const dc = this.multiProvider.getChainConnection(chain);
     const address = await dc.signer!.getAddress();
     const owner = await ownable.owner();
-    this.logger({ owner });
-    this.logger({ signer: address });
+    const logObj = { owner, signer: address };
     if (address === owner) {
+      this.logger('Owner and signer are equal, proceeding', logObj);
       return fn();
+    } else {
+      this.logger('Owner and signer NOT equal, skipping', logObj);
     }
   }
 
@@ -123,7 +129,7 @@ export abstract class HyperlaneDeployer<
     chain: Chain,
     factory: F,
     contractName: string,
-    args: Parameters<F['deploy']>,
+    constructorArgs: Parameters<F['deploy']>,
     deployOpts?: DeployOptions,
   ): Promise<ReturnType<F['deploy']>> {
     const cachedContract = this.deployedContracts[chain]?.[contractName];
@@ -145,9 +151,6 @@ export abstract class HyperlaneDeployer<
       deployOpts.create2Salt &&
       (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
     ) {
-      if (args.length > 0) {
-        throw new Error("Can't use CREATE2 with deployment args");
-      }
       this.logger(`Deploying with CREATE2 factory`);
 
       const create2Factory = Create2Factory__factory.connect(
@@ -157,31 +160,44 @@ export abstract class HyperlaneDeployer<
       const salt = ethers.utils.keccak256(
         ethers.utils.hexlify(ethers.utils.toUtf8Bytes(deployOpts.create2Salt)),
       );
+      const encodedConstructorArgs =
+        factory.interface.encodeDeploy(constructorArgs);
+      const bytecode = ethers.utils.hexlify(
+        ethers.utils.concat([factory.bytecode, encodedConstructorArgs]),
+      );
+
+      // TODO: Maybe recover deployed contracts?
       const contractAddr = await create2Factory.deployedAddress(
-        factory.bytecode,
+        bytecode,
         await signer.getAddress(),
         salt,
       );
 
-      const deployTx = deployOpts.initCalldata
-        ? await create2Factory.deployAndInit(
-            factory.bytecode,
-            salt,
-            deployOpts.initCalldata,
-            chainConnection.overrides,
-          )
-        : await create2Factory.deploy(
-            factory.bytecode,
-            salt,
-            chainConnection.overrides,
-          );
-      await chainConnection.handleTx(deployTx);
+      if ((await chainConnection.provider.getCode(contractAddr)) === '0x') {
+        const deployTx = deployOpts.initCalldata
+          ? await create2Factory.deployAndInit(
+              bytecode,
+              salt,
+              deployOpts.initCalldata,
+              chainConnection.overrides,
+            )
+          : await create2Factory.deploy(
+              bytecode,
+              salt,
+              chainConnection.overrides,
+            );
+        await chainConnection.handleTx(deployTx);
+      } else {
+        this.logger(
+          `Found contract deployed at CREATE2 address, skipping contract deploy`,
+        );
+      }
 
       this.verificationInputs[chain].push({
         name: contractName,
         address: contractAddr,
         isProxy: false,
-        constructorArguments: '',
+        constructorArguments: encodedConstructorArgs,
       });
 
       return factory.attach(contractAddr).connect(signer) as ReturnType<
@@ -190,7 +206,7 @@ export abstract class HyperlaneDeployer<
     } else {
       const contract = await factory
         .connect(signer)
-        .deploy(...args, chainConnection.overrides);
+        .deploy(...constructorArgs, chainConnection.overrides);
 
       await chainConnection.handleTx(contract.deployTransaction);
 
@@ -234,31 +250,77 @@ export abstract class HyperlaneDeployer<
   protected async deployProxy<C extends ethers.Contract>(
     chain: Chain,
     implementation: C,
-    beaconAddress: string,
+    proxyAdmin: ProxyAdmin,
     initArgs: Parameters<C['initialize']>,
-  ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
+    deployOpts?: DeployOptions,
+  ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
       initArgs,
     );
-    const deployArgs: Parameters<UpgradeBeaconProxy__factory['deploy']> = [
-      beaconAddress,
-      initData,
-    ];
-    const beaconProxy = await this.deployContractFromFactory(
-      chain,
-      new UpgradeBeaconProxy__factory(),
-      'UpgradeBeaconProxy',
-      deployArgs,
-    );
+    let proxy: TransparentUpgradeableProxy;
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    this.logger(`Deploying transparent upgradable proxy`);
+    if (
+      deployOpts &&
+      deployOpts.create2Salt &&
+      (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
+    ) {
+      // To get consistent addresses with Create2, we need to use
+      // consistent constructor arguments.
+      // The three constructor arguments we need to configure are:
+      // 1. Proxy implementation: This will start as the Create2Factory
+      //    address, as it needs to be a contract address.
+      //    After we've taken over as the proxy admin, we will set it
+      //    to the proper address.
+      // 2. Proxy admin: This will start as the Create2Factory contract
+      //    address. We will change this to the proper address atomically.
+      // 3. Initialization data: This will start as null, and we will
+      //    initialize our proxied contract manually.
+      const constructorArgs: Parameters<
+        TransparentUpgradeableProxy__factory['deploy']
+      > = [CREATE2FACTORY_ADDRESS, CREATE2FACTORY_ADDRESS, '0x'];
+      // We set the initCallData to atomically change admin to the proxyAdmin
+      // contract.
+      const initCalldata =
+        new TransparentUpgradeableProxy__factory().interface.encodeFunctionData(
+          'changeAdmin',
+          [proxyAdmin.address],
+        );
+      proxy = await this.deployContractFromFactory(
+        chain,
+        new TransparentUpgradeableProxy__factory(),
+        'TransparentUpgradableProxy',
+        constructorArgs,
+        { ...deployOpts, initCalldata },
+      );
+      this.logger(`Upgrading and initializing transparent upgradable proxy`);
+      // We now have a deployed proxy admin'd by ProxyAdmin.
+      // Upgrade its implementation and initialize it
+      await proxyAdmin.upgradeAndCall(
+        proxy.address,
+        implementation.address,
+        initData,
+        chainConnection.overrides,
+      );
+    } else {
+      const constructorArgs: Parameters<
+        TransparentUpgradeableProxy__factory['deploy']
+      > = [implementation.address, proxyAdmin.address, initData];
+      proxy = await this.deployContractFromFactory(
+        chain,
+        new TransparentUpgradeableProxy__factory(),
+        'TransparentUpgradableProxy',
+        constructorArgs,
+      );
+    }
 
-    return new ProxiedContract<C, BeaconProxyAddresses>(
-      implementation.attach(beaconProxy.address) as C,
+    return new ProxiedContract<C, TransparentProxyAddresses>(
+      implementation.attach(proxy.address) as C,
       {
-        kind: ProxyKind.UpgradeBeacon,
-        proxy: beaconProxy.address,
+        kind: ProxyKind.Transparent,
+        proxy: proxy.address,
         implementation: implementation.address,
-        beacon: beaconAddress,
       },
     );
   }
@@ -276,7 +338,7 @@ export abstract class HyperlaneDeployer<
   }
 
   /**
-   * Deploys the UpgradeBeacon, Implementation and Proxy for a given contract
+   * Deploys the Implementation and Proxy for a given contract
    *
    */
   async deployProxiedContract<
@@ -285,59 +347,33 @@ export abstract class HyperlaneDeployer<
   >(
     chain: Chain,
     contractName: K,
-    deployArgs: Parameters<Factories[K]['deploy']>,
-    ubcAddress: types.Address,
+    constructorArgs: Parameters<Factories[K]['deploy']>,
+    proxyAdmin: ProxyAdmin,
     initArgs: Parameters<C['initialize']>,
-  ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
+    deployOpts?: DeployOptions,
+  ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
     const cachedProxy = this.deployedContracts[chain]?.[contractName as any];
     if (cachedProxy) {
       this.logger(`Recovered proxy ${contractName.toString()} on ${chain}`);
-      return cachedProxy as ProxiedContract<C, BeaconProxyAddresses>;
+      return cachedProxy as ProxiedContract<C, TransparentProxyAddresses>;
     }
 
     const implementation = await this.deployContract<K>(
       chain,
       contractName,
-      deployArgs,
+      constructorArgs,
+      deployOpts,
     );
 
-    this.logger(`Proxy ${contractName.toString()} on ${chain}`);
-    const beaconDeployArgs: Parameters<UpgradeBeacon__factory['deploy']> = [
-      implementation.address,
-      ubcAddress,
-    ];
-    const beacon = await this.deployContractFromFactory(
-      chain,
-      new UpgradeBeacon__factory(),
-      'UpgradeBeacon',
-      beaconDeployArgs,
-    );
     const contract = await this.deployProxy(
       chain,
       implementation as C,
-      beacon.address,
+      proxyAdmin,
       initArgs,
+      deployOpts,
     );
     this.cacheContract(chain, contractName, contract);
     return contract;
-  }
-
-  /**
-   * Sets up a new proxy with the same beacon and implementation
-   *
-   */
-  async duplicateProxiedContract<C extends ethers.Contract>(
-    chain: Chain,
-    proxy: ProxiedContract<C, BeaconProxyAddresses>,
-    initArgs: Parameters<C['initialize']>,
-  ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
-    this.logger(`Duplicate Proxy on ${chain}`);
-    return this.deployProxy(
-      chain,
-      proxy.contract.attach(proxy.addresses.implementation) as C,
-      proxy.addresses.beacon,
-      initArgs,
-    );
   }
 
   mergeWithExistingVerificationInputs(

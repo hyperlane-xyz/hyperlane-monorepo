@@ -8,7 +8,7 @@ use tracing::instrument::Instrumented;
 use tracing::{info_span, trace, Instrument};
 
 use hyperlane_base::{
-    decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, DomainSettings,
+    decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, Settings,
 };
 
 use crate::chain_scraper::{Contracts, SqlChainScraper};
@@ -39,14 +39,14 @@ impl BaseAgent for Scraper {
     where
         Self: Sized,
     {
-        let db = ScraperDb::connect(&settings.app.db).await?;
+        let db = ScraperDb::connect(&settings.db).await?;
 
         let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
         let mut scrapers: HashMap<u32, SqlChainScraper> = HashMap::new();
 
-        for (chain_name, chain_setup) in settings.chain.chains.iter() {
+        for (chain_name, chain_setup) in settings.chains.iter() {
             let ctx = || format!("Loading chain {chain_name}");
-            let local = Self::load_chain(&settings.chain, chain_name, &metrics)
+            let local = Self::load_chain(&settings, chain_name, &metrics)
                 .await
                 .with_context(ctx)?;
             {
@@ -78,7 +78,7 @@ impl BaseAgent for Scraper {
             .scrapers
             .iter()
             .map(|(name, scraper)| {
-                let span = info_span!("ChainContractSync", %name, chain = scraper.chain_name());
+                let span = info_span!("ChainContractSync", %name, chain=%scraper.domain());
                 tokio::spawn(scraper.clone().sync()).instrument(span)
             })
             .collect();
@@ -89,24 +89,24 @@ impl BaseAgent for Scraper {
 
 impl Scraper {
     async fn load_chain(
-        config: &DomainSettings,
+        config: &Settings,
         chain_name: &str,
         metrics: &Arc<CoreMetrics>,
     ) -> eyre::Result<Contracts> {
         let ctx = || format!("Loading chain {chain_name}");
         Ok(Contracts {
             provider: config
-                .try_provider(chain_name, metrics)
+                .build_provider(chain_name, metrics)
                 .await
                 .with_context(ctx)?
                 .into(),
             mailbox: config
-                .try_mailbox(chain_name, metrics)
+                .build_mailbox(chain_name, metrics)
                 .await
                 .with_context(ctx)?
                 .into(),
             indexer: config
-                .try_mailbox_indexer(chain_name, metrics)
+                .build_mailbox_indexer(chain_name, metrics)
                 .await
                 .with_context(ctx)?
                 .into(),

@@ -5,10 +5,10 @@ use std::{
 
 use async_trait::async_trait;
 use coingecko::CoinGeckoClient;
-use ethers::types::U256;
 use eyre::{eyre, Result};
-use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, TxCostEstimate};
 use tokio::{sync::RwLock, time::timeout};
+
+use hyperlane_core::{HyperlaneMessage, KnownHyperlaneDomain, TxCostEstimate, U256};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
@@ -36,19 +36,20 @@ impl<T> From<T> for CachedValue<T> {
 /// If the domain isn't a mainnet (and therefore doesn't have a native
 /// token with a CoinGecko ID), an Err is returned.
 fn hyperlane_domain_id_to_native_token_coingecko_id(domain_id: u32) -> Result<&'static str> {
-    let hyperlane_domain = HyperlaneDomain::try_from(domain_id)?;
+    use KnownHyperlaneDomain::*;
+    let hyperlane_domain = KnownHyperlaneDomain::try_from(domain_id)?;
 
     Ok(match hyperlane_domain {
-        HyperlaneDomain::Ethereum => "ethereum",
-        HyperlaneDomain::Polygon => "matic-network",
-        HyperlaneDomain::Avalanche => "avalanche-2",
+        Ethereum => "ethereum",
+        Polygon => "matic-network",
+        Avalanche => "avalanche-2",
         // Arbitrum's native token is Ethereum
-        HyperlaneDomain::Arbitrum => "ethereum",
+        Arbitrum => "ethereum",
         // Optimism's native token is Ethereum
-        HyperlaneDomain::Optimism => "ethereum",
-        HyperlaneDomain::BinanceSmartChain => "binancecoin",
-        HyperlaneDomain::Celo => "celo",
-        HyperlaneDomain::Moonbeam => "moonbeam",
+        Optimism => "ethereum",
+        BinanceSmartChain => "binancecoin",
+        Celo => "celo",
+        Moonbeam => "moonbeam",
         _ => eyre::bail!("No CoinGecko ID for domain {hyperlane_domain}"),
     })
 }
@@ -101,8 +102,8 @@ impl CoinGeckoCachingPriceGetter {
     }
 
     async fn get_coingecko_usd_price(&self, coingecko_id: &'static str) -> Result<f64> {
-        // Make the API request with a timeout, which can't be configured in the library we're using.
-        // Returns a HashMap keyed by coingecko IDs.
+        // Make the API request with a timeout, which can't be configured in the library
+        // we're using. Returns a HashMap keyed by coingecko IDs.
         let api_response = timeout(
             Duration::from_secs(COINGECKO_API_HTTP_TIMEOUT_SECONDS),
             self.coingecko
@@ -178,7 +179,8 @@ impl GasPaymentPolicyMeetsEstimatedCost {
 
 #[async_trait]
 impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
-    /// Returns (gas payment requirement met, current payment according to the DB)
+    /// Returns (gas payment requirement met, current payment according to the
+    /// DB)
     async fn message_meets_gas_payment_requirement(
         &self,
         message: &HyperlaneMessage,
@@ -227,8 +229,7 @@ fn convert_tokens(amount: U256, from_price: f64, to_price: f64) -> Option<U256> 
 
 #[tokio::test]
 async fn test_gas_payment_policy_meets_estimated_cost() {
-    use ethers::types::H256;
-    use hyperlane_core::HyperlaneMessage;
+    use hyperlane_core::{HyperlaneMessage, H256};
 
     // Using a fake message from Celo -> Polygon, based off
     // hardcoded tx cost estimates and prices, assert that a payment
@@ -237,8 +238,8 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
 
     let celo_price = 5.5f64;
     let polygon_price = 11.0f64;
-    let celo_domain_id = u32::from(HyperlaneDomain::Celo);
-    let polygon_domain_id = u32::from(HyperlaneDomain::Polygon);
+    let celo_domain_id = KnownHyperlaneDomain::Celo as u32;
+    let polygon_domain_id = KnownHyperlaneDomain::Polygon as u32;
 
     // Take advantage of the coingecko_price_getter caching already-stored values
     // by just writing to them directly.
@@ -273,7 +274,7 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
         // 1M gas
         gas_limit: U256::from(1000000u32),
         // 15 gwei
-        gas_price: ethers::utils::parse_units("15", "gwei").unwrap(),
+        gas_price: ethers::utils::parse_units("15", "gwei").unwrap().into(),
     };
 
     // Expected polygon fee: 1M * 15 gwei = 0.015 MATIC
@@ -281,30 +282,20 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
     let required_celo_payment = ethers::utils::parse_ether("0.03").unwrap();
 
     // Any less than 0.03 CELO as payment, return false.
-    assert_eq!(
-        policy
-            .message_meets_gas_payment_requirement(
-                &message,
-                &(required_celo_payment - U256::one()),
-                &tx_cost_estimate,
-            )
-            .await
-            .unwrap(),
-        false,
-    );
+    assert!(!policy
+        .message_meets_gas_payment_requirement(
+            &message,
+            &(required_celo_payment - U256::one()),
+            &tx_cost_estimate,
+        )
+        .await
+        .unwrap());
 
     // If the payment is at least 0.03 CELO, return true.
-    assert_eq!(
-        policy
-            .message_meets_gas_payment_requirement(
-                &message,
-                &required_celo_payment,
-                &tx_cost_estimate,
-            )
-            .await
-            .unwrap(),
-        true,
-    );
+    assert!(policy
+        .message_meets_gas_payment_requirement(&message, &required_celo_payment, &tx_cost_estimate,)
+        .await
+        .unwrap());
 }
 
 #[test]
@@ -380,11 +371,10 @@ fn test_hyperlane_domain_id_to_native_token_coingecko_id() {
 
     // Iterate through all HyperlaneDomains, ensuring all mainnet domains
     // are included in hyperlane_domain_id_to_native_token_coingecko_id.
-    for hyperlane_domain in HyperlaneDomain::iter() {
+    for hyperlane_domain in KnownHyperlaneDomain::iter() {
         if let HyperlaneDomainType::Mainnet = hyperlane_domain.domain_type() {
             assert!(
-                hyperlane_domain_id_to_native_token_coingecko_id(u32::from(hyperlane_domain))
-                    .is_ok()
+                hyperlane_domain_id_to_native_token_coingecko_id(hyperlane_domain as u32).is_ok()
             );
         }
     }

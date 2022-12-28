@@ -1,10 +1,23 @@
 export {
-  AllChains,
   Chains,
+  ChainName,
+  DeprecatedChains,
+  AllChains,
   Mainnets,
   AllDeprecatedChains,
 } from './consts/chains';
-export { chainMetadata } from './consts/chainMetadata';
+export {
+  ChainMetadata,
+  RpcPagination,
+  ExplorerFamily,
+  chainMetadata,
+  chainIdToMetadata,
+  mainnetChainsMetadata,
+  testnetChainsMetadata,
+  wagmiChainMetadata,
+  PartialChainMetadata,
+  partialChainMetadata,
+} from './consts/chainMetadata';
 export {
   chainConnectionConfigs,
   testChainConnectionConfigs,
@@ -16,7 +29,6 @@ export {
 
 export {
   ChainMap,
-  ChainName,
   CompleteChainMap,
   Connection,
   NameOrDomain,
@@ -46,7 +58,11 @@ export {
   TSContract,
 } from './events';
 
-export { BeaconProxyAddresses, ProxiedContract, ProxyAddresses } from './proxy';
+export {
+  TransparentProxyAddresses,
+  ProxiedContract,
+  ProxyAddresses,
+} from './proxy';
 
 export { Router, RouterContracts, RouterFactories } from './router';
 
@@ -99,7 +115,7 @@ export {
   MultisigIsmViolationType,
 } from './deploy/core/types';
 export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
-export { UpgradeBeaconViolation } from './deploy/proxy';
+export { ProxyViolation } from './deploy/proxy';
 export { HyperlaneRouterDeployer } from './deploy/router/HyperlaneRouterDeployer';
 export { HyperlaneRouterChecker } from './deploy/router/HyperlaneRouterChecker';
 export {

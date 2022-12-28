@@ -115,7 +115,7 @@ export function getCommitment(
   validators: types.Address[],
 ): string {
   const packed = ethers.utils.solidityPack(
-    ['uint256', 'address[]'],
+    ['uint8', 'address[]'],
     [threshold, validators],
   );
   return ethers.utils.solidityKeccak256(['bytes'], [packed]);

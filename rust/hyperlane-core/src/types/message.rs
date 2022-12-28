@@ -1,7 +1,6 @@
-use ethers::types::H256;
 use sha3::{Digest, Keccak256};
 
-use crate::{Decode, Encode, HyperlaneError};
+use crate::{Decode, Encode, HyperlaneProtocolError, H256};
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
 
@@ -79,7 +78,7 @@ impl Encode for HyperlaneMessage {
 }
 
 impl Decode for HyperlaneMessage {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneError>
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: std::io::Read,
     {

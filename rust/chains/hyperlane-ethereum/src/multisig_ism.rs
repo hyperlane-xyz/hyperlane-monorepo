@@ -9,19 +9,18 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use ethers::abi::Token;
 use ethers::providers::Middleware;
-use ethers::types::{Selector, H160, H256, U256};
-use eyre::Result;
+use ethers::types::Selector;
 use tokio::sync::RwLock;
 use tracing::instrument;
 
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
-    ChainCommunicationError, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    MultisigIsm, MultisigSignedCheckpoint, SignatureWithSigner,
+    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    MultisigIsm, MultisigSignedCheckpoint, SignatureWithSigner, H160, H256,
 };
 
 use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
-use crate::trait_builder::MakeableWithProvider;
+use crate::trait_builder::BuildableWithProvider;
 
 #[derive(Debug)]
 struct Timestamped<Value> {
@@ -88,10 +87,10 @@ where
 pub struct MultisigIsmBuilder {}
 
 #[async_trait]
-impl MakeableWithProvider for MultisigIsmBuilder {
+impl BuildableWithProvider for MultisigIsmBuilder {
     type Output = Box<dyn MultisigIsm>;
 
-    async fn make_with_provider<M: Middleware + 'static>(
+    async fn build_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,
         locator: &ContractLocator,
@@ -107,12 +106,8 @@ where
     M: Middleware,
 {
     contract: Arc<EthereumMultisigIsmInternal<M>>,
-    #[allow(dead_code)]
-    domain: u32,
-    chain_name: String,
-    #[allow(dead_code)]
-    provider: Arc<M>,
-    threshold_cache: RwLock<ExpiringCache<u32, U256>>,
+    domain: HyperlaneDomain,
+    threshold_cache: RwLock<ExpiringCache<u32, u8>>,
     validators_cache: RwLock<ExpiringCache<u32, Vec<H160>>>,
 }
 
@@ -124,13 +119,8 @@ where
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumMultisigIsmInternal::new(
-                &locator.address,
-                provider.clone(),
-            )),
-            domain: locator.domain,
-            chain_name: locator.chain_name.to_owned(),
-            provider,
+            contract: Arc::new(EthereumMultisigIsmInternal::new(locator.address, provider)),
+            domain: locator.domain.clone(),
             threshold_cache: RwLock::new(ExpiringCache::new(Duration::from_secs(60))),
             validators_cache: RwLock::new(ExpiringCache::new(Duration::from_secs(60))),
         }
@@ -141,12 +131,8 @@ impl<M> HyperlaneChain for EthereumMultisigIsm<M>
 where
     M: Middleware + 'static,
 {
-    fn chain_name(&self) -> &str {
-        &self.chain_name
-    }
-
-    fn domain(&self) -> u32 {
-        self.domain
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
     }
 }
 
@@ -169,24 +155,15 @@ where
         &self,
         checkpoint: &MultisigSignedCheckpoint,
         proof: Proof,
-    ) -> Result<Vec<u8>, ChainCommunicationError> {
-        let threshold = self.threshold(checkpoint.checkpoint.mailbox_domain).await?;
-        let validator_addresses: Vec<H160> = self
-            .validators(checkpoint.checkpoint.mailbox_domain)
-            .await?;
-        let validators: Vec<H256> = validator_addresses.iter().map(|&x| H256::from(x)).collect();
-        let validator_tokens: Vec<Token> = validators
-            .iter()
-            .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
-            .collect();
+    ) -> ChainResult<Vec<u8>> {
+        let root_bytes = checkpoint.checkpoint.root.to_fixed_bytes().into();
+        let index_bytes = checkpoint.checkpoint.index.to_be_bytes().into();
         let proof_tokens: Vec<Token> = proof
             .path
             .iter()
             .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
             .collect();
-        let prefix = ethers::abi::encode(&[
-            Token::FixedBytes(checkpoint.checkpoint.root.to_fixed_bytes().into()),
-            Token::Uint(U256::from(checkpoint.checkpoint.index)),
+        let mailbox_and_proof_bytes = ethers::abi::encode(&[
             Token::FixedBytes(
                 checkpoint
                     .checkpoint
@@ -195,20 +172,42 @@ where
                     .into(),
             ),
             Token::FixedArray(proof_tokens),
-            Token::Uint(threshold),
         ]);
-        let suffix = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
+
+        let threshold = self.threshold(checkpoint.checkpoint.mailbox_domain).await?;
+        let threshold_bytes = threshold.to_be_bytes().into();
+
+        let validator_addresses: Vec<H160> = self
+            .validators(checkpoint.checkpoint.mailbox_domain)
+            .await?;
+
         // The ethers encoder likes to zero-pad non word-aligned byte arrays.
         // Thus, we pack the signatures, which are not word-aligned, ourselves.
         let signature_vecs: Vec<Vec<u8>> =
             order_signatures(&validator_addresses, &checkpoint.signatures);
         let signature_bytes = signature_vecs.concat();
-        let metadata = [prefix, signature_bytes, suffix].concat();
+
+        let validators: Vec<H256> = validator_addresses.iter().map(|&x| H256::from(x)).collect();
+        let validator_tokens: Vec<Token> = validators
+            .iter()
+            .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
+            .collect();
+        let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
+
+        let metadata = [
+            root_bytes,
+            index_bytes,
+            mailbox_and_proof_bytes,
+            threshold_bytes,
+            signature_bytes,
+            validator_bytes,
+        ]
+        .concat();
         Ok(metadata)
     }
 
     #[instrument(err, ret, skip(self))]
-    async fn threshold(&self, domain: u32) -> Result<U256, ChainCommunicationError> {
+    async fn threshold(&self, domain: u32) -> ChainResult<u8> {
         let entry = self.threshold_cache.read().await.get(domain).cloned();
         if let Some(threshold) = entry {
             Ok(threshold)
@@ -220,7 +219,7 @@ where
     }
 
     #[instrument(err, ret, skip(self))]
-    async fn validators(&self, domain: u32) -> Result<Vec<H160>, ChainCommunicationError> {
+    async fn validators(&self, domain: u32) -> ChainResult<Vec<H160>> {
         let entry = self.validators_cache.read().await.get(domain).cloned();
         if let Some(validators) = entry {
             Ok(validators)

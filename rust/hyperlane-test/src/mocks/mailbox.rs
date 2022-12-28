@@ -1,10 +1,7 @@
 #![allow(non_snake_case)]
 
 use async_trait::async_trait;
-use eyre::Result;
 use mockall::*;
-
-use ethers::{core::types::H256, types::U256};
 
 use hyperlane_core::*;
 
@@ -13,49 +10,46 @@ mock! {
         // Mailbox
         pub fn _address(&self) -> H256 {}
 
-        pub fn _domain(&self) -> u32 {}
+        pub fn _domain(&self) -> &HyperlaneDomain {}
 
         pub fn _domain_hash(&self) -> H256 {}
 
         pub fn _raw_message_by_id(
             &self,
             leaf: H256,
-        ) -> Result<Option<RawHyperlaneMessage>, ChainCommunicationError> {}
+        ) -> ChainResult<Option<RawHyperlaneMessage>> {}
 
         pub fn _id_by_nonce(
             &self,
             nonce: usize,
-        ) -> Result<Option<H256>, ChainCommunicationError> {}
+        ) -> ChainResult<Option<H256>> {}
 
-        pub fn _count(&self) -> Result<u32, ChainCommunicationError> {}
+        pub fn _count(&self) -> ChainResult<u32> {}
 
-        pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
+        pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {}
 
-        pub fn _default_ism(&self) -> Result<H256, ChainCommunicationError> {}
+        pub fn _default_ism(&self) -> ChainResult<H256> {}
 
-        pub fn _delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {}
+        pub fn _delivered(&self, id: H256) -> ChainResult<bool> {}
 
         pub fn process(
             &self,
             message: &HyperlaneMessage,
             metadata: &[u8],
             tx_gas_limit: Option<U256>,
-        ) -> Result<TxOutcome, ChainCommunicationError> {}
+        ) -> ChainResult<TxOutcome> {}
 
         pub fn process_estimate_costs(
             &self,
             message: &HyperlaneMessage,
             metadata: &[u8],
-        ) -> Result<TxCostEstimate> {}
+        ) -> ChainResult<TxCostEstimate> {}
 
         pub fn process_calldata(
             &self,
             message: &HyperlaneMessage,
             metadata: &[u8],
         ) -> Vec<u8> {}
-
-        // HyperlaneContract
-        pub fn _chain_name(&self) -> &str {}
     }
 }
 
@@ -67,22 +61,19 @@ impl std::fmt::Debug for MockMailboxContract {
 
 #[async_trait]
 impl Mailbox for MockMailboxContract {
-    async fn count(&self) -> Result<u32, ChainCommunicationError> {
+    async fn count(&self) -> ChainResult<u32> {
         self._count()
     }
 
-    async fn latest_checkpoint(
-        &self,
-        maybe_lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError> {
+    async fn latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {
         self._latest_checkpoint(maybe_lag)
     }
 
-    async fn default_ism(&self) -> Result<H256, ChainCommunicationError> {
+    async fn default_ism(&self) -> ChainResult<H256> {
         self._default_ism()
     }
 
-    async fn delivered(&self, id: H256) -> Result<bool, ChainCommunicationError> {
+    async fn delivered(&self, id: H256) -> ChainResult<bool> {
         self._delivered(id)
     }
 
@@ -91,7 +82,7 @@ impl Mailbox for MockMailboxContract {
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
+    ) -> ChainResult<TxOutcome> {
         self.process(message, metadata, tx_gas_limit)
     }
 
@@ -99,7 +90,7 @@ impl Mailbox for MockMailboxContract {
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-    ) -> Result<TxCostEstimate> {
+    ) -> ChainResult<TxCostEstimate> {
         self.process_estimate_costs(message, metadata)
     }
 
@@ -109,12 +100,8 @@ impl Mailbox for MockMailboxContract {
 }
 
 impl HyperlaneChain for MockMailboxContract {
-    fn domain(&self) -> u32 {
+    fn domain(&self) -> &HyperlaneDomain {
         self._domain()
-    }
-
-    fn chain_name(&self) -> &str {
-        self._chain_name()
     }
 }
 

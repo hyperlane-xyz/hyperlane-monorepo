@@ -1,13 +1,12 @@
 use std::fmt::Display;
 
-use ethers::core::types::H256;
 use eyre::Result;
 use tracing::{debug, error, instrument};
 
 use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
     db::{DbError, HyperlaneDB},
-    ChainCommunicationError, Checkpoint,
+    ChainCommunicationError, Checkpoint, H256,
 };
 
 use crate::prover::{Prover, ProverError};

@@ -1,11 +1,11 @@
-//! The relayer forwards signed checkpoints from the outbox to chain to inboxes
+//! The relayer forwards signed checkpoints from the current chain's mailbox to
+//! the other chains' mailboxes
 //!
-//! At a regular interval, the relayer polls Outbox for signed checkpoints and
-//! submits them as checkpoints on the inbox.
+//! At a regular interval, the relayer polls the current chain's mailbox for
+//! signed checkpoints and submits them as checkpoints on the remote mailbox.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
-#![warn(unused_extern_crates)]
 
 use eyre::Result;
 
