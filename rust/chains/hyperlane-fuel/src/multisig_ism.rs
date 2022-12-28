@@ -25,9 +25,9 @@ impl HyperlaneChain for FuelMultisigIsm {
 impl MultisigIsm for FuelMultisigIsm {
     async fn format_metadata(
         &self,
-        message: HyperlaneMessage,
+        message: &HyperlaneMessage,
         checkpoint: &MultisigSignedCheckpoint,
-        proof: Proof,
+        proof: &Proof,
     ) -> ChainResult<Vec<u8>> {
         todo!()
     }

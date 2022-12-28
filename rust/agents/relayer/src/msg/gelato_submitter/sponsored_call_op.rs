@@ -105,10 +105,10 @@ impl SponsoredCallOp {
         let metadata = self
             .metadata_builder
             .fetch_metadata(
-                self.message.message.clone(),
+                &self.message.message,
                 self.mailbox.clone(),
-                self.message.checkpoint.clone(),
-                self.message.proof,
+                &self.message.checkpoint,
+                &self.message.proof,
             )
             .await?;
 

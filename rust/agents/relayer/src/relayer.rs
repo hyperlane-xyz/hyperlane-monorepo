@@ -103,22 +103,21 @@ impl BaseAgent for Relayer {
                 continue;
             }
             let mailbox = self.mailbox(chain).unwrap();
+            let chain_setup = self.core.settings.chain_setup(chain.name()).unwrap();
 
-            if let Ok(chain_setup) = self.core.settings.chain_setup(chain.name()) {
-                let metadata_builder = MetadataBuilder::new(
-                    self.core.metrics.clone(),
-                    self.core.settings.get_signer(chain.name()).await,
-                    chain_setup.clone(),
-                );
-                tasks.push(self.run_destination_mailbox(
-                    mailbox.clone(),
-                    metadata_builder.clone(),
-                    signed_checkpoint_receiver.clone(),
-                    self.core.settings.chains[chain.name()].txsubmission,
-                    self.core.settings.gelato.as_ref(),
-                    gas_payment_enforcer.clone(),
-                ));
-            }
+            let metadata_builder = MetadataBuilder::new(
+                self.core.metrics.clone(),
+                self.core.settings.get_signer(chain.name()).await,
+                chain_setup.clone(),
+            );
+            tasks.push(self.run_destination_mailbox(
+                mailbox.clone(),
+                metadata_builder.clone(),
+                signed_checkpoint_receiver.clone(),
+                chain_setup.txsubmission,
+                self.core.settings.gelato.as_ref(),
+                gas_payment_enforcer.clone(),
+            ));
         }
 
         tasks.push(self.run_checkpoint_fetcher(signed_checkpoint_sender));

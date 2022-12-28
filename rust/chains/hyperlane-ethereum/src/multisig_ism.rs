@@ -93,9 +93,9 @@ where
     /// Returns the metadata needed by the contract's verify function
     async fn format_metadata(
         &self,
-        message: HyperlaneMessage,
+        message: &HyperlaneMessage,
         checkpoint: &MultisigSignedCheckpoint,
-        proof: Proof,
+        proof: &Proof,
     ) -> ChainResult<Vec<u8>> {
         let root_bytes = checkpoint.checkpoint.root.to_fixed_bytes().into();
         let index_bytes = checkpoint.checkpoint.index.to_be_bytes().into();
@@ -114,14 +114,13 @@ where
             ),
             Token::FixedArray(proof_tokens),
         ]);
-        let validators_and_threshold = self
+        let (validator_addresses, threshold) = self
             .contract
-            .validators_and_threshold(RawHyperlaneMessage::from(&message).to_vec().into())
+            .validators_and_threshold(RawHyperlaneMessage::from(message).to_vec().into())
             .call()
             .await?;
 
-        let threshold_bytes = validators_and_threshold.1.to_be_bytes().into();
-        let validator_addresses = validators_and_threshold.0;
+        let threshold_bytes = threshold.to_be_bytes().into();
 
         // The ethers encoder likes to zero-pad non word-aligned byte arrays.
         // Thus, we pack the signatures, which are not word-aligned, ourselves.

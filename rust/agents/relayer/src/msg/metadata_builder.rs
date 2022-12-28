@@ -28,16 +28,16 @@ impl MetadataBuilder {
 
     pub async fn fetch_metadata(
         &self,
-        message: HyperlaneMessage,
+        message: &HyperlaneMessage,
         mailbox: CachingMailbox,
-        checkpoint: MultisigSignedCheckpoint,
-        proof: Proof,
+        checkpoint: &MultisigSignedCheckpoint,
+        proof: &Proof,
     ) -> eyre::Result<Vec<u8>> {
         let ism_address = mailbox.recipient_ism(message.recipient).await?;
         let multisig_ism = self.build_multisig_ism(ism_address).await?;
 
         let metadata = multisig_ism
-            .format_metadata(message.clone(), &checkpoint, proof)
+            .format_metadata(message, checkpoint, proof)
             .await?;
         Ok(metadata)
     }

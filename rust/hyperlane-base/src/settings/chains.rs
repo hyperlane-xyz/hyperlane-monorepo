@@ -9,7 +9,7 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainImpl, HyperlaneProvider,
     InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm,
-    Signers, H160, H256,
+    Signers, H256,
 };
 use hyperlane_ethereum::{
     BuildableWithProvider, ConnectionConf, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -271,12 +271,13 @@ impl ChainSetup {
         address: H256,
     ) -> Result<Box<dyn MultisigIsm>> {
         let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
+        let locator = ContractLocator {
+            domain: self.domain()?,
+            address,
+        };
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {
-                let addr: H160 = address.into();
-                let addr_str = format!("{:#x}", addr);
-                let locator = self.locator(&addr_str)?;
                 hyperlane_ethereum::MultisigIsmBuilder {}
                     .build_with_connection_conf(
                         conf.clone(),

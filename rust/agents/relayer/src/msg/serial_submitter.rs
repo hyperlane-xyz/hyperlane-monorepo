@@ -104,6 +104,7 @@ use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
 #[derive(Debug)]
 pub(crate) struct SerialSubmitter {
+    /// Used to construct the ISM metadata needed to verify a message.
     metadata_builder: MetadataBuilder,
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
@@ -261,10 +262,10 @@ impl SerialSubmitter {
         let metadata = self
             .metadata_builder
             .fetch_metadata(
-                msg.message.clone(),
+                &msg.message,
                 self.mailbox.clone(),
-                msg.checkpoint.clone(),
-                msg.proof,
+                &msg.checkpoint,
+                &msg.proof,
             )
             .await?;
 
