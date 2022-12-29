@@ -6,7 +6,7 @@ use tokio::{
     sync::{mpsc::UnboundedSender, RwLock},
     task::JoinHandle,
 };
-use tracing::{debug, error, info_span, instrument, instrument::Instrumented, Instrument};
+use tracing::{debug, info_span, instrument, instrument::Instrumented, Instrument};
 
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage};
@@ -133,30 +133,23 @@ impl MessageProcessor {
             .update_to_index(message.nonce)
             .await?;
 
-        if self.db.message_id_by_nonce(self.message_nonce)?.is_some() {
+        debug!(
+            msg_id=?message.id(),
+            msg_nonce=message.nonce,
+            "Sending message to submitter"
+        );
+        // Finally, build the submit arg and dispatch it to the submitter.
+        let submit_args = SubmitMessageArgs::new(message.clone());
+        if let Some(send_channel) = self.send_channels.get(&message.destination) {
+            send_channel.send(submit_args)?;
+        } else {
             debug!(
                 id=?message.id(),
+                destination=message.destination,
                 nonce=message.nonce,
-                "Sending message to submitter"
-            );
-            // Finally, build the submit arg and dispatch it to the submitter.
-            let submit_args = SubmitMessageArgs::new(message.clone());
-            if let Some(send_channel) = self.send_channels.get(&message.destination) {
-                send_channel.send(submit_args)?;
-            } else {
-                debug!(
-                    id=?message.id(),
-                    destination=message.destination,
-                    nonce=message.nonce,
-                    "Message destined for unknown domain, skipping");
-            }
-            self.message_nonce += 1;
-        } else {
-            error!(
-                nonce = self.message_nonce,
-                "Unexpected missing message_id_by_nonce"
-            );
+                "Message destined for unknown domain, skipping");
         }
+        self.message_nonce += 1;
         Ok(())
     }
 }
@@ -191,14 +184,4 @@ impl MessageProcessorMetrics {
     pub fn get(&self, destination: u32) -> Option<&IntGauge> {
         self.last_known_message_nonce_gauges.get(&destination)
     }
-    /*
-    pub fn new(metrics: &CoreMetrics, origin: &HyperlaneDomain, destination: &HyperlaneDomain) -> Self {
-        Self {
-            processor_loop_gauge: metrics.last_known_message_nonce().with_label_values(&[
-                "processor_loop",
-                origin.name(),
-                destination.name(),
-            ]),
-        }
-    } */
 }
