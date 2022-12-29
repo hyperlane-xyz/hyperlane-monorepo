@@ -1,5 +1,3 @@
-import { chainMetadata } from '@hyperlane-xyz/sdk';
-
 import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
 import {
@@ -8,26 +6,19 @@ import {
 } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 
-import { TestnetChains, chainNames, environment } from './chains';
+import { MainnetChains, chainNames, environment } from './chains';
 // import { helloWorld } from './helloworld';
 import { validators } from './validators';
 
-/*
-const releaseCandidateHelloworldMatchingList = helloworldMatchingList(
-  helloWorld,
-  Contexts.ReleaseCandidate,
-);
-*/
-
-export const hyperlane: AgentConfig<TestnetChains> = {
+export const hyperlane: AgentConfig<MainnetChains> = {
   environment,
   namespace: environment,
   runEnv: environment,
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // TODO: Update to a commit from main
-    tag: 'sha-7d4208d',
+    // TODO: Use an image built off of main
+    tag: 'sha-507557e',
   },
   aws: {
     region: 'us-east-1',
@@ -45,30 +36,35 @@ export const hyperlane: AgentConfig<TestnetChains> = {
       reorgPeriod: 1,
     },
     chainOverrides: {
-      alfajores: {
-        reorgPeriod: chainMetadata.alfajores.blocks.reorgPeriod,
+      celo: {
+        reorgPeriod: 0,
       },
-      fuji: {
-        reorgPeriod: chainMetadata.fuji.blocks.reorgPeriod,
+      ethereum: {
+        reorgPeriod: 20,
       },
-      mumbai: {
-        reorgPeriod: chainMetadata.mumbai.blocks.reorgPeriod,
+      bsc: {
+        reorgPeriod: 15,
       },
-      bsctestnet: {
-        reorgPeriod: chainMetadata.bsctestnet.blocks.reorgPeriod,
+      optimism: {
+        reorgPeriod: 0,
       },
-      goerli: {
-        reorgPeriod: chainMetadata.goerli.blocks.reorgPeriod,
+      arbitrum: {
+        reorgPeriod: 0,
       },
-      moonbasealpha: {
-        reorgPeriod: chainMetadata.moonbasealpha.blocks.reorgPeriod,
+      avalanche: {
+        reorgPeriod: 3,
+      },
+      polygon: {
+        reorgPeriod: 256,
+      },
+      moonbeam: {
+        reorgPeriod: 0,
       },
     },
   },
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      // blacklist: releaseCandidateHelloworldMatchingList,
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
       },

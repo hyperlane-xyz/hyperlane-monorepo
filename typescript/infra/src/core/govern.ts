@@ -38,10 +38,12 @@ type AnnotatedCallData = types.CallData & {
 export class HyperlaneCoreGovernor<Chain extends ChainName> {
   readonly checker: HyperlaneCoreChecker<Chain>;
   private calls: ChainMap<Chain, AnnotatedCallData[]>;
+  private canPropose: ChainMap<Chain, Map<string, boolean>>;
 
   constructor(checker: HyperlaneCoreChecker<Chain>) {
     this.checker = checker;
     this.calls = objMap(this.checker.app.contractsMap, () => []);
+    this.canPropose = objMap(this.checker.app.contractsMap, () => new Map());
   }
 
   async govern() {
@@ -167,15 +169,20 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     const signer = connection.signer;
     if (!signer) throw new Error(`no signer found`);
     const signerAddress = await signer.getAddress();
-    const proposer = await canProposeSafeTransactions(
-      signerAddress,
-      chain,
-      connection,
-      safeAddress,
-    );
+    if (!this.canPropose[chain].has(safeAddress)) {
+      this.canPropose[chain].set(
+        safeAddress,
+        await canProposeSafeTransactions(
+          signerAddress,
+          chain,
+          connection,
+          safeAddress,
+        ),
+      );
+    }
 
     // 2b. Check if calling from the owner will succeed.
-    if (proposer) {
+    if (this.canPropose[chain].get(safeAddress)) {
       try {
         await connection.provider.estimateGas({
           ...call,

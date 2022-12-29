@@ -30,7 +30,7 @@ export async function fetchProvider(
   environment: DeployEnvironment,
   chainName: ChainName,
   connectionType: ConnectionType = ConnectionType.Http,
-) {
+): Promise<ethers.providers.Provider> {
   if (
     connectionType !== ConnectionType.Http &&
     connectionType !== ConnectionType.HttpQuorum
