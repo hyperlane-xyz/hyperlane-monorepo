@@ -3,7 +3,7 @@ use std::str::FromStr;
 use sha3::{Digest, Keccak256};
 use thiserror::Error;
 
-use crate::{H160, H256};
+use crate::H256;
 
 /// Strips the '0x' prefix off of hex string so it can be deserialized.
 ///
@@ -28,12 +28,6 @@ pub fn domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
             .finalize()
             .as_slice(),
     )
-}
-
-/// Converts an H256 to a H160
-pub fn h256_to_h160(h256: H256) -> H160 {
-    let slice: [u8; 20] = h256.as_fixed_bytes()[12..32].try_into().unwrap();
-    H160::from(slice)
 }
 
 /// A Hex String of length `N` representing bytes of length `N / 2`

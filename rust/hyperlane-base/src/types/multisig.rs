@@ -2,11 +2,9 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use ethers::prelude::Address;
 use eyre::Result;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, instrument};
 
-use hyperlane_core::{
-    utils::h256_to_h160, MultisigSignedCheckpoint, SignedCheckpointWithSigner, H160, H256,
-};
+use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithSigner, H160, H256};
 
 use crate::{CheckpointSyncer, CheckpointSyncers};
 
@@ -23,7 +21,6 @@ impl MultisigCheckpointSyncer {
         MultisigCheckpointSyncer { checkpoint_syncers }
     }
 
-    // TODO: Return an error if we can't find a checkpoint
     /// Attempts to get the latest checkpoint with a quorum of signatures among validators.
     ///
     /// First iterates through the `latest_index` of each validator's checkpoint syncer,
@@ -38,13 +35,13 @@ impl MultisigCheckpointSyncer {
         &self,
         validators: &Vec<H256>,
         threshold: usize,
-        maximum_index: u32,
         minimum_index: u32,
+        maximum_index: u32,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
         // Get the latest_index from each validator's checkpoint syncer.
         let mut latest_indices = Vec::with_capacity(validators.len());
         for validator in validators.iter() {
-            let addr = h256_to_h160(*validator);
+            let addr = H160::from(*validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
                 // Gracefully handle errors getting the latest_index
                 if let Ok(Some(index)) = checkpoint_syncer.latest_index().await {
@@ -62,15 +59,17 @@ impl MultisigCheckpointSyncer {
         // the highest index for which we (supposedly) have (n+1) signed checkpoints
         latest_indices.sort_by(|a, b| b.cmp(a));
         if let Some(highest_quorum_index) = latest_indices.get(threshold - 1) {
-            let mut i = std::cmp::min(*highest_quorum_index, maximum_index);
-            while i >= minimum_index {
-                if let Ok(Some(checkpoint)) = self
-                    .fetch_checkpoint(i, validators.clone(), threshold)
-                    .await
+            // The highest viable checkpoint index is the minimum of the highest index
+            // we (supposedly) have a quorum for, and the maximum index for which we can
+            // generate a proof.
+            let mut index = std::cmp::min(*highest_quorum_index, maximum_index);
+            while index >= minimum_index {
+                if let Ok(Some(checkpoint)) =
+                    self.fetch_checkpoint(index, validators, threshold).await
                 {
                     return Ok(Some(checkpoint));
                 }
-                i -= 1;
+                index -= 1;
             }
         }
         Ok(None)
@@ -82,7 +81,7 @@ impl MultisigCheckpointSyncer {
     async fn fetch_checkpoint(
         &self,
         index: u32,
-        validators: Vec<H256>,
+        validators: &Vec<H256>,
         threshold: usize,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
         // Keeps track of signed validator checkpoints for a particular root.
@@ -92,7 +91,7 @@ impl MultisigCheckpointSyncer {
             HashMap::new();
 
         for validator in validators.iter() {
-            let addr: H160 = h256_to_h160(*validator);
+            let addr = H160::from(*validator);
             if let Some(checkpoint_syncer) = self.checkpoint_syncers.get(&addr) {
                 // Gracefully ignore an error fetching the checkpoint from a validator's checkpoint syncer,
                 // which can happen if the validator has not signed the checkpoint at `index`.
@@ -140,7 +139,7 @@ impl MultisigCheckpointSyncer {
                     }
                 }
             } else {
-                warn!(
+                debug!(
                     validator = format!("{:#x}", validator),
                     "Unable to find checkpoint syncer"
                 );

@@ -6,7 +6,7 @@ use tokio::{
     sync::{mpsc::UnboundedSender, RwLock},
     task::JoinHandle,
 };
-use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
+use tracing::{debug, error, info_span, instrument, instrument::Instrumented, Instrument};
 
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage};
@@ -66,10 +66,6 @@ impl MessageProcessor {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
-        self.metrics
-            .processor_loop_gauge
-            .set(self.message_nonce as i64);
-
         // Scan until we find next nonce without delivery confirmation.
         if self
             .db
@@ -101,6 +97,10 @@ impl MessageProcessor {
             tokio::time::sleep(Duration::from_secs(1)).await;
             return Ok(());
         };
+        self.metrics
+            .get(message.destination)
+            .unwrap()
+            .set(self.message_nonce as i64);
 
         // Skip if not whitelisted.
         if !self.whitelist.msg_matches(&message, true) {
@@ -144,7 +144,7 @@ impl MessageProcessor {
             if let Some(send_channel) = self.send_channels.get(&message.destination) {
                 send_channel.send(submit_args)?;
             } else {
-                warn!(
+                debug!(
                     id=?message.id(),
                     destination=message.destination,
                     nonce=message.nonce,
@@ -152,7 +152,7 @@ impl MessageProcessor {
             }
             self.message_nonce += 1;
         } else {
-            warn!(
+            error!(
                 nonce = self.message_nonce,
                 "Unexpected missing message_id_by_nonce"
             );
@@ -163,18 +163,42 @@ impl MessageProcessor {
 
 #[derive(Debug)]
 pub(crate) struct MessageProcessorMetrics {
-    processor_loop_gauge: IntGauge,
+    last_known_message_nonce_gauges: HashMap<u32, IntGauge>,
 }
 
 impl MessageProcessorMetrics {
-    pub fn new(metrics: &CoreMetrics, origin: &HyperlaneDomain) -> Self {
+    pub fn new(
+        metrics: &CoreMetrics,
+        origin: &HyperlaneDomain,
+        destinations: Vec<&HyperlaneDomain>,
+    ) -> Self {
+        let mut gauges: HashMap<u32, IntGauge> = HashMap::new();
+        for destination in destinations {
+            gauges.insert(
+                destination.id(),
+                metrics.last_known_message_nonce().with_label_values(&[
+                    "processor_loop",
+                    origin.name(),
+                    destination.name(),
+                ]),
+            );
+        }
+        Self {
+            last_known_message_nonce_gauges: gauges,
+        }
+    }
+
+    pub fn get(&self, destination: u32) -> Option<&IntGauge> {
+        self.last_known_message_nonce_gauges.get(&destination)
+    }
+    /*
+    pub fn new(metrics: &CoreMetrics, origin: &HyperlaneDomain, destination: &HyperlaneDomain) -> Self {
         Self {
             processor_loop_gauge: metrics.last_known_message_nonce().with_label_values(&[
                 "processor_loop",
                 origin.name(),
-                // TODO: For some reason we fail if I remove this...
-                origin.name(),
+                destination.name(),
             ]),
         }
-    }
+    } */
 }

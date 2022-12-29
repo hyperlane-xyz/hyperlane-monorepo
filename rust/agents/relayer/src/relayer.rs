@@ -99,11 +99,14 @@ impl BaseAgent for Relayer {
             self.mailbox(&self.origin_chain).unwrap().db().clone(),
         )));
         let mut send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>> = HashMap::new();
+        let destinations = self
+            .core
+            .mailboxes
+            .keys()
+            .filter(|c| **c != self.origin_chain)
+            .collect::<Vec<&HyperlaneDomain>>();
 
-        for chain in self.core.mailboxes.keys() {
-            if *chain == self.origin_chain {
-                continue;
-            }
+        for chain in &destinations {
             let (send_channel, receive_channel): (
                 UnboundedSender<SubmitMessageArgs>,
                 UnboundedReceiver<SubmitMessageArgs>,
@@ -132,7 +135,8 @@ impl BaseAgent for Relayer {
         let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());
         tasks.push(self.run_origin_mailbox_sync(sync_metrics.clone()));
 
-        let metrics = MessageProcessorMetrics::new(&self.core.metrics, &self.origin_chain);
+        let metrics =
+            MessageProcessorMetrics::new(&self.core.metrics, &self.origin_chain, destinations);
         let message_processor = MessageProcessor::new(
             self.mailbox(&self.origin_chain).unwrap().db().clone(),
             self.whitelist.clone(),
@@ -208,10 +212,10 @@ impl Relayer {
         let process_fut = message_processor.spawn();
         tokio::spawn(async move {
             let res = tokio::try_join!(process_fut)?;
-            info!(?res, "try_join finished for mailbox");
+            info!(?res, "try_join finished for message processor");
             Ok(())
         })
-        .instrument(info_span!("run mailbox"))
+        .instrument(info_span!("run message processor"))
     }
 
     #[allow(clippy::too_many_arguments)]
