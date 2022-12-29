@@ -29,7 +29,7 @@ where
 #[cfg(test)]
 mod test {
     use hyperlane_core::{
-        accumulator::merkle::Proof, db::HyperlaneDB, HyperlaneMessage, RawHyperlaneMessage, H256,
+        db::HyperlaneDB, HyperlaneMessage, RawHyperlaneMessage, H256,
     };
 
     use super::*;
@@ -63,25 +63,6 @@ mod test {
                 RawHyperlaneMessage::from(&by_nonce),
                 RawHyperlaneMessage::from(&m)
             );
-        })
-        .await;
-    }
-
-    #[tokio::test]
-    async fn db_stores_and_retrieves_proofs() {
-        run_test_db(|db| async move {
-            let mailbox_name = "mailbox_1".to_owned();
-            let db = HyperlaneDB::new(mailbox_name, db);
-
-            let proof = Proof {
-                leaf: H256::from_low_u64_be(15),
-                index: 32,
-                path: Default::default(),
-            };
-            db.store_proof(13, &proof).unwrap();
-
-            let by_index = db.proof_by_nonce(13).unwrap().unwrap();
-            assert_eq!(by_index, proof);
         })
         .await;
     }
