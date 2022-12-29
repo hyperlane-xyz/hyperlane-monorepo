@@ -3,7 +3,7 @@ import { HyperlaneCore, HyperlaneCoreChecker } from '@hyperlane-xyz/sdk';
 import { HyperlaneCoreGovernor } from '../src/core/govern';
 
 import {
-  DeployEnvToSdkEnv,
+  deployEnvToSdkEnv,
   getCoreEnvironmentConfig,
   getEnvironment,
 } from './utils';
@@ -16,7 +16,7 @@ async function check() {
 
   // environments union doesn't work well with typescript
   const core = HyperlaneCore.fromEnvironment(
-    DeployEnvToSdkEnv[environment],
+    deployEnvToSdkEnv[environment],
     multiProvider as any,
   );
 

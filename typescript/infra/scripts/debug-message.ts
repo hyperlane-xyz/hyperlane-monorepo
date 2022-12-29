@@ -11,7 +11,7 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { assertChain } from '../src/utils/utils';
 
-import { DeployEnvToSdkEnv, getArgs, getEnvironment } from './utils';
+import { deployEnvToSdkEnv, getArgs, getEnvironment } from './utils';
 
 async function main() {
   const argv = await getArgs()
@@ -43,7 +43,7 @@ async function main() {
   const multiProvider = new MultiProvider(chainConnectionConfigs);
 
   const core = HyperlaneCore.fromEnvironment(
-    DeployEnvToSdkEnv[environment],
+    deployEnvToSdkEnv[environment],
     multiProvider,
   );
 

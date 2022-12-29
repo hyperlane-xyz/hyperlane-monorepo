@@ -61,7 +61,7 @@ export async function getEnvironment() {
 }
 
 type SdkEnvironment = keyof typeof coreEnvironments;
-export const DeployEnvToSdkEnv: Record<DeployEnvironment, SdkEnvironment> = {
+export const deployEnvToSdkEnv: Record<DeployEnvironment, SdkEnvironment> = {
   mainnet2: 'mainnet',
   testnet3: 'testnet',
   test: 'test',

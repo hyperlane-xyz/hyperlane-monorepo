@@ -10,7 +10,7 @@ import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import { mergeWithSdkContractAddressArtifacts } from '../merge-sdk-contract-addresses';
 import {
-  DeployEnvToSdkEnv,
+  deployEnvToSdkEnv,
   getCoreEnvironmentConfig,
   getEnvironment,
   getEnvironmentDirectory,
@@ -23,7 +23,7 @@ async function main() {
   const coreConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider();
   const core = HyperlaneCore.fromEnvironment(
-    DeployEnvToSdkEnv[environment],
+    deployEnvToSdkEnv[environment],
     multiProvider as any,
   );
 
