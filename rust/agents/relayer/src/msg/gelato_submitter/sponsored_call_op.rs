@@ -104,7 +104,7 @@ impl SponsoredCallOp {
         }
         let metadata = self
             .metadata_builder
-            .fetch_metadata(self.message.message.clone(), self.mailbox.clone())
+            .fetch_metadata(&self.message.message, self.mailbox.clone())
             .await?;
 
         // Estimate transaction costs for the process call. If there are issues, it's

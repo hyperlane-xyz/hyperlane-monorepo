@@ -37,20 +37,17 @@ impl MetadataBuilder {
     #[instrument(err, skip_all, fields(msg_nonce=message.nonce))]
     pub async fn fetch_metadata(
         &self,
-        message: HyperlaneMessage,
+        message: &HyperlaneMessage,
         mailbox: CachingMailbox,
     ) -> eyre::Result<Vec<u8>> {
         let ism_address = mailbox.recipient_ism(message.recipient).await?;
         let multisig_ism = self.build_multisig_ism(ism_address).await?;
-        let validators_and_threshold = multisig_ism
-            .validators_and_threshold(message.clone())
-            .await?;
-        let validators = validators_and_threshold.0;
+        let (validators, threshold) = multisig_ism.validators_and_threshold(message).await?;
         if let Some(checkpoint) = self
             .checkpoint_syncer
             .fetch_checkpoint_in_range(
-                validators.clone(),
-                validators_and_threshold.1.into(),
+                &validators,
+                threshold.into(),
                 self.prover_sync.read().await.count() - 1,
                 message.nonce,
             )
@@ -68,12 +65,8 @@ impl MetadataBuilder {
                 .await
                 .get_proof(message.nonce, checkpoint.checkpoint.index)?;
             assert_eq!(checkpoint.checkpoint.root, proof.root());
-            let metadata = multisig_ism.format_metadata(
-                validators.clone(),
-                validators_and_threshold.1,
-                &checkpoint,
-                proof,
-            );
+            let metadata =
+                multisig_ism.format_metadata(&validators, threshold, &checkpoint, &proof);
             Ok(metadata)
         } else {
             // TODO: Figure out how to do proper error reporting. Should probably have the checkpoint syncer return errors rather than an option

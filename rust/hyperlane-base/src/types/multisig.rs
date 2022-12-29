@@ -36,7 +36,7 @@ impl MultisigCheckpointSyncer {
     #[instrument(err, skip(self))]
     pub async fn fetch_checkpoint_in_range(
         &self,
-        validators: Vec<H256>,
+        validators: &Vec<H256>,
         threshold: usize,
         maximum_index: u32,
         minimum_index: u32,

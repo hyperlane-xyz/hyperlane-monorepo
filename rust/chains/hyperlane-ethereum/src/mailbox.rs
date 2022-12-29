@@ -271,7 +271,6 @@ where
 
     #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        // TODO: Does .into truncate the way I'd expect?
         Ok(self
             .contract
             .recipient_ism(recipient.into())

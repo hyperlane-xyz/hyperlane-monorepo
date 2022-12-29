@@ -104,30 +104,29 @@ impl BaseAgent for Relayer {
             if *chain == self.origin_chain {
                 continue;
             }
-            let channels: (
+            let (send_channel, receive_channel): (
                 UnboundedSender<SubmitMessageArgs>,
                 UnboundedReceiver<SubmitMessageArgs>,
             ) = mpsc::unbounded_channel();
             let mailbox = self.mailbox(chain).unwrap();
-            send_channels.insert(mailbox.domain().id(), channels.0);
+            send_channels.insert(mailbox.domain().id(), send_channel);
 
-            if let Ok(chain_setup) = self.core.settings.chain_setup(chain.name()) {
-                let metadata_builder = MetadataBuilder::new(
-                    self.core.metrics.clone(),
-                    self.core.settings.get_signer(chain.name()).await,
-                    chain_setup.clone(),
-                    self.multisig_checkpoint_syncer.clone(),
-                    prover_sync.clone(),
-                );
-                tasks.push(self.run_destination_mailbox(
-                    mailbox.clone(),
-                    metadata_builder.clone(),
-                    self.core.settings.chains[chain.name()].txsubmission,
-                    self.core.settings.gelato.as_ref(),
-                    gas_payment_enforcer.clone(),
-                    channels.1,
-                ));
-            }
+            let chain_setup = self.core.settings.chain_setup(chain.name()).unwrap();
+            let metadata_builder = MetadataBuilder::new(
+                self.core.metrics.clone(),
+                self.core.settings.get_signer(chain.name()).await,
+                chain_setup.clone(),
+                self.multisig_checkpoint_syncer.clone(),
+                prover_sync.clone(),
+            );
+            tasks.push(self.run_destination_mailbox(
+                mailbox.clone(),
+                metadata_builder.clone(),
+                chain_setup.txsubmission,
+                self.core.settings.gelato.as_ref(),
+                gas_payment_enforcer.clone(),
+                receive_channel,
+            ));
         }
 
         let sync_metrics = ContractSyncMetrics::new(self.core.metrics.clone());

@@ -2,64 +2,64 @@
   "alfajores": [
     {
       "name": "router",
-      "address": "0x5293975fC3d388DFDFBDA999C4156db200889Fd3",
-      "constructorArguments": "000000000000000000000000a6fd89630eaa6a404633e2d87a863277b1d19fc6000000000000000000000000a45fc9c331e91985e3d1e5c4f6ab1da9ea4b043d",
+      "address": "0x921D3A71386d3Ab8f3AD4eC91ce1556D5FC26859",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
     }
   ],
   "fuji": [
     {
       "name": "router",
-      "address": "0xE95c9c0301F9152ebEBc5CecF05A0E87E1523745",
-      "constructorArguments": "000000000000000000000000a6fd89630eaa6a404633e2d87a863277b1d19fc6000000000000000000000000a45fc9c331e91985e3d1e5c4f6ab1da9ea4b043d",
+      "address": "0x1C847335D123632fC7D662AB87Ac7872aCD920f2",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
     }
   ],
   "mumbai": [
     {
       "name": "router",
-      "address": "0x4C01f2cA7d9BBBeCe5332e1F4EdCAC9CBeE1fb57",
-      "constructorArguments": "000000000000000000000000a6fd89630eaa6a404633e2d87a863277b1d19fc6000000000000000000000000a45fc9c331e91985e3d1e5c4f6ab1da9ea4b043d",
+      "address": "0x854fd51C04408ad84DA3838A4fF7282522F7866E",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
     }
   ],
   "bsctestnet": [
     {
       "name": "router",
-      "address": "0x1Bac358ed01651D689c78Ff07b69B1A1670Ce673",
-      "constructorArguments": "000000000000000000000000a6fd89630eaa6a404633e2d87a863277b1d19fc6000000000000000000000000a45fc9c331e91985e3d1e5c4f6ab1da9ea4b043d",
+      "address": "0x5447A1679f1Ce836A241c50ae1FC915d3DbA9c23",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
     }
   ],
   "goerli": [
     {
       "name": "router",
-      "address": "0x770feA483b45eD2c16E99ce41c3f3cb0657e8244",
-      "constructorArguments": "000000000000000000000000a6fd89630eaa6a404633e2d87a863277b1d19fc6000000000000000000000000a45fc9c331e91985e3d1e5c4f6ab1da9ea4b043d",
+      "address": "0x0637A1360Ea44602DAe5c4ba515c2BCb6C762fbc",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
     }
   ],
   "moonbasealpha": [
     {
       "name": "router",
-      "address": "0x4D40f433F2f89cBa4BB9D994FD18D8302C378D26",
-      "constructorArguments": "000000000000000000000000a6fd89630eaa6a404633e2d87a863277b1d19fc6000000000000000000000000a45fc9c331e91985e3d1e5c4f6ab1da9ea4b043d",
+      "address": "0xE81De1d727Ba319185a86D92E8Eb4e41046CE6B7",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
     }
   ],
   "optimismgoerli": [
     {
       "name": "router",
-      "address": "0xc0403D2880dD291C59456c3b70504E8e7101e06F",
-      "constructorArguments": "000000000000000000000000a6fd89630eaa6a404633e2d87a863277b1d19fc6000000000000000000000000a45fc9c331e91985e3d1e5c4f6ab1da9ea4b043d",
+      "address": "0xa76A3E719E5ff7159a29B8876272052b89B3589F",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
     }
   ],
   "arbitrumgoerli": [
     {
       "name": "router",
-      "address": "0xB2A79c5e63A3e949e4b3982052958E3eEbD3AA83",
-      "constructorArguments": "000000000000000000000000a6fd89630eaa6a404633e2d87a863277b1d19fc6000000000000000000000000a45fc9c331e91985e3d1e5c4f6ab1da9ea4b043d",
+      "address": "0xa76A3E719E5ff7159a29B8876272052b89B3589F",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
     }
   ]

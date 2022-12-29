@@ -92,28 +92,24 @@ where
 {
     async fn validators_and_threshold(
         &self,
-        message: HyperlaneMessage,
+        message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
-        let validators_and_threshold = self
+        let (validator_addresses, threshold) = self
             .contract
-            .validators_and_threshold(RawHyperlaneMessage::from(&message).to_vec().into())
+            .validators_and_threshold(RawHyperlaneMessage::from(message).to_vec().into())
             .call()
             .await?;
-        let validators: Vec<H256> = validators_and_threshold
-            .0
-            .iter()
-            .map(|&x| H256::from(x))
-            .collect();
-        Ok((validators, validators_and_threshold.1))
+        let validators: Vec<H256> = validator_addresses.iter().map(|&x| H256::from(x)).collect();
+        Ok((validators, threshold))
     }
 
     /// Returns the metadata needed by the contract's verify function
     fn format_metadata(
         &self,
-        validators: Vec<H256>,
+        validators: &[H256],
         threshold: u8,
         checkpoint: &MultisigSignedCheckpoint,
-        proof: Proof,
+        proof: &Proof,
     ) -> Vec<u8> {
         assert_eq!(threshold as usize, checkpoint.signatures.len());
         let root_bytes = checkpoint.checkpoint.root.to_fixed_bytes().into();
@@ -136,7 +132,7 @@ where
 
         // The ethers encoder likes to zero-pad non word-aligned byte arrays.
         // Thus, we pack the signatures, which are not word-aligned, ourselves.
-        let signature_vecs: Vec<Vec<u8>> = order_signatures(&validators, &checkpoint.signatures);
+        let signature_vecs: Vec<Vec<u8>> = order_signatures(validators, &checkpoint.signatures);
         let signature_bytes = signature_vecs.concat();
 
         let validator_tokens: Vec<Token> = validators

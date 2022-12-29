@@ -27,7 +27,7 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
     // TODO: Update to a commit from main
-    tag: 'sha-275771b',
+    tag: 'sha-7d4208d',
   },
   aws: {
     region: 'us-east-1',
