@@ -28,9 +28,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use hyperlane_core::{
-        db::HyperlaneDB, HyperlaneMessage, RawHyperlaneMessage, H256,
-    };
+    use hyperlane_core::{db::HyperlaneDB, HyperlaneMessage, RawHyperlaneMessage, H256};
 
     use super::*;
 
