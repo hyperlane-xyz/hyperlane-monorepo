@@ -382,6 +382,8 @@ export const moonbeam: ChainMetadata = {
     reorgPeriod: 1,
     estimateBlockTime: 12,
   },
+  gnosisSafeTransactionServiceUrl:
+    'https://transaction.multisig.moonbeam.network',
 };
 
 export const mumbai: ChainMetadata = {
