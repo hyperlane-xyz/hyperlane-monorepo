@@ -8,9 +8,10 @@ import { environment } from './chains';
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'sha-6ee34e4',
+    // TODO: Use an image built off of main
+    tag: 'sha-507557e',
   },
-  // We're currently using the same deployer key as testnet2.
+  // We're currently using the same deployer key as mainnet.
   // To minimize nonce clobbering we offset the key funder cron
   // schedule by 30 minutes.
   cronSchedule: '15 * * * *', // Every hour at the 15 minute mark

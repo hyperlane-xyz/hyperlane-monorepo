@@ -231,6 +231,10 @@ export class AgentAwsKey extends CloudAgentKey {
     if (!keyId) {
       throw Error('Key ID not defined');
     }
+    // @ts-ignore We're using a newer version of Provider than
+    // KmsEthersSigner. The return type for getFeeData for this newer
+    // type is a superset of the return type for getFeeData for the older type,
+    // which should be fine.
     return new KmsEthersSigner(
       {
         keyId,

@@ -2,7 +2,7 @@ import { InfrastructureConfig } from '../../../src/config';
 
 export const infrastructure: InfrastructureConfig = {
   kubernetes: {
-    clusterName: 'hyperlane-testnet',
+    clusterName: 'hyperlane-mainnet',
   },
   monitoring: {
     namespace: 'monitoring',
@@ -31,14 +31,11 @@ export const infrastructure: InfrastructureConfig = {
       name: 'external-secrets',
       version: '0.5.1',
     },
-    gcpServiceAccountName: 'k8s-external-secrets-testnet3',
+    gcpServiceAccountName: 'k8s-external-secrets-mainnet2',
     accessibleGCPSecretPrefixes: [
-      'hyperlane-testnet-',
-      'testnet-',
-      'hyperlane-testnet3-',
-      'flowcarbon-testnet3-',
-      'rc-testnet3-',
-      'testnet3-',
+      'hyperlane-mainnet2-',
+      'rc-mainnet2-',
+      'mainnet2-',
     ],
   },
 };
