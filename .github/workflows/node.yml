@@ -132,3 +132,6 @@ jobs:
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas
 
+      - name: coverage
+        run: yarn workspace @hyperlane-xyz/core run coverage
+
