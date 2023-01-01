@@ -16,6 +16,13 @@ export const fullEnvTestConfigs = {
   test1: chainConnectionConfigs.test1,
   test2: chainConnectionConfigs.test2,
   test3: chainConnectionConfigs.test3,
+  khala: chainConnectionConfigs.khala,
+  goerli: chainConnectionConfigs.goerli,
+};
+
+export const fullEnvConfigs = {
+  khala: chainConnectionConfigs.khala,
+  goerli: chainConnectionConfigs.goerli,
 };
 
 export const subsetTestConfigs = {
@@ -23,7 +30,14 @@ export const subsetTestConfigs = {
   test2: chainConnectionConfigs.test2,
 };
 
+export const subsetKhalaConfigs = {
+  khala: chainConnectionConfigs.khala,
+  goerli: chainConnectionConfigs.goerli,
+};
+
 export type SubsetChains = keyof typeof subsetTestConfigs;
+
+export type KhalaSubsetChains = keyof typeof subsetKhalaConfigs;
 
 export const alfajoresChainConfig = {
   alfajores: chainConnectionConfigs.alfajores,
