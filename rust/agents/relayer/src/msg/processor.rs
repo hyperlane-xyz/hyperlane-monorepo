@@ -97,10 +97,9 @@ impl MessageProcessor {
             tokio::time::sleep(Duration::from_secs(1)).await;
             return Ok(());
         };
-        self.metrics
-            .get(message.destination)
-            .unwrap()
-            .set(self.message_nonce as i64);
+        if let Some(metrics) = self.metrics.get(message.destination) {
+            metrics.set(self.message_nonce as i64);
+        }
 
         // Skip if not whitelisted.
         if !self.whitelist.msg_matches(&message, true) {
