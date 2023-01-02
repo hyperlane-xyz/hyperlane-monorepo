@@ -4017,9 +4017,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/hyperlane-token@workspace:typescript/token"
   dependencies:
-    "@hyperlane-xyz/core": 1.0.0-beta3
-    "@hyperlane-xyz/sdk": 1.0.0-beta3
-    "@hyperlane-xyz/utils": 1.0.0-beta3
+    "@hyperlane-xyz/core": 1.0.0-beta5
+    "@hyperlane-xyz/sdk": 1.0.0-beta5
+    "@hyperlane-xyz/utils": 1.0.0-beta5
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts-upgradeable": ^4.8.0
@@ -4108,7 +4108,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@^1.0.0-beta5, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@1.0.0-beta5, @hyperlane-xyz/sdk@^1.0.0-beta5, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
