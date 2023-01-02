@@ -1,114 +1,114 @@
 {
   "alfajores": {
-    "proxyAdmin": "0xB650Ef24b1396AD770C6B8Abf1118DE2A683a5Fc",
+    "proxyAdmin": "0x4e4D563e2cBFC35c4BC16003685443Fae2FA702f",
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-      "implementation": "0x6Ce5d8e67020d25e03431976B9DE6d6656D31Ae1"
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
       "kind": "Transparent",
-      "proxy": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-      "implementation": "0x8D336802d1CE5D1724D879664Bb29ee271b25a21"
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x39b3cb005C4225B88A8b3a090563e2e763407222"
     },
-    "multisigIsm": "0x34dD0ab937c3A7280FeB86C8F9ba9EBa79463c1e"
+    "multisigIsm": "0x4D06A1671A2a345B14B15cbD50027979A5D1d8C9"
   },
   "fuji": {
-    "proxyAdmin": "0x16dB2339A9b5bDA759c0D606072c6eB07029E97f",
+    "proxyAdmin": "0x13474f85b808034C911B7697dee60B7d8d50ee36",
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-      "implementation": "0x6Ce5d8e67020d25e03431976B9DE6d6656D31Ae1"
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
       "kind": "Transparent",
-      "proxy": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-      "implementation": "0x329f96E333b28cB88F1673c19F450f5762764857"
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x3388A1D46337631F3597d50e98930B52eb9E710E"
     },
-    "multisigIsm": "0x4bCe8b585057EFC347026F9f0F4f89885468D7d3"
+    "multisigIsm": "0xD713Db664509bd057aC2b378F4B65Db468F634A5"
   },
   "mumbai": {
-    "proxyAdmin": "0xFf158d8651177D3e9f388fbB6af1822D46aACa3A",
+    "proxyAdmin": "0x96b49e136581f8dfF370aDB3015D48465572a318",
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-      "implementation": "0x6Ce5d8e67020d25e03431976B9DE6d6656D31Ae1"
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
       "kind": "Transparent",
-      "proxy": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-      "implementation": "0xFCC87E5396D77264956c98a328bEE48ea887309c"
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x179c2Da65187C2614FbeD3Af8eB3098FEEb0a958"
     },
-    "multisigIsm": "0x824ed1F5c1769261eDD7022700FA675Fd22C0C1F"
+    "multisigIsm": "0xd71f1A64659beC0781b2aa21bc7a72F7290F6Bf3"
   },
   "bsctestnet": {
-    "proxyAdmin": "0x721303693eF8bdA1a871b2dF850600edcDDa4c04",
+    "proxyAdmin": "0xfB149BC17dD3FE858fA64D678bA0c706DEac61eE",
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-      "implementation": "0x6Ce5d8e67020d25e03431976B9DE6d6656D31Ae1"
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
       "kind": "Transparent",
-      "proxy": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-      "implementation": "0xa62B7DbBdd79325dE35A6c1dd7954D52a4B86171"
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x87891AA323d0c98D9A1F417E9F02219EBc4274CC"
     },
-    "multisigIsm": "0x8b3131De3DD5d89C81b9AEaE2adFEA0EB7f4E4eB"
+    "multisigIsm": "0x34add51924C500b4428067E251168807b3f5faED"
   },
   "goerli": {
-    "proxyAdmin": "0xcb8a27917112A58fC12E62A6717e747797A47024",
+    "proxyAdmin": "0x8f919348F9C4619A196Acb5e377f49E5E2C0B569",
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-      "implementation": "0x6Ce5d8e67020d25e03431976B9DE6d6656D31Ae1"
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
       "kind": "Transparent",
-      "proxy": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-      "implementation": "0xF0b6b89033C37C24c12C560a881932C99822b7dF"
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x1ADF2D247E08348D18d77e69D5807a413b92Fe8E"
     },
-    "multisigIsm": "0x916B3999505656965A596A7710CEf27d2fEB4878"
-  },
-  "optimismgoerli": {
-    "proxyAdmin": "0x772926Ffc5FE8B3ae9a85cB085700748606aE283",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-      "implementation": "0x6Ce5d8e67020d25e03431976B9DE6d6656D31Ae1"
-    },
-    "mailbox": {
-      "kind": "Transparent",
-      "proxy": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-      "implementation": "0xC6784877606d2ce0fE8b284006279b42d5aA04d0"
-    },
-    "multisigIsm": "0x99A42d6Bf191127667f55297Af0259708bd8c59e"
-  },
-  "arbitrumgoerli": {
-    "proxyAdmin": "0x1b0d4c88288258D57998F0bdb30489007A42B834",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-      "implementation": "0x6Ce5d8e67020d25e03431976B9DE6d6656D31Ae1"
-    },
-    "mailbox": {
-      "kind": "Transparent",
-      "proxy": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-      "implementation": "0x648CDd491DA5B5036E6011e2aF9a54427b9dd424"
-    },
-    "multisigIsm": "0x772926Ffc5FE8B3ae9a85cB085700748606aE283"
+    "multisigIsm": "0x32B34F0D86b275b92e9289d9054Db5Ec32d2CC6C"
   },
   "moonbasealpha": {
-    "proxyAdmin": "0xc0403D2880dD291C59456c3b70504E8e7101e06F",
+    "proxyAdmin": "0xEed449c54156163bf50CFf30408975AF43F43115",
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0xa45Fc9C331E91985e3d1e5c4F6Ab1Da9EA4b043D",
-      "implementation": "0x6Ce5d8e67020d25e03431976B9DE6d6656D31Ae1"
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
     },
     "mailbox": {
       "kind": "Transparent",
-      "proxy": "0xa6fD89630eAa6A404633e2D87A863277b1D19Fc6",
-      "implementation": "0xDb18e073eC01d91b1Bbd5ee348804aFCa66A0ea7"
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0xC1081e289564fd20a4a93C00042692E168Fd0378"
     },
-    "multisigIsm": "0xaA3022A7e114D4eaF9BBcA552B850346C55E5550"
+    "multisigIsm": "0xec8875C7cE0a814A56654618D366641859F32C7A"
+  },
+  "optimismgoerli": {
+    "proxyAdmin": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
+    },
+    "mailbox": {
+      "kind": "Transparent",
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x2D076fE2370950044572cB168924B8AffDA26689"
+    },
+    "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4"
+  },
+  "arbitrumgoerli": {
+    "proxyAdmin": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
+      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
+    },
+    "mailbox": {
+      "kind": "Transparent",
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x0840f126eD0302B37d7476A303340a92B9eC0c5b"
+    },
+    "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4"
   }
 }
