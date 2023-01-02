@@ -81,11 +81,11 @@ impl MerkleTreeBuilder {
     #[instrument(err, skip(self), level="debug", fields(prover_latest_index=self.count()-1))]
     pub fn get_proof(
         &self,
-        nonce: u32,
-        checkpoint_index: u32,
+        leaf_index: u32,
+        root_index: u32,
     ) -> Result<Proof, MerkleTreeBuilderError> {
         self.prover
-            .prove_against_historic(nonce as usize, checkpoint_index as usize)
+            .prove_against_previous(leaf_index as usize, root_index as usize)
             .map_err(Into::into)
     }
 

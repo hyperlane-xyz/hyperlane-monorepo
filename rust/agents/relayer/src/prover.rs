@@ -9,13 +9,6 @@ use hyperlane_core::accumulator::{
 use hyperlane_core::H256;
 use tracing::{error, instrument};
 
-fn get_proof(tree: &MerkleTree, index: usize) -> Proof {
-    let (leaf, hashes) = tree.generate_proof(index, TREE_DEPTH);
-    let mut path = [H256::zero(); 32];
-    path.copy_from_slice(&hashes[..32]);
-    Proof { leaf, index, path }
-}
-
 /// A depth-32 sparse Merkle tree capable of producing proofs for arbitrary
 /// elements.
 #[derive(Debug)]
@@ -83,31 +76,23 @@ impl Prover {
     }
 
     /// Create a proof of a leaf in this tree.
-    ///
-    /// Note, if the tree ingests more leaves, the root will need to be recalculated.
-    pub fn prove_against_latest(&self, index: usize) -> Result<Proof, ProverError> {
-        if index > u32::MAX as usize {
-            return Err(ProverError::IndexTooHigh(index));
-        }
-        let count = self.count();
-        if index >= count {
-            return Err(ProverError::ZeroProof { index, count });
-        }
-        Ok(get_proof(&self.tree, index))
-    }
-
     #[instrument(err, skip(self), fields(prover_msg_count=self.count()))]
-    pub fn prove_against_historic(
+    pub fn prove_against_previous(
         &self,
         leaf_index: usize,
-        tree_index: usize,
+        root_index: usize,
     ) -> Result<Proof, ProverError> {
-        let checkpoint_proof = self.prove_against_latest(tree_index)?;
-        let checkpoint_proof_as_latest = checkpoint_proof.as_latest();
-        let checkpoint_partial_tree = checkpoint_proof_as_latest.partial_tree();
-        let leaf_proof = self.prove_against_latest(leaf_index)?;
-        let leaf_proof_tree = checkpoint_partial_tree.merge(leaf_proof.partial_tree());
-        Ok(get_proof(&leaf_proof_tree, leaf_index))
+        if root_index > u32::MAX as usize {
+            return Err(ProverError::IndexTooHigh(root_index));
+        }
+        let count = self.count();
+        if root_index >= count {
+            return Err(ProverError::ZeroProof {
+                index: root_index,
+                count,
+            });
+        }
+        Ok(self.tree.prove_against_previous(leaf_index, root_index))
     }
 
     /// Verify a proof against this tree's root.
@@ -184,7 +169,7 @@ mod test {
 
             for n in 0..test_case.leaves.len() {
                 // assert the tree generates the proper proof for this leaf
-                let proof = tree.prove_against_latest(n).unwrap();
+                let proof = tree.prove_against_previous(n, tree.count() - 1).unwrap();
                 assert_eq!(proof, test_case.proofs[n]);
 
                 // check that the tree can verify the proof for this leaf

@@ -23,6 +23,7 @@ impl HyperlaneChain for FuelMultisigIsm {
 
 #[async_trait]
 impl MultisigIsm for FuelMultisigIsm {
+    /// Returns the validator and threshold needed to verify message
     async fn validators_and_threshold(
         &self,
         message: &HyperlaneMessage,

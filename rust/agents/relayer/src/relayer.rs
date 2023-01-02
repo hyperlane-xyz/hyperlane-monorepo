@@ -114,7 +114,12 @@ impl BaseAgent for Relayer {
             let mailbox = self.mailbox(chain).unwrap();
             send_channels.insert(mailbox.domain().id(), send_channel);
 
-            let chain_setup = self.core.settings.chain_setup(chain.name()).unwrap();
+            let chain_setup = self
+                .core
+                .settings
+                .chain_setup(chain.name())
+                .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()));
+
             let metadata_builder = MetadataBuilder::new(
                 self.core.metrics.clone(),
                 self.core.settings.get_signer(chain.name()).await,
