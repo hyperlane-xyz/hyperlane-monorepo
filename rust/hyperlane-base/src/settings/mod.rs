@@ -86,7 +86,7 @@ pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers,
+    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers, H256,
 };
 pub use signers::SignerConf;
 
@@ -164,14 +164,9 @@ impl Settings {
         let interchain_gas_paymasters = self
             .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db.clone())
             .await?;
-        let multisig_isms = self
-            .build_all_multisig_isms(chain_names.as_slice(), &metrics)
-            .await?;
-
         Ok(HyperlaneAgentCore {
             mailboxes,
             interchain_gas_paymasters,
-            multisig_isms,
             db,
             metrics,
             settings: self.clone(),
@@ -217,20 +212,6 @@ impl Settings {
         Ok(result)
     }
 
-    /// Try to get a map of chain name -> multisig ism contract
-    pub async fn build_all_multisig_isms(
-        &self,
-        chain_names: &[&str],
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<HashMap<HyperlaneDomain, Arc<dyn MultisigIsm>>> {
-        let mut result = HashMap::new();
-        for &chain_name in chain_names {
-            let multisig_ism = self.build_multisig_ism(chain_name, metrics).await?;
-            result.insert(multisig_ism.domain().clone(), multisig_ism.into());
-        }
-        Ok(result)
-    }
-
     /// Try to get a CachingMailbox
     async fn build_caching_mailbox(
         &self,
@@ -267,6 +248,18 @@ impl Settings {
             hyperlane_db,
             indexer.into(),
         ))
+    }
+
+    /// TODO
+    pub async fn build_multisig_ism(
+        &self,
+        chain_name: &str,
+        metrics: &CoreMetrics,
+        address: H256,
+    ) -> eyre::Result<Box<dyn MultisigIsm>> {
+        let signer = self.get_signer(chain_name).await;
+        let setup = self.chain_setup(chain_name)?;
+        setup.build_multisig_ism(signer, metrics, address).await
     }
 
     /// Try to get the chain setup for the provided chain name
@@ -323,6 +316,5 @@ impl Settings {
     delegate_fn!(build_interchain_gas_paymaster_indexer -> dyn InterchainGasPaymasterIndexer);
     delegate_fn!(build_mailbox -> dyn Mailbox);
     delegate_fn!(build_mailbox_indexer -> dyn MailboxIndexer);
-    delegate_fn!(build_multisig_ism -> dyn MultisigIsm);
     delegate_fn!(build_provider -> dyn HyperlaneProvider);
 }

@@ -30,6 +30,9 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
     /// Fetch the current default interchain security module value
     async fn default_ism(&self) -> ChainResult<H256>;
 
+    /// Get the latest checkpoint.
+    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256>;
+
     /// Process a message with a proof against the provided signed checkpoint
     async fn process(
         &self,
