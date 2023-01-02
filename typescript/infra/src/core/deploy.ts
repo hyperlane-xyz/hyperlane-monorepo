@@ -100,7 +100,6 @@ export class HyperlaneCoreInfraDeployer<
         addresses: {
           mailbox: contracts.mailbox.contract.address,
           interchainGasPaymaster: contracts.interchainGasPaymaster.address,
-          multisigIsm: contracts.multisigIsm.address,
         },
         rpcStyle: 'ethereum',
         finalityBlocks: metadata.blocks.reorgPeriod.toString(),

@@ -109,6 +109,10 @@ impl Mailbox for CachingMailbox {
         self.mailbox.default_ism().await
     }
 
+    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        self.mailbox.recipient_ism(recipient).await
+    }
+
     async fn process(
         &self,
         message: &HyperlaneMessage,

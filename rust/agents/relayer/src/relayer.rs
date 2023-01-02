@@ -11,13 +11,13 @@ use hyperlane_base::{
     chains::GelatoConf, run_all, Agent, BaseAgent, ContractSyncMetrics, CoreMetrics,
     HyperlaneAgentCore, MultisigCheckpointSyncer,
 };
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, MultisigIsm, MultisigSignedCheckpoint};
+use hyperlane_core::{HyperlaneChain, HyperlaneDomain, MultisigSignedCheckpoint};
 
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
-use crate::msg::SubmitMessageArgs;
+use crate::msg::{metadata_builder::MetadataBuilder, SubmitMessageArgs};
 use crate::settings::matching_list::MatchingList;
 use crate::settings::{GasPaymentEnforcementPolicy, RelayerSettings};
 use crate::{checkpoint_fetcher::CheckpointFetcher, msg::serial_submitter::SerialSubmitterMetrics};
@@ -103,13 +103,22 @@ impl BaseAgent for Relayer {
                 continue;
             }
             let mailbox = self.mailbox(chain).unwrap();
-            let multisig_ism = self.multisig_ism(chain).unwrap();
+            let chain_setup = self
+                .core
+                .settings
+                .chain_setup(chain.name())
+                .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()));
 
+            let metadata_builder = MetadataBuilder::new(
+                self.core.metrics.clone(),
+                self.core.settings.get_signer(chain.name()).await,
+                chain_setup.clone(),
+            );
             tasks.push(self.run_destination_mailbox(
                 mailbox.clone(),
-                multisig_ism.clone(),
+                metadata_builder.clone(),
                 signed_checkpoint_receiver.clone(),
-                self.core.settings.chains[chain.name()].txsubmission,
+                chain_setup.txsubmission,
                 self.core.settings.gelato.as_ref(),
                 gas_payment_enforcer.clone(),
             ));
@@ -175,7 +184,7 @@ impl Relayer {
         &self,
         message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_ism: Arc<dyn MultisigIsm>,
+        metadata_builder: MetadataBuilder,
         gelato_config: GelatoConf,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     ) -> GelatoSubmitter {
@@ -184,7 +193,7 @@ impl Relayer {
         GelatoSubmitter::new(
             message_receiver,
             mailbox,
-            multisig_ism,
+            metadata_builder,
             self.mailbox(&self.origin_chain).unwrap().db().clone(),
             gelato_config,
             gelato_metrics,
@@ -197,7 +206,7 @@ impl Relayer {
     fn run_destination_mailbox(
         &self,
         destination_mailbox: CachingMailbox,
-        multisig_ism: Arc<dyn MultisigIsm>,
+        metadata_builder: MetadataBuilder,
         signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
         tx_submission: TransactionSubmissionType,
         gelato_config: Option<&GelatoConf>,
@@ -221,7 +230,7 @@ impl Relayer {
                 self.make_gelato_submitter(
                     msg_receive,
                     destination_mailbox.clone(),
-                    multisig_ism,
+                    metadata_builder,
                     gelato_config.clone(),
                     gas_payment_enforcer,
                 )
@@ -231,7 +240,7 @@ impl Relayer {
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
                     destination_mailbox.clone(),
-                    multisig_ism,
+                    metadata_builder,
                     origin_mailbox.db().clone(),
                     SerialSubmitterMetrics::new(
                         &self.core.metrics,

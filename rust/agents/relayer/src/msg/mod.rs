@@ -5,6 +5,7 @@ use hyperlane_core::{accumulator::merkle::Proof, HyperlaneMessage, MultisigSigne
 
 pub mod gas_payment;
 pub mod gelato_submitter;
+pub mod metadata_builder;
 pub mod processor;
 pub mod serial_submitter;
 

@@ -17,9 +17,11 @@ use gelato::{
     types::Chain,
 };
 use hyperlane_base::CachingMailbox;
-use hyperlane_core::{ChainResult, HyperlaneContract, Mailbox, MultisigIsm};
+use hyperlane_core::{ChainResult, HyperlaneContract, Mailbox};
 
-use crate::msg::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
+use crate::msg::{
+    gas_payment::GasPaymentEnforcer, metadata_builder::MetadataBuilder, SubmitMessageArgs,
+};
 
 // The number of seconds after a tick to sleep before attempting the next tick.
 const TICK_SLEEP_DURATION_SECONDS: u64 = 30;
@@ -31,7 +33,7 @@ pub struct SponsoredCallOpArgs {
 
     pub message: SubmitMessageArgs,
     pub mailbox: CachingMailbox,
-    pub multisig_ism: Arc<dyn MultisigIsm>,
+    pub metadata_builder: MetadataBuilder,
     pub sponsor_api_key: String,
     pub destination_chain: Chain,
 
@@ -101,8 +103,13 @@ impl SponsoredCallOp {
             return Ok(true);
         }
         let metadata = self
-            .multisig_ism
-            .format_metadata(&self.message.checkpoint, self.message.proof)
+            .metadata_builder
+            .fetch_metadata(
+                &self.message.message,
+                self.mailbox.clone(),
+                &self.message.checkpoint,
+                &self.message.proof,
+            )
             .await?;
 
         // Estimate transaction costs for the process call. If there are issues, it's
@@ -134,7 +141,7 @@ impl SponsoredCallOp {
         }
 
         // Send the sponsored call.
-        let sponsored_call_result = self.send_sponsored_call_api_call().await?;
+        let sponsored_call_result = self.send_sponsored_call_api_call(&metadata).await?;
         tracing::info!(
             msg=?self.message,
             task_id=sponsored_call_result.task_id,
@@ -205,8 +212,11 @@ impl SponsoredCallOp {
     // Once gas payments are enforced, we will likely fetch the gas payment from
     // the DB here. This is why sponsored call args are created and signed for each
     // sponsored call call.
-    async fn send_sponsored_call_api_call(&self) -> Result<SponsoredCallApiCallResult> {
-        let args = self.create_sponsored_call_args().await?;
+    async fn send_sponsored_call_api_call(
+        &self,
+        metadata: &[u8],
+    ) -> Result<SponsoredCallApiCallResult> {
+        let args = self.create_sponsored_call_args(metadata).await?;
 
         let sponsored_call_api_call = SponsoredCallApiCall {
             args: &args,
@@ -217,14 +227,10 @@ impl SponsoredCallOp {
         sponsored_call_api_call.run().await
     }
 
-    async fn create_sponsored_call_args(&self) -> Result<SponsoredCallArgs> {
-        let metadata = self
-            .multisig_ism
-            .format_metadata(&self.message.checkpoint, self.message.proof)
-            .await?;
+    async fn create_sponsored_call_args(&self, metadata: &[u8]) -> Result<SponsoredCallArgs> {
         let calldata = self
             .mailbox
-            .process_calldata(&self.message.message, &metadata);
+            .process_calldata(&self.message.message, metadata);
         Ok(SponsoredCallArgs {
             chain_id: self.destination_chain,
             target: self.mailbox.address().into(),
