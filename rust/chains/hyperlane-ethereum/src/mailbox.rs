@@ -293,7 +293,7 @@ where
         Ok(receipt.into())
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip(self), fields(metadata=format!("{:x?}", metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

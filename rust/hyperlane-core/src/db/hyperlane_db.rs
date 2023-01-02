@@ -181,8 +181,8 @@ impl HyperlaneDB {
     }
 
     // TODO(james): this is a quick-fix for the prover_sync and I don't like it
-    /// poll db ever 100 milliseconds waitinf for a leaf.
-    pub fn wait_for_message_id(&self, nonce: u32) -> impl Future<Output = Result<H256>> {
+    /// poll db ever 100 milliseconds waiting for a leaf.
+    pub fn wait_for_message_nonce(&self, nonce: u32) -> impl Future<Output = Result<H256>> {
         let slf = self.clone();
         async move {
             loop {

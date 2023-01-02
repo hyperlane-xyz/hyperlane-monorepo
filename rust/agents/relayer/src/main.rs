@@ -13,7 +13,6 @@ use hyperlane_base::agent_main;
 
 use crate::relayer::Relayer;
 
-mod checkpoint_fetcher;
 mod merkle_tree_builder;
 mod msg;
 mod prover;

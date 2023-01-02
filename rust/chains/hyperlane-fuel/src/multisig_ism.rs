@@ -23,12 +23,22 @@ impl HyperlaneChain for FuelMultisigIsm {
 
 #[async_trait]
 impl MultisigIsm for FuelMultisigIsm {
-    async fn format_metadata(
+    /// Returns the validator and threshold needed to verify message
+    async fn validators_and_threshold(
         &self,
         message: &HyperlaneMessage,
+    ) -> ChainResult<(Vec<H256>, u8)> {
+        todo!()
+    }
+
+    /// Returns the metadata needed by the contract's verify function
+    fn format_metadata(
+        &self,
+        validators: &[H256],
+        threshold: u8,
         checkpoint: &MultisigSignedCheckpoint,
         proof: &Proof,
-    ) -> ChainResult<Vec<u8>> {
+    ) -> Vec<u8> {
         todo!()
     }
 }

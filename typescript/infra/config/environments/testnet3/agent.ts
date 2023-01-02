@@ -67,7 +67,6 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   },
   relayer: {
     default: {
-      signedCheckpointPollingInterval: 5,
       // blacklist: releaseCandidateHelloworldMatchingList,
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
