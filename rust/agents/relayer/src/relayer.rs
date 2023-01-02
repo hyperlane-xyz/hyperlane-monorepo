@@ -107,7 +107,7 @@ impl BaseAgent for Relayer {
                 .core
                 .settings
                 .chain_setup(chain.name())
-                .expect(format!("No chain setup found for {}", chain.name()));
+                .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()));
 
             let metadata_builder = MetadataBuilder::new(
                 self.core.metrics.clone(),
