@@ -161,8 +161,6 @@ fn main() -> ExitCode {
         "HYP_RELAYER_GASPAYMENTENFORCEMENTPOLICY_TYPE" => "none",
         "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
         "HYP_RELAYER_WHITELIST" => r#"[{"sourceAddress": "*", "destinationDomain": ["13372", "13373"], "destinationAddress": "*"}]"#,
-        "HYP_RELAYER_SIGNEDCHECKPOINTPOLLINGINTERVAL" => "5",
-        "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_THRESHOLD" => "1",
         "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_TYPE" => "localStorage",
         "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_PATH" => checkpoints_dir.path().to_str().unwrap(),
     };
@@ -185,7 +183,6 @@ fn main() -> ExitCode {
         "HYP_VALIDATOR_VALIDATOR_TYPE" => "hexKey",
         "HYP_VALIDATOR_REORGPERIOD" => "0",
         "HYP_VALIDATOR_INTERVAL" => "5",
-        "HYP_VALIDATOR_CHECKPOINTSYNCER_THRESHOLD" => "1",
         "HYP_VALIDATOR_CHECKPOINTSYNCER_TYPE" => "localStorage",
         "HYP_VALIDATOR_CHECKPOINTSYNCER_PATH" => checkpoints_dir.path().to_str().unwrap(),
     };
