@@ -10,8 +10,9 @@ use tokio::time::sleep;
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{CachingMailbox, CoreMetrics};
-use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, MultisigIsm};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox};
 
+use super::metadata_builder::MetadataBuilder;
 use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
 /// SerialSubmitter accepts undelivered messages over a channel from a MessageProcessor. It is
@@ -103,6 +104,8 @@ use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
 #[derive(Debug)]
 pub(crate) struct SerialSubmitter {
+    /// Used to construct the ISM metadata needed to verify a message.
+    metadata_builder: MetadataBuilder,
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// Messages we are aware of that we want to eventually submit, but haven't yet, for
@@ -114,8 +117,6 @@ pub(crate) struct SerialSubmitter {
     run_queue: VecDeque<SubmitMessageArgs>,
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
-    /// Multisig ism on the destination chain.
-    multisig_ism: Arc<dyn MultisigIsm>,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: HyperlaneDB,
     /// Metrics for serial submitter.
@@ -128,7 +129,7 @@ impl SerialSubmitter {
     pub(crate) fn new(
         rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_ism: Arc<dyn MultisigIsm>,
+        metadata_builder: MetadataBuilder,
         db: HyperlaneDB,
         metrics: SerialSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -138,7 +139,7 @@ impl SerialSubmitter {
             wait_queue: Vec::new(),
             run_queue: VecDeque::new(),
             mailbox,
-            multisig_ism,
+            metadata_builder,
             db,
             metrics,
             gas_payment_enforcer,
@@ -259,8 +260,13 @@ impl SerialSubmitter {
             return Ok(true);
         }
         let metadata = self
-            .multisig_ism
-            .format_metadata(&msg.checkpoint, msg.proof)
+            .metadata_builder
+            .fetch_metadata(
+                &msg.message,
+                self.mailbox.clone(),
+                &msg.checkpoint,
+                &msg.proof,
+            )
             .await?;
 
         // Estimate transaction costs for the process call. If there are issues, it's likely
