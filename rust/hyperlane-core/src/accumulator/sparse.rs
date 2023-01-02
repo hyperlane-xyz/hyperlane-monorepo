@@ -47,10 +47,10 @@ impl SparseMerkleTree {
         }
     }
 
-    /// Merges the compatible nodes from another merkle tree via DFS.
+    /// Merges the sparse merkle tree `b` into `self` via DFS.
     ///
-    /// This should only be run on sparse partial trees, as otherwise
-    /// it can consume quite a lot of memory.
+    /// A node in `self` is merged with a node in `b` iff the hashes of both
+    /// nodes are equal.
     fn merge(self, b: SparseMerkleTree) -> SparseMerkleTree {
         match self {
             SparseMerkleTree(MerkleTree::Zero(_)) => self,
