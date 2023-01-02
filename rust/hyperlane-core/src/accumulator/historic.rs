@@ -5,30 +5,58 @@ use crate::{
 
 use super::{merkle::MerkleTree, TREE_DEPTH};
 
-impl MerkleTree {
+/// Represents a sparse merkle tree containing O(h) nodes.
+#[derive(Debug, PartialEq, Clone)]
+pub struct SparseMerkleTree(MerkleTree);
+
+impl From<&Box<MerkleTree>> for SparseMerkleTree {
+    fn from(value: &Box<MerkleTree>) -> Self {
+        SparseMerkleTree((**value).clone())
+    }
+}
+
+impl From<SparseMerkleTree> for MerkleTree {
+    fn from(value: SparseMerkleTree) -> Self {
+        value.0
+    }
+}
+
+impl SparseMerkleTree {
+    /// Retrieve the root hash of this SparseMerkle tree.
+    pub fn hash(&self) -> H256 {
+        match *self {
+            SparseMerkleTree(MerkleTree::Leaf(h)) => h,
+            SparseMerkleTree(MerkleTree::Node(h, _, _)) => h,
+            SparseMerkleTree(MerkleTree::Zero(depth)) => ZERO_HASHES[depth],
+        }
+    }
     /// Merges the compatible nodes from another merkle tree via DFS.
     ///
     /// This should only be run on sparse partial trees, as otherwise
     /// it can consume quite a lot of memory.
-    pub fn merge(self, b: MerkleTree) -> MerkleTree {
+    pub fn merge(self, b: SparseMerkleTree) -> SparseMerkleTree {
         match self {
-            MerkleTree::Zero(_) => self,
-            MerkleTree::Leaf(_) => {
+            SparseMerkleTree(MerkleTree::Zero(_)) => self,
+            SparseMerkleTree(MerkleTree::Leaf(_)) => {
                 if self.hash().eq(&b.hash()) {
                     b
                 } else {
                     self
                 }
             }
-            MerkleTree::Node(a_hash, ref a_left, ref a_right) => match b {
-                MerkleTree::Leaf(_) => self,
-                MerkleTree::Zero(_) => self,
-                MerkleTree::Node(_, b_left, b_right) => {
-                    let merged_left = (**a_left).clone().merge((*b_left).clone());
-                    let merged_right = (**a_right).clone().merge((*b_right).clone());
-                    let merged_hash = hash_concat(merged_left.hash(), merged_right.hash());
-                    assert_eq!(merged_hash, a_hash);
-                    MerkleTree::Node(a_hash, Box::new(merged_left), Box::new(merged_right))
+            SparseMerkleTree(MerkleTree::Node(a_hash, ref a_left, ref a_right)) => match b {
+                SparseMerkleTree(MerkleTree::Leaf(_)) => self,
+                SparseMerkleTree(MerkleTree::Zero(_)) => self,
+                SparseMerkleTree(MerkleTree::Node(_, ref b_left, ref b_right)) => {
+                    let aleft: SparseMerkleTree = a_left.into();
+                    let merged_left = aleft.merge(b_left.into());
+                    let aright: SparseMerkleTree = a_right.into();
+                    let merged_right = aright.merge(b_right.into());
+                    SparseMerkleTree(MerkleTree::Node(
+                        a_hash,
+                        Box::new(merged_left.into()),
+                        Box::new(merged_right.into()),
+                    ))
                 }
             },
         }
@@ -56,8 +84,8 @@ impl Proof {
         }
     }
 
-    /// Creates a partial merkle tree out of the proof
-    pub fn partial_tree(&self) -> MerkleTree {
+    /// Creates a sparse merkle tree out of the proof
+    pub fn sparse_tree(&self) -> SparseMerkleTree {
         let mut tree = MerkleTree::Leaf(self.leaf);
 
         for i in 0..TREE_DEPTH {
@@ -72,7 +100,7 @@ impl Proof {
                 tree = MerkleTree::Node(hash, Box::new(tree), Box::new(right));
             }
         }
-        tree
+        SparseMerkleTree(tree)
     }
 }
 
@@ -111,7 +139,7 @@ mod tests {
             let current_proof_i = generate_proof(&tree, i);
 
             // Generate a partial merkle tree from the proof of index i against the full tree
-            let current_partial_tree_i = current_proof_i.partial_tree();
+            let current_partial_tree_i = current_proof_i.sparse_tree();
             assert_eq!(current_partial_tree_i.hash(), tree.hash());
 
             for j in i..LEAF_COUNT {
@@ -130,18 +158,16 @@ mod tests {
                 ));
 
                 // From that, generate the partial merkle tree from when index j was the latest node in the tree
-                let latest_partial_tree_j = latest_proof_j.partial_tree();
+                let latest_partial_tree_j = latest_proof_j.sparse_tree();
                 assert_eq!(latest_partial_tree_j.hash(), roots[j]);
 
                 // Merge the partial trees together
-                let merged_tree = latest_partial_tree_j
-                    .clone()
-                    .merge(current_partial_tree_i.clone());
+                let merged_tree = latest_partial_tree_j.merge(current_partial_tree_i.clone());
                 assert_eq!(merged_tree.hash(), roots[j]);
 
                 // From the merged tree, pull a historical proof of index i when j was the latest node in the tree
-                let historical_proof_i = generate_proof(&merged_tree, i);
-                assert_eq!(historical_proof_i.partial_tree().hash(), roots[j]);
+                let historical_proof_i = generate_proof(&merged_tree.into(), i);
+                assert_eq!(historical_proof_i.sparse_tree().hash(), roots[j]);
                 assert!(verify_merkle_proof(
                     historical_proof_i.leaf,
                     &historical_proof_i.path,
