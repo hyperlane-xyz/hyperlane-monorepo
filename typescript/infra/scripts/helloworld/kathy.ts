@@ -13,9 +13,10 @@ import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
 
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { ConnectionType } from '../../src/config/agent';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { deployEnvToSdkEnv, getArgs, getCoreEnvironmentConfig } from '../utils';
+import { getArgs, getCoreEnvironmentConfig } from '../utils';
 
 import { getApp } from './utils';
 

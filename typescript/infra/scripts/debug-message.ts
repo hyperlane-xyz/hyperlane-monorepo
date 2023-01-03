@@ -9,9 +9,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
 
+import { deployEnvToSdkEnv } from '../src/config/environment';
 import { assertChain } from '../src/utils/utils';
 
-import { deployEnvToSdkEnv, getArgs, getEnvironment } from './utils';
+import { getArgs, getEnvironment } from './utils';
 
 async function main() {
   const argv = await getArgs()
