@@ -130,5 +130,21 @@ jobs:
         run: yarn workspace @hyperlane-xyz/core run test
 
       - name: gas
-        run: yarn workspace @hyperlane-xyz/core run gas
+        run: yarn workspace @hyperlane-xyz/core run gas-ci
 
+      - name: coverage
+        run: yarn workspace @hyperlane-xyz/core run coverage-ci
+
+      - uses: romeovs/lcov-reporter-action@v0.3.1
+        with:
+          title: "Forge Coverage Report"
+          lcov-file: ./solidity/lcov.info
+          lcov-base: ./solidity/forge-lcov.base.info
+          delete-old-comments: true
+
+      - uses: romeovs/lcov-reporter-action@v0.3.1
+        with:
+          title: "Hardhat Coverage Report"
+          lcov-file: ./solidity/coverage/lcov.info
+          lcov-base: ./solidity/hardhat-lcov.base.info
+          delete-old-comments: true
