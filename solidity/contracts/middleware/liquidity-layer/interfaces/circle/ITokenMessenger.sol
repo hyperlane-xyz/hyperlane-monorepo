@@ -9,7 +9,7 @@ interface ITokenMessenger {
      * Emits a `DepositForBurn` event.
      * @dev reverts if:
      * - given burnToken is not supported
-     * - given destinationDomain has no CircleBridge registered
+     * - given destinationDomain has no TokenMessenger registered
      * - transferFrom() reverts. For example, if sender's burnToken balance or approved allowance
      * to this contract is less than `amount`.
      * - burn() reverts. For example, if `amount` is 0.
@@ -37,7 +37,7 @@ interface ITokenMessenger {
      * @dev reverts if:
      * - given destinationCaller is zero address
      * - given burnToken is not supported
-     * - given destinationDomain has no CircleBridge registered
+     * - given destinationDomain has no TokenMessenger registered
      * - transferFrom() reverts. For example, if sender's burnToken balance or approved allowance
      * to this contract is less than `amount`.
      * - burn() reverts. For example, if `amount` is 0.

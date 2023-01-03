@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {ITokenMessenger} from "../middleware/liquidity-layer/interfaces/circle/ITokenMessenger.sol";
 import {MockToken} from "./MockToken.sol";
 
-contract MockCircleBridge is ITokenMessenger {
+contract MockCircleTokenMessenger is ITokenMessenger {
     uint64 public nextNonce = 0;
     MockToken token;
 
