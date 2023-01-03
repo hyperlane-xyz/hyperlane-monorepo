@@ -102,17 +102,19 @@ export abstract class HyperlaneRouterDeployer<
       const domains = entries.map(([id]) => id);
       const addresses = entries.map(([, address]) => address);
 
-      await super.runIfOwner(local, contracts.router, async () => {
-        const chains = domains.map((id) => DomainIdToChainName[id]);
-        this.logger(`Enroll remote (${chains}) routers on ${local}`);
-        await chainConnection.handleTx(
-          contracts.router.enrollRemoteRouters(
-            domains,
-            addresses,
-            chainConnection.overrides,
-          ),
-        );
-      });
+      if (domains.length > 0) {
+        await super.runIfOwner(local, contracts.router, async () => {
+          const chains = domains.map((id) => DomainIdToChainName[id]);
+          this.logger(`Enroll remote (${chains}) routers on ${local}`);
+          await chainConnection.handleTx(
+            contracts.router.enrollRemoteRouters(
+              domains,
+              addresses,
+              chainConnection.overrides,
+            ),
+          );
+        });
+      }
     }
   }
 

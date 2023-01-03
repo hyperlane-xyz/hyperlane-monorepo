@@ -17,7 +17,10 @@ async function main() {
 
   const liquidityLayerRelayerConfig =
     getLiquidityLayerRelayerConfig(coreConfig);
-  const agentConfig = await getContextAgentConfig(coreConfig, Contexts.Abacus);
+  const agentConfig = await getContextAgentConfig(
+    coreConfig,
+    Contexts.Hyperlane,
+  );
 
   await runLiquidityLayerRelayerHelmCommand(
     HelmCommand.InstallOrUpgrade,

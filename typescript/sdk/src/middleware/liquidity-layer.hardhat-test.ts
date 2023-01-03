@@ -4,10 +4,10 @@ import { ethers } from 'hardhat';
 
 import {
   LiquidityLayerRouter,
-  MockCircleBridge,
-  MockCircleBridge__factory,
   MockCircleMessageTransmitter,
   MockCircleMessageTransmitter__factory,
+  MockCircleTokenMessenger,
+  MockCircleTokenMessenger__factory,
   MockPortalBridge,
   MockPortalBridge__factory,
   MockToken,
@@ -47,7 +47,7 @@ describe('LiquidityLayerRouter', async () => {
   let liquidityLayerApp: LiquidityLayerApp<TestChainNames>;
   let config: ChainMap<TestChainNames, LiquidityLayerConfig>;
   let mockToken: MockToken;
-  let circleBridge: MockCircleBridge;
+  let circleTokenMessenger: MockCircleTokenMessenger;
   let portalBridge: MockPortalBridge;
   let messageTransmitter: MockCircleMessageTransmitter;
 
@@ -63,8 +63,10 @@ describe('LiquidityLayerRouter', async () => {
     const mockTokenF = new MockToken__factory(signer);
     mockToken = await mockTokenF.deploy();
     const portalBridgeF = new MockPortalBridge__factory(signer);
-    const circleBridgeF = new MockCircleBridge__factory(signer);
-    circleBridge = await circleBridgeF.deploy(mockToken.address);
+    const circleTokenMessengerF = new MockCircleTokenMessenger__factory(signer);
+    circleTokenMessenger = await circleTokenMessengerF.deploy(
+      mockToken.address,
+    );
     portalBridge = await portalBridgeF.deploy(mockToken.address);
     const messageTransmitterF = new MockCircleMessageTransmitter__factory(
       signer,
@@ -78,7 +80,7 @@ describe('LiquidityLayerRouter', async () => {
           ...conf,
           circle: {
             type: BridgeAdapterType.Circle,
-            circleBridgeAddress: circleBridge.address,
+            tokenMessengerAddress: circleTokenMessenger.address,
             messageTransmitterAddress: messageTransmitter.address,
             usdcAddress: mockToken.address,
             circleDomainMapping: [
@@ -140,7 +142,7 @@ describe('LiquidityLayerRouter', async () => {
       BridgeAdapterType.Circle,
     );
 
-    const transferNonce = await circleBridge.nextNonce();
+    const transferNonce = await circleTokenMessenger.nextNonce();
     const nonceId = await messageTransmitter.hashSourceAndNonce(
       localDomain,
       transferNonce,

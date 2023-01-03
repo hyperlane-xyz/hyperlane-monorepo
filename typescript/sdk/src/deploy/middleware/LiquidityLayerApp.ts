@@ -3,8 +3,8 @@ import { ethers } from 'ethers';
 
 import {
   CircleBridgeAdapter__factory,
-  ICircleBridge__factory,
   ICircleMessageTransmitter__factory,
+  ITokenMessenger__factory,
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
@@ -25,7 +25,7 @@ const CIRCLE_ATTESTATIONS_BASE_URL =
 
 const PORTAL_VAA_SERVICE_SUCCESS_CODE = 5;
 
-const CircleBridgeInterface = ICircleBridge__factory.createInterface();
+const TokenMessengerInterface = ITokenMessenger__factory.createInterface();
 const CircleBridgeAdapterInterface =
   CircleBridgeAdapter__factory.createInterface();
 const PortalAdapterInterface = PortalAdapter__factory.createInterface();
@@ -129,7 +129,7 @@ export class LiquidityLayerApp<
     const matchingLogs = receipt.logs
       .map((_) => {
         try {
-          return [CircleBridgeInterface.parseLog(_)];
+          return [TokenMessengerInterface.parseLog(_)];
         } catch {
           try {
             return [CircleBridgeAdapterInterface.parseLog(_)];
@@ -159,7 +159,7 @@ export class LiquidityLayerApp<
         nonce,
         domain,
         nonceHash: ethers.utils.solidityKeccak256(
-          ['uint32', 'uint256'],
+          ['uint32', 'uint64'],
           [domain, nonce],
         ),
       },

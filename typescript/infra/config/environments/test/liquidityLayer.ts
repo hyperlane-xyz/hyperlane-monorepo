@@ -28,8 +28,8 @@ export const bridgeAdapterConfigs: ChainMap<any, BridgeAdapterConfig> = {
     },
     circle: {
       type: BridgeAdapterType.Circle,
-      circleBridgeAddress: '0xdabec94b97f7b5fca28f050cc8eeac2dc9920476',
-      messageTransmitterAddress: '0x40a61d3d2afcf5a5d31fcdf269e575fb99dd87f7',
+      tokenMessengerAddress: '0xd0c3da58f55358142b8d3e06c1c30c5c6114efe8',
+      messageTransmitterAddress: '0x26413e8157cd32011e726065a5462e97dd4d03d9',
       usdcAddress: '0x07865c6e87b9f70255377e024ace6630c1eaa37f',
       circleDomainMapping,
     },
@@ -42,8 +42,8 @@ export const bridgeAdapterConfigs: ChainMap<any, BridgeAdapterConfig> = {
     },
     circle: {
       type: BridgeAdapterType.Circle,
-      circleBridgeAddress: '0x0fc1103927af27af808d03135214718bcedbe9ad',
-      messageTransmitterAddress: '0x52fffb3ee8fa7838e9858a2d5e454007b9027c3c',
+      tokenMessengerAddress: '0xeb08f243e5d3fcff26a9e38ae5520a669f4019d0',
+      messageTransmitterAddress: '0xa9fb1b3009dcb79e2fe346c16a604b8fa8ae0a79',
       usdcAddress: '0x5425890298aed601595a70ab815c96711a31bc65',
       circleDomainMapping,
     },

@@ -7,7 +7,7 @@ import {
   objMap,
 } from '@hyperlane-xyz/sdk';
 
-import { bridgeAdapterConfigs } from '../../config/environments/testnet3/liquidityLayer';
+import { bridgeAdapterConfigs } from '../../config/environments/testnet3/token-bridge';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import {

@@ -8,7 +8,7 @@ import {
   liquidityLayerFactories,
 } from '@hyperlane-xyz/sdk';
 
-import { bridgeAdapterConfigs } from '../../config/environments/testnet3/liquidityLayer';
+import { bridgeAdapterConfigs } from '../../config/environments/testnet3/token-bridge';
 import { readJSON, sleep } from '../../src/utils/utils';
 import {
   getCoreEnvironmentConfig,
