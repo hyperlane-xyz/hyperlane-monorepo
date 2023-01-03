@@ -64,7 +64,6 @@ export const hyperlane: AgentConfig<MainnetChains> = {
   },
   relayer: {
     default: {
-      signedCheckpointPollingInterval: 5,
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
       },

@@ -2,7 +2,11 @@ import { BigNumber } from 'ethers';
 
 import { HyperlaneCore, objMap, promiseObjAll } from '@hyperlane-xyz/sdk';
 
-import { getEnvironment, getEnvironmentConfig } from '../utils';
+import {
+  deployEnvToSdkEnv,
+  getEnvironment,
+  getEnvironmentConfig,
+} from '../utils';
 
 // Some arbitrary treshold for now
 const RECLAIM_BALANCE_THRESHOLD = BigNumber.from(10).pow(17);
@@ -12,7 +16,7 @@ async function main() {
   const coreConfig = await getEnvironmentConfig();
   const multiProvider = await coreConfig.getMultiProvider();
   const core: HyperlaneCore<any> = HyperlaneCore.fromEnvironment(
-    environment,
+    deployEnvToSdkEnv[environment],
     multiProvider,
   );
 

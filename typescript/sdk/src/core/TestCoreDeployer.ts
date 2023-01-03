@@ -2,7 +2,6 @@ import { ethers } from 'ethers';
 
 import {
   MultisigIsm,
-  Ownable,
   TestIsm__factory,
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
@@ -66,10 +65,7 @@ export class TestCoreDeployer<
   }
 
   // TestIsm is not ownable, so we skip ownership transfer
-  async transferOwnershipOfContracts(
-    chain: TestChain,
-    ownables: Ownable[],
-  ): Promise<ethers.ContractReceipt[]> {
+  async transferOwnershipOfContracts(): Promise<ethers.ContractReceipt[]> {
     return [];
   }
 

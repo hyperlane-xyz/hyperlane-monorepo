@@ -10,8 +10,9 @@ use tokio::time::sleep;
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{CachingMailbox, CoreMetrics};
-use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, MultisigIsm};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox};
 
+use super::metadata_builder::MetadataBuilder;
 use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
 /// SerialSubmitter accepts undelivered messages over a channel from a MessageProcessor. It is
@@ -103,6 +104,8 @@ use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
 
 #[derive(Debug)]
 pub(crate) struct SerialSubmitter {
+    /// Used to construct the ISM metadata needed to verify a message.
+    metadata_builder: MetadataBuilder,
     /// Receiver for new messages to submit.
     rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// Messages we are aware of that we want to eventually submit, but haven't yet, for
@@ -114,8 +117,6 @@ pub(crate) struct SerialSubmitter {
     run_queue: VecDeque<SubmitMessageArgs>,
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
-    /// Multisig ism on the destination chain.
-    multisig_ism: Arc<dyn MultisigIsm>,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: HyperlaneDB,
     /// Metrics for serial submitter.
@@ -128,7 +129,7 @@ impl SerialSubmitter {
     pub(crate) fn new(
         rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_ism: Arc<dyn MultisigIsm>,
+        metadata_builder: MetadataBuilder,
         db: HyperlaneDB,
         metrics: SerialSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
@@ -138,7 +139,7 @@ impl SerialSubmitter {
             wait_queue: Vec::new(),
             run_queue: VecDeque::new(),
             mailbox,
-            multisig_ism,
+            metadata_builder,
             db,
             metrics,
             gas_payment_enforcer,
@@ -249,7 +250,7 @@ impl SerialSubmitter {
     /// been processed, Ok(true) is returned. If this message is unable to
     /// be processed, either due to failed gas estimation or an insufficient gas payment,
     /// Ok(false) is returned.
-    #[instrument(skip(self, msg), fields(msg_nonce=msg.message.nonce))]
+    #[instrument(skip(self, msg), fields(msg_nonce=msg.message.nonce, msg_id=format!("{:x}", msg.message.id())))]
     async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<bool> {
         // If the message has already been processed, e.g. due to another relayer having already
         // processed, then mark it as already-processed, and move on to the next tick.
@@ -258,67 +259,71 @@ impl SerialSubmitter {
             info!("Message already processed");
             return Ok(true);
         }
-        let metadata = self
-            .multisig_ism
-            .format_metadata(&msg.checkpoint, msg.proof)
-            .await?;
-
-        // Estimate transaction costs for the process call. If there are issues, it's likely
-        // that gas estimation has failed because the message is reverting. This is defined behavior,
-        // so we just log the error and move onto the next tick.
-        let tx_cost_estimate = match self
-            .mailbox
-            .process_estimate_costs(&msg.message, &metadata)
-            .await
+        if let Some(metadata) = self
+            .metadata_builder
+            .fetch_metadata(&msg.message, self.mailbox.clone())
+            .await?
         {
-            Ok(tx_cost_estimate) => tx_cost_estimate,
-            Err(err) => {
-                info!(msg=?msg, error=?err, "Error estimating process costs");
+            // Estimate transaction costs for the process call. If there are issues, it's likely
+            // that gas estimation has failed because the message is reverting. This is defined behavior,
+            // so we just log the error and move onto the next tick.
+            let tx_cost_estimate = match self
+                .mailbox
+                .process_estimate_costs(&msg.message, &metadata)
+                .await
+            {
+                Ok(tx_cost_estimate) => tx_cost_estimate,
+                Err(err) => {
+                    info!(msg=?msg, error=?err, "Error estimating process costs");
+                    return Ok(false);
+                }
+            };
+
+            // If the gas payment requirement hasn't been met, move to the next tick.
+            let (meets_gas_requirement, gas_payment) = self
+                .gas_payment_enforcer
+                .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
+                .await?;
+            if !meets_gas_requirement {
+                info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
                 return Ok(false);
             }
-        };
 
-        // If the gas payment requirement hasn't been met, move to the next tick.
-        let (meets_gas_requirement, gas_payment) = self
-            .gas_payment_enforcer
-            .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
-            .await?;
-        if !meets_gas_requirement {
-            info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
-            return Ok(false);
-        }
+            // Go ahead and attempt processing of message to destination chain.
+            debug!(gas_payment=?gas_payment, msg=?msg, "Ready to process message");
 
-        // Go ahead and attempt processing of message to destination chain.
-        debug!(gas_payment=?gas_payment, msg=?msg, "Ready to process message");
+            // TODO: consider differentiating types of processing errors, and pushing to the front of the
+            // run queue for intermittent types of errors that can occur even if a message's processing isn't
+            // reverting, e.g. timeouts or txs being dropped from the mempool. To avoid consistently retrying
+            // only these messages, the number of retries could be considered.
 
-        // TODO: consider differentiating types of processing errors, and pushing to the front of the
-        // run queue for intermittent types of errors that can occur even if a message's processing isn't
-        // reverting, e.g. timeouts or txs being dropped from the mempool. To avoid consistently retrying
-        // only these messages, the number of retries could be considered.
+            // We use the estimated gas limit from the prior call to `process_estimate_costs` to
+            // avoid a second gas estimation.
+            let process_result = self
+                .mailbox
+                .process(&msg.message, &metadata, Some(tx_cost_estimate.gas_limit))
+                .await;
+            match process_result {
+                // TODO(trevor): Instead of immediately marking as processed, move to a verification
+                // queue, which will wait for finality and indexing by the mailbox indexer and then mark
+                // as processed (or eventually retry if no confirmation is ever seen).
 
-        // We use the estimated gas limit from the prior call to `process_estimate_costs` to
-        // avoid a second gas estimation.
-        let process_result = self
-            .mailbox
-            .process(&msg.message, &metadata, Some(tx_cost_estimate.gas_limit))
-            .await;
-        match process_result {
-            // TODO(trevor): Instead of immediately marking as processed, move to a verification
-            // queue, which will wait for finality and indexing by the mailbox indexer and then mark
-            // as processed (or eventually retry if no confirmation is ever seen).
-
-            // Only mark the message as processed if the transaction didn't revert.
-            Ok(outcome) if outcome.executed => {
-                info!(hash=?outcome.txid,
+                // Only mark the message as processed if the transaction didn't revert.
+                Ok(outcome) if outcome.executed => {
+                    info!(hash=?outcome.txid,
                     wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
                     "Message successfully processed by transaction");
-                Ok(true)
+                    Ok(true)
+                }
+                Ok(outcome) => {
+                    info!(hash=?outcome.txid, "Transaction attempting to process transaction reverted");
+                    Ok(false)
+                }
+                Err(e) => Err(e.into()),
             }
-            Ok(outcome) => {
-                info!(hash=?outcome.txid, "Transaction attempting to process transaction reverted");
-                Ok(false)
-            }
-            Err(e) => Err(e.into()),
+        } else {
+            info!("Unable to fetch metadata for message");
+            Ok(false)
         }
     }
 
