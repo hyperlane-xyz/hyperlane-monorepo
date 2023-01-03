@@ -7,7 +7,7 @@ import {CircleBridgeAdapter} from "../contracts/middleware/liquidity-layer/adapt
 import {MockToken} from "../contracts/mock/MockToken.sol";
 import {TestTokenRecipient} from "../contracts/test/TestTokenRecipient.sol";
 import {MockCircleMessageTransmitter} from "../contracts/mock/MockCircleMessageTransmitter.sol";
-import {MockCircleBridge} from "../contracts/mock/MockCircleBridge.sol";
+import {MockCircleTokenMessenger} from "../contracts/mock/MockCircleTokenMessenger.sol";
 import {MockHyperlaneEnvironment} from "../contracts/mock/MockHyperlaneEnvironment.sol";
 
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
@@ -19,7 +19,7 @@ contract LiquidityLayerRouterTest is Test {
     LiquidityLayerRouter destinationLiquidityLayerRouter;
 
     MockCircleMessageTransmitter messageTransmitter;
-    MockCircleBridge circleBridge;
+    MockCircleTokenMessenger tokenMessenger;
     CircleBridgeAdapter originBridgeAdapter;
     CircleBridgeAdapter destinationBridgeAdapter;
 
@@ -38,7 +38,7 @@ contract LiquidityLayerRouterTest is Test {
     function setUp() public {
         token = new MockToken();
 
-        circleBridge = new MockCircleBridge(token);
+        tokenMessenger = new MockCircleTokenMessenger(token);
         messageTransmitter = new MockCircleMessageTransmitter(token);
         originBridgeAdapter = new CircleBridgeAdapter();
         destinationBridgeAdapter = new CircleBridgeAdapter();
@@ -76,14 +76,14 @@ contract LiquidityLayerRouterTest is Test {
 
         originBridgeAdapter.initialize(
             address(this),
-            address(circleBridge),
+            address(tokenMessenger),
             address(messageTransmitter),
             address(originLiquidityLayerRouter)
         );
 
         destinationBridgeAdapter.initialize(
             address(this),
-            address(circleBridge),
+            address(tokenMessenger),
             address(messageTransmitter),
             address(destinationLiquidityLayerRouter)
         );
@@ -222,7 +222,7 @@ contract LiquidityLayerRouterTest is Test {
             destinationBridgeAdapter.hyperlaneDomainToCircleDomain(
                 originDomain
             ),
-            circleBridge.nextNonce()
+            tokenMessenger.nextNonce()
         );
 
         messageTransmitter.process(
