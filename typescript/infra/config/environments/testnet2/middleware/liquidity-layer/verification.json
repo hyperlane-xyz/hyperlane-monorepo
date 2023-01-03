@@ -23,6 +23,12 @@
       "address": "0x54FCA26E5FF828847D8caF471e44cD5727C73B0d",
       "isProxy": false,
       "constructorArguments": ""
+    },
+    {
+      "name": "CircleBridgeAdapter",
+      "address": "0x17EB33454AAEF8E91510540a0ebF4a8213dd740D",
+      "isProxy": false,
+      "constructorArguments": ""
     }
   ],
   "goerli": [
@@ -47,6 +53,12 @@
     {
       "name": "CircleBridgeAdapter",
       "address": "0x54FCA26E5FF828847D8caF471e44cD5727C73B0d",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "CircleBridgeAdapter",
+      "address": "0x17EB33454AAEF8E91510540a0ebF4a8213dd740D",
       "isProxy": false,
       "constructorArguments": ""
     }
