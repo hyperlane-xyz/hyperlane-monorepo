@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import { Ownable } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
@@ -22,8 +24,23 @@ export class HyperlaneRouterChecker<
   }
 
   async checkChain(chain: Chain): Promise<void> {
+    await this.checkHyperlaneConnectionClient(chain);
     await this.checkEnrolledRouters(chain);
     await this.checkOwnership(chain);
+  }
+
+  async checkHyperlaneConnectionClient(chain: Chain): Promise<void> {
+    const router = this.app.getContracts(chain).router;
+    const mailbox = await router.mailbox();
+    const igp = await router.interchainGasPaymaster();
+    const ism = await router.interchainSecurityModule();
+    utils.assert(mailbox, this.configMap[chain].mailbox);
+    utils.assert(igp, this.configMap[chain].interchainGasPaymaster);
+    utils.assert(
+      ism,
+      this.configMap[chain].interchainSecurityModule ||
+        ethers.constants.AddressZero,
+    );
   }
 
   async checkEnrolledRouters(chain: Chain): Promise<void> {
