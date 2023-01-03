@@ -39,7 +39,7 @@ async function check() {
     envSubsetFactories,
   ) as ChainMap<ChainName, RouterContracts>;
   const app = new EnvSubsetApp(contractsMap, multiProvider);
-  const core = HyperlaneCore.fromEnvironment('testnet2', multiProvider);
+  const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(alfajoresChainConfig, ownerAddress),
   );
