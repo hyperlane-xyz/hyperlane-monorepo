@@ -55,7 +55,6 @@ export type CheckpointSyncerConfig =
   | S3CheckpointSyncerConfig;
 
 interface MultisigCheckpointSyncerConfig {
-  threshold: number;
   // Keyed by validator address
   checkpointSyncers: Record<string, CheckpointSyncerConfig>;
 }
@@ -118,8 +117,6 @@ export type GasPaymentEnforcementPolicy =
 
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
-  // The polling interval to check for new signed checkpoints in seconds
-  signedCheckpointPollingInterval: number;
   gasPaymentEnforcementPolicy: GasPaymentEnforcementPolicy;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
@@ -435,10 +432,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
     const relayerConfig: RelayerConfig = {
       originChainName: this.chainName,
-      signedCheckpointPollingInterval:
-        baseConfig.signedCheckpointPollingInterval,
       multisigCheckpointSyncer: {
-        threshold: this.validatorSet.threshold,
         checkpointSyncers,
       },
       gasPaymentEnforcementPolicy: baseConfig.gasPaymentEnforcementPolicy,

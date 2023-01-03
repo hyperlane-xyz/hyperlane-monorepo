@@ -13,7 +13,7 @@ use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, RawHyperlaneMessage,
-    SignatureWithSigner, H160, H256,
+    SignatureWithSigner, H256,
 };
 
 use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
@@ -90,13 +90,28 @@ impl<M> MultisigIsm for EthereumMultisigIsm<M>
 where
     M: Middleware + 'static,
 {
-    /// Returns the metadata needed by the contract's verify function
-    async fn format_metadata(
+    async fn validators_and_threshold(
         &self,
         message: &HyperlaneMessage,
+    ) -> ChainResult<(Vec<H256>, u8)> {
+        let (validator_addresses, threshold) = self
+            .contract
+            .validators_and_threshold(RawHyperlaneMessage::from(message).to_vec().into())
+            .call()
+            .await?;
+        let validators: Vec<H256> = validator_addresses.iter().map(|&x| H256::from(x)).collect();
+        Ok((validators, threshold))
+    }
+
+    /// Returns the metadata needed by the contract's verify function
+    fn format_metadata(
+        &self,
+        validators: &[H256],
+        threshold: u8,
         checkpoint: &MultisigSignedCheckpoint,
         proof: &Proof,
-    ) -> ChainResult<Vec<u8>> {
+    ) -> Vec<u8> {
+        assert_eq!(threshold as usize, checkpoint.signatures.len());
         let root_bytes = checkpoint.checkpoint.root.to_fixed_bytes().into();
         let index_bytes = checkpoint.checkpoint.index.to_be_bytes().into();
         let proof_tokens: Vec<Token> = proof
@@ -114,37 +129,27 @@ where
             ),
             Token::FixedArray(proof_tokens),
         ]);
-        let (validator_addresses, threshold) = self
-            .contract
-            .validators_and_threshold(RawHyperlaneMessage::from(message).to_vec().into())
-            .call()
-            .await?;
-
-        let threshold_bytes = threshold.to_be_bytes().into();
 
         // The ethers encoder likes to zero-pad non word-aligned byte arrays.
         // Thus, we pack the signatures, which are not word-aligned, ourselves.
-        let signature_vecs: Vec<Vec<u8>> =
-            order_signatures(&validator_addresses, &checkpoint.signatures);
+        let signature_vecs: Vec<Vec<u8>> = order_signatures(validators, &checkpoint.signatures);
         let signature_bytes = signature_vecs.concat();
 
-        let validators: Vec<H256> = validator_addresses.iter().map(|&x| H256::from(x)).collect();
         let validator_tokens: Vec<Token> = validators
             .iter()
             .map(|x| Token::FixedBytes(x.to_fixed_bytes().into()))
             .collect();
         let validator_bytes = ethers::abi::encode(&[Token::FixedArray(validator_tokens)]);
 
-        let metadata = [
+        [
             root_bytes,
             index_bytes,
             mailbox_and_proof_bytes,
-            threshold_bytes,
+            Vec::from([threshold]),
             signature_bytes,
             validator_bytes,
         ]
-        .concat();
-        Ok(metadata)
+        .concat()
     }
 }
 
@@ -159,9 +164,9 @@ impl HyperlaneAbi for EthereumMultisigIsmAbi {
 /// Orders `signatures` by the signers according to the `desired_order`.
 /// Returns a Vec of the signature raw bytes in the correct order.
 /// Panics if any signers in `signatures` are not present in `desired_order`
-fn order_signatures(desired_order: &[H160], signatures: &[SignatureWithSigner]) -> Vec<Vec<u8>> {
+fn order_signatures(desired_order: &[H256], signatures: &[SignatureWithSigner]) -> Vec<Vec<u8>> {
     // Signer address => index to sort by
-    let ordering_map: HashMap<H160, usize> = desired_order
+    let ordering_map: HashMap<H256, usize> = desired_order
         .iter()
         .cloned()
         .enumerate()
@@ -173,7 +178,7 @@ fn order_signatures(desired_order: &[H160], signatures: &[SignatureWithSigner]) 
         .iter()
         .cloned()
         .map(|s| {
-            let order_index = ordering_map.get(&s.signer).unwrap();
+            let order_index = ordering_map.get(&H256::from(s.signer)).unwrap();
             (s, *order_index)
         })
         .collect::<Vec<(SignatureWithSigner, usize)>>();

@@ -25,8 +25,8 @@ impl std::fmt::Display for Checkpoint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Checkpoint(domain {} moved from {} to {})",
-            self.mailbox_domain, self.root, self.index
+            "Checkpoint(domain: {}, mailbox: {:x}, root: {:x}, index: {})",
+            self.mailbox_domain, self.mailbox_address, self.root, self.index
         )
     }
 }
