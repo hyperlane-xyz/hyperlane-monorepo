@@ -41,6 +41,10 @@ impl Mailbox for FuelMailbox {
         todo!()
     }
 
+    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        todo!()
+    }
+
     async fn process(
         &self,
         message: &HyperlaneMessage,
