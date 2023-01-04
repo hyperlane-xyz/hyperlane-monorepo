@@ -191,4 +191,7 @@ impl CheckpointSyncer for S3Storage {
         .await?;
         Ok(())
     }
+    fn announcement_metadata(&self) -> String { 
+        self.announcement_file_path().clone()
+    }
 }

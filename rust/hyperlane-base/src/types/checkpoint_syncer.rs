@@ -125,4 +125,13 @@ impl CheckpointSyncer for CheckpointSyncers {
             CheckpointSyncers::S3(syncer) => syncer.write_announcement(signed_announcement).await,
         }
     }
+
+    #[instrument(err, skip(self))]
+    /// Write the signed announcement to this syncer
+    fn announcement_metadata(&self) -> String {
+        match self {
+            CheckpointSyncers::Local(syncer) => syncer.announcement_metadata(),
+            CheckpointSyncers::S3(syncer) => syncer.announcement_metadata(),
+        }
+    }
 }

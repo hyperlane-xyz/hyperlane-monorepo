@@ -1,4 +1,4 @@
-use hyperlane_core::{SignedCheckpoint, SignedAnnouncement};
+use hyperlane_core::{SignedCheckpoint, SignedAnnouncement, Announcement};
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -95,5 +95,8 @@ impl CheckpointSyncer for LocalStorage {
         )
         .await?;
         Ok(())
+    }
+    fn announcement_metadata(&self) -> String { 
+        self.announcement_file_path().clone()
     }
 }
