@@ -1,16 +1,34 @@
 {
-  "extends": "./tsconfig.base.json",
   "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "incremental": false,
+    "lib": ["es2015", "es5", "dom"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmitOnError": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": false,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "preserveSymlinks": true,
+    "preserveWatchOutput": true,
+    "pretty": false,
+    "sourceMap": true,
+    "target": "es6",
+    "strict": true,
+    "resolveJsonModule": true,
     "outDir": "./dist",
-    "rootDir": "./",
+    "rootDir": "./src",
   },
   "exclude": [
     "./node_modules/",
+    "./scripts/",
+    "./test/",
     "./dist/",
+    "./src/types/hardhat.d.ts",
+    "hardhat.config.ts"
   ],
-  "include": [
-    "./src",
-    "./test",
-  ],
-  "files": ["hardhat.config.ts"]
 }

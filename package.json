@@ -52,8 +52,7 @@
   },
   "scripts": {
     "clean": "hardhat clean && rm -rf dist cache src/types",
-    "build:dev": "hardhat compile && tsc --project ./tsconfig.json",
-    "build:publish": "hardhat compile && tsc --project ./tsconfig.publish.json",
+    "build": "hardhat compile && tsc",
     "coverage": "hardhat coverage",
     "lint": "eslint . --ext .ts",
     "prettier": "prettier --write ./contracts ./test",

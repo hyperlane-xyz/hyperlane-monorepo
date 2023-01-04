@@ -4,3 +4,4 @@ coverage
 types
 hardhat.config.ts
 scripts
+test
