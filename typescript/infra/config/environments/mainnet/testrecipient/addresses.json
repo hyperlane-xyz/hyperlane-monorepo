@@ -19,5 +19,8 @@
   },
   "ethereum": {
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
+  },
+  "moonbeam": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE"
   }
 }
