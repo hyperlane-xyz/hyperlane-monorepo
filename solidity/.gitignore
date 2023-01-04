@@ -10,3 +10,4 @@ coverage.json
 # Foundry
 out
 forge-cache
+lcov.info

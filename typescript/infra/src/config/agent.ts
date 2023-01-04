@@ -210,7 +210,7 @@ export enum TransactionSubmissionType {
 export interface AgentConfig<Chain extends ChainName> {
   environment: string;
   namespace: string;
-  runEnv: string;
+  runEnv: DeployEnvironment;
   context: Contexts;
   docker: DockerConfig;
   quorumProvider?: boolean;

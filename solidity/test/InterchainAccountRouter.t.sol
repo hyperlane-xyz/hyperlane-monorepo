@@ -11,6 +11,13 @@ import "../contracts/middleware/InterchainAccountRouter.sol";
 import {OwnableMulticall, Call} from "../contracts/OwnableMulticall.sol";
 
 contract InterchainAccountRouterTest is Test {
+    // TODO: dedupe
+    event InterchainAccountCreated(
+        uint32 indexed origin,
+        address sender,
+        address account
+    );
+
     MockHyperlaneEnvironment environment;
 
     uint32 originDomain = 1;
@@ -50,15 +57,27 @@ contract InterchainAccountRouterTest is Test {
         );
     }
 
-    function testCall() public {
-        Call[] memory calls = new Call[](1);
-        calls[0] = Call({
-            to: address(recipient),
-            data: abi.encodeCall(recipient.fooBar, (1, "Test"))
-        });
-        originRouter.dispatch(remoteDomain, calls);
+    function testSetOwner(address newOwner) public {
+        vm.assume(newOwner != address(0x0));
+
+        OwnableMulticall ownee = new OwnableMulticall();
+        address ica = remoteRouter.getInterchainAccount(
+            originDomain,
+            address(this)
+        );
+        ownee.transferOwnership(ica);
+
+        originRouter.dispatch(
+            remoteDomain,
+            address(ownee),
+            abi.encodeWithSelector(ownee.transferOwnership.selector, newOwner)
+        );
+
+        vm.expectEmit(true, false, false, true, address(remoteRouter));
+        emit InterchainAccountCreated(originDomain, address(this), ica);
         environment.processNextPendingMessage();
-        assertEq(recipient.lastCallMessage(), "Test");
+
+        assertEq(ownee.owner(), newOwner);
     }
 
     function testOwner() public {

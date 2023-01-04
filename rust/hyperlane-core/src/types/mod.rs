@@ -1,5 +1,6 @@
 pub use primitive_types::{H128, H160, H256, H512, U128, U256, U512};
 
+pub use announcement::*;
 pub use chain_data::*;
 pub use checkpoint::*;
 pub use log_metadata::*;
@@ -7,6 +8,7 @@ pub use message::*;
 
 use crate::{Decode, Encode, HyperlaneProtocolError};
 
+mod announcement;
 mod chain_data;
 mod checkpoint;
 mod log_metadata;

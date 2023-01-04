@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { bridgeAdapterConfigs } from '../../config/environments/testnet3/token-bridge';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import {
@@ -20,7 +21,10 @@ async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider();
-  const core = HyperlaneCore.fromEnvironment(environment, multiProvider as any);
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider as any,
+  );
 
   const dir = path.join(
     getEnvironmentDirectory(environment),

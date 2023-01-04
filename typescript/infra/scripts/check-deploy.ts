@@ -1,5 +1,7 @@
 import { HyperlaneCore, HyperlaneCoreChecker } from '@hyperlane-xyz/sdk';
 
+import { deployEnvToSdkEnv } from '../src/config/environment';
+
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function check() {
@@ -8,7 +10,10 @@ async function check() {
   const multiProvider = await config.getMultiProvider();
 
   // environments union doesn't work well with typescript
-  const core = HyperlaneCore.fromEnvironment(environment, multiProvider as any);
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider as any,
+  );
   const coreChecker = new HyperlaneCoreChecker<any>(
     multiProvider,
     core,

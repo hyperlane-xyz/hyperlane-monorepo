@@ -13,6 +13,7 @@ import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
 
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { ConnectionType } from '../../src/config/agent';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
 import { getArgsWithContext, getCoreEnvironmentConfig } from '../utils';
@@ -149,7 +150,7 @@ async function main(): Promise<boolean> {
     connectionType,
   );
   const gasCalculator = InterchainGasCalculator.fromEnvironment(
-    environment,
+    deployEnvToSdkEnv[environment],
     app.multiProvider as any,
   );
   const appChains = app.chains();
