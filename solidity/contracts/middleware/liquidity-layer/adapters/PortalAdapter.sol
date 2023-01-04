@@ -22,6 +22,7 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
     mapping(bytes32 => address) public portalTransfersProcessed;
 
     uint32 localDomain;
+
     // We could technically use Portal's sequence number here but it doesn't
     // get passed through, so we would have to parse the VAA twice
     // 224 bits should be large enough and allows us to pack into a single slot
