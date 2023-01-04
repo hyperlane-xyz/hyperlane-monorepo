@@ -1,7 +1,7 @@
 name: node
 
 on:
-  # Triggers the workflow on push or pull request events but only for the main and v2 branches
+  # Triggers the workflow on push or pull request against main
   push:
     branches: [main]
   pull_request:
@@ -130,5 +130,21 @@ jobs:
         run: yarn workspace @hyperlane-xyz/core run test
 
       - name: gas
-        run: yarn workspace @hyperlane-xyz/core run gas
+        run: yarn workspace @hyperlane-xyz/core run gas-ci
 
+      - name: coverage
+        run: yarn workspace @hyperlane-xyz/core run coverage-ci
+
+      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
+        with:
+          title: "Forge Coverage Report"
+          lcov-file: ./solidity/lcov.info
+          lcov-base: ./solidity/forge-lcov.base.info
+          delete-old-comments: true
+
+      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
+        with:
+          title: "Hardhat Coverage Report"
+          lcov-file: ./solidity/coverage/lcov.info
+          lcov-base: ./solidity/hardhat-lcov.base.info
+          delete-old-comments: true
