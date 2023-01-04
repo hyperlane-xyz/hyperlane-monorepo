@@ -128,7 +128,7 @@ impl CheckpointSyncer for CheckpointSyncers {
         }
     }
 
-    /// Write the signed announcement to this syncer
+    /// Return the announcement metadata for this checkpoint syncer
     fn announcement_metadata(&self) -> String {
         match self {
             CheckpointSyncers::Local(syncer) => syncer.announcement_metadata(),

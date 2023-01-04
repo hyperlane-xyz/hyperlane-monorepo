@@ -8,7 +8,7 @@ use sha3::{Digest, Keccak256};
 
 use crate::{utils::domain_hash, HyperlaneProtocolError, SignerExt, H256};
 
-/// An Hyperlane checkpoint
+/// A Hyperlane checkpoint
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Checkpoint {
     /// The mailbox address

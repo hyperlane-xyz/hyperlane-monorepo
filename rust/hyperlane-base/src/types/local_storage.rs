@@ -93,8 +93,6 @@ impl CheckpointSyncer for LocalStorage {
         Ok(())
     }
     fn announcement_metadata(&self) -> String {
-        let mut metadata: String = "file://".to_owned();
-        metadata.push_str(self.announcement_file_path().as_ref());
-        metadata
+        format!("file://{}", self.announcement_file_path())
     }
 }

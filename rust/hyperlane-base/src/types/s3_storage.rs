@@ -189,10 +189,6 @@ impl CheckpointSyncer for S3Storage {
         Ok(())
     }
     fn announcement_metadata(&self) -> String {
-        let mut metadata: String = "s3://".to_owned();
-        metadata.push_str(self.bucket.as_ref());
-        metadata.push('/');
-        metadata.push_str(self.region.name());
-        metadata
+        format!("s3://{}/{}", self.bucket, self.region.name())
     }
 }

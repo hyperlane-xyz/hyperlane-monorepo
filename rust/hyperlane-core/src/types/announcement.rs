@@ -8,14 +8,14 @@ use sha3::{Digest, Keccak256};
 
 use crate::{utils::domain_hash, HyperlaneProtocolError, SignerExt, H256};
 
-/// An Hyperlane checkpoint
+/// A Hyperlane validator announcement
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Announcement {
     /// The mailbox address
     pub mailbox_address: H256,
     /// The mailbox chain
     pub mailbox_domain: u32,
-    /// The checkpointed root
+    /// The storage metadata
     pub storage_metadata: String,
 }
 
@@ -61,7 +61,7 @@ impl Announcement {
     }
 }
 
-/// A Signed Hyperlane checkpoint
+/// A Signed Hyperlane validator announcement
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SignedAnnouncement {
     /// The announcement
