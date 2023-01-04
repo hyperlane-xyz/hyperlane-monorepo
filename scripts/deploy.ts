@@ -1,61 +1,43 @@
-import { ethers, Wallet } from 'ethers';
-
+import yargs from 'yargs';
+import { ethers } from 'ethers';
+import path from "path";
+import fs from "fs";
 import {
-  Chains,
-  HyperlaneCore,
   MultiProvider,
+  chainConnectionConfigs,
   objMap,
 } from '@hyperlane-xyz/sdk';
-import { RouterConfig, chainConnectionConfigs } from '@hyperlane-xyz/sdk';
+import { HypERC20Deployer } from "../src/deploy";  
 
-import { TokenConfig, TokenType } from '../src/config';
-import { HypERC20Deployer } from '../src/deploy';
+// Function that takes 2 CLI arguments, the private key and the token config file
+async function deployTradeRoute() {
+  const argv = await yargs
+  .option('private-key', {
+    type: 'string',
+    describe: 'Private key for signing transactions',
+    demandOption: true,
+  })
+  .option('config', {
+    type: 'string',
+    describe: 'Path to JSON config file',
+    demandOption: true,
+  })
+  .argv;
 
-const connectionConfigs = {
-  goerli: {
-    ...chainConnectionConfigs.goerli,
-    provider: new ethers.providers.JsonRpcProvider(
-      'https://eth-goerli.public.blastapi.io',
-      5,
-    ),
-  },
-  fuji: chainConnectionConfigs.fuji,
-  alfajores: chainConnectionConfigs.alfajores,
-  moonbasealpha: chainConnectionConfigs.moonbasealpha,
-};
+  const signer = new ethers.Wallet(argv['private-key']);
+    const config = JSON.parse(fs.readFileSync(path.resolve(argv.config), "utf-8"))
+    const multiProvider = new MultiProvider(
+      objMap(chainConnectionConfigs, (_chain, conf) => ({
+        ...conf,
+        signer: signer.connect(conf.provider),
+      })),
+    );
 
-async function deployNFTWrapper() {
-  console.info('Getting signer');
-  const signer = new Wallet(
-    'pkey',
-  );
+    const deployer = new HypERC20Deployer(multiProvider, config, undefined);
+    await deployer.deploy();
 
-  const multiProvider = new MultiProvider(connectionConfigs);
-  multiProvider.rotateSigner(signer)
-  const core = HyperlaneCore.fromEnvironment('testnet2', multiProvider);
-
-  const config = objMap(connectionConfigs, (chain, c) => ({
-    type: TokenType.synthetic,
-      name: 'Dai',
-      symbol: 'DAI',
-      totalSupply: 0,
-      owner: signer.address,
-      mailbox: '0x1d3aAC239538e6F1831C8708803e61A9EA299Eec',
-      interchainGasPaymaster: core.getContracts(chain)
-        .interchainGasPaymaster.address,
-  } as TokenConfig & RouterConfig))
-  config.goerli = {
-      type: TokenType.collateral,
-      token: '0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6',
-      owner: signer.address,
-      mailbox: '0x1d3aAC239538e6F1831C8708803e61A9EA299Eec',
-      interchainGasPaymaster: core.getContracts(Chains.goerli)
-        .interchainGasPaymaster.address,
-  } as TokenConfig & RouterConfig
-
-  const deployer = new HypERC20Deployer(multiProvider, config, core);
-
-  await deployer.deploy();
+    console.log('Deployment successful. Deployed contracts:')
+    console.log(deployer.deployedContracts)
 }
 
-deployNFTWrapper().then(console.log).catch(console.error);
+deployTradeRoute().then(console.log).catch(console.error)

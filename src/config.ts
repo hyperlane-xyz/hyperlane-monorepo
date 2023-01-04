@@ -3,10 +3,10 @@ import { ethers } from 'ethers';
 import { RouterConfig } from '@hyperlane-xyz/sdk';
 
 export enum TokenType {
-  synthetic,
-  syntheticUri,
-  collateral,
-  collateralUri,
+  synthetic = 'synthetic',
+  syntheticUri = 'syntheticUri',
+  collateral = 'collateral',
+  collateralUri = 'collateralUri',
 }
 
 export type SyntheticConfig = {
