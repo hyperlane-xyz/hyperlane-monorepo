@@ -126,7 +126,6 @@ impl CheckpointSyncer for CheckpointSyncers {
         }
     }
 
-    #[instrument(err, skip(self))]
     /// Write the signed announcement to this syncer
     fn announcement_metadata(&self) -> String {
         match self {

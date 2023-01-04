@@ -192,6 +192,8 @@ impl CheckpointSyncer for S3Storage {
         Ok(())
     }
     fn announcement_metadata(&self) -> String { 
-        self.announcement_file_path().clone()
+        let mut metadata: String = "s3://".to_owned();
+        metadata.push_str(self.bucket.clone().as_ref());
+        metadata
     }
 }
