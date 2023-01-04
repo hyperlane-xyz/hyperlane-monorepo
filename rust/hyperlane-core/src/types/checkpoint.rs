@@ -6,7 +6,7 @@ use ethers_signers::Signer;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 
-use crate::{utils::domain_hash, Decode, Encode, HyperlaneProtocolError, SignerExt, H256};
+use crate::{utils::domain_hash, HyperlaneProtocolError, SignerExt, H256};
 
 /// An Hyperlane checkpoint
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

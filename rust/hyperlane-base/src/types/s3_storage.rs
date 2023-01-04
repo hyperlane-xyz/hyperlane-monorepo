@@ -3,7 +3,7 @@ use std::{fmt, time::Duration};
 use async_trait::async_trait;
 use eyre::{bail, Result};
 use futures_util::TryStreamExt;
-use hyperlane_core::{SignedCheckpoint, SignedAnnouncement};
+use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
 use once_cell::sync::OnceCell;
 use prometheus::IntGauge;
 use rusoto_core::{
@@ -184,16 +184,15 @@ impl CheckpointSyncer for S3Storage {
 
     async fn write_announcement(&self, signed_announcement: SignedAnnouncement) -> Result<()> {
         let serialized_announcement = serde_json::to_string_pretty(&signed_announcement)?;
-        self.write_to_bucket(
-            S3Storage::announcement_key(),
-            &serialized_announcement,
-        )
-        .await?;
+        self.write_to_bucket(S3Storage::announcement_key(), &serialized_announcement)
+            .await?;
         Ok(())
     }
-    fn announcement_metadata(&self) -> String { 
+    fn announcement_metadata(&self) -> String {
         let mut metadata: String = "s3://".to_owned();
-        metadata.push_str(self.bucket.clone().as_ref());
+        metadata.push_str(self.bucket.as_ref());
+        metadata.push('/');
+        metadata.push_str(self.region.name());
         metadata
     }
 }

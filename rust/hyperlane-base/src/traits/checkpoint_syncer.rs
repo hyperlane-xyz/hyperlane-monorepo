@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use eyre::Result;
-use hyperlane_core::{SignedCheckpoint, SignedAnnouncement, Announcement};
+use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
 
 /// A generic trait to read/write Checkpoints offchain
 #[async_trait]

@@ -6,7 +6,7 @@ use tracing::instrument;
 
 use async_trait::async_trait;
 use eyre::{Report, Result};
-use hyperlane_core::{SignedCheckpoint, SignedAnnouncement};
+use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
 
 use crate::S3Storage;
 use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer};
@@ -121,7 +121,9 @@ impl CheckpointSyncer for CheckpointSyncers {
     /// Write the signed announcement to this syncer
     async fn write_announcement(&self, signed_announcement: SignedAnnouncement) -> Result<()> {
         match self {
-            CheckpointSyncers::Local(syncer) => syncer.write_announcement(signed_announcement).await,
+            CheckpointSyncers::Local(syncer) => {
+                syncer.write_announcement(signed_announcement).await
+            }
             CheckpointSyncers::S3(syncer) => syncer.write_announcement(signed_announcement).await,
         }
     }
