@@ -10,7 +10,7 @@ import {
 import { KEY_ROLE_ENUM } from '../agents/roles';
 import { gcpSecretExists } from '../utils/gcloud';
 
-import { DeployEnvironment } from './environment';
+import { DeployEnvironment, SdkEnvironment } from './environment';
 
 // Allows a "default" config to be specified and any per-chain overrides.
 interface ChainOverridableConfig<Chain extends ChainName, T> {
@@ -210,7 +210,7 @@ export enum TransactionSubmissionType {
 export interface AgentConfig<Chain extends ChainName> {
   environment: string;
   namespace: string;
-  runEnv: string;
+  runEnv: SdkEnvironment;
   context: Contexts;
   docker: DockerConfig;
   quorumProvider?: boolean;

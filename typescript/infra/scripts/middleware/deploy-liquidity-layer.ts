@@ -8,10 +8,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { circleBridgeAdapterConfig } from '../../config/environments/test/liquidityLayer';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import {
-  deployEnvToSdkEnv,
   getCoreEnvironmentConfig,
   getEnvironment,
   getEnvironmentDirectory,
