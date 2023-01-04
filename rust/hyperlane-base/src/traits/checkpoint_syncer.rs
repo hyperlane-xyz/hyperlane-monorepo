@@ -10,9 +10,9 @@ pub trait CheckpointSyncer {
     /// Attempt to fetch the signed checkpoint at this index
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpoint>>;
     /// Write the signed checkpoint to this syncer
-    async fn write_checkpoint(&self, signed_checkpoint: SignedCheckpoint) -> Result<()>;
+    async fn write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()>;
     /// Write the signed announcement to this syncer
-    async fn write_announcement(&self, signed_announcement: SignedAnnouncement) -> Result<()>;
+    async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()>;
     /// Return the announcement storage metadata for this syncer
     fn announcement_metadata(&self) -> String;
 }

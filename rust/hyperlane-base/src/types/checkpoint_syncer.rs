@@ -110,7 +110,7 @@ impl CheckpointSyncer for CheckpointSyncers {
 
     #[instrument(err, skip(self))]
     /// Write the signed checkpoint to this syncer
-    async fn write_checkpoint(&self, signed_checkpoint: SignedCheckpoint) -> Result<()> {
+    async fn write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
         match self {
             CheckpointSyncers::Local(syncer) => syncer.write_checkpoint(signed_checkpoint).await,
             CheckpointSyncers::S3(syncer) => syncer.write_checkpoint(signed_checkpoint).await,
@@ -119,7 +119,7 @@ impl CheckpointSyncer for CheckpointSyncers {
 
     #[instrument(err, skip(self))]
     /// Write the signed announcement to this syncer
-    async fn write_announcement(&self, signed_announcement: SignedAnnouncement) -> Result<()> {
+    async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
         match self {
             CheckpointSyncers::Local(syncer) => {
                 syncer.write_announcement(signed_announcement).await

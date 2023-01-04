@@ -68,8 +68,8 @@ impl CheckpointSyncer for LocalStorage {
             _ => Ok(None),
         }
     }
-    async fn write_checkpoint(&self, signed_checkpoint: SignedCheckpoint) -> Result<()> {
-        let serialized_checkpoint = serde_json::to_string_pretty(&signed_checkpoint)?;
+    async fn write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
+        let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
         tokio::fs::write(
             self.checkpoint_file_path(signed_checkpoint.checkpoint.index),
             &serialized_checkpoint,
@@ -87,8 +87,8 @@ impl CheckpointSyncer for LocalStorage {
 
         Ok(())
     }
-    async fn write_announcement(&self, signed_announcement: SignedAnnouncement) -> Result<()> {
-        let serialized_announcement = serde_json::to_string_pretty(&signed_announcement)?;
+    async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
+        let serialized_announcement = serde_json::to_string_pretty(signed_announcement)?;
         tokio::fs::write(self.announcement_file_path(), &serialized_announcement).await?;
         Ok(())
     }

@@ -166,8 +166,8 @@ impl CheckpointSyncer for S3Storage {
             .map_err(Into::into)
     }
 
-    async fn write_checkpoint(&self, signed_checkpoint: SignedCheckpoint) -> Result<()> {
-        let serialized_checkpoint = serde_json::to_string_pretty(&signed_checkpoint)?;
+    async fn write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
+        let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
         self.write_to_bucket(
             S3Storage::checkpoint_key(signed_checkpoint.checkpoint.index),
             &serialized_checkpoint,
@@ -182,8 +182,8 @@ impl CheckpointSyncer for S3Storage {
         Ok(())
     }
 
-    async fn write_announcement(&self, signed_announcement: SignedAnnouncement) -> Result<()> {
-        let serialized_announcement = serde_json::to_string_pretty(&signed_announcement)?;
+    async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
+        let serialized_announcement = serde_json::to_string_pretty(signed_announcement)?;
         self.write_to_bucket(S3Storage::announcement_key(), &serialized_announcement)
             .await?;
         Ok(())

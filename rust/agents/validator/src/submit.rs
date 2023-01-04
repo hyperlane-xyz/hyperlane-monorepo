@@ -57,7 +57,7 @@ impl ValidatorSubmitter {
         };
         let signed_announcement = announcement.sign_with(self.signer.as_ref()).await?;
         self.checkpoint_syncer
-            .write_announcement(signed_announcement.clone())
+            .write_announcement(&signed_announcement)
             .await?;
 
         // Ensure that the mailbox has > 0 messages before we enter the main
@@ -138,7 +138,7 @@ impl ValidatorSubmitter {
                 current_index = Some(latest_checkpoint.index);
 
                 self.checkpoint_syncer
-                    .write_checkpoint(signed_checkpoint.clone())
+                    .write_checkpoint(&signed_checkpoint)
                     .await?;
                 self.metrics
                     .latest_checkpoint_processed
