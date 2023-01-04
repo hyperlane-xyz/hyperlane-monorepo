@@ -1,4 +1,4 @@
-use hyperlane_core::SignedCheckpoint;
+use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -34,6 +34,10 @@ impl LocalStorage {
         tokio::fs::write(self.latest_index_file_path(), index.to_string()).await?;
         Ok(())
     }
+
+    fn announcement_file_path(&self) -> String {
+        format!("{}/announcement.json", self.path)
+    }
 }
 
 #[async_trait]
@@ -64,8 +68,8 @@ impl CheckpointSyncer for LocalStorage {
             _ => Ok(None),
         }
     }
-    async fn write_checkpoint(&self, signed_checkpoint: SignedCheckpoint) -> Result<()> {
-        let serialized_checkpoint = serde_json::to_string_pretty(&signed_checkpoint)?;
+    async fn write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
+        let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
         tokio::fs::write(
             self.checkpoint_file_path(signed_checkpoint.checkpoint.index),
             &serialized_checkpoint,
@@ -82,5 +86,15 @@ impl CheckpointSyncer for LocalStorage {
         }
 
         Ok(())
+    }
+    async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
+        let serialized_announcement = serde_json::to_string_pretty(signed_announcement)?;
+        tokio::fs::write(self.announcement_file_path(), &serialized_announcement).await?;
+        Ok(())
+    }
+    fn announcement_metadata(&self) -> String {
+        let mut metadata: String = "file://".to_owned();
+        metadata.push_str(self.announcement_file_path().as_ref());
+        metadata
     }
 }
