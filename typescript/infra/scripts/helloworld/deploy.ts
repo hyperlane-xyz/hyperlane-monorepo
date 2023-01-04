@@ -14,9 +14,9 @@ import {
 
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { readJSON, writeJSON } from '../../src/utils/utils';
 import {
-  deployEnvToSdkEnv,
   getContext,
   getCoreEnvironmentConfig,
   getEnvironment,

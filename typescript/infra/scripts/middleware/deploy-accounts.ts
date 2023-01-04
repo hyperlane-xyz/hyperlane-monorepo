@@ -6,11 +6,11 @@ import {
   interchainAccountFactories,
 } from '@hyperlane-xyz/sdk';
 
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import { mergeWithSdkContractAddressArtifacts } from '../merge-sdk-contract-addresses';
 import {
-  deployEnvToSdkEnv,
   getCoreEnvironmentConfig,
   getEnvironment,
   getEnvironmentDirectory,

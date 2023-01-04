@@ -1,12 +1,9 @@
 import { HyperlaneCore, HyperlaneCoreChecker } from '@hyperlane-xyz/sdk';
 
+import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneCoreGovernor } from '../src/core/govern';
 
-import {
-  deployEnvToSdkEnv,
-  getCoreEnvironmentConfig,
-  getEnvironment,
-} from './utils';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function check() {
   const environment = await getEnvironment();

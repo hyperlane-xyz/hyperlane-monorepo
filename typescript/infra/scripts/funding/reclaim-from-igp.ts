@@ -2,11 +2,8 @@ import { BigNumber } from 'ethers';
 
 import { HyperlaneCore, objMap, promiseObjAll } from '@hyperlane-xyz/sdk';
 
-import {
-  deployEnvToSdkEnv,
-  getEnvironment,
-  getEnvironmentConfig,
-} from '../utils';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
+import { getEnvironment, getEnvironmentConfig } from '../utils';
 
 // Some arbitrary treshold for now
 const RECLAIM_BALANCE_THRESHOLD = BigNumber.from(10).pow(17);

@@ -18,8 +18,8 @@ import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../../src/config';
 import { ConnectionType } from '../../src/config/agent';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { HelloWorldConfig } from '../../src/config/helloworld';
-import { deployEnvToSdkEnv } from '../utils';
 
 export async function getConfiguration<Chain extends ChainName>(
   environment: DeployEnvironment,
