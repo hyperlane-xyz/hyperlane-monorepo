@@ -3,7 +3,7 @@ name: rust
 
 on:
   pull_request:
-    branches: [main, v1]
+    branches: [main]
     paths-ignore:
       - 'rust/**'
 

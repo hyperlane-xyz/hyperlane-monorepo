@@ -20,10 +20,10 @@ spec:
         - ./node_modules/.bin/ts-node
         - ./typescript/infra/scripts/middleware/circle-relayer.ts
         - -e
-        - {{ .Values.abacus.runEnv }}
-{{- if .Values.abacus.connectionType }}
+        - {{ .Values.hyperlane.runEnv }}
+{{- if .Values.hyperlane.connectionType }}
         - --connection-type
-        - {{ .Values.abacus.connectionType }}
+        - {{ .Values.hyperlane.connectionType }}
 {{- end }}
         envFrom:
         - secretRef:

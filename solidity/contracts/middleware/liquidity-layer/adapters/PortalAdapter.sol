@@ -98,7 +98,7 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
             "!approval"
         );
 
-        uint64 portalSequence = portalTokenBridge.transferTokensWithPayload(
+        uint64 _portalSequence = portalTokenBridge.transferTokensWithPayload(
             _token,
             _amount,
             _wormholeDomain,
@@ -110,7 +110,7 @@ contract PortalAdapter is ILiquidityLayerAdapter, Router {
             abi.encode(localDomain, nonce)
         );
 
-        emit BridgedToken(nonce, portalSequence, _destinationDomain);
+        emit BridgedToken(nonce, _portalSequence, _destinationDomain);
         return abi.encode(nonce);
     }
 

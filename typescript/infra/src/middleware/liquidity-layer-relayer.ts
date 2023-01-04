@@ -43,7 +43,7 @@ function getLiquidityLayerRelayerHelmValues<Chain extends ChainName>(
   relayerConfig: LiquidityLayerRelayerConfig,
 ) {
   const values = {
-    abacus: {
+    hyperlane: {
       runEnv: agentConfig.environment,
       // Only used for fetching RPC urls as env vars
       chains: agentConfig.contextChainNames,
