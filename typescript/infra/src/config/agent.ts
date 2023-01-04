@@ -425,7 +425,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
     const checkpointSyncers = this.validatorSet.validators.reduce(
       (agg, val) => ({
         ...agg,
-        [val.address]: { ...val.checkpointSyncer, region: 'us-east-2' },
+        [val.address]: val.checkpointSyncer,
       }),
       {},
     );
