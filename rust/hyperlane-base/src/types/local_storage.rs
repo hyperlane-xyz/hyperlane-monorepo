@@ -1,4 +1,4 @@
-use hyperlane_core::SignedCheckpoint;
+use hyperlane_core::{SignedCheckpoint, SignedAnnouncement};
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -33,6 +33,10 @@ impl LocalStorage {
     async fn write_index(&self, index: u32) -> Result<()> {
         tokio::fs::write(self.latest_index_file_path(), index.to_string()).await?;
         Ok(())
+    }
+
+    fn announcement_file_path(&self) -> String {
+        format!("{}/announcement.json", self.path)
     }
 }
 
@@ -81,6 +85,15 @@ impl CheckpointSyncer for LocalStorage {
             None => self.write_index(signed_checkpoint.checkpoint.index).await?,
         }
 
+        Ok(())
+    }
+    async fn write_announcement(&self, signed_announcement: SignedAnnouncement) -> Result<()> {
+        let serialized_announcement = serde_json::to_string_pretty(&signed_announcement)?;
+        tokio::fs::write(
+            self.announcement_file_path(),
+            &serialized_announcement,
+        )
+        .await?;
         Ok(())
     }
 }

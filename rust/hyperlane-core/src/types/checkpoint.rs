@@ -31,6 +31,7 @@ impl std::fmt::Display for Checkpoint {
     }
 }
 
+/*
 impl Encode for Checkpoint {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
@@ -69,7 +70,7 @@ impl Decode for Checkpoint {
             index: u32::from_be_bytes(index),
         })
     }
-}
+} */
 
 impl Checkpoint {
     /// A hash of the checkpoint contents.
@@ -113,6 +114,7 @@ pub struct SignedCheckpoint {
     pub signature: Signature,
 }
 
+/*
 impl Encode for SignedCheckpoint {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
@@ -139,6 +141,7 @@ impl Decode for SignedCheckpoint {
         })
     }
 }
+ */
 
 impl SignedCheckpoint {
     /// Recover the Ethereum address of the signer
