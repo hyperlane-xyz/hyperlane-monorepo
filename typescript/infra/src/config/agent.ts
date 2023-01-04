@@ -10,7 +10,7 @@ import {
 import { KEY_ROLE_ENUM } from '../agents/roles';
 import { gcpSecretExists } from '../utils/gcloud';
 
-import { DeployEnvironment, SdkEnvironment } from './environment';
+import { DeployEnvironment } from './environment';
 
 // Allows a "default" config to be specified and any per-chain overrides.
 interface ChainOverridableConfig<Chain extends ChainName, T> {
@@ -210,7 +210,7 @@ export enum TransactionSubmissionType {
 export interface AgentConfig<Chain extends ChainName> {
   environment: string;
   namespace: string;
-  runEnv: SdkEnvironment;
+  runEnv: DeployEnvironment;
   context: Contexts;
   docker: DockerConfig;
   quorumProvider?: boolean;
@@ -425,7 +425,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
     const checkpointSyncers = this.validatorSet.validators.reduce(
       (agg, val) => ({
         ...agg,
-        [val.address]: val.checkpointSyncer,
+        [val.address]: { ...val.checkpointSyncer, region: 'us-east-2' },
       }),
       {},
     );
