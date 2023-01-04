@@ -3959,18 +3959,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@npm:1.0.0-beta5":
-  version: 1.0.0-beta5
-  resolution: "@hyperlane-xyz/helloworld@npm:1.0.0-beta5"
-  dependencies:
-    "@hyperlane-xyz/sdk": ^1.0.0-beta5
-    "@openzeppelin/contracts-upgradeable": ^4.8.0
-    ethers: ^5.7.2
-  checksum: 2c86de33f5d2f9e3afeb6acb544e782529b37d96722246ec769b8aa2e797e2e17677f22fb0322cf39007c62217a953af4af3e9d29c32f66e084e178924060c2b
-  languageName: node
-  linkType: hard
-
-"@hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@1.0.0-beta6, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
@@ -4052,7 +4041,7 @@ __metadata:
     "@gnosis.pm/safe-ethers-lib": ^1.4.0
     "@gnosis.pm/safe-service-client": ^1.2.0
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
-    "@hyperlane-xyz/helloworld": 1.0.0-beta5
+    "@hyperlane-xyz/helloworld": 1.0.0-beta6
     "@hyperlane-xyz/sdk": 1.0.0-beta6
     "@hyperlane-xyz/utils": 1.0.0-beta6
     "@nomiclabs/hardhat-ethers": ^2.2.1
@@ -4097,7 +4086,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@1.0.0-beta6, @hyperlane-xyz/sdk@^1.0.0-beta5, @hyperlane-xyz/sdk@^1.0.0-beta6, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@1.0.0-beta6, @hyperlane-xyz/sdk@^1.0.0-beta6, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
