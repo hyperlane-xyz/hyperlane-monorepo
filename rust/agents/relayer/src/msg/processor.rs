@@ -66,6 +66,11 @@ impl MessageProcessor {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
+        // Update the latest nonce gauge, if possible.
+        if let Some(metrics) = self.metrics.get(message.destination) {
+            metrics.set(self.message_nonce as i64);
+        }
+
         // Scan until we find next nonce without delivery confirmation.
         if self
             .db
@@ -97,9 +102,6 @@ impl MessageProcessor {
             tokio::time::sleep(Duration::from_secs(1)).await;
             return Ok(());
         };
-        if let Some(metrics) = self.metrics.get(message.destination) {
-            metrics.set(self.message_nonce as i64);
-        }
 
         // Skip if not whitelisted.
         if !self.whitelist.msg_matches(&message, true) {
