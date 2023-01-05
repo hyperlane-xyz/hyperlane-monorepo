@@ -19,10 +19,11 @@ interface IValidatorRegistry {
     function getValidatorRegistrations(address[] calldata _validators)
         external
         view
-        returns (address[] memory, string[][] memory);
+        returns (string[][] memory);
 
     /**
      * @notice Registers a validator
+     * @param _validator The address of the validator being registered
      * @param _storageMetadata Information encoding the location of signed
      * checkpoints
      * @param _signature The signed validator announcement attestation
@@ -30,6 +31,7 @@ interface IValidatorRegistry {
      * @return True upon success
      */
     function registerValidator(
+        address _validator,
         string calldata _storageMetadata,
         bytes calldata _signature
     ) external returns (bool);
