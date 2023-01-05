@@ -9,7 +9,10 @@ use tokio::{
 use tracing::{debug, info_span, instrument, instrument::Instrumented, Instrument};
 
 use hyperlane_base::CoreMetrics;
-use hyperlane_core::{db::{HyperlaneDB, DbError}, HyperlaneDomain, HyperlaneMessage};
+use hyperlane_core::{
+    db::{DbError, HyperlaneDB},
+    HyperlaneDomain, HyperlaneMessage,
+};
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
 
@@ -64,19 +67,16 @@ impl MessageProcessor {
     }
 
     /// Tries to get the next message to process.
-    /// 
+    ///
     /// If no message with self.message_nonce is found, returns None.
     /// If the message with self.message_nonce is found and has previously
     /// been marked as processed, increments self.message_nonce and returns
     /// None.
     fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>, DbError> {
         // First, see if we can find the message so we can update the gauge.
-        if let Some(message) = self
-            .db
-            .message_by_nonce(self.message_nonce)?
-        {
+        if let Some(message) = self.db.message_by_nonce(self.message_nonce)? {
             // Update the latest nonce gauge if the message is destined for one
-            // of the domains we service. 
+            // of the domains we service.
             if let Some(metrics) = self.metrics.get(message.destination) {
                 metrics.set(message.nonce as i64);
             }
@@ -142,7 +142,7 @@ impl MessageProcessor {
                     nonce=message.nonce,
                     "Message destined for unknown domain, skipping");
                 self.message_nonce += 1;
-                return Ok(())
+                return Ok(());
             }
 
             // Feed the message to the prover sync
@@ -167,7 +167,6 @@ impl MessageProcessor {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         Ok(())
-
     }
 }
 
