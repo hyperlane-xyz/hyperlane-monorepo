@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IValidatorRegistry} from "../interfaces/IValidatorRegistry.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
+import {TypeCasts} from "./libs/TypeCasts.sol";
 // ============ External Imports ============
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -16,6 +17,7 @@ contract ValidatorRegistry is IValidatorRegistry {
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
+    using TypeCasts for address;
 
     // ============ Constants ============
 
@@ -119,7 +121,11 @@ contract ValidatorRegistry is IValidatorRegistry {
         returns (bytes32)
     {
         bytes32 _domainHash = keccak256(
-            abi.encodePacked(localDomain, mailbox, "HYPERLANE")
+            abi.encodePacked(
+                localDomain,
+                mailbox.addressToBytes32(),
+                "HYPERLANE"
+            )
         );
         return
             ECDSA.toEthSignedMessageHash(
