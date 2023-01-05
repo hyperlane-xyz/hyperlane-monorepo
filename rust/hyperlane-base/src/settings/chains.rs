@@ -16,7 +16,7 @@ use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
     EthereumMultisigIsmAbi,
 };
-use hyperlane_fuel::{self as h_fuel, prelude::*};
+use hyperlane_fuel::{self as h_fuel, FuelMailboxIndexer, prelude::*};
 
 use crate::settings::signers::BuildableWithSignerConf;
 use crate::{CoreMetrics, SignerConf};
