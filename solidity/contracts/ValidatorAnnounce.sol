@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {IValidatorRegistry} from "../interfaces/IValidatorRegistry.sol";
+import {IValidatorAnnounce} from "../interfaces/IValidatorAnnounce.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
 // ============ External Imports ============
@@ -10,10 +10,10 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /**
- * @title ValidatorRegistry
- * @notice Stores the location of validator signed checkpoints
+ * @title ValidatorAnnounce
+ * @notice Stores the location(s) of validator signed checkpoints
  */
-contract ValidatorRegistry is IValidatorRegistry {
+contract ValidatorAnnounce is IValidatorAnnounce {
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -28,15 +28,25 @@ contract ValidatorRegistry is IValidatorRegistry {
 
     // ============ Public Storage ============
 
-    // The set of validators that have registered
-    EnumerableSet.AddressSet private registeredValidators;
+    // The set of validators that have announced
+    EnumerableSet.AddressSet private validators;
     // Storage locations of validator signed checkpoints
-    mapping(address => string[]) private storageMetadata;
+    mapping(address => string[]) private storageLocations;
     // Mapping to prevent the same announcement from being registered
     // multiple times.
     mapping(bytes32 => bool) private replayProtection;
 
     // ============ Events ============
+
+    /**
+     * @notice Emitted when a new validator announcement is made
+     * @param validator The address of the announcing validator
+     * @param storageLocation The storage location being announced
+     */
+    event ValidatorAnnouncement(
+        address indexed validator,
+        string storageLocation
+    );
 
     // ============ Constructor ============
 
@@ -48,62 +58,62 @@ contract ValidatorRegistry is IValidatorRegistry {
     // ============ External Functions ============
 
     /**
-     * @notice Registers a validator
-     * @param _storageMetadata Information encoding the location of signed
+     * @notice Announces a validator signature storage location
+     * @param _storageLocation Information encoding the location of signed
      * checkpoints
-     * @param _signature The signed validator announcement attestation
-     * previously specified in this HIP
+     * @param _signature The signed validator announcement
      * @return True upon success
      */
-    function registerValidator(
+    function announce(
         address _validator,
-        string calldata _storageMetadata,
+        string calldata _storageLocation,
         bytes calldata _signature
     ) external returns (bool) {
-        // Ensure that the same storage metadata isn't being registered
+        // Ensure that the same storage metadata isn't being announced
         // multiple times for the same validator.
         bytes32 _replayId = keccak256(
-            abi.encodePacked(_validator, _storageMetadata)
+            abi.encodePacked(_validator, _storageLocation)
         );
         require(replayProtection[_replayId] == false, "replay");
         replayProtection[_replayId] = true;
 
         // Verify that the signature matches the declared validator
-        bytes32 _announcementDigest = _getAnnouncementDigest(_storageMetadata);
+        bytes32 _announcementDigest = _getAnnouncementDigest(_storageLocation);
         address _signer = ECDSA.recover(_announcementDigest, _signature);
         require(_signer == _validator, "!signature");
 
-        // Register the announcement
-        if (!registeredValidators.contains(_signer)) {
-            registeredValidators.add(_signer);
+        // Store the announcement
+        if (!validators.contains(_validator)) {
+            validators.add(_validator);
         }
-        storageMetadata[_signer].push(_storageMetadata);
+        storageLocations[_validator].push(_storageLocation);
+        emit ValidatorAnnouncement(_validator, _storageLocation);
         return true;
     }
 
     /**
-     * @notice Returns a list of all registrations for all provided validators
+     * @notice Returns a list of all announced storage locations
      * @param _validators The list of validators to get registrations for
      * @return A list of registered storage metadata
      */
-    function getValidatorRegistrations(address[] calldata _validators)
+    function getAnnouncedStorageLocations(address[] calldata _validators)
         external
         view
         returns (string[][] memory)
     {
         string[][] memory _metadata = new string[][](_validators.length);
         for (uint256 i = 0; i < _validators.length; i++) {
-            _metadata[i] = storageMetadata[_validators[i]];
+            _metadata[i] = storageLocations[_validators[i]];
         }
         return _metadata;
     }
 
-    /// @notice Returns a list of validators that have registered
-    function validators() external view returns (address[] memory) {
-        uint256 _validatorCount = registeredValidators.length();
+    /// @notice Returns a list of validators that have made announcements
+    function getAnnouncedValidators() external view returns (address[] memory) {
+        uint256 _validatorCount = validators.length();
         address[] memory _validators = new address[](_validatorCount);
         for (uint256 i = 0; i < _validatorCount; i++) {
-            _validators[i] = registeredValidators.at(i);
+            _validators[i] = validators.at(i);
         }
         return _validators;
     }
