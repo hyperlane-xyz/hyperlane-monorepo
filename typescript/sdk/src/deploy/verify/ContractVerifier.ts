@@ -73,9 +73,6 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       ...options,
     });
 
-    // console.log(apiUrl);
-    // console.log(params);
-
     let response: Response;
     if (
       action === ExplorerApiActions.CHECK_STATUS ||
@@ -92,10 +89,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       });
     }
 
-    const text = await response.text();
-    // console.log(text);
-
-    const result = JSON.parse(text);
+    const result = JSON.parse(await response.text());
     if (result.message === 'NOTOK') {
       switch (result.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
