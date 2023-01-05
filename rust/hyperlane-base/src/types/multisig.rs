@@ -62,8 +62,11 @@ impl MultisigCheckpointSyncer {
             // The highest viable checkpoint index is the minimum of the highest index
             // we (supposedly) have a quorum for, and the maximum index for which we can
             // generate a proof.
-            let start_index = std::cmp::min(*highest_quorum_index, maximum_index);
-            for index in (minimum_index..=start_index).rev() {
+            let start_index = highest_quorum_index.min(&maximum_index);
+            if minimum_index > *start_index {
+                return Ok(None);
+            }
+            for index in (minimum_index..=*start_index).rev() {
                 if let Ok(Some(checkpoint)) =
                     self.fetch_checkpoint(index, validators, threshold).await
                 {
