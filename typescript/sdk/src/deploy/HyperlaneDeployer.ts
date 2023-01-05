@@ -196,7 +196,7 @@ export abstract class HyperlaneDeployer<
       this.verificationInputs[chain].push({
         name: contractName,
         address: contractAddr,
-        isProxy: false,
+        isProxy: contractName.endsWith('Proxy'),
         constructorArguments: encodedConstructorArgs,
       });
 

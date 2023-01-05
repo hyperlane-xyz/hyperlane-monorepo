@@ -64,7 +64,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     options?: Record<string, string>,
   ): Promise<any> {
     const chainConnection = this.multiProvider.getChainConnection(chain);
-    const apiUrl = chainConnection.getApiUrl();
+    const apiUrl = `${chainConnection.getApiUrl()}/api`;
 
     const params = new URLSearchParams({
       apikey: this.apiKeys[chain],
@@ -72,6 +72,9 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       action,
       ...options,
     });
+
+    // console.log(apiUrl);
+    // console.log(params);
 
     let response: Response;
     if (
@@ -89,7 +92,10 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       });
     }
 
-    const result = JSON.parse(await response.text());
+    const text = await response.text();
+    // console.log(text);
+
+    const result = JSON.parse(text);
     if (result.message === 'NOTOK') {
       switch (result.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
@@ -152,8 +158,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
     // mark as proxy (if applicable)
     if (input.isProxy) {
-      this.logger('Skipping proxy verification');
-      return;
+      // this.logger('Skipping proxy verification');
 
       const proxyGuid = await this.submitForm(
         chain,
