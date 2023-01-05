@@ -10,7 +10,7 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainImpl, HyperlaneProvider,
     HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox,
-    MailboxIndexer, MultisigIsm, Signers,
+    MailboxIndexer, MultisigIsm,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -343,12 +343,6 @@ impl ChainSetup {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("igp".into()),
                 functions: functions(EthereumInterchainGasPaymasterAbi::fn_map_owned()),
-            });
-        }
-        if let Ok(addr) = self.addresses.multisig_ism.parse() {
-            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
-                name: Some("msm".into()),
-                functions: functions(EthereumMultisigIsmAbi::fn_map_owned()),
             });
         }
         cfg

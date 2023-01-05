@@ -8,12 +8,12 @@ use async_trait::async_trait;
 use ethers::abi::Token;
 use ethers::providers::Middleware;
 
-use hyperlane_core::{
-    ChainResult, ContractLocator, H256, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint,
-    RawHyperlaneMessage, SignatureWithSigner,
-};
 use hyperlane_core::accumulator::merkle::Proof;
+use hyperlane_core::{
+    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, RawHyperlaneMessage,
+    SignatureWithSigner, H256,
+};
 
 use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
 use crate::trait_builder::BuildableWithProvider;

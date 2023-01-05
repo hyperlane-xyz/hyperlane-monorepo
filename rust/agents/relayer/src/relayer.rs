@@ -4,6 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use eyre::{Context, Result};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::RwLock;
 use tokio::{sync::mpsc, task::JoinHandle};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
@@ -14,8 +15,6 @@ use hyperlane_base::{
     HyperlaneAgentCore, MultisigCheckpointSyncer,
 };
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain};
-
-use tokio::sync::RwLock;
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
@@ -109,26 +108,27 @@ impl BaseAgent for Relayer {
                 UnboundedSender<SubmitMessageArgs>,
                 UnboundedReceiver<SubmitMessageArgs>,
             ) = mpsc::unbounded_channel();
-            let mailbox = self.mailbox(chain).unwrap();
+            let mailbox: &CachingMailbox = self.mailbox(chain).unwrap();
             send_channels.insert(mailbox.domain().id(), send_channel);
 
             let chain_setup = self
                 .core
                 .settings
                 .chain_setup(chain.name())
-                .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()));
+                .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()))
+                .clone();
 
+            let txsubmission = chain_setup.txsubmission;
             let metadata_builder = MetadataBuilder::new(
                 self.core.metrics.clone(),
-                self.core.settings.get_signer(chain.name()).await,
-                chain_setup.clone(),
+                chain_setup,
                 self.multisig_checkpoint_syncer.clone(),
                 prover_sync.clone(),
             );
             tasks.push(self.run_destination_mailbox(
                 mailbox.clone(),
                 metadata_builder.clone(),
-                chain_setup.txsubmission,
+                txsubmission,
                 self.core.settings.gelato.as_ref(),
                 gas_payment_enforcer.clone(),
                 receive_channel,
@@ -145,7 +145,7 @@ impl BaseAgent for Relayer {
             self.whitelist.clone(),
             self.blacklist.clone(),
             metrics,
-            prover_sync.clone(),
+            prover_sync,
             send_channels,
         );
         tasks.push(self.run_message_processor(message_processor));

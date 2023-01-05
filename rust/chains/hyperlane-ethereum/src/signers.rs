@@ -116,7 +116,7 @@ impl From<std::convert::Infallible> for SignersError {
 mod test {
     use ethers_signers::Signer;
 
-    use hyperlane_core::{Checkpoint, H256};
+    use hyperlane_core::{Checkpoint, Signable, H256};
 
     use crate::signers::Signers;
 

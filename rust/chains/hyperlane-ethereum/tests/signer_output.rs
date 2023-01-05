@@ -15,7 +15,7 @@ use hyperlane_core::{
     },
     test_utils,
     utils::domain_hash,
-    Checkpoint, HyperlaneMessage, H160, H256,
+    Checkpoint, HyperlaneMessage, Signable, H160, H256,
 };
 use hyperlane_ethereum::Signers;
 
@@ -143,10 +143,10 @@ pub fn output_signed_checkpoints() {
             .expect("!sign_with");
 
             test_cases.push(json!({
-                "mailbox": signed_checkpoint.checkpoint.mailbox_address,
-                "domain": signed_checkpoint.checkpoint.mailbox_domain,
-                "root": signed_checkpoint.checkpoint.root,
-                "index": signed_checkpoint.checkpoint.index,
+                "mailbox": signed_checkpoint.value.mailbox_address,
+                "domain": signed_checkpoint.value.mailbox_domain,
+                "root": signed_checkpoint.value.root,
+                "index": signed_checkpoint.value.index,
                 "signature": signed_checkpoint.signature,
                 "signer": signer.address(),
             }))
