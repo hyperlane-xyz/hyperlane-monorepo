@@ -11,6 +11,10 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
+/**
+ * @title Interchain Query Router that performs remote view calls on other chains and returns the result.
+ * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
+ */
 contract InterchainQueryRouter is
     Router,
     OwnableMulticall,
@@ -21,23 +25,44 @@ contract InterchainQueryRouter is
         RESOLVE
     }
 
+    /**
+     * @notice Emitted when a query is dispatched to another chain.
+     * @param destinationDomain The domain of the chain to query.
+     * @param sender The address that dispatched the query.
+     */
     event QueryDispatched(
         uint32 indexed destinationDomain,
         address indexed sender
     );
+    /**
+     * @notice Emitted when a query is returned to the origin chain.
+     * @param originDomain The domain of the chain to return the result to.
+     * @param sender The address to receive the result.
+     */
     event QueryReturned(uint32 indexed originDomain, address indexed sender);
+    /**
+     * @notice Emitted when a query is resolved on the origin chain.
+     * @param destinationDomain The domain of the chain that was queried.
+     * @param sender The address that resolved the query.
+     */
     event QueryResolved(
         uint32 indexed destinationDomain,
         address indexed sender
     );
 
+    /**
+     * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
+     * @param _mailbox The address of the mailbox contract.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
+     * @param _interchainSecurityModule The address of the interchain security module contract.
+     */
     function initialize(
         address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule
     ) public initializer {
         // Transfer ownership of the contract to `msg.sender`
-        __HyperlaneConnectionClient_initialize(
+        __Router_initialize(
             _mailbox,
             _interchainGasPaymaster,
             _interchainSecurityModule
@@ -45,10 +70,24 @@ contract InterchainQueryRouter is
     }
 
     /**
+     * @notice Initializes the Router contract with Hyperlane core contracts.
+     * @param _mailbox The address of the mailbox contract.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
+     */
+    function initialize(address _mailbox, address _interchainGasPaymaster)
+        public
+        initializer
+    {
+        // Transfer ownership of the contract to `msg.sender`
+        __Router_initialize(_mailbox, _interchainGasPaymaster);
+    }
+
+    /**
      * @param _destinationDomain Domain of destination chain
      * @param target The address of the contract to query on destination chain.
      * @param queryData The calldata of the view call to make on the destination chain.
      * @param callback Callback function selector on `msg.sender` and optionally abi-encoded prefix arguments.
+     * @return messageId The ID of the message encoding the query.
      */
     function query(
         uint32 _destinationDomain,
@@ -103,14 +142,17 @@ contract InterchainQueryRouter is
         emit QueryDispatched(_destinationDomain, msg.sender);
     }
 
-    // TODO: add REJECT behavior ala NodeJS Promise API
+    /**
+     * @notice Handles a message from remote enrolled Interchain Query Router.
+     * @param _origin The domain of the chain that sent the message.
+     * @param _message The ABI-encoded interchain query.
+     */
     function _handle(
         uint32 _origin,
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        // TODO: fix double ABI decoding with calldata slices
-        Action action = abi.decode(_message, (Action));
+        Action action = Action(uint8(bytes1(_message[31])));
         if (action == Action.DISPATCH) {
             (
                 ,

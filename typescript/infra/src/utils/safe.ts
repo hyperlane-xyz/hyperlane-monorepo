@@ -1,6 +1,6 @@
-import Safe from '@gnosis.pm/safe-core-sdk';
-import EthersAdapter from '@gnosis.pm/safe-ethers-lib';
-import SafeServiceClient from '@gnosis.pm/safe-service-client';
+import Safe from '@safe-global/safe-core-sdk';
+import EthersAdapter from '@safe-global/safe-ethers-lib';
+import SafeServiceClient from '@safe-global/safe-service-client';
 import { ethers } from 'ethers';
 
 import { ChainConnection, ChainName, chainMetadata } from '@hyperlane-xyz/sdk';
@@ -11,7 +11,7 @@ export function getSafeService(
 ): SafeServiceClient {
   const signer = connection.signer;
   if (!signer) throw new Error(`no signer found for ${chain}`);
-  const ethAdapter = new EthersAdapter({ ethers, signer });
+  const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
   const txServiceUrl = chainMetadata[chain].gnosisSafeTransactionServiceUrl;
   if (!txServiceUrl)
     throw new Error(`must provide tx service url for ${chain}`);
@@ -24,7 +24,7 @@ export function getSafe(
 ): Promise<Safe> {
   const signer = connection.signer;
   if (!signer) throw new Error(`no signer found`);
-  const ethAdapter = new EthersAdapter({ ethers, signer });
+  const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
   return Safe.create({
     ethAdapter,
     safeAddress: safeAddress,

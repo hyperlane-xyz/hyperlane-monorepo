@@ -24,8 +24,6 @@ pub enum GasPaymentEnforcementPolicy {
 decl_settings!(Relayer {
     // The name of the origin chain
     originchainname: String,
-    /// The polling interval to check for new signed checkpoints in seconds
-    signedcheckpointpollinginterval: String,
     /// The multisig checkpoint syncer configuration
     multisigcheckpointsyncer: hyperlane_base::MultisigCheckpointSyncerConf,
     /// The gas payment enforcement policy configuration

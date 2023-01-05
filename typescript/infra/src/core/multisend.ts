@@ -55,10 +55,12 @@ export class SafeMultiSend extends MultiSend {
 
   async sendTransactions(calls: types.CallData[]) {
     const safeSdk = await getSafe(this.connection, this.safeAddress);
-    const transactions = calls.map((call) => {
+    const safeTransactionData = calls.map((call) => {
       return { to: call.to, data: call.data.toString(), value: '0' };
     });
-    const safeTransaction = await safeSdk.createTransaction(transactions);
+    const safeTransaction = await safeSdk.createTransaction({
+      safeTransactionData,
+    });
     const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
     const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
 

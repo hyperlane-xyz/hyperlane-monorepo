@@ -13,19 +13,28 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /*
- * @title The Hello World App
- * @dev You can use this simple app as a starting point for your own application.
+ * @title Interchain Accounts Router that relays messages via proxy contracts on other chains.
+ * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
 contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     address immutable implementation;
     bytes32 immutable bytecodeHash;
 
+    /**
+     * @notice Emitted when an interchain account is created (first time message is sent from a given `origin`/`sender` pair)
+     * @param origin The domain of the chain where the message was sent from
+     * @param sender The address of the account that sent the message
+     * @param account The address of the proxy account that was created
+     */
     event InterchainAccountCreated(
         uint32 indexed origin,
         address sender,
         address account
     );
 
+    /**
+     * @notice Constructor deploys a relay (OwnableMulticall.sol) contract that will be cloned for each interchain account.
+     */
     constructor() {
         implementation = address(new OwnableMulticall());
         // cannot be stored immutably because it is dynamically sized
@@ -33,19 +42,43 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         bytecodeHash = keccak256(bytecode);
     }
 
+    /**
+     * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
+     * @param _mailbox The address of the mailbox contract.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
+     * @param _interchainSecurityModule The address of the interchain security module contract.
+     */
     function initialize(
         address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule
     ) public initializer {
         // Transfer ownership of the contract to `msg.sender`
-        __HyperlaneConnectionClient_initialize(
+        __Router_initialize(
             _mailbox,
             _interchainGasPaymaster,
             _interchainSecurityModule
         );
     }
 
+    /**
+     * @notice Initializes the Router contract with Hyperlane core contracts.
+     * @param _mailbox The address of the mailbox contract.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
+     */
+    function initialize(address _mailbox, address _interchainGasPaymaster)
+        public
+        initializer
+    {
+        // Transfer ownership of the contract to `msg.sender`
+        __Router_initialize(_mailbox, _interchainGasPaymaster);
+    }
+
+    /**
+     * @notice Dispatches a sequence of calls to be relayed by the sender's interchain account on the destination domain.
+     * @param _destinationDomain The domain of the chain where the message will be sent to.
+     * @param calls The sequence of calls to be relayed.
+     */
     function dispatch(uint32 _destinationDomain, Call[] calldata calls)
         external
         returns (bytes32)
@@ -53,6 +86,13 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
     }
 
+    /**
+     * @notice Dispatches a single call to be relayed by the sender's interchain account on the destination domain.
+     * @param _destinationDomain The domain of the chain where the message will be sent to.
+     * @param target The address of the contract to be called.
+     * @param data The ABI-encoded data to be called on target contract.
+     * @return The message ID of the dispatched message.
+     */
     function dispatch(
         uint32 _destinationDomain,
         address target,
@@ -63,6 +103,12 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
     }
 
+    /**
+     * @notice Returns the address of the interchain account deployed on the current chain for a given `origin`/`sender` pair.
+     * @param _origin The origin domain of the interchain account.
+     * @param _sender The parent account address on the origin domain.
+     * @return The address of the interchain account.
+     */
     function getInterchainAccount(uint32 _origin, address _sender)
         public
         view
@@ -71,6 +117,12 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         return _getInterchainAccount(_salt(_origin, _sender));
     }
 
+    /**
+     * @notice Returns and deploys (if not already) the interchain account for a given `origin`/`sender` pair.
+     * @param _origin The origin domain of the interchain account.
+     * @param _sender The parent account address on the origin domain.
+     * @return The address of the interchain account.
+     */
     function getDeployedInterchainAccount(uint32 _origin, address _sender)
         public
         returns (OwnableMulticall)
@@ -86,6 +138,12 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         return OwnableMulticall(interchainAccount);
     }
 
+    /**
+     * @notice Returns the salt used to deploy the interchain account for a given `origin`/`sender` pair.
+     * @param _origin The origin domain of the interchain account.
+     * @param _sender The parent account address on the origin domain.
+     * @return The CREATE2 salt used for deploying the interchain account.
+     */
     function _salt(uint32 _origin, address _sender)
         internal
         pure
@@ -94,6 +152,11 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         return bytes32(abi.encodePacked(_origin, _sender));
     }
 
+    /**
+     * @notice Returns the address of the interchain account deployed on the current chain for a given salt.
+     * @param salt The salt used to deploy the interchain account.
+     * @return The address of the interchain account.
+     */
     function _getInterchainAccount(bytes32 salt)
         internal
         view
@@ -102,6 +165,11 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         return Create2.computeAddress(salt, bytecodeHash);
     }
 
+    /**
+     * @notice Handles dispatched messages by relaying calls to the interchain account.
+     * @param _origin The origin domain of the interchain account.
+     * @param _message The ABI-encoded message containing the sender and the sequence of calls to be relayed.
+     */
     function _handle(
         uint32 _origin,
         bytes32, // router sender

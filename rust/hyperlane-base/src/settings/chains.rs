@@ -10,13 +10,12 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainImpl, HyperlaneProvider,
     HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox,
-    MailboxIndexer, MultisigIsm,
+    MailboxIndexer, MultisigIsm, Signers,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
-    EthereumMultisigIsmAbi,
 };
-use hyperlane_fuel::{self as h_fuel, FuelMailboxIndexer, prelude::*};
+use hyperlane_fuel::{self as h_fuel, prelude::*};
 
 use crate::settings::signers::BuildableWithSignerConf;
 use crate::{CoreMetrics, SignerConf};
@@ -78,8 +77,6 @@ pub struct GelatoConf {
 pub struct CoreContractAddresses {
     /// Address of the mailbox contract
     pub mailbox: String,
-    /// Address of the MultisigIsm contract
-    pub multisig_ism: String,
     /// Address of the InterchainGasPaymaster contract
     pub interchain_gas_paymaster: String,
 }
@@ -258,8 +255,12 @@ impl ChainSetup {
     }
 
     /// Try to convert the chain setting into a Multisig Ism contract
-    pub async fn build_multisig_ism(&self, metrics: &CoreMetrics) -> Result<Box<dyn MultisigIsm>> {
-        let locator = self.locator(&self.addresses.multisig_ism)?;
+    pub async fn build_multisig_ism(
+        &self,
+        address: &str,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn MultisigIsm>> {
+        let locator = self.locator(address)?;
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {

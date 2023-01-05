@@ -6,7 +6,7 @@ use tracing::instrument;
 
 use async_trait::async_trait;
 use eyre::{Report, Result};
-use hyperlane_core::SignedCheckpoint;
+use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
 
 use crate::S3Storage;
 use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer};
@@ -51,8 +51,6 @@ impl CheckpointSyncerConf {
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub struct MultisigCheckpointSyncerConf {
-    /// The quorum threshold
-    threshold: usize,
     /// The checkpoint syncer for each valid validator signer address
     checkpointsyncers: HashMap<String, CheckpointSyncerConf>,
 }
@@ -70,10 +68,7 @@ impl MultisigCheckpointSyncerConf {
                 validator_checkpoint_index.with_label_values(&[origin, &key.to_lowercase()]);
             checkpoint_syncers.insert(Address::from_str(key)?, value.build(Some(gauge))?);
         }
-        Ok(MultisigCheckpointSyncer::new(
-            self.threshold,
-            checkpoint_syncers,
-        ))
+        Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))
     }
 }
 
@@ -109,10 +104,29 @@ impl CheckpointSyncer for CheckpointSyncers {
 
     #[instrument(err, skip(self))]
     /// Write the signed checkpoint to this syncer
-    async fn write_checkpoint(&self, signed_checkpoint: SignedCheckpoint) -> Result<()> {
+    async fn write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
         match self {
             CheckpointSyncers::Local(syncer) => syncer.write_checkpoint(signed_checkpoint).await,
             CheckpointSyncers::S3(syncer) => syncer.write_checkpoint(signed_checkpoint).await,
+        }
+    }
+
+    #[instrument(err, skip(self))]
+    /// Write the signed announcement to this syncer
+    async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
+        match self {
+            CheckpointSyncers::Local(syncer) => {
+                syncer.write_announcement(signed_announcement).await
+            }
+            CheckpointSyncers::S3(syncer) => syncer.write_announcement(signed_announcement).await,
+        }
+    }
+
+    /// Write the signed announcement to this syncer
+    fn announcement_metadata(&self) -> String {
+        match self {
+            CheckpointSyncers::Local(syncer) => syncer.announcement_metadata(),
+            CheckpointSyncers::S3(syncer) => syncer.announcement_metadata(),
         }
     }
 }

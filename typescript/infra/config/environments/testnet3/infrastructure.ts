@@ -31,7 +31,7 @@ export const infrastructure: InfrastructureConfig = {
       name: 'external-secrets',
       version: '0.5.1',
     },
-    gcpServiceAccountName: 'k8s-external-secrets-testnet',
+    gcpServiceAccountName: 'k8s-external-secrets-testnet3',
     accessibleGCPSecretPrefixes: [
       'hyperlane-testnet-',
       'testnet-',

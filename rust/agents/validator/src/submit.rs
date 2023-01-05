@@ -8,7 +8,7 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{CachingMailbox, CheckpointSyncer, CheckpointSyncers, CoreMetrics};
-use hyperlane_core::{HyperlaneDomain, HyperlaneSigner, Mailbox};
+use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, Mailbox};
 
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
@@ -44,6 +44,17 @@ impl ValidatorSubmitter {
     }
 
     async fn main_task(self) -> Result<()> {
+        // Sign and post the validator announcement
+        let announcement = Announcement {
+            mailbox_address: self.mailbox.mailbox().address(),
+            mailbox_domain: self.mailbox.mailbox().domain().id(),
+            storage_metadata: self.checkpoint_syncer.announcement_metadata(),
+        };
+        let signed_announcement = announcement.sign_with(self.signer.as_ref()).await?;
+        self.checkpoint_syncer
+            .write_announcement(&signed_announcement)
+            .await?;
+
         // Ensure that the mailbox has > 0 messages before we enter the main
         // validator submit loop. This is to avoid an underflow / reverted
         // call when we invoke the `mailbox.latest_checkpoint()` method,
@@ -122,7 +133,7 @@ impl ValidatorSubmitter {
                 current_index = Some(latest_checkpoint.index);
 
                 self.checkpoint_syncer
-                    .write_checkpoint(signed_checkpoint.clone())
+                    .write_checkpoint(&signed_checkpoint)
                     .await?;
                 self.metrics
                     .latest_checkpoint_processed

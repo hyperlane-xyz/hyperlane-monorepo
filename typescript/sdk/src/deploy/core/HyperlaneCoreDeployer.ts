@@ -11,14 +11,12 @@ import {
 import type { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
-import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { CoreContracts, coreFactories } from '../../core/contracts';
 import { ChainNameToDomainId } from '../../domains';
-import { ChainConnection } from '../../providers/ChainConnection';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../../proxy';
 import { ChainMap, ChainName } from '../../types';
-import { objMap, promiseObjAll } from '../../utils/objects';
+import { objMap } from '../../utils/objects';
 import { DeployOptions, HyperlaneDeployer } from '../HyperlaneDeployer';
 
 import { CoreConfig } from './types';
@@ -68,13 +66,14 @@ export class HyperlaneCoreDeployer<
     deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
     const domain = chainMetadata[chain].id;
+    const owner = this.configMap[chain].owner;
 
     const mailbox = await this.deployProxiedContract(
       chain,
       'mailbox',
       [domain],
       proxyAdmin,
-      [defaultIsmAddress],
+      [owner, defaultIsmAddress],
       deployOpts,
     );
     return mailbox;
@@ -174,6 +173,9 @@ export class HyperlaneCoreDeployer<
       multisigIsm.address,
       proxyAdmin,
     );
+    // Mailbox ownership is transferred upon initialization.
+    const ownables: Ownable[] = [multisigIsm, proxyAdmin];
+    await this.transferOwnershipOfContracts(chain, ownables);
 
     return {
       proxyAdmin,
@@ -183,38 +185,23 @@ export class HyperlaneCoreDeployer<
     };
   }
 
-  static async transferOwnership<CoreChains extends ChainName>(
-    core: HyperlaneCore<CoreChains>,
-    owners: ChainMap<CoreChains, types.Address>,
-    multiProvider: MultiProvider<CoreChains>,
-  ): Promise<ChainMap<CoreChains, ethers.ContractReceipt[]>> {
-    return promiseObjAll(
-      objMap(core.contractsMap, async (chain, coreContracts) =>
-        HyperlaneCoreDeployer.transferOwnershipOfChain(
-          coreContracts,
-          owners[chain],
-          multiProvider.getChainConnection(chain),
-        ),
-      ),
-    );
-  }
-
-  static async transferOwnershipOfChain(
-    coreContracts: CoreContracts,
-    owner: types.Address,
-    chainConnection: ChainConnection,
+  async transferOwnershipOfContracts(
+    chain: Chain,
+    ownables: Ownable[],
   ): Promise<ethers.ContractReceipt[]> {
-    const ownables: Ownable[] = [
-      coreContracts.mailbox.contract,
-      coreContracts.multisigIsm,
-      coreContracts.proxyAdmin,
-    ];
-    return Promise.all(
-      ownables.map((ownable) =>
-        chainConnection.handleTx(
-          ownable.transferOwnership(owner, chainConnection.overrides),
-        ),
-      ),
+    const owner = this.configMap[chain].owner;
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const receipts = await Promise.all(
+      ownables.map(async (ownable) => {
+        const currentOwner = await ownable.owner();
+        if (currentOwner.toLowerCase() !== owner.toLowerCase()) {
+          return chainConnection.handleTx(
+            ownable.transferOwnership(owner, chainConnection.overrides),
+          );
+        }
+        return undefined;
+      }),
     );
+    return receipts.filter((x) => x !== undefined) as ethers.ContractReceipt[];
   }
 }

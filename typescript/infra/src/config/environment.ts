@@ -4,6 +4,7 @@ import {
   CoreConfig,
   EnvironmentConfig,
   MultiProvider,
+  coreEnvironments,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
@@ -36,4 +37,11 @@ export type CoreEnvironmentConfig<Chain extends ChainName> = {
   ) => Promise<MultiProvider<Chain>>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig<Chain>>>;
   keyFunderConfig?: KeyFunderConfig;
+};
+
+export type SdkEnvironment = keyof typeof coreEnvironments;
+export const deployEnvToSdkEnv: Record<DeployEnvironment, SdkEnvironment> = {
+  mainnet2: 'mainnet',
+  testnet3: 'testnet',
+  test: 'test',
 };

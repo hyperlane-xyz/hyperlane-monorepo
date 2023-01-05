@@ -55,7 +55,6 @@ export type CheckpointSyncerConfig =
   | S3CheckpointSyncerConfig;
 
 interface MultisigCheckpointSyncerConfig {
-  threshold: number;
   // Keyed by validator address
   checkpointSyncers: Record<string, CheckpointSyncerConfig>;
 }
@@ -118,8 +117,6 @@ export type GasPaymentEnforcementPolicy =
 
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
-  // The polling interval to check for new signed checkpoints in seconds
-  signedCheckpointPollingInterval: number;
   gasPaymentEnforcementPolicy: GasPaymentEnforcementPolicy;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
@@ -213,7 +210,7 @@ export enum TransactionSubmissionType {
 export interface AgentConfig<Chain extends ChainName> {
   environment: string;
   namespace: string;
-  runEnv: string;
+  runEnv: DeployEnvironment;
   context: Contexts;
   docker: DockerConfig;
   quorumProvider?: boolean;
@@ -254,7 +251,6 @@ export type RustConnection =
 export type RustCoreAddresses = {
   mailbox: types.Address;
   interchainGasPaymaster: types.Address;
-  multisigIsm: types.Address;
 };
 
 export type RustChainSetup = {
@@ -429,10 +425,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
     const relayerConfig: RelayerConfig = {
       originChainName: this.chainName,
-      signedCheckpointPollingInterval:
-        baseConfig.signedCheckpointPollingInterval,
       multisigCheckpointSyncer: {
-        threshold: this.validatorSet.threshold,
         checkpointSyncers,
       },
       gasPaymentEnforcementPolicy: baseConfig.gasPaymentEnforcementPolicy,

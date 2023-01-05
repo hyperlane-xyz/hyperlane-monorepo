@@ -6,12 +6,11 @@ use tracing::{debug, info, trace};
 
 use crate::db::{DbError, TypedDB, DB};
 use crate::{
-    accumulator::merkle::Proof, HyperlaneMessage, InterchainGasPayment, InterchainGasPaymentMeta,
-    InterchainGasPaymentWithMeta, H256, U256,
+    HyperlaneMessage, InterchainGasPayment, InterchainGasPaymentMeta, InterchainGasPaymentWithMeta,
+    H256, U256,
 };
 
 static MESSAGE_ID: &str = "message_id_";
-static PROOF: &str = "proof_";
 static MESSAGE: &str = "message_";
 static LATEST_NONCE: &str = "latest_known_nonce_";
 static LATEST_NONCE_FOR_DESTINATION: &str = "latest_known_nonce_for_destination_";
@@ -166,23 +165,9 @@ impl HyperlaneDB {
         }
     }
 
-    /// Store a proof by its nonce
-    ///
-    /// Keys --> Values:
-    /// - `nonce` --> `proof`
-    pub fn store_proof(&self, nonce: u32, proof: &Proof) -> Result<()> {
-        debug!(nonce, "storing proof in DB");
-        self.store_keyed_encodable(PROOF, &nonce, proof)
-    }
-
-    /// Retrieve a proof by its nonce
-    pub fn proof_by_nonce(&self, nonce: u32) -> Result<Option<Proof>> {
-        self.retrieve_keyed_decodable(PROOF, &nonce)
-    }
-
     // TODO(james): this is a quick-fix for the prover_sync and I don't like it
-    /// poll db ever 100 milliseconds waitinf for a leaf.
-    pub fn wait_for_message_id(&self, nonce: u32) -> impl Future<Output = Result<H256>> {
+    /// poll db ever 100 milliseconds waiting for a leaf.
+    pub fn wait_for_message_nonce(&self, nonce: u32) -> impl Future<Output = Result<H256>> {
         let slf = self.clone();
         async move {
             loop {

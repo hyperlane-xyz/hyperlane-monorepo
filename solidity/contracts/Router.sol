@@ -6,14 +6,16 @@ import {HyperlaneConnectionClient} from "./HyperlaneConnectionClient.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
+import {EnumerableMapExtended} from "./libs/EnumerableMapExtended.sol";
 
 abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
+    using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
+
     string constant NO_ROUTER_ENROLLED_REVERT_MESSAGE =
         "No router enrolled for domain. Did you specify the right domain ID?";
 
     // ============ Mutable Storage ============
-
-    mapping(uint32 => bytes32) public routers;
+    EnumerableMapExtended.UintToBytes32Map internal _routers;
     uint256[49] private __GAP; // gap for upgrade safety
 
     // ============ Events ============
@@ -54,7 +56,35 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         );
     }
 
+    function __Router_initialize(
+        address _mailbox,
+        address _interchainGasPaymaster,
+        address _interchainSecurityModule
+    ) internal onlyInitializing {
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
+            _interchainGasPaymaster,
+            _interchainSecurityModule
+        );
+    }
+
     // ============ External functions ============
+    function domains() external view returns (uint32[] memory) {
+        bytes32[] storage rawKeys = _routers.keys();
+        uint32[] memory keys = new uint32[](rawKeys.length);
+        for (uint256 i = 0; i < rawKeys.length; i++) {
+            keys[i] = uint32(uint256(rawKeys[i]));
+        }
+        return keys;
+    }
+
+    function routers(uint32 _domain) public view returns (bytes32) {
+        if (_routers.contains(_domain)) {
+            return _routers.get(_domain);
+        } else {
+            return bytes32(0); // for backwards compatibility with storage mapping
+        }
+    }
 
     /**
      * @notice Register the address of a Router contract for the same Application on a remote chain
@@ -72,15 +102,15 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     /**
      * @notice Batch version of `enrollRemoteRouter`
      * @param _domains The domaisn of the remote Application Routers
-     * @param _routers The addresses of the remote Application Routers
+     * @param _addresses The addresses of the remote Application Routers
      */
     function enrollRemoteRouters(
         uint32[] calldata _domains,
-        bytes32[] calldata _routers
+        bytes32[] calldata _addresses
     ) external virtual onlyOwner {
-        require(_domains.length == _routers.length, "!length");
+        require(_domains.length == _addresses.length, "!length");
         for (uint256 i = 0; i < _domains.length; i += 1) {
-            _enrollRemoteRouter(_domains[i], _routers[i]);
+            _enrollRemoteRouter(_domains[i], _addresses[i]);
         }
     }
 
@@ -111,24 +141,24 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     /**
      * @notice Set the router for a given domain
      * @param _domain The domain
-     * @param _router The new router
+     * @param _address The new router
      */
-    function _enrollRemoteRouter(uint32 _domain, bytes32 _router) internal {
-        routers[_domain] = _router;
-        emit RemoteRouterEnrolled(_domain, _router);
+    function _enrollRemoteRouter(uint32 _domain, bytes32 _address) internal {
+        _routers.set(_domain, _address);
+        emit RemoteRouterEnrolled(_domain, _address);
     }
 
     /**
      * @notice Return true if the given domain / router is the address of a remote Application Router
      * @param _domain The domain of the potential remote Application Router
-     * @param _router The address of the potential remote Application Router
+     * @param _address The address of the potential remote Application Router
      */
-    function _isRemoteRouter(uint32 _domain, bytes32 _router)
+    function _isRemoteRouter(uint32 _domain, bytes32 _address)
         internal
         view
         returns (bool)
     {
-        return routers[_domain] == _router;
+        return routers(_domain) == _address;
     }
 
     /**
@@ -141,7 +171,7 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         view
         returns (bytes32 _router)
     {
-        _router = routers[_domain];
+        _router = routers(_domain);
         require(_router != bytes32(0), NO_ROUTER_ENROLLED_REVERT_MESSAGE);
     }
 

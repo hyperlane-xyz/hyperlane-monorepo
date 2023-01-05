@@ -1,23 +1,23 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "1.0.0-beta1",
+  "version": "1.0.0-beta6",
   "dependencies": {
     "@hyperlane-xyz/celo-ethers-provider": "^0.1.1",
-    "@hyperlane-xyz/core": "1.0.0-beta1",
-    "@hyperlane-xyz/utils": "1.0.0-beta1",
-    "@types/debug": "^4.1.7",
+    "@hyperlane-xyz/core": "1.0.0-beta6",
+    "@hyperlane-xyz/utils": "1.0.0-beta6",
+    "@wagmi/chains": "^0.1.3",
     "coingecko-api": "^1.0.10",
     "cross-fetch": "^3.1.5",
     "debug": "^4.3.4",
-    "ethers": "^5.6.8"
+    "ethers": "^5.7.2"
   },
   "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.0.5",
-    "@nomiclabs/hardhat-waffle": "^2.0.2",
+    "@nomiclabs/hardhat-ethers": "^2.2.1",
+    "@nomiclabs/hardhat-waffle": "^2.0.3",
     "@types/coingecko-api": "^1.0.10",
+    "@types/debug": "^4.1.7",
     "@types/node": "^16.9.1",
-    "@wagmi/chains": "^0.1.3",
     "chai": "^4.3.6",
     "dotenv": "^10.0.0",
     "ethereum-waffle": "^3.4.4",
@@ -52,5 +52,6 @@
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts'",
     "test:hardhat": "hardhat test ./src/**/*.hardhat-test.ts"
   },
-  "types": "dist/index.d.ts"
+  "types": "dist/index.d.ts",
+  "stableVersion": "1.0.0-beta2"
 }

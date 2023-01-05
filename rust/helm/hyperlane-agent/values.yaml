@@ -105,9 +105,7 @@ hyperlane:
         memory: 256Mi
     config:
       originChainName:
-      signedCheckpointPollingInterval:
       multisigCheckpointSyncer:
-        threshold:
         checkpointSyncers:
 
   scraper:
@@ -115,7 +113,7 @@ hyperlane:
     podAnnotations:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'
-    podLabels: { }
+    podLabels: {}
     storage:
       size: 10Mi
       snapshot:

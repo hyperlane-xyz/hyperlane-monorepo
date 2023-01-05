@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 
 use crate::{
-    utils::domain_hash, Decode, Encode, HyperlaneProtocolError, HyperlaneSigner,
-    HyperlaneSignerError, H256,
+    utils::domain_hash, HyperlaneProtocolError, HyperlaneSigner, HyperlaneSignerError, H256,
 };
 
 /// An Hyperlane checkpoint
@@ -27,49 +26,9 @@ impl std::fmt::Display for Checkpoint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Checkpoint(domain {} moved from {} to {})",
-            self.mailbox_domain, self.root, self.index
+            "Checkpoint(domain: {}, mailbox: {:x}, root: {:x}, index: {})",
+            self.mailbox_domain, self.mailbox_address, self.root, self.index
         )
-    }
-}
-
-impl Encode for Checkpoint {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        writer.write_all(self.mailbox_address.as_ref())?;
-        writer.write_all(&self.mailbox_domain.to_be_bytes())?;
-        writer.write_all(self.root.as_ref())?;
-        writer.write_all(&self.index.to_be_bytes())?;
-        Ok(32 + 4 + 32 + 4)
-    }
-}
-
-impl Decode for Checkpoint {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
-    where
-        R: std::io::Read,
-        Self: Sized,
-    {
-        let mut mailbox_address = H256::zero();
-        reader.read_exact(mailbox_address.as_mut())?;
-
-        let mut mailbox_domain = [0u8; 4];
-        reader.read_exact(&mut mailbox_domain)?;
-
-        let mut root = H256::zero();
-        reader.read_exact(root.as_mut())?;
-
-        let mut index = [0u8; 4];
-        reader.read_exact(&mut index)?;
-
-        Ok(Self {
-            mailbox_address,
-            mailbox_domain: u32::from_be_bytes(mailbox_domain),
-            root,
-            index: u32::from_be_bytes(index),
-        })
     }
 }
 
@@ -114,33 +73,6 @@ pub struct SignedCheckpoint {
     pub checkpoint: Checkpoint,
     /// The signature
     pub signature: Signature,
-}
-
-impl Encode for SignedCheckpoint {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        let mut written = 0;
-        written += self.checkpoint.write_to(writer)?;
-        written += self.signature.write_to(writer)?;
-        Ok(written)
-    }
-}
-
-impl Decode for SignedCheckpoint {
-    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
-    where
-        R: std::io::Read,
-        Self: Sized,
-    {
-        let checkpoint = Checkpoint::read_from(reader)?;
-        let signature = Signature::read_from(reader)?;
-        Ok(Self {
-            checkpoint,
-            signature,
-        })
-    }
 }
 
 impl SignedCheckpoint {

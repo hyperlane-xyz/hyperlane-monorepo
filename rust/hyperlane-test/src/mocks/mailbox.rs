@@ -31,6 +31,7 @@ mock! {
         pub fn _latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {}
 
         pub fn _default_ism(&self) -> ChainResult<H256> {}
+        pub fn _recipient_ism(&self, recipient: H256) -> ChainResult<H256> {}
 
         pub fn _delivered(&self, id: H256) -> ChainResult<bool> {}
 
@@ -73,6 +74,10 @@ impl Mailbox for MockMailboxContract {
 
     async fn default_ism(&self) -> ChainResult<H256> {
         self._default_ism()
+    }
+
+    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        self._recipient_ism(recipient)
     }
 
     async fn delivered(&self, id: H256) -> ChainResult<bool> {

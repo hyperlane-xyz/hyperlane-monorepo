@@ -1,7 +1,7 @@
 name: node
 
 on:
-  # Triggers the workflow on push or pull request events but only for the main and v2 branches
+  # Triggers the workflow on push or pull request against main
   push:
     branches: [main]
   pull_request:
@@ -15,6 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: remove submodule locks
+        run: git submodule foreach rm yarn.lock
+
       - uses: actions/cache@v3
         with:
           path: '**/node_modules'
@@ -25,7 +31,7 @@ jobs:
         # verify the lockfile matches what was committed.
         run: |
           yarn install
-          CHANGES=$(git status -s)
+          CHANGES=$(git status -s --ignore-submodules)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found: $CHANGES"
             git diff
@@ -37,6 +43,11 @@ jobs:
     needs: [yarn-install]
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: remove submodule locks
+        run: git submodule foreach rm yarn.lock
 
       - name: yarn-cache
         uses: actions/cache@v3
@@ -80,6 +91,9 @@ jobs:
     needs: [yarn-build]
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
       - uses: actions/cache@v3
         with:
           path: ./*
@@ -89,10 +103,6 @@ jobs:
         run: yarn workspace @hyperlane-xyz/sdk run test
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
-      - name: helloworld
-        run: yarn workspace @hyperlane-xyz/helloworld run test
-      - name: hyperlane-token
-        run: yarn workspace @hyperlane-xyz/hyperlane-token run test
 
   test-sol:
     env:
@@ -120,5 +130,21 @@ jobs:
         run: yarn workspace @hyperlane-xyz/core run test
 
       - name: gas
-        run: yarn workspace @hyperlane-xyz/core run gas || echo "Manually update gas snapshot"
+        run: yarn workspace @hyperlane-xyz/core run gas-ci
 
+      - name: coverage
+        run: yarn workspace @hyperlane-xyz/core run coverage-ci
+
+      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
+        with:
+          title: "Forge Coverage Report"
+          lcov-file: ./solidity/lcov.info
+          lcov-base: ./solidity/forge-lcov.base.info
+          delete-old-comments: true
+
+      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
+        with:
+          title: "Hardhat Coverage Report"
+          lcov-file: ./solidity/coverage/lcov.info
+          lcov-base: ./solidity/hardhat-lcov.base.info
+          delete-old-comments: true
