@@ -13,7 +13,7 @@ import { validators } from './validators';
 export const hyperlane: AgentConfig<MainnetChains> = {
   environment,
   namespace: environment,
-  runEnv: 'mainnet',
+  runEnv: environment,
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',

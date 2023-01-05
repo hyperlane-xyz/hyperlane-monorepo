@@ -22,12 +22,11 @@ const releaseCandidateHelloworldMatchingList = helloworldMatchingList(
 export const hyperlane: AgentConfig<TestnetChains> = {
   environment,
   namespace: environment,
-  runEnv: 'testnet',
+  runEnv: environment,
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // TODO: Update to a commit from main
-    tag: 'sha-7d4208d',
+    tag: 'sha-73128c6',
   },
   aws: {
     region: 'us-east-1',
