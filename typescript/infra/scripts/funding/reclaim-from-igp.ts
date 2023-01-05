@@ -2,6 +2,7 @@ import { BigNumber } from 'ethers';
 
 import { HyperlaneCore, objMap, promiseObjAll } from '@hyperlane-xyz/sdk';
 
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { getEnvironment, getEnvironmentConfig } from '../utils';
 
 // Some arbitrary treshold for now
@@ -12,7 +13,7 @@ async function main() {
   const coreConfig = await getEnvironmentConfig();
   const multiProvider = await coreConfig.getMultiProvider();
   const core: HyperlaneCore<any> = HyperlaneCore.fromEnvironment(
-    environment,
+    deployEnvToSdkEnv[environment],
     multiProvider,
   );
 

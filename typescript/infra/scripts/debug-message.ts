@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
 
+import { deployEnvToSdkEnv } from '../src/config/environment';
 import { assertChain } from '../src/utils/utils';
 
 import { getArgs, getEnvironment } from './utils';
@@ -42,7 +43,10 @@ async function main() {
   // to run this script
   const multiProvider = new MultiProvider(chainConnectionConfigs);
 
-  const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider,
+  );
 
   const originProvider = multiProvider.getChainProvider(argv.originChain);
   const dispatchReceipt = await originProvider.getTransactionReceipt(

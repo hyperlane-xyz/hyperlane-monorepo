@@ -1,9 +1,9 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "1.0.0-beta3",
+  "version": "1.0.0-beta6",
   "dependencies": {
-    "@hyperlane-xyz/utils": "1.0.0-beta3",
+    "@hyperlane-xyz/utils": "1.0.0-beta6",
     "@openzeppelin/contracts": "^4.8.0",
     "@openzeppelin/contracts-upgradeable": "^4.8.0"
   },
@@ -45,10 +45,12 @@
   "scripts": {
     "build": "hardhat compile && tsc",
     "clean": "hardhat clean && rm -rf ./dist ./cache",
-    "coverage": "hardhat coverage",
+    "coverage": "hardhat coverage && forge coverage",
+    "coverage-ci": "yarn coverage --report lcov",
     "prettier": "prettier --write ./contracts ./interfaces ./test",
     "test": "hardhat test && forge test -vvv",
-    "gas": "forge snapshot --check || (echo 'Manually update gas snapshot' && exit 1)"
+    "gas": "forge snapshot",
+    "gas-ci": "yarn gas --check || (echo 'Manually update gas snapshot' && exit 1)"
   },
   "types": "dist/index.d.ts",
   "stableVersion": "1.0.0-beta2"

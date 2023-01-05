@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
-use hyperlane_core::{HyperlaneDomain, MultisigIsm};
+use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
@@ -23,8 +23,6 @@ pub struct HyperlaneAgentCore {
     pub mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
     /// A map of interchain gas paymaster contracts by chain name
     pub interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
-    /// A map of interchain gas paymaster contracts by chain name
-    pub multisig_isms: HashMap<HyperlaneDomain, Arc<dyn MultisigIsm>>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -80,9 +78,6 @@ pub trait Agent: BaseAgent {
         &self,
         domain: &HyperlaneDomain,
     ) -> Option<&CachingInterchainGasPaymaster>;
-
-    /// Return a reference to a Multisig Ism contract
-    fn multisig_ism(&self, domain: &HyperlaneDomain) -> Option<&Arc<dyn MultisigIsm>>;
 }
 
 #[async_trait]
@@ -103,10 +98,6 @@ where
         domain: &HyperlaneDomain,
     ) -> Option<&CachingInterchainGasPaymaster> {
         self.as_ref().interchain_gas_paymasters.get(domain)
-    }
-
-    fn multisig_ism(&self, domain: &HyperlaneDomain) -> Option<&Arc<dyn MultisigIsm>> {
-        self.as_ref().multisig_isms.get(domain)
     }
 }
 
