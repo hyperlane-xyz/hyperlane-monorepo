@@ -1,0 +1,66 @@
+{
+  "alfajores": [
+    {
+      "name": "Router",
+      "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "fuji": [
+    {
+      "name": "Router",
+      "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "Router",
+      "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "Router",
+      "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "goerli": [
+    {
+      "name": "Router",
+      "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "moonbasealpha": [
+    {
+      "name": "Router",
+      "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "optimismgoerli": [
+    {
+      "name": "Router",
+      "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "arbitrumgoerli": [
+    {
+      "name": "Router",
+      "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ]
+}
