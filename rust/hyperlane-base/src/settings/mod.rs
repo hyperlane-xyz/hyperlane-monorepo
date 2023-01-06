@@ -146,17 +146,19 @@ pub struct Settings {
 
 impl Settings {
     /// Try to generate an agent core for a named agent
-    pub async fn build_hyperlane_core(
+    pub fn build_hyperlane_core(
         &self,
         metrics: Arc<CoreMetrics>,
-    ) -> eyre::Result<HyperlaneAgentCore> {
-        let db = DB::from_path(&self.db)?;
-
-        Ok(HyperlaneAgentCore {
-            db,
+    ) -> HyperlaneAgentCore {
+        HyperlaneAgentCore {
             metrics,
             settings: self.clone(),
-        })
+        }
+    }
+
+    /// Build the HyperlaneDatabase instance from the db path
+    pub fn build_db(&self) -> eyre::Result<DB> {
+        Ok(DB::from_path(&self.db)?)
     }
 
     /// Try to get a map of chain name -> mailbox contract

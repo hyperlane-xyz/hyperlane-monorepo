@@ -16,7 +16,6 @@ use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
 #[derive(Debug)]
 pub struct Validator {
     origin_chain: HyperlaneDomain,
-    // TODO: do we need core to contain DB or can we move it to the relayer only?
     core: HyperlaneAgentCore,
     mailbox: Arc<dyn Mailbox>,
     signer: Arc<dyn HyperlaneSigner>,
@@ -50,7 +49,7 @@ impl BaseAgent for Validator {
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
         let interval = Duration::from_secs(settings.interval.parse().expect("invalid uint"));
         let checkpoint_syncer = Arc::new(settings.checkpointsyncer.build(None)?);
-        let core = settings.build_hyperlane_core(metrics.clone()).await?;
+        let core = settings.build_hyperlane_core(metrics.clone());
 
         let mailbox = settings
             .build_mailbox(&settings.originchainname, &metrics)

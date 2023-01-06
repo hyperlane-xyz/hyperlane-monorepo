@@ -5,18 +5,13 @@ use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
 use tokio::task::JoinHandle;
-use tracing::instrument::Instrumented;
-use tracing::{info_span, Instrument};
-
-use hyperlane_core::db::DB;
+use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use crate::{cancel_task, metrics::CoreMetrics, settings::Settings};
 
 /// Properties shared across all hyperlane agents
 #[derive(Debug)]
 pub struct HyperlaneAgentCore {
-    /// A persistent KV Store (currently implemented as rocksdb)
-    pub db: DB,
     /// Prometheus metrics
     pub metrics: Arc<CoreMetrics>,
     /// Settings this agent was created with
@@ -51,25 +46,6 @@ pub trait BaseAgent: Send + Sync + Debug {
     /// Start running this agent.
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>>;
-}
-
-/// A trait for an hyperlane agent.
-///
-/// To use the default implementation you must `impl AsRef<HyperlaneAgentCore>`
-#[async_trait]
-pub trait Agent: BaseAgent {
-    /// Return a handle to the DB
-    fn db(&self) -> &DB;
-}
-
-#[async_trait]
-impl<B> Agent for B
-where
-    B: BaseAgent + AsRef<HyperlaneAgentCore>,
-{
-    fn db(&self) -> &DB {
-        &self.as_ref().db
-    }
 }
 
 /// Call this from `main` to fully initialize and run the agent for its entire

@@ -3,28 +3,30 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{Context, Result};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::sync::RwLock;
-use tokio::{sync::mpsc, task::JoinHandle};
+use tokio::sync::{
+    mpsc::{self, UnboundedReceiver, UnboundedSender},
+    RwLock,
+};
+use tokio::task::JoinHandle;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_base::chains::TransactionSubmissionType;
 use hyperlane_base::{
-    chains::GelatoConf, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
-    MultisigCheckpointSyncer,
+    chains::{GelatoConf, TransactionSubmissionType},
+    run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
+    CoreMetrics, HyperlaneAgentCore, MultisigCheckpointSyncer,
 };
-use hyperlane_base::{CachingInterchainGasPaymaster, CachingMailbox};
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::msg::gas_payment::GasPaymentEnforcer;
-use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
-use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
-use crate::msg::serial_submitter::SerialSubmitter;
-use crate::msg::serial_submitter::SerialSubmitterMetrics;
-use crate::msg::{metadata_builder::MetadataBuilder, SubmitMessageArgs};
-use crate::settings::matching_list::MatchingList;
-use crate::settings::{GasPaymentEnforcementPolicy, RelayerSettings};
+use crate::msg::{
+    gas_payment::GasPaymentEnforcer,
+    gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics},
+    metadata_builder::MetadataBuilder,
+    processor::{MessageProcessor, MessageProcessorMetrics},
+    serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
+    SubmitMessageArgs,
+};
+use crate::settings::{matching_list::MatchingList, GasPaymentEnforcementPolicy, RelayerSettings};
 
 /// A relayer agent
 #[derive(Debug)]
@@ -56,15 +58,16 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings.build_hyperlane_core(metrics.clone()).await?;
+        let core = settings.build_hyperlane_core(metrics.clone());
+        let db = settings.build_db()?;
 
         // If not provided, default to using every chain listed in self.chains.
         let chain_names: Vec<_> = settings.chains.keys().map(String::as_str).collect();
         let mailboxes = settings
-            .build_all_mailboxes(chain_names.as_slice(), &metrics, core.db.clone())
+            .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
             .await?;
         let interchain_gas_paymasters = settings
-            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, core.db.clone())
+            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db)
             .await?;
 
         let multisig_checkpoint_syncer = settings.multisigcheckpointsyncer.build(
