@@ -5,7 +5,12 @@ import "forge-std/console.sol";
 import "forge-std/Script.sol";
 import "forge-std/StdJson.sol";
 
-// import {ICREATE3Factory} from "../lib/create3-factory/src/ICREATE3Factory.sol";
+// Choose a domain ID
+// Generate validator addresses
+// Update networks.json
+// Run deployment script
+// Spin up validators
+// Spin up relayer
 
 import {Mailbox} from "../contracts/Mailbox.sol";
 import {InterchainGasPaymaster} from "../contracts/InterchainGasPaymaster.sol";
@@ -17,25 +22,6 @@ import {BytesLib} from "../contracts/libs/BytesLib.sol";
 contract Deploy is Script {
     using stdJson for string;
     using BytesLib for bytes;
-
-    /*
-    function getCreate2Factory(string memory network)
-        internal
-        view
-        returns (ICREATE3Factory)
-    {
-        string memory file = string.concat(
-            "lib/create3-factory/deployments/",
-            network,
-            ".json"
-        );
-        string memory json = vm.readFile(file);
-        return
-            ICREATE3Factory(
-                abi.decode(vm.parseJson(json, "CREATE3Factory"), (address))
-            );
-    }
-    */
 
     struct MultisigIsmConfig {
         uint8 threshold;
