@@ -83,11 +83,7 @@ use rusoto_kms::KmsClient;
 use serde::Deserialize;
 
 pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
-use hyperlane_core::{
-    db::{HyperlaneDB, DB},
-    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm,
-};
+use hyperlane_core::{db::{HyperlaneDB, DB}, H256, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm};
 pub use signers::SignerConf;
 
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
@@ -248,7 +244,7 @@ impl Settings {
     pub async fn build_multisig_ism(
         &self,
         chain_name: &str,
-        address: &str,
+        address: H256,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn MultisigIsm>> {
         let setup = self.chain_setup(chain_name)?;

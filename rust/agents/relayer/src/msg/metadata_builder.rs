@@ -38,10 +38,10 @@ impl MetadataBuilder {
         message: &HyperlaneMessage,
         mailbox: CachingMailbox,
     ) -> eyre::Result<Option<Vec<u8>>> {
-        let ism_address = mailbox.recipient_ism(message.recipient).await?.to_string();
+        let ism_address = mailbox.recipient_ism(message.recipient).await?;
         let multisig_ism = self
             .chain_setup
-            .build_multisig_ism(&ism_address, &self.metrics)
+            .build_multisig_ism(ism_address, &self.metrics)
             .await?;
 
         let (validators, threshold) = multisig_ism.validators_and_threshold(message).await?;

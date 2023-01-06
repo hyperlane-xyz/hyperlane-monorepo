@@ -7,11 +7,7 @@ use serde::Deserialize;
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
-use hyperlane_core::{
-    ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainImpl, HyperlaneProvider,
-    HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox,
-    MailboxIndexer, MultisigIsm,
-};
+use hyperlane_core::{ContractLocator, H256, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainImpl, HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm};
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
 };
@@ -257,10 +253,10 @@ impl ChainSetup {
     /// Try to convert the chain setting into a Multisig Ism contract
     pub async fn build_multisig_ism(
         &self,
-        address: &str,
+        address: H256,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MultisigIsm>> {
-        let locator = self.locator(address)?;
+        let locator = ContractLocator { domain: self.domain()?, address };
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {
