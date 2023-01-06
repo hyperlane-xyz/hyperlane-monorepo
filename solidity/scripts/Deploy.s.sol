@@ -10,6 +10,7 @@ import "forge-std/StdJson.sol";
 import {Mailbox} from "../contracts/Mailbox.sol";
 import {InterchainGasPaymaster} from "../contracts/InterchainGasPaymaster.sol";
 import {ProxyAdmin} from "../contracts/upgrade/ProxyAdmin.sol";
+import {TransparentUpgradeableProxy} from "../contracts/upgrade/TransparentUpgradeableProxy.sol";
 import {MultisigIsm} from "../contracts/isms/MultisigIsm.sol";
 import {BytesLib} from "../contracts/libs/BytesLib.sol";
 
@@ -93,80 +94,70 @@ contract Deploy is Script {
         return configs;
     }
 
-    function deployIgp(address proxyAdmin) returns (address) {
+    function deployIgp(address proxyAdmin)
+        internal
+        returns (InterchainGasPaymaster)
+    {
         InterchainGasPaymaster igp = new InterchainGasPaymaster();
         bytes memory initData = abi.encodeCall(
-            InterchainGasPaymaster.initialize
+            InterchainGasPaymaster.initialize,
+            ()
         );
-        address proxy = proxyContract(igp, proxyAdmin, initData);
-        return proxy;
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(igp),
+            proxyAdmin,
+            initData
+        );
+        return InterchainGasPaymaster(address(proxy));
     }
 
     function deployMailbox(
         address proxyAdmin,
         uint32 domainId,
-        address owner,
         address defaultIsm
-    ) returns (address) {
+    ) internal returns (Mailbox) {
         Mailbox mailbox = new Mailbox(domainId);
         bytes memory initData = abi.encodeCall(
             Mailbox.initialize,
-            owner,
-            defaultIsm
+            (msg.sender, defaultIsm)
         );
-        address proxy = proxyContract(mailbox, proxyAdmin, initData);
-        return proxy;
-    }
-
-    // TODO: Create2 support
-    function proxyContract(
-        address implementation,
-        address proxyAdmin,
-        bytes memory initData
-    ) internal returns (address) {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-            implementation,
+            address(mailbox),
             proxyAdmin,
             initData
         );
-        return address(proxy);
+        return Mailbox(address(proxy));
     }
 
     function run() public {
-        address owner = vm.envUint("OWNER");
+        address owner = vm.envAddress("OWNER");
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        vm.startBroadcast(deployerPrivateKey);
+        string memory local = vm.envString("LOCAL");
+        NetworkConfig memory config = getNetworkConfig(local);
+        string[] memory remotes = vm.envString("REMOTES", ",");
+        NetworkConfig[] memory configs = getNetworkConfigs(remotes);
 
-        string memory local = vm.envString("LOCAL", ",");
-        string[] memory networks = vm.envString("REMOTES", ",");
-        networks.push(local);
-        NetworkConfig[] memory configs = getNetworkConfigs(networks);
+        vm.startBroadcast(deployerPrivateKey);
 
         // Deploy a default MultisigIsm and enroll validators for remote
         // networks.
         MultisigIsm ism = new MultisigIsm();
-        uint32[] memory remoteDomainIds = new uint32[](configs.length - 1);
-        uint8[] memory remoteThresholds = new uint8[](configs.length - 1);
-        address[][] memory remoteValidators = new address[][](
-            configs.length - 1
-        );
-        // The local network is the last entry in configs, we skip it as we
-        // do not need to enroll local validators.
-        for (uint256 i = 0; i < configs.length - 1; i++) {
-            NetworkConfig memory config = configs[i];
-            remoteDomainIds[i] = config.domainId;
-            remoteThresholds[i] = config.ism.threshold;
-            remoteValidators[i] = config.ism.validators;
+        uint32[] memory remoteDomainIds = new uint32[](configs.length);
+        uint8[] memory remoteThresholds = new uint8[](configs.length);
+        address[][] memory remoteValidators = new address[][](configs.length);
+        for (uint256 i = 0; i < configs.length; i++) {
+            remoteDomainIds[i] = configs[i].domainId;
+            remoteThresholds[i] = configs[i].ism.threshold;
+            remoteValidators[i] = configs[i].ism.validators;
         }
-        ism.setThresholds(remoteDomainIds, remoteThresholds);
         ism.enrollValidators(remoteDomainIds, remoteValidators);
+        ism.setThresholds(remoteDomainIds, remoteThresholds);
 
         ProxyAdmin proxyAdmin = new ProxyAdmin();
-        InterchainGasPaymaster igp = deployIgp(proxyAdmin);
+        InterchainGasPaymaster igp = deployIgp(address(proxyAdmin));
         Mailbox mailbox = deployMailbox(
             address(proxyAdmin),
-            configs[-1].domainId,
-            owner,
+            config.domainId,
             address(ism)
         );
 
