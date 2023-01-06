@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "../contracts/mock/MockMailbox.sol";
 import "../contracts/ValidatorAnnounce.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
+import {ValidatorAnnouncements} from "../contracts/libs/ValidatorAnnouncements.sol";
 
 contract ValidatorAnnounceTest is Test {
     using TypeCasts for address;
@@ -27,20 +28,15 @@ contract ValidatorAnnounceTest is Test {
     function announce(uint256 privateKey, string memory storageLocation)
         internal
     {
-        address validator = vm.addr(privateKey);
-        bytes32 domainHash = keccak256(
-            abi.encodePacked(
-                localDomain,
-                address(mailbox).addressToBytes32(),
-                "HYPERLANE"
-            )
-        );
-        bytes32 digest = ECDSA.toEthSignedMessageHash(
-            keccak256(abi.encodePacked(domainHash, storageLocation))
+        bytes32 digest = ValidatorAnnouncements.getAnnouncementDigest(
+            address(mailbox),
+            localDomain,
+            storageLocation
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
+        address validator = vm.addr(privateKey);
         valAnnounce.announce(validator, storageLocation, signature);
     }
 
@@ -53,7 +49,6 @@ contract ValidatorAnnounceTest is Test {
     function assertEqStrArrArr(string[][] memory a, string[][] memory b)
         internal
     {
-        assertEq(a.length, b.length);
         bytes memory encodedA = abi.encode(a);
         bytes memory encodedB = abi.encode(b);
         assertEq(encodedA, encodedB);
@@ -64,7 +59,6 @@ contract ValidatorAnnounceTest is Test {
         // Announce a first location
         address validator = vm.addr(privateKey);
         string memory storageLocation1 = "s3://test-bucket/us-east-1";
-        //emit InterchainAccountCreated(originDomain, address(this), ica);
         vm.expectEmit(true, false, false, true, address(valAnnounce));
         emit ValidatorAnnouncement(validator, storageLocation1);
         announce(privateKey, storageLocation1);

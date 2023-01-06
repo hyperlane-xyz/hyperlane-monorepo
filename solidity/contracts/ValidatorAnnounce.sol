@@ -5,6 +5,7 @@ pragma solidity >=0.8.0;
 import {IValidatorAnnounce} from "../interfaces/IValidatorAnnounce.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
 import {TypeCasts} from "./libs/TypeCasts.sol";
+import {ValidatorAnnouncements} from "./libs/ValidatorAnnouncements.sol";
 // ============ External Imports ============
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -78,7 +79,8 @@ contract ValidatorAnnounce is IValidatorAnnounce {
         replayProtection[_replayId] = true;
 
         // Verify that the signature matches the declared validator
-        bytes32 _announcementDigest = _getAnnouncementDigest(_storageLocation);
+        bytes32 _announcementDigest = ValidatorAnnouncements
+            .getAnnouncementDigest(mailbox, localDomain, _storageLocation);
         address _signer = ECDSA.recover(_announcementDigest, _signature);
         require(_signer == _validator, "!signature");
 
@@ -110,36 +112,6 @@ contract ValidatorAnnounce is IValidatorAnnounce {
 
     /// @notice Returns a list of validators that have made announcements
     function getAnnouncedValidators() external view returns (address[] memory) {
-        uint256 _validatorCount = validators.length();
-        address[] memory _validators = new address[](_validatorCount);
-        for (uint256 i = 0; i < _validatorCount; i++) {
-            _validators[i] = validators.at(i);
-        }
-        return _validators;
-    }
-
-    // ============ Internal Functions ============
-
-    /**
-     * @notice Returns the digest validators are expected to sign when signing announcements.
-     * @param _metadata Storage metadata string.
-     * @return The digest of the checkpoint.
-     */
-    function _getAnnouncementDigest(string calldata _metadata)
-        internal
-        view
-        returns (bytes32)
-    {
-        bytes32 _domainHash = keccak256(
-            abi.encodePacked(
-                localDomain,
-                mailbox.addressToBytes32(),
-                "HYPERLANE"
-            )
-        );
-        return
-            ECDSA.toEthSignedMessageHash(
-                keccak256(abi.encodePacked(_domainHash, _metadata))
-            );
+        return validators.values();
     }
 }
