@@ -1,0 +1,23 @@
+{
+  "bsc": {
+    "router": "0x77CcAe70d79bb88DB2d76835899356181d344a22"
+  },
+  "avalanche": {
+    "router": "0x77CcAe70d79bb88DB2d76835899356181d344a22"
+  },
+  "polygon": {
+    "router": "0x77CcAe70d79bb88DB2d76835899356181d344a22"
+  },
+  "arbitrum": {
+    "router": "0x77CcAe70d79bb88DB2d76835899356181d344a22"
+  },
+  "optimism": {
+    "router": "0x77CcAe70d79bb88DB2d76835899356181d344a22"
+  },
+  "ethereum": {
+    "router": "0x77CcAe70d79bb88DB2d76835899356181d344a22"
+  },
+  "moonbeam": {
+    "router": "0x77CcAe70d79bb88DB2d76835899356181d344a22"
+  }
+}

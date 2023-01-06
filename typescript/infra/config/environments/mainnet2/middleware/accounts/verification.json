@@ -1,0 +1,58 @@
+{
+  "bsc": [
+    {
+      "name": "Router",
+      "address": "0x77CcAe70d79bb88DB2d76835899356181d344a22",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "avalanche": [
+    {
+      "name": "Router",
+      "address": "0x77CcAe70d79bb88DB2d76835899356181d344a22",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "polygon": [
+    {
+      "name": "Router",
+      "address": "0x77CcAe70d79bb88DB2d76835899356181d344a22",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "arbitrum": [
+    {
+      "name": "Router",
+      "address": "0x77CcAe70d79bb88DB2d76835899356181d344a22",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "optimism": [
+    {
+      "name": "Router",
+      "address": "0x77CcAe70d79bb88DB2d76835899356181d344a22",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "ethereum": [
+    {
+      "name": "Router",
+      "address": "0x77CcAe70d79bb88DB2d76835899356181d344a22",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "moonbeam": [
+    {
+      "name": "Router",
+      "address": "0x77CcAe70d79bb88DB2d76835899356181d344a22",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ]
+}
