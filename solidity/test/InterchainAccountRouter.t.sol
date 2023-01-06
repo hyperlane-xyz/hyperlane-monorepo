@@ -36,15 +36,18 @@ contract InterchainAccountRouterTest is Test {
         originRouter = new InterchainAccountRouter();
         remoteRouter = new InterchainAccountRouter();
 
+        address owner = address(this);
         originRouter.initialize(
             address(environment.mailboxes(originDomain)),
             address(environment.igps(originDomain)),
-            address(environment.isms(originDomain))
+            address(environment.isms(originDomain)),
+            owner
         );
         remoteRouter.initialize(
             address(environment.mailboxes(remoteDomain)),
             address(environment.igps(remoteDomain)),
-            address(environment.isms(remoteDomain))
+            address(environment.isms(remoteDomain)),
+            owner
         );
 
         originRouter.enrollRemoteRouter(
