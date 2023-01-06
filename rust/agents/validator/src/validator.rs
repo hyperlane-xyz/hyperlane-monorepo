@@ -6,7 +6,7 @@ use eyre::{Context, Result};
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use hyperlane_base::{run_all, BaseAgent, CheckpointSyncers, CoreMetrics, HyperlaneAgentCore};
+use hyperlane_base::{run_all, BaseAgent, CheckpointSyncer, CoreMetrics, HyperlaneAgentCore};
 use hyperlane_core::{HyperlaneDomain, HyperlaneSigner, Mailbox};
 
 use crate::submit::ValidatorSubmitterMetrics;
@@ -21,7 +21,7 @@ pub struct Validator {
     signer: Arc<dyn HyperlaneSigner>,
     reorg_period: u64,
     interval: Duration,
-    checkpoint_syncer: Arc<CheckpointSyncers>,
+    checkpoint_syncer: Arc<dyn CheckpointSyncer>,
 }
 
 impl AsRef<HyperlaneAgentCore> for Validator {
@@ -48,7 +48,7 @@ impl BaseAgent for Validator {
             .map(|validator| Arc::new(validator) as Arc<dyn HyperlaneSigner>)?;
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
         let interval = Duration::from_secs(settings.interval.parse().expect("invalid uint"));
-        let checkpoint_syncer = Arc::new(settings.checkpointsyncer.build(None)?);
+        let checkpoint_syncer = settings.checkpointsyncer.build(None)?.into();
         let core = settings.build_hyperlane_core(metrics.clone());
 
         let mailbox = settings

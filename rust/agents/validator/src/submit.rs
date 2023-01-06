@@ -7,7 +7,7 @@ use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{CheckpointSyncer, CheckpointSyncers, CoreMetrics};
+use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, Mailbox, Signable};
 
 pub(crate) struct ValidatorSubmitter {
@@ -15,7 +15,7 @@ pub(crate) struct ValidatorSubmitter {
     reorg_period: Option<NonZeroU64>,
     signer: Arc<dyn HyperlaneSigner>,
     mailbox: Arc<dyn Mailbox>,
-    checkpoint_syncer: Arc<CheckpointSyncers>,
+    checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     metrics: ValidatorSubmitterMetrics,
 }
 
@@ -25,7 +25,7 @@ impl ValidatorSubmitter {
         reorg_period: u64,
         mailbox: Arc<dyn Mailbox>,
         signer: Arc<dyn HyperlaneSigner>,
-        checkpoint_syncer: Arc<CheckpointSyncers>,
+        checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {
         Self {
