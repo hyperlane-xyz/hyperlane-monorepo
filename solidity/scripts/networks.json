@@ -1,0 +1,200 @@
+{
+  "alfajores": {
+    "id": 44787,
+    "threshold": 2,
+    "validators": [
+      {
+        "address": "0xe6072396568e73ce6803b12b7e04164e839f1e54",
+        "name": "hyperlane-testnet3-alfajores-validator-0"
+      },
+      {
+        "address": "0x9f177f51289b22515f41f95872e1511391b8e105",
+        "name": "hyperlane-testnet3-alfajores-validator-1"
+      },
+      {
+        "address": "0x15f77400845eb1c971ad08de050861d5508cad6c",
+        "name": "hyperlane-testnet3-alfajores-validator-2"
+      }
+    ]
+  },
+  "fuji": {
+    "id": 43113,
+    "threshold": 2,
+    "validators": [
+      {
+        "address": "0x9fa19ead5ec76e437948b35e227511b106293c40",
+        "name": "hyperlane-testnet3-fuji-validator-0"
+      },
+      {
+        "address": "0x227e7d6507762ece0c94678f8c103eff9d682476",
+        "name": "hyperlane-testnet3-fuji-validator-1"
+      },
+      {
+        "address": "0x2379e43740e4aa4fde48cf4f00a3106df1d8420d",
+        "name": "hyperlane-testnet3-fuji-validator-2"
+      }
+    ]
+  },
+  "mumbai": {
+    "id": 80001,
+    "threshold": 2,
+    "validators": [
+      {
+        "address": "0x0a664ea799447da6b15645cf8b9e82072a68343f",
+        "name": "hyperlane-testnet3-mumbai-validator-0"
+      },
+      {
+        "address": "0x6ae6f12929a960aba24ba74ea310e3d37d0ac045",
+        "name": "hyperlane-testnet3-mumbai-validator-1"
+      },
+      {
+        "address": "0x51f70c047cd73bc7873273707501568857a619c4",
+        "name": "hyperlane-testnet3-mumbai-validator-2"
+      }
+    ]
+  },
+  "bsctestnet": {
+    "id": 97,
+    "threshold": 2,
+    "validators": [
+      {
+        "address": "0x23338c8714976dd4a57eaeff17cbd26d7e275c08",
+        "name": "hyperlane-testnet3-bsctestnet-validator-0"
+      },
+      {
+        "address": "0x85a618d7450ebc37e0d682371f08dac94eec7a76",
+        "name": "hyperlane-testnet3-bsctestnet-validator-1"
+      },
+      {
+        "address": "0x95b76562e4ba1791a27ba4236801271c9115b141",
+        "name": "hyperlane-testnet3-bsctestnet-validator-2"
+      }
+    ]
+  },
+  "goerli": {
+    "id": 5,
+    "threshold": 2,
+    "validators": [
+      {
+        "address": "0xf43fbd072fd38e1121d4b3b0b8a35116bbb01ea9",
+        "name": "hyperlane-testnet3-goerli-validator-0"
+      },
+      {
+        "address": "0xa33020552a21f35e75bd385c6ab95c3dfa82d930",
+        "name": "hyperlane-testnet3-goerli-validator-1"
+      },
+      {
+        "address": "0x0bba4043ff242f8bf3f39bafa8930a84d644d947",
+        "name": "hyperlane-testnet3-goerli-validator-2"
+      }
+    ]
+  },
+  "moonbasealpha": {
+    "id": 1287,
+    "threshold": 2,
+    "validators": [
+      {
+        "address": "0x890c2aeac157c3f067f3e42b8afc797939c59a32",
+        "name": "hyperlane-testnet3-moonbasealpha-validator-0"
+      },
+      {
+        "address": "0x1b06d6fe69b972ed7420c83599d5a5c0fc185904",
+        "name": "hyperlane-testnet3-moonbasealpha-validator-1"
+      },
+      {
+        "address": "0xe70b85206a968a99a597581f0fa09c99e7681093",
+        "name": "hyperlane-testnet3-moonbasealpha-validator-2"
+      }
+    ]
+  },
+  "optimismgoerli": {
+    "id": 420,
+    "threshold": 2,
+    "validators": [
+      {
+        "address": "0xbb8d77eefbecc55db6e5a19b0fc3dc290776f189",
+        "name": "hyperlane-testnet3-optimismgoerli-validator-0"
+      },
+      {
+        "address": "0x69792508b4ddaa3ca52241ccfcd1e0b119a1ee65",
+        "name": "hyperlane-testnet3-optimismgoerli-validator-1"
+      },
+      {
+        "address": "0x11ddb46c6b653e0cdd7ad5bee32ae316e18f8453",
+        "name": "hyperlane-testnet3-optimismgoerli-validator-2"
+      }
+    ]
+  },
+  "arbitrumgoerli": {
+    "id": 421613,
+    "threshold": 2,
+    "validators": [
+      {
+        "address": "0xce798fa21e323f6b24d9838a10ffecdefdfc4f30",
+        "name": "hyperlane-testnet3-arbitrumgoerli-validator-0"
+      },
+      {
+        "address": "0xa792d39dca4426927e0f00c1618d61c9cb41779d",
+        "name": "hyperlane-testnet3-arbitrumgoerli-validator-1"
+      },
+      {
+        "address": "0xdf181fcc11dfac5d01467e4547101a856dd5aa04",
+        "name": "hyperlane-testnet3-arbitrumgoerli-validator-2"
+      }
+    ]
+  },
+  "test1": {
+    "id": 13371,
+    "threshold": 2,
+    "validators": [
+      {
+        "address": "0xf2561178e8ad8cadd161a855adc6eb02282b426d",
+        "name": "random address for testing"
+      },
+      {
+        "address": "0x28d638618aca345450604a4bb17e50ce6fe6ee0e",
+        "name": "random address for testing"
+      },
+      {
+        "address": "0x8dc5bd07ffd0a0053bbf4499747ba6da8442ab36",
+        "name": "random address for testing"
+      }
+    ]
+  },
+  "test2": {
+    "id": 13372,
+    "threshold": 2,
+    "validators": [
+      {
+        "address": "0xf2561178e8ad8cadd161a855adc6eb02282b426d",
+        "name": "random address for testing"
+      },
+      {
+        "address": "0x28d638618aca345450604a4bb17e50ce6fe6ee0e",
+        "name": "random address for testing"
+      },
+      {
+        "address": "0x8dc5bd07ffd0a0053bbf4499747ba6da8442ab36",
+        "name": "random address for testing"
+      }
+    ]
+  },
+  "test3": {
+    "id": 13373,
+    "threshold": 2,
+    "validators": [
+      {
+        "address": "0xf2561178e8ad8cadd161a855adc6eb02282b426d",
+        "name": "random address for testing"
+      },
+      {
+        "address": "0x28d638618aca345450604a4bb17e50ce6fe6ee0e",
+        "name": "random address for testing"
+      },
+      {
+        "address": "0x8dc5bd07ffd0a0053bbf4499747ba6da8442ab36",
+        "name": "random address for testing"
+      }
+    ]
+  }
+}
