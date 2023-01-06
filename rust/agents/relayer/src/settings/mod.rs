@@ -22,6 +22,8 @@ pub enum GasPaymentEnforcementPolicy {
 }
 
 decl_settings!(Relayer {
+    /// Database path (path on the fs)
+    db: String,
     // The name of the origin chain
     originchainname: String,
     /// The multisig checkpoint syncer configuration

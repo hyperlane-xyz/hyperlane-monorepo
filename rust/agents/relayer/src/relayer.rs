@@ -15,7 +15,7 @@ use hyperlane_base::{
     run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
     CoreMetrics, HyperlaneAgentCore, MultisigCheckpointSyncer,
 };
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain};
+use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::{
@@ -59,7 +59,7 @@ impl BaseAgent for Relayer {
         Self: Sized,
     {
         let core = settings.build_hyperlane_core(metrics.clone());
-        let db = settings.build_db()?;
+        let db = DB::from_path(&settings.db)?;
 
         // If not provided, default to using every chain listed in self.chains.
         let chain_names: Vec<_> = settings.chains.keys().map(String::as_str).collect();
@@ -207,7 +207,7 @@ impl Relayer {
     /// particular mailbox.
     fn make_gelato_submitter(
         &self,
-        message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+        message_receiver: UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
         metadata_builder: MetadataBuilder,
         gelato_config: GelatoConf,

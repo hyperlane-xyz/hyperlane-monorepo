@@ -7,7 +7,10 @@ use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, trace, Instrument};
 
-use hyperlane_base::{decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, Settings, HyperlaneAgentCore};
+use hyperlane_base::{
+    decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    Settings,
+};
 
 use crate::chain_scraper::{Contracts, SqlChainScraper};
 use crate::db::ScraperDb;
@@ -22,7 +25,10 @@ pub struct Scraper {
     scrapers: HashMap<u32, SqlChainScraper>,
 }
 
-decl_settings!(Scraper {});
+decl_settings!(Scraper {
+    /// Database connection string
+    db: String,
+});
 
 #[async_trait]
 impl BaseAgent for Scraper {
@@ -63,11 +69,7 @@ impl BaseAgent for Scraper {
 
         trace!(domain_count = scrapers.len(), "Creating scraper");
 
-        Ok(Self {
-            core,
-            db,
-            scrapers,
-        })
+        Ok(Self { core, db, scrapers })
     }
 
     #[allow(clippy::async_yields_async)]

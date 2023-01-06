@@ -136,8 +136,6 @@ pub struct Settings {
     pub chains: HashMap<String, ChainSetup>,
     /// Gelato config
     pub gelato: Option<GelatoConf>,
-    /// Database connection string (might be a path on the fs or a remote db)
-    pub db: String,
     /// Port to listen for prometheus scrape requests
     pub metrics: Option<String>,
     /// The tracing configuration
@@ -146,19 +144,11 @@ pub struct Settings {
 
 impl Settings {
     /// Try to generate an agent core for a named agent
-    pub fn build_hyperlane_core(
-        &self,
-        metrics: Arc<CoreMetrics>,
-    ) -> HyperlaneAgentCore {
+    pub fn build_hyperlane_core(&self, metrics: Arc<CoreMetrics>) -> HyperlaneAgentCore {
         HyperlaneAgentCore {
             metrics,
             settings: self.clone(),
         }
-    }
-
-    /// Build the HyperlaneDatabase instance from the db path
-    pub fn build_db(&self) -> eyre::Result<DB> {
-        Ok(DB::from_path(&self.db)?)
     }
 
     /// Try to get a map of chain name -> mailbox contract
@@ -269,7 +259,6 @@ impl Settings {
         Self {
             chains: self.chains.clone(),
             gelato: self.gelato.clone(),
-            db: self.db.clone(),
             metrics: self.metrics.clone(),
             tracing: self.tracing.clone(),
         }
