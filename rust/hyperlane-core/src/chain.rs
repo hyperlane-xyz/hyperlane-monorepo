@@ -7,6 +7,7 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
+use crate::utils::many_to_one;
 use crate::{ChainResult, HyperlaneProtocolError, H160, H256};
 
 #[derive(Debug, Clone)]
@@ -122,6 +123,9 @@ pub enum KnownHyperlaneDomain {
     Test2 = 13372,
     /// Test3 local chain
     Test3 = 13373,
+
+    /// Fuel1 local chain
+    FuelTest1 = 13374,
 }
 
 #[derive(Clone)]
@@ -169,77 +173,32 @@ impl KnownHyperlaneDomain {
     }
 
     pub const fn domain_type(self) -> HyperlaneDomainType {
-        use HyperlaneDomainType::*;
-        use KnownHyperlaneDomain::*;
+        use self::{HyperlaneDomainType::*, KnownHyperlaneDomain::*};
 
-        match self {
-            Ethereum => Mainnet,
-            Goerli => Testnet,
-
-            Polygon => Mainnet,
-            Mumbai => Testnet,
-
-            Avalanche => Mainnet,
-            Fuji => Testnet,
-
-            Arbitrum => Mainnet,
-            ArbitrumGoerli => Testnet,
-
-            Optimism => Mainnet,
-            OptimismGoerli => Testnet,
-
-            BinanceSmartChain => Mainnet,
-            BinanceSmartChainTestnet => Testnet,
-
-            Celo => Mainnet,
-            Alfajores => Testnet,
-
-            Moonbeam => Mainnet,
-            MoonbaseAlpha => Testnet,
-
-            Zksync2Testnet => Testnet,
-
-            Test1 => LocalTestChain,
-            Test2 => LocalTestChain,
-            Test3 => LocalTestChain,
-        }
+        many_to_one!(match self {
+            Mainnet: [
+                Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
+                Moonbeam
+            ],
+            Testnet: [
+                Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
+                Alfajores, MoonbaseAlpha, Zksync2Testnet
+            ],
+            LocalTestChain: [Test1, Test2, Test3, FuelTest1],
+        })
     }
 
     pub const fn domain_impl(self) -> HyperlaneDomainImpl {
-        use HyperlaneDomainImpl::Ethereum as Evm;
         use KnownHyperlaneDomain::*;
 
-        match self {
-            Ethereum => Evm,
-            Goerli => Evm,
-
-            Polygon => Evm,
-            Mumbai => Evm,
-
-            Avalanche => Evm,
-            Fuji => Evm,
-
-            Arbitrum => Evm,
-            ArbitrumGoerli => Evm,
-
-            Optimism => Evm,
-            OptimismGoerli => Evm,
-
-            BinanceSmartChain => Evm,
-            BinanceSmartChainTestnet => Evm,
-
-            Celo => Evm,
-            Alfajores => Evm,
-
-            Moonbeam => Evm,
-            MoonbaseAlpha => Evm,
-
-            Zksync2Testnet => Evm,
-
-            Test1 => Evm,
-            Test2 => Evm,
-            Test3 => Evm,
-        }
+        many_to_one!(match self {
+            HyperlaneDomainImpl::Ethereum: [
+                Ethereum, Goerli, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
+                Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo,
+                Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
+            ],
+            HyperlaneDomainImpl::Fuel: [FuelTest1],
+        })
     }
 }
 
