@@ -7,7 +7,11 @@ use serde::Deserialize;
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
-use hyperlane_core::{ContractLocator, H256, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainImpl, HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm};
+use hyperlane_core::{
+    ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainImpl, HyperlaneProvider,
+    HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox,
+    MailboxIndexer, MultisigIsm, H256,
+};
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
 };
@@ -256,7 +260,10 @@ impl ChainSetup {
         address: H256,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MultisigIsm>> {
-        let locator = ContractLocator { domain: self.domain()?, address };
+        let locator = ContractLocator {
+            domain: self.domain()?,
+            address,
+        };
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {

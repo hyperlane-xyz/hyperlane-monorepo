@@ -83,7 +83,11 @@ use rusoto_kms::KmsClient;
 use serde::Deserialize;
 
 pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
-use hyperlane_core::{db::{HyperlaneDB, DB}, H256, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm};
+use hyperlane_core::{
+    db::{HyperlaneDB, DB},
+    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
+    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, H256,
+};
 pub use signers::SignerConf;
 
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
@@ -145,23 +149,10 @@ impl Settings {
     pub async fn build_hyperlane_core(
         &self,
         metrics: Arc<CoreMetrics>,
-        chain_names: Option<Vec<&str>>,
     ) -> eyre::Result<HyperlaneAgentCore> {
         let db = DB::from_path(&self.db)?;
-        // If not provided, default to using every chain listed in self.chains.
-        let chain_names =
-            chain_names.unwrap_or_else(|| Vec::from_iter(self.chains.keys().map(String::as_str)));
-
-        let mailboxes = self
-            .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
-            .await?;
-        let interchain_gas_paymasters = self
-            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db.clone())
-            .await?;
 
         Ok(HyperlaneAgentCore {
-            mailboxes,
-            interchain_gas_paymasters,
             db,
             metrics,
             settings: self.clone(),

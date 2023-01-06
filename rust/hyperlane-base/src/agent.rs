@@ -1,28 +1,20 @@
 use std::fmt::Debug;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
-use hyperlane_core::HyperlaneDomain;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
 use hyperlane_core::db::DB;
 
-use crate::{
-    cancel_task, metrics::CoreMetrics, settings::Settings, CachingInterchainGasPaymaster,
-    CachingMailbox,
-};
+use crate::{cancel_task, metrics::CoreMetrics, settings::Settings};
 
 /// Properties shared across all hyperlane agents
 #[derive(Debug)]
 pub struct HyperlaneAgentCore {
-    /// A map of mailbox contracts by chain name
-    pub mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
-    /// A map of interchain gas paymaster contracts by chain name
-    pub interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -62,22 +54,12 @@ pub trait BaseAgent: Send + Sync + Debug {
 }
 
 /// A trait for an hyperlane agent.
-/// Adds assumptions for the indexer and metric methods.
 ///
 /// To use the default implementation you must `impl AsRef<HyperlaneAgentCore>`
 #[async_trait]
 pub trait Agent: BaseAgent {
     /// Return a handle to the DB
     fn db(&self) -> &DB;
-
-    /// Return a reference to a Mailbox contract
-    fn mailbox(&self, domain: &HyperlaneDomain) -> Option<&CachingMailbox>;
-
-    /// Return a reference to an InterchainGasPaymaster contract
-    fn interchain_gas_paymaster(
-        &self,
-        domain: &HyperlaneDomain,
-    ) -> Option<&CachingInterchainGasPaymaster>;
 }
 
 #[async_trait]
@@ -87,17 +69,6 @@ where
 {
     fn db(&self) -> &DB {
         &self.as_ref().db
-    }
-
-    fn mailbox(&self, domain: &HyperlaneDomain) -> Option<&CachingMailbox> {
-        self.as_ref().mailboxes.get(domain)
-    }
-
-    fn interchain_gas_paymaster(
-        &self,
-        domain: &HyperlaneDomain,
-    ) -> Option<&CachingInterchainGasPaymaster> {
-        self.as_ref().interchain_gas_paymasters.get(domain)
     }
 }
 

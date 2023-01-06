@@ -9,11 +9,11 @@ use tokio::{sync::mpsc, task::JoinHandle};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::chains::TransactionSubmissionType;
-use hyperlane_base::CachingMailbox;
 use hyperlane_base::{
-    chains::GelatoConf, run_all, Agent, BaseAgent, ContractSyncMetrics, CoreMetrics,
-    HyperlaneAgentCore, MultisigCheckpointSyncer,
+    chains::GelatoConf, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    MultisigCheckpointSyncer,
 };
+use hyperlane_base::{CachingInterchainGasPaymaster, CachingMailbox};
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
@@ -30,8 +30,10 @@ use crate::settings::{GasPaymentEnforcementPolicy, RelayerSettings};
 #[derive(Debug)]
 pub struct Relayer {
     origin_chain: HyperlaneDomain,
-    multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: HyperlaneAgentCore,
+    mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
+    interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
+    multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     gas_payment_enforcement_policy: GasPaymentEnforcementPolicy,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
@@ -54,7 +56,16 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings.build_hyperlane_core(metrics, None).await?;
+        let core = settings.build_hyperlane_core(metrics.clone()).await?;
+
+        // If not provided, default to using every chain listed in self.chains.
+        let chain_names: Vec<_> = settings.chains.keys().map(String::as_str).collect();
+        let mailboxes = settings
+            .build_all_mailboxes(chain_names.as_slice(), &metrics, core.db.clone())
+            .await?;
+        let interchain_gas_paymasters = settings
+            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, core.db.clone())
+            .await?;
 
         let multisig_checkpoint_syncer = settings.multisigcheckpointsyncer.build(
             &settings.originchainname,
@@ -73,8 +84,10 @@ impl BaseAgent for Relayer {
 
         Ok(Self {
             origin_chain,
-            multisig_checkpoint_syncer,
             core,
+            mailboxes,
+            interchain_gas_paymasters,
+            multisig_checkpoint_syncer,
             gas_payment_enforcement_policy: settings.gaspaymentenforcementpolicy,
             whitelist,
             blacklist,
@@ -83,21 +96,20 @@ impl BaseAgent for Relayer {
 
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let num_mailboxes = self.core.mailboxes.len();
+        let num_mailboxes = self.mailboxes.len();
 
         let mut tasks = Vec::with_capacity(num_mailboxes + 2);
 
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
             self.gas_payment_enforcement_policy.clone(),
-            self.mailbox(&self.origin_chain).unwrap().db().clone(),
+            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
         ));
 
         let prover_sync = Arc::new(RwLock::new(MerkleTreeBuilder::new(
-            self.mailbox(&self.origin_chain).unwrap().db().clone(),
+            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
         )));
         let mut send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>> = HashMap::new();
         let destinations = self
-            .core
             .mailboxes
             .keys()
             .filter(|c| **c != self.origin_chain)
@@ -108,7 +120,7 @@ impl BaseAgent for Relayer {
                 UnboundedSender<SubmitMessageArgs>,
                 UnboundedReceiver<SubmitMessageArgs>,
             ) = mpsc::unbounded_channel();
-            let mailbox: &CachingMailbox = self.mailbox(chain).unwrap();
+            let mailbox: &CachingMailbox = self.mailboxes.get(chain).unwrap();
             send_channels.insert(mailbox.domain().id(), send_channel);
 
             let chain_setup = self
@@ -141,7 +153,7 @@ impl BaseAgent for Relayer {
         let metrics =
             MessageProcessorMetrics::new(&self.core.metrics, &self.origin_chain, destinations);
         let message_processor = MessageProcessor::new(
-            self.mailbox(&self.origin_chain).unwrap().db().clone(),
+            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
             self.whitelist.clone(),
             self.blacklist.clone(),
             metrics,
@@ -161,7 +173,7 @@ impl Relayer {
         &self,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let mailbox = self.mailbox(&self.origin_chain).unwrap();
+        let mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
         let sync = mailbox.sync(
             self.as_ref().settings.chains[self.origin_chain.name()]
                 .index
@@ -175,7 +187,10 @@ impl Relayer {
         &self,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let paymaster = self.interchain_gas_paymaster(&self.origin_chain).unwrap();
+        let paymaster = self
+            .interchain_gas_paymasters
+            .get(&self.origin_chain)
+            .unwrap();
         let sync = paymaster.sync(
             self.as_ref().settings.chains[self.origin_chain.name()]
                 .index
@@ -201,7 +216,7 @@ impl Relayer {
             message_receiver,
             mailbox,
             metadata_builder,
-            self.mailbox(&self.origin_chain).unwrap().db().clone(),
+            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
             gelato_config,
             gelato_metrics,
             gas_payment_enforcer,
@@ -232,7 +247,7 @@ impl Relayer {
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
         msg_receive: UnboundedReceiver<SubmitMessageArgs>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let origin_mailbox = self.mailbox(&self.origin_chain).unwrap();
+        let origin_mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
         let destination = destination_mailbox.domain();
 
         let submit_fut = match tx_submission {
