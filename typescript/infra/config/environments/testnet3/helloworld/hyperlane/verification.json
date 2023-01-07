@@ -1,7 +1,7 @@
 {
   "alfajores": [
     {
-      "name": "router",
+      "name": "HelloWorld",
       "address": "0x921D3A71386d3Ab8f3AD4eC91ce1556D5FC26859",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
@@ -9,7 +9,7 @@
   ],
   "fuji": [
     {
-      "name": "router",
+      "name": "HelloWorld",
       "address": "0x1C847335D123632fC7D662AB87Ac7872aCD920f2",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
@@ -17,7 +17,7 @@
   ],
   "mumbai": [
     {
-      "name": "router",
+      "name": "HelloWorld",
       "address": "0x854fd51C04408ad84DA3838A4fF7282522F7866E",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
@@ -25,7 +25,7 @@
   ],
   "bsctestnet": [
     {
-      "name": "router",
+      "name": "HelloWorld",
       "address": "0x5447A1679f1Ce836A241c50ae1FC915d3DbA9c23",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
@@ -33,7 +33,7 @@
   ],
   "goerli": [
     {
-      "name": "router",
+      "name": "HelloWorld",
       "address": "0x0637A1360Ea44602DAe5c4ba515c2BCb6C762fbc",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
@@ -41,7 +41,7 @@
   ],
   "moonbasealpha": [
     {
-      "name": "router",
+      "name": "HelloWorld",
       "address": "0xE81De1d727Ba319185a86D92E8Eb4e41046CE6B7",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
@@ -49,7 +49,7 @@
   ],
   "optimismgoerli": [
     {
-      "name": "router",
+      "name": "HelloWorld",
       "address": "0xa76A3E719E5ff7159a29B8876272052b89B3589F",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
@@ -57,7 +57,7 @@
   ],
   "arbitrumgoerli": [
     {
-      "name": "router",
+      "name": "HelloWorld",
       "address": "0xa76A3E719E5ff7159a29B8876272052b89B3589F",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false

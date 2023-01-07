@@ -1,7 +1,7 @@
 {
   "alfajores": [
     {
-      "name": "Router",
+      "name": "InterchainAccountRouter",
       "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
       "isProxy": false,
       "constructorArguments": "0x"
@@ -9,7 +9,7 @@
   ],
   "fuji": [
     {
-      "name": "Router",
+      "name": "InterchainAccountRouter",
       "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
       "isProxy": false,
       "constructorArguments": "0x"
@@ -17,7 +17,7 @@
   ],
   "mumbai": [
     {
-      "name": "Router",
+      "name": "InterchainAccountRouter",
       "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
       "isProxy": false,
       "constructorArguments": "0x"
@@ -25,7 +25,7 @@
   ],
   "bsctestnet": [
     {
-      "name": "Router",
+      "name": "InterchainAccountRouter",
       "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
       "isProxy": false,
       "constructorArguments": "0x"
@@ -33,7 +33,7 @@
   ],
   "goerli": [
     {
-      "name": "Router",
+      "name": "InterchainAccountRouter",
       "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
       "isProxy": false,
       "constructorArguments": "0x"
@@ -41,7 +41,7 @@
   ],
   "moonbasealpha": [
     {
-      "name": "Router",
+      "name": "InterchainAccountRouter",
       "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
       "isProxy": false,
       "constructorArguments": "0x"
@@ -49,7 +49,7 @@
   ],
   "optimismgoerli": [
     {
-      "name": "Router",
+      "name": "InterchainAccountRouter",
       "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
       "isProxy": false,
       "constructorArguments": "0x"
@@ -57,7 +57,7 @@
   ],
   "arbitrumgoerli": [
     {
-      "name": "Router",
+      "name": "InterchainAccountRouter",
       "address": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
       "isProxy": false,
       "constructorArguments": "0x"
