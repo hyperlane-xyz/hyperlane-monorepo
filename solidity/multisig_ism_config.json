@@ -1,6 +1,5 @@
 {
   "alfajores": {
-    "id": 44787,
     "threshold": 2,
     "validators": [
       {
@@ -18,7 +17,6 @@
     ]
   },
   "fuji": {
-    "id": 43113,
     "threshold": 2,
     "validators": [
       {
@@ -36,7 +34,6 @@
     ]
   },
   "mumbai": {
-    "id": 80001,
     "threshold": 2,
     "validators": [
       {
@@ -54,7 +51,6 @@
     ]
   },
   "bsctestnet": {
-    "id": 97,
     "threshold": 2,
     "validators": [
       {
@@ -72,7 +68,6 @@
     ]
   },
   "goerli": {
-    "id": 5,
     "threshold": 2,
     "validators": [
       {
@@ -90,7 +85,6 @@
     ]
   },
   "moonbasealpha": {
-    "id": 1287,
     "threshold": 2,
     "validators": [
       {
@@ -108,7 +102,6 @@
     ]
   },
   "optimismgoerli": {
-    "id": 420,
     "threshold": 2,
     "validators": [
       {
@@ -126,7 +119,6 @@
     ]
   },
   "arbitrumgoerli": {
-    "id": 421613,
     "threshold": 2,
     "validators": [
       {
@@ -144,7 +136,6 @@
     ]
   },
   "test1": {
-    "id": 13371,
     "threshold": 2,
     "validators": [
       {
@@ -162,7 +153,6 @@
     ]
   },
   "test2": {
-    "id": 13372,
     "threshold": 2,
     "validators": [
       {
@@ -180,7 +170,6 @@
     ]
   },
   "test3": {
-    "id": 13373,
     "threshold": 2,
     "validators": [
       {

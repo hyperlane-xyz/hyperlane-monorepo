@@ -1,0 +1,35 @@
+{
+  "alfajores": {
+    "id": 44787
+  },
+  "fuji": {
+    "id": 43113
+  },
+  "mumbai": {
+    "id": 80001
+  },
+  "bsctestnet": {
+    "id": 97
+  },
+  "goerli": {
+    "id": 5
+  },
+  "moonbasealpha": {
+    "id": 1287
+  },
+  "optimismgoerli": {
+    "id": 420
+  },
+  "arbitrumgoerli": {
+    "id": 421613
+  },
+  "test1": {
+    "id": 13371
+  },
+  "test2": {
+    "id": 13372
+  },
+  "test3": {
+    "id": 13373
+  }
+}
