@@ -55,7 +55,13 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings.try_into_hyperlane_core(metrics, None).await?;
+        let core = if let Some(ref remotes) = settings.remotechainnames {
+            let mut v: Vec<&str> = remotes.iter().map(|x| x.as_str()).collect();
+            v.push(&settings.originchainname);
+            settings.try_into_hyperlane_core(metrics, Some(v.clone())).await?
+        } else {
+            settings.try_into_hyperlane_core(metrics, None).await?
+        };
 
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
