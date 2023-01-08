@@ -80,6 +80,16 @@ abstract contract HyperlaneConnectionClient is
     function __HyperlaneConnectionClient_initialize(
         address _mailbox,
         address _interchainGasPaymaster,
+        address _owner
+    ) internal onlyInitializing {
+        _setMailbox(_mailbox);
+        _setInterchainGasPaymaster(_interchainGasPaymaster);
+        _transferOwnership(_owner);
+    }
+
+    function __HyperlaneConnectionClient_initialize(
+        address _mailbox,
+        address _interchainGasPaymaster,
         address _interchainSecurityModule
     ) internal onlyInitializing {
         _setInterchainSecurityModule(_interchainSecurityModule);
