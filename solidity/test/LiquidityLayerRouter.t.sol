@@ -33,6 +33,8 @@ contract LiquidityLayerRouterTest is Test {
     bytes messageBody = hex"beefdead";
     uint256 amount = 420000;
 
+    uint256 originInterchainGasPayment;
+
     event LiquidityLayerAdapterSet(string indexed bridge, address adapter);
 
     function setUp() public {
@@ -52,6 +54,13 @@ contract LiquidityLayerRouterTest is Test {
             originDomain,
             destinationDomain
         );
+
+        originInterchainGasPayment = testEnvironment
+            .igps(originDomain)
+            .quoteGasPayment(
+                destinationDomain,
+                0 // For now, 0 gas is used
+            );
 
         originLiquidityLayerRouter.initialize(
             address(testEnvironment.mailboxes(originDomain)),
@@ -135,7 +144,9 @@ contract LiquidityLayerRouterTest is Test {
 
     function testDispatchWithTokensRevertsWithUnkownBridgeAdapter() public {
         vm.expectRevert("No adapter found for bridge");
-        originLiquidityLayerRouter.dispatchWithTokens(
+        originLiquidityLayerRouter.dispatchWithTokens{
+            value: originInterchainGasPayment
+        }(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
@@ -147,7 +158,9 @@ contract LiquidityLayerRouterTest is Test {
 
     function testDispatchWithTokensRevertsWithFailedTransferIn() public {
         vm.expectRevert("ERC20: insufficient allowance");
-        originLiquidityLayerRouter.dispatchWithTokens(
+        originLiquidityLayerRouter.dispatchWithTokens{
+            value: originInterchainGasPayment
+        }(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
@@ -159,7 +172,9 @@ contract LiquidityLayerRouterTest is Test {
 
     function testDispatchWithTokenTransfersMovesTokens() public {
         token.approve(address(originLiquidityLayerRouter), amount);
-        originLiquidityLayerRouter.dispatchWithTokens(
+        originLiquidityLayerRouter.dispatchWithTokens{
+            value: originInterchainGasPayment
+        }(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
@@ -181,7 +196,9 @@ contract LiquidityLayerRouterTest is Test {
             )
         );
         token.approve(address(originLiquidityLayerRouter), amount);
-        originLiquidityLayerRouter.dispatchWithTokens(
+        originLiquidityLayerRouter.dispatchWithTokens{
+            value: originInterchainGasPayment
+        }(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
@@ -193,7 +210,9 @@ contract LiquidityLayerRouterTest is Test {
 
     function testProcessingRevertsIfBridgeAdapterReverts() public {
         token.approve(address(originLiquidityLayerRouter), amount);
-        originLiquidityLayerRouter.dispatchWithTokens(
+        originLiquidityLayerRouter.dispatchWithTokens{
+            value: originInterchainGasPayment
+        }(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
@@ -208,7 +227,9 @@ contract LiquidityLayerRouterTest is Test {
 
     function testDispatchWithTokensTransfersOnDestination() public {
         token.approve(address(originLiquidityLayerRouter), amount);
-        originLiquidityLayerRouter.dispatchWithTokens(
+        originLiquidityLayerRouter.dispatchWithTokens{
+            value: originInterchainGasPayment
+        }(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
             messageBody,
@@ -232,5 +253,19 @@ contract LiquidityLayerRouterTest is Test {
         testEnvironment.processNextPendingMessage();
         assertEq(recipient.lastData(), messageBody);
         assertEq(token.balanceOf(address(recipient)), amount);
+    }
+
+    function testInsufficientInterchainGasPayment() public {
+        token.approve(address(originLiquidityLayerRouter), amount);
+
+        vm.expectRevert("insufficient interchain gas payment");
+        originLiquidityLayerRouter.dispatchWithTokens{value: 0}(
+            destinationDomain,
+            TypeCasts.addressToBytes32(address(recipient)),
+            messageBody,
+            address(token),
+            amount,
+            bridge
+        );
     }
 }
