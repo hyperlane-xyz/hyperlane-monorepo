@@ -12,7 +12,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false }
 serde_path_to_error = "0.1"
 ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01" }
-fuels = "0.32"
+fuels = "0.33"
 thiserror = "1.0"
 async-trait = { version = "0.1", default-features = false }
 futures-util = "0.3"

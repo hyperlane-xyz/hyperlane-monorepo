@@ -10,7 +10,7 @@ auto_impl = "1.0"
 ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01", default-features = false, features = ['legacy'] }
 ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01", features=["aws"] }
 ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01", features=["ws", "rustls"] }
-fuels = "0.32"
+fuels = "0.33"
 config = "0.13"
 hex = "0.4.3"
 sha3 = "0.9.1"

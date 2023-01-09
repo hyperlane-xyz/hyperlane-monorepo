@@ -11,6 +11,8 @@ use hyperlane_core::{
     Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
+use tracing::{instrument, info, debug};
+
 use crate::contracts::mailbox::Mailbox as FuelMailboxInner;
 use crate::conversions::*;
 use crate::{make_provider, ConnectionConf};
@@ -59,7 +61,9 @@ impl Debug for FuelMailbox {
 
 #[async_trait]
 impl Mailbox for FuelMailbox {
+    #[instrument(err, ret, skip(self))]
     async fn count(&self) -> ChainResult<u32> {
+        debug!("Fuel mailbox count: {}; {:?}", self.contract.get_contract_id(), self.contract.get_wallet().get_provider().unwrap().client);
         self.contract
             .methods()
             .count()
@@ -69,10 +73,12 @@ impl Mailbox for FuelMailbox {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    #[instrument(err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         todo!()
     }
 
+    #[instrument(err, ret, skip(self))]
     async fn latest_checkpoint(&self, _lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         // TODO: does fuel even support querying at a given block number?
         let (root, index) = self
@@ -92,14 +98,17 @@ impl Mailbox for FuelMailbox {
         })
     }
 
+    #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
         todo!()
     }
 
+    #[instrument(err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         todo!()
     }
 
+    #[instrument(err, ret, skip(self))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -109,6 +118,7 @@ impl Mailbox for FuelMailbox {
         todo!()
     }
 
+    #[instrument(err, ret, skip(self))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

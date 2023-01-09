@@ -6,12 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-fuels = "0.32"
+fuels = "0.33"
 hyperlane-core = { path = "../../hyperlane-core" }
 async-trait = { version = "0.1", default-features = false }
 thiserror = "1.0"
 serde = "1.0"
 anyhow = "1.0"
+tracing-futures = "0.2"
+tracing = "0.1"
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["fuels"] }
