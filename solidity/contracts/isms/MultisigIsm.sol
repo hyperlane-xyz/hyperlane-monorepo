@@ -82,32 +82,25 @@ contract MultisigIsm is IMultisigIsm, Ownable {
     event CommitmentUpdated(uint32 domain, bytes32 commitment);
 
     // ============ Constructor ============
+    struct DomainConfig {
+        uint32 domain;
+        uint8 threshold;
+        address[] validators;
+    }
 
-    // solhint-disable-next-line no-empty-blocks
-    constructor() Ownable() {}
+    constructor(DomainConfig[] memory domainConfigs, address owner) Ownable() {
+        for (uint256 i = 0; i < domainConfigs.length; i += 1) {
+            DomainConfig memory config = domainConfigs[i];
+            for (uint256 j = 0; j < config.validators.length; j += 1) {
+                _enrollValidator(config.domain, config.validators[j]);
+            }
+            _setThreshold(config.domain, config.threshold);
+            _updateCommitment(config.domain);
+        }
+        transferOwnership(owner);
+    }
 
     // ============ External Functions ============
-
-    /**
-     * @notice Enrolls multiple validators into a validator set.
-     * @dev Reverts if `_validator` is already in the validator set.
-     * @param _domains The remote domains of the validator sets.
-     * @param _validators The validators to add to the validator sets.
-     * @dev _validators[i] are the validators to enroll for _domains[i].
-     */
-    function enrollValidators(
-        uint32[] calldata _domains,
-        address[][] calldata _validators
-    ) external onlyOwner {
-        require(_domains.length == _validators.length, "!length");
-        for (uint256 i = 0; i < _domains.length; i += 1) {
-            address[] calldata _domainValidators = _validators[i];
-            for (uint256 j = 0; j < _domainValidators.length; j += 1) {
-                _enrollValidator(_domains[i], _domainValidators[j]);
-            }
-            _updateCommitment(_domains[i]);
-        }
-    }
 
     /**
      * @notice Enrolls a validator into a validator set.
@@ -144,21 +137,6 @@ contract MultisigIsm is IMultisigIsm, Ownable {
     }
 
     /**
-     * @notice Sets the quorum threshold for multiple domains.
-     * @param _domains The remote domains of the validator sets.
-     * @param _thresholds The new quorum thresholds.
-     */
-    function setThresholds(
-        uint32[] calldata _domains,
-        uint8[] calldata _thresholds
-    ) external onlyOwner {
-        require(_domains.length == _thresholds.length, "!length");
-        for (uint256 i = 0; i < _domains.length; i += 1) {
-            setThreshold(_domains[i], _thresholds[i]);
-        }
-    }
-
-    /**
      * @notice Returns whether an address is enrolled in a validator set.
      * @param _domain The remote domain of the validator set.
      * @param _address The address to test for set membership.
@@ -173,24 +151,17 @@ contract MultisigIsm is IMultisigIsm, Ownable {
         return _validatorSet.contains(_address);
     }
 
-    // ============ Public Functions ============
-
     /**
      * @notice Sets the quorum threshold.
      * @param _domain The remote domain of the validator set.
      * @param _threshold The new quorum threshold.
      */
-    function setThreshold(uint32 _domain, uint8 _threshold) public onlyOwner {
-        require(
-            _threshold > 0 && _threshold <= validatorCount(_domain),
-            "!range"
-        );
-        threshold[_domain] = _threshold;
-        emit ThresholdSet(_domain, _threshold);
-
+    function setThreshold(uint32 _domain, uint8 _threshold) external onlyOwner {
+        _setThreshold(_domain, _threshold);
         _updateCommitment(_domain);
     }
 
+    // ============ Public Functions ============
     /**
      * @notice Verifies that a quorum of the origin domain's validators signed
      * a checkpoint, and verifies the merkle proof of `_message` against that
@@ -263,6 +234,20 @@ contract MultisigIsm is IMultisigIsm, Ownable {
         require(_validator != address(0), "zero address");
         require(validatorSet[_domain].add(_validator), "already enrolled");
         emit ValidatorEnrolled(_domain, _validator, validatorCount(_domain));
+    }
+
+    /**
+     * @notice Sets the quorum threshold.
+     * @param _domain The remote domain of the validator set.
+     * @param _threshold The new quorum threshold.
+     */
+    function _setThreshold(uint32 _domain, uint8 _threshold) internal {
+        require(
+            _threshold > 0 && _threshold <= validatorCount(_domain),
+            "!range"
+        );
+        threshold[_domain] = _threshold;
+        emit ThresholdSet(_domain, _threshold);
     }
 
     /**
