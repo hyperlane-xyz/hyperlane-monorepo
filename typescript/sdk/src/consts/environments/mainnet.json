@@ -3,8 +3,8 @@
     "proxyAdmin": "0x90f9a2E9eCe93516d65FdaB726a3c62F5960a1b9",
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0xdE86327fBFD04C4eA11dC0F270DA6083534c2582",
-      "implementation": "0x5bc68C82d33160cF4EA34d0bab3F7c27cD9eD8D6"
+      "proxy": "0xde86327fbfd04c4ea11dc0f270da6083534c2582",
+      "implementation": "0x388411dab2865c9e9f562618d4252aa2808b8bb0"
     },
     "mailbox": {
       "kind": "Transparent",

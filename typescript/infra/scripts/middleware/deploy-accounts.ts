@@ -34,7 +34,6 @@ async function main() {
 
   // config gcp deployer key as owner
   const configMap = await getConfiguration(environment, multiProvider);
-  delete configMap['celo'];
 
   const deployer = new InterchainAccountDeployer(
     multiProvider,

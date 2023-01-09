@@ -19,12 +19,13 @@ type HyperlaneCoreAddressMap = LooseChainMap<{
 }>;
 
 // Export developer-relevant addresses
+// @ts-ignore
 export const hyperlaneCoreAddresses = objMap(
   { ...testnet, ...mainnet },
   (_chain, addresses) => ({
     mailbox: addresses.mailbox.proxy,
     multisigIsm: addresses.multisigIsm,
-    interchainGasPaymaster: addresses.interchainGasPaymaster.proxy,
+    // interchainGasPaymaster: addresses.interchainGasPaymaster.proxy,
     interchainAccountRouter: undefined,
     interchainQueryRouter: undefined,
     create2Factory: addresses.create2Factory,

@@ -63,6 +63,11 @@ export abstract class HyperlaneRouterDeployer<
       const domains = entries.map(([id]) => id);
       const addresses = entries.map(([, address]) => address);
 
+      // skip if no enrollments are needed
+      if (domains.length === 0) {
+        return;
+      }
+
       await super.runIfOwner(local, contracts.router, async () => {
         const chains = domains.map((id) => DomainIdToChainName[id]);
         this.logger(`Enroll remote (${chains}) routers on ${local}`);

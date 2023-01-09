@@ -19,11 +19,6 @@ export const mainnetConfigs = {
   },
   celo: {
     ...chainConnectionConfigs.celo,
-    overrides: {
-      gasLimit: 2_700_000,
-      // gasPrice: 1 * 10 ** 9 // 1 gwei
-      // maxFeePerGas: 10 * 10 ** 9, // 10 gwei
-    },
   },
   arbitrum: chainConnectionConfigs.arbitrum,
   optimism: chainConnectionConfigs.optimism,
