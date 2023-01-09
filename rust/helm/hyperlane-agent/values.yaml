@@ -56,7 +56,7 @@ hyperlane:
         multisigIsm:
         interchainGasPaymaster:
       domain:
-      rpcStyle: # "ethereum"
+      implementation: # "ethereum"
       connection:
         type: # "http"
 

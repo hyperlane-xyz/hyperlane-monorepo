@@ -7,6 +7,7 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
+use crate::utils::many_to_one;
 use crate::{ChainResult, HyperlaneProtocolError, H160, H256};
 
 #[derive(Debug, Clone)]
@@ -144,10 +145,8 @@ pub enum HyperlaneDomainType {
 pub enum HyperlaneDomainImpl {
     /// An EVM-based chain type which uses hyperlane-ethereum.
     Ethereum,
-    /// A fuel based chain type which uses hyperlane-fuel.
+    /// A Fuel-based chain type which uses hyperlane-fuel.
     Fuel,
-    /// Unspecified implementation, use whatever is configured.
-    Unknown,
 }
 
 impl KnownHyperlaneDomain {
@@ -156,77 +155,31 @@ impl KnownHyperlaneDomain {
     }
 
     pub const fn domain_type(self) -> HyperlaneDomainType {
-        use HyperlaneDomainType::*;
-        use KnownHyperlaneDomain::*;
+        use self::{HyperlaneDomainType::*, KnownHyperlaneDomain::*};
 
-        match self {
-            Ethereum => Mainnet,
-            Goerli => Testnet,
-
-            Polygon => Mainnet,
-            Mumbai => Testnet,
-
-            Avalanche => Mainnet,
-            Fuji => Testnet,
-
-            Arbitrum => Mainnet,
-            ArbitrumGoerli => Testnet,
-
-            Optimism => Mainnet,
-            OptimismGoerli => Testnet,
-
-            BinanceSmartChain => Mainnet,
-            BinanceSmartChainTestnet => Testnet,
-
-            Celo => Mainnet,
-            Alfajores => Testnet,
-
-            Moonbeam => Mainnet,
-            MoonbaseAlpha => Testnet,
-
-            Zksync2Testnet => Testnet,
-
-            Test1 => LocalTestChain,
-            Test2 => LocalTestChain,
-            Test3 => LocalTestChain,
-        }
+        many_to_one!(match self {
+            Mainnet: [
+                Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
+                Moonbeam
+            ],
+            Testnet: [
+                Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
+                Alfajores, MoonbaseAlpha, Zksync2Testnet
+            ],
+            LocalTestChain: [Test1, Test2, Test3],
+        })
     }
 
     pub const fn domain_impl(self) -> HyperlaneDomainImpl {
-        use HyperlaneDomainImpl::Ethereum as Evm;
         use KnownHyperlaneDomain::*;
 
-        match self {
-            Ethereum => Evm,
-            Goerli => Evm,
-
-            Polygon => Evm,
-            Mumbai => Evm,
-
-            Avalanche => Evm,
-            Fuji => Evm,
-
-            Arbitrum => Evm,
-            ArbitrumGoerli => Evm,
-
-            Optimism => Evm,
-            OptimismGoerli => Evm,
-
-            BinanceSmartChain => Evm,
-            BinanceSmartChainTestnet => Evm,
-
-            Celo => Evm,
-            Alfajores => Evm,
-
-            Moonbeam => Evm,
-            MoonbaseAlpha => Evm,
-
-            Zksync2Testnet => Evm,
-
-            Test1 => Evm,
-            Test2 => Evm,
-            Test3 => Evm,
-        }
+        many_to_one!(match self {
+            HyperlaneDomainImpl::Ethereum: [
+                Ethereum, Goerli, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
+                Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo,
+                Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
+            ],
+        })
     }
 }
 
@@ -289,30 +242,42 @@ impl Debug for HyperlaneDomain {
 }
 
 impl HyperlaneDomain {
-    pub fn from_config(domain_id: u32, name: &str) -> Result<Self, &'static str> {
+    pub fn from_config(
+        domain_id: u32,
+        name: &str,
+        implementation: HyperlaneDomainImpl,
+    ) -> Result<Self, &'static str> {
+        let name = name.to_ascii_lowercase();
         if let Ok(domain) = KnownHyperlaneDomain::try_from(domain_id) {
-            if name.to_ascii_lowercase().as_str() == domain.as_str() {
+            if name == domain.as_str() {
                 Ok(HyperlaneDomain::Known(domain))
             } else {
                 Err("Chain name does not match the name of a known domain id; the config is probably wrong.")
             }
+        } else if name.as_str().parse::<KnownHyperlaneDomain>().is_ok() {
+            Err("Chain name is known the domain is incorrect; the config is probably wrong.")
         } else {
             Ok(HyperlaneDomain::Unknown {
                 domain_id,
-                chain_name: name.to_owned(),
+                chain_name: name,
                 // we might want to support accepting these from the config later
                 domain_type: HyperlaneDomainType::Unknown,
-                domain_impl: HyperlaneDomainImpl::Unknown,
+                domain_impl: implementation,
             })
         }
     }
 
-    pub fn from_config_strs(domain_id: &str, name: &str) -> Result<Self, &'static str> {
+    pub fn from_config_strs(
+        domain_id: &str,
+        name: &str,
+        implementation: HyperlaneDomainImpl,
+    ) -> Result<Self, &'static str> {
         HyperlaneDomain::from_config(
             domain_id
                 .parse::<u32>()
                 .map_err(|_| "Domain id is an invalid uint")?,
             name,
+            implementation,
         )
     }
 
