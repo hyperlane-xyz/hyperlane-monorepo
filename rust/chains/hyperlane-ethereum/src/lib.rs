@@ -14,7 +14,9 @@ use hyperlane_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
-pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*};
+pub use crate::{
+    interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, signers::*, trait_builder::*,
+};
 
 #[cfg(not(doctest))]
 mod tx;
@@ -44,6 +46,8 @@ mod contracts;
 
 /// Retrying Provider
 mod retrying;
+
+mod signers;
 
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]

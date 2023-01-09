@@ -146,7 +146,6 @@
       }
     }
   },
-  "signers": {},
   "db": "db_path",
   "tracing": {
     "level": "debug",

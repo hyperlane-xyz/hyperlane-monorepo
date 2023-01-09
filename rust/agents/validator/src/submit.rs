@@ -7,12 +7,12 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{CachingMailbox, CheckpointSyncer, CheckpointSyncers, CoreMetrics};
-use hyperlane_core::{Announcement, HyperlaneDomain, Mailbox, Signers};
+use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, Mailbox, Signable};
 
 pub(crate) struct ValidatorSubmitter {
     interval: u64,
     reorg_period: u64,
-    signer: Arc<Signers>,
+    signer: Arc<dyn HyperlaneSigner>,
     mailbox: CachingMailbox,
     checkpoint_syncer: Arc<CheckpointSyncers>,
     metrics: ValidatorSubmitterMetrics,
@@ -23,7 +23,7 @@ impl ValidatorSubmitter {
         interval: u64,
         reorg_period: u64,
         mailbox: CachingMailbox,
-        signer: Arc<Signers>,
+        signer: Arc<dyn HyperlaneSigner>,
         checkpoint_syncer: Arc<CheckpointSyncers>,
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {
@@ -55,7 +55,7 @@ impl ValidatorSubmitter {
             mailbox_domain: self.mailbox.mailbox().domain().id(),
             storage_metadata: self.checkpoint_syncer.announcement_metadata(),
         };
-        let signed_announcement = announcement.sign_with(self.signer.as_ref()).await?;
+        let signed_announcement = announcement.sign_with(&self.signer).await?;
         self.checkpoint_syncer
             .write_announcement(&signed_announcement)
             .await?;
@@ -132,7 +132,7 @@ impl ValidatorSubmitter {
                 .map(|i| i < latest_checkpoint.index)
                 .unwrap_or(true)
             {
-                let signed_checkpoint = latest_checkpoint.sign_with(self.signer.as_ref()).await?;
+                let signed_checkpoint = latest_checkpoint.sign_with(&self.signer).await?;
 
                 info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed new latest checkpoint");
                 current_index = Some(latest_checkpoint.index);
@@ -142,7 +142,7 @@ impl ValidatorSubmitter {
                     .await?;
                 self.metrics
                     .latest_checkpoint_processed
-                    .set(signed_checkpoint.checkpoint.index as i64);
+                    .set(signed_checkpoint.value.index as i64);
             }
 
             sleep(Duration::from_secs(self.interval)).await;
