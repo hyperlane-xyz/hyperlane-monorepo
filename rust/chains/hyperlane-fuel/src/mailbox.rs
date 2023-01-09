@@ -11,7 +11,7 @@ use hyperlane_core::{
     Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use tracing::{instrument, info, debug};
+use tracing::{debug, instrument};
 
 use crate::contracts::mailbox::Mailbox as FuelMailboxInner;
 use crate::conversions::*;
@@ -63,7 +63,11 @@ impl Debug for FuelMailbox {
 impl Mailbox for FuelMailbox {
     #[instrument(err, ret, skip(self))]
     async fn count(&self) -> ChainResult<u32> {
-        debug!("Fuel mailbox count: {}; {:?}", self.contract.get_contract_id(), self.contract.get_wallet().get_provider().unwrap().client);
+        debug!(
+            "Fuel mailbox count: {}; {:?}",
+            self.contract.get_contract_id(),
+            self.contract.get_wallet().get_provider().unwrap().client
+        );
         self.contract
             .methods()
             .count()
