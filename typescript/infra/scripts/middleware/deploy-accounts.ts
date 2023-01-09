@@ -39,7 +39,7 @@ async function main() {
     multiProvider,
     configMap,
     core,
-    'icav2',
+    'icav3',
   );
 
   await deployWithArtifacts(dir, interchainAccountFactories, deployer);

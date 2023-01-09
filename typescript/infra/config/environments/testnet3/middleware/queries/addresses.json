@@ -1,26 +1,26 @@
 {
   "alfajores": {
-    "router": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "router": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "fuji": {
-    "router": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "router": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "mumbai": {
-    "router": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "router": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "bsctestnet": {
-    "router": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "router": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "goerli": {
-    "router": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "router": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "moonbasealpha": {
-    "router": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "router": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "optimismgoerli": {
-    "router": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "router": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "arbitrumgoerli": {
-    "router": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "router": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   }
 }
