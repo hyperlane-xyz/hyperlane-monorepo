@@ -1,23 +1,26 @@
 {
+  "celo": {
+    "router": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
+  },
   "bsc": {
-    "router": "0xd8Ae4c9eAe638064067F6137904bde2355a9c6E8"
+    "router": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
   "avalanche": {
-    "router": "0xd8Ae4c9eAe638064067F6137904bde2355a9c6E8"
+    "router": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
   "polygon": {
-    "router": "0xd8Ae4c9eAe638064067F6137904bde2355a9c6E8"
+    "router": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
   "arbitrum": {
-    "router": "0xd8Ae4c9eAe638064067F6137904bde2355a9c6E8"
+    "router": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
   "optimism": {
-    "router": "0xd8Ae4c9eAe638064067F6137904bde2355a9c6E8"
+    "router": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
   "ethereum": {
-    "router": "0xd8Ae4c9eAe638064067F6137904bde2355a9c6E8"
+    "router": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   },
   "moonbeam": {
-    "router": "0xd8Ae4c9eAe638064067F6137904bde2355a9c6E8"
+    "router": "0x234b19282985882d6d6fd54dEBa272271f4eb784"
   }
 }
