@@ -13,8 +13,8 @@
     },
     "multisigIsm": "0x4D06A1671A2a345B14B15cbD50027979A5D1d8C9",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "interchainAccountRouter": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
-    "interchainQueryRouter": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "fuji": {
     "proxyAdmin": "0x13474f85b808034C911B7697dee60B7d8d50ee36",
@@ -30,8 +30,8 @@
     },
     "multisigIsm": "0xD713Db664509bd057aC2b378F4B65Db468F634A5",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "interchainAccountRouter": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
-    "interchainQueryRouter": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "mumbai": {
     "proxyAdmin": "0x96b49e136581f8dfF370aDB3015D48465572a318",
@@ -47,8 +47,8 @@
     },
     "multisigIsm": "0xd71f1A64659beC0781b2aa21bc7a72F7290F6Bf3",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "interchainAccountRouter": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
-    "interchainQueryRouter": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "bsctestnet": {
     "proxyAdmin": "0xfB149BC17dD3FE858fA64D678bA0c706DEac61eE",
@@ -64,8 +64,8 @@
     },
     "multisigIsm": "0x34add51924C500b4428067E251168807b3f5faED",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "interchainAccountRouter": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
-    "interchainQueryRouter": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "goerli": {
     "proxyAdmin": "0x8f919348F9C4619A196Acb5e377f49E5E2C0B569",
@@ -81,8 +81,8 @@
     },
     "multisigIsm": "0x32B34F0D86b275b92e9289d9054Db5Ec32d2CC6C",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "interchainAccountRouter": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
-    "interchainQueryRouter": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "moonbasealpha": {
     "proxyAdmin": "0xEed449c54156163bf50CFf30408975AF43F43115",
@@ -98,8 +98,8 @@
     },
     "multisigIsm": "0xec8875C7cE0a814A56654618D366641859F32C7A",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "interchainAccountRouter": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
-    "interchainQueryRouter": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "optimismgoerli": {
     "proxyAdmin": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
@@ -115,8 +115,8 @@
     },
     "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "interchainAccountRouter": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
-    "interchainQueryRouter": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "arbitrumgoerli": {
     "proxyAdmin": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
@@ -132,7 +132,7 @@
     },
     "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
-    "interchainAccountRouter": "0xdf8499B68A392D08B748a8B072cA365826ac0091",
-    "interchainQueryRouter": "0x894301C92aC794E822d95868c9CebA832Ac5784A"
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   }
 }
