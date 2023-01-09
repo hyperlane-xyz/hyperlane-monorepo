@@ -23,7 +23,14 @@
       "constructorArguments": "0x"
     }
   ],
-  "celo": [],
+  "celo": [
+    {
+      "name": "InterchainQueryRouter",
+      "address": "0x234b19282985882d6d6fd54dEBa272271f4eb784",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
   "arbitrum": [
     {
       "name": "InterchainQueryRouter",

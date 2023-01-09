@@ -149,9 +149,8 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
   }
 
   async handleProxyViolation(violation: ProxyViolation) {
-    // @ts-ignore
     const contracts: CoreContracts =
-      this.checker.app.contractsMap[violation.chain];
+      this.checker.app.contractsMap[violation.chain as Chain];
     if (violation.data.name === 'InterchainGasPaymaster') {
       this.pushCall(violation.chain as Chain, {
         to: contracts.proxyAdmin.address,
