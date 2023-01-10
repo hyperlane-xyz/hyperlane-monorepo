@@ -194,9 +194,9 @@ export abstract class HyperlaneDeployer<
       }
 
       this.verificationInputs[chain].push({
-        name: contractName,
+        name: contractName.charAt(0).toUpperCase() + contractName.slice(1),
         address: contractAddr,
-        isProxy: false,
+        isProxy: contractName.endsWith('Proxy'),
         constructorArguments: encodedConstructorArgs,
       });
 
@@ -290,7 +290,7 @@ export abstract class HyperlaneDeployer<
       proxy = await this.deployContractFromFactory(
         chain,
         new TransparentUpgradeableProxy__factory(),
-        'TransparentUpgradableProxy',
+        'TransparentUpgradeableProxy',
         constructorArgs,
         { ...deployOpts, initCalldata },
       );
@@ -310,7 +310,7 @@ export abstract class HyperlaneDeployer<
       proxy = await this.deployContractFromFactory(
         chain,
         new TransparentUpgradeableProxy__factory(),
-        'TransparentUpgradableProxy',
+        'TransparentUpgradeableProxy',
         constructorArgs,
       );
     }

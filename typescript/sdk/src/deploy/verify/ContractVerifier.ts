@@ -64,7 +64,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     options?: Record<string, string>,
   ): Promise<any> {
     const chainConnection = this.multiProvider.getChainConnection(chain);
-    const apiUrl = chainConnection.getApiUrl();
+    const apiUrl = `${chainConnection.getApiUrl()}/api`;
 
     const params = new URLSearchParams({
       apikey: this.apiKeys[chain],
@@ -152,9 +152,6 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
     // mark as proxy (if applicable)
     if (input.isProxy) {
-      this.logger('Skipping proxy verification');
-      return;
-
       const proxyGuid = await this.submitForm(
         chain,
         ExplorerApiActions.MARK_PROXY,
