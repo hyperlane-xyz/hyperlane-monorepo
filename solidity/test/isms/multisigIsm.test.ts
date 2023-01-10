@@ -46,7 +46,7 @@ describe('MultisigIsm', async () => {
 
   beforeEach(async () => {
     const multisigIsmFactory = new TestMultisigIsm__factory(signer);
-    multisigIsm = await multisigIsmFactory.deploy();
+    multisigIsm = await multisigIsmFactory.deploy([], signer.address);
   });
 
   describe('#constructor', () => {
