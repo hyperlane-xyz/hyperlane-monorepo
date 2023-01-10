@@ -17,9 +17,7 @@ export const mainnetConfigs = {
       // gasPrice: 50 * 10 ** 9, // 50 gwei
     },
   },
-  celo: {
-    ...chainConnectionConfigs.celo,
-  },
+  celo: chainConnectionConfigs.celo,
   arbitrum: chainConnectionConfigs.arbitrum,
   optimism: chainConnectionConfigs.optimism,
   ethereum: {

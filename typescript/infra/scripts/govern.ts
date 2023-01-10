@@ -23,7 +23,7 @@ async function check() {
     config.core,
   );
   await coreChecker.check();
-  // coreChecker.expectViolations([], []);
+  coreChecker.expectViolations([], []);
 
   const governor = new HyperlaneCoreGovernor(coreChecker);
   await governor.govern();
