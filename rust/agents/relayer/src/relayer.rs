@@ -56,7 +56,7 @@ impl BaseAgent for Relayer {
         Self: Sized,
     {
         let core = if let Some(ref remotes) = settings.destinationchainnames {
-            let mut v: Vec<&str> = remotes.split(",").collect();
+            let mut v: Vec<&str> = remotes.split(',').collect();
             v.push(&settings.originchainname);
             settings
                 .try_into_hyperlane_core(metrics, Some(v.clone()))
