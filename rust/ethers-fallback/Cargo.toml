@@ -1,0 +1,15 @@
+[package]
+name = "ethers-fallback"
+version = "0.1.0"
+authors = ["Mattie Conover <mattie@hyperlane.xyz>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-trait = { version = "0.1", default-features = false }
+ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04" }
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", default-features = false }
+thiserror = "1.0"
+tracing = "0.1"
