@@ -41,6 +41,33 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         _;
     }
 
+    // ======== Initializer =========
+    function __Router_initialize(address _mailbox) internal onlyInitializing {
+        __HyperlaneConnectionClient_initialize(_mailbox);
+    }
+
+    function __Router_initialize(
+        address _mailbox,
+        address _interchainGasPaymaster
+    ) internal onlyInitializing {
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
+            _interchainGasPaymaster
+        );
+    }
+
+    function __Router_initialize(
+        address _mailbox,
+        address _interchainGasPaymaster,
+        address _interchainSecurityModule
+    ) internal onlyInitializing {
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
+            _interchainGasPaymaster,
+            _interchainSecurityModule
+        );
+    }
+
     // ============ External functions ============
     function domains() external view returns (uint32[] memory) {
         bytes32[] storage rawKeys = _routers.keys();
