@@ -1,5 +1,7 @@
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
+import { ethers } from 'ethers';
+import { readFileSync } from 'fs';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
@@ -13,6 +15,8 @@ import {
 
 import { getCoreEnvironmentConfig } from './scripts/utils';
 import { sleep } from './src/utils/utils';
+
+const path = require('path');
 
 const chainSummary = async <Chain extends ChainName>(
   core: HyperlaneCore<Chain>,
@@ -34,6 +38,45 @@ const chainSummary = async <Chain extends ChainName>(
   };
   return summary;
 };
+
+task('announce', 'Registers validator announcement')
+  .addParam('checkpointsdir', 'Directory containing announcement json file')
+  .addParam('chain', 'Chain to announce on')
+  .setAction(
+    async (
+      taskArgs: { checkpointsdir: string; chain: ChainName },
+      hre: HardhatRuntimeEnvironment,
+    ) => {
+      const environment = 'test';
+      const config = getCoreEnvironmentConfig(environment);
+      const [signer] = await hre.ethers.getSigners();
+      const multiProvider = getTestMultiProvider(
+        signer,
+        config.transactionConfigs,
+      );
+      const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
+      const announcementFilepath = path.join(
+        taskArgs.checkpointsdir,
+        'announcement.json',
+      );
+      const announcement = JSON.parse(
+        readFileSync(announcementFilepath, 'utf-8'),
+      );
+      const signature = ethers.utils.hexConcat([
+        announcement.signature.r,
+        announcement.signature.s,
+        ethers.utils.hexValue(announcement.signature.v),
+      ]);
+      const tx = await core
+        .getContracts(taskArgs.chain)
+        .validatorAnnounce.announce(
+          announcement.announcement.validator,
+          announcement.announcement.storage_location,
+          signature,
+        );
+      await tx.wait();
+    },
+  );
 
 task('kathy', 'Dispatches random hyperlane messages')
   .addParam(

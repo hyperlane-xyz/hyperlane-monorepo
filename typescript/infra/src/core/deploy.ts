@@ -89,7 +89,7 @@ export class HyperlaneCoreInfraDeployer<
         contracts == undefined ||
         contracts.mailbox == undefined ||
         contracts.interchainGasPaymaster == undefined ||
-        contracts.multisigIsm == undefined
+        contracts.validatorAnnounce == undefined
       ) {
         return;
       }
@@ -100,6 +100,7 @@ export class HyperlaneCoreInfraDeployer<
         addresses: {
           mailbox: contracts.mailbox.contract.address,
           interchainGasPaymaster: contracts.interchainGasPaymaster.address,
+          validatorAnnounce: contracts.validatorAnnounce.address,
         },
         rpcStyle: 'ethereum',
         finalityBlocks: metadata.blocks.reorgPeriod.toString(),

@@ -129,10 +129,10 @@ impl CheckpointSyncer for CheckpointSyncers {
     }
 
     /// Write the signed announcement to this syncer
-    fn announcement_metadata(&self) -> String {
+    fn announcement_location(&self) -> String {
         match self {
-            CheckpointSyncers::Local(syncer) => syncer.announcement_metadata(),
-            CheckpointSyncers::S3(syncer) => syncer.announcement_metadata(),
+            CheckpointSyncers::Local(syncer) => syncer.announcement_location(),
+            CheckpointSyncers::S3(syncer) => syncer.announcement_location(),
         }
     }
 }

@@ -251,6 +251,7 @@ export type RustConnection =
 export type RustCoreAddresses = {
   mailbox: types.Address;
   interchainGasPaymaster: types.Address;
+  validatorAnnounce: types.Address;
 };
 
 export type RustChainSetup = {

@@ -173,11 +173,17 @@ export class HyperlaneCoreDeployer<
       multisigIsm.address,
       proxyAdmin,
     );
+    const validatorAnnounce = await this.deployContract(
+      chain,
+      'validatorAnnounce',
+      [mailbox.address],
+    );
     // Mailbox ownership is transferred upon initialization.
     const ownables: Ownable[] = [multisigIsm, proxyAdmin];
     await this.transferOwnershipOfContracts(chain, ownables);
 
     return {
+      validatorAnnounce,
       proxyAdmin,
       interchainGasPaymaster,
       mailbox,

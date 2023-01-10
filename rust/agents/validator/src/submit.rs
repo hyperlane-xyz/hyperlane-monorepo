@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use ethers::signers::Signer;
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
@@ -51,9 +52,10 @@ impl ValidatorSubmitter {
 
         // Sign and post the validator announcement
         let announcement = Announcement {
+            validator: self.signer.address(),
             mailbox_address: self.mailbox.mailbox().address(),
             mailbox_domain: self.mailbox.mailbox().domain().id(),
-            storage_metadata: self.checkpoint_syncer.announcement_metadata(),
+            storage_location: self.checkpoint_syncer.announcement_location(),
         };
         let signed_announcement = announcement.sign_with(self.signer.as_ref()).await?;
         self.checkpoint_syncer
