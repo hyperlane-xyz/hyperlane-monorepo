@@ -95,6 +95,7 @@ export const alfajores: ChainMetadata = {
     {
       name: 'CeloScan',
       url: 'https://alfajores.celoscan.io',
+      apiUrl: 'https://api-alfajores.celoscan.io/',
       family: ExplorerFamily.Etherscan,
     },
     {
