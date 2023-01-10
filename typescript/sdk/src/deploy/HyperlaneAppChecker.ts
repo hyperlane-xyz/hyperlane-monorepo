@@ -1,5 +1,4 @@
 import { Ownable } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/sdk/src/utils/objects';
 import { utils } from '@hyperlane-xyz/utils';
 import type { types } from '@hyperlane-xyz/utils';
 
@@ -7,6 +6,7 @@ import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
 import { TransparentProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
+import { objMap } from '../utils/objects';
 
 import { proxyAdmin, proxyImplementation, proxyViolation } from './proxy';
 import { CheckerViolation, OwnerViolation, ViolationType } from './types';
