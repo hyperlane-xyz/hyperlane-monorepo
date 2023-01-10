@@ -39,15 +39,18 @@ contract MockHyperlaneEnvironment {
         InterchainQueryRouter originQueryRouter = new InterchainQueryRouter();
         InterchainQueryRouter destinationQueryRouter = new InterchainQueryRouter();
 
+        address owner = address(this);
         originQueryRouter.initialize(
             address(originMailbox),
             address(igps[originDomain]),
-            address(isms[originDomain])
+            address(isms[originDomain]),
+            owner
         );
         destinationQueryRouter.initialize(
             address(destinationMailbox),
             address(igps[destinationDomain]),
-            address(isms[destinationDomain])
+            address(isms[destinationDomain]),
+            owner
         );
 
         originQueryRouter.enrollRemoteRouter(

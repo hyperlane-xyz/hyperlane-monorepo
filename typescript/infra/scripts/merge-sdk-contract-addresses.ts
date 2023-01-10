@@ -5,6 +5,7 @@ import path from 'path';
 import { ChainName, HyperlaneAddresses } from '@hyperlane-xyz/sdk';
 
 import type { DeployEnvironment } from '../src/config';
+import { deployEnvToSdkEnv } from '../src/config/environment';
 import { readJSON, writeJSON } from '../src/utils/utils';
 
 import {
@@ -26,9 +27,10 @@ const ARTIFACTS_TO_MERGE = [
 export function mergeWithSdkContractAddressArtifacts(
   environment: DeployEnvironment,
 ) {
+  const sdkEnvironment = deployEnvToSdkEnv[environment];
   const coreAddresses: HyperlaneAddresses = readJSON(
     getCoreContractsSdkFilepath(),
-    `${environment}.json`,
+    `${sdkEnvironment}.json`,
   );
 
   for (const artifactSet of ARTIFACTS_TO_MERGE) {
@@ -54,7 +56,7 @@ export function mergeWithSdkContractAddressArtifacts(
 
   writeJSON(
     getCoreContractsSdkFilepath(),
-    `${environment}.json`,
+    `${sdkEnvironment}.json`,
     coreAddresses,
   );
 }
