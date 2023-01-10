@@ -87,7 +87,7 @@ mod test {
 
     use std::{fs::File, io::Read, path::PathBuf};
 
-    use sha3::{Digest, digest::Update, Keccak256};
+    use sha3::{digest::Update, Digest, Keccak256};
 
     // From ethers-rs
     fn hash_message<S>(message: S) -> H256

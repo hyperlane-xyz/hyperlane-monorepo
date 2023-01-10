@@ -1,8 +1,8 @@
 use crate::types::H256;
-use sha3::{Digest, Keccak256};
 use sha3::digest::Update;
+use sha3::{Digest, Keccak256};
 
-use crate::{HyperlaneError, Decode, Encode};
+use crate::{Decode, Encode, HyperlaneError};
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
 
@@ -124,7 +124,7 @@ impl HyperlaneMessage {
     }
 
     // Intnded for sealevel vm "event" (log message).
-    pub fn format(&self) ->Result<String, HyperlaneError> {
+    pub fn format(&self) -> Result<String, HyperlaneError> {
         let mut serialized = vec![];
         self.write_to(&mut serialized)?;
         let encoded = bs58::encode(serialized).into_string();
@@ -133,11 +133,9 @@ impl HyperlaneMessage {
 
     // Intended for sealevel vm "event" (log message).
     pub fn parse(formatted: &[u8]) -> Result<Self, HyperlaneError> {
-        let decoded = bs58::decode(formatted)
-            .into_vec()
-            .map_err(|err| {
-                HyperlaneError::IoError(std::io::Error::new(std::io::ErrorKind::InvalidData, err))
-            })?;
+        let decoded = bs58::decode(formatted).into_vec().map_err(|err| {
+            HyperlaneError::IoError(std::io::Error::new(std::io::ErrorKind::InvalidData, err))
+        })?;
         Self::read_from(&mut std::io::Cursor::new(decoded))
     }
 }

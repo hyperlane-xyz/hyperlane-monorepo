@@ -2,16 +2,16 @@
 
 use std::{collections::HashSet, str::FromStr as _};
 
-use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, H256};
 use borsh::{BorshDeserialize, BorshSerialize};
+use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, H256};
 use solana_program::{
     account_info::AccountInfo,
-    pubkey::Pubkey,
     program_error::ProgramError,
     // Note: Not convinced program_pack::{IsInitialized, Pack} add value here.
+    pubkey::Pubkey,
 };
 
-use crate::{DEFAULT_ISM, DEFAULT_ISM_ACCOUNTS, error::Error};
+use crate::{error::Error, DEFAULT_ISM, DEFAULT_ISM_ACCOUNTS};
 
 pub trait Data: BorshDeserialize + BorshSerialize + Default {}
 impl<T> Data for T where T: BorshDeserialize + BorshSerialize + Default {}
@@ -30,15 +30,13 @@ pub struct AccountData<T> {
 
 impl<T> From<T> for AccountData<T> {
     fn from(data: T) -> Self {
-        Self {
-            data
-        }
+        Self { data }
     }
 }
 
 impl<T> AccountData<T>
 where
-    T: Data
+    T: Data,
 {
     pub fn into_inner(self) -> T {
         self.data
@@ -52,9 +50,7 @@ where
         } else {
             T::default()
         };
-        Ok(Self {
-            data
-        })
+        Ok(Self { data })
     }
 
     // Optimisically write then realloc on failure.
@@ -70,19 +66,23 @@ where
         }
         let realloc_increment = 1024;
         loop {
-            let mut writer = &mut account.data.borrow_mut()[..];
-            match true.serialize(&mut writer).and_then(|_| self.data.serialize(&mut writer)) {
+            let mut guard = account.try_borrow_mut_data()?;
+            let data = &mut *guard;
+            let data_len = data.len();
+            match true.serialize(data).and_then(|_| self.data.serialize(data)) {
                 Ok(_) => break,
                 Err(err) => match err.kind() {
-                    std::io::ErrorKind::WriteZero => if !allow_realloc {
-                        return Err(ProgramError::BorshIoError(err.to_string()));
-                    },
+                    std::io::ErrorKind::WriteZero => {
+                        if !allow_realloc {
+                            return Err(ProgramError::BorshIoError(err.to_string()));
+                        }
+                    }
                     _ => return Err(ProgramError::BorshIoError(err.to_string())),
                 },
             };
-            let data_len = account.data.borrow().len() + realloc_increment;
+            drop(guard);
             if cfg!(target_os = "solana") {
-                account.realloc(data_len, false)?;
+                account.realloc(data_len + realloc_increment, false)?;
             } else {
                 panic!("realloc() is only supported on the SVM");
             }
@@ -91,39 +91,42 @@ where
     }
 }
 
-#[derive(BorshDeserialize, BorshSerialize)]
-pub struct Config {
+pub type InboxAccount = AccountData<Inbox>;
+
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+pub struct Inbox {
+    pub local_domain: u32,
+    pub auth_bump_seed: u8,
+    pub inbox_bump_seed: u8,
+    // Note: 10MB account limit is around ~300k entries.
+    pub delivered: HashSet<H256>,
     pub ism: Pubkey,
     pub ism_accounts: Vec<Pubkey>,
-    pub local_domain: u32,
 }
-impl Default for Config {
+
+impl Default for Inbox {
     fn default() -> Self {
         Self {
-            // FIXME can declare_id!() or similar be used for these to compute at compile time?
+            local_domain: 0,
+            auth_bump_seed: 0,
+            inbox_bump_seed: 0,
+            delivered: Default::default(),
+            // TODO can declare_id!() or similar be used for these to compute at compile time?
             ism: Pubkey::from_str(DEFAULT_ISM).unwrap(),
             ism_accounts: DEFAULT_ISM_ACCOUNTS
-                .into_iter()
+                .iter()
                 .map(|account| Pubkey::from_str(account).unwrap())
                 .collect(),
-            // FIXME there isn't a valid default value here... We need to ensure that the account
-            // is initialized when created or bake local domain into the contract?
-            local_domain: u32::MAX,
         }
     }
 }
-pub type ConfigAccount = AccountData<Config>;
-pub const CONFIG_ACCOUNT_SIZE: usize = 1024;
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
-pub struct Inbox {
-    // Note: 10MB account limit is around ~300k entries.
-    pub delivered: HashSet<H256>,
-}
-pub type InboxAccount = AccountData<Inbox>;
+pub type OutboxAccount = AccountData<Outbox>;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
 pub struct Outbox {
+    pub local_domain: u32,
+    pub auth_bump_seed: u8,
+    pub outbox_bump_seed: u8,
     pub tree: MerkleTree,
 }
-pub type OutboxAccount = AccountData<Outbox>;
