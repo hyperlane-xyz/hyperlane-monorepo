@@ -8,36 +8,24 @@ use std::str::FromStr as _;
 
 use clap::{Args, Parser, Subcommand};
 use hyperlane_sealevel_mailbox::{
-    hyperlane_core::{
-        Encode,
-        message::HyperlaneMessage,
-        types::H256,
-    },
-    accounts::CONFIG_ACCOUNT_SIZE,
+    hyperlane_core::{message::HyperlaneMessage, types::H256, Encode},
+    accounts::{InboxAccount, OutboxAccount},
     instruction::{
-        Instruction as MailboxInstruction,
-        InboxProcess,
-        MAX_MESSAGE_BODY_BYTES,
-        OutboxDispatch,
-        VERSION
+        InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction, OutboxDispatch,
+        MAX_MESSAGE_BODY_BYTES, VERSION,
     },
 };
+use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
+use solana_cli_config::{Config, CONFIG_FILE};
+use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signature::{Signer as _, read_keypair_file},
-    signer::keypair::Keypair,
-    system_instruction,
+    signature::{read_keypair_file, Signer as _},
+    system_program,
     transaction::Transaction,
-};
-use solana_client::rpc_client::RpcClient;
-use solana_cli_config::{CONFIG_FILE, Config};
-use solana_clap_utils::input_validators::{
-    is_keypair,
-    is_url,
-    normalize_to_url_if_moniker,
 };
 // Note: from solana_program_runtime::compute_budget
 const DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT: u32 = 200_000;
@@ -47,22 +35,13 @@ const MAX_HEAP_FRAME_BYTES: u32 = 256 * 1024;
 // FIXME can we import from libs?
 lazy_static::lazy_static! {
     static ref MAILBOX_PROG_ID: Pubkey = Pubkey::from_str(
-        "8TibDpWMQfTjG6JxvF85pxJXxwqXZUCuUx3Q1vwojvRh"
-    ).unwrap();
-    static ref INBOX_ACCOUNT: Pubkey = Pubkey::from_str(
-        "CGmTMdoLqRBpaP8sfsEozFkopJVmaSCLUDpG2kPiYjRQ"
-    ).unwrap();
-    static ref OUTBOX_ACCOUNT: Pubkey = Pubkey::from_str(
-        "5AsfPQ8j5RzFP7uq72DtrkgqNvKNwndsrFLsM88axHpt"
-    ).unwrap();
-    static ref CONFIG_ACCOUNT: Pubkey = Pubkey::from_str(
-        "AxCerXNwKLKqPmCs4iJ37A65kcSyBjvezENUL8s8KLmL"
+        "8oQPEeV1Uhmt4VNAdEojJewGnAuEi4pxBinbRvtKmiwJ"
     ).unwrap();
     static ref DEFAULT_ISM_PROG_ID: Pubkey = Pubkey::from_str(
-        "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq"
+        "YpYBDE5EsueaooNiYjgQ5PWcX9EB7kBpo3uufdDeLi7"
     ).unwrap();
     static ref RECIPIENT_ECHO_PROG_ID: Pubkey = Pubkey::from_str(
-        "AziCxohg8Tw46EsZGUCvxsVbqFmJVnSWuEqoTKaAfNiC"
+        "CFpo3LDZm2nPujHLoHNxtmY6WZwjKSVY78aMBYf9hLZE"
     ).unwrap();
 }
 
@@ -83,25 +62,32 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum MailboxCmd {
-    CreateAccounts(CreateAccounts),
+    Init(Init),
+    Query(Query),
     Send(Outbox),
     Receive(Inbox),
 }
 
 #[derive(Args)]
-struct CreateAccounts {
+struct Init {
     #[arg(long, short, default_value_t = *MAILBOX_PROG_ID)]
     program_id: Pubkey,
-    #[arg(long, short, default_value_t = *OUTBOX_ACCOUNT)]
-    outbox_account: Pubkey,
-    #[arg(long, short, default_value_t = *INBOX_ACCOUNT)]
-    inbox_account: Pubkey,
-    #[arg(long, short, default_value_t = *CONFIG_ACCOUNT)]
-    config_account: Pubkey,
+    #[arg(long, short, default_value_t = u32::MAX)]
+    local_domain: u32,
+}
+
+#[derive(Args)]
+struct Query {
+    #[arg(long, short, default_value_t = *MAILBOX_PROG_ID)]
+    program_id: Pubkey,
+    #[arg(long, short, default_value_t = u32::MAX)]
+    local_domain: u32,
 }
 
 #[derive(Args)]
 struct Outbox {
+    #[arg(long, short, default_value_t = u32::MAX)]
+    local_domain: u32,
     #[arg(long, short, default_value_t = u32::MAX)]
     destination: u32,
     #[arg(long, short, default_value_t = *RECIPIENT_ECHO_PROG_ID)]
@@ -110,10 +96,6 @@ struct Outbox {
     // message: String,
     #[arg(long, short, default_value_t = *MAILBOX_PROG_ID)]
     program_id: Pubkey,
-    #[arg(long, short, default_value_t = *OUTBOX_ACCOUNT)]
-    outbox_account: Pubkey,
-    #[arg(long, short, default_value_t = *CONFIG_ACCOUNT)]
-    config_account: Pubkey,
 
     #[arg(long, short, default_value_t = MAX_MESSAGE_BODY_BYTES)]
     message_len: usize,
@@ -121,6 +103,8 @@ struct Outbox {
 
 #[derive(Args)]
 struct Inbox {
+    #[arg(long, short, default_value_t = u32::MAX)]
+    local_domain: u32,
     #[arg(long, short, default_value_t = u32::MAX)]
     origin: u32,
     #[arg(long, short, default_value_t = *RECIPIENT_ECHO_PROG_ID)]
@@ -131,61 +115,12 @@ struct Inbox {
     nonce: u32,
     #[arg(long, short, default_value_t = *MAILBOX_PROG_ID)]
     program_id: Pubkey,
-    #[arg(long, short, default_value_t = *INBOX_ACCOUNT)]
-    inbox_account: Pubkey,
-    #[arg(long, short, default_value_t = *CONFIG_ACCOUNT)]
-    config_account: Pubkey,
     #[arg(long, default_value_t = *DEFAULT_ISM_PROG_ID)]
     ism: Pubkey,
 }
 
-fn create_account(
-    client: &RpcClient,
-    payer: &Keypair,
-    owner: &Pubkey,
-    seed: &str,
-    size: usize,
-) -> Pubkey {
-    // FIXME what is meant by "base" pubkey here?
-    let account = Pubkey::create_with_seed(&payer.pubkey(), seed, &owner).unwrap();
-
-    let commitment = CommitmentConfig::confirmed();
-    match client.get_account_with_commitment(&account, commitment).unwrap().value {
-        Some(account) => {
-            if account.owner != *owner {
-                panic!("data account has incorrect owner: {}", account.owner);
-            }
-        },
-        None => {
-            let rent_exemption_amount = client
-                .get_minimum_balance_for_rent_exemption(size)
-                .unwrap();
-            let recent_blockhash = client.get_latest_blockhash().unwrap();
-            let instruction = system_instruction::create_account_with_seed(
-                &payer.pubkey(),
-                &account,
-                &payer.pubkey(),
-                seed,
-                rent_exemption_amount,
-                size.try_into().unwrap(),
-                &owner
-            );
-            let txn = Transaction::new_signed_with_payer(
-                &[instruction],
-                Some(&payer.pubkey()),
-                &[payer],
-                recent_blockhash,
-            );
-            let signature = client.send_transaction(&txn).unwrap();
-            client
-                .confirm_transaction_with_spinner(&signature, &recent_blockhash, commitment)
-                .unwrap();
-        },
-    };
-    account
-}
-
-struct ExampleMetadata { // Depends on which ISM is used.
+// Actual content depends on which ISM is used.
+struct ExampleMetadata {
     pub root: H256,
     pub index: u32,
     pub leaf_index: u32,
@@ -197,7 +132,7 @@ impl Encode for ExampleMetadata {
     where
         W: std::io::Write,
     {
-        writer.write_all(&self.root.as_ref())?;
+        writer.write_all(self.root.as_ref())?;
         writer.write_all(&self.index.to_be_bytes())?;
         writer.write_all(&self.leaf_index.to_be_bytes())?;
         // for hash in self.proof {
@@ -215,12 +150,8 @@ fn main() {
 
     let cli = Cli::parse();
     let config = match CONFIG_FILE.as_ref() {
-        Some(config_file) => {
-            Config::load(&config_file).unwrap()
-        },
-        None => {
-            Config::default()
-        }
+        Some(config_file) => Config::load(config_file).unwrap(),
+        None => Config::default(),
     };
     let url = normalize_to_url_if_moniker(cli.url.unwrap_or(config.json_rpc_url));
     is_url(&url).unwrap();
@@ -234,7 +165,9 @@ fn main() {
     let mut instructions = vec![];
     if cli.compute_budget != DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT {
         assert!(cli.compute_budget <= MAX_COMPUTE_UNIT_LIMIT);
-        instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(cli.compute_budget));
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
+            cli.compute_budget,
+        ));
     }
     if let Some(heap_size) = cli.heap_size {
         assert!(heap_size <= MAX_HEAP_FRAME_BYTES);
@@ -242,47 +175,160 @@ fn main() {
     }
 
     match cli.cmd {
-        MailboxCmd::CreateAccounts(create) => {
-            let config = create_account(
-                &client,
-                &payer,
-                &create.program_id,
-                "hyperlane_mailbox_config",
-                CONFIG_ACCOUNT_SIZE,
+        MailboxCmd::Init(init) => {
+            let (auth_account, auth_bump) = Pubkey::find_program_address(
+                &[
+                    b"hyperlane",
+                    b"-",
+                    &init.local_domain.to_le_bytes(),
+                    b"-",
+                    b"authority",
+                ],
+                &init.program_id,
             );
-            println!("config_account={}", config);
-            let mailbox_size = 10_000_000;
-            let outbox = create_account(
-                &client,
-                &payer,
-                &create.program_id,
-                "hyperlane_mailbox_outbox",
-                mailbox_size,
+            let (inbox_account, inbox_bump) = Pubkey::find_program_address(
+                &[
+                    b"hyperlane",
+                    b"-",
+                    &init.local_domain.to_le_bytes(),
+                    b"-",
+                    b"inbox",
+                ],
+                &init.program_id,
             );
-            println!("outbox_account={}", outbox);
-            let inbox = create_account(
-                &client,
-                &payer,
-                &create.program_id,
-                "hyperlane_mailbox_inbox",
-                mailbox_size,
+            let (outbox_account, outbox_bump) = Pubkey::find_program_address(
+                &[
+                    b"hyperlane",
+                    b"-",
+                    &init.local_domain.to_le_bytes(),
+                    b"-",
+                    b"outbox",
+                ],
+                &init.program_id,
             );
-            println!("inbox_account={}", inbox);
-        },
+
+            let ixn = MailboxInstruction::Init(InitMailbox {
+                local_domain: init.local_domain,
+                auth_bump_seed: auth_bump,
+                inbox_bump_seed: inbox_bump,
+                outbox_bump_seed: outbox_bump,
+            });
+            let init_instruction = Instruction {
+                program_id: init.program_id,
+                data: ixn.into_instruction_data().unwrap(),
+                accounts: vec![
+                    AccountMeta::new(system_program::ID, false),
+                    AccountMeta::new(payer.pubkey(), true),
+                    AccountMeta::new(auth_account, false),
+                    AccountMeta::new(inbox_account, false),
+                    AccountMeta::new(outbox_account, false),
+                ],
+            };
+
+            let recent_blockhash = client.get_latest_blockhash().unwrap();
+            let txn = Transaction::new_signed_with_payer(
+                &[init_instruction],
+                Some(&payer.pubkey()),
+                &[&payer],
+                recent_blockhash,
+            );
+
+            let signature = client.send_transaction(&txn).unwrap();
+            client
+                .confirm_transaction_with_spinner(&signature, &recent_blockhash, commitment)
+                .unwrap();
+
+            println!("auth=({}, {})", auth_account, auth_bump);
+            println!("inbox=({}, {})", inbox_account, inbox_bump);
+            println!("outbox=({}, {})", outbox_account, outbox_bump);
+        }
+        MailboxCmd::Query(query) => {
+            let (auth_account, auth_bump) = Pubkey::find_program_address(
+                &[
+                    b"hyperlane",
+                    b"-",
+                    &query.local_domain.to_le_bytes(),
+                    b"-",
+                    b"authority",
+                ],
+                &query.program_id,
+            );
+            let (inbox_account, inbox_bump) = Pubkey::find_program_address(
+                &[
+                    b"hyperlane",
+                    b"-",
+                    &query.local_domain.to_le_bytes(),
+                    b"-",
+                    b"inbox",
+                ],
+                &query.program_id,
+            );
+            let (outbox_account, outbox_bump) = Pubkey::find_program_address(
+                &[
+                    b"hyperlane",
+                    b"-",
+                    &query.local_domain.to_le_bytes(),
+                    b"-",
+                    b"outbox",
+                ],
+                &query.program_id,
+            );
+
+            let accounts = client
+                .get_multiple_accounts(&[auth_account, inbox_account, outbox_account])
+                .unwrap();
+            println!("--------------------------------");
+            println!("Authority: {}, bump={}", auth_account, auth_bump);
+            if let Some(info) = &accounts[0] {
+                println!("{:#?}", info);
+            } else {
+                println!("Not yet created?");
+            }
+            println!("--------------------------------");
+            println!("Inbox: {}, bump={}", inbox_account, inbox_bump);
+            if let Some(info) = &accounts[1] {
+                println!("{:#?}", info);
+                match InboxAccount::fetch(&mut info.data.as_ref()) {
+                    Ok(inbox) => println!("{:#?}", inbox.into_inner()),
+                    Err(err) => println!("Failed to deserialize account data: {}", err),
+                }
+            } else {
+                println!("Not yet created?");
+            }
+            println!("--------------------------------");
+            println!("Outbox: {}, bump={}", outbox_account, outbox_bump);
+            if let Some(info) = &accounts[2] {
+                println!("{:#?}", info);
+                match OutboxAccount::fetch(&mut info.data.as_ref()) {
+                    Ok(outbox) => println!("{:#?}", outbox.into_inner()),
+                    Err(err) => println!("Failed to deserialize account data: {}", err),
+                }
+            } else {
+                println!("Not yet created?");
+            }
+        }
         MailboxCmd::Send(outbox) => {
+            let (outbox_account, _outbox_bump) = Pubkey::find_program_address(
+                &[
+                    b"hyperlane",
+                    b"-",
+                    &outbox.local_domain.to_le_bytes(),
+                    b"-",
+                    b"outbox",
+                ],
+                &outbox.program_id,
+            );
             let ixn = MailboxInstruction::OutboxDispatch(OutboxDispatch {
                 sender: payer.pubkey(),
-                destination_domain: outbox.destination.into(),
+                local_domain: outbox.local_domain,
+                destination_domain: outbox.destination,
                 recipient: H256(outbox.recipient.to_bytes()),
                 message_body: std::iter::repeat(0x41).take(outbox.message_len).collect(),
             });
             let outbox_instruction = Instruction {
                 program_id: outbox.program_id,
                 data: ixn.into_instruction_data().unwrap(),
-                accounts: vec![
-                    AccountMeta::new(outbox.outbox_account, false),
-                    AccountMeta::new(outbox.config_account, false),
-                ],
+                accounts: vec![AccountMeta::new(outbox_account, false)],
             };
             instructions.push(outbox_instruction);
             let recent_blockhash = client.get_latest_blockhash().unwrap();
@@ -297,12 +343,32 @@ fn main() {
             client
                 .confirm_transaction_with_spinner(&signature, &recent_blockhash, commitment)
                 .unwrap();
-        },
+        }
         MailboxCmd::Receive(inbox) => {
+            let (inbox_account, _inbox_bump) = Pubkey::find_program_address(
+                &[
+                    b"hyperlane",
+                    b"-",
+                    &inbox.local_domain.to_le_bytes(),
+                    b"-",
+                    b"inbox",
+                ],
+                &inbox.program_id,
+            );
+            let (auth_account, _auth_bump) = Pubkey::find_program_address(
+                &[
+                    b"hyperlane",
+                    b"-",
+                    &inbox.local_domain.to_le_bytes(),
+                    b"-",
+                    b"authority",
+                ],
+                &inbox.program_id,
+            );
             let hyperlane_message = HyperlaneMessage {
                 version: VERSION,
                 nonce: inbox.nonce,
-                origin: inbox.origin.into(),
+                origin: inbox.origin,
                 sender: H256::repeat_byte(123),
                 destination: u32::MAX,
                 recipient: H256::from(inbox.recipient.to_bytes()),
@@ -328,8 +394,8 @@ fn main() {
                 program_id: inbox.program_id,
                 data: ixn.into_instruction_data().unwrap(),
                 accounts: vec![
-                    AccountMeta::new(inbox.inbox_account, false),
-                    AccountMeta::new_readonly(inbox.config_account, false),
+                    AccountMeta::new(inbox_account, false),
+                    AccountMeta::new_readonly(auth_account, false),
                     AccountMeta::new_readonly(inbox.ism, false),
                     AccountMeta::new_readonly(inbox.recipient, false),
                     // Note: we would have to provide ism accounts and recipient accounts here if
@@ -349,6 +415,6 @@ fn main() {
             client
                 .confirm_transaction_with_spinner(&signature, &recent_blockhash, commitment)
                 .unwrap();
-        },
+        }
     };
 }
