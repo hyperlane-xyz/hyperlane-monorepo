@@ -6,14 +6,14 @@ use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{CachingMailbox, CheckpointSyncer, CheckpointSyncers, CoreMetrics};
+use hyperlane_base::{CheckpointSyncer, CheckpointSyncers, CoreMetrics};
 use hyperlane_core::{Announcement, HyperlaneDomain, Mailbox, Signers};
 
 pub(crate) struct ValidatorSubmitter {
     interval: u64,
     reorg_period: u64,
     signer: Arc<Signers>,
-    mailbox: CachingMailbox,
+    mailbox: Arc<dyn Mailbox>,
     checkpoint_syncer: Arc<CheckpointSyncers>,
     metrics: ValidatorSubmitterMetrics,
 }
@@ -22,7 +22,7 @@ impl ValidatorSubmitter {
     pub(crate) fn new(
         interval: u64,
         reorg_period: u64,
-        mailbox: CachingMailbox,
+        mailbox: Arc<dyn Mailbox>,
         signer: Arc<Signers>,
         checkpoint_syncer: Arc<CheckpointSyncers>,
         metrics: ValidatorSubmitterMetrics,
@@ -51,8 +51,8 @@ impl ValidatorSubmitter {
 
         // Sign and post the validator announcement
         let announcement = Announcement {
-            mailbox_address: self.mailbox.mailbox().address(),
-            mailbox_domain: self.mailbox.mailbox().domain().id(),
+            mailbox_address: self.mailbox.address(),
+            mailbox_domain: self.mailbox.domain().id(),
             storage_metadata: self.checkpoint_syncer.announcement_metadata(),
         };
         let signed_announcement = announcement.sign_with(self.signer.as_ref()).await?;
