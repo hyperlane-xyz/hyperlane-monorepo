@@ -47,7 +47,7 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
         address _token,
         uint256 _amount,
         string calldata _bridge
-    ) external payable returns (bytes32) {
+    ) external returns (bytes32) {
         ILiquidityLayerAdapter _adapter = _getAdapter(_bridge);
 
         // Transfer the tokens to the adapter
@@ -79,14 +79,7 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
         );
 
         // Dispatch the _messageWithMetadata to the destination's LiquidityLayerRouter.
-        return
-            _dispatchWithGas(
-                _destinationDomain,
-                _messageWithMetadata,
-                0, // TODO eventually accommodate gas amounts
-                msg.value,
-                msg.sender
-            );
+        return _dispatch(_destinationDomain, _messageWithMetadata);
     }
 
     // Handles a message from an enrolled remote LiquidityLayerRouter
