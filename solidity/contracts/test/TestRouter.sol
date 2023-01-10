@@ -7,7 +7,7 @@ contract TestRouter is Router {
     event InitializeOverload();
 
     function initialize(address _mailbox) external initializer {
-        __Router_initialize(_mailbox);
+        __HyperlaneConnectionClient_initialize(_mailbox);
         emit InitializeOverload();
     }
 

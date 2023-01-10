@@ -6,6 +6,31 @@ pragma solidity ^0.8.13;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Call} from "./Call.sol";
 
+function _call(Call[] memory calls, bytes[] memory callbacks)
+    returns (bytes[] memory resolveCalls)
+{
+    resolveCalls = new bytes[](callbacks.length);
+    for (uint256 i = 0; i < calls.length; i++) {
+        (bool success, bytes memory returnData) = calls[i].to.call(
+            calls[i].data
+        );
+        require(success, "Multicall: call failed");
+        resolveCalls[i] = bytes.concat(callbacks[i], returnData);
+    }
+}
+
+// TODO: deduplicate
+function _proxyCallBatch(address to, bytes[] memory calls) {
+    for (uint256 i = 0; i < calls.length; i += 1) {
+        (bool success, bytes memory returnData) = to.call(calls[i]);
+        if (!success) {
+            assembly {
+                revert(add(returnData, 32), returnData)
+            }
+        }
+    }
+}
+
 /*
  * @title OwnableMulticall
  * @dev Allows only only address to execute calls to other contracts
@@ -16,7 +41,7 @@ contract OwnableMulticall is OwnableUpgradeable {
     }
 
     function initialize() external initializer {
-        _transferOwnership(msg.sender);
+        __Ownable_init();
     }
 
     function proxyCalls(Call[] calldata calls) external onlyOwner {
@@ -24,32 +49,6 @@ contract OwnableMulticall is OwnableUpgradeable {
             (bool success, bytes memory returnData) = calls[i].to.call(
                 calls[i].data
             );
-            if (!success) {
-                assembly {
-                    revert(add(returnData, 32), returnData)
-                }
-            }
-        }
-    }
-
-    function _call(Call[] memory calls, bytes[] memory callbacks)
-        internal
-        returns (bytes[] memory resolveCalls)
-    {
-        resolveCalls = new bytes[](callbacks.length);
-        for (uint256 i = 0; i < calls.length; i++) {
-            (bool success, bytes memory returnData) = calls[i].to.call(
-                calls[i].data
-            );
-            require(success, "Multicall: call failed");
-            resolveCalls[i] = bytes.concat(callbacks[i], returnData);
-        }
-    }
-
-    // TODO: deduplicate
-    function proxyCallBatch(address to, bytes[] memory calls) internal {
-        for (uint256 i = 0; i < calls.length; i += 1) {
-            (bool success, bytes memory returnData) = to.call(calls[i]);
             if (!success) {
                 assembly {
                     revert(add(returnData, 32), returnData)
