@@ -94,7 +94,7 @@ impl CheckpointSyncer for LocalStorage {
     }
     fn announcement_location(&self) -> String {
         let mut location: String = "file://".to_owned();
-        location.push_str(self.announcement_file_path().as_ref());
+        location.push_str(self.path.as_ref());
         location
     }
 }
