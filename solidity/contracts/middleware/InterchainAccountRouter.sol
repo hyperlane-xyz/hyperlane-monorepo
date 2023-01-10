@@ -47,31 +47,20 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
      * @param _mailbox The address of the mailbox contract.
      * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
      * @param _interchainSecurityModule The address of the interchain security module contract.
+     * @param _owner The address with owner privileges.
      */
     function initialize(
         address _mailbox,
         address _interchainGasPaymaster,
-        address _interchainSecurityModule
-    ) public initializer {
-        // Transfer ownership of the contract to `msg.sender`
-        __Router_initialize(
+        address _interchainSecurityModule,
+        address _owner
+    ) external initializer {
+        __HyperlaneConnectionClient_initialize(
             _mailbox,
             _interchainGasPaymaster,
-            _interchainSecurityModule
+            _interchainSecurityModule,
+            _owner
         );
-    }
-
-    /**
-     * @notice Initializes the Router contract with Hyperlane core contracts.
-     * @param _mailbox The address of the mailbox contract.
-     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
-     */
-    function initialize(address _mailbox, address _interchainGasPaymaster)
-        public
-        initializer
-    {
-        // Transfer ownership of the contract to `msg.sender`
-        __Router_initialize(_mailbox, _interchainGasPaymaster);
     }
 
     /**
