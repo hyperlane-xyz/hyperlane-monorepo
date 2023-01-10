@@ -39,11 +39,11 @@ async function main() {
     multiProvider,
     configMap,
     core,
-    'ica2',
+    'icav3',
   );
 
   await deployWithArtifacts(dir, interchainAccountFactories, deployer);
-  await mergeWithSdkContractAddressArtifacts(environment);
+  mergeWithSdkContractAddressArtifacts(environment);
 }
 
 main()
