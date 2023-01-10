@@ -160,6 +160,7 @@ fn main() -> ExitCode {
         "HYP_BASE_SIGNERS_TEST3_TYPE" => "hexKey",
         "HYP_RELAYER_GASPAYMENTENFORCEMENTPOLICY_TYPE" => "none",
         "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
+        "HYP_RELAYER_DESTINATIONCHAINNAMES" => "test2,test3",
         "HYP_RELAYER_WHITELIST" => r#"[{"sourceAddress": "*", "destinationDomain": ["13372", "13373"], "destinationAddress": "*"}]"#,
         "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_TYPE" => "localStorage",
         "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_PATH" => checkpoints_dir.path().to_str().unwrap(),

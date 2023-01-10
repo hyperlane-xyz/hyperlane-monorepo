@@ -53,15 +53,18 @@ contract LiquidityLayerRouterTest is Test {
             destinationDomain
         );
 
+        address owner = address(this);
         originLiquidityLayerRouter.initialize(
             address(testEnvironment.mailboxes(originDomain)),
             address(testEnvironment.igps(originDomain)),
-            address(testEnvironment.isms(originDomain))
+            address(testEnvironment.isms(originDomain)),
+            owner
         );
         destinationLiquidityLayerRouter.initialize(
             address(testEnvironment.mailboxes(destinationDomain)),
             address(testEnvironment.igps(destinationDomain)),
-            address(testEnvironment.isms(destinationDomain))
+            address(testEnvironment.isms(destinationDomain)),
+            owner
         );
 
         originLiquidityLayerRouter.enrollRemoteRouter(
@@ -74,14 +77,14 @@ contract LiquidityLayerRouterTest is Test {
         );
 
         originBridgeAdapter.initialize(
-            address(this),
+            owner,
             address(tokenMessenger),
             address(messageTransmitter),
             address(originLiquidityLayerRouter)
         );
 
         destinationBridgeAdapter.initialize(
-            address(this),
+            owner,
             address(tokenMessenger),
             address(messageTransmitter),
             address(destinationLiquidityLayerRouter)

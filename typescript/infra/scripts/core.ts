@@ -4,6 +4,7 @@ import {
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 
+import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
 import { readJSON, writeJSON } from '../src/utils/utils';
 
@@ -32,7 +33,7 @@ async function main() {
     }
     const addresses = readJSON(
       getCoreContractsSdkFilepath(),
-      `${environment}.json`,
+      `${deployEnvToSdkEnv[environment]}.json`,
     );
     previousContracts = buildContracts(addresses, coreFactories);
   } catch (e) {
@@ -49,7 +50,7 @@ async function main() {
   // Persist artifacts, irrespective of deploy success
   writeJSON(
     getCoreContractsSdkFilepath(),
-    `${environment}.json`,
+    `${deployEnvToSdkEnv[environment]}.json`,
     serializeContracts(deployer.deployedContracts),
   );
   const verificationDir = getCoreVerificationDirectory(environment);
