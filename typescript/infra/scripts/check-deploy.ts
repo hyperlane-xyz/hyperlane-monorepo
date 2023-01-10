@@ -22,7 +22,7 @@ async function check() {
   await coreChecker.check();
 
   if (coreChecker.violations.length > 0) {
-    console.error(coreChecker.violations);
+    console.error(JSON.stringify(coreChecker.violations));
     throw new Error(
       `Checking core deploy yielded ${coreChecker.violations.length} violations`,
     );

@@ -1,0 +1,66 @@
+{
+  "bsc": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0xE0Be420779cAd6E2bEA1E4F7C02F996D9ED1fCB5",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "avalanche": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0xE0Be420779cAd6E2bEA1E4F7C02F996D9ED1fCB5",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "polygon": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0xE0Be420779cAd6E2bEA1E4F7C02F996D9ED1fCB5",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "celo": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0xE0Be420779cAd6E2bEA1E4F7C02F996D9ED1fCB5",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "arbitrum": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0xE0Be420779cAd6E2bEA1E4F7C02F996D9ED1fCB5",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "optimism": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0xE0Be420779cAd6E2bEA1E4F7C02F996D9ED1fCB5",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "ethereum": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0xE0Be420779cAd6E2bEA1E4F7C02F996D9ED1fCB5",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "moonbeam": [
+    {
+      "name": "InterchainAccountRouter",
+      "address": "0xE0Be420779cAd6E2bEA1E4F7C02F996D9ED1fCB5",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ]
+}
