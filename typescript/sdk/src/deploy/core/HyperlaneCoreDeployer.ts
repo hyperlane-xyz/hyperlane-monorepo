@@ -82,12 +82,24 @@ export class HyperlaneCoreDeployer<
   async deployMultisigIsm<LocalChain extends Chain>(
     chain: LocalChain,
   ): Promise<MultisigIsm> {
-    const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
     const configChains = Object.keys(this.configMap) as Chain[];
-    const chainConnection = this.multiProvider.getChainConnection(chain);
     const remotes = this.multiProvider
       .intersect(configChains, false)
       .multiProvider.remoteChains(chain);
+
+    const domainConfigs: MultisigIsm.DomainConfigStruct[] = remotes.map(
+      (remote) => ({
+        domain: ChainNameToDomainId[remote],
+        ...this.configMap[remote].multisigIsm,
+      }),
+    );
+
+    const multisigIsm = await this.deployContract(chain, 'multisigIsm', [
+      domainConfigs,
+      this.configMap[chain].owner,
+    ]);
+
+    const chainConnection = this.multiProvider.getChainConnection(chain);
     await super.runIfOwner(chain, multisigIsm, async () => {
       // TODO: Remove extraneous validators
       const remoteDomains = remotes.map((chain) => ChainNameToDomainId[chain]);
@@ -173,8 +185,8 @@ export class HyperlaneCoreDeployer<
       multisigIsm.address,
       proxyAdmin,
     );
-    // Mailbox ownership is transferred upon initialization.
-    const ownables: Ownable[] = [multisigIsm, proxyAdmin];
+    // Mailbox ownership and Multisig ISM is transferred upon initialization.
+    const ownables: Ownable[] = [proxyAdmin];
     await this.transferOwnershipOfContracts(chain, ownables);
 
     return {
