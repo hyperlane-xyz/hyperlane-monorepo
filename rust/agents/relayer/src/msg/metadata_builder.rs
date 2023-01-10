@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use hyperlane_base::{CachingMailbox, ChainSetup, CoreMetrics, MultisigCheckpointSyncer};
-use hyperlane_core::{HyperlaneMessage, Signers};
+use ethers::providers::call_raw::storage;
+use hyperlane_base::{CachingMailbox, ChainSetup, CoreMetrics, MultisigCheckpointSyncer, CheckpointSyncer, CheckpointSyncers};
+use hyperlane_core::{HyperlaneMessage, Signers, ValidatorAnnounce, H160};
 use hyperlane_core::{Mailbox, MultisigIsm, H256};
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument};
@@ -13,8 +15,8 @@ pub struct MetadataBuilder {
     metrics: Arc<CoreMetrics>,
     signer: Option<Signers>,
     chain_setup: ChainSetup,
-    checkpoint_syncer: MultisigCheckpointSyncer,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
+    validator_announce: Arc<dyn ValidatorAnnounce>,
 }
 
 impl MetadataBuilder {
@@ -22,15 +24,15 @@ impl MetadataBuilder {
         metrics: Arc<CoreMetrics>,
         signer: Option<Signers>,
         chain_setup: ChainSetup,
-        checkpoint_syncer: MultisigCheckpointSyncer,
         prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
+        validator_announce: Arc<dyn ValidatorAnnounce>,
     ) -> Self {
         MetadataBuilder {
             metrics,
             signer,
             chain_setup,
-            checkpoint_syncer,
             prover_sync,
+            validator_announce
         }
     }
 
@@ -44,8 +46,9 @@ impl MetadataBuilder {
         let multisig_ism = self.build_multisig_ism(ism_address).await?;
         let (validators, threshold) = multisig_ism.validators_and_threshold(message).await?;
         let highest_known_nonce = self.prover_sync.read().await.count() - 1;
-        if let Some(checkpoint) = self
-            .checkpoint_syncer
+        let checkpoint_syncer = self.build_checkpoint_syncer(&validators).await?;
+        if let Some(checkpoint) = 
+            checkpoint_syncer
             .fetch_checkpoint_in_range(
                 &validators,
                 threshold.into(),
@@ -90,6 +93,26 @@ impl MetadataBuilder {
             );
             Ok(None)
         }
+    }
+
+    async fn build_checkpoint_syncer(&self, validators: &Vec<H256>) -> eyre::Result<MultisigCheckpointSyncer> {
+        let mut checkpoint_syncers: HashMap<H160, CheckpointSyncers> = HashMap::new();
+        let storage_locations = self.validator_announce.get_announced_storage_locations(*validators).await?;
+        // Only use the most recently announced location for now.
+        for validator_storage_locations in storage_locations.iter() {
+            for storage_location in validator_storage_locations.iter() {
+                if storage_location.starts_with("s3://") {
+
+                } else if storage_location.starts_with("file://") {
+
+                } else {
+
+                }
+                
+                break;
+            }
+        }
+        Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))
     }
 
     async fn build_multisig_ism(&self, address: H256) -> eyre::Result<Box<dyn MultisigIsm>> {

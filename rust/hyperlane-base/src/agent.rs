@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use eyre::{Report, Result};
 use futures_util::future::select_all;
-use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{HyperlaneDomain, ValidatorAnnounce};
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
@@ -23,6 +23,8 @@ pub struct HyperlaneAgentCore {
     pub mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
     /// A map of interchain gas paymaster contracts by chain name
     pub interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
+    /// A map of validator announce contracts by chain name
+    pub validator_announces: HashMap<HyperlaneDomain, Arc<dyn ValidatorAnnounce>>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -78,6 +80,12 @@ pub trait Agent: BaseAgent {
         &self,
         domain: &HyperlaneDomain,
     ) -> Option<&CachingInterchainGasPaymaster>;
+
+    /// Return a reference to an InterchainGasPaymaster contract
+    fn validator_announce(
+        &self,
+        domain: &HyperlaneDomain,
+    ) -> Option<&Arc<dyn ValidatorAnnounce>>;
 }
 
 #[async_trait]
@@ -98,6 +106,13 @@ where
         domain: &HyperlaneDomain,
     ) -> Option<&CachingInterchainGasPaymaster> {
         self.as_ref().interchain_gas_paymasters.get(domain)
+    }
+
+    fn validator_announce(
+        &self,
+        domain: &HyperlaneDomain,
+    ) -> Option<&Arc<dyn ValidatorAnnounce>> {
+        self.as_ref().validator_announces.get(domain)
     }
 }
 

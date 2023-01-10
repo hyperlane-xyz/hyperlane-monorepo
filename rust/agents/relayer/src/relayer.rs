@@ -11,7 +11,7 @@ use hyperlane_base::chains::TransactionSubmissionType;
 use hyperlane_base::CachingMailbox;
 use hyperlane_base::{
     chains::GelatoConf, run_all, Agent, BaseAgent, ContractSyncMetrics, CoreMetrics,
-    HyperlaneAgentCore, MultisigCheckpointSyncer,
+    HyperlaneAgentCore
 };
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain};
 
@@ -31,7 +31,6 @@ use crate::settings::{GasPaymentEnforcementPolicy, RelayerSettings};
 #[derive(Debug)]
 pub struct Relayer {
     origin_chain: HyperlaneDomain,
-    multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: HyperlaneAgentCore,
     gas_payment_enforcement_policy: GasPaymentEnforcementPolicy,
     whitelist: Arc<MatchingList>,
@@ -57,13 +56,6 @@ impl BaseAgent for Relayer {
     {
         let core = settings.try_into_hyperlane_core(metrics, None).await?;
 
-        let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
-            .multisigcheckpointsyncer
-            .try_into_multisig_checkpoint_syncer(
-                &settings.originchainname,
-                core.metrics.validator_checkpoint_index(),
-            )?;
-
         let whitelist = parse_matching_list(&settings.whitelist);
         let blacklist = parse_matching_list(&settings.blacklist);
         info!(whitelist = %whitelist, blacklist = %blacklist, "Whitelist configuration");
@@ -76,7 +68,6 @@ impl BaseAgent for Relayer {
 
         Ok(Self {
             origin_chain,
-            multisig_checkpoint_syncer,
             core,
             gas_payment_enforcement_policy: settings.gaspaymentenforcementpolicy,
             whitelist,
@@ -106,6 +97,8 @@ impl BaseAgent for Relayer {
             .filter(|c| **c != self.origin_chain)
             .collect::<Vec<&HyperlaneDomain>>();
 
+        let validator_announce= self.validator_announce(&self.origin_chain).unwrap().clone();
+
         for chain in &destinations {
             let (send_channel, receive_channel): (
                 UnboundedSender<SubmitMessageArgs>,
@@ -124,8 +117,8 @@ impl BaseAgent for Relayer {
                 self.core.metrics.clone(),
                 self.core.settings.get_signer(chain.name()).await,
                 chain_setup.clone(),
-                self.multisig_checkpoint_syncer.clone(),
                 prover_sync.clone(),
+                validator_announce.clone()
             );
             tasks.push(self.run_destination_mailbox(
                 mailbox.clone(),

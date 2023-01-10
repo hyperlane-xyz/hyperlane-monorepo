@@ -14,7 +14,7 @@ use hyperlane_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
-pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*};
+pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*, validator_announce::*};
 
 #[cfg(not(doctest))]
 mod tx;
@@ -37,6 +37,10 @@ mod interchain_gas;
 /// MultisigIsm abi
 #[cfg(not(doctest))]
 mod multisig_ism;
+
+/// ValidatorAnnounce abi
+#[cfg(not(doctest))]
+mod validator_announce;
 
 /// Generated contract bindings.
 #[cfg(not(doctest))]

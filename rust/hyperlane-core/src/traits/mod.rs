@@ -5,6 +5,7 @@ pub use interchain_gas::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
+pub use validator_announce::*;
 
 mod cursor;
 mod encode;
@@ -12,6 +13,7 @@ mod indexer;
 mod interchain_gas;
 mod mailbox;
 mod multisig_ism;
+mod validator_announce;
 mod provider;
 
 /// The result of a transaction

@@ -9,8 +9,10 @@ pub use interchain_gas::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
+pub use validator_announce::*;
 
 mod interchain_gas;
 mod mailbox;
 mod multisig_ism;
 mod provider;
+mod validator_announce;

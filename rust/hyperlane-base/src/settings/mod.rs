@@ -86,7 +86,7 @@ pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers, H256,
+    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers, H256, ValidatorAnnounce,
 };
 pub use signers::SignerConf;
 
@@ -164,9 +164,13 @@ impl Settings {
         let interchain_gas_paymasters = self
             .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db.clone())
             .await?;
+        let validator_announces = self
+            .build_all_validator_announces(chain_names.as_slice(), &metrics)
+            .await?;
         Ok(HyperlaneAgentCore {
             mailboxes,
             interchain_gas_paymasters,
+            validator_announces,
             db,
             metrics,
             settings: self.clone(),
@@ -212,6 +216,21 @@ impl Settings {
         Ok(result)
     }
 
+    /// Try to get a map of chain name -> validator announce contract
+    pub async fn build_all_validator_announces(
+        &self,
+        chain_names: &[&str],
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<HashMap<HyperlaneDomain, Arc<dyn ValidatorAnnounce>>> {
+        let mut result = HashMap::new();
+        for &chain_name in chain_names {
+            let validator_announce = self
+                .build_validator_announce(chain_name, metrics)
+                .await?;
+            result.insert(validator_announce.domain().clone(), validator_announce);
+        }
+        Ok(result)
+    }
     /// Try to get a CachingMailbox
     async fn build_caching_mailbox(
         &self,
@@ -250,7 +269,6 @@ impl Settings {
         ))
     }
 
-    /// TODO
     pub async fn build_multisig_ism(
         &self,
         chain_name: &str,
@@ -260,6 +278,17 @@ impl Settings {
         let signer = self.get_signer(chain_name).await;
         let setup = self.chain_setup(chain_name)?;
         setup.build_multisig_ism(signer, metrics, address).await
+    }
+
+    pub async fn build_validator_announce(
+        &self,
+        chain_name: &str,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Arc<dyn ValidatorAnnounce>> {
+        let signer = self.get_signer(chain_name).await;
+        let setup = self.chain_setup(chain_name)?;
+        let announce = setup.build_validator_announce(signer, metrics).await?;
+        Ok(announce.into())
     }
 
     /// Try to get the chain setup for the provided chain name

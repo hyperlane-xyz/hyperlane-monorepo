@@ -9,7 +9,7 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainImpl, HyperlaneProvider,
     InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm,
-    Signers, H256,
+    Signers, H256, ValidatorAnnounce,
 };
 use hyperlane_ethereum::{
     BuildableWithProvider, ConnectionConf, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -63,6 +63,7 @@ pub struct CoreContractAddresses {
     pub mailbox: String,
     /// Address of the InterchainGasPaymaster contract
     pub interchain_gas_paymaster: String,
+    pub validator_announce: String,
 }
 
 /// Indexing settings
@@ -261,6 +262,31 @@ impl ChainSetup {
             ChainConf::Fuel => todo!(),
         }
         .context("Building IGP indexer")
+    }
+
+    pub async fn build_validator_announce(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn ValidatorAnnounce>> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
+        let locator = self.locator(&self.addresses.validator_announce)?;
+        match &self.chain {
+            ChainConf::Ethereum(conf) => {
+                hyperlane_ethereum::ValidatorAnnounceBuilder {}
+                    .build_with_connection_conf(
+                        conf.clone(),
+                        &locator,
+                        signer,
+                        Some(|| metrics.json_rpc_client_metrics()),
+                        Some((metrics.provider_metrics(), metrics_conf)),
+                    )
+                    .await
+            }
+
+            ChainConf::Fuel => todo!(),
+        }
+        .context("Building ValidatorAnnounce")
     }
 
     /// Try to convert the chain setting into a Multisig Ism contract
