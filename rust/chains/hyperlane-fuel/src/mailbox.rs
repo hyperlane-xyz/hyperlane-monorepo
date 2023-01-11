@@ -1,16 +1,13 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
-use std::num::NonZeroU64;
 
 use async_trait::async_trait;
 use fuels::prelude::{Bech32ContractId, WalletUnlocked};
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, Indexer, LogMeta,
-    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, Indexer, LogMeta, Mailbox, MailboxIndexer, H256,
 };
-
 use tracing::{debug, instrument};
 
 use crate::contracts::mailbox::Mailbox as FuelMailboxInner;
