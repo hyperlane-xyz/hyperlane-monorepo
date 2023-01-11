@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use ethers::prelude::Selector;
 use eyre::{eyre, Context, Result};
 use serde::Deserialize;
 
