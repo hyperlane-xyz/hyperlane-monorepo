@@ -135,9 +135,9 @@ jobs:
       - uses: dorny/paths-filter@v2
         id: changes
         with:
-        filters: |
-          soliditycov:
-            - 'solidity/*-lcov.base.info'
+          filters: |
+            soliditycov:
+              - 'solidity/*-lcov.base.info'
 
       - if: steps.changes.outputs.soliditycov == 'true'
         name: coverage
