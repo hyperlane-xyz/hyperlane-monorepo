@@ -6,10 +6,11 @@ use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
 use hyperlane_base::{run_all, BaseAgent, CheckpointSyncer, CoreMetrics, HyperlaneAgentCore};
-use hyperlane_core::{HyperlaneDomain, Mailbox, HyperlaneSigner};
+use hyperlane_core::{HyperlaneDomain, HyperlaneSigner, Mailbox};
 
-use crate::submit::ValidatorSubmitterMetrics;
-use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
+use crate::{
+    settings::ValidatorSettings, submit::ValidatorSubmitter, submit::ValidatorSubmitterMetrics,
+};
 
 /// A validator agent
 #[derive(Debug)]
@@ -48,10 +49,7 @@ impl BaseAgent for Validator {
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
         let interval = settings.interval.parse().expect("invalid uint");
         let core = settings.build_hyperlane_core(metrics.clone());
-        let checkpoint_syncer = settings
-            .checkpointsyncer
-            .try_into_checkpoint_syncer(None)?
-            .into();
+        let checkpoint_syncer = settings.checkpointsyncer.build(None)?.into();
 
         let mailbox = settings
             .build_mailbox(&settings.originchainname, &metrics)
