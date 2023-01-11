@@ -256,7 +256,7 @@ export type RustCoreAddresses = {
 export type RustChainSetup = {
   name: ChainName;
   domain: string;
-  signer?: RustSigner;
+  signer?: RustSigner | null;
   finalityBlocks: string;
   addresses: RustCoreAddresses;
   rpcStyle: 'ethereum';

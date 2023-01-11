@@ -100,7 +100,7 @@ export class HyperlaneCoreInfraDeployer<
           mailbox: contracts.mailbox.contract.address,
           interchainGasPaymaster: contracts.interchainGasPaymaster.address,
         },
-        signer: undefined,
+        signer: null,
         rpcStyle: 'ethereum',
         finalityBlocks: metadata.blocks.reorgPeriod.toString(),
         connection: {
