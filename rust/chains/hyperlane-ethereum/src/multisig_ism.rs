@@ -7,6 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::abi::Token;
 use ethers::providers::Middleware;
+use tracing::instrument;
 
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
@@ -89,6 +90,7 @@ impl<M> MultisigIsm for EthereumMultisigIsm<M>
 where
     M: Middleware + 'static,
 {
+    #[instrument(err, ret)]
     async fn validators_and_threshold(
         &self,
         message: &HyperlaneMessage,

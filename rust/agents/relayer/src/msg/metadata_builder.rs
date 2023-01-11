@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
-use hyperlane_base::{CachingMailbox, ChainSetup, CoreMetrics, MultisigCheckpointSyncer};
-use hyperlane_core::{HyperlaneMessage, Signers};
-use hyperlane_core::{Mailbox, MultisigIsm, H256};
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument};
+
+use hyperlane_base::{CachingMailbox, ChainSetup, CoreMetrics, MultisigCheckpointSyncer};
+use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::{Mailbox, MultisigIsm};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
 #[derive(Debug, Clone)]
 pub struct MetadataBuilder {
     metrics: Arc<CoreMetrics>,
-    signer: Option<Signers>,
     chain_setup: ChainSetup,
     checkpoint_syncer: MultisigCheckpointSyncer,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
@@ -20,14 +20,12 @@ pub struct MetadataBuilder {
 impl MetadataBuilder {
     pub fn new(
         metrics: Arc<CoreMetrics>,
-        signer: Option<Signers>,
         chain_setup: ChainSetup,
         checkpoint_syncer: MultisigCheckpointSyncer,
         prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     ) -> Self {
         MetadataBuilder {
             metrics,
-            signer,
             chain_setup,
             checkpoint_syncer,
             prover_sync,
@@ -41,7 +39,11 @@ impl MetadataBuilder {
         mailbox: CachingMailbox,
     ) -> eyre::Result<Option<Vec<u8>>> {
         let ism_address = mailbox.recipient_ism(message.recipient).await?;
-        let multisig_ism = self.build_multisig_ism(ism_address).await?;
+        let multisig_ism = self
+            .chain_setup
+            .build_multisig_ism(ism_address, &self.metrics)
+            .await?;
+
         let (validators, threshold) = multisig_ism.validators_and_threshold(message).await?;
         let highest_known_nonce = self.prover_sync.read().await.count() - 1;
         if let Some(checkpoint) = self
@@ -90,11 +92,5 @@ impl MetadataBuilder {
             );
             Ok(None)
         }
-    }
-
-    async fn build_multisig_ism(&self, address: H256) -> eyre::Result<Box<dyn MultisigIsm>> {
-        self.chain_setup
-            .build_multisig_ism(self.signer.clone(), &self.metrics, address)
-            .await
     }
 }
