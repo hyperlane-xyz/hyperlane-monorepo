@@ -309,7 +309,9 @@ impl HyperlaneDomain {
     pub const fn domain_protocol(&self) -> HyperlaneDomainProtocol {
         match self {
             HyperlaneDomain::Known(domain) => domain.domain_protocol(),
-            HyperlaneDomain::Unknown { domain_protocol, .. } => *domain_protocol,
+            HyperlaneDomain::Unknown {
+                domain_protocol, ..
+            } => *domain_protocol,
         }
     }
 }

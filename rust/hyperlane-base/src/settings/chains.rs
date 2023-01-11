@@ -20,11 +20,7 @@ use crate::CoreMetrics;
 ///
 /// Specify the chain name (enum variant) in toml under the `chain` key
 #[derive(Clone, Debug, Deserialize)]
-#[serde(
-    tag = "protocol",
-    content = "connection",
-    rename_all = "camelCase"
-)]
+#[serde(tag = "protocol", content = "connection", rename_all = "camelCase")]
 pub enum ChainConf {
     /// Ethereum configuration
     Ethereum(h_eth::ConnectionConf),
