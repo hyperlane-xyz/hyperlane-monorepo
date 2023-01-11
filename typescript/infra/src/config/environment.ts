@@ -15,6 +15,7 @@ import { AgentConfig, ConnectionType } from './agent';
 import { KeyFunderConfig } from './funding';
 import { HelloWorldConfig } from './helloworld';
 import { InfrastructureConfig } from './infrastructure';
+import { LiquidityLayerRelayerConfig } from './middleware';
 
 export const EnvironmentNames = Object.keys(environments);
 export type DeployEnvironment = keyof typeof environments;
@@ -37,6 +38,7 @@ export type CoreEnvironmentConfig<Chain extends ChainName> = {
   ) => Promise<MultiProvider<Chain>>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig<Chain>>>;
   keyFunderConfig?: KeyFunderConfig;
+  liquidityLayerRelayerConfig?: LiquidityLayerRelayerConfig;
 };
 
 export type SdkEnvironment = keyof typeof coreEnvironments;
