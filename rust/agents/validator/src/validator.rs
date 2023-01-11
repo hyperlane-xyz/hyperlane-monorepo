@@ -6,7 +6,7 @@ use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
 use hyperlane_base::{
-    run_all, Agent, BaseAgent, CheckpointSyncers, CoreMetrics, HyperlaneAgentCore,
+    run_all, Agent, BaseAgent, CheckpointSyncer, CoreMetrics, HyperlaneAgentCore,
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneSigner};
 
@@ -20,7 +20,7 @@ pub struct Validator {
     signer: Arc<dyn HyperlaneSigner>,
     reorg_period: u64,
     interval: u64,
-    checkpoint_syncer: Arc<CheckpointSyncers>,
+    checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     pub(crate) core: HyperlaneAgentCore,
 }
 
@@ -51,10 +51,7 @@ impl BaseAgent for Validator {
         let core = settings
             .try_into_hyperlane_core(metrics, Some(vec![&settings.originchainname]))
             .await?;
-        let checkpoint_syncer = settings
-            .checkpointsyncer
-            .try_into_checkpoint_syncer(None)?
-            .into();
+        let checkpoint_syncer = settings.checkpointsyncer.build(None)?.into();
 
         let origin_chain = core
             .settings
