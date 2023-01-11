@@ -1,7 +1,5 @@
 //! Configuration
 
-use eyre::Result;
-
 use hyperlane_base::decl_settings;
 
 decl_settings!(Validator {
