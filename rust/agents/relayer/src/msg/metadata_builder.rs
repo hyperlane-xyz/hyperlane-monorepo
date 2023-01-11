@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use ethers::providers::call_raw::storage;
-use hyperlane_base::{CachingMailbox, ChainSetup, CoreMetrics, MultisigCheckpointSyncer, CheckpointSyncer, CheckpointSyncers};
+use hyperlane_base::{
+    CachingMailbox, ChainSetup, CheckpointSyncerConf, CheckpointSyncers, CoreMetrics,
+    MultisigCheckpointSyncer,
+};
 use hyperlane_core::{HyperlaneMessage, Signers, ValidatorAnnounce, H160};
 use hyperlane_core::{Mailbox, MultisigIsm, H256};
 use tokio::sync::RwLock;
@@ -32,7 +34,7 @@ impl MetadataBuilder {
             signer,
             chain_setup,
             prover_sync,
-            validator_announce
+            validator_announce,
         }
     }
 
@@ -47,8 +49,7 @@ impl MetadataBuilder {
         let (validators, threshold) = multisig_ism.validators_and_threshold(message).await?;
         let highest_known_nonce = self.prover_sync.read().await.count() - 1;
         let checkpoint_syncer = self.build_checkpoint_syncer(&validators).await?;
-        if let Some(checkpoint) = 
-            checkpoint_syncer
+        if let Some(checkpoint) = checkpoint_syncer
             .fetch_checkpoint_in_range(
                 &validators,
                 threshold.into(),
@@ -95,21 +96,24 @@ impl MetadataBuilder {
         }
     }
 
-    async fn build_checkpoint_syncer(&self, validators: &Vec<H256>) -> eyre::Result<MultisigCheckpointSyncer> {
+    async fn build_checkpoint_syncer(
+        &self,
+        validators: &[H256],
+    ) -> eyre::Result<MultisigCheckpointSyncer> {
         let mut checkpoint_syncers: HashMap<H160, CheckpointSyncers> = HashMap::new();
-        let storage_locations = self.validator_announce.get_announced_storage_locations(*validators).await?;
+        let storage_locations = self
+            .validator_announce
+            .get_announced_storage_locations(validators)
+            .await?;
         // Only use the most recently announced location for now.
-        for validator_storage_locations in storage_locations.iter() {
+        for (i, validator_storage_locations) in storage_locations.iter().enumerate() {
             for storage_location in validator_storage_locations.iter() {
-                if storage_location.starts_with("s3://") {
-
-                } else if storage_location.starts_with("file://") {
-
-                } else {
-
+                if let Some(conf) = CheckpointSyncerConf::from_storage_location(storage_location) {
+                    if let Ok(checkpoint_syncer) = conf.try_into_checkpoint_syncer(None) {
+                        checkpoint_syncers.insert(H160::from(validators[i]), checkpoint_syncer);
+                        break;
+                    }
                 }
-                
-                break;
             }
         }
         Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))

@@ -14,7 +14,10 @@ use hyperlane_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
-pub use crate::{interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*, validator_announce::*};
+pub use crate::{
+    interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*,
+    validator_announce::*,
+};
 
 #[cfg(not(doctest))]
 mod tx;

@@ -10,11 +10,12 @@ use ethers::types::Selector;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    ValidatorAnnounce,
-    H160, H256,
+    ValidatorAnnounce, H160, H256,
 };
 
-use crate::contracts::validator_announce::{ValidatorAnnounce as EthereumValidatorAnnounceInternal, VALIDATORANNOUNCE_ABI};
+use crate::contracts::validator_announce::{
+    ValidatorAnnounce as EthereumValidatorAnnounceInternal, VALIDATORANNOUNCE_ABI,
+};
 use crate::trait_builder::BuildableWithProvider;
 
 impl<M> std::fmt::Display for EthereumValidatorAnnounceInternal<M>
@@ -59,7 +60,10 @@ where
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumValidatorAnnounceInternal::new(locator.address, provider)),
+            contract: Arc::new(EthereumValidatorAnnounceInternal::new(
+                locator.address,
+                provider,
+            )),
             domain: locator.domain.clone(),
         }
     }
@@ -90,7 +94,7 @@ where
 {
     async fn get_announced_storage_locations(
         &self,
-        validators: Vec<H256>,
+        validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
         let storage_locations = self
             .contract

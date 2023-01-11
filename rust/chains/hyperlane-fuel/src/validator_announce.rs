@@ -1,8 +1,7 @@
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    ValidatorAnnounce, H256,
+    ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, ValidatorAnnounce, H256,
 };
 
 /// A reference to a ValidatorAnnounce contract on some Fuel chain
@@ -25,7 +24,7 @@ impl HyperlaneChain for FuelValidatorAnnounce {
 impl ValidatorAnnounce for FuelValidatorAnnounce {
     async fn get_announced_storage_locations(
         &self,
-        validators: Vec<H256>,
+        validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
         todo!()
     }

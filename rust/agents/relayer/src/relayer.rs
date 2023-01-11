@@ -11,7 +11,7 @@ use hyperlane_base::chains::TransactionSubmissionType;
 use hyperlane_base::CachingMailbox;
 use hyperlane_base::{
     chains::GelatoConf, run_all, Agent, BaseAgent, ContractSyncMetrics, CoreMetrics,
-    HyperlaneAgentCore
+    HyperlaneAgentCore,
 };
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain};
 
@@ -97,7 +97,7 @@ impl BaseAgent for Relayer {
             .filter(|c| **c != self.origin_chain)
             .collect::<Vec<&HyperlaneDomain>>();
 
-        let validator_announce= self.validator_announce(&self.origin_chain).unwrap().clone();
+        let validator_announce = self.validator_announce(&self.origin_chain).unwrap().clone();
 
         for chain in &destinations {
             let (send_channel, receive_channel): (
@@ -118,7 +118,7 @@ impl BaseAgent for Relayer {
                 self.core.settings.get_signer(chain.name()).await,
                 chain_setup.clone(),
                 prover_sync.clone(),
-                validator_announce.clone()
+                validator_announce.clone(),
             );
             tasks.push(self.run_destination_mailbox(
                 mailbox.clone(),

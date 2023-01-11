@@ -30,18 +30,24 @@ pub enum CheckpointSyncerConf {
 }
 
 impl CheckpointSyncerConf {
-    fn from_storage_location(storage_location: String) -> Option<Self> {
-        let set = RegexSet::new(&[
-            r"^[s3|file]://",
-            r"(?<=[s3|file]://).*",
-        ]).unwrap();
-        
-        // Iterate over and collect all of the matches.
-        let matches: Vec<_> = set.matches(storage_location).into_iter().collect();
-        if (matches[0] == "s3://") {
-            Some(CheckpointSyncerConf::S3 { path: matches[1] })
-        } else if matches[0] == "file://" {
-            Some(CheckpointSyncerConf::LocalStorage { path: matches[1] })
+    /// Create a CheckpointSyncerConf from a storage location string
+    pub fn from_storage_location(storage_location: &str) -> Option<Self> {
+        let s3_prefix = "s3://";
+        let local_prefix = "file://";
+        if storage_location.starts_with(s3_prefix) {
+            let location = storage_location.strip_prefix(s3_prefix).unwrap();
+            let pieces: Vec<&str> = location.split('/').collect();
+            if pieces.len() == 2 {
+                Some(CheckpointSyncerConf::S3 {
+                    bucket: pieces[0].into(),
+                    region: pieces[1].into(),
+                })
+            } else {
+                None
+            }
+        } else if storage_location.starts_with(local_prefix) {
+            let path = storage_location.strip_prefix(local_prefix).unwrap();
+            Some(CheckpointSyncerConf::LocalStorage { path: path.into() })
         } else {
             None
         }

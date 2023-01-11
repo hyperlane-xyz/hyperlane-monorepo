@@ -86,7 +86,8 @@ pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers, H256, ValidatorAnnounce,
+    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers,
+    ValidatorAnnounce, H256,
 };
 pub use signers::SignerConf;
 
@@ -224,9 +225,7 @@ impl Settings {
     ) -> eyre::Result<HashMap<HyperlaneDomain, Arc<dyn ValidatorAnnounce>>> {
         let mut result = HashMap::new();
         for &chain_name in chain_names {
-            let validator_announce = self
-                .build_validator_announce(chain_name, metrics)
-                .await?;
+            let validator_announce = self.build_validator_announce(chain_name, metrics).await?;
             result.insert(validator_announce.domain().clone(), validator_announce);
         }
         Ok(result)
@@ -269,6 +268,7 @@ impl Settings {
         ))
     }
 
+    /// Try to get a MultisigIsm
     pub async fn build_multisig_ism(
         &self,
         chain_name: &str,
@@ -280,6 +280,7 @@ impl Settings {
         setup.build_multisig_ism(signer, metrics, address).await
     }
 
+    /// Try to get a ValidatorAnnounce
     pub async fn build_validator_announce(
         &self,
         chain_name: &str,

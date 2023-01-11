@@ -9,7 +9,7 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainImpl, HyperlaneProvider,
     InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm,
-    Signers, H256, ValidatorAnnounce,
+    Signers, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     BuildableWithProvider, ConnectionConf, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -63,6 +63,7 @@ pub struct CoreContractAddresses {
     pub mailbox: String,
     /// Address of the InterchainGasPaymaster contract
     pub interchain_gas_paymaster: String,
+    /// Address of the ValidatorAnnounce contract
     pub validator_announce: String,
 }
 
@@ -264,6 +265,7 @@ impl ChainSetup {
         .context("Building IGP indexer")
     }
 
+    /// Try to convert the chain settings into a ValidatorAnnounce
     pub async fn build_validator_announce(
         &self,
         signer: Option<Signers>,

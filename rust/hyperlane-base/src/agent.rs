@@ -82,10 +82,7 @@ pub trait Agent: BaseAgent {
     ) -> Option<&CachingInterchainGasPaymaster>;
 
     /// Return a reference to an InterchainGasPaymaster contract
-    fn validator_announce(
-        &self,
-        domain: &HyperlaneDomain,
-    ) -> Option<&Arc<dyn ValidatorAnnounce>>;
+    fn validator_announce(&self, domain: &HyperlaneDomain) -> Option<&Arc<dyn ValidatorAnnounce>>;
 }
 
 #[async_trait]
@@ -108,10 +105,7 @@ where
         self.as_ref().interchain_gas_paymasters.get(domain)
     }
 
-    fn validator_announce(
-        &self,
-        domain: &HyperlaneDomain,
-    ) -> Option<&Arc<dyn ValidatorAnnounce>> {
+    fn validator_announce(&self, domain: &HyperlaneDomain) -> Option<&Arc<dyn ValidatorAnnounce>> {
         self.as_ref().validator_announces.get(domain)
     }
 }

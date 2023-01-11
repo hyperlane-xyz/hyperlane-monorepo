@@ -13,8 +13,8 @@ mod indexer;
 mod interchain_gas;
 mod mailbox;
 mod multisig_ism;
-mod validator_announce;
 mod provider;
+mod validator_announce;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]

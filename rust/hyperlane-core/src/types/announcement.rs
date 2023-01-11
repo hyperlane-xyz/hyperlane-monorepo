@@ -11,7 +11,7 @@ use crate::{utils::domain_hash, HyperlaneProtocolError, SignerExt, H160, H256};
 /// An Hyperlane checkpoint
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Announcement {
-    // The validator address
+    /// The validator address
     pub validator: H160,
     /// The mailbox address
     pub mailbox_address: H256,
