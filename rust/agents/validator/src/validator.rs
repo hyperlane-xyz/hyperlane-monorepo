@@ -9,8 +9,9 @@ use tracing::instrument::Instrumented;
 use hyperlane_base::{run_all, BaseAgent, CheckpointSyncer, CoreMetrics, HyperlaneAgentCore};
 use hyperlane_core::{HyperlaneDomain, HyperlaneSigner, Mailbox};
 
-use crate::submit::ValidatorSubmitterMetrics;
-use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
+use crate::{
+    settings::ValidatorSettings, submit::ValidatorSubmitter, submit::ValidatorSubmitterMetrics,
+};
 
 /// A validator agent
 #[derive(Debug)]

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{Context, Result};
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     RwLock,
@@ -17,16 +17,18 @@ use hyperlane_base::{
 };
 use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain};
 
-use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::msg::{
-    gas_payment::GasPaymentEnforcer,
-    gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics},
-    metadata_builder::MetadataBuilder,
-    processor::{MessageProcessor, MessageProcessorMetrics},
-    serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
-    SubmitMessageArgs,
+use crate::{
+    merkle_tree_builder::MerkleTreeBuilder,
+    msg::{
+        gas_payment::GasPaymentEnforcer,
+        gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics},
+        metadata_builder::MetadataBuilder,
+        processor::{MessageProcessor, MessageProcessorMetrics},
+        serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
+        SubmitMessageArgs,
+    },
+    settings::{matching_list::MatchingList, GasPaymentEnforcementPolicy, RelayerSettings},
 };
-use crate::settings::{matching_list::MatchingList, GasPaymentEnforcementPolicy, RelayerSettings};
 
 /// A relayer agent
 #[derive(Debug)]
@@ -58,19 +60,20 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = if let Some(ref remotes) = settings.destinationchainnames {
-            let mut v: Vec<&str> = remotes.split(',').collect();
-            v.push(&settings.originchainname);
-            settings
-                .try_into_hyperlane_core(metrics, Some(v.clone()))
-                .await?
-        } else {
-            settings.build_hyperlane_core(metrics.clone())
-        };
+        let core = settings.build_hyperlane_core(metrics.clone());
         let db = DB::from_path(&settings.db)?;
 
-        // If not provided, default to using every chain listed in self.chains.
-        let chain_names: Vec<_> = settings.chains.keys().map(String::as_str).collect();
+        let chain_names: Vec<_> = if let Some(ref remotes) = settings.destinationchainnames {
+            // Use defined remote chains + the origin chain
+            remotes
+                .split(',')
+                .chain([settings.originchainname.as_str()])
+                .collect()
+        } else {
+            // If not provided, default to using every chain listed in self.chains.
+            settings.chains.keys().map(String::as_str).collect()
+        };
+
         let mailboxes = settings
             .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
             .await?;
@@ -143,10 +146,10 @@ impl BaseAgent for Relayer {
 
             let txsubmission = chain_setup.txsubmission;
             let metadata_builder = MetadataBuilder::new(
-                self.core.metrics.clone(),
                 chain_setup,
                 self.multisig_checkpoint_syncer.clone(),
                 prover_sync.clone(),
+                self.core.metrics.clone(),
             );
             tasks.push(self.run_destination_mailbox(
                 mailbox.clone(),

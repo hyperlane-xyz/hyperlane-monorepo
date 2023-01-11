@@ -103,8 +103,8 @@ impl ValidatorSubmitter {
                 .latest_checkpoint_observed
                 .set(latest_checkpoint.index as i64);
 
-            // Occasional info to make it clear to a validator operator whether things are working
-            // correctly without using the debug log level.
+            // Occasional info to make it clear to a validator operator whether things are
+            // working correctly without using the debug log level.
             if should_log_checkpoint_info() {
                 info!(
                     latest_signed_checkpoint_index=?current_index,
