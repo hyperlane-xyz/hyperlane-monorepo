@@ -58,7 +58,14 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings.build_hyperlane_core(metrics.clone());
+        let core = if let Some(ref remotes) = settings.destinationchainnames {
+            let mut v: Vec<&str> = remotes.split(',').collect();
+            v.push(&settings.originchainname);
+            settings.build_hyperlane_core(metrics.clone(), Some(v.clone())).await?
+        } else {
+            settings.try_into_hyperlane_core(metrics, None).await?
+        };
+
         let db = DB::from_path(&settings.db)?;
 
         // If not provided, default to using every chain listed in self.chains.
@@ -70,12 +77,10 @@ impl BaseAgent for Relayer {
             .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db)
             .await?;
 
-        let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
-            .multisigcheckpointsyncer
-            .try_into_multisig_checkpoint_syncer(
-                &settings.originchainname,
-                core.metrics.validator_checkpoint_index(),
-            )?;
+        let multisig_checkpoint_syncer = settings.multisigcheckpointsyncer.build(
+            &settings.originchainname,
+            core.metrics.validator_checkpoint_index(),
+        )?;
 
         let whitelist = parse_matching_list(&settings.whitelist);
         let blacklist = parse_matching_list(&settings.blacklist);

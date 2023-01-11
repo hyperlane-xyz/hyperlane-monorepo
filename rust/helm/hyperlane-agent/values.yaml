@@ -51,12 +51,14 @@ hyperlane:
   chains:
     - name: 'alfajores'
       disabled: false
+      signer:
+        # aws:
       addresses:
         mailbox:
         multisigIsm:
         interchainGasPaymaster:
       domain:
-      rpcStyle: # "ethereum"
+      protocol: # "ethereum"
       connection:
         type: # "http"
 
@@ -101,11 +103,6 @@ hyperlane:
       requests:
         cpu: 250m
         memory: 256Mi
-    signers:
-      - name: 'kovan'
-        # aws:
-      - name: 'alfajores'
-        # aws:
     config:
       originChainName:
       multisigCheckpointSyncer:
@@ -126,7 +123,6 @@ hyperlane:
       requests:
         cpu: 250m
         memory: 256Mi
-    signers:
     config:
 
   kathy:

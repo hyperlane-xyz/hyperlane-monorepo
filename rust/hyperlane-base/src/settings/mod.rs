@@ -86,7 +86,7 @@ pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers, H256,
+    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, H256,
 };
 pub use signers::SignerConf;
 
@@ -134,8 +134,6 @@ static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainSetup>,
-    /// Transaction signers
-    pub signers: HashMap<String, SignerConf>,
     /// Gelato config
     pub gelato: Option<GelatoConf>,
     /// Port to listen for prometheus scrape requests
@@ -151,11 +149,6 @@ impl Settings {
             metrics,
             settings: self.clone(),
         }
-    }
-
-    /// Try to get a signer instance by name
-    pub async fn get_signer(&self, name: &str) -> Option<Signers> {
-        self.signers.get(name)?.try_into_signer().await.ok()
     }
 
     /// Try to get a map of chain name -> mailbox contract
@@ -234,12 +227,11 @@ impl Settings {
     pub async fn build_multisig_ism(
         &self,
         chain_name: &str,
-        metrics: &CoreMetrics,
         address: H256,
+        metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn MultisigIsm>> {
-        let signer = self.get_signer(chain_name).await;
         let setup = self.chain_setup(chain_name)?;
-        setup.build_multisig_ism(signer, metrics, address).await
+        setup.build_multisig_ism(address, metrics).await
     }
 
     /// Try to get the chain setup for the provided chain name
@@ -266,7 +258,6 @@ impl Settings {
     fn clone(&self) -> Self {
         Self {
             chains: self.chains.clone(),
-            signers: self.signers.clone(),
             gelato: self.gelato.clone(),
             metrics: self.metrics.clone(),
             tracing: self.tracing.clone(),
@@ -283,9 +274,8 @@ macro_rules! delegate_fn {
             chain_name: &str,
             metrics: &CoreMetrics,
         ) -> eyre::Result<Box<$ret>> {
-            let signer = self.get_signer(chain_name).await;
             let setup = self.chain_setup(chain_name)?;
-            setup.$name(signer, metrics).await
+            setup.$name(metrics).await
         }
     };
 }

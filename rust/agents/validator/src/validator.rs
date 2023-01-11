@@ -5,8 +5,8 @@ use eyre::{Context, Result};
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use hyperlane_base::{run_all, BaseAgent, CheckpointSyncers, CoreMetrics, HyperlaneAgentCore};
-use hyperlane_core::{HyperlaneDomain, Mailbox, Signers};
+use hyperlane_base::{run_all, BaseAgent, CheckpointSyncer, CoreMetrics, HyperlaneAgentCore};
+use hyperlane_core::{HyperlaneDomain, Mailbox, HyperlaneSigner};
 
 use crate::submit::ValidatorSubmitterMetrics;
 use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
@@ -17,10 +17,10 @@ pub struct Validator {
     origin_chain: HyperlaneDomain,
     core: HyperlaneAgentCore,
     mailbox: Arc<dyn Mailbox>,
-    signer: Arc<Signers>,
+    signer: Arc<dyn HyperlaneSigner>,
     reorg_period: u64,
     interval: u64,
-    checkpoint_syncer: Arc<CheckpointSyncers>,
+    checkpoint_syncer: Arc<dyn CheckpointSyncer>,
 }
 
 impl AsRef<HyperlaneAgentCore> for Validator {
@@ -39,7 +39,12 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
-        let signer = settings.validator.try_into_signer().await?.into();
+        let signer = settings
+            .validator
+            // Intentionally using hyperlane_ethereum for the validator's signer
+            .build::<hyperlane_ethereum::Signers>()
+            .await
+            .map(|validator| Arc::new(validator) as Arc<dyn HyperlaneSigner>)?;
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
         let interval = settings.interval.parse().expect("invalid uint");
         let core = settings.build_hyperlane_core(metrics.clone());

@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+use std::num::NonZeroU64;
+
 use async_trait::async_trait;
 use mockall::*;
 
@@ -26,7 +28,7 @@ mock! {
 
         pub fn _count(&self) -> ChainResult<u32> {}
 
-        pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {}
+        pub fn _latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {}
 
         pub fn _default_ism(&self) -> ChainResult<H256> {}
         pub fn _recipient_ism(&self, recipient: H256) -> ChainResult<H256> {}
@@ -66,7 +68,7 @@ impl Mailbox for MockMailboxContract {
         self._count()
     }
 
-    async fn latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         self._latest_checkpoint(maybe_lag)
     }
 

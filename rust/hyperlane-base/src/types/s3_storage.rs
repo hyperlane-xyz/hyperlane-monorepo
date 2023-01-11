@@ -169,14 +169,14 @@ impl CheckpointSyncer for S3Storage {
     async fn write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
         let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
         self.write_to_bucket(
-            S3Storage::checkpoint_key(signed_checkpoint.checkpoint.index),
+            S3Storage::checkpoint_key(signed_checkpoint.value.index),
             &serialized_checkpoint,
         )
         .await?;
 
         self.write_to_bucket(
             S3Storage::index_key(),
-            &signed_checkpoint.checkpoint.index.to_string(),
+            &signed_checkpoint.value.index.to_string(),
         )
         .await?;
         Ok(())
