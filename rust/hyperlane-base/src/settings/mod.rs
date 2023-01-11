@@ -136,8 +136,6 @@ pub struct Settings {
     pub chains: HashMap<String, ChainSetup>,
     /// Gelato config
     pub gelato: Option<GelatoConf>,
-    /// Database connection string (might be a path on the fs or a remote db)
-    pub db: String,
     /// Port to listen for prometheus scrape requests
     pub metrics: Option<String>,
     /// The tracing configuration
@@ -145,30 +143,12 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// Try to generate an agent core for a named agent
-    pub async fn try_into_hyperlane_core(
-        &self,
-        metrics: Arc<CoreMetrics>,
-        chain_names: Option<Vec<&str>>,
-    ) -> eyre::Result<HyperlaneAgentCore> {
-        let db = DB::from_path(&self.db)?;
-        // If not provided, default to using every chain listed in self.chains.
-        let chain_names =
-            chain_names.unwrap_or_else(|| Vec::from_iter(self.chains.keys().map(String::as_str)));
-
-        let mailboxes = self
-            .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
-            .await?;
-        let interchain_gas_paymasters = self
-            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db.clone())
-            .await?;
-        Ok(HyperlaneAgentCore {
-            mailboxes,
-            interchain_gas_paymasters,
-            db,
+    /// Generate an agent core
+    pub fn build_hyperlane_core(&self, metrics: Arc<CoreMetrics>) -> HyperlaneAgentCore {
+        HyperlaneAgentCore {
             metrics,
             settings: self.clone(),
-        })
+        }
     }
 
     /// Try to get a map of chain name -> mailbox contract
@@ -279,7 +259,6 @@ impl Settings {
         Self {
             chains: self.chains.clone(),
             gelato: self.gelato.clone(),
-            db: self.db.clone(),
             metrics: self.metrics.clone(),
             tracing: self.tracing.clone(),
         }

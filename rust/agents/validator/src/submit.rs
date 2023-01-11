@@ -7,14 +7,14 @@ use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{CachingMailbox, CheckpointSyncer, CoreMetrics};
+use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox};
 
 pub(crate) struct ValidatorSubmitter {
     interval: u64,
     reorg_period: Option<NonZeroU64>,
     signer: Arc<dyn HyperlaneSigner>,
-    mailbox: CachingMailbox,
+    mailbox: Arc<dyn Mailbox>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     metrics: ValidatorSubmitterMetrics,
 }
@@ -23,7 +23,7 @@ impl ValidatorSubmitter {
     pub(crate) fn new(
         interval: u64,
         reorg_period: u64,
-        mailbox: CachingMailbox,
+        mailbox: Arc<dyn Mailbox>,
         signer: Arc<dyn HyperlaneSigner>,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         metrics: ValidatorSubmitterMetrics,
@@ -46,8 +46,8 @@ impl ValidatorSubmitter {
     async fn main_task(self) -> Result<()> {
         // Sign and post the validator announcement
         let announcement = Announcement {
-            mailbox_address: self.mailbox.mailbox().address(),
-            mailbox_domain: self.mailbox.mailbox().domain().id(),
+            mailbox_address: self.mailbox.address(),
+            mailbox_domain: self.mailbox.domain().id(),
             storage_metadata: self.checkpoint_syncer.announcement_metadata(),
         };
         let signed_announcement = self.signer.sign(announcement).await?;
@@ -103,8 +103,8 @@ impl ValidatorSubmitter {
                 .latest_checkpoint_observed
                 .set(latest_checkpoint.index as i64);
 
-            // Occasional info to make it clear to a validator operator whether things are working
-            // correctly without using the debug log level.
+            // Occasional info to make it clear to a validator operator whether things are
+            // working correctly without using the debug log level.
             if should_log_checkpoint_info() {
                 info!(
                     latest_signed_checkpoint_index=?current_index,

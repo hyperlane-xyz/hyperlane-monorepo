@@ -4,8 +4,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, instrument};
 
 use hyperlane_base::{CachingMailbox, ChainSetup, CoreMetrics, MultisigCheckpointSyncer};
-use hyperlane_core::HyperlaneMessage;
-use hyperlane_core::{Mailbox, MultisigIsm};
+use hyperlane_core::{HyperlaneMessage, Mailbox, MultisigIsm};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
@@ -19,10 +18,10 @@ pub struct MetadataBuilder {
 
 impl MetadataBuilder {
     pub fn new(
-        metrics: Arc<CoreMetrics>,
         chain_setup: ChainSetup,
         checkpoint_syncer: MultisigCheckpointSyncer,
         prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
+        metrics: Arc<CoreMetrics>,
     ) -> Self {
         MetadataBuilder {
             metrics,
