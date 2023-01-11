@@ -20,7 +20,7 @@ contract MockCircleMessageTransmitter is ICircleMessageTransmitter {
         success = true;
     }
 
-    function hashSourceAndNonce(uint32 _source, uint256 _nonce)
+    function hashSourceAndNonce(uint32 _source, uint64 _nonce)
         public
         pure
         returns (bytes32)
