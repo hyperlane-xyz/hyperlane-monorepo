@@ -136,10 +136,10 @@ describe('LiquidityLayerRouter', async () => {
     await local.dispatchWithTokens(
       remoteDomain,
       utils.addressToBytes32(recipient.address),
-      '0x00',
       mockToken.address,
       amount,
       BridgeAdapterType.Circle,
+      '0x01',
     );
 
     const transferNonce = await circleTokenMessenger.nextNonce();
@@ -170,10 +170,10 @@ describe('LiquidityLayerRouter', async () => {
     await local.dispatchWithTokens(
       remoteDomain,
       utils.addressToBytes32(recipient.address),
-      '0x00',
       mockToken.address,
       amount,
       BridgeAdapterType.Portal,
+      '0x01',
     );
 
     const originAdapter =

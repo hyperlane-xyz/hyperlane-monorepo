@@ -42,11 +42,11 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
     function dispatchWithTokens(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
-        bytes calldata _messageBody,
         address _token,
         uint256 _amount,
-        string calldata _bridge
-    ) external returns (bytes32) {
+        string calldata _bridge,
+        bytes calldata _messageBody
+    ) external payable returns (bytes32) {
         ILiquidityLayerAdapter _adapter = _getAdapter(_bridge);
 
         // Transfer the tokens to the adapter
@@ -113,13 +113,15 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
                 _adapterData
             );
 
-        _userRecipient.handleWithTokens(
-            _origin,
-            _originalSender,
-            _userMessageBody,
-            _token,
-            _receivedAmount
-        );
+        if (_userMessageBody.length > 0) {
+            _userRecipient.handleWithTokens(
+                _origin,
+                _originalSender,
+                _userMessageBody,
+                _token,
+                _receivedAmount
+            );
+        }
     }
 
     function setLiquidityLayerAdapter(string calldata _bridge, address _adapter)
