@@ -1,39 +1,44 @@
 import {
   ChainNameToDomainId,
+  HyperlaneCore,
   hyperlaneCoreAddresses,
 } from '@hyperlane-xyz/sdk';
 
 import { S3Validator } from '../src/agents/aws/validator';
+import { deployEnvToSdkEnv } from '../src/config/environment';
 import { concurrentMap } from '../src/utils/utils';
 
-import {
-  getContextAgentConfig,
-  getCoreEnvironmentConfig,
-  getEnvironment,
-} from './utils';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
 
-  const agentConfig = await getContextAgentConfig(config, 'hyperlane');
+  const multiProvider = await config.getMultiProvider();
 
-  const validators = Object.entries(agentConfig.validatorSets).flatMap(
-    ([chain, set]) => set.validators.map((validator) => ({ chain, validator })),
+  // environments union doesn't work well with typescript
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider as any,
   );
+
+  const validators = Object.entries(config.core).flatMap(([chain, set]) =>
+    set.multisigIsm.validators.map((validator) => ({ chain, validator })),
+  );
+
   const indices = await concurrentMap(
     4,
     validators,
     async ({ chain, validator }) => {
+      // @ts-ignore Not sure why I need to do this..
+      const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
+      const storageLocations =
+        await validatorAnnounce.getAnnouncedStorageLocations([validator]);
       const s3Validator = new S3Validator(
-        validator.address,
-        // @ts-ignore
+        validator,
         ChainNameToDomainId[chain],
-        // @ts-ignore
         hyperlaneCoreAddresses[chain].mailbox,
-        // @ts-ignore
         validator.checkpointSyncer.bucket,
-        // @ts-ignore
         validator.checkpointSyncer.region,
       );
 

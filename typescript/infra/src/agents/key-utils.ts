@@ -44,16 +44,9 @@ export function getValidatorCloudAgentKeys(
 ): Array<CloudAgentKey> {
   // For each chainName, create validatorCount keys
   return agentConfig.contextChainNames.flatMap((chainName) =>
-    agentConfig.validatorSets[chainName].validators
-      .filter((validator) => !validator.readonly)
-      .map((validator, index) =>
-        getCloudAgentKey(
-          agentConfig,
-          KEY_ROLE_ENUM.Validator,
-          chainName,
-          index,
-        ),
-      ),
+    agentConfig.validators[chainName].validators.map((_, index) =>
+      getCloudAgentKey(agentConfig, KEY_ROLE_ENUM.Validator, chainName, index),
+    ),
   );
 }
 

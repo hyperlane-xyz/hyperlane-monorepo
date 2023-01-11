@@ -163,7 +163,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
 
     if (role === KEY_ROLE_ENUM.Validator) {
       const checkpointSyncer =
-        agentConfig.validatorSets[outboxChainName].validators[index!]
+        agentConfig.validators[outboxChainName].validators[index!]
           .checkpointSyncer;
       if (checkpointSyncer.type !== CheckpointSyncerType.S3) {
         throw Error(

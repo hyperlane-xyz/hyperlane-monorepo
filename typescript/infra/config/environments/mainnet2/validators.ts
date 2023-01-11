@@ -1,7 +1,7 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import {
-  ChainValidatorSets,
+  ChainValidatorConfigs,
   CheckpointSyncerType,
 } from '../../../src/config/agent';
 
@@ -14,9 +14,10 @@ const s3BucketName = <Chain extends ChainName>(
   index: number,
 ) => `hyperlane-${environment}-${chainName}-validator-${index}`;
 
-export const validators: ChainValidatorSets<MainnetChains> = {
+export const validators: ChainValidatorConfigs<MainnetChains> = {
   celo: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: 0,
     validators: [
       {
         address: '0x1f20274b1210046769d48174c2f0e7c25ca7d5c5',
@@ -48,7 +49,8 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   ethereum: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: 20,
     validators: [
       {
         address: '0x4c327ccb881a7542be77500b2833dc84c839e7b7',
@@ -80,7 +82,8 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   avalanche: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: 3,
     validators: [
       {
         address: '0xa7aa52623fe3d78c343008c95894be669e218b8d',
@@ -112,7 +115,8 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   polygon: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: 256,
     validators: [
       {
         address: '0x59a001c3451e7f9f3b4759ea215382c1e9aa5fc1',
@@ -144,7 +148,8 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   bsc: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: 15,
     validators: [
       {
         address: '0xcc84b1eb711e5076b2755cf4ad1d2b42c458a45e',
@@ -176,7 +181,8 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   arbitrum: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: 0,
     validators: [
       {
         address: '0xbcb815f38d481a5eba4d7ac4c9e74d9d0fc2a7e7',
@@ -208,7 +214,8 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   optimism: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: 0,
     validators: [
       {
         address: '0x9f2296d5cfc6b5176adc7716c7596898ded13d35',
@@ -240,7 +247,8 @@ export const validators: ChainValidatorSets<MainnetChains> = {
     ],
   },
   moonbeam: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: 0,
     validators: [
       {
         address: '0x237243d32d10e3bdbbf8dbcccc98ad44c1c172ea',

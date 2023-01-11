@@ -20,14 +20,8 @@ export const hyperlane: AgentConfig<TestChains> = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  validatorSets: validators,
   connectionType: ConnectionType.Http,
-  validator: {
-    default: {
-      interval: 5,
-      reorgPeriod: 0,
-    },
-  },
+  validators,
   relayer: {
     default: {
       gasPaymentEnforcementPolicy: {

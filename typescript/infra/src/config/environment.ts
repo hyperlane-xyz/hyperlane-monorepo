@@ -4,8 +4,8 @@ import {
   CoreConfig,
   EnvironmentConfig,
   MultiProvider,
-  coreEnvironments,
 } from '@hyperlane-xyz/sdk';
+import { CoreEnvironment } from '@hyperlane-xyz/sdk/dist/core/HyperlaneCore';
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
@@ -39,8 +39,7 @@ export type CoreEnvironmentConfig<Chain extends ChainName> = {
   keyFunderConfig?: KeyFunderConfig;
 };
 
-export type SdkEnvironment = keyof typeof coreEnvironments;
-export const deployEnvToSdkEnv: Record<DeployEnvironment, SdkEnvironment> = {
+export const deployEnvToSdkEnv: Record<DeployEnvironment, CoreEnvironment> = {
   mainnet2: 'mainnet',
   testnet3: 'testnet',
   test: 'test',

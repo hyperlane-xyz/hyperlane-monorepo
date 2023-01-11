@@ -1,5 +1,3 @@
-import { chainMetadata } from '@hyperlane-xyz/sdk';
-
 import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
 import {
@@ -33,37 +31,11 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  validatorSets: validators,
   gelato: {
     enabledChains: [],
   },
   connectionType: ConnectionType.HttpQuorum,
-  validator: {
-    default: {
-      interval: 5,
-      reorgPeriod: 1,
-    },
-    chainOverrides: {
-      alfajores: {
-        reorgPeriod: chainMetadata.alfajores.blocks.reorgPeriod,
-      },
-      fuji: {
-        reorgPeriod: chainMetadata.fuji.blocks.reorgPeriod,
-      },
-      mumbai: {
-        reorgPeriod: chainMetadata.mumbai.blocks.reorgPeriod,
-      },
-      bsctestnet: {
-        reorgPeriod: chainMetadata.bsctestnet.blocks.reorgPeriod,
-      },
-      goerli: {
-        reorgPeriod: chainMetadata.goerli.blocks.reorgPeriod,
-      },
-      moonbasealpha: {
-        reorgPeriod: chainMetadata.moonbasealpha.blocks.reorgPeriod,
-      },
-    },
-  },
+  validators,
   relayer: {
     default: {
       // blacklist: releaseCandidateHelloworldMatchingList,
