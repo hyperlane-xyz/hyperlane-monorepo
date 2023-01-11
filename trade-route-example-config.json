@@ -8,30 +8,27 @@
   },
   "alfajores": {
     "type": "synthetic",
-    "name": "Dai",
-    "symbol": "DAI",
+    "name": "Weth",
+    "symbol": "WETH",
     "totalSupply": 0,
-    "token": "0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6",
     "owner": "0x5bA371aeA18734Cb7195650aFdfCa4f9251aa513",
     "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
     "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA"
   },
   "fuji": {
     "type": "synthetic",
-    "name": "Dai",
-    "symbol": "DAI",
+    "name": "Weth",
+    "symbol": "WETH",
     "totalSupply": 0,
-    "token": "0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6",
     "owner": "0x5bA371aeA18734Cb7195650aFdfCa4f9251aa513",
     "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
     "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA"
   },
   "moonbasealpha": {
     "type": "synthetic",
-    "name": "Dai",
-    "symbol": "DAI",
+    "name": "Weth",
+    "symbol": "WETH",
     "totalSupply": 0,
-    "token": "0xb4fbf271143f4fbf7b91a5ded31805e42b2208d6",
     "owner": "0x5bA371aeA18734Cb7195650aFdfCa4f9251aa513",
     "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
     "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA"
