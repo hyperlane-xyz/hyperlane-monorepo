@@ -9,7 +9,7 @@
         "interchainGasPaymaster": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
       },
       "signer": null,
-      "rpcStyle": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": "0",
       "connection": {
         "type": "http",
@@ -27,7 +27,7 @@
         "interchainGasPaymaster": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82"
       },
       "signer": null,
-      "rpcStyle": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": "1",
       "connection": {
         "type": "http",
@@ -45,7 +45,7 @@
         "interchainGasPaymaster": "0x59b670e9fA9D0A427751Af201D676719a970857b"
       },
       "signer": null,
-      "rpcStyle": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": "2",
       "connection": {
         "type": "http",

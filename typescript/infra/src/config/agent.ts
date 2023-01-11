@@ -259,7 +259,7 @@ export type RustChainSetup = {
   signer?: RustSigner | null;
   finalityBlocks: string;
   addresses: RustCoreAddresses;
-  rpcStyle: 'ethereum';
+  protocol: 'ethereum' | 'fuel';
   connection: RustConnection;
   index?: { from: string };
 };
