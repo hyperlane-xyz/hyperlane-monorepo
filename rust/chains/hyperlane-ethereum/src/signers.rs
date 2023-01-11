@@ -4,7 +4,7 @@ use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::transaction::eip712::Eip712;
 use ethers_signers::{AwsSigner, AwsSignerError, LocalWallet, Signer, WalletError};
 
-use hyperlane_core::{HyperlaneSigner, HyperlaneSignerError, H256, H160};
+use hyperlane_core::{HyperlaneSigner, HyperlaneSignerError, H160, H256};
 
 /// Ethereum-supported signer types
 #[derive(Debug, Clone)]
@@ -114,7 +114,7 @@ impl From<std::convert::Infallible> for SignersError {
 
 #[cfg(test)]
 mod test {
-    use hyperlane_core::{Checkpoint, H256, HyperlaneSigner, HyperlaneSignerExt};
+    use hyperlane_core::{Checkpoint, HyperlaneSigner, HyperlaneSignerExt, H256};
 
     use crate::signers::Signers;
 
