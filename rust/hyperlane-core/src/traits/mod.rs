@@ -6,8 +6,7 @@ pub use interchain_gas::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
-pub use signable::*;
-pub use signer::*;
+pub use signing::*;
 
 mod cursor;
 mod deployed;
@@ -17,8 +16,7 @@ mod interchain_gas;
 mod mailbox;
 mod multisig_ism;
 mod provider;
-mod signable;
-mod signer;
+mod signing;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]

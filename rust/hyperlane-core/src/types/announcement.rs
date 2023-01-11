@@ -2,9 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 
-use crate::{
-    utils::domain_hash, HyperlaneSigner, HyperlaneSignerError, Signable, SignedType, H256,
-};
+use crate::{utils::domain_hash, Signable, SignedType, H256};
 
 /// An Hyperlane checkpoint
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -39,17 +37,6 @@ impl Signable for Announcement {
                 .finalize()
                 .as_slice(),
         )
-    }
-
-    async fn sign_with(
-        self,
-        signer: &impl HyperlaneSigner,
-    ) -> Result<SignedAnnouncement, HyperlaneSignerError> {
-        let signature = signer.sign_hash(&self.signing_hash()).await?;
-        Ok(SignedType {
-            value: self,
-            signature,
-        })
     }
 }
 

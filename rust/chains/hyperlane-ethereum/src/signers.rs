@@ -4,7 +4,7 @@ use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::transaction::eip712::Eip712;
 use ethers_signers::{AwsSigner, AwsSignerError, LocalWallet, Signer, WalletError};
 
-use hyperlane_core::{HyperlaneSigner, HyperlaneSignerError, H256};
+use hyperlane_core::{HyperlaneSigner, HyperlaneSignerError, H160, H256};
 
 /// Ethereum-supported signer types
 #[derive(Debug, Clone)]
@@ -82,8 +82,8 @@ impl Signer for Signers {
 
 #[async_trait]
 impl HyperlaneSigner for Signers {
-    fn address(&self) -> H256 {
-        Signer::address(self).into()
+    fn eth_address(&self) -> H160 {
+        Signer::address(self)
     }
 
     async fn sign_hash(&self, hash: &H256) -> Result<Signature, HyperlaneSignerError> {
@@ -114,9 +114,7 @@ impl From<std::convert::Infallible> for SignersError {
 
 #[cfg(test)]
 mod test {
-    use ethers_signers::Signer;
-
-    use hyperlane_core::{Checkpoint, Signable, H256};
+    use hyperlane_core::{Checkpoint, HyperlaneSigner, HyperlaneSignerExt, H256};
 
     use crate::signers::Signers;
 
@@ -135,9 +133,9 @@ mod test {
                 index: 123,
             };
 
-            let signed = message.sign_with(&signer).await.expect("!sign_with");
+            let signed = signer.sign(message).await.expect("!sign");
             assert!(signed.signature.v == 27 || signed.signature.v == 28);
-            signed.verify(signer.address()).expect("!verify");
+            signed.verify(signer.eth_address()).expect("!verify");
         };
         tokio::runtime::Builder::new_current_thread()
             .enable_all()

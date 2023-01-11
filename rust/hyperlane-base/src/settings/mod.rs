@@ -150,7 +150,6 @@ impl Settings {
             settings: self.clone(),
         }
     }
-
     /// Try to get a map of chain name -> mailbox contract
     pub async fn build_all_mailboxes(
         &self,
