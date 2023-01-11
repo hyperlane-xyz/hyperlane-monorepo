@@ -258,7 +258,7 @@ export type RustChainSetup = {
   domain: string;
   finalityBlocks: string;
   addresses: RustCoreAddresses;
-  rpcStyle: 'ethereum';
+  protocol: 'ethereum' | 'fuel';
   connection: RustConnection;
   index?: { from: string };
 };

@@ -101,7 +101,7 @@ export class HyperlaneCoreInfraDeployer<
           mailbox: contracts.mailbox.contract.address,
           interchainGasPaymaster: contracts.interchainGasPaymaster.address,
         },
-        rpcStyle: 'ethereum',
+        protocol: 'ethereum',
         finalityBlocks: metadata.blocks.reorgPeriod.toString(),
         connection: {
           type: ConnectionType.Http,

@@ -50,8 +50,8 @@ pub enum HexStringError {
     NotHex(String),
 }
 
-impl<const N: usize> AsRef<String> for HexString<N> {
-    fn as_ref(&self) -> &String {
+impl<const N: usize> AsRef<str> for HexString<N> {
+    fn as_ref(&self) -> &str {
         &self.0
     }
 }
@@ -93,6 +93,36 @@ impl<'de, const N: usize> serde::Deserialize<'de> for HexString<N> {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Self::from_string(s).map_err(serde::de::Error::custom)
+        Self::from_string(&s).map_err(serde::de::Error::custom)
     }
 }
+
+/// Shortcut for many-to-one match statements that get very redundant. Flips the order such that
+/// the thing which is mapped to is listed first.
+///
+/// ```ignore
+/// match v {
+///   V1 => A,
+///   V2 => A,
+///   V3 => B,
+///   V4 => B,
+/// }
+///
+/// // becomes
+///
+/// many_to_one!(match v {
+///     A: [V1, V2],
+///     B: [v3, V4],
+/// })
+/// ```
+macro_rules! many_to_one {
+    (match $v:ident {
+        $($result:path: [$($source:path),*$(,)?]),*$(,)?
+    }) => {
+        match $v {
+            $($( $source => $result, )*)*
+        }
+    }
+}
+
+pub(crate) use many_to_one;
