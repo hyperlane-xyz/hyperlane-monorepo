@@ -49,9 +49,14 @@ mod retrying;
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ConnectionConf {
-    /// A HTTP-only quorum.
+    /// An HTTP-only quorum.
     HttpQuorum {
         /// List of fully qualified strings to connect to
+        urls: String,
+    },
+    /// An HTTP-only fallback set.
+    HttpFallback {
+        /// List of fully qualified strings to connect to in order of priority
         urls: String,
     },
     /// HTTP connection details

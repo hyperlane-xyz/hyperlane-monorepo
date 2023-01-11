@@ -3210,6 +3210,7 @@ dependencies = [
  "async-trait",
  "ethers",
  "ethers-contract",
+ "ethers-fallback",
  "ethers-prometheus",
  "ethers-signers",
  "hex 0.4.3",

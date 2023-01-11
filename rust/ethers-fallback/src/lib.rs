@@ -14,7 +14,7 @@ pub struct FallbackProvider<T = Box<dyn JsonRpcClientWrapper>> {
 }
 
 impl FallbackProvider<Box<dyn JsonRpcClientWrapper>> {
-    /// Create a `QuorumProvider` for different `JsonRpcClient` types
+    /// Create a `FallbackProvider` for different `JsonRpcClient` types
     pub fn dyn_rpc() -> FallbackProviderBuilder<Box<dyn JsonRpcClientWrapper>> {
         Self::builder()
     }

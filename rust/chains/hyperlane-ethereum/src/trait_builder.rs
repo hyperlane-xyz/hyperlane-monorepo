@@ -10,6 +10,7 @@ use ethers::prelude::{
 use reqwest::{Client, Url};
 use thiserror::Error;
 
+use ethers_fallback::FallbackProvider;
 use ethers_prometheus::json_rpc_client::{
     JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, NodeInfo, PrometheusJsonRpcClient,
     PrometheusJsonRpcClientConfig,
@@ -101,6 +102,34 @@ pub trait BuildableWithProvider {
                 }
                 let quorum_provider = builder.build();
                 self.wrap_with_metrics(quorum_provider, locator, signer, middleware_metrics)
+                    .await?
+            }
+            ConnectionConf::HttpFallback { urls } => {
+                let rpc_metrics = rpc_metrics.map(|f| f());
+                let mut builder = FallbackProvider::builder();
+                let http_client = Client::builder()
+                    .timeout(HTTP_CLIENT_TIMEOUT)
+                    .build()
+                    .map_err(EthereumProviderConnectionError::from)?;
+                for url in urls.split(',') {
+                    let http_provider = Http::new_with_client(
+                        url.parse::<Url>().map_err(|e| {
+                            EthereumProviderConnectionError::InvalidUrl(e, url.to_owned())
+                        })?,
+                        http_client.clone(),
+                    );
+                    let metrics_provider = self.wrap_rpc_with_metrics(
+                        http_provider,
+                        Url::parse(url).map_err(|e| {
+                            EthereumProviderConnectionError::InvalidUrl(e, url.to_owned())
+                        })?,
+                        &rpc_metrics,
+                        &middleware_metrics,
+                    );
+                    builder = builder.add_provider(metrics_provider);
+                }
+                let fallback_provider = builder.build();
+                self.wrap_with_metrics(fallback_provider, locator, signer, middleware_metrics)
                     .await?
             }
             ConnectionConf::Http { url } => {
