@@ -295,7 +295,7 @@ impl ChainSetup {
 
         if let Some(signer) = signer {
             cfg.wallets
-                .entry(signer.address().into())
+                .entry(signer.eth_address().into())
                 .or_insert_with(|| WalletInfo {
                     name: Some(agent_name.into()),
                 });

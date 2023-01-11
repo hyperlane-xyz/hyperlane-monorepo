@@ -8,15 +8,10 @@ use hex::FromHex;
 use serde_json::{json, Value};
 
 use ethers::signers::Signer;
-use hyperlane_core::{
-    accumulator::{
-        merkle::{merkle_root_from_branch, MerkleTree},
-        TREE_DEPTH,
-    },
-    test_utils,
-    utils::domain_hash,
-    Checkpoint, HyperlaneMessage, Signable, H160, H256,
-};
+use hyperlane_core::{accumulator::{
+    merkle::{merkle_root_from_branch, MerkleTree},
+    TREE_DEPTH,
+}, test_utils, utils::domain_hash, Checkpoint, HyperlaneMessage, H160, H256, HyperlaneSignerExt};
 use hyperlane_ethereum::Signers;
 
 /// Output proof to /vector/message.json
@@ -132,13 +127,12 @@ pub fn output_signed_checkpoints() {
 
         // test suite
         for i in 1..=3 {
-            let signed_checkpoint = Checkpoint {
+            let signed_checkpoint = signer.sign(Checkpoint {
                 mailbox_address: mailbox,
                 mailbox_domain: 1000,
                 root: H256::repeat_byte(i + 1),
                 index: i as u32,
-            }
-            .sign_with(&signer)
+            })
             .await
             .expect("!sign_with");
 

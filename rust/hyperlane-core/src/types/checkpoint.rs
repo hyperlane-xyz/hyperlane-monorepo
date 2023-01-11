@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 
 use crate::{
-    utils::domain_hash, HyperlaneSigner, HyperlaneSignerError, Signable, SignedType, H256,
+    utils::domain_hash, Signable, SignedType, H256,
 };
 
 /// An Hyperlane checkpoint
@@ -45,18 +45,6 @@ impl Signable for Checkpoint {
                 .finalize()
                 .as_slice(),
         )
-    }
-
-    /// Sign an checkpoint using the specified signer
-    async fn sign_with(
-        self,
-        signer: &impl HyperlaneSigner,
-    ) -> Result<SignedCheckpoint, HyperlaneSignerError> {
-        let signature = signer.sign_hash(&self.signing_hash()).await?;
-        Ok(SignedType {
-            value: self,
-            signature,
-        })
     }
 }
 
