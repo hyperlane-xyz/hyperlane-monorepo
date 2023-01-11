@@ -1,5 +1,7 @@
+use ethers::prelude::Selector;
 use eyre::{eyre, Context, Result};
 use serde::Deserialize;
+use std::collections::HashMap;
 
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
@@ -311,19 +313,24 @@ impl ChainSetup {
                 });
         }
 
+        let functions = |m: HashMap<Vec<u8>, String>| {
+            m.into_iter()
+                .map(|s| (Selector::try_from(s.0).unwrap(), s.1))
+                .collect()
+        };
+
         if let Ok(addr) = self.addresses.mailbox.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("mailbox".into()),
-                functions: EthereumMailboxAbi::fn_map_owned(),
+                functions: functions(EthereumMailboxAbi::fn_map_owned()),
             });
         }
         if let Ok(addr) = self.addresses.interchain_gas_paymaster.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("igp".into()),
-                functions: EthereumInterchainGasPaymasterAbi::fn_map_owned(),
+                functions: functions(EthereumInterchainGasPaymasterAbi::fn_map_owned()),
             });
         }
-        // TODO: How/where do I add this entry?
         cfg
     }
 

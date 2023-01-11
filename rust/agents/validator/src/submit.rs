@@ -1,3 +1,4 @@
+use std::num::NonZeroU64;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -11,7 +12,7 @@ use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSi
 
 pub(crate) struct ValidatorSubmitter {
     interval: u64,
-    reorg_period: u64,
+    reorg_period: Option<NonZeroU64>,
     signer: Arc<dyn HyperlaneSigner>,
     mailbox: CachingMailbox,
     checkpoint_syncer: Arc<CheckpointSyncers>,
@@ -28,7 +29,7 @@ impl ValidatorSubmitter {
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {
         Self {
-            reorg_period,
+            reorg_period: NonZeroU64::new(reorg_period),
             interval,
             mailbox,
             signer,
@@ -43,12 +44,6 @@ impl ValidatorSubmitter {
     }
 
     async fn main_task(self) -> Result<()> {
-        let reorg_period = if self.reorg_period == 0 {
-            None
-        } else {
-            Some(self.reorg_period)
-        };
-
         // Sign and post the validator announcement
         let announcement = Announcement {
             mailbox_address: self.mailbox.mailbox().address(),
@@ -102,7 +97,7 @@ impl ValidatorSubmitter {
         info!(current_index = current_index, "Starting Validator");
         loop {
             // Check the latest checkpoint
-            let latest_checkpoint = self.mailbox.latest_checkpoint(reorg_period).await?;
+            let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;
 
             self.metrics
                 .latest_checkpoint_observed

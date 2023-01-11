@@ -7,7 +7,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::abi::Token;
 use ethers::providers::Middleware;
-use ethers::types::Selector;
 use tracing::instrument;
 
 use hyperlane_core::accumulator::merkle::Proof;
@@ -158,7 +157,9 @@ where
 pub struct EthereumMultisigIsmAbi;
 
 impl HyperlaneAbi for EthereumMultisigIsmAbi {
-    fn fn_map() -> HashMap<Selector, &'static str> {
+    const SELECTOR_SIZE_BYTES: usize = 4;
+
+    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
         super::extract_fn_map(&MULTISIGISM_ABI)
     }
 }
