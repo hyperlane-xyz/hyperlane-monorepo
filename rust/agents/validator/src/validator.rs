@@ -48,8 +48,8 @@ impl BaseAgent for Validator {
             .map(|validator| Arc::new(validator) as Arc<dyn HyperlaneSigner>)?;
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
         let interval = Duration::from_secs(settings.interval.parse().expect("invalid uint"));
-        let checkpoint_syncer = settings.checkpointsyncer.build(None)?.into();
         let core = settings.build_hyperlane_core(metrics.clone());
+        let checkpoint_syncer = settings.checkpointsyncer.build(None)?.into();
 
         let mailbox = settings
             .build_mailbox(&settings.originchainname, &metrics)
