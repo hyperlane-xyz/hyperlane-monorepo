@@ -132,17 +132,27 @@ jobs:
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas-ci
 
-      - name: coverage
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+        filters: |
+          soliditycov:
+            - 'solidity/*-lcov.base.info'
+
+      - if: steps.changes.outputs.soliditycov == 'true'
+        name: coverage
         run: yarn workspace @hyperlane-xyz/core run coverage-ci
 
-      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
+      - if: steps.changes.outputs.soliditycov == 'true'
+        uses: osmind-development-org/lcov-reporter-action@v0.3.2
         with:
           title: "Forge Coverage Report"
           lcov-file: ./solidity/lcov.info
           lcov-base: ./solidity/forge-lcov.base.info
           delete-old-comments: true
 
-      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
+      - if: steps.changes.outputs.soliditycov == 'true'
+        uses: osmind-development-org/lcov-reporter-action@v0.3.2
         with:
           title: "Hardhat Coverage Report"
           lcov-file: ./solidity/coverage/lcov.info
