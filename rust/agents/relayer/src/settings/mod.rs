@@ -24,6 +24,9 @@ pub enum GasPaymentEnforcementPolicy {
 decl_settings!(Relayer {
     // The name of the origin chain
     originchainname: String,
+    // Optional list of destination chains. If none are provided, ALL chains in chain_setup
+    // will be used, excluding the origin chain.
+    destinationchainnames: Option<String>,
     /// The multisig checkpoint syncer configuration
     multisigcheckpointsyncer: hyperlane_base::MultisigCheckpointSyncerConf,
     /// The gas payment enforcement policy configuration

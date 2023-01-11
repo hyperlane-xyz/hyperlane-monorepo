@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {Router} from "../../Router.sol";
 
 import {ILiquidityLayerRouter} from "../../../interfaces/ILiquidityLayerRouter.sol";
-import {ICircleBridge} from "./interfaces/circle/ICircleBridge.sol";
 import {ICircleMessageTransmitter} from "./interfaces/circle/ICircleMessageTransmitter.sol";
 import {ILiquidityLayerAdapter} from "./interfaces/ILiquidityLayerAdapter.sol";
 import {ILiquidityLayerMessageRecipient} from "../../../interfaces/ILiquidityLayerMessageRecipient.sol";
@@ -43,10 +42,10 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
     function dispatchWithTokens(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
-        bytes calldata _messageBody,
         address _token,
         uint256 _amount,
-        string calldata _bridge
+        string calldata _bridge,
+        bytes calldata _messageBody
     ) external payable returns (bytes32) {
         ILiquidityLayerAdapter _adapter = _getAdapter(_bridge);
 
@@ -121,13 +120,15 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
                 _adapterData
             );
 
-        _userRecipient.handleWithTokens(
-            _origin,
-            _originalSender,
-            _userMessageBody,
-            _token,
-            _receivedAmount
-        );
+        if (_userMessageBody.length > 0) {
+            _userRecipient.handleWithTokens(
+                _origin,
+                _originalSender,
+                _userMessageBody,
+                _token,
+                _receivedAmount
+            );
+        }
     }
 
     function setLiquidityLayerAdapter(string calldata _bridge, address _adapter)

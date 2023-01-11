@@ -7,9 +7,9 @@ interface ILiquidityLayerRouter {
     function dispatchWithTokens(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
-        bytes calldata _messageBody,
         address _token,
         uint256 _amount,
-        string calldata _bridge
+        string calldata _bridge,
+        bytes calldata _messageBody
     ) external payable returns (bytes32);
 }
