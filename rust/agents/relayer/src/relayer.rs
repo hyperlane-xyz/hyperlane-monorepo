@@ -65,12 +65,10 @@ impl BaseAgent for Relayer {
             settings.try_into_hyperlane_core(metrics, None).await?
         };
 
-        let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
-            .multisigcheckpointsyncer
-            .try_into_multisig_checkpoint_syncer(
-                &settings.originchainname,
-                core.metrics.validator_checkpoint_index(),
-            )?;
+        let multisig_checkpoint_syncer = settings.multisigcheckpointsyncer.build(
+            &settings.originchainname,
+            core.metrics.validator_checkpoint_index(),
+        )?;
 
         let whitelist = parse_matching_list(&settings.whitelist);
         let blacklist = parse_matching_list(&settings.blacklist);
