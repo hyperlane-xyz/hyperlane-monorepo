@@ -17,7 +17,8 @@
       },
       "index": {
         "from": "16884144"
-      }
+      },
+      "signer": null
     },
     "ethereum": {
       "name": "ethereum",
@@ -35,7 +36,8 @@
       },
       "index": {
         "from": "16271503"
-      }
+      },
+      "signer": null
     },
     "avalanche": {
       "name": "avalanche",
@@ -53,7 +55,8 @@
       },
       "index": {
         "from": "24145479"
-      }
+      },
+      "signer": null
     },
     "polygon": {
       "name": "polygon",
@@ -71,7 +74,8 @@
       },
       "index": {
         "from": "37313389"
-      }
+      },
+      "signer": null
     },
     "bsc": {
       "name": "bsc",
@@ -89,7 +93,8 @@
       },
       "index": {
         "from": "24248084"
-      }
+      },
+      "signer": null
     },
     "arbitrum": {
       "name": "arbitrum",
@@ -107,7 +112,8 @@
       },
       "index": {
         "from": "49073182"
-      }
+      },
+      "signer": null
     },
     "optimism": {
       "name": "optimism",
@@ -125,7 +131,8 @@
       },
       "index": {
         "from": "55698988"
-      }
+      },
+      "signer": null
     },
     "moonbeam": {
       "name": "moonbeam",
@@ -143,10 +150,10 @@
       },
       "index": {
         "from": "2595747"
-      }
+      },
+      "signer": null
     }
   },
-  "signers": {},
   "db": "db_path",
   "tracing": {
     "level": "debug",

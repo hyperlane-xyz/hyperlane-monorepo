@@ -8,6 +8,7 @@
         "mailbox": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
         "interchainGasPaymaster": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
       },
+      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": "0",
       "connection": {
@@ -25,6 +26,7 @@
         "mailbox": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
         "interchainGasPaymaster": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82"
       },
+      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": "1",
       "connection": {
@@ -42,6 +44,7 @@
         "mailbox": "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44",
         "interchainGasPaymaster": "0x59b670e9fA9D0A427751Af201D676719a970857b"
       },
+      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": "2",
       "connection": {
@@ -53,7 +56,6 @@
       }
     }
   },
-  "signers": {},
   "db": "db_path",
   "tracing": {
     "level": "debug",
