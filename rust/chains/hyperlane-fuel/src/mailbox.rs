@@ -1,18 +1,20 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
+use std::num::NonZeroU64;
 
 use async_trait::async_trait;
 use fuels::prelude::{Bech32ContractId, WalletUnlocked};
-
-use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, Indexer, LogMeta, Mailbox, MailboxIndexer, H256,
-};
 use tracing::{debug, instrument};
 
-use crate::contracts::mailbox::Mailbox as FuelMailboxInner;
-use crate::conversions::*;
-use crate::{make_provider, ConnectionConf};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, Indexer, LogMeta,
+    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+};
+
+use crate::{
+    contracts::mailbox::Mailbox as FuelMailboxInner, conversions::*, make_provider, ConnectionConf,
+};
 
 /// A reference to a Mailbox contract on some Fuel chain
 pub struct FuelMailbox {
