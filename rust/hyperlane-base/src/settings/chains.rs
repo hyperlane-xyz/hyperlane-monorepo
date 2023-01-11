@@ -33,7 +33,7 @@ pub enum ChainConf {
 }
 
 impl ChainConf {
-    fn protocol(&self) -> HyperlaneDomainImpl {
+    fn protocol(&self) -> HyperlaneDomainProtocol {
         match self {
             ChainConf::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
             ChainConf::Fuel(_) => HyperlaneDomainProtocol::Fuel,

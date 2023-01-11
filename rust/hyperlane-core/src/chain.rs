@@ -197,7 +197,7 @@ impl KnownHyperlaneDomain {
                 Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo,
                 Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
             ],
-            HyperlaneDomainImpl::Fuel: [FuelTest1],
+            HyperlaneDomainProtocol::Fuel: [FuelTest1],
         })
     }
 }
