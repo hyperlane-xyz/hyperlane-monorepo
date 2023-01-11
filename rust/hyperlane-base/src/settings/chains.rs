@@ -6,7 +6,7 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainImpl, HyperlaneProvider,
+    ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider,
     InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm,
     Signers, H256,
 };
@@ -21,7 +21,7 @@ use crate::CoreMetrics;
 /// Specify the chain name (enum variant) in toml under the `chain` key
 #[derive(Clone, Debug, Deserialize)]
 #[serde(
-    tag = "implementation",
+    tag = "protocol",
     content = "connection",
     rename_all = "camelCase"
 )]
@@ -33,10 +33,10 @@ pub enum ChainConf {
 }
 
 impl ChainConf {
-    fn implementation(&self) -> HyperlaneDomainImpl {
+    fn protocol(&self) -> HyperlaneDomainProtocol {
         match self {
-            ChainConf::Ethereum(_) => HyperlaneDomainImpl::Ethereum,
-            ChainConf::Fuel => HyperlaneDomainImpl::Fuel,
+            ChainConf::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
+            ChainConf::Fuel => HyperlaneDomainProtocol::Fuel,
         }
     }
 }
@@ -309,7 +309,7 @@ impl ChainSetup {
 
     /// Get the domain for this chain setup
     pub fn domain(&self) -> Result<HyperlaneDomain> {
-        HyperlaneDomain::from_config_strs(&self.domain, &self.name, self.chain.implementation())
+        HyperlaneDomain::from_config_strs(&self.domain, &self.name, self.chain.protocol())
             .map_err(|e| eyre!("{e}"))
     }
 

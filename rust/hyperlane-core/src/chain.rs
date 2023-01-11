@@ -117,7 +117,7 @@ pub enum HyperlaneDomain {
         domain_id: u32,
         chain_name: String,
         domain_type: HyperlaneDomainType,
-        domain_impl: HyperlaneDomainImpl,
+        domain_protocol: HyperlaneDomainProtocol,
     },
 }
 
@@ -142,7 +142,7 @@ pub enum HyperlaneDomainType {
     FromPrimitive, EnumString, IntoStaticStr, strum::Display, Copy, Clone, Eq, PartialEq, Debug,
 )]
 #[strum(serialize_all = "lowercase", ascii_case_insensitive)]
-pub enum HyperlaneDomainImpl {
+pub enum HyperlaneDomainProtocol {
     /// An EVM-based chain type which uses hyperlane-ethereum.
     Ethereum,
     /// A Fuel-based chain type which uses hyperlane-fuel.
@@ -170,11 +170,11 @@ impl KnownHyperlaneDomain {
         })
     }
 
-    pub const fn domain_impl(self) -> HyperlaneDomainImpl {
+    pub const fn domain_protocol(self) -> HyperlaneDomainProtocol {
         use KnownHyperlaneDomain::*;
 
         many_to_one!(match self {
-            HyperlaneDomainImpl::Ethereum: [
+            HyperlaneDomainProtocol::Ethereum: [
                 Ethereum, Goerli, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
                 Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo,
                 Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
@@ -223,9 +223,9 @@ impl From<&HyperlaneDomain> for HyperlaneDomainType {
     }
 }
 
-impl From<&HyperlaneDomain> for HyperlaneDomainImpl {
+impl From<&HyperlaneDomain> for HyperlaneDomainProtocol {
     fn from(d: &HyperlaneDomain) -> Self {
-        d.domain_impl()
+        d.domain_protocol()
     }
 }
 
@@ -245,7 +245,7 @@ impl HyperlaneDomain {
     pub fn from_config(
         domain_id: u32,
         name: &str,
-        implementation: HyperlaneDomainImpl,
+        protocol: HyperlaneDomainProtocol,
     ) -> Result<Self, &'static str> {
         let name = name.to_ascii_lowercase();
         if let Ok(domain) = KnownHyperlaneDomain::try_from(domain_id) {
@@ -262,7 +262,7 @@ impl HyperlaneDomain {
                 chain_name: name,
                 // we might want to support accepting these from the config later
                 domain_type: HyperlaneDomainType::Unknown,
-                domain_impl: implementation,
+                domain_protocol: protocol,
             })
         }
     }
@@ -270,14 +270,14 @@ impl HyperlaneDomain {
     pub fn from_config_strs(
         domain_id: &str,
         name: &str,
-        implementation: HyperlaneDomainImpl,
+        protocol: HyperlaneDomainProtocol,
     ) -> Result<Self, &'static str> {
         HyperlaneDomain::from_config(
             domain_id
                 .parse::<u32>()
                 .map_err(|_| "Domain id is an invalid uint")?,
             name,
-            implementation,
+            protocol,
         )
     }
 
@@ -306,10 +306,10 @@ impl HyperlaneDomain {
     }
 
     /// Backend implementation for this domain
-    pub const fn domain_impl(&self) -> HyperlaneDomainImpl {
+    pub const fn domain_protocol(&self) -> HyperlaneDomainProtocol {
         match self {
-            HyperlaneDomain::Known(domain) => domain.domain_impl(),
-            HyperlaneDomain::Unknown { domain_impl, .. } => *domain_impl,
+            HyperlaneDomain::Known(domain) => domain.domain_protocol(),
+            HyperlaneDomain::Unknown { domain_protocol, .. } => *domain_protocol,
         }
     }
 }
