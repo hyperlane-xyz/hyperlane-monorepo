@@ -145,7 +145,7 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// Try to generate an agent core for a named agent
+    /// Generate an agent core
     pub fn build_hyperlane_core(&self, metrics: Arc<CoreMetrics>) -> HyperlaneAgentCore {
         HyperlaneAgentCore {
             metrics,
