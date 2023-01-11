@@ -8,7 +8,7 @@ use tracing::instrument::Instrumented;
 use hyperlane_base::{
     run_all, Agent, BaseAgent, CheckpointSyncer, CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::{HyperlaneDomain, Signers};
+use hyperlane_core::{HyperlaneDomain, HyperlaneSigner};
 
 use crate::submit::ValidatorSubmitterMetrics;
 use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
@@ -17,7 +17,7 @@ use crate::{settings::ValidatorSettings, submit::ValidatorSubmitter};
 #[derive(Debug)]
 pub struct Validator {
     origin_chain: HyperlaneDomain,
-    signer: Arc<Signers>,
+    signer: Arc<dyn HyperlaneSigner>,
     reorg_period: u64,
     interval: u64,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
@@ -40,7 +40,12 @@ impl BaseAgent for Validator {
     where
         Self: Sized,
     {
-        let signer = settings.validator.try_into_signer().await?.into();
+        let signer = settings
+            .validator
+            // Intentionally using hyperlane_ethereum for the validator's signer
+            .build::<hyperlane_ethereum::Signers>()
+            .await
+            .map(|validator| Arc::new(validator) as Arc<dyn HyperlaneSigner>)?;
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
         let interval = settings.interval.parse().expect("invalid uint");
         let core = settings

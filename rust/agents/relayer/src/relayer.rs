@@ -55,7 +55,15 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings.try_into_hyperlane_core(metrics, None).await?;
+        let core = if let Some(ref remotes) = settings.destinationchainnames {
+            let mut v: Vec<&str> = remotes.split(',').collect();
+            v.push(&settings.originchainname);
+            settings
+                .try_into_hyperlane_core(metrics, Some(v.clone()))
+                .await?
+        } else {
+            settings.try_into_hyperlane_core(metrics, None).await?
+        };
 
         let multisig_checkpoint_syncer = settings.multisigcheckpointsyncer.build(
             &settings.originchainname,
@@ -116,19 +124,20 @@ impl BaseAgent for Relayer {
                 .core
                 .settings
                 .chain_setup(chain.name())
-                .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()));
+                .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()))
+                .clone();
 
+            let txsubmission = chain_setup.txsubmission;
             let metadata_builder = MetadataBuilder::new(
                 self.core.metrics.clone(),
-                self.core.settings.get_signer(chain.name()).await,
-                chain_setup.clone(),
+                chain_setup,
                 self.multisig_checkpoint_syncer.clone(),
                 prover_sync.clone(),
             );
             tasks.push(self.run_destination_mailbox(
                 mailbox.clone(),
                 metadata_builder.clone(),
-                chain_setup.txsubmission,
+                txsubmission,
                 self.core.settings.gelato.as_ref(),
                 gas_payment_enforcer.clone(),
                 receive_channel,
@@ -145,7 +154,7 @@ impl BaseAgent for Relayer {
             self.whitelist.clone(),
             self.blacklist.clone(),
             metrics,
-            prover_sync.clone(),
+            prover_sync,
             send_channels,
         );
         tasks.push(self.run_message_processor(message_processor));

@@ -101,7 +101,7 @@ impl MultisigCheckpointSyncer {
                 if let Ok(Some(signed_checkpoint)) = checkpoint_syncer.fetch_checkpoint(index).await
                 {
                     // If the signed checkpoint is for a different index, ignore it
-                    if signed_checkpoint.checkpoint.index != index {
+                    if signed_checkpoint.value.index != index {
                         continue;
                     }
                     // Ensure that the signature is actually by the validator
@@ -115,10 +115,7 @@ impl MultisigCheckpointSyncer {
                         signer,
                         signed_checkpoint,
                     };
-                    let root = signed_checkpoint_with_signer
-                        .signed_checkpoint
-                        .checkpoint
-                        .root;
+                    let root = signed_checkpoint_with_signer.signed_checkpoint.value.root;
 
                     let signature_count = match signed_checkpoints_per_root.entry(root) {
                         Entry::Occupied(mut entry) => {
