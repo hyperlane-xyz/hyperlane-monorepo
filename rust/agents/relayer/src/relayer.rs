@@ -58,8 +58,16 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings.build_hyperlane_core(metrics.clone());
-        let db = DB::from_path(&settings.db)?;
+        let core = if let Some(ref remotes) = settings.destinationchainnames {
+            let mut v: Vec<&str> = remotes.split(',').collect();
+            v.push(&settings.originchainname);
+            settings
+                .try_into_hyperlane_core(metrics, Some(v.clone()))
+                .await?
+        } else {
+            settings.build_hyperlane_core(metrics.clone());
+        };
+        let db = DB::from_path(&settings.db)?
 
         // If not provided, default to using every chain listed in self.chains.
         let chain_names: Vec<_> = settings.chains.keys().map(String::as_str).collect();

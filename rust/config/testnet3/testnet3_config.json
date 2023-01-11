@@ -9,7 +9,7 @@
         "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
         "multisigIsm": "0x4D06A1671A2a345B14B15cbD50027979A5D1d8C9"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": "0",
       "connection": {
         "type": "http",
@@ -27,7 +27,7 @@
         "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
         "multisigIsm": "0xD713Db664509bd057aC2b378F4B65Db468F634A5"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": "3",
       "connection": {
         "type": "http",
@@ -45,7 +45,7 @@
         "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
         "multisigIsm": "0xd71f1A64659beC0781b2aa21bc7a72F7290F6Bf3"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": "32",
       "connection": {
         "type": "http",
@@ -63,7 +63,7 @@
         "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
         "multisigIsm": "0x34add51924C500b4428067E251168807b3f5faED"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": "9",
       "connection": {
         "type": "http",
@@ -81,7 +81,7 @@
         "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
         "multisigIsm": "0x32B34F0D86b275b92e9289d9054Db5Ec32d2CC6C"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": "2",
       "connection": {
         "type": "http",
@@ -99,7 +99,7 @@
         "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
         "multisigIsm": "0xec8875C7cE0a814A56654618D366641859F32C7A"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": "1",
       "connection": {
         "type": "http",
@@ -117,7 +117,7 @@
         "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
         "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": "1",
       "connection": {
         "type": "http",
@@ -135,7 +135,7 @@
         "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
         "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4"
       },
-      "implementation": "ethereum",
+      "protocol": "ethereum",
       "finalityBlocks": "1",
       "connection": {
         "type": "http",

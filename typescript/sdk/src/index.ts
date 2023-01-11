@@ -127,6 +127,7 @@ export {
   BridgeAdapterType,
   BridgeAdapterConfig,
   CircleBridgeAdapterConfig,
+  PortalAdapterConfig,
 } from './deploy/middleware/LiquidityLayerRouterDeployer';
 export { LiquidityLayerApp } from './deploy/middleware/LiquidityLayerApp';
 

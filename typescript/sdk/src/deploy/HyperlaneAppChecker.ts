@@ -6,6 +6,7 @@ import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
 import { TransparentProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
+import { objMap } from '../utils/objects';
 
 import { proxyAdmin, proxyImplementation, proxyViolation } from './proxy';
 import { CheckerViolation, OwnerViolation, ViolationType } from './types';
@@ -98,28 +99,20 @@ export abstract class HyperlaneAppChecker<
     );
   }
 
-  expectViolations(types: string[], expectedMatches: number[]): void {
+  expectViolations(violationCounts: Record<string, number>): void {
     // Every type should have exactly the number of expected matches.
-    const actualMatches = types.map(
-      (t) => this.violations.map((v) => v.type === t).filter(Boolean).length,
-    );
-    actualMatches.map((actual, index) => {
-      const expected = expectedMatches[index];
+    objMap(violationCounts, (type, count) => {
+      const actual = this.violations.filter((v) => v.type === type).length;
       utils.assert(
-        actual == expected,
-        `Expected ${expected} ${types[index]} violations, got ${actual}`,
+        actual == count,
+        `Expected ${count} ${type} violations, got ${actual}`,
       );
     });
-    // Every violation should be matched by at least one partial.
-    const unmatched = this.violations.map(
-      (v) => types.map((t) => v.type === t).filter(Boolean).length,
-    );
-    unmatched.map((count, index) => {
-      utils.assert(
-        count > 0,
-        `Expected 0 ${this.violations[index].type} violations, got ${count}`,
-      );
-    });
+    this.violations
+      .filter((v) => !(v.type in violationCounts))
+      .map((v) => {
+        utils.assert(false, `Unexpected violation: ${JSON.stringify(v)}`);
+      });
   }
 
   expectEmpty(): void {

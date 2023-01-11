@@ -101,7 +101,7 @@ export class HyperlaneCoreInfraDeployer<
           interchainGasPaymaster: contracts.interchainGasPaymaster.address,
         },
         signer: undefined,
-        implementation: 'ethereum',
+        protocol: 'ethereum',
         finalityBlocks: metadata.blocks.reorgPeriod.toString(),
         connection: {
           type: ConnectionType.Http,

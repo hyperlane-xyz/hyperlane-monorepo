@@ -16,8 +16,6 @@ import {
   getEnvironmentDirectory,
 } from '../utils';
 
-// similar to hello world deploy script but uses freshly funded account for consistent addresses across chains
-// should eventually be deduped
 async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
@@ -39,11 +37,11 @@ async function main() {
     multiProvider,
     configMap,
     core,
-    'IQS-SALT-4',
+    'IQS-SALT-5',
   );
 
   await deployWithArtifacts(dir, interchainQueryFactories, deployer);
-  await mergeWithSdkContractAddressArtifacts(environment);
+  mergeWithSdkContractAddressArtifacts(environment);
 }
 
 main()

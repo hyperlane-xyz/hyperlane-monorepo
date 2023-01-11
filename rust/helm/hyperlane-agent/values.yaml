@@ -58,7 +58,7 @@ hyperlane:
         multisigIsm:
         interchainGasPaymaster:
       domain:
-      implementation: # "ethereum"
+      protocol: # "ethereum"
       connection:
         type: # "http"
 

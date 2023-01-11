@@ -6,8 +6,9 @@ import {LiquidityLayerRouter} from "../contracts/middleware/liquidity-layer/Liqu
 import {CircleBridgeAdapter} from "../contracts/middleware/liquidity-layer/adapters/CircleBridgeAdapter.sol";
 import {MockToken} from "../contracts/mock/MockToken.sol";
 import {TestTokenRecipient} from "../contracts/test/TestTokenRecipient.sol";
+import {TestRecipient} from "../contracts/test/TestRecipient.sol";
 import {MockCircleMessageTransmitter} from "../contracts/mock/MockCircleMessageTransmitter.sol";
-import {MockCircleBridge} from "../contracts/mock/MockCircleBridge.sol";
+import {MockCircleTokenMessenger} from "../contracts/mock/MockCircleTokenMessenger.sol";
 import {MockHyperlaneEnvironment} from "../contracts/mock/MockHyperlaneEnvironment.sol";
 
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
@@ -19,7 +20,7 @@ contract LiquidityLayerRouterTest is Test {
     LiquidityLayerRouter destinationLiquidityLayerRouter;
 
     MockCircleMessageTransmitter messageTransmitter;
-    MockCircleBridge circleBridge;
+    MockCircleTokenMessenger tokenMessenger;
     CircleBridgeAdapter originBridgeAdapter;
     CircleBridgeAdapter destinationBridgeAdapter;
 
@@ -38,7 +39,7 @@ contract LiquidityLayerRouterTest is Test {
     function setUp() public {
         token = new MockToken();
 
-        circleBridge = new MockCircleBridge(token);
+        tokenMessenger = new MockCircleTokenMessenger(token);
         messageTransmitter = new MockCircleMessageTransmitter(token);
         originBridgeAdapter = new CircleBridgeAdapter();
         destinationBridgeAdapter = new CircleBridgeAdapter();
@@ -53,15 +54,18 @@ contract LiquidityLayerRouterTest is Test {
             destinationDomain
         );
 
+        address owner = address(this);
         originLiquidityLayerRouter.initialize(
             address(testEnvironment.mailboxes(originDomain)),
             address(testEnvironment.igps(originDomain)),
-            address(testEnvironment.isms(originDomain))
+            address(testEnvironment.isms(originDomain)),
+            owner
         );
         destinationLiquidityLayerRouter.initialize(
             address(testEnvironment.mailboxes(destinationDomain)),
             address(testEnvironment.igps(destinationDomain)),
-            address(testEnvironment.isms(destinationDomain))
+            address(testEnvironment.isms(destinationDomain)),
+            owner
         );
 
         originLiquidityLayerRouter.enrollRemoteRouter(
@@ -74,15 +78,15 @@ contract LiquidityLayerRouterTest is Test {
         );
 
         originBridgeAdapter.initialize(
-            address(this),
-            address(circleBridge),
+            owner,
+            address(tokenMessenger),
             address(messageTransmitter),
             address(originLiquidityLayerRouter)
         );
 
         destinationBridgeAdapter.initialize(
-            address(this),
-            address(circleBridge),
+            owner,
+            address(tokenMessenger),
             address(messageTransmitter),
             address(destinationLiquidityLayerRouter)
         );
@@ -138,10 +142,10 @@ contract LiquidityLayerRouterTest is Test {
         originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
-            messageBody,
             address(token),
             amount,
-            "BazBridge" // some unknown bridge name
+            "BazBridge", // some unknown bridge name,
+            messageBody
         );
     }
 
@@ -150,10 +154,10 @@ contract LiquidityLayerRouterTest is Test {
         originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
-            messageBody,
             address(token),
             amount,
-            bridge
+            bridge,
+            messageBody
         );
     }
 
@@ -162,10 +166,10 @@ contract LiquidityLayerRouterTest is Test {
         originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
-            messageBody,
             address(token),
             amount,
-            bridge
+            bridge,
+            messageBody
         );
     }
 
@@ -184,10 +188,10 @@ contract LiquidityLayerRouterTest is Test {
         originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
-            messageBody,
             address(token),
             amount,
-            bridge
+            bridge,
+            messageBody
         );
     }
 
@@ -196,10 +200,10 @@ contract LiquidityLayerRouterTest is Test {
         originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
-            messageBody,
             address(token),
             amount,
-            bridge
+            bridge,
+            messageBody
         );
 
         vm.expectRevert("Circle message not processed yet");
@@ -211,17 +215,17 @@ contract LiquidityLayerRouterTest is Test {
         originLiquidityLayerRouter.dispatchWithTokens(
             destinationDomain,
             TypeCasts.addressToBytes32(address(recipient)),
-            messageBody,
             address(token),
             amount,
-            bridge
+            bridge,
+            messageBody
         );
 
         bytes32 nonceId = messageTransmitter.hashSourceAndNonce(
             destinationBridgeAdapter.hyperlaneDomainToCircleDomain(
                 originDomain
             ),
-            circleBridge.nextNonce()
+            tokenMessenger.nextNonce()
         );
 
         messageTransmitter.process(
@@ -232,5 +236,58 @@ contract LiquidityLayerRouterTest is Test {
         testEnvironment.processNextPendingMessage();
         assertEq(recipient.lastData(), messageBody);
         assertEq(token.balanceOf(address(recipient)), amount);
+    }
+
+    function testCannotSendToRecipientWithoutHandle() public {
+        token.approve(address(originLiquidityLayerRouter), amount);
+        originLiquidityLayerRouter.dispatchWithTokens(
+            destinationDomain,
+            TypeCasts.addressToBytes32(address(this)),
+            address(token),
+            amount,
+            bridge,
+            messageBody
+        );
+        bytes32 nonceId = messageTransmitter.hashSourceAndNonce(
+            destinationBridgeAdapter.hyperlaneDomainToCircleDomain(
+                originDomain
+            ),
+            tokenMessenger.nextNonce()
+        );
+        messageTransmitter.process(
+            nonceId,
+            address(destinationBridgeAdapter),
+            amount
+        );
+
+        vm.expectRevert();
+        testEnvironment.processNextPendingMessage();
+    }
+
+    function testSendToRecipientWithoutHandleWhenSpecifyingNoMessage() public {
+        TestRecipient noHandleRecipient = new TestRecipient();
+        token.approve(address(originLiquidityLayerRouter), amount);
+        originLiquidityLayerRouter.dispatchWithTokens(
+            destinationDomain,
+            TypeCasts.addressToBytes32(address(noHandleRecipient)),
+            address(token),
+            amount,
+            bridge,
+            ""
+        );
+        bytes32 nonceId = messageTransmitter.hashSourceAndNonce(
+            destinationBridgeAdapter.hyperlaneDomainToCircleDomain(
+                originDomain
+            ),
+            tokenMessenger.nextNonce()
+        );
+        messageTransmitter.process(
+            nonceId,
+            address(destinationBridgeAdapter),
+            amount
+        );
+
+        testEnvironment.processNextPendingMessage();
+        assertEq(token.balanceOf(address(noHandleRecipient)), amount);
     }
 }
