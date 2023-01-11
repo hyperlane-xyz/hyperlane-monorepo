@@ -46,7 +46,7 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
         uint256 _amount,
         string calldata _bridge,
         bytes calldata _messageBody
-    ) external payable returns (bytes32) {
+    ) external returns (bytes32) {
         ILiquidityLayerAdapter _adapter = _getAdapter(_bridge);
 
         // Transfer the tokens to the adapter
