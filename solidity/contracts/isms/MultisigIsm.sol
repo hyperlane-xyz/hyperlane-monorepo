@@ -83,8 +83,9 @@ contract MultisigIsm is IMultisigIsm, Ownable {
 
     // ============ Constructor ============
 
-    // solhint-disable-next-line no-empty-blocks
-    constructor() Ownable() {}
+    constructor(address owner) Ownable() {
+        _transferOwnership(owner);
+    }
 
     // ============ External Functions ============
 
@@ -203,8 +204,8 @@ contract MultisigIsm is IMultisigIsm, Ownable {
         view
         returns (bool)
     {
-        require(_verifyMerkleProof(_metadata, _message), "!merkle");
-        require(_verifyValidatorSignatures(_metadata, _message), "!sigs");
+        require(verifyValidatorSignatures(_metadata, _message), "!sigs");
+        require(verifyMerkleProof(_metadata, _message), "!merkle");
         return true;
     }
 
@@ -287,10 +288,10 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    function _verifyMerkleProof(
+    function verifyMerkleProof(
         bytes calldata _metadata,
         bytes calldata _message
-    ) internal pure returns (bool) {
+    ) public pure returns (bool) {
         // calculate the expected root based on the proof
         bytes32 _calculatedRoot = MerkleLib.branchRoot(
             _message.id(),
@@ -306,10 +307,10 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
-    function _verifyValidatorSignatures(
+    function verifyValidatorSignatures(
         bytes calldata _metadata,
         bytes calldata _message
-    ) internal view returns (bool) {
+    ) public view returns (bool) {
         uint8 _threshold = _metadata.threshold();
         bytes32 _digest;
         {
@@ -328,9 +329,10 @@ contract MultisigIsm is IMultisigIsm, Ownable {
         }
         uint256 _validatorCount = _metadata.validatorCount();
         uint256 _validatorIndex = 0;
+        address _signer;
         // Assumes that signatures are ordered by validator
-        for (uint256 i = 0; i < _threshold; ++i) {
-            address _signer = ECDSA.recover(_digest, _metadata.signatureAt(i));
+        for (uint256 i = 0; i < _threshold; ) {
+            _signer = ECDSA.recover(_digest, _metadata.signatureAt(i));
             // Loop through remaining validators until we find a match
             for (
                 ;
@@ -341,6 +343,9 @@ contract MultisigIsm is IMultisigIsm, Ownable {
             // Fail if we never found a match
             require(_validatorIndex < _validatorCount, "!threshold");
             ++_validatorIndex;
+            unchecked {
+                ++i;
+            }
         }
         return true;
     }
