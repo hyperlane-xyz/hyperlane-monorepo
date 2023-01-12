@@ -52,10 +52,7 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
     let config_deserializer = builder
         // Use an agent-independent partial
         .add_source(
-            File::with_name(&format!(
-                "./config/{}/extra_partial_config.json",
-                env            ))
-            .required(false),
+            File::with_name(&format!("./config/{}/extra_partial_config.json", env)).required(false),
         )
         // Use an agent-specific partial
         .add_source(
