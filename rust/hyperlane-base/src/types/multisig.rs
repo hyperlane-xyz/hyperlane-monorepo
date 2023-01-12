@@ -1,4 +1,5 @@
 use std::collections::{hash_map::Entry, HashMap};
+use std::sync::Arc;
 
 use ethers::prelude::Address;
 use eyre::Result;
@@ -6,18 +7,18 @@ use tracing::{debug, instrument};
 
 use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithSigner, H160, H256};
 
-use crate::{CheckpointSyncer, CheckpointSyncers};
+use crate::CheckpointSyncer;
 
 /// Fetches signed checkpoints from multiple validators to create MultisigSignedCheckpoints
 #[derive(Clone, Debug)]
 pub struct MultisigCheckpointSyncer {
     /// The checkpoint syncer for each valid validator signer address
-    checkpoint_syncers: HashMap<Address, CheckpointSyncers>,
+    checkpoint_syncers: HashMap<Address, Arc<dyn CheckpointSyncer>>,
 }
 
 impl MultisigCheckpointSyncer {
     /// Constructor
-    pub fn new(checkpoint_syncers: HashMap<Address, CheckpointSyncers>) -> Self {
+    pub fn new(checkpoint_syncers: HashMap<Address, Arc<dyn CheckpointSyncer>>) -> Self {
         MultisigCheckpointSyncer { checkpoint_syncers }
     }
 
@@ -100,7 +101,7 @@ impl MultisigCheckpointSyncer {
                 if let Ok(Some(signed_checkpoint)) = checkpoint_syncer.fetch_checkpoint(index).await
                 {
                     // If the signed checkpoint is for a different index, ignore it
-                    if signed_checkpoint.checkpoint.index != index {
+                    if signed_checkpoint.value.index != index {
                         continue;
                     }
                     // Ensure that the signature is actually by the validator
@@ -114,10 +115,7 @@ impl MultisigCheckpointSyncer {
                         signer,
                         signed_checkpoint,
                     };
-                    let root = signed_checkpoint_with_signer
-                        .signed_checkpoint
-                        .checkpoint
-                        .root;
+                    let root = signed_checkpoint_with_signer.signed_checkpoint.value.root;
 
                     let signature_count = match signed_checkpoints_per_root.entry(root) {
                         Entry::Occupied(mut entry) => {

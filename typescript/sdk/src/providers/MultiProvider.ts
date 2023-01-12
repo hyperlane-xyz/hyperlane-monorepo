@@ -129,7 +129,9 @@ export class MultiProvider<
     }
 
     if (!intersection.length) {
-      throw new Error(`No chains shared between MultiProvider and list`);
+      throw new Error(
+        `No chains shared between MultiProvider and list (${ownChains} and ${chains})`,
+      );
     }
 
     const intersectionChainMap = pick(this.chainMap, intersection);

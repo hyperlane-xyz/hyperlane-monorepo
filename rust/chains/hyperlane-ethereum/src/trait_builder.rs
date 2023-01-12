@@ -17,9 +17,9 @@ use ethers_prometheus::json_rpc_client::{
 use ethers_prometheus::middleware::{
     MiddlewareMetrics, PrometheusMiddleware, PrometheusMiddlewareConf,
 };
-use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, Signers};
+use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator};
 
-use crate::{ConnectionConf, FallbackProvider, RetryingProvider};
+use crate::{signers::Signers, ConnectionConf, FallbackProvider, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
@@ -56,7 +56,7 @@ pub trait BuildableWithProvider {
     /// metrics and a signer as needed.
     async fn build_with_connection_conf(
         &self,
-        conn: ConnectionConf,
+        conn: &ConnectionConf,
         locator: &ContractLocator,
         signer: Option<Signers>,
         rpc_metrics: Option<impl FnOnce() -> JsonRpcClientMetrics + Send>,
@@ -138,7 +138,7 @@ pub trait BuildableWithProvider {
                     .map_err(EthereumProviderConnectionError::from)?;
                 let http_provider = Http::new_with_client(
                     url.parse::<Url>()
-                        .map_err(|e| EthereumProviderConnectionError::InvalidUrl(e, url))?,
+                        .map_err(|e| EthereumProviderConnectionError::InvalidUrl(e, url.clone()))?,
                     http_client,
                 );
                 let retrying_http_provider: RetryingProvider<Http> =

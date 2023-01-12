@@ -6,16 +6,15 @@
 use std::collections::HashMap;
 
 use ethers::abi::FunctionExt;
-use ethers::prelude::{
-    abi, BlockId, BlockNumber, Http, Lazy, Middleware, NameOrAddress, Provider, Selector,
-};
+use ethers::prelude::{abi, BlockId, BlockNumber, Http, Lazy, Middleware, NameOrAddress, Provider};
 
 use hyperlane_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
 pub use crate::{
-    fallback::*, interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*,
+    fallback::*, interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, signers::*,
+    trait_builder::*,
 };
 
 #[cfg(not(doctest))]
@@ -49,6 +48,8 @@ mod retrying;
 
 /// Fallback provider
 mod fallback;
+
+mod signers;
 
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
@@ -112,8 +113,8 @@ impl hyperlane_core::Chain for Chain {
     }
 }
 
-fn extract_fn_map(abi: &'static Lazy<abi::Abi>) -> HashMap<Selector, &'static str> {
+fn extract_fn_map(abi: &'static Lazy<abi::Abi>) -> HashMap<Vec<u8>, &'static str> {
     abi.functions()
-        .map(|f| (f.selector(), f.name.as_str()))
+        .map(|f| (f.selector().to_vec(), f.name.as_str()))
         .collect()
 }

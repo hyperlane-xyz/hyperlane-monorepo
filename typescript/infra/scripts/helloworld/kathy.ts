@@ -16,7 +16,7 @@ import { ConnectionType } from '../../src/config/agent';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
-import { getArgs, getCoreEnvironmentConfig } from '../utils';
+import { getArgsWithContext, getCoreEnvironmentConfig } from '../utils';
 
 import { getApp } from './utils';
 
@@ -64,7 +64,7 @@ const walletBalance = new Gauge({
 const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
 
 function getKathyArgs() {
-  const args = getArgs()
+  const args = getArgsWithContext()
     .boolean('cycle-once')
     .describe(
       'cycle-once',
