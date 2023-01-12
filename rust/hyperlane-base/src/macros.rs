@@ -123,7 +123,6 @@ pub fn _new_settings<'de, T: Deserialize<'de>>(name: &str) -> eyre::Result<T> {
 
     load_settings_object::<T, &str>(
         name,
-        Some(&env::var("BASE_CONFIG").unwrap_or_else(|_| "base".into())),
         &[],
     )
 }

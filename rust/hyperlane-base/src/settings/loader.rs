@@ -27,11 +27,8 @@ use serde::Deserialize;
 /// env variable.
 pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
     agent_prefix: &str,
-    config_file_name: Option<&str>,
     ignore_prefixes: &[S],
 ) -> Result<T> {
-    let env = env::var("RUN_ENV").unwrap_or_else(|_| "default".into());
-
     // Derive additional prefix from agent name
     let prefix = format!("HYP_{}", agent_prefix).to_ascii_uppercase();
 
@@ -44,20 +41,26 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
         .collect();
 
     let builder = Config::builder();
-    let builder = if let Some(fname) = config_file_name {
-        builder.add_source(File::with_name(&format!("./config/{}/{}", env, fname)))
-    } else {
-        builder
+
+    // Load the base config file the old way
+    let builder = match (env::var("RUN_ENV").ok(), env::var("BASE_CONFIG").ok()) {
+        (Some(env), Some(fname)) => {
+            builder.add_source(File::with_name(&format!("./config/{}/{}", env, fname)))
+        }
+        _ => builder,
     };
+
+    // Load a set of config files
+    let config_file_paths: Vec<String> = env::var("CONFIG_FILES")
+        .ok()
+        .map(|s| s.split(',').map(|s| s.to_string()).collect())
+        .unwrap_or_default();
+
+    let builder = config_file_paths.iter().fold(builder, |builder, path| {
+        builder.add_source(File::with_name(path))
+    });
+
     let config_deserializer = builder
-        .add_source(
-            File::with_name(&format!(
-                "./config/{}/{}-partial",
-                env,
-                agent_prefix.to_lowercase()
-            ))
-            .required(false),
-        )
         // Use a base configuration env variable prefix
         .add_source(
             Environment::with_prefix("HYP_BASE")
