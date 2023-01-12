@@ -72,7 +72,7 @@ impl<T> FallbackProviderBuilder<T> {
     }
 }
 
-/// Error thrown when sending an HTTP request
+/// Errors specific to fallback provider.
 #[derive(Error, Debug)]
 pub enum FallbackError {
     /// All providers failed
