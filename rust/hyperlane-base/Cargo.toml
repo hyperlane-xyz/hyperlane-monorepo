@@ -30,6 +30,7 @@ backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
 ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
 hyperlane-core = { path = "../hyperlane-core" }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
+hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-test = { path = "../hyperlane-test" }
 paste = "1.0"
 tracing-error = "0.2"
