@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 async-trait = { version = "0.1", default-features = false }
-ethers = { git = "https://github.com/abacus-network/ethers-rs", tag = "2022-10-28-01" }
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04" }
 eyre = "0.6"
 reqwest = { version = "0", features = ["json"]}
 rustc-hex = { version = "2" }

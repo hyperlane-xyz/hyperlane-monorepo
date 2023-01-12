@@ -16,7 +16,8 @@ pub use retrying::{RetryingProvider, RetryingProviderError};
 use crate::abi::FunctionExt;
 #[cfg(not(doctest))]
 pub use crate::{
-    inbox::*, interchain_gas::*, outbox::*, provider::*, trait_builder::*, validator_manager::*,
+    fallback::*, inbox::*, interchain_gas::*, outbox::*, provider::*, trait_builder::*,
+    validator_manager::*,
 };
 
 #[cfg(not(doctest))]
@@ -52,6 +53,9 @@ mod contracts;
 /// Retrying Provider
 mod retrying;
 
+/// Fallback provider
+mod fallback;
+
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -59,6 +63,11 @@ pub enum Connection {
     /// A HTTP-only quorum.
     HttpQuorum {
         /// List of fully qualified strings to connect to
+        urls: String,
+    },
+    /// An HTTP-only fallback set.
+    HttpFallback {
+        /// List of fully qualified strings to connect to in order of priority
         urls: String,
     },
     /// HTTP connection details
