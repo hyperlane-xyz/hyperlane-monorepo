@@ -1,17 +1,16 @@
 import debug from 'debug';
 import { ethers } from 'ethers';
 
-import {
-  InterchainGasPaymaster,
-  Mailbox,
-  MultisigIsm,
-  Ownable,
-  ProxyAdmin,
-} from '@hyperlane-xyz/core';
+import { Mailbox, MultisigIsm, ProxyAdmin } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
-import { CoreContracts, coreFactories } from '../../core/contracts';
+import multisigIsmVerifyCosts from '../../consts/multisigIsmVerifyCosts.json';
+import {
+  ConnectionClientContracts,
+  CoreContracts,
+  coreFactories,
+} from '../../core/contracts';
 import { ChainNameToDomainId } from '../../domains';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../../proxy';
@@ -42,21 +41,56 @@ export class HyperlaneCoreDeployer<
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
-  deployInterchainGasPaymaster<LocalChain extends Chain>(
+  async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
     deployOpts?: DeployOptions,
-  ): Promise<
-    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
-  > {
-    return this.deployProxiedContract(
+  ): Promise<ConnectionClientContracts> {
+    const owner = this.configMap[chain].owner;
+    const interchainGasPaymaster = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
       [],
       proxyAdmin,
-      [],
+      [owner],
       deployOpts,
     );
+    const interchainGasOverhead = await this.deployProxiedContract(
+      chain,
+      'interchainGasOverhead',
+      [interchainGasPaymaster.address],
+      proxyAdmin,
+      [owner],
+      deployOpts,
+    );
+
+    const configChains = Object.keys(this.configMap) as Chain[];
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const remotes = this.multiProvider
+      .intersect(configChains, false)
+      .multiProvider.remoteChains(chain);
+
+    const configs = remotes.map((remote) => {
+      const ismConfig = this.configMap[remote].multisigIsm;
+      // @ts-ignore
+      const verifyCost =
+        multisigIsmVerifyCosts[ismConfig.validators.length][
+          ismConfig.threshold
+        ];
+      return {
+        domain: ChainNameToDomainId[remote],
+        gasOverhead: verifyCost,
+      };
+    });
+
+    await chainConnection.handleTx(
+      interchainGasOverhead.contract.setDestinationGasOverheads(configs),
+    );
+
+    return {
+      interchainGasPaymaster,
+      interchainGasOverhead,
+    };
   }
 
   async deployMailbox<LocalChain extends Chain>(
@@ -82,7 +116,10 @@ export class HyperlaneCoreDeployer<
   async deployMultisigIsm<LocalChain extends Chain>(
     chain: LocalChain,
   ): Promise<MultisigIsm> {
-    const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
+    const owner = this.configMap[chain].owner;
+    const multisigIsm = await this.deployContract(chain, 'multisigIsm', [
+      owner,
+    ]);
     const configChains = Object.keys(this.configMap) as Chain[];
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const remotes = this.multiProvider
@@ -164,7 +201,7 @@ export class HyperlaneCoreDeployer<
     const multisigIsm = await this.deployMultisigIsm(chain);
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
-    const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
+    const connectionClientContracts = await this.deployInterchainGasPaymaster(
       chain,
       proxyAdmin,
     );
@@ -173,35 +210,17 @@ export class HyperlaneCoreDeployer<
       multisigIsm.address,
       proxyAdmin,
     );
-    // Mailbox ownership is transferred upon initialization.
-    const ownables: Ownable[] = [multisigIsm, proxyAdmin];
-    await this.transferOwnershipOfContracts(chain, ownables);
+
+    // must be done last so we can administrate proxies from deployer key
+    await dc.handleTx(
+      proxyAdmin.transferOwnership(this.configMap[chain].owner),
+    );
 
     return {
       proxyAdmin,
-      interchainGasPaymaster,
       mailbox,
+      ...connectionClientContracts,
       multisigIsm,
     };
-  }
-
-  async transferOwnershipOfContracts(
-    chain: Chain,
-    ownables: Ownable[],
-  ): Promise<ethers.ContractReceipt[]> {
-    const owner = this.configMap[chain].owner;
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const receipts = await Promise.all(
-      ownables.map(async (ownable) => {
-        const currentOwner = await ownable.owner();
-        if (currentOwner.toLowerCase() !== owner.toLowerCase()) {
-          return chainConnection.handleTx(
-            ownable.transferOwnership(owner, chainConnection.overrides),
-          );
-        }
-        return undefined;
-      }),
-    );
-    return receipts.filter((x) => x !== undefined) as ethers.ContractReceipt[];
   }
 }

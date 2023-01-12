@@ -18,7 +18,7 @@ contract GasOverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
 
     /// @notice The IGP that is called when paying for or quoting gas
     /// after applying overhead gas amounts.
-    IInterchainGasPaymaster public innerIgp;
+    IInterchainGasPaymaster immutable innerIgp;
 
     /// @notice Destination domain => overhead gas amount on that domain.
     mapping(uint32 => uint256) public destinationGasOverhead;
@@ -31,34 +31,34 @@ contract GasOverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
     // ============ Events ============
 
     /**
-     * @notice Emitted when the innerIgp is set.
-     * @param innerIgp The new innerIgp.
-     */
-    event InnerIgpSet(address innerIgp);
-
-    /**
      * @notice Emitted when an entry in the destinationGasOverhead mapping is set.
      * @param domain The destination domain.
      * @param gasOverhead The gas overhead amount on that domain.
      */
     event DestinationGasOverheadSet(uint32 indexed domain, uint256 gasOverhead);
 
+    struct DomainConfig {
+        uint32 domain;
+        uint256 gasOverhead;
+    }
+
     // ============ Constructor ============
 
     constructor(address _innerIgp) {
-        initialize(_innerIgp); // allows contract to be used without proxying
+        innerIgp = IInterchainGasPaymaster(_innerIgp);
+        _transferOwnership(msg.sender);
+        _disableInitializers();
     }
 
     // ============ Initializers ============
 
     /**
      * @notice Initializes the contract.
-     * @param _innerIgp The innerIgp.
+     * @param owner The owner of the contract.
      */
-    function initialize(address _innerIgp) public initializer {
+    function initialize(address owner) public initializer {
         __Ownable_init();
-
-        _setInnerIgp(_innerIgp);
+        transferOwnership(owner);
     }
 
     // ============ External Functions ============
@@ -89,31 +89,15 @@ contract GasOverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
     /**
      * @notice Sets destination gas overheads for multiple domains.
      * @dev Only callable by the owner.
-     * @dev _domains.length and _gasOverheads.length must be the same.
-     * @param _domains The destination domains to set gas overheads for.
-     * @param _gasOverheads The gas overheads for each corresponding domain in _domains.
+     * @param configs A list of destination domains and gas overheads.
      */
-    function setDestinationGasOverheads(
-        uint32[] calldata _domains,
-        uint256[] calldata _gasOverheads
-    ) external onlyOwner {
-        require(
-            _domains.length == _gasOverheads.length,
-            "Domain and gas overhead length mismatch"
-        );
-
-        for (uint256 i; i < _domains.length; i++) {
-            _setDestinationGasOverhead(_domains[i], _gasOverheads[i]);
+    function setDestinationGasOverheads(DomainConfig[] calldata configs)
+        external
+        onlyOwner
+    {
+        for (uint256 i; i < configs.length; i++) {
+            _setDestinationGasOverhead(configs[i]);
         }
-    }
-
-    /**
-     * @notice Sets the innerIgp.
-     * @dev Only callable by the owner.
-     * @param _innerIgp The new innerIgp.
-     */
-    function setInnerIgp(address _innerIgp) external onlyOwner {
-        _setInnerIgp(_innerIgp);
     }
 
     // ============ Public Functions ============
@@ -154,26 +138,12 @@ contract GasOverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
         return destinationGasOverhead[_destinationDomain] + _gasAmount;
     }
 
-    // ============ Internal Functions ============
-
-    /**
-     * @notice Sets the innerIgp.
-     * @param _innerIgp The new innerIgp.
-     */
-    function _setInnerIgp(address _innerIgp) internal {
-        innerIgp = IInterchainGasPaymaster(_innerIgp);
-        emit InnerIgpSet(_innerIgp);
-    }
-
     /**
      * @notice Sets the destination gas overhead for a single domain.
-     * @param _domain The destination domain.
-     * @param _gasOverhead The gas overhead for the domain.
+     * @param config The destination domain and gas overhead.
      */
-    function _setDestinationGasOverhead(uint32 _domain, uint256 _gasOverhead)
-        internal
-    {
-        destinationGasOverhead[_domain] = _gasOverhead;
-        emit DestinationGasOverheadSet(_domain, _gasOverhead);
+    function _setDestinationGasOverhead(DomainConfig calldata config) internal {
+        destinationGasOverhead[config.domain] = config.gasOverhead;
+        emit DestinationGasOverheadSet(config.domain, config.gasOverhead);
     }
 }

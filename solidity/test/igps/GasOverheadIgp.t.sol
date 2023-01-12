@@ -131,22 +131,22 @@ contract GasOverheadIgpTest is Test {
         igp.setDestinationGasOverheads(_domains, _gasOverheads);
     }
 
-    function setInnerIgp() public {
-        address newInnerIgp = 0xFAcefaCEFACefACeFaCefacEFaCeFACEFAceFAcE;
-        // Only concerned about topic 0 (event signature) and the data.
-        vm.expectEmit(true, false, false, true);
-        emit InnerIgpSet(newInnerIgp);
+    // function setInnerIgp() public {
+    //     address newInnerIgp = 0xFAcefaCEFACefACeFaCefacEFaCeFACEFAceFAcE;
+    //     // Only concerned about topic 0 (event signature) and the data.
+    //     vm.expectEmit(true, false, false, true);
+    //     emit InnerIgpSet(newInnerIgp);
 
-        igp.setInnerIgp(newInnerIgp);
-    }
+    //     igp.setInnerIgp(newInnerIgp);
+    // }
 
-    function setInnerIgpNotOwner() public {
-        address newInnerIgp = 0xFAcefaCEFACefACeFaCefacEFaCeFACEFAceFAcE;
+    // function setInnerIgpNotOwner() public {
+    //     address newInnerIgp = 0xFAcefaCEFACefACeFaCefacEFaCeFACEFAceFAcE;
 
-        vm.expectRevert("Ownable: caller is not the owner");
-        vm.prank(nonOwner);
-        igp.setInnerIgp(newInnerIgp);
-    }
+    //     vm.expectRevert("Ownable: caller is not the owner");
+    //     vm.prank(nonOwner);
+    //     igp.setInnerIgp(newInnerIgp);
+    // }
 
     // ============ Helper Functions ============
 

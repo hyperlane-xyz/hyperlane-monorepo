@@ -81,6 +81,7 @@ export async function dispatchMessageAndReturnMetadata(
   recipient: string,
   messageStr: string,
   orderedValidators: Validator[],
+  threshold?: number,
 ): Promise<MessageAndMetadata> {
   // Checkpoint indices are 0 indexed, so we pull the count before
   // we dispatch the message.
@@ -92,12 +93,17 @@ export async function dispatchMessageAndReturnMetadata(
     messageStr,
   );
   const root = await mailbox.root();
-  const signatures = await signCheckpoint(
+  let signatures = await signCheckpoint(
     root,
     index,
     mailbox.address,
     orderedValidators,
   );
+  if (threshold) {
+    signatures = signatures.slice(0, threshold);
+  } else {
+    threshold = signatures.length;
+  }
   const origin = utils.parseMessage(proofAndMessage.message).origin;
   const metadata = utils.formatMultisigIsmMetadata({
     checkpointRoot: root,
