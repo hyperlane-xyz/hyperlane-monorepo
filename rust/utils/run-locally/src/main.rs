@@ -314,19 +314,28 @@ fn main() -> ExitCode {
 
     // Rebuild the SDK to pick up the deployed contracts
     println!("Rebuilding sdk...");
-    build_cmd(&["yarn", "build"], &build_log, log_all, Some("../typescript/sdk"));
+    build_cmd(
+        &["yarn", "build"],
+        &build_log,
+        log_all,
+        Some("../typescript/sdk"),
+    );
 
     // Register the validator announcement
     println!("Announcing validator...");
     let mut announce = Command::new("yarn");
     announce.arg("announce");
-    announce.args(["--checkpointsdir", checkpoints_dir.path().to_str().unwrap(), "--chain", "test1"]);
+    announce.args([
+        "--checkpointsdir",
+        checkpoints_dir.path().to_str().unwrap(),
+        "--chain",
+        "test1",
+    ]);
     announce
         .current_dir("../typescript/infra")
         .stdout(Stdio::piped())
         .spawn()
         .expect("Failed to announce validator");
-
 
     println!("Setup complete! Agents running in background...");
     println!("Ctrl+C to end execution...");
