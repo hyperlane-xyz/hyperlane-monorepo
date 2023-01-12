@@ -75,3 +75,17 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
         })
     }
 }
+
+#[async_trait]
+impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        Ok(match conf {
+            SignerConf::HexKey { key } => {
+                let key = key.as_ref().parse()?;
+                fuels::prelude::WalletUnlocked::new_from_private_key(key, None)
+            }
+            SignerConf::Aws { .. } => bail!("Aws signer is not supported by fuel"),
+            SignerConf::Node => bail!("Node signer is not supported by fuel"),
+        })
+    }
+}

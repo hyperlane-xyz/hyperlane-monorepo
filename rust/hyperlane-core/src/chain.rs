@@ -108,6 +108,9 @@ pub enum KnownHyperlaneDomain {
     Test2 = 13372,
     /// Test3 local chain
     Test3 = 13373,
+
+    /// Fuel1 local chain
+    FuelTest1 = 13374,
 }
 
 #[derive(Clone)]
@@ -166,7 +169,7 @@ impl KnownHyperlaneDomain {
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
                 Alfajores, MoonbaseAlpha, Zksync2Testnet
             ],
-            LocalTestChain: [Test1, Test2, Test3],
+            LocalTestChain: [Test1, Test2, Test3, FuelTest1],
         })
     }
 
@@ -179,6 +182,7 @@ impl KnownHyperlaneDomain {
                 Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo,
                 Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
             ],
+            HyperlaneDomainProtocol::Fuel: [FuelTest1],
         })
     }
 }

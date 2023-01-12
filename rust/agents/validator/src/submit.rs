@@ -11,7 +11,7 @@ use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox};
 
 pub(crate) struct ValidatorSubmitter {
-    interval: u64,
+    interval: Duration,
     reorg_period: Option<NonZeroU64>,
     signer: Arc<dyn HyperlaneSigner>,
     mailbox: Arc<dyn Mailbox>,
@@ -21,7 +21,7 @@ pub(crate) struct ValidatorSubmitter {
 
 impl ValidatorSubmitter {
     pub(crate) fn new(
-        interval: u64,
+        interval: Duration,
         reorg_period: u64,
         mailbox: Arc<dyn Mailbox>,
         signer: Arc<dyn HyperlaneSigner>,
@@ -64,7 +64,7 @@ impl ValidatorSubmitter {
         // more details.
         while self.mailbox.count().await? == 0 {
             info!("Waiting for non-zero mailbox size");
-            sleep(Duration::from_secs(self.interval)).await;
+            sleep(self.interval).await;
         }
 
         // current_index will be None if the validator cannot find
@@ -140,7 +140,7 @@ impl ValidatorSubmitter {
                     .set(signed_checkpoint.value.index as i64);
             }
 
-            sleep(Duration::from_secs(self.interval)).await;
+            sleep(self.interval).await;
         }
     }
 }

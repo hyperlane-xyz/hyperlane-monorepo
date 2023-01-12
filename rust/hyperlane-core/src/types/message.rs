@@ -1,4 +1,4 @@
-use sha3::{Digest, Keccak256};
+use sha3::{digest::Update, Digest, Keccak256};
 
 use crate::{Decode, Encode, HyperlaneProtocolError, H256};
 
