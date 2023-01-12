@@ -91,10 +91,10 @@ export type ChainValidatorSets<Chain extends ChainName> = ChainMap<
 export type MatchingList = MatchingListElement[];
 
 interface MatchingListElement {
-  sourceDomain?: '*' | string | string[] | number | number[];
-  sourceAddress?: '*' | string | string[];
-  destinationDomain?: '*' | string | string[] | number | number[];
-  destinationAddress?: '*' | string | string[];
+  senderDomain?: '*' | string | string[] | number | number[];
+  senderAddress?: '*' | string | string[];
+  recipientDomain?: '*' | string | string[] | number | number[];
+  recipientAddress?: '*' | string | string[];
 }
 
 export enum GasPaymentEnforcementPolicyType {

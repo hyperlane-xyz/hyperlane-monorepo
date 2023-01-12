@@ -7,10 +7,10 @@ import { Contexts } from './contexts';
 
 export const MATCHING_LIST_ALL_WILDCARDS = [
   {
-    sourceDomain: '*',
-    sourceAddress: '*',
-    destinationDomain: '*',
-    destinationAddress: '*',
+    senderDomain: '*',
+    senderAddress: '*',
+    recipientDomain: '*',
+    recipientAddress: '*',
   },
 ];
 
@@ -39,10 +39,10 @@ function routerMatchingList<Chain extends ChainName>(
       }
 
       matchingList.push({
-        sourceDomain: chainMetadata[source].id,
-        sourceAddress: routers[source].router,
-        destinationDomain: chainMetadata[destination].id,
-        destinationAddress: routers[destination].router,
+        senderDomain: chainMetadata[source].id,
+        senderAddress: routers[source].router,
+        recipientDomain: chainMetadata[destination].id,
+        recipientAddress: routers[destination].router,
       });
     }
   }
