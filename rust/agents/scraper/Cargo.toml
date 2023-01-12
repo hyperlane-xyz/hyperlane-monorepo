@@ -7,7 +7,7 @@ edition = "2021"
 async-trait = { version = "0.1", default-features = false }
 chrono = "0.4"
 config = "0.13"
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01" }
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04" }
 eyre = "0.6"
 itertools = "0.10"
 prometheus = "0.13"

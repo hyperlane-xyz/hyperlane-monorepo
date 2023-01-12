@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 auto_impl = "1.0"
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01", default-features = false, features = ['legacy'] }
-ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01", features=["aws"] }
-ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01", features=["ws", "rustls"] }
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04", default-features = false, features = ['legacy'] }
+ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04", features=["aws"] }
+ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04", features=["ws", "rustls"] }
 config = "0.13"
 hex = "0.4.3"
 sha3 = "0.9.1"
