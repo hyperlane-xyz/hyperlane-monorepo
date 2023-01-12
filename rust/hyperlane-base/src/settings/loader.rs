@@ -1,7 +1,9 @@
-use config::{Config, Environment, File};
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
+
+use config::{Config, Environment, File};
+use eyre::{Context, Result};
+use serde::Deserialize;
 
 /// Load a settings object from the config locations.
 ///
@@ -27,7 +29,7 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
     agent_prefix: &str,
     config_file_name: Option<&str>,
     ignore_prefixes: &[S],
-) -> eyre::Result<T> {
+) -> Result<T> {
     let env = env::var("RUN_ENV").unwrap_or_else(|_| "default".into());
 
     // Derive additional prefix from agent name
@@ -69,5 +71,11 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
         )
         .build()?;
 
-    Ok(serde_path_to_error::deserialize(config_deserializer)?)
+    match serde_path_to_error::deserialize(config_deserializer) {
+        Ok(cfg) => Ok(cfg),
+        Err(err) => {
+            let ctx = format!("Invalid config at `{}`", err.path());
+            Err(err).context(ctx)
+        }
+    }
 }

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::{Context, Result};
@@ -20,7 +21,7 @@ pub struct Validator {
     mailbox: Arc<dyn Mailbox>,
     signer: Arc<dyn HyperlaneSigner>,
     reorg_period: u64,
-    interval: u64,
+    interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
 }
 
@@ -47,7 +48,7 @@ impl BaseAgent for Validator {
             .await
             .map(|validator| Arc::new(validator) as Arc<dyn HyperlaneSigner>)?;
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
-        let interval = settings.interval.parse().expect("invalid uint");
+        let interval = Duration::from_secs(settings.interval.parse().expect("invalid uint"));
         let core = settings.build_hyperlane_core(metrics.clone());
         let checkpoint_syncer = settings.checkpointsyncer.build(None)?.into();
 

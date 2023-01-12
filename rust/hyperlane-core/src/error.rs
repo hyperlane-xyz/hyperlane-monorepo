@@ -3,9 +3,7 @@ use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 
-use ethers::contract::ContractError;
-use ethers::prelude::SignatureError;
-use ethers_providers::{Middleware, ProviderError};
+use ethers::prelude::{ContractError, Middleware, ProviderError, SignatureError};
 
 use crate::db::DbError;
 use crate::HyperlaneProviderError;
