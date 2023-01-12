@@ -182,6 +182,7 @@ for (const withCollateral of [true, false]) {
             remoteDomain,
             utils.addressToBytes32(recipient.address),
             invalidTokenId,
+            { value: 1 },
           ),
         ).to.be.revertedWith('ERC721: invalid token ID');
       });
@@ -191,6 +192,7 @@ for (const withCollateral of [true, false]) {
           remoteDomain,
           utils.addressToBytes32(recipient.address),
           tokenId2,
+          { value: 1 },
         );
 
         await expectBalance(local, recipient, 0);
@@ -215,6 +217,7 @@ for (const withCollateral of [true, false]) {
             remoteDomain,
             utils.addressToBytes32(recipient.address),
             tokenId2,
+            { value: 1 },
           );
 
           await expect(remoteUri.tokenURI(tokenId2)).to.be.revertedWith('');
@@ -238,6 +241,7 @@ for (const withCollateral of [true, false]) {
               remoteDomain,
               utils.addressToBytes32(recipient.address),
               tokenId2,
+              { value: 1 },
             ),
         ).to.be.revertedWith(revertReason);
       });
@@ -263,6 +267,7 @@ for (const withCollateral of [true, false]) {
             remoteDomain,
             utils.addressToBytes32(recipient.address),
             tokenId4,
+            { value: 1 },
           ),
         )
           .to.emit(local, 'SentTransferRemote')
