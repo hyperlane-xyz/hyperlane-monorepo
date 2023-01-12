@@ -1,10 +1,13 @@
+use std::collections::HashMap;
 use std::fmt::Debug;
+use std::num::NonZeroU64;
 
 use async_trait::async_trait;
 
 use hyperlane_core::{
-    ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    ChainResult, Checkpoint, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256,
+    U256,
 };
 
 /// A reference to a Mailbox contract on some Fuel chain
@@ -33,7 +36,7 @@ impl Mailbox for FuelMailbox {
         todo!()
     }
 
-    async fn latest_checkpoint(&self, lag: Option<u64>) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         todo!()
     }
 
@@ -93,6 +96,17 @@ impl MailboxIndexer for FuelMailboxIndexer {
         from: u32,
         to: u32,
     ) -> ChainResult<Vec<(H256, LogMeta)>> {
+        todo!()
+    }
+}
+
+struct FuelMailboxAbi;
+
+impl HyperlaneAbi for FuelMailboxAbi {
+    const SELECTOR_SIZE_BYTES: usize = 8;
+
+    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
+        // Can't support this without Fuels exporting it in the generated code
         todo!()
     }
 }
