@@ -53,12 +53,6 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
         uint256 _gasAmount,
         address _refundAddress
     ) external payable override {
-        // Silence compiler warning. The NatSpec @param requires the parameter to be named.
-        // While not used at the moment, future versions of the paymaster have behavior specific
-        // to the destination domain and refund overpayments to the _refundAddress.
-        _destinationDomain;
-        _refundAddress;
-
         uint256 _requiredPayment = quoteGasPayment(
             _destinationDomain,
             _gasAmount
