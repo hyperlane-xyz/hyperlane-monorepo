@@ -13,11 +13,13 @@ use std::env;
 ///
 /// 1. The file specified by the `RUN_ENV` and `BASE_CONFIG`
 ///    env vars. `RUN_ENV/BASE_CONFIG`
-/// 2. The file specified by the `RUN_ENV` env var and the
-///    agent's name. `RUN_ENV/<agent_prefix>-partial.json`
-/// 3. Configuration env vars with the prefix `HYP_BASE` intended
+/// 2. The file specified by the `RUN_ENV` env var and the default
+///    extra partial config. `RUN_ENV/extra_partial_config.json`
+/// 3. The file specified by the `RUN_ENV` env var and the
+///    agent's name. `RUN_ENV/<agent_prefix>_partial_config.json`
+/// 4. Configuration env vars with the prefix `HYP_BASE` intended
 ///    to be shared by multiple agents in the same environment
-/// 4. Configuration env vars with the prefix `HYP_<agent_prefix>`
+/// 5. Configuration env vars with the prefix `HYP_<agent_prefix>`
 ///    intended to be used by a specific agent.
 ///
 /// Specify a configuration directory with the `RUN_ENV` env
@@ -48,9 +50,17 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
         builder
     };
     let config_deserializer = builder
+        // Use an agent-independent partial
         .add_source(
             File::with_name(&format!(
-                "./config/{}/{}-partial",
+                "./config/{}/extra_partial_config.json",
+                env            ))
+            .required(false),
+        )
+        // Use an agent-specific partial
+        .add_source(
+            File::with_name(&format!(
+                "./config/{}/{}_partial_config.json",
                 env,
                 agent_prefix.to_lowercase()
             ))
