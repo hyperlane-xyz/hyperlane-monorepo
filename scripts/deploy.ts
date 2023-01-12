@@ -6,6 +6,7 @@ import {
   MultiProvider,
   chainConnectionConfigs,
   objMap,
+  serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import { HypERC20Deployer } from "../src/deploy";  
 
@@ -37,7 +38,8 @@ async function deployTradeRoute() {
     await deployer.deploy();
 
     console.log('Deployment successful. Deployed contracts:')
-    console.log(deployer.deployedContracts)
+    // @ts-ignore
+    console.log(serializeContracts(deployer.deployedContracts))
 }
 
 deployTradeRoute().then(console.log).catch(console.error)
