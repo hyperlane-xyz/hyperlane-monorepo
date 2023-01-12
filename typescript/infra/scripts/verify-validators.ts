@@ -1,36 +1,45 @@
 import {
   ChainNameToDomainId,
+  HyperlaneCore,
   hyperlaneCoreAddresses,
   objMap,
 } from '@hyperlane-xyz/sdk';
 
 import { CheckpointStatus, S3Validator } from '../src/agents/aws/validator';
-import { CheckpointSyncerType } from '../src/config/agent';
+import { deployEnvToSdkEnv } from '../src/config/environment';
 
-import { getContext, getCoreEnvironmentConfig, getEnvironment } from './utils';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const coreConfig = getCoreEnvironmentConfig(environment);
-  const context = await getContext();
-  const validatorSets = coreConfig.agents[context]?.validatorSets;
-  if (!validatorSets)
-    throw Error(`No validator sets found for ${environment}:${context}`);
-  objMap(validatorSets, async (chain, validatorSet) => {
+  const config = getCoreEnvironmentConfig(environment);
+  const multiProvider = await config.getMultiProvider();
+  // environments union doesn't work well with typescript
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider as any,
+  );
+
+  objMap(config.core, async (chain, coreConfig) => {
     const domainId = ChainNameToDomainId[chain];
     const mailbox = hyperlaneCoreAddresses[chain].mailbox;
-    const validators = validatorSet.validators.map((validator) => {
-      const checkpointSyncer = validator.checkpointSyncer;
-      if (checkpointSyncer.type == CheckpointSyncerType.S3) {
-        return new S3Validator(
-          validator.address,
-          domainId,
-          mailbox,
-          checkpointSyncer.bucket,
-          checkpointSyncer.region,
-        );
+    // @ts-ignore Not sure why I need to do this..
+    const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
+    const storageLocations =
+      await validatorAnnounce.getAnnouncedStorageLocations(
+        coreConfig.multisigIsm.validators,
+      );
+    const validators = coreConfig.multisigIsm.validators.map((validator, i) => {
+      // Only use the latest announcement for now
+      if (storageLocations[i].length != 1) {
+        throw new Error('Only support single announcement');
       }
-      throw new Error('Cannot check non-s3 validator type');
+      return S3Validator.fromStorageLocation(
+        validator,
+        domainId,
+        mailbox,
+        storageLocations[i][0],
+      );
     });
     const controlValidator = validators[0];
     for (let i = 1; i < validators.length; i++) {
@@ -39,12 +48,15 @@ async function main() {
       const valid =
         metrics.filter((metric) => metric.status !== CheckpointStatus.VALID)
           .length === 0;
-      const name = validatorSet.validators[i].name;
       if (!valid) {
-        console.log(`${name} has >=1 non-valid checkpoints for ${chain}`);
+        console.log(
+          `${prospectiveValidator.address} has >=1 non-valid checkpoints for ${chain}`,
+        );
         console.log(JSON.stringify(metrics, null, 2));
       } else {
-        console.log(`${name} has valid checkpoints for ${chain}`);
+        console.log(
+          `${prospectiveValidator.address} has valid checkpoints for ${chain}`,
+        );
       }
     }
   });

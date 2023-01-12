@@ -13,9 +13,7 @@ import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
-
   const multiProvider = await config.getMultiProvider();
-
   // environments union doesn't work well with typescript
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
@@ -34,24 +32,30 @@ async function main() {
       const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
       const storageLocations =
         await validatorAnnounce.getAnnouncedStorageLocations([validator]);
-      const s3Validator = new S3Validator(
-        validator,
-        ChainNameToDomainId[chain],
-        hyperlaneCoreAddresses[chain].mailbox,
-        validator.checkpointSyncer.bucket,
-        validator.checkpointSyncer.region,
-      );
-
+      // Only use the latest announcement for now
+      let index = null;
+      if (storageLocations.length == 1 && storageLocations[0].length == 1) {
+        try {
+          const s3Validator = S3Validator.fromStorageLocation(
+            validator,
+            ChainNameToDomainId[chain],
+            hyperlaneCoreAddresses[chain].mailbox,
+            storageLocations[0][0],
+          );
+          index = await s3Validator.getLatestCheckpointIndex();
+        } catch (e) {
+          console.error(e);
+        }
+      }
       return {
         chain,
-        name: validator.name,
-        address: validator.address,
-        index: await s3Validator.getLatestCheckpointIndex(),
+        address: validator,
+        index,
       };
     },
   );
 
-  console.table(indices, ['chain', 'index', 'name', 'address']);
+  console.table(indices, ['chain', 'index', 'address']);
 }
 
 main().catch(console.error);

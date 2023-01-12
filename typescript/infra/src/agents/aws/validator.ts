@@ -56,6 +56,29 @@ export class S3Validator extends BaseValidator {
     this.s3Bucket = new S3Wrapper(s3Bucket, s3Region);
   }
 
+  static fromStorageLocation(
+    address: string,
+    localDomain: number,
+    mailbox: string,
+    storageLocation: string,
+  ): S3Validator {
+    const prefix = 's3://';
+    if (storageLocation.startsWith(prefix)) {
+      const suffix = storageLocation.slice(prefix.length);
+      const pieces = suffix.split('/');
+      if (pieces.length == 2) {
+        return new S3Validator(
+          address,
+          localDomain,
+          mailbox,
+          pieces[0],
+          pieces[1],
+        );
+      }
+    }
+    throw new Error(`Unable to parse location ${storageLocation}`);
+  }
+
   async getLatestCheckpointIndex() {
     const latestCheckpointIndex = await this.s3Bucket.getS3Obj<number>(
       LATEST_KEY,
