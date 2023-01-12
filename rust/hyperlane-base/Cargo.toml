@@ -11,7 +11,7 @@ config = "0.13"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false }
 serde_path_to_error = "0.1"
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2022-12-05-01" }
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04" }
 fuels = "0.33"
 thiserror = "1.0"
 async-trait = { version = "0.1", default-features = false }
@@ -30,7 +30,6 @@ backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
 ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
 hyperlane-core = { path = "../hyperlane-core" }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
-hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-test = { path = "../hyperlane-test" }
 paste = "1.0"
 tracing-error = "0.2"
