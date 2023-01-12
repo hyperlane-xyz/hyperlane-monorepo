@@ -24,7 +24,6 @@ url = "2.3"
 
 hyperlane-core = { path = "../../hyperlane-core" }
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
-ethers-fallback = { path = "../../ethers-fallback" }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen" }

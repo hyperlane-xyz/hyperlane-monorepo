@@ -1968,18 +1968,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethers-fallback"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "ethers-providers",
- "serde",
- "serde_json",
- "thiserror",
- "tracing",
-]
-
-[[package]]
 name = "ethers-middleware"
 version = "1.0.2"
 source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-01-10-04#f9b15d736a375d183dfa340688bbdccb04c19ec1"
@@ -3210,7 +3198,6 @@ dependencies = [
  "async-trait",
  "ethers",
  "ethers-contract",
- "ethers-fallback",
  "ethers-prometheus",
  "ethers-signers",
  "hex 0.4.3",

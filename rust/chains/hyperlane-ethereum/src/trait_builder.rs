@@ -10,7 +10,6 @@ use ethers::prelude::{
 use reqwest::{Client, Url};
 use thiserror::Error;
 
-use ethers_fallback::FallbackProvider;
 use ethers_prometheus::json_rpc_client::{
     JsonRpcClientMetrics, JsonRpcClientMetricsBuilder, NodeInfo, PrometheusJsonRpcClient,
     PrometheusJsonRpcClientConfig,
@@ -20,7 +19,7 @@ use ethers_prometheus::middleware::{
 };
 use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, Signers};
 
-use crate::{ConnectionConf, RetryingProvider};
+use crate::{ConnectionConf, FallbackProvider, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
