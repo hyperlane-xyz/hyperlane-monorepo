@@ -31,11 +31,11 @@ contract GasOverheadIgpTest is Test {
     function testPayForGas() public {
         setTestDestinationGasOverhead();
 
-        uint256 testPaymentAmount = 123456789;
+        uint256 testPayment = 123456789;
 
         vm.expectCall(
             address(innerIgp),
-            testPaymentAmount,
+            testPayment,
             abi.encodeCall(
                 innerIgp.payForGas,
                 (
@@ -47,7 +47,7 @@ contract GasOverheadIgpTest is Test {
             )
         );
 
-        igp.payForGas{value: testPaymentAmount}(
+        igp.payForGas{value: testPayment}(
             testMessageId,
             testDestinationDomain,
             testGasAmount,
