@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use sha3::{Digest, Keccak256};
+use sha3::{digest::Update, Digest, Keccak256};
 use thiserror::Error;
 
 use crate::H256;
@@ -23,8 +23,8 @@ pub fn domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
     H256::from_slice(
         Keccak256::new()
             .chain(domain.into().to_be_bytes())
-            .chain(address.as_ref())
-            .chain("HYPERLANE".as_bytes())
+            .chain(address)
+            .chain("HYPERLANE")
             .finalize()
             .as_slice(),
     )

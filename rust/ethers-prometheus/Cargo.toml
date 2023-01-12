@@ -23,7 +23,7 @@ serde_json = { version = "1.0", default-features = false }
 primitive-types = { version = "*", features = ["fp-conversion"] }
 
 [build-dependencies]
-abigen = { path = "../utils/abigen" }
+abigen = { path = "../utils/abigen", features = ["ethers"] }
 
 [features]
 default = []

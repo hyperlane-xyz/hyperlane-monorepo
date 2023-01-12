@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use auto_impl::auto_impl;
 use thiserror::Error;
 
 use crate::{BlockInfo, ChainResult, HyperlaneChain, TxnInfo, H256};
@@ -13,6 +14,7 @@ use crate::{BlockInfo, ChainResult, HyperlaneChain, TxnInfo, H256};
 /// however, there are some generic calls that we should be able to make outside
 /// the context of a contract.
 #[async_trait]
+#[auto_impl(&, Box, Arc)]
 pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
     /// Get block info for a given block hash
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo>;

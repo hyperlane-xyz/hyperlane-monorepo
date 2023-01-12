@@ -26,4 +26,4 @@ hyperlane-core = { path = "../../hyperlane-core" }
 ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
 
 [build-dependencies]
-abigen = { path = "../../utils/abigen" }
+abigen = { path = "../../utils/abigen", features = ["ethers"] }

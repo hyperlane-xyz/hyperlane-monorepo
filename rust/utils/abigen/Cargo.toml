@@ -6,5 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04" }
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", optional = true, tag = "2023-01-10-04" }
+fuels = { version = "0.33", optional = true }
+which = {version =  "4.3", optional = true }
 Inflector = "0.11"
+
+[features]
+default = []
+ethers = ["dep:ethers"]
+fmt = ["dep:which"]
+fuels = ["dep:fuels", "fmt"]
