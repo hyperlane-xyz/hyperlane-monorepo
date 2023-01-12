@@ -14,12 +14,21 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  * to specify the gas amount used by their own applications.
  */
 contract GasOverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
+    // ============ Public Storage ============
+
     /// @notice The IGP that is called when paying for or quoting gas
     /// after applying overhead gas amounts.
     IInterchainGasPaymaster public innerIgp;
 
     /// @notice Destination domain => overhead gas amount on that domain.
     mapping(uint32 => uint256) public destinationGasOverhead;
+
+    // ============ Upgrade Gap ============
+
+    // gap for upgrade safety
+    uint256[48] private __GAP;
+
+    // ============ Events ============
 
     /**
      * @notice Emitted when the innerIgp is set.
@@ -40,7 +49,7 @@ contract GasOverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
         initialize(_innerIgp); // allows contract to be used without proxying
     }
 
-    // ============ External Functions ============
+    // ============ Initializers ============
 
     /**
      * @notice Initializes the contract.
@@ -51,6 +60,8 @@ contract GasOverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
 
         _setInnerIgp(_innerIgp);
     }
+
+    // ============ External Functions ============
 
     /**
      * @notice Adds the stored destinationGasOverhead to the _gasAmount and forwards the
@@ -74,6 +85,38 @@ contract GasOverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
             _refundAddress
         );
     }
+
+    /**
+     * @notice Sets destination gas overheads for multiple domains.
+     * @dev Only callable by the owner.
+     * @dev _domains.length and _gasOverheads.length must be the same.
+     * @param _domains The destination domains to set gas overheads for.
+     * @param _gasOverheads The gas overheads for each corresponding domain in _domains.
+     */
+    function setDestinationGasOverheads(
+        uint32[] calldata _domains,
+        uint256[] calldata _gasOverheads
+    ) external onlyOwner {
+        require(
+            _domains.length == _gasOverheads.length,
+            "Domain and gas overhead length mismatch"
+        );
+
+        for (uint256 i; i < _domains.length; i++) {
+            _setDestinationGasOverhead(_domains[i], _gasOverheads[i]);
+        }
+    }
+
+    /**
+     * @notice Sets the innerIgp.
+     * @dev Only callable by the owner.
+     * @param _innerIgp The new innerIgp.
+     */
+    function setInnerIgp(address _innerIgp) external onlyOwner {
+        _setInnerIgp(_innerIgp);
+    }
+
+    // ============ Public Functions ============
 
     /**
      * @notice Adds the stored destinationGasOverhead to the _gasAmount and forwards the
@@ -111,35 +154,7 @@ contract GasOverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
         return destinationGasOverhead[_destinationDomain] + _gasAmount;
     }
 
-    /**
-     * @notice Sets destination gas overheads for multiple domains.
-     * @dev Only callable by the owner.
-     * @dev _domains.length and _gasOverheads.length must be the same.
-     * @param _domains The destination domains to set gas overheads for.
-     * @param _gasOverheads The gas overheads for each corresponding domain in _domains.
-     */
-    function setDestinationGasOverheads(
-        uint32[] calldata _domains,
-        uint256[] calldata _gasOverheads
-    ) external onlyOwner {
-        require(
-            _domains.length == _gasOverheads.length,
-            "Domain and gas overhead length mismatch"
-        );
-
-        for (uint256 i; i < _domains.length; i++) {
-            _setDestinationGasOverhead(_domains[i], _gasOverheads[i]);
-        }
-    }
-
-    /**
-     * @notice Sets the innerIgp.
-     * @dev Only callable by the owner.
-     * @param _innerIgp The new innerIgp.
-     */
-    function setInnerIgp(address _innerIgp) external onlyOwner {
-        _setInnerIgp(_innerIgp);
-    }
+    // ============ Internal Functions ============
 
     /**
      * @notice Sets the innerIgp.
