@@ -4,7 +4,7 @@ use std::num::NonZeroU64;
 
 use async_trait::async_trait;
 use fuels::prelude::{Bech32ContractId, WalletUnlocked};
-use tracing::{debug, instrument};
+use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
@@ -62,11 +62,6 @@ impl Debug for FuelMailbox {
 impl Mailbox for FuelMailbox {
     #[instrument(err, ret, skip(self))]
     async fn count(&self) -> ChainResult<u32> {
-        debug!(
-            "Fuel mailbox count: {}; {:?}",
-            self.contract.get_contract_id(),
-            self.contract.get_wallet().get_provider().unwrap().client
-        );
         self.contract
             .methods()
             .count()
@@ -82,8 +77,11 @@ impl Mailbox for FuelMailbox {
     }
 
     #[instrument(err, ret, skip(self))]
-    async fn latest_checkpoint(&self, _lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        // TODO: does fuel even support querying at a given block number?
+    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
+        assert!(
+            lag.is_none(),
+            "Fuel does not support querying point-in-time"
+        );
         let (root, index) = self
             .contract
             .methods()

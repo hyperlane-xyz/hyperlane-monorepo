@@ -57,21 +57,6 @@ impl From<&'_ Address> for H160 {
     }
 }
 
-impl From<fuels::tx::ContractId> for Address {
-    fn from(id: fuels::tx::ContractId) -> Self {
-        Address(id.to_vec().into())
-    }
-}
-
-impl From<Address> for fuels::tx::ContractId {
-    fn from(addr: Address) -> Self {
-        addr.0
-            .as_ref()
-            .try_into()
-            .expect("Failed to convert address")
-    }
-}
-
 /// All domains supported by Hyperlane.
 #[derive(
     FromPrimitive,
