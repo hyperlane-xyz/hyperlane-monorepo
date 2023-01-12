@@ -133,6 +133,8 @@ contract GasOverheadIgpTest is Test {
 
     function setInnerIgp() public {
         address newInnerIgp = 0xFAcefaCEFACefACeFaCefacEFaCeFACEFAceFAcE;
+        // Only concerned about topic 0 (event signature) and the data.
+        vm.expectEmit(true, false, false, true);
         emit InnerIgpSet(newInnerIgp);
 
         igp.setInnerIgp(newInnerIgp);
@@ -146,7 +148,7 @@ contract GasOverheadIgpTest is Test {
         igp.setInnerIgp(newInnerIgp);
     }
 
-    // Helpers
+    // ============ Helper Functions ============
 
     function setTestDestinationGasOverhead() internal {
         uint32[] memory _domains = new uint32[](1);
