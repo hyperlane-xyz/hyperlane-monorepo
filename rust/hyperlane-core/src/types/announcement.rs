@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Keccak256};
+use sha3::{digest::Update, Digest, Keccak256};
 
 use crate::{utils::domain_hash, Signable, SignedType, H256};
 
@@ -33,7 +33,7 @@ impl Signable for Announcement {
         H256::from_slice(
             Keccak256::new()
                 .chain(domain_hash(self.mailbox_address, self.mailbox_domain))
-                .chain(self.storage_metadata.clone())
+                .chain(&self.storage_metadata)
                 .finalize()
                 .as_slice(),
         )

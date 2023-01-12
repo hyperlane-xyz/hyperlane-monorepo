@@ -1,7 +1,8 @@
+use std::collections::HashMap;
+
 use ethers::prelude::Selector;
 use eyre::{eyre, Context, Result};
 use serde::Deserialize;
-use std::collections::HashMap;
 
 use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
@@ -14,6 +15,7 @@ use hyperlane_core::{
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
 };
+use hyperlane_fuel::{self as h_fuel, prelude::*};
 
 use crate::settings::signers::BuildableWithSignerConf;
 use crate::{CoreMetrics, SignerConf};
@@ -27,14 +29,14 @@ pub enum ChainConf {
     /// Ethereum configuration
     Ethereum(h_eth::ConnectionConf),
     /// Fuel configuration
-    Fuel,
+    Fuel(h_fuel::ConnectionConf),
 }
 
 impl ChainConf {
     fn protocol(&self) -> HyperlaneDomainProtocol {
         match self {
             ChainConf::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
-            ChainConf::Fuel => HyperlaneDomainProtocol::Fuel,
+            ChainConf::Fuel(_) => HyperlaneDomainProtocol::Fuel,
         }
     }
 }
@@ -148,7 +150,7 @@ impl ChainSetup {
                     .await
             }
 
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(_) => todo!(),
         }
         .context("Building provider")
     }
@@ -163,7 +165,12 @@ impl ChainSetup {
                     .await
             }
 
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(conf) => {
+                let wallet = self.fuel_signer().await?;
+                hyperlane_fuel::FuelMailbox::new(conf, locator, wallet)
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
         }
         .context("Building mailbox")
     }
@@ -188,7 +195,7 @@ impl ChainSetup {
                 .await
             }
 
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(_) => todo!(),
         }
         .context("Building mailbox indexer")
     }
@@ -212,7 +219,7 @@ impl ChainSetup {
                 .await
             }
 
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(_) => todo!(),
         }
         .context("Building IGP")
     }
@@ -238,7 +245,7 @@ impl ChainSetup {
                 .await
             }
 
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(_) => todo!(),
         }
         .context("Building IGP indexer")
     }
@@ -260,7 +267,7 @@ impl ChainSetup {
                     .await
             }
 
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(_) => todo!(),
         }
         .context("Building multisig ISM")
     }
@@ -288,6 +295,12 @@ impl ChainSetup {
 
     async fn ethereum_signer(&self) -> Result<Option<h_eth::Signers>> {
         self.signer().await
+    }
+
+    async fn fuel_signer(&self) -> Result<fuels::prelude::WalletUnlocked> {
+        self.signer().await.and_then(|opt| {
+            opt.ok_or_else(|| eyre!("Fuel requires a signer to construct contract instances"))
+        })
     }
 
     /// Get a clone of the ethereum metrics conf with correctly configured
@@ -341,7 +354,10 @@ impl ChainSetup {
                 .parse::<ethers::types::Address>()
                 .context("Invalid ethereum address")?
                 .into(),
-            ChainConf::Fuel => todo!(),
+            ChainConf::Fuel(_) => address
+                .parse::<fuels::tx::ContractId>()
+                .map_err(|e| eyre!("Invalid fuel contract id: {e}"))?
+                .into_h256(),
         };
 
         Ok(ContractLocator { domain, address })
