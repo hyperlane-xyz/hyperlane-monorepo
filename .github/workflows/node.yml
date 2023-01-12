@@ -132,7 +132,7 @@ jobs:
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas-ci
 
-      - uses: dorny/paths-filter@v2
+      - uses: dorny/paths-filter@v2.11.1
         id: changes
         with:
           filters: |
