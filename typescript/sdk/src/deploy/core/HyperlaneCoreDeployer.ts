@@ -72,8 +72,8 @@ export class HyperlaneCoreDeployer<
 
     const configs = remotes.map((remote) => {
       const ismConfig = this.configMap[remote].multisigIsm;
-      // @ts-ignore
       const verifyCost =
+        // @ts-ignore
         multisigIsmVerifyCosts[ismConfig.validators.length][
           ismConfig.threshold
         ];
