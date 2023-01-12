@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
+import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
@@ -28,7 +28,6 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
 
     // ============ Constructor ============
 
-    // solhint-disable-next-line no-empty-blocks
     constructor() {
         initialize(); // allows contract to be used without proxying
     }
