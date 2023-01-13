@@ -370,7 +370,7 @@ describe('MultisigIsm', async () => {
   let gasOverhead: Record<number, Record<number, number>> = {};
   for (let numValidators = 1; numValidators <= 18; numValidators++) {
     for (let threshold = 1; threshold <= numValidators; threshold++) {
-      describe.only('#verify', () => {
+      describe('#verify', () => {
         let metadata: string, message: string, recipient: string;
         let adjustedValidators: Validator[];
 
@@ -400,22 +400,13 @@ describe('MultisigIsm', async () => {
           ));
         });
 
-        it.only('instrument gas costs of verification', async () => {
+        it.skip('instrument gas costs of verification', async () => {
           const gas = await multisigIsm.estimateGas.verify(metadata, message);
 
           if (gasOverhead[numValidators] === undefined) {
             gasOverhead[numValidators] = {};
           }
           gasOverhead[numValidators][threshold] = gas.toNumber();
-
-          console.log({
-            threshold,
-            numValidators,
-            gas,
-          });
-          if (numValidators === 18 && threshold === 18) {
-            console.log(JSON.stringify(gasOverhead));
-          }
         });
 
         it('returns true when valid metadata is provided', async () => {
