@@ -1,6 +1,6 @@
+pub use primitive_types::{H128, H160, H256, H512, U128, U256, U512};
 use std::io::{Read, Write};
 use std::ops::Add;
-pub use primitive_types::{H128, H160, H256, H512, U128, U256, U512};
 
 pub use announcement::*;
 pub use chain_data::*;
@@ -35,7 +35,10 @@ impl Add for InterchainGasPayment {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
-        assert_eq!(self.message_id, rhs.message_id, "Cannot add interchain gas payments for different messages");
+        assert_eq!(
+            self.message_id, rhs.message_id,
+            "Cannot add interchain gas payments for different messages"
+        );
         Self {
             message_id: self.message_id,
             payment: self.payment + rhs.payment,

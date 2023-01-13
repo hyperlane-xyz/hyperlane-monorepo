@@ -8,7 +8,9 @@ use coingecko::CoinGeckoClient;
 use eyre::{eyre, Result};
 use tokio::{sync::RwLock, time::timeout};
 
-use hyperlane_core::{HyperlaneMessage, KnownHyperlaneDomain, TxCostEstimate, U256};
+use hyperlane_core::{
+    HyperlaneMessage, InterchainGasPayment, KnownHyperlaneDomain, TxCostEstimate, U256,
+};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
@@ -179,14 +181,12 @@ impl GasPaymentPolicyMeetsEstimatedCost {
 
 #[async_trait]
 impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
-    /// Returns (gas payment requirement met, current payment according to the
-    /// DB)
     async fn message_meets_gas_payment_requirement(
         &self,
         message: &HyperlaneMessage,
-        current_payment: &U256,
+        current_payment: &InterchainGasPayment,
         tx_cost_estimate: &TxCostEstimate,
-    ) -> Result<bool> {
+    ) -> Result<Option<U256>> {
         // Estimated cost of the process tx, quoted in destination native tokens
         let destination_token_tx_cost = tx_cost_estimate.gas_limit * tx_cost_estimate.gas_price;
         // Convert the destination token tx cost into origin tokens
@@ -198,7 +198,7 @@ impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
             )
             .await?;
 
-        let meets_requirement = *current_payment >= origin_token_tx_cost;
+        let meets_requirement = current_payment.payment >= origin_token_tx_cost;
         tracing::info!(
             message_id=?message.id(),
             message_nonce=?message.nonce,
@@ -210,7 +210,11 @@ impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
             "Evaluated whether message gas payment meets estimated cost",
         );
 
-        Ok(meets_requirement)
+        if meets_requirement {
+            Ok(Some(tx_cost_estimate.gas_limit))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -282,18 +286,24 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
     let required_celo_payment = ethers::utils::parse_ether("0.03").unwrap();
 
     // Any less than 0.03 CELO as payment, return false.
+    let current_payment = InterchainGasPayment {
+        payment: required_celo_payment - U256::one(),
+        message_id: H256::zero(),
+        gas_amount: U256::zero(),
+    };
     assert!(!policy
-        .message_meets_gas_payment_requirement(
-            &message,
-            &(required_celo_payment - U256::one()),
-            &tx_cost_estimate,
-        )
+        .message_meets_gas_payment_requirement(&message, &current_payment, &tx_cost_estimate,)
         .await
         .unwrap());
 
     // If the payment is at least 0.03 CELO, return true.
+    let current_payment = InterchainGasPayment {
+        payment: required_celo_payment,
+        message_id: H256::zero(),
+        gas_amount: U256::zero(),
+    };
     assert!(policy
-        .message_meets_gas_payment_requirement(&message, &required_celo_payment, &tx_cost_estimate,)
+        .message_meets_gas_payment_requirement(&message, &current_payment, &tx_cost_estimate,)
         .await
         .unwrap());
 }

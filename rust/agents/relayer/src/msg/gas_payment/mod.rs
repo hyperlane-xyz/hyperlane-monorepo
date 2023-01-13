@@ -3,7 +3,10 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use eyre::Result;
 
-use hyperlane_core::{db::{DbError, HyperlaneDB}, HyperlaneMessage, TxCostEstimate, H256, U256, InterchainGasPayment};
+use hyperlane_core::{
+    db::{DbError, HyperlaneDB},
+    HyperlaneMessage, InterchainGasPayment, TxCostEstimate, H256, U256,
+};
 
 use crate::settings::GasPaymentEnforcementPolicy;
 
@@ -15,12 +18,14 @@ mod policies;
 
 #[async_trait]
 pub trait GasPaymentPolicy: Debug + Send + Sync {
+    /// Returns Some(gas_limit) if the policy has approved the transaction or
+    /// None if the transaction is not approved.
     async fn message_meets_gas_payment_requirement(
         &self,
         message: &HyperlaneMessage,
-        current_payment: &U256,
+        current_payment: &InterchainGasPayment,
         tx_cost_estimate: &TxCostEstimate,
-    ) -> Result<bool>;
+    ) -> Result<Option<U256>>;
 }
 
 #[derive(Debug)]
@@ -46,20 +51,17 @@ impl GasPaymentEnforcer {
 }
 
 impl GasPaymentEnforcer {
-    /// Returns (gas payment requirement met, current payment according to the DB)
+    /// Returns Some(gas_limit) if the enforcer has approved the transaction or
+    /// None if the transaction is not approved.
     pub async fn message_meets_gas_payment_requirement(
         &self,
         message: &HyperlaneMessage,
         tx_cost_estimate: &TxCostEstimate,
-    ) -> Result<(bool, U256)> {
-        let current_payment = self.get_message_gas_payment(message.id())?.payment;
-
-        let meets_requirement = self
-            .policy
+    ) -> Result<Option<U256>> {
+        let current_payment = self.get_message_gas_payment(message.id())?;
+        self.policy
             .message_meets_gas_payment_requirement(message, &current_payment, tx_cost_estimate)
-            .await?;
-
-        Ok((meets_requirement, current_payment))
+            .await
     }
 
     fn get_message_gas_payment(&self, msg_id: H256) -> Result<InterchainGasPayment, DbError> {

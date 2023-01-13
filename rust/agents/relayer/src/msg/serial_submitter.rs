@@ -274,23 +274,19 @@ impl SerialSubmitter {
             {
                 Ok(tx_cost_estimate) => tx_cost_estimate,
                 Err(err) => {
-                    info!(msg=?msg, error=?err, "Error estimating process costs");
+                    info!(?msg, error=?err, "Error estimating process costs");
                     return Ok(false);
                 }
             };
 
             // If the gas payment requirement hasn't been met, move to the next tick.
-            let (meets_gas_requirement, gas_payment) = self
-                .gas_payment_enforcer
-                .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
-                .await?;
-            if !meets_gas_requirement {
-                info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
+            let Some(gas_limit) = self.gas_payment_enforcer.message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate).await? else {
+                info!("Gas payment requirement not met yet");
                 return Ok(false);
-            }
+            };
 
             // Go ahead and attempt processing of message to destination chain.
-            debug!(gas_payment=?gas_payment, msg=?msg, "Ready to process message");
+            debug!(?gas_limit, ?msg, "Ready to process message");
 
             // TODO: consider differentiating types of processing errors, and pushing to the front of the
             // run queue for intermittent types of errors that can occur even if a message's processing isn't
@@ -301,7 +297,7 @@ impl SerialSubmitter {
             // avoid a second gas estimation.
             let process_result = self
                 .mailbox
-                .process(&msg.message, &metadata, Some(tx_cost_estimate.gas_limit))
+                .process(&msg.message, &metadata, Some(gas_limit))
                 .await;
             match process_result {
                 // TODO(trevor): Instead of immediately marking as processed, move to a verification
