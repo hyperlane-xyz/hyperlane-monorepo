@@ -47,8 +47,8 @@ export class HyperlaneCoreDeployer<
     });
     this.gasOverhead = objMap(configMap, (chain, config) => {
       const { validators, threshold } = config.multisigIsm;
-      // @ts-ignore
       const verifyCost =
+        // @ts-ignore
         multisigIsmVerifyCosts[`${validators.length}`][`${threshold}`];
       if (!verifyCost)
         throw new Error(
