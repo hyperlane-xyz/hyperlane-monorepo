@@ -367,112 +367,117 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  // let gasOverhead: Record<number, Record<number, number>> = {};
-  // for (let numValidators = 1; numValidators <= 18; numValidators++) {
-  //   for (let threshold = 1; threshold <= numValidators; threshold++) {
-  describe('#verify', () => {
-    let metadata: string, message: string, recipient: string;
-    let adjustedValidators: Validator[];
+  // uncomment to generate gas overhead table used for configuring GasOverheadIGP
+  let gasOverhead: Record<number, Record<number, number>> = {};
+  for (let numValidators = 1; numValidators <= 18; numValidators++) {
+    for (let threshold = 1; threshold <= numValidators; threshold++) {
+      describe.only('#verify', () => {
+        let metadata: string, message: string, recipient: string;
+        let adjustedValidators: Validator[];
 
-    before(async () => {
-      const recipientF = new TestRecipient__factory(signer);
-      recipient = (await recipientF.deploy()).address;
-      const numValidators = validators.length;
-      adjustedValidators = validators.slice(0, numValidators);
-    });
+        before(async () => {
+          const recipientF = new TestRecipient__factory(signer);
+          recipient = (await recipientF.deploy()).address;
+          adjustedValidators = validators.slice(0, numValidators);
+        });
 
-    beforeEach(async () => {
-      // Must be done sequentially so gas estimation is correct
-      // and so that signatures are produced in the same order.
-      for (const v of adjustedValidators) {
-        await multisigIsm.enrollValidator(ORIGIN_DOMAIN, v.address);
-      }
+        beforeEach(async () => {
+          // Must be done sequentially so gas estimation is correct
+          // and so that signatures are produced in the same order.
+          for (const v of adjustedValidators) {
+            await multisigIsm.enrollValidator(ORIGIN_DOMAIN, v.address);
+          }
 
-      const threshold = validators.length - 1;
-      await multisigIsm.setThreshold(ORIGIN_DOMAIN, threshold);
+          // const threshold = validators.length - 1;
+          await multisigIsm.setThreshold(ORIGIN_DOMAIN, threshold);
 
-      ({ message, metadata } = await dispatchMessageAndReturnMetadata(
-        mailbox,
-        multisigIsm,
-        DESTINATION_DOMAIN,
-        recipient,
-        'hello world',
-        adjustedValidators,
-        threshold,
-      ));
-    });
+          ({ message, metadata } = await dispatchMessageAndReturnMetadata(
+            mailbox,
+            multisigIsm,
+            DESTINATION_DOMAIN,
+            recipient,
+            'hello world',
+            adjustedValidators,
+            threshold,
+          ));
+        });
 
-    // it('instrument gas costs of verification', async () => {
-    //   const gas = await multisigIsm.estimateGas.verify(metadata, message);
+        // uncomment to generate gas overhead table used for configuring GasOverheadIGP
+        it.only(`instrument verify gas costs with ${threshold} of ${numValidators} multisig `, async () => {
+          const gas = await multisigIsm.estimateGas.verify(metadata, message);
 
-    //   if (gasOverhead[numValidators] === undefined) {
-    //     gasOverhead[numValidators] = {};
-    //   }
-    //   gasOverhead[numValidators][threshold] = gas.toNumber();
-    // });
+          if (gasOverhead[numValidators] === undefined) {
+            gasOverhead[numValidators] = {};
+          }
+          gasOverhead[numValidators][threshold] = gas.toNumber();
+          console.log({ gas });
+        });
 
-    it('returns true when valid metadata is provided', async () => {
-      expect(await multisigIsm.verify(metadata, message)).to.be.true;
-    });
+        it('returns true when valid metadata is provided', async () => {
+          expect(await multisigIsm.verify(metadata, message)).to.be.true;
+        });
 
-    it('allows for message processing when valid metadata is provided', async () => {
-      const mailboxFactory = new TestMailbox__factory(signer);
-      const destinationMailbox = await mailboxFactory.deploy(
-        DESTINATION_DOMAIN,
-      );
-      await destinationMailbox.initialize(signer.address, multisigIsm.address);
-      await destinationMailbox.process(metadata, message);
-    });
+        it('allows for message processing when valid metadata is provided', async () => {
+          const mailboxFactory = new TestMailbox__factory(signer);
+          const destinationMailbox = await mailboxFactory.deploy(
+            DESTINATION_DOMAIN,
+          );
+          await destinationMailbox.initialize(
+            signer.address,
+            multisigIsm.address,
+          );
+          await destinationMailbox.process(metadata, message);
+        });
 
-    it('reverts when non-validator signatures are provided', async () => {
-      const nonValidator = await Validator.fromSigner(
-        signer,
-        ORIGIN_DOMAIN,
-        mailbox.address,
-      );
-      const parsedMetadata = utils.parseMultisigIsmMetadata(metadata);
-      const nonValidatorSignature = (
-        await signCheckpoint(
-          parsedMetadata.checkpointRoot,
-          parsedMetadata.checkpointIndex,
-          mailbox.address,
-          [nonValidator],
-        )
-      )[0];
-      parsedMetadata.signatures.push(nonValidatorSignature);
-      const modifiedMetadata = utils.formatMultisigIsmMetadata({
-        ...parsedMetadata,
-        signatures: parsedMetadata.signatures.slice(1),
+        it('reverts when non-validator signatures are provided', async () => {
+          const nonValidator = await Validator.fromSigner(
+            signer,
+            ORIGIN_DOMAIN,
+            mailbox.address,
+          );
+          const parsedMetadata = utils.parseMultisigIsmMetadata(metadata);
+          const nonValidatorSignature = (
+            await signCheckpoint(
+              parsedMetadata.checkpointRoot,
+              parsedMetadata.checkpointIndex,
+              mailbox.address,
+              [nonValidator],
+            )
+          )[0];
+          parsedMetadata.signatures.push(nonValidatorSignature);
+          const modifiedMetadata = utils.formatMultisigIsmMetadata({
+            ...parsedMetadata,
+            signatures: parsedMetadata.signatures.slice(1),
+          });
+          await expect(
+            multisigIsm.verify(modifiedMetadata, message),
+          ).to.be.revertedWith('!threshold');
+        });
+
+        it('reverts when the provided validator set does not match the stored commitment', async () => {
+          const parsedMetadata = utils.parseMultisigIsmMetadata(metadata);
+          const modifiedMetadata = utils.formatMultisigIsmMetadata({
+            ...parsedMetadata,
+            validators: parsedMetadata.validators.slice(1),
+          });
+          await expect(
+            multisigIsm.verify(modifiedMetadata, message),
+          ).to.be.revertedWith('!commitment');
+        });
+
+        it('reverts when an invalid merkle proof is provided', async () => {
+          const parsedMetadata = utils.parseMultisigIsmMetadata(metadata);
+          const modifiedMetadata = utils.formatMultisigIsmMetadata({
+            ...parsedMetadata,
+            proof: parsedMetadata.proof.reverse(),
+          });
+          await expect(
+            multisigIsm.verify(modifiedMetadata, message),
+          ).to.be.revertedWith('!merkle');
+        });
       });
-      await expect(
-        multisigIsm.verify(modifiedMetadata, message),
-      ).to.be.revertedWith('!threshold');
-    });
-
-    it('reverts when the provided validator set does not match the stored commitment', async () => {
-      const parsedMetadata = utils.parseMultisigIsmMetadata(metadata);
-      const modifiedMetadata = utils.formatMultisigIsmMetadata({
-        ...parsedMetadata,
-        validators: parsedMetadata.validators.slice(1),
-      });
-      await expect(
-        multisigIsm.verify(modifiedMetadata, message),
-      ).to.be.revertedWith('!commitment');
-    });
-
-    it('reverts when an invalid merkle proof is provided', async () => {
-      const parsedMetadata = utils.parseMultisigIsmMetadata(metadata);
-      const modifiedMetadata = utils.formatMultisigIsmMetadata({
-        ...parsedMetadata,
-        proof: parsedMetadata.proof.reverse(),
-      });
-      await expect(
-        multisigIsm.verify(modifiedMetadata, message),
-      ).to.be.revertedWith('!merkle');
-    });
-  });
-  //   }
-  // }
+    }
+  }
 
   describe('#isEnrolled', () => {
     beforeEach(async () => {
