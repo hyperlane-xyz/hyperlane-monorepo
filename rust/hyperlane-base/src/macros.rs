@@ -119,10 +119,6 @@ macro_rules! decl_settings {
 #[doc(hidden)]
 pub fn _new_settings<'de, T: Deserialize<'de>>(name: &str) -> eyre::Result<T> {
     use crate::settings::loader::load_settings_object;
-    use std::env;
 
-    load_settings_object::<T, &str>(
-        name,
-        &[],
-    )
+    load_settings_object::<T, &str>(name, &[])
 }
