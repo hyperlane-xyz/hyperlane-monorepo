@@ -18,7 +18,7 @@ where
     // "0x..."
     let data = format!(
         "0x{}",
-        hex::encode(&tx.tx.data().map(|b| b.to_vec()).unwrap_or_default())
+        hex::encode(tx.tx.data().map(|b| b.to_vec()).unwrap_or_default())
     );
 
     let to = tx
