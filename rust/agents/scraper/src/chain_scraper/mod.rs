@@ -276,9 +276,7 @@ impl SqlChainScraper {
 
         let db_blocks: Vec<BasicBlock> = if !blocks.is_empty() {
             // check database to see which blocks we already know and fetch their IDs
-            self.db
-                .get_block_basic(blocks.iter().map(|(hash, _)| hash))
-                .await?
+            self.db.get_block_basic(blocks.keys()).await?
         } else {
             vec![]
         };
