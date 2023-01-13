@@ -318,7 +318,10 @@ export const goerli: ChainMetadata = {
   name: Chains.goerli,
   displayName: 'Goerli',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'https://rpc.ankr.com/eth_goerli' }],
+  publicRpcUrls: [
+    { http: 'https://eth-goerli.public.blastapi.io' },
+    { http: 'https://rpc.ankr.com/eth_goerli' },
+  ],
   blockExplorers: [
     {
       name: 'Etherscan',

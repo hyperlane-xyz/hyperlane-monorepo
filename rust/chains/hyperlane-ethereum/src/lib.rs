@@ -13,7 +13,8 @@ pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
 pub use crate::{
-    interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, signers::*, trait_builder::*,
+    fallback::*, interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, signers::*,
+    trait_builder::*,
 };
 
 #[cfg(not(doctest))]
@@ -45,15 +46,23 @@ mod contracts;
 /// Retrying Provider
 mod retrying;
 
+/// Fallback provider
+mod fallback;
+
 mod signers;
 
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ConnectionConf {
-    /// A HTTP-only quorum.
+    /// An HTTP-only quorum.
     HttpQuorum {
         /// List of fully qualified strings to connect to
+        urls: String,
+    },
+    /// An HTTP-only fallback set.
+    HttpFallback {
+        /// List of fully qualified strings to connect to in order of priority
         urls: String,
     },
     /// HTTP connection details
