@@ -132,7 +132,7 @@ contract GasOverheadIgpTest is Test {
 
     function setTestDestinationGasOverhead() internal {
         GasOverheadIgp.DomainConfig[]
-            memory configs = new GasOverheadIgp.DomainConfig[](2);
+            memory configs = new GasOverheadIgp.DomainConfig[](1);
         configs[0] = GasOverheadIgp.DomainConfig(
             testDestinationDomain,
             testGasOverhead

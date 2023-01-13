@@ -46,19 +46,16 @@ contract GasOverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
 
     constructor(address _innerIgp) {
         innerIgp = IInterchainGasPaymaster(_innerIgp);
-        _transferOwnership(msg.sender);
-        _disableInitializers();
+        initialize(); // allows contract to be used without proxying
     }
 
     // ============ Initializers ============
 
     /**
      * @notice Initializes the contract.
-     * @param owner The owner of the contract.
      */
-    function initialize(address owner) public initializer {
+    function initialize() public initializer {
         __Ownable_init();
-        transferOwnership(owner);
     }
 
     // ============ External Functions ============

@@ -83,6 +83,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
 
     // ============ Constructor ============
 
+    // solhint-disable-next-line no-empty-blocks
     constructor() Ownable() {}
 
     // ============ External Functions ============
@@ -328,7 +329,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
         uint256 _validatorCount = _metadata.validatorCount();
         uint256 _validatorIndex = 0;
         // Assumes that signatures are ordered by validator
-        for (uint256 i = 0; i < _threshold; i++) {
+        for (uint256 i = 0; i < _threshold; ++i) {
             address _signer = ECDSA.recover(_digest, _metadata.signatureAt(i));
             // Loop through remaining validators until we find a match
             for (
