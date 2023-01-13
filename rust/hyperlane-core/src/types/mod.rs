@@ -1,3 +1,5 @@
+use std::io::{Read, Write};
+use std::ops::Add;
 pub use primitive_types::{H128, H160, H256, H512, U128, U256, U512};
 
 pub use announcement::*;
@@ -18,13 +20,28 @@ mod message;
 /// 20-byte ids (e.g ethereum addresses)
 pub mod identifiers;
 
-/// A payment of native tokens for a message
-#[derive(Debug)]
+/// A payment of a message's gas costs.
+#[derive(Debug, Copy, Clone)]
 pub struct InterchainGasPayment {
     /// The id of the message
     pub message_id: H256,
-    /// The payment amount, in origin chain native token wei
+    /// The amount of native tokens paid.
     pub payment: U256,
+    /// The amount of destination gas paid for.
+    pub gas_amount: U256,
+}
+
+impl Add for InterchainGasPayment {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        assert_eq!(self.message_id, rhs.message_id, "Cannot add interchain gas payments for different messages");
+        Self {
+            message_id: self.message_id,
+            payment: self.payment + rhs.payment,
+            gas_amount: self.gas_amount + rhs.gas_amount,
+        }
+    }
 }
 
 /// Uniquely identifying metadata for an InterchainGasPayment
@@ -39,7 +56,7 @@ pub struct InterchainGasPaymentMeta {
 impl Encode for InterchainGasPaymentMeta {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
-        W: std::io::Write,
+        W: Write,
     {
         let mut written = 0;
         written += self.transaction_hash.write_to(writer)?;
@@ -51,7 +68,7 @@ impl Encode for InterchainGasPaymentMeta {
 impl Decode for InterchainGasPaymentMeta {
     fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
-        R: std::io::Read,
+        R: Read,
         Self: Sized,
     {
         Ok(Self {

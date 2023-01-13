@@ -4,10 +4,10 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, info, trace};
 
-use crate::db::{DbError, TypedDB, DB};
+use crate::db::{storage_types::InterchainGasPaymentTuple, DbError, TypedDB, DB};
 use crate::{
     HyperlaneMessage, InterchainGasPayment, InterchainGasPaymentMeta, InterchainGasPaymentWithMeta,
-    H256, U256,
+    H256,
 };
 
 static MESSAGE_ID: &str = "message_id_";
@@ -209,7 +209,7 @@ impl HyperlaneDB {
         self.store_gas_payment_meta_processed(meta)?;
 
         // Update the total gas payment for the message to include the payment
-        self.update_gas_payment_for_message_id(&gas_payment_with_meta.payment)?;
+        self.update_gas_payment_for_message_id(gas_payment_with_meta.payment)?;
 
         // Return true to indicate the gas payment was processed for the first time
         Ok(true)
@@ -235,24 +235,31 @@ impl HyperlaneDB {
     }
 
     /// Update the total gas payment for a message to include gas_payment
-    fn update_gas_payment_for_message_id(&self, gas_payment: &InterchainGasPayment) -> Result<()> {
-        let InterchainGasPayment {
-            message_id,
-            payment,
-        } = gas_payment;
-        let existing_payment = self.retrieve_gas_payment_for_message_id(*message_id)?;
-        let total = existing_payment + payment;
+    fn update_gas_payment_for_message_id(&self, event: InterchainGasPayment) -> Result<()> {
+        let existing_payment = self.retrieve_gas_payment_for_message_id(event.message_id)?;
+        let total = existing_payment + event;
 
-        info!(message_id=?message_id, gas_payment_amount=?payment, new_total_gas_payment=?total, "Storing gas payment");
-        self.store_keyed_encodable(GAS_PAYMENT_FOR_MESSAGE_ID, &gas_payment.message_id, &total)?;
+        info!(?event, ?total, "Storing gas payment");
+        self.store_keyed_encodable::<_, InterchainGasPaymentTuple>(
+            GAS_PAYMENT_FOR_MESSAGE_ID,
+            &total.message_id,
+            &total.into(),
+        )?;
 
         Ok(())
     }
 
     /// Retrieve the total gas payment for a message
-    pub fn retrieve_gas_payment_for_message_id(&self, message_id: H256) -> Result<U256> {
+    pub fn retrieve_gas_payment_for_message_id(
+        &self,
+        message_id: H256,
+    ) -> Result<InterchainGasPayment> {
         Ok(self
-            .retrieve_keyed_decodable(GAS_PAYMENT_FOR_MESSAGE_ID, &message_id)?
-            .unwrap_or(U256::zero()))
+            .retrieve_keyed_decodable::<_, InterchainGasPaymentTuple>(
+                GAS_PAYMENT_FOR_MESSAGE_ID,
+                &message_id,
+            )?
+            .unwrap_or_default()
+            .complete(message_id))
     }
 }

@@ -3,10 +3,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use eyre::Result;
 
-use hyperlane_core::{
-    db::{DbError, HyperlaneDB},
-    HyperlaneMessage, TxCostEstimate, H256, U256,
-};
+use hyperlane_core::{db::{DbError, HyperlaneDB}, HyperlaneMessage, TxCostEstimate, H256, U256, InterchainGasPayment};
 
 use crate::settings::GasPaymentEnforcementPolicy;
 
@@ -55,7 +52,7 @@ impl GasPaymentEnforcer {
         message: &HyperlaneMessage,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<(bool, U256)> {
-        let current_payment = self.get_message_gas_payment(message.id())?;
+        let current_payment = self.get_message_gas_payment(message.id())?.payment;
 
         let meets_requirement = self
             .policy
@@ -65,7 +62,7 @@ impl GasPaymentEnforcer {
         Ok((meets_requirement, current_payment))
     }
 
-    fn get_message_gas_payment(&self, msg_id: H256) -> Result<U256, DbError> {
+    fn get_message_gas_payment(&self, msg_id: H256) -> Result<InterchainGasPayment, DbError> {
         self.db.retrieve_gas_payment_for_message_id(msg_id)
     }
 }
