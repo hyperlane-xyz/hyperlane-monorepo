@@ -19,10 +19,13 @@ import {
 
 const MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH =
   '0x712d4be42d7ade85a8ff38319560ab0b034a4d6bc71e4353ae085bffca04a683';
-const PROXY_BYTECODE_HASH =
+const TRANSPARENT_PROXY_BYTECODE_HASH =
   '0xffdc88fd786b0738d5a570b1adbb07fae19babe40843e5161d8bd0dfae601f40';
 const MULTISIG_ISM_BYTECODE_HASH =
   '0x7436a866f0ae4fd29c07508d0ac158a1e3d5aebebb419d563d698ea314a5e426';
+const PROXY_ADMIN_BYTECODE_HASH =
+  '0x9beee53a27c08893a528a0947da06cf1af7c4c0ae376f99212815f02bb661e49';
+
 export class HyperlaneCoreChecker<
   Chain extends ChainName,
 > extends HyperlaneAppChecker<Chain, HyperlaneCore<Chain>, CoreConfig> {
@@ -103,13 +106,19 @@ export class HyperlaneCoreChecker<
       chain,
       'Mailbox proxy',
       contracts.mailbox.address,
-      PROXY_BYTECODE_HASH,
+      TRANSPARENT_PROXY_BYTECODE_HASH,
     );
     await this.checkBytecodeHash(
       chain,
       'InterchainGasPaymaster proxy',
       contracts.interchainGasPaymaster.address,
-      PROXY_BYTECODE_HASH,
+      TRANSPARENT_PROXY_BYTECODE_HASH,
+    );
+    await this.checkBytecodeHash(
+      chain,
+      'ProxyAdmin',
+      contracts.proxyAdmin.address,
+      PROXY_ADMIN_BYTECODE_HASH,
     );
   }
 
