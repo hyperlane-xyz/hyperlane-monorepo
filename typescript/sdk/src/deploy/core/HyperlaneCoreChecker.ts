@@ -81,9 +81,14 @@ export class HyperlaneCoreChecker<
       contracts.mailbox.addresses.implementation,
       MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
       (_) =>
+        // This is obviously super janky but basically we are searching
+        //  for the ocurrences of localDomain in the bytecode and remove
+        //  that to compare, but some coincidental ocurrences of
+        // localDomain in the bytecode should be not be removed which
+        // are just done via an offset guard
         _.replaceAll(
           defaultAbiCoder.encode(['uint32'], [localDomain]).slice(2),
-          '',
+          (match, offset) => (offset > 8000 ? match : ''),
         ),
     );
   }
