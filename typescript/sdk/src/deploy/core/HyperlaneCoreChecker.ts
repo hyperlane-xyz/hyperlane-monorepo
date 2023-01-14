@@ -1,3 +1,5 @@
+import { defaultAbiCoder } from 'ethers/lib/utils';
+
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
@@ -15,6 +17,12 @@ import {
   ThresholdViolation,
 } from './types';
 
+const MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH =
+  '0x712d4be42d7ade85a8ff38319560ab0b034a4d6bc71e4353ae085bffca04a683';
+const PROXY_BYTECODE_HASH =
+  '0xffdc88fd786b0738d5a570b1adbb07fae19babe40843e5161d8bd0dfae601f40';
+const MULTISIG_ISM_BYTECODE_HASH =
+  '0x7436a866f0ae4fd29c07508d0ac158a1e3d5aebebb419d563d698ea314a5e426';
 export class HyperlaneCoreChecker<
   Chain extends ChainName,
 > extends HyperlaneAppChecker<Chain, HyperlaneCore<Chain>, CoreConfig> {
@@ -63,6 +71,18 @@ export class HyperlaneCoreChecker<
       };
       this.addViolation(violation);
     }
+
+    await this.checkBytecodeHash(
+      chain,
+      'Mailbox implementation',
+      contracts.mailbox.addresses.implementation,
+      MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
+      (_) =>
+        _.replaceAll(
+          defaultAbiCoder.encode(['uint32'], [localDomain]).slice(2),
+          '',
+        ),
+    );
   }
 
   async checkProxiedContracts(chain: Chain): Promise<void> {
@@ -79,9 +99,28 @@ export class HyperlaneCoreChecker<
       contracts.interchainGasPaymaster.addresses,
       contracts.proxyAdmin.address,
     );
+    await this.checkBytecodeHash(
+      chain,
+      'Mailbox proxy',
+      contracts.mailbox.address,
+      PROXY_BYTECODE_HASH,
+    );
+    await this.checkBytecodeHash(
+      chain,
+      'InterchainGasPaymaster proxy',
+      contracts.interchainGasPaymaster.address,
+      PROXY_BYTECODE_HASH,
+    );
   }
 
   async checkMultisigIsm(local: Chain): Promise<void> {
+    const contracts = this.app.getContracts(local);
+    await this.checkBytecodeHash(
+      local,
+      'MultisigIsm implementation',
+      contracts.multisigIsm.address,
+      MULTISIG_ISM_BYTECODE_HASH,
+    );
     await Promise.all(
       this.app
         .remoteChains(local)
