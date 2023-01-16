@@ -8,7 +8,7 @@ import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import "../contracts/test/TestRecipient.sol";
 import "../contracts/middleware/InterchainAccountRouter.sol";
-import {OwnableMulticall, Call} from "../contracts/OwnableMulticall.sol";
+import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
 
 contract InterchainAccountRouterTest is Test {
     // TODO: dedupe
@@ -27,6 +27,9 @@ contract InterchainAccountRouterTest is Test {
     InterchainAccountRouter remoteRouter;
 
     TestRecipient recipient;
+    address ica;
+
+    OwnableMulticall ownee;
 
     function setUp() public {
         environment = new MockHyperlaneEnvironment(originDomain, remoteDomain);
@@ -58,16 +61,26 @@ contract InterchainAccountRouterTest is Test {
             originDomain,
             TypeCasts.addressToBytes32(address(originRouter))
         );
+
+        ica = remoteRouter.getInterchainAccount(originDomain, address(this));
+        ownee = new OwnableMulticall();
+    }
+
+    function testCannotSetOwner(address newOwner) public {
+        vm.assume(newOwner != address(0x0));
+        originRouter.dispatch(
+            remoteDomain,
+            address(ownee),
+            abi.encodeWithSelector(ownee.transferOwnership.selector, newOwner)
+        );
+
+        vm.expectRevert(bytes("Ownable: caller is not the owner"));
+        environment.processNextPendingMessage();
     }
 
     function testSetOwner(address newOwner) public {
         vm.assume(newOwner != address(0x0));
 
-        OwnableMulticall ownee = new OwnableMulticall();
-        address ica = remoteRouter.getInterchainAccount(
-            originDomain,
-            address(this)
-        );
         ownee.transferOwnership(ica);
 
         originRouter.dispatch(
