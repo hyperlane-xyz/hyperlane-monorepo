@@ -367,11 +367,9 @@ async function sendMessage(
 
   let value = await utils.retryAsync(
     () =>
-      gasCalc.estimatePaymentForHandleGas(
-        origin,
-        destination,
-        expectedHandleGas,
-      ),
+      // TODO consider keeping this for backward compatibility?
+      // gasCalc.estimatePaymentForHandleGas(
+      gasCalc.quoteGasPayment(origin, destination, expectedHandleGas),
     2,
   );
   const metricLabels = { origin, remote: destination };
