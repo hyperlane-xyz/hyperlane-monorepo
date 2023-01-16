@@ -89,6 +89,18 @@ abstract contract HyperlaneConnectionClient is
         );
     }
 
+    function __HyperlaneConnectionClient_initialize(
+        address _mailbox,
+        address _interchainGasPaymaster,
+        address _interchainSecurityModule,
+        address _owner
+    ) internal onlyInitializing {
+        _setMailbox(_mailbox);
+        _setInterchainGasPaymaster(_interchainGasPaymaster);
+        _setInterchainSecurityModule(_interchainSecurityModule);
+        _transferOwnership(_owner);
+    }
+
     // ============ External functions ============
 
     /**
@@ -144,10 +156,11 @@ abstract contract HyperlaneConnectionClient is
         emit MailboxSet(_mailbox);
     }
 
-    function _setInterchainSecurityModule(address _module)
-        internal
-        onlyContract(_module)
-    {
+    function _setInterchainSecurityModule(address _module) internal {
+        require(
+            _module == address(0) || Address.isContract(_module),
+            "!contract"
+        );
         interchainSecurityModule = IInterchainSecurityModule(_module);
         emit InterchainSecurityModuleSet(_module);
     }

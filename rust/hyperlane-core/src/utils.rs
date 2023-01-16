@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use sha3::{Digest, Keccak256};
+use sha3::{digest::Update, Digest, Keccak256};
 use thiserror::Error;
 
 use crate::H256;
@@ -23,8 +23,8 @@ pub fn domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
     H256::from_slice(
         Keccak256::new()
             .chain(domain.into().to_be_bytes())
-            .chain(address.as_ref())
-            .chain("HYPERLANE".as_bytes())
+            .chain(address)
+            .chain("HYPERLANE")
             .finalize()
             .as_slice(),
     )
@@ -50,8 +50,8 @@ pub enum HexStringError {
     NotHex(String),
 }
 
-impl<const N: usize> AsRef<String> for HexString<N> {
-    fn as_ref(&self) -> &String {
+impl<const N: usize> AsRef<str> for HexString<N> {
+    fn as_ref(&self) -> &str {
         &self.0
     }
 }
@@ -96,3 +96,33 @@ impl<'de, const N: usize> serde::Deserialize<'de> for HexString<N> {
         Self::from_string(s).map_err(serde::de::Error::custom)
     }
 }
+
+/// Shortcut for many-to-one match statements that get very redundant. Flips the order such that
+/// the thing which is mapped to is listed first.
+///
+/// ```ignore
+/// match v {
+///   V1 => A,
+///   V2 => A,
+///   V3 => B,
+///   V4 => B,
+/// }
+///
+/// // becomes
+///
+/// many_to_one!(match v {
+///     A: [V1, V2],
+///     B: [v3, V4],
+/// })
+/// ```
+macro_rules! many_to_one {
+    (match $v:ident {
+        $($result:path: [$($source:path),*$(,)?]),*$(,)?
+    }) => {
+        match $v {
+            $($( $source => $result, )*)*
+        }
+    }
+}
+
+pub(crate) use many_to_one;
