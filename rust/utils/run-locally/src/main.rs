@@ -226,7 +226,7 @@ fn main() -> ExitCode {
         // node.stdout(Stdio::piped());
         node.stdout(Stdio::null());
     } else {
-        node.stdout(append_to(&hardhat_log));
+        node.stdout(append_to(hardhat_log));
     }
     let node = node.spawn().expect("Failed to start node");
     // if log_all {
