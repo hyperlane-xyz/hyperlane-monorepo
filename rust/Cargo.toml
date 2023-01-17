@@ -8,6 +8,7 @@ members = [
     "agents/validator",
     "chains/hyperlane-ethereum",
     "chains/hyperlane-fuel",
+    "chains/hyperlane-sealevel",
     "ethers-prometheus",
     "hyperlane-base",
     "hyperlane-core",

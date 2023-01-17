@@ -114,6 +114,9 @@ pub enum KnownHyperlaneDomain {
 
     /// Fuel1 local chain
     FuelTest1 = 13374,
+
+    /// Sealevel local chain.
+    SealevelTest1 = 13375,
 }
 
 #[derive(Clone)]
@@ -164,6 +167,8 @@ pub enum HyperlaneDomainProtocol {
     Ethereum,
     /// A Fuel-based chain type which uses hyperlane-fuel.
     Fuel,
+    /// A Sealevel-based chain type which uses hyperlane-sealevel.
+    Sealevel,
 }
 
 impl HyperlaneDomainProtocol {
@@ -194,7 +199,7 @@ impl KnownHyperlaneDomain {
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
                 Alfajores, MoonbaseAlpha, Zksync2Testnet, Sepolia
             ],
-            LocalTestChain: [Test1, Test2, Test3, FuelTest1],
+            LocalTestChain: [Test1, Test2, Test3, FuelTest1, SealevelTest1],
         })
     }
 
@@ -208,6 +213,7 @@ impl KnownHyperlaneDomain {
                 Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
+            HyperlaneDomainProtocol::Sealevel: [SealevelTest1],
         })
     }
 }

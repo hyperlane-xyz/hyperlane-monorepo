@@ -18,6 +18,7 @@ use hyperlane_ethereum::{
     EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
+use hyperlane_sealevel as h_sealevel;
 
 use crate::{
     settings::signers::{BuildableWithSignerConf, RawSignerConf},
@@ -31,6 +32,8 @@ pub enum ChainConnectionConf {
     Ethereum(h_eth::ConnectionConf),
     /// Fuel configuration
     Fuel(h_fuel::ConnectionConf),
+    /// Sealevel configuration.
+    Sealevel(h_sealevel::ConnectionConf),
 }
 
 /// Specify the chain name (enum variant) under the `chain` key
@@ -39,6 +42,7 @@ pub enum ChainConnectionConf {
 enum RawChainConnectionConf {
     Ethereum(h_eth::RawConnectionConf),
     Fuel(h_fuel::RawConnectionConf),
+    Sealevel(h_sealevel::RawConnectionConf),
     #[serde(other)]
     Unknown,
 }
@@ -53,6 +57,7 @@ impl FromRawConf<'_, RawChainConnectionConf> for ChainConnectionConf {
         match raw {
             Ethereum(r) => Ok(Self::Ethereum(r.parse_config(&cwp.join("connection"))?)),
             Fuel(r) => Ok(Self::Fuel(r.parse_config(&cwp.join("connection"))?)),
+            Sealevel(r) => Ok(Self::Sealevel(r.parse_config(&cwp.join("connection"))?)),
             Unknown => {
                 Err(eyre!("Unknown chain protocol")).into_config_result(|| cwp.join("protocol"))
             }
@@ -65,6 +70,7 @@ impl ChainConnectionConf {
         match self {
             Self::Ethereum(_) => HyperlaneDomainProtocol::Ethereum,
             Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
+            Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
         }
     }
 }
@@ -312,8 +318,8 @@ impl ChainConf {
                 self.build_ethereum(conf, &locator, metrics, h_eth::HyperlaneProviderBuilder {})
                     .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => todo!(),
         }
         .context(ctx)
     }
@@ -332,6 +338,11 @@ impl ChainConf {
             ChainConnectionConf::Fuel(conf) => {
                 let wallet = self.fuel_signer().await.context(ctx)?;
                 hyperlane_fuel::FuelMailbox::new(conf, locator, wallet)
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
+            ChainConf::Sealevel(conf) => {
+                h_sealevel::SealevelMailbox::new(conf, locator)
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
@@ -359,8 +370,8 @@ impl ChainConf {
                 )
                 .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => todo!(),
         }
         .context(ctx)
     }
@@ -384,8 +395,8 @@ impl ChainConf {
                 )
                 .await
             }
-
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => todo!(),
         }
         .context(ctx)
     }
@@ -413,6 +424,7 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => todo!(),
         }
         .context(ctx)
     }
@@ -430,6 +442,7 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => todo!(),
         }
         .context("Building ValidatorAnnounce")
     }
@@ -456,6 +469,7 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => todo!(),
         }
         .context(ctx)
     }
@@ -476,6 +490,7 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => todo!(),
         }
         .context(ctx)
     }

@@ -2784,6 +2784,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-ethereum",
  "hyperlane-fuel",
+ "hyperlane-sealevel",
  "hyperlane-test",
  "itertools",
  "lazy_static",
@@ -2881,6 +2882,19 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "url",
+]
+
+[[package]]
+name = "hyperlane-sealevel"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "hyperlane-core",
+ "serde",
+ "thiserror",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
