@@ -4,7 +4,6 @@ use sha3::{digest::Update, Digest, Keccak256};
 
 use crate::{utils::domain_hash, Signable, SignedType, H160, H256};
 
-
 /// An Hyperlane checkpoint
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Announcement {
