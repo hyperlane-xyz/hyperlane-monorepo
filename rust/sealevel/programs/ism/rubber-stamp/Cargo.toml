@@ -7,7 +7,7 @@ edition = "2021"
 no-entrypoint = []
 
 [dependencies]
-solana-program = { version = "=1.14.3", path = "/Users/steven/code/eclipse-labs/eclipse/sdk/program" }
+solana-program = "=1.14.3"
 hyperlane-sealevel-mailbox = { path = "../../mailbox", features = ["no-entrypoint"] }
 
 [lib]
