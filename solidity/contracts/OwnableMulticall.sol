@@ -4,38 +4,16 @@ pragma solidity ^0.8.13;
 // ============ External Imports ============
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {Call} from "./Call.sol";
-
-function _call(Call[] memory calls, bytes[] memory callbacks)
-    returns (bytes[] memory resolveCalls)
-{
-    resolveCalls = new bytes[](callbacks.length);
-    for (uint256 i = 0; i < calls.length; i++) {
-        (bool success, bytes memory returnData) = calls[i].to.call(
-            calls[i].data
-        );
-        require(success, "Multicall: call failed");
-        resolveCalls[i] = bytes.concat(callbacks[i], returnData);
-    }
-}
-
-// TODO: deduplicate
-function _proxyCallBatch(address to, bytes[] memory calls) {
-    for (uint256 i = 0; i < calls.length; i += 1) {
-        (bool success, bytes memory returnData) = to.call(calls[i]);
-        if (!success) {
-            assembly {
-                revert(add(returnData, 32), returnData)
-            }
-        }
-    }
-}
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {CallLib} from "./libs/Call.sol";
 
 /*
  * @title OwnableMulticall
  * @dev Allows only only address to execute calls to other contracts
  */
 contract OwnableMulticall is OwnableUpgradeable {
+    using CallLib for CallLib.Call[];
+
     constructor() {
         _transferOwnership(msg.sender);
     }
@@ -44,16 +22,7 @@ contract OwnableMulticall is OwnableUpgradeable {
         __Ownable_init();
     }
 
-    function proxyCalls(Call[] calldata calls) external onlyOwner {
-        for (uint256 i = 0; i < calls.length; i += 1) {
-            (bool success, bytes memory returnData) = calls[i].to.call(
-                calls[i].data
-            );
-            if (!success) {
-                assembly {
-                    revert(add(returnData, 32), returnData)
-                }
-            }
-        }
+    function proxyCalls(CallLib.Call[] calldata calls) external onlyOwner {
+        calls._multicall();
     }
 }
