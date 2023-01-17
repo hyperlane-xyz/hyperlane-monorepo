@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
-import {_call, _proxyCallBatch, Call} from "../OwnableMulticall.sol";
+import {CallLib} from "../libs/Call.sol";
 import {Router} from "../Router.sol";
 import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
 
@@ -16,6 +16,9 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
 contract InterchainQueryRouter is Router, IInterchainQueryRouter {
+    using CallLib for address;
+    using CallLib for CallLib.Call[];
+
     enum Action {
         DISPATCH,
         RESOLVE
@@ -81,8 +84,8 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         bytes calldata callback
     ) external returns (bytes32 messageId) {
         // TODO: fix this ugly arrayification
-        Call[] memory calls = new Call[](1);
-        calls[0] = Call({to: target, data: queryData});
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({to: target, data: queryData});
         bytes[] memory callbacks = new bytes[](1);
         callbacks[0] = callback;
         messageId = query(_destinationDomain, calls, callbacks);
@@ -95,11 +98,11 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
      */
     function query(
         uint32 _destinationDomain,
-        Call calldata call,
+        CallLib.Call calldata call,
         bytes calldata callback
     ) external returns (bytes32 messageId) {
         // TODO: fix this ugly arrayification
-        Call[] memory calls = new Call[](1);
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
         bytes[] memory callbacks = new bytes[](1);
         callbacks[0] = callback;
@@ -113,7 +116,7 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
      */
     function query(
         uint32 _destinationDomain,
-        Call[] memory calls,
+        CallLib.Call[] memory calls,
         bytes[] memory callbacks
     ) public returns (bytes32 messageId) {
         require(
@@ -142,21 +145,21 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
             (
                 ,
                 address sender,
-                Call[] memory calls,
+                CallLib.Call[] memory calls,
                 bytes[] memory callbacks
-            ) = abi.decode(_message, (Action, address, Call[], bytes[]));
-            bytes[] memory resolveCallbacks = _call(calls, callbacks);
-            _dispatch(
-                _origin,
-                abi.encode(Action.RESOLVE, sender, resolveCallbacks)
-            );
+            ) = abi.decode(
+                    _message,
+                    (Action, address, CallLib.Call[], bytes[])
+                );
+            callbacks = calls._multicallAndResolve(callbacks);
+            _dispatch(_origin, abi.encode(Action.RESOLVE, sender, callbacks));
             emit QueryReturned(_origin, sender);
         } else if (action == Action.RESOLVE) {
             (, address sender, bytes[] memory resolveCallbacks) = abi.decode(
                 _message,
                 (Action, address, bytes[])
             );
-            _proxyCallBatch(sender, resolveCallbacks);
+            sender._multicall(resolveCallbacks);
             emit QueryResolved(_origin, sender);
         }
     }

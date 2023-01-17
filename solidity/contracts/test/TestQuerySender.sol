@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {Call, IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
+import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 contract TestQuerySender is Initializable {
@@ -26,7 +26,8 @@ contract TestQuerySender is Initializable {
     ) public {
         queryRouter.query(
             _destinationDomain,
-            Call({to: _target, data: _targetData}),
+            _target,
+            _targetData,
             abi.encodePacked(this.handleQueryAddressResult.selector)
         );
     }
@@ -43,7 +44,8 @@ contract TestQuerySender is Initializable {
     ) public {
         queryRouter.query(
             _destinationDomain,
-            Call({to: _target, data: _targetData}),
+            _target,
+            _targetData,
             abi.encodePacked(this.handleQueryUint256Result.selector)
         );
     }
@@ -60,7 +62,8 @@ contract TestQuerySender is Initializable {
     ) public {
         queryRouter.query(
             _destinationDomain,
-            Call({to: _target, data: _targetData}),
+            _target,
+            _targetData,
             abi.encodePacked(this.handleQueryBytes32Result.selector)
         );
     }
