@@ -53,13 +53,42 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
         uint256 _gasAmount,
         address _refundAddress
     ) external payable override {
-        // Silence compiler warning. The NatSpec @param requires the parameter to be named.
-        // While not used at the moment, future versions of the paymaster have behavior specific
-        // to the destination domain and refund overpayments to the _refundAddress.
-        _destinationDomain;
-        _refundAddress;
+        uint256 _requiredPayment = quoteGasPayment(
+            _destinationDomain,
+            _gasAmount
+        );
+        require(
+            msg.value >= _requiredPayment,
+            "insufficient interchain gas payment"
+        );
+        uint256 _overpayment = msg.value - _requiredPayment;
+        if (_overpayment > 0) {
+            (bool _success, ) = _refundAddress.call{value: _overpayment}("");
+            // TODO reconsider this?
+            require(_success, "Interchain gas payment refund failed");
+        }
 
         emit GasPayment(_messageId, _gasAmount, msg.value);
+    }
+
+    /**
+     * @notice Quotes the amount of native tokens to pay for interchain gas.
+     * @param _destinationDomain The domain of the message's destination chain.
+     * @param _gasAmount The amount of destination gas to pay for. Currently unused.
+     * @return The amount of native tokens required to pay for interchain gas.
+     */
+    function quoteGasPayment(uint32 _destinationDomain, uint256 _gasAmount)
+        public
+        pure
+        override
+        returns (uint256)
+    {
+        // Silence compiler warning.
+        _destinationDomain;
+        _gasAmount;
+        // Charge a flat 1 wei fee.
+        // This is an intermediate step toward fully on-chain accurate gas payment quoting.
+        return 1;
     }
 
     /**

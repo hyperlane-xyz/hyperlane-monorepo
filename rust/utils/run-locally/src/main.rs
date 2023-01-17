@@ -141,7 +141,7 @@ fn main() -> ExitCode {
 
     let relayer_env = hashmap! {
         "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpFallback",
         "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
@@ -152,14 +152,15 @@ fn main() -> ExitCode {
         "HYP_BASE_TRACING_FMT" => "pretty",
         "HYP_BASE_TRACING_LEVEL" => "info",
         "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
-        "HYP_BASE_SIGNERS_TEST1_KEY" => "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
-        "HYP_BASE_SIGNERS_TEST1_TYPE" => "hexKey",
-        "HYP_BASE_SIGNERS_TEST2_KEY" => "f214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897",
-        "HYP_BASE_SIGNERS_TEST2_TYPE" => "hexKey",
-        "HYP_BASE_SIGNERS_TEST3_KEY" => "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
-        "HYP_BASE_SIGNERS_TEST3_TYPE" => "hexKey",
+        "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
+        "HYP_BASE_CHAINS_TEST1_SIGNER_TYPE" => "hexKey",
+        "HYP_BASE_CHAINS_TEST2_SIGNER_KEY" => "f214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897",
+        "HYP_BASE_CHAINS_TEST2_SIGNER_TYPE" => "hexKey",
+        "HYP_BASE_CHAINS_TEST3_SIGNER_KEY" => "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
+        "HYP_BASE_CHAINS_TEST3_SIGNER_TYPE" => "hexKey",
         "HYP_RELAYER_GASPAYMENTENFORCEMENTPOLICY_TYPE" => "none",
         "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
+        "HYP_RELAYER_DESTINATIONCHAINNAMES" => "test2,test3",
         "HYP_RELAYER_WHITELIST" => r#"[{"sourceAddress": "*", "destinationDomain": ["13372", "13373"], "destinationAddress": "*"}]"#,
         "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_TYPE" => "localStorage",
         "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_PATH" => checkpoints_dir.path().to_str().unwrap(),
@@ -169,7 +170,7 @@ fn main() -> ExitCode {
         "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpQuorum",
         "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
+        "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpFallback",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_URLS" => "http://127.0.0.1:8545",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_TYPE" => "http",
         "BASE_CONFIG" => "test_config.json",
@@ -225,7 +226,7 @@ fn main() -> ExitCode {
         // node.stdout(Stdio::piped());
         node.stdout(Stdio::null());
     } else {
-        node.stdout(append_to(&hardhat_log));
+        node.stdout(append_to(hardhat_log));
     }
     let node = node.spawn().expect("Failed to start node");
     // if log_all {

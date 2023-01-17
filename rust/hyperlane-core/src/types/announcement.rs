@@ -1,17 +1,14 @@
-use ethers::{
-    prelude::{Address, Signature},
-    utils::hash_message,
-};
-use ethers_signers::Signer;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Keccak256};
+use sha3::{digest::Update, Digest, Keccak256};
 
-use crate::{utils::domain_hash, HyperlaneProtocolError, SignerExt, H160, H256};
+use crate::{utils::domain_hash, Signable, SignedType, H160, H256};
+
 
 /// An Hyperlane checkpoint
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Announcement {
-    // The validator address
+    /// The validator address
     pub validator: H160,
     /// The mailbox address
     pub mailbox_address: H256,
@@ -31,59 +28,20 @@ impl std::fmt::Display for Announcement {
     }
 }
 
-impl Announcement {
-    /// A hash of the checkpoint contents.
-    /// The EIP-191 compliant version of this hash is signed by validators.
-    pub fn signing_hash(&self) -> H256 {
+#[async_trait]
+impl Signable for Announcement {
+    fn signing_hash(&self) -> H256 {
         // sign:
-        // domain_hash(mailbox_address, mailbox_domain) || location
+        // domain_hash(mailbox_address, mailbox_domain) || metadata
         H256::from_slice(
             Keccak256::new()
                 .chain(domain_hash(self.mailbox_address, self.mailbox_domain))
-                .chain(self.storage_location.clone())
+                .chain(&self.storage_location)
                 .finalize()
                 .as_slice(),
         )
     }
-
-    /// EIP-191 compliant hash of the signing hash of the checkpoint.
-    pub fn eth_signed_message_hash(&self) -> H256 {
-        hash_message(self.signing_hash())
-    }
-
-    /// Sign an checkpoint using the specified signer
-    pub async fn sign_with<S: Signer>(self, signer: &S) -> Result<SignedAnnouncement, S::Error> {
-        let signature = signer
-            .sign_message_without_eip_155(self.signing_hash())
-            .await?;
-        Ok(SignedAnnouncement {
-            announcement: self,
-            signature,
-        })
-    }
 }
 
-/// A Signed Hyperlane checkpoint
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SignedAnnouncement {
-    /// The announcement
-    pub announcement: Announcement,
-    /// The signature
-    pub signature: Signature,
-}
-
-impl SignedAnnouncement {
-    /// Recover the Ethereum address of the signer
-    pub fn recover(&self) -> Result<Address, HyperlaneProtocolError> {
-        Ok(self
-            .signature
-            .recover(self.announcement.eth_signed_message_hash())?)
-    }
-
-    /// Check whether a message was signed by a specific address
-    pub fn verify(&self, signer: Address) -> Result<(), HyperlaneProtocolError> {
-        Ok(self
-            .signature
-            .verify(self.announcement.eth_signed_message_hash(), signer)?)
-    }
-}
+/// An announcement that has been signed.
+pub type SignedAnnouncement = SignedType<Announcement>;

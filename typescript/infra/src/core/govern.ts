@@ -1,18 +1,22 @@
 import { prompts } from 'prompts';
 
+import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
   ChainNameToDomainId,
+  CoreContracts,
   CoreViolationType,
   EnrolledValidatorsViolation,
   HyperlaneCoreChecker,
   MultisigIsmViolation,
   MultisigIsmViolationType,
   OwnerViolation,
+  ProxyViolation,
   ViolationType,
   objMap,
 } from '@hyperlane-xyz/sdk';
+import { ProxyKind } from '@hyperlane-xyz/sdk/dist/proxy';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { canProposeSafeTransactions } from '../utils/safe';
@@ -74,7 +78,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
           `> ${calls.length} calls will be submitted via ${submissionType}`,
         );
         calls.map((c) => console.log(`> > ${c.description}`));
-        const response = await prompts.confirm({
+        const response = prompts.confirm({
           type: 'confirm',
           name: 'value',
           message: 'Can you confirm?',
@@ -134,10 +138,42 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
           this.handleOwnerViolation(violation as OwnerViolation);
           break;
         }
+        case ProxyKind.Transparent: {
+          this.handleProxyViolation(violation as ProxyViolation);
+          break;
+        }
         default:
           throw new Error(`Unsupported violation type ${violation.type}`);
       }
     }
+  }
+
+  handleProxyViolation(violation: ProxyViolation) {
+    const contracts: CoreContracts =
+      this.checker.app.contractsMap[violation.chain as Chain];
+    let initData = '0x';
+    switch (violation.data.name) {
+      case 'InterchainGasPaymaster':
+        initData =
+          InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
+            'initialize',
+          );
+        break;
+      default:
+        throw new Error(`Unsupported proxy violation ${violation.data.name}`);
+    }
+    this.pushCall(violation.chain as Chain, {
+      to: contracts.proxyAdmin.address,
+      data: contracts.proxyAdmin.interface.encodeFunctionData(
+        'upgradeAndCall',
+        [
+          violation.data.proxyAddresses.proxy,
+          violation.data.proxyAddresses.implementation,
+          initData,
+        ],
+      ),
+      description: `Upgrade ${violation.data.proxyAddresses.proxy} to ${violation.data.proxyAddresses.implementation}`,
+    });
   }
 
   protected async inferCallSubmissionTypes() {
