@@ -21,11 +21,12 @@ export const dispatchMessage = async (
   destination: number,
   recipient: string,
   messageStr: string,
+  utf8 = true,
 ) => {
   const tx = await mailbox.dispatch(
     destination,
     recipient,
-    ethers.utils.toUtf8Bytes(messageStr),
+    utf8 ? ethers.utils.toUtf8Bytes(messageStr) : messageStr,
   );
   const receipt = await tx.wait();
   const dispatch = receipt.events![0] as DispatchEvent;
@@ -38,6 +39,7 @@ export const dispatchMessageAndReturnProof = async (
   destination: number,
   recipient: string,
   messageStr: string,
+  utf8 = true,
 ): Promise<MessageAndProof> => {
   const nonce = await mailbox.count();
   const { message } = await dispatchMessage(
@@ -45,6 +47,7 @@ export const dispatchMessageAndReturnProof = async (
     destination,
     utils.addressToBytes32(recipient),
     messageStr,
+    utf8,
   );
   const messageId = utils.messageId(message);
   const proof = await mailbox.proof();
@@ -81,6 +84,8 @@ export async function dispatchMessageAndReturnMetadata(
   recipient: string,
   messageStr: string,
   orderedValidators: Validator[],
+  threshold?: number,
+  utf8 = true,
 ): Promise<MessageAndMetadata> {
   // Checkpoint indices are 0 indexed, so we pull the count before
   // we dispatch the message.
@@ -90,14 +95,20 @@ export async function dispatchMessageAndReturnMetadata(
     destination,
     recipient,
     messageStr,
+    utf8,
   );
   const root = await mailbox.root();
-  const signatures = await signCheckpoint(
+  let signatures = await signCheckpoint(
     root,
     index,
     mailbox.address,
     orderedValidators,
   );
+  if (threshold) {
+    signatures = signatures.slice(0, threshold);
+  } else {
+    threshold = signatures.length;
+  }
   const origin = utils.parseMessage(proofAndMessage.message).origin;
   const metadata = utils.formatMultisigIsmMetadata({
     checkpointRoot: root,

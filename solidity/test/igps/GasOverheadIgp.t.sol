@@ -88,73 +88,55 @@ contract GasOverheadIgpTest is Test {
     }
 
     function testSetDestinationGasAmounts() public {
-        uint32[] memory _domains = new uint32[](2);
-        _domains[0] = testDestinationDomain;
-        _domains[1] = 4321;
-        uint256[] memory _gasOverheads = new uint256[](2);
-        _gasOverheads[0] = testGasOverhead;
-        _gasOverheads[1] = 432100;
+        GasOverheadIgp.DomainConfig[]
+            memory configs = new GasOverheadIgp.DomainConfig[](2);
+        configs[0] = GasOverheadIgp.DomainConfig(
+            testDestinationDomain,
+            testGasOverhead
+        );
+        configs[1] = GasOverheadIgp.DomainConfig(4321, 432100);
 
         // Topic 0 = event signature
         // Topic 1 = indexed domain
         // Topic 2 = not set
         // Data = gas amount
         vm.expectEmit(true, true, false, true);
-        emit DestinationGasOverheadSet(_domains[0], _gasOverheads[0]);
+        emit DestinationGasOverheadSet(
+            configs[0].domain,
+            configs[0].gasOverhead
+        );
         vm.expectEmit(true, true, false, true);
-        emit DestinationGasOverheadSet(_domains[1], _gasOverheads[1]);
+        emit DestinationGasOverheadSet(
+            configs[1].domain,
+            configs[1].gasOverhead
+        );
 
-        igp.setDestinationGasOverheads(_domains, _gasOverheads);
-    }
-
-    function testSetDestinationGasAmountsIncorrectLengths() public {
-        // length of 2
-        uint32[] memory _domains = new uint32[](2);
-        _domains[0] = testDestinationDomain;
-        _domains[1] = 4321;
-        // length of 1
-        uint256[] memory _gasOverheads = new uint256[](1);
-        _gasOverheads[0] = testGasOverhead;
-
-        vm.expectRevert(bytes("Domain and gas overhead length mismatch"));
-        igp.setDestinationGasOverheads(_domains, _gasOverheads);
+        igp.setDestinationGasOverheads(configs);
     }
 
     function testSetDestinationGasAmountsNotOwner() public {
-        uint32[] memory _domains = new uint32[](1);
-        _domains[0] = testDestinationDomain;
-        uint256[] memory _gasOverheads = new uint256[](1);
-        _gasOverheads[0] = testGasOverhead;
+        GasOverheadIgp.DomainConfig[]
+            memory configs = new GasOverheadIgp.DomainConfig[](2);
+        configs[0] = GasOverheadIgp.DomainConfig(
+            testDestinationDomain,
+            testGasOverhead
+        );
+        configs[1] = GasOverheadIgp.DomainConfig(4321, 432100);
 
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(nonOwner);
-        igp.setDestinationGasOverheads(_domains, _gasOverheads);
-    }
-
-    function setInnerIgp() public {
-        address newInnerIgp = 0xFAcefaCEFACefACeFaCefacEFaCeFACEFAceFAcE;
-        // Only concerned about topic 0 (event signature) and the data.
-        vm.expectEmit(true, false, false, true);
-        emit InnerIgpSet(newInnerIgp);
-
-        igp.setInnerIgp(newInnerIgp);
-    }
-
-    function setInnerIgpNotOwner() public {
-        address newInnerIgp = 0xFAcefaCEFACefACeFaCefacEFaCeFACEFAceFAcE;
-
-        vm.expectRevert("Ownable: caller is not the owner");
-        vm.prank(nonOwner);
-        igp.setInnerIgp(newInnerIgp);
+        igp.setDestinationGasOverheads(configs);
     }
 
     // ============ Helper Functions ============
 
     function setTestDestinationGasOverhead() internal {
-        uint32[] memory _domains = new uint32[](1);
-        _domains[0] = testDestinationDomain;
-        uint256[] memory _gasOverheads = new uint256[](1);
-        _gasOverheads[0] = testGasOverhead;
-        igp.setDestinationGasOverheads(_domains, _gasOverheads);
+        GasOverheadIgp.DomainConfig[]
+            memory configs = new GasOverheadIgp.DomainConfig[](1);
+        configs[0] = GasOverheadIgp.DomainConfig(
+            testDestinationDomain,
+            testGasOverhead
+        );
+        igp.setDestinationGasOverheads(configs);
     }
 }

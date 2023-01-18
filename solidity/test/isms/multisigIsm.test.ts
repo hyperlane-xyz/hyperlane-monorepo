@@ -6,11 +6,11 @@ import { ethers } from 'hardhat';
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
 import {
+  LightTestRecipient__factory,
   TestMailbox,
   TestMailbox__factory,
   TestMultisigIsm,
   TestMultisigIsm__factory,
-  TestRecipient__factory,
 } from '../../types';
 import {
   dispatchMessage,
@@ -367,29 +367,68 @@ describe('MultisigIsm', async () => {
     });
   });
 
+  let gasOverhead: Record<number, Record<number, number>> = {};
+  // uncomment to generate gas overhead table used for configuring GasOverheadIGP
+  // for (let numValidators = 1; numValidators <= 18; numValidators++) {
+  //   for (let threshold = 1; threshold <= numValidators; threshold++) {
+  let threshold: number;
+  let numValidators: number;
+
   describe('#verify', () => {
     let metadata: string, message: string, recipient: string;
+    let adjustedValidators: Validator[];
+
     before(async () => {
-      const recipientF = new TestRecipient__factory(signer);
+      // use recipient with empty handle for benchmarking process overhead
+      const recipientF = new LightTestRecipient__factory(signer);
       recipient = (await recipientF.deploy()).address;
+      // comment for gas instrumentation
+      numValidators = validators.length;
+      threshold = numValidators - 1;
+      adjustedValidators = validators.slice(0, numValidators);
     });
 
     beforeEach(async () => {
       // Must be done sequentially so gas estimation is correct
       // and so that signatures are produced in the same order.
-      for (const v of validators) {
+      for (const v of adjustedValidators) {
         await multisigIsm.enrollValidator(ORIGIN_DOMAIN, v.address);
       }
-      await multisigIsm.setThreshold(ORIGIN_DOMAIN, validators.length - 1);
+
+      await multisigIsm.setThreshold(ORIGIN_DOMAIN, threshold);
+
+      const maxBodySize = await mailbox.MAX_MESSAGE_BODY_BYTES();
+      const maxBody = '0x' + 'AA'.repeat(maxBodySize.toNumber());
 
       ({ message, metadata } = await dispatchMessageAndReturnMetadata(
         mailbox,
         multisigIsm,
         DESTINATION_DOMAIN,
         recipient,
-        'hello world',
-        validators.slice(1),
+        maxBody,
+        adjustedValidators,
+        threshold,
+        false,
       ));
+    });
+
+    it(`instrument mailbox.process gas costs with ${threshold} of ${numValidators} multisig `, async () => {
+      const mailboxFactory = new TestMailbox__factory(signer);
+      const destinationMailbox = await mailboxFactory.deploy(
+        DESTINATION_DOMAIN,
+      );
+      await destinationMailbox.initialize(signer.address, multisigIsm.address);
+      const gas = await destinationMailbox.estimateGas.process(
+        metadata,
+        message,
+      );
+      // const gas = await multisigIsm.estimateGas.verify(metadata, message);
+
+      if (gasOverhead[numValidators] === undefined) {
+        gasOverhead[numValidators] = {};
+      }
+      gasOverhead[numValidators][threshold] = gas.toNumber();
+      console.log(JSON.stringify(gasOverhead));
     });
 
     it('returns true when valid metadata is provided', async () => {
@@ -452,6 +491,9 @@ describe('MultisigIsm', async () => {
       ).to.be.revertedWith('!merkle');
     });
   });
+  // uncomment to generate gas overhead table used for configuring GasOverheadIGP
+  //   }
+  // }
 
   describe('#isEnrolled', () => {
     beforeEach(async () => {

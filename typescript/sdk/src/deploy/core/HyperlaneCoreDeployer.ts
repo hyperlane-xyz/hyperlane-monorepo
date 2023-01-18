@@ -2,7 +2,7 @@ import debug from 'debug';
 import { ethers } from 'ethers';
 
 import {
-  InterchainGasPaymaster,
+  GasOverheadIgp,
   Mailbox,
   MultisigIsm,
   Ownable,
@@ -11,7 +11,12 @@ import {
 import type { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
-import { CoreContracts, coreFactories } from '../../core/contracts';
+import multisigIsmVerifyCosts from '../../consts/multisigIsmVerifyCosts.json';
+import {
+  ConnectionClientContracts,
+  CoreContracts,
+  coreFactories,
+} from '../../core/contracts';
 import { ChainNameToDomainId } from '../../domains';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../../proxy';
@@ -30,6 +35,7 @@ export class HyperlaneCoreDeployer<
   typeof coreFactories
 > {
   startingBlockNumbers: ChainMap<Chain, number | undefined>;
+  gasOverhead: ChainMap<Chain, GasOverheadIgp.DomainConfigStruct>;
 
   constructor(
     multiProvider: MultiProvider<Chain>,
@@ -39,17 +45,29 @@ export class HyperlaneCoreDeployer<
     super(multiProvider, configMap, factoriesOverride, {
       logger: debug('hyperlane:CoreDeployer'),
     });
+    this.gasOverhead = objMap(configMap, (chain, config) => {
+      const { validators, threshold } = config.multisigIsm;
+      const verifyCost =
+        // @ts-ignore
+        multisigIsmVerifyCosts[`${validators.length}`][`${threshold}`];
+      if (!verifyCost)
+        throw new Error(
+          `Unknown verification cost for ${threshold} of ${validators.length}`,
+        );
+      return {
+        domain: ChainNameToDomainId[chain],
+        gasOverhead: verifyCost,
+      };
+    });
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
-  deployInterchainGasPaymaster<LocalChain extends Chain>(
+  async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
     deployOpts?: DeployOptions,
-  ): Promise<
-    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
-  > {
-    return this.deployProxiedContract(
+  ): Promise<ConnectionClientContracts> {
+    const interchainGasPaymaster = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
       [],
@@ -57,6 +75,30 @@ export class HyperlaneCoreDeployer<
       [],
       deployOpts,
     );
+    const interchainGasOverhead = await this.deployProxiedContract(
+      chain,
+      'interchainGasOverhead',
+      [interchainGasPaymaster.address],
+      proxyAdmin,
+      [],
+      deployOpts,
+    );
+
+    const configChains = Object.keys(this.configMap) as Chain[];
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const remotes = this.multiProvider
+      .intersect(configChains, false)
+      .multiProvider.remoteChains(chain);
+
+    const configs = remotes.map((remote) => this.gasOverhead[remote]);
+    await chainConnection.handleTx(
+      interchainGasOverhead.contract.setDestinationGasOverheads(configs),
+    );
+
+    return {
+      interchainGasPaymaster,
+      interchainGasOverhead,
+    };
   }
 
   async deployMailbox<LocalChain extends Chain>(
@@ -164,7 +206,7 @@ export class HyperlaneCoreDeployer<
     const multisigIsm = await this.deployMultisigIsm(chain);
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
-    const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
+    const connectionClientContracts = await this.deployInterchainGasPaymaster(
       chain,
       proxyAdmin,
     );
@@ -174,13 +216,17 @@ export class HyperlaneCoreDeployer<
       proxyAdmin,
     );
     // Mailbox ownership is transferred upon initialization.
-    const ownables: Ownable[] = [multisigIsm, proxyAdmin];
+    const ownables: Ownable[] = [
+      multisigIsm,
+      proxyAdmin,
+      ...Object.values(connectionClientContracts).map((c) => c.contract),
+    ];
     await this.transferOwnershipOfContracts(chain, ownables);
 
     return {
       proxyAdmin,
-      interchainGasPaymaster,
       mailbox,
+      ...connectionClientContracts,
       multisigIsm,
     };
   }
