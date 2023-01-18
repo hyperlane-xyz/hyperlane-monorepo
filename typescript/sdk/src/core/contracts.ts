@@ -1,5 +1,7 @@
 import {
   Create2Factory__factory,
+  GasOverheadIgp,
+  GasOverheadIgp__factory,
   InterchainAccountRouter__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
@@ -16,9 +18,13 @@ import {
 
 import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 
-type ConnectionClientContracts = {
+export type ConnectionClientContracts = {
   interchainGasPaymaster: ProxiedContract<
     InterchainGasPaymaster,
+    TransparentProxyAddresses
+  >;
+  interchainGasOverhead: ProxiedContract<
+    GasOverheadIgp,
     TransparentProxyAddresses
   >;
 };
@@ -37,6 +43,7 @@ export const coreFactories = {
   create2Factory: new Create2Factory__factory(),
   proxyAdmin: new ProxyAdmin__factory(),
   interchainGasPaymaster: new InterchainGasPaymaster__factory(),
+  interchainGasOverhead: new GasOverheadIgp__factory(),
   multisigIsm: new MultisigIsm__factory(),
   mailbox: new Mailbox__factory(),
 };
