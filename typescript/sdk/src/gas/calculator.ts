@@ -94,20 +94,6 @@ export class InterchainGasCalculator<Chain extends ChainName> {
       interchainGasPaymasterAddress,
       originProvider,
     );
-
-    try {
-      // Await here to ensure errors can be caught by this try/catch
-      return await igp.quoteGasPayment(
-        ChainNameToDomainId[destination],
-        gasAmount,
-      );
-    } catch (err) {
-      // quoteGasPayment was recently added to the IGP interface, and it's possible
-      // IGP deployments don't yet implement this. To be robust to this, consider
-      // errors as if there is no required on-chain payment.
-      // TODO: once all known IGPs have been upgraded to implement quoteGasPayment,
-      // consider removing this try/catch altogether.
-      return BigNumber.from('0');
-    }
+    return igp.quoteGasPayment(ChainNameToDomainId[destination], gasAmount);
   }
 }
