@@ -38,7 +38,7 @@ export class ChainConnection {
   }
 
   getApiUrl(): string {
-    return this.blockExplorerApiUrl;
+    return this.blockExplorerApiUrl + '/api';
   }
 
   async handleTx(

@@ -64,7 +64,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     options?: Record<string, string>,
   ): Promise<any> {
     const chainConnection = this.multiProvider.getChainConnection(chain);
-    const apiUrl = `${chainConnection.getApiUrl()}/api`;
+    const apiUrl = chainConnection.getApiUrl();
 
     const params = new URLSearchParams({
       apikey: this.apiKeys[chain],

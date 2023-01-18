@@ -8,7 +8,7 @@ import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import "../contracts/test/TestRecipient.sol";
 import "../contracts/middleware/InterchainAccountRouter.sol";
-import {OwnableMulticall, Call} from "../contracts/OwnableMulticall.sol";
+import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
 
 contract InterchainAccountRouterTest is Test {
     // TODO: dedupe
@@ -27,6 +27,9 @@ contract InterchainAccountRouterTest is Test {
     InterchainAccountRouter remoteRouter;
 
     TestRecipient recipient;
+    address ica;
+
+    OwnableMulticall ownable;
 
     function setUp() public {
         environment = new MockHyperlaneEnvironment(originDomain, remoteDomain);
@@ -58,29 +61,59 @@ contract InterchainAccountRouterTest is Test {
             originDomain,
             TypeCasts.addressToBytes32(address(originRouter))
         );
+
+        ica = remoteRouter.getInterchainAccount(originDomain, address(this));
+        ownable = new OwnableMulticall();
+    }
+
+    function testCannotSetOwner(address newOwner) public {
+        vm.assume(newOwner != address(0x0));
+        originRouter.dispatch(
+            remoteDomain,
+            address(ownable),
+            abi.encodeWithSelector(ownable.transferOwnership.selector, newOwner)
+        );
+
+        vm.expectRevert(bytes("Ownable: caller is not the owner"));
+        environment.processNextPendingMessage();
     }
 
     function testSetOwner(address newOwner) public {
         vm.assume(newOwner != address(0x0));
 
-        OwnableMulticall ownee = new OwnableMulticall();
-        address ica = remoteRouter.getInterchainAccount(
-            originDomain,
-            address(this)
-        );
-        ownee.transferOwnership(ica);
+        ownable.transferOwnership(ica);
 
         originRouter.dispatch(
             remoteDomain,
-            address(ownee),
-            abi.encodeWithSelector(ownee.transferOwnership.selector, newOwner)
+            address(ownable),
+            abi.encodeWithSelector(ownable.transferOwnership.selector, newOwner)
         );
 
         vm.expectEmit(true, false, false, true, address(remoteRouter));
         emit InterchainAccountCreated(originDomain, address(this), ica);
         environment.processNextPendingMessage();
 
-        assertEq(ownee.owner(), newOwner);
+        assertEq(ownable.owner(), newOwner);
+    }
+
+    function testCannotSetOwnerTwice(address newOwner) public {
+        vm.assume(newOwner != address(0x0));
+        ownable.transferOwnership(ica);
+
+        CallLib.Call memory transferOwner = CallLib.Call({
+            to: address(ownable),
+            data: abi.encodeWithSelector(
+                ownable.transferOwnership.selector,
+                newOwner
+            )
+        });
+        CallLib.Call[] memory calls = new CallLib.Call[](2);
+        calls[0] = transferOwner;
+        calls[1] = transferOwner;
+        originRouter.dispatch(remoteDomain, calls);
+
+        vm.expectRevert(bytes("Ownable: caller is not the owner"));
+        environment.processNextPendingMessage();
     }
 
     function testOwner() public {
