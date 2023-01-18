@@ -2,10 +2,11 @@
 pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
-import {OwnableMulticall, Call} from "../OwnableMulticall.sol";
+import {OwnableMulticall} from "../OwnableMulticall.sol";
 import {Router} from "../Router.sol";
 import {IInterchainAccountRouter} from "../../interfaces/IInterchainAccountRouter.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
+import {CallLib} from "../libs/Call.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -68,7 +69,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
      * @param _destinationDomain The domain of the chain where the message will be sent to.
      * @param calls The sequence of calls to be relayed.
      */
-    function dispatch(uint32 _destinationDomain, Call[] calldata calls)
+    function dispatch(uint32 _destinationDomain, CallLib.Call[] calldata calls)
         external
         returns (bytes32)
     {
@@ -87,8 +88,8 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         address target,
         bytes calldata data
     ) external returns (bytes32) {
-        Call[] memory calls = new Call[](1);
-        calls[0] = Call({to: target, data: data});
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({to: target, data: data});
         return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
     }
 
@@ -164,9 +165,9 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        (address sender, Call[] memory calls) = abi.decode(
+        (address sender, CallLib.Call[] memory calls) = abi.decode(
             _message,
-            (address, Call[])
+            (address, CallLib.Call[])
         );
         getDeployedInterchainAccount(_origin, sender).proxyCalls(calls);
     }

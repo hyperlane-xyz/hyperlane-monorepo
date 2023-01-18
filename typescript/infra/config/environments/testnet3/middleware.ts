@@ -6,7 +6,7 @@ import { environment } from './chains';
 export const liquidityLayerRelayerConfig: LiquidityLayerRelayerConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'sha-760a16b',
+    tag: 'sha-437f701',
   },
   namespace: environment,
   prometheusPushGateway:
