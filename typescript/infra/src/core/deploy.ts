@@ -4,6 +4,7 @@ import {
   InterchainGasPaymaster,
   Mailbox,
   ProxyAdmin,
+  ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import {
   ChainMap,
@@ -68,6 +69,19 @@ export class HyperlaneCoreInfraDeployer<
       proxyAdmin,
       deployOpts,
     );
+  }
+
+  async deployValidatorAnnounce<LocalChain extends Chain>(
+    chain: LocalChain,
+    mailboxAddress: types.Address,
+  ): Promise<ValidatorAnnounce> {
+    const deployOpts = {
+      create2Salt: ethers.utils.solidityKeccak256(
+        ['string', 'string', 'uint8'],
+        [this.environment, 'validatorAnnounce', 1],
+      ),
+    };
+    return super.deployValidatorAnnounce(chain, mailboxAddress, deployOpts);
   }
 
   writeRustConfigs(directory: string) {
