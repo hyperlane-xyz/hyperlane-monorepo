@@ -28,7 +28,8 @@ contract TestQuerySenderTest is Test {
         );
         igp = testEnvironment.igps(originDomain);
 
-        sender = new TestQuerySender(
+        sender = new TestQuerySender();
+        sender.initialize(
             address(testEnvironment.queryRouters(originDomain)),
             address(igp)
         );

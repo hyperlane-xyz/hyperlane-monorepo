@@ -5,8 +5,8 @@ import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.
 import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
 
 contract TestQuerySender {
-    IInterchainQueryRouter immutable queryRouter;
-    IInterchainGasPaymaster immutable interchainGasPaymaster;
+    IInterchainQueryRouter queryRouter;
+    IInterchainGasPaymaster interchainGasPaymaster;
 
     address public lastAddressResult;
     uint256 public lastUint256Result;
@@ -16,7 +16,10 @@ contract TestQuerySender {
     event ReceivedUint256Result(uint256 result);
     event ReceivedBytes32Result(bytes32 result);
 
-    constructor(address _queryRouterAddress, address _interchainGasPaymaster) {
+    function initialize(
+        address _queryRouterAddress,
+        address _interchainGasPaymaster
+    ) external {
         queryRouter = IInterchainQueryRouter(_queryRouterAddress);
         interchainGasPaymaster = IInterchainGasPaymaster(
             _interchainGasPaymaster
