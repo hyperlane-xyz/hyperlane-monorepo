@@ -366,10 +366,7 @@ async function sendMessage(
   const expectedHandleGas = BigNumber.from(100_000);
 
   let value = await utils.retryAsync(
-    () =>
-      // TODO consider keeping this for backward compatibility?
-      // gasCalc.estimatePaymentForHandleGas(
-      gasCalc.quoteGasPayment(origin, destination, expectedHandleGas),
+    () => gasCalc.quoteGasPayment(origin, destination, expectedHandleGas),
     2,
   );
   const metricLabels = { origin, remote: destination };

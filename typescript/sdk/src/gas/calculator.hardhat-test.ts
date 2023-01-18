@@ -40,7 +40,7 @@ describe('InterchainGasCalculator', async () => {
   });
 
   describe('quoteGasPayment', () => {
-    it('calls the default IGP.quoteGasPayment', async () => {
+    it("calls the default IGP's quoteGasPayment function", async () => {
       const quote = await calculator.quoteGasPayment(
         localChain,
         remoteChain,
@@ -52,7 +52,7 @@ describe('InterchainGasCalculator', async () => {
   });
 
   describe('quoteGasPaymentForIGP', () => {
-    it('calls the IGP.quoteGasPayment', async () => {
+    it("calls the provided IGP's quoteGasPayment", async () => {
       const quote = await calculator.quoteGasPaymentForIGP(
         localChain,
         remoteChain,
@@ -61,20 +61,6 @@ describe('InterchainGasCalculator', async () => {
       );
 
       expect(quote).to.equal(expectedDefaultQuote);
-    });
-
-    // Temporary kludge until IGPs all implement quoteGasPayment
-    it('defaults to zero if IGP.quoteGasPayment reverts', async () => {
-      const expectedQuote = BigNumber.from('0');
-
-      const quote = await calculator.quoteGasPaymentForIGP(
-        localChain,
-        remoteChain,
-        testGasAmount,
-        '0xdead00000000000000000000000000000000dead',
-      );
-
-      expect(quote).to.equal(expectedQuote);
     });
   });
 });

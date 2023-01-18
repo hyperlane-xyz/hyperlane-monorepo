@@ -97,10 +97,6 @@ export { TestCoreApp, TestCoreContracts } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 
 export { InterchainGasCalculator, ParsedMessage } from './gas/calculator';
-export {
-  CoinGeckoTokenPriceGetter,
-  TokenPriceGetter,
-} from './gas/token-prices';
 
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export {
