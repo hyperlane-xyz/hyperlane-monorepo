@@ -365,7 +365,7 @@ async function sendMessage(
   const msg = 'Hello!';
   const expectedHandleGas = BigNumber.from(100_000);
 
-  let value = await utils.retryAsync(
+  const value = await utils.retryAsync(
     () => gasCalc.quoteGasPayment(origin, destination, expectedHandleGas),
     2,
   );
