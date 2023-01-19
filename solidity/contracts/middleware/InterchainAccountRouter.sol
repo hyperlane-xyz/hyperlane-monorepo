@@ -13,6 +13,59 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
+enum Action {
+    DEFAULT,
+    WITH_VALUE
+}
+
+library IcaMessage {
+    using CallLib for CallLib.Call[];
+    using CallLib for CallLib.CallWithValue[];
+
+    function format(CallLib.Call[] memory calls)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encode(Action.DEFAULT, msg.sender, calls);
+    }
+
+    function format(CallLib.CallWithValue[] memory calls)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encode(Action.WITH_VALUE, msg.sender, calls);
+    }
+
+    function action(bytes calldata _message) internal pure returns (Action) {
+        return Action(uint8(bytes1(_message[31])));
+    }
+
+    function sender(bytes calldata _message) internal pure returns (address) {
+        return abi.decode(_message[32:64], (address));
+    }
+
+    function multicall(bytes calldata _message) internal {
+        Action _action = action(_message);
+        if (_action == Action.DEFAULT) {
+            CallLib.Call[] memory calls = abi.decode(
+                _message[64:],
+                (CallLib.Call[])
+            );
+            calls.multicall();
+        } else if (_action == Action.WITH_VALUE) {
+            CallLib.CallWithValue[] memory calls = abi.decode(
+                _message[64:],
+                (CallLib.CallWithValue[])
+            );
+            calls.multicall();
+        } else {
+            revert("Invalid action");
+        }
+    }
+}
+
 /*
  * @title Interchain Accounts Router that relays messages via proxy contracts on other chains.
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
@@ -21,10 +74,10 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     address immutable implementation;
     bytes32 immutable bytecodeHash;
 
-    enum Action {
-        DEFAULT,
-        WITH_VALUE
-    }
+    using IcaMessage for CallLib.Call[];
+    using IcaMessage for CallLib.CallWithValue[];
+    using IcaMessage for OwnableMulticall;
+    using IcaMessage for bytes;
 
     /**
      * @notice Emitted when an interchain account is created (first time message is sent from a given `origin`/`sender` pair)
@@ -78,7 +131,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         external
         returns (bytes32)
     {
-        return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
+        return _dispatch(_destinationDomain, calls.format());
     }
 
     /**
@@ -95,7 +148,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     ) external returns (bytes32) {
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = CallLib.Call({to: target, data: data});
-        return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
+        return _dispatch(_destinationDomain, calls.format());
     }
 
     /**
@@ -170,20 +223,10 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        Action action = Action(uint8(bytes1(_message[31])));
-        if (action == Action.DEFAULT) {
-            (, address sender, CallLib.Call[] memory calls) = abi.decode(
-                _message,
-                (Action, address, CallLib.Call[])
-            );
-            getDeployedInterchainAccount(_origin, sender).proxyCalls(calls);
-            return;
-        } else if (action == Action.WITH_VALUE) {
-            (, address sender, CallLib.CallWithValue[] memory calls) = abi
-                .decode(_message, (Action, address, CallLib.CallWithValue[]));
-            getDeployedInterchainAccount(_origin, sender).proxyCallsWithValue(
-                calls
-            );
-        }
+        address sender = _message.sender();
+        OwnableMulticall interchainAccount = getDeployedInterchainAccount(
+            _origin,
+            sender
+        );
     }
 }
