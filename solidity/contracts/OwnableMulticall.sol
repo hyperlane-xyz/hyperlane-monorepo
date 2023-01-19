@@ -13,6 +13,7 @@ import {CallLib} from "./libs/Call.sol";
  */
 contract OwnableMulticall is OwnableUpgradeable {
     using CallLib for CallLib.Call[];
+    using CallLib for CallLib.CallWithValue[];
 
     constructor() {
         _transferOwnership(msg.sender);
@@ -23,6 +24,16 @@ contract OwnableMulticall is OwnableUpgradeable {
     }
 
     function proxyCalls(CallLib.Call[] calldata calls) external onlyOwner {
-        calls._multicall();
+        return calls.multicall();
     }
+
+    function proxyCallsWithValue(CallLib.CallWithValue[] calldata calls)
+        external
+        onlyOwner
+    {
+        return calls.multicall();
+    }
+
+    // solhint-disable-next-line no-empty-blocks
+    receive() external payable {}
 }
