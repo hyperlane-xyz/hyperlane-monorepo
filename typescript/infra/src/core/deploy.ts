@@ -1,13 +1,10 @@
 import { ethers } from 'ethers';
 
-import {
-  InterchainGasPaymaster,
-  Mailbox,
-  ProxyAdmin,
-} from '@hyperlane-xyz/core';
+import { Mailbox, ProxyAdmin } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  ConnectionClientContracts,
   CoreConfig,
   HyperlaneCoreDeployer,
   MultiProvider,
@@ -39,9 +36,7 @@ export class HyperlaneCoreInfraDeployer<
   async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
-  ): Promise<
-    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
-  > {
+  ): Promise<ConnectionClientContracts> {
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],

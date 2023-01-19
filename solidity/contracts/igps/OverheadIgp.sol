@@ -13,7 +13,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  * domains, e.g. Mailbox and/or ISM gas usage, such that users of this IGP are only required
  * to specify the gas amount used by their own applications.
  */
-contract GasOverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
+contract OverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
     // ============ Public Storage ============
 
     /// @notice The IGP that is called when paying for or quoting gas

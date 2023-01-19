@@ -2,11 +2,11 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {GasOverheadIgp} from "../../contracts/igps/GasOverheadIgp.sol";
+import {OverheadIgp} from "../../contracts/igps/OverheadIgp.sol";
 import {InterchainGasPaymaster} from "../../contracts/igps/InterchainGasPaymaster.sol";
 
-contract GasOverheadIgpTest is Test {
-    GasOverheadIgp igp;
+contract OverheadIgpTest is Test {
+    OverheadIgp igp;
 
     InterchainGasPaymaster innerIgp;
 
@@ -25,7 +25,7 @@ contract GasOverheadIgpTest is Test {
 
     function setUp() public {
         innerIgp = new InterchainGasPaymaster();
-        igp = new GasOverheadIgp(address(innerIgp));
+        igp = new OverheadIgp(address(innerIgp));
     }
 
     function testPayForGas() public {
@@ -88,13 +88,13 @@ contract GasOverheadIgpTest is Test {
     }
 
     function testSetDestinationGasAmounts() public {
-        GasOverheadIgp.DomainConfig[]
-            memory configs = new GasOverheadIgp.DomainConfig[](2);
-        configs[0] = GasOverheadIgp.DomainConfig(
+        OverheadIgp.DomainConfig[]
+            memory configs = new OverheadIgp.DomainConfig[](2);
+        configs[0] = OverheadIgp.DomainConfig(
             testDestinationDomain,
             testGasOverhead
         );
-        configs[1] = GasOverheadIgp.DomainConfig(4321, 432100);
+        configs[1] = OverheadIgp.DomainConfig(4321, 432100);
 
         // Topic 0 = event signature
         // Topic 1 = indexed domain
@@ -115,13 +115,13 @@ contract GasOverheadIgpTest is Test {
     }
 
     function testSetDestinationGasAmountsNotOwner() public {
-        GasOverheadIgp.DomainConfig[]
-            memory configs = new GasOverheadIgp.DomainConfig[](2);
-        configs[0] = GasOverheadIgp.DomainConfig(
+        OverheadIgp.DomainConfig[]
+            memory configs = new OverheadIgp.DomainConfig[](2);
+        configs[0] = OverheadIgp.DomainConfig(
             testDestinationDomain,
             testGasOverhead
         );
-        configs[1] = GasOverheadIgp.DomainConfig(4321, 432100);
+        configs[1] = OverheadIgp.DomainConfig(4321, 432100);
 
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(nonOwner);
@@ -131,9 +131,9 @@ contract GasOverheadIgpTest is Test {
     // ============ Helper Functions ============
 
     function setTestDestinationGasOverhead() internal {
-        GasOverheadIgp.DomainConfig[]
-            memory configs = new GasOverheadIgp.DomainConfig[](1);
-        configs[0] = GasOverheadIgp.DomainConfig(
+        OverheadIgp.DomainConfig[]
+            memory configs = new OverheadIgp.DomainConfig[](1);
+        configs[0] = OverheadIgp.DomainConfig(
             testDestinationDomain,
             testGasOverhead
         );

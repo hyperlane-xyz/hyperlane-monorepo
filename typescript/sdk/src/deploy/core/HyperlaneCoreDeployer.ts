@@ -2,9 +2,9 @@ import debug from 'debug';
 import { ethers } from 'ethers';
 
 import {
-  GasOverheadIgp,
   Mailbox,
   MultisigIsm,
+  OverheadIgp,
   Ownable,
   ProxyAdmin,
 } from '@hyperlane-xyz/core';
@@ -35,7 +35,7 @@ export class HyperlaneCoreDeployer<
   typeof coreFactories
 > {
   startingBlockNumbers: ChainMap<Chain, number | undefined>;
-  gasOverhead: ChainMap<Chain, GasOverheadIgp.DomainConfigStruct>;
+  gasOverhead: ChainMap<Chain, OverheadIgp.DomainConfigStruct>;
 
   constructor(
     multiProvider: MultiProvider<Chain>,

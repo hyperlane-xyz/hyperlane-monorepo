@@ -368,7 +368,7 @@ describe('MultisigIsm', async () => {
   });
 
   let gasOverhead: Record<number, Record<number, number>> = {};
-  // uncomment to generate gas overhead table used for configuring GasOverheadIGP
+  // uncomment to generate gas overhead table used for configuring OverheadIgp
   // for (let numValidators = 1; numValidators <= 18; numValidators++) {
   //   for (let threshold = 1; threshold <= numValidators; threshold++) {
   let threshold: number;
@@ -491,7 +491,7 @@ describe('MultisigIsm', async () => {
       ).to.be.revertedWith('!merkle');
     });
   });
-  // uncomment to generate gas overhead table used for configuring GasOverheadIGP
+  // uncomment to generate gas overhead table used for configuring OverheadIgp
   //   }
   // }
 
