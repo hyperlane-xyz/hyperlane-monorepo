@@ -2,6 +2,7 @@ import debug from 'debug';
 import { ethers } from 'ethers';
 
 import {
+  InterchainGasPaymaster,
   Mailbox,
   MultisigIsm,
   OverheadIgp,
@@ -12,11 +13,7 @@ import type { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
 import multisigIsmVerifyCosts from '../../consts/multisigIsmVerifyCosts.json';
-import {
-  ConnectionClientContracts,
-  CoreContracts,
-  coreFactories,
-} from '../../core/contracts';
+import { CoreContracts, coreFactories } from '../../core/contracts';
 import { ChainNameToDomainId } from '../../domains';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../../proxy';
@@ -62,25 +59,33 @@ export class HyperlaneCoreDeployer<
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
-  async deployInterchainGasPaymaster<LocalChain extends Chain>(
+  async deployBaseInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
     deployOpts?: DeployOptions,
-  ): Promise<ConnectionClientContracts> {
+  ): Promise<
+    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
+  > {
     const interchainGasPaymaster = await this.deployProxiedContract(
       chain,
-      'interchainGasPaymaster',
+      'baseInterchainGasPaymaster',
       [],
       proxyAdmin,
       [],
       deployOpts,
     );
-    const interchainGasOverhead = await this.deployProxiedContract(
+    return interchainGasPaymaster;
+  }
+
+  async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(
+    chain: LocalChain,
+    baseInterchainGasPaymasterAddress: types.Address,
+    deployOpts?: DeployOptions,
+  ): Promise<OverheadIgp> {
+    const defaultIsmInterchainGasPaymaster = await this.deployContract(
       chain,
-      'interchainGasOverhead',
-      [interchainGasPaymaster.address],
-      proxyAdmin,
-      [],
+      'defaultIsmInterchainGasPaymaster',
+      [baseInterchainGasPaymasterAddress],
       deployOpts,
     );
 
@@ -92,13 +97,10 @@ export class HyperlaneCoreDeployer<
 
     const configs = remotes.map((remote) => this.gasOverhead[remote]);
     await chainConnection.handleTx(
-      interchainGasOverhead.contract.setDestinationGasOverheads(configs),
+      defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(configs),
     );
 
-    return {
-      interchainGasPaymaster,
-      interchainGasOverhead,
-    };
+    return defaultIsmInterchainGasPaymaster;
   }
 
   async deployMailbox<LocalChain extends Chain>(
@@ -206,10 +208,13 @@ export class HyperlaneCoreDeployer<
     const multisigIsm = await this.deployMultisigIsm(chain);
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
-    const connectionClientContracts = await this.deployInterchainGasPaymaster(
-      chain,
-      proxyAdmin,
-    );
+    const baseInterchainGasPaymaster =
+      await this.deployBaseInterchainGasPaymaster(chain, proxyAdmin);
+    const defaultIsmInterchainGasPaymaster =
+      await this.deployDefaultIsmInterchainGasPaymaster(
+        chain,
+        baseInterchainGasPaymaster.address,
+      );
     const mailbox = await this.deployMailbox(
       chain,
       multisigIsm.address,
@@ -219,14 +224,16 @@ export class HyperlaneCoreDeployer<
     const ownables: Ownable[] = [
       multisigIsm,
       proxyAdmin,
-      ...Object.values(connectionClientContracts).map((c) => c.contract),
+      baseInterchainGasPaymaster.contract,
+      defaultIsmInterchainGasPaymaster,
     ];
     await this.transferOwnershipOfContracts(chain, ownables);
 
     return {
       proxyAdmin,
       mailbox,
-      ...connectionClientContracts,
+      baseInterchainGasPaymaster,
+      defaultIsmInterchainGasPaymaster,
       multisigIsm,
     };
   }
