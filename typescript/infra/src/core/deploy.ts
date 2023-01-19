@@ -4,6 +4,7 @@ import {
   InterchainGasPaymaster,
   Mailbox,
   ProxyAdmin,
+  ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import {
   ChainMap,
@@ -70,6 +71,19 @@ export class HyperlaneCoreInfraDeployer<
     );
   }
 
+  async deployValidatorAnnounce<LocalChain extends Chain>(
+    chain: LocalChain,
+    mailboxAddress: types.Address,
+  ): Promise<ValidatorAnnounce> {
+    const deployOpts = {
+      create2Salt: ethers.utils.solidityKeccak256(
+        ['string', 'string', 'uint8'],
+        [this.environment, 'validatorAnnounce', 1],
+      ),
+    };
+    return super.deployValidatorAnnounce(chain, mailboxAddress, deployOpts);
+  }
+
   writeRustConfigs(directory: string) {
     const rustConfig: RustConfig<Chain> = {
       environment: this.environment,
@@ -88,7 +102,7 @@ export class HyperlaneCoreInfraDeployer<
         contracts == undefined ||
         contracts.mailbox == undefined ||
         contracts.interchainGasPaymaster == undefined ||
-        contracts.multisigIsm == undefined
+        contracts.validatorAnnounce == undefined
       ) {
         return;
       }
@@ -99,6 +113,7 @@ export class HyperlaneCoreInfraDeployer<
         addresses: {
           mailbox: contracts.mailbox.contract.address,
           interchainGasPaymaster: contracts.interchainGasPaymaster.address,
+          validatorAnnounce: contracts.validatorAnnounce.address,
         },
         signer: null,
         protocol: 'ethereum',

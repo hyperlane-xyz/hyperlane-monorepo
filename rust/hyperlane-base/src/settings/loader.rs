@@ -73,11 +73,15 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
                 .source(Some(filtered_env)),
         )
         .build()?;
-
+    let formatted_config = format!("{:#?}", config_deserializer);
     match serde_path_to_error::deserialize(config_deserializer) {
         Ok(cfg) => Ok(cfg),
         Err(err) => {
-            let ctx = format!("Invalid config at `{}`", err.path());
+            println!(
+                "Error during deseriaization, showing the config for debugging:\n {}",
+                formatted_config
+            );
+            let ctx = format!("Invalid config at `{}` {:?}", err.path(), err);
             Err(err).context(ctx)
         }
     }
