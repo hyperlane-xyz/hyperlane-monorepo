@@ -21,6 +21,11 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     address immutable implementation;
     bytes32 immutable bytecodeHash;
 
+    enum Action {
+        DEFAULT,
+        WITH_VALUE
+    }
+
     /**
      * @notice Emitted when an interchain account is created (first time message is sent from a given `origin`/`sender` pair)
      * @param origin The domain of the chain where the message was sent from
@@ -165,10 +170,20 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        (address sender, CallLib.Call[] memory calls) = abi.decode(
-            _message,
-            (address, CallLib.Call[])
-        );
-        getDeployedInterchainAccount(_origin, sender).proxyCalls(calls);
+        Action action = Action(uint8(bytes1(_message[31])));
+        if (action == Action.DEFAULT) {
+            (, address sender, CallLib.Call[] memory calls) = abi.decode(
+                _message,
+                (Action, address, CallLib.Call[])
+            );
+            getDeployedInterchainAccount(_origin, sender).proxyCalls(calls);
+            return;
+        } else if (action == Action.WITH_VALUE) {
+            (, address sender, CallLib.CallWithValue[] memory calls) = abi
+                .decode(_message, (Action, address, CallLib.CallWithValue[]));
+            getDeployedInterchainAccount(_origin, sender).proxyCallsWithValue(
+                calls
+            );
+        }
     }
 }
