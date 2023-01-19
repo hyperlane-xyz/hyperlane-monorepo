@@ -153,6 +153,7 @@ jobs:
         uses: crytic/slither-action@v0.2.0
         id: slither
         with:
+          target: 'solidity/'
           sarif: results.sarif
           fail-on: none
 
