@@ -6,7 +6,8 @@
       "domain": "13371",
       "addresses": {
         "mailbox": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
-        "interchainGasPaymaster": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
+        "interchainGasPaymaster": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+        "validatorAnnounce": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -23,8 +24,9 @@
       "name": "test2",
       "domain": "13372",
       "addresses": {
-        "mailbox": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
-        "interchainGasPaymaster": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82"
+        "mailbox": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
+        "interchainGasPaymaster": "0x9A676e781A523b5d0C0e43731313A708CB607508",
+        "validatorAnnounce": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -34,15 +36,16 @@
         "url": ""
       },
       "index": {
-        "from": "12"
+        "from": "13"
       }
     },
     "test3": {
       "name": "test3",
       "domain": "13373",
       "addresses": {
-        "mailbox": "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44",
-        "interchainGasPaymaster": "0x59b670e9fA9D0A427751Af201D676719a970857b"
+        "mailbox": "0x4A679253410272dd5232B3Ff7cF5dbB88f295319",
+        "interchainGasPaymaster": "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44",
+        "validatorAnnounce": "0x7a2088a1bFc9d81c55368AE168C2C02570cB814F"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -52,7 +55,7 @@
         "url": ""
       },
       "index": {
-        "from": "20"
+        "from": "23"
       }
     }
   },
