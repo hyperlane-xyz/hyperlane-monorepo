@@ -23,7 +23,7 @@ abstract contract GasRouter is Router {
     }
 
     /**
-     * @notice Batch version of `enrollRemoteRouter`
+     * @notice Batch version of `enrollRemoteRouterWithGas`
      * @param gasConfigs The array of GasRouterConfig structs
      */
     function enrollRemoteRoutersWithGas(GasRouterConfig[] calldata gasConfigs)
@@ -36,6 +36,10 @@ abstract contract GasRouter is Router {
         }
     }
 
+    /**
+     * @notice Enroll a remote router with a handle gas overhead
+     * @param gasConfig The GasRouterConfig struct
+     */
     function enrollRemoteRouterWithGas(GasRouterConfig calldata gasConfig)
         public
         onlyOwner
