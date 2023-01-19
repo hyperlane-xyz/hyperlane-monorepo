@@ -117,7 +117,7 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remoteId = ChainNameToDomainId[remote];
         const coreContracts = core.getContracts(local);
         const mailbox = coreContracts.mailbox.contract;
-        const paymaster = coreContracts.interchainGasPaymaster;
+        const paymaster = coreContracts.baseInterchainGasPaymaster;
         // Send a batch of messages to the destination chain to test
         // the relayer submitting only greedily
         for (let i = 0; i < 10; i++) {

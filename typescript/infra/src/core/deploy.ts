@@ -9,7 +9,6 @@ import {
 import {
   ChainMap,
   ChainName,
-  ConnectionClientContracts,
   CoreConfig,
   HyperlaneCoreDeployer,
   MultiProvider,
@@ -38,17 +37,40 @@ export class HyperlaneCoreInfraDeployer<
     this.environment = environment;
   }
 
-  async deployInterchainGasPaymaster<LocalChain extends Chain>(
+  async deployBaseInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
-  ): Promise<ConnectionClientContracts> {
+  ): Promise<
+    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
+  > {
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
-        [this.environment, 'interchainGasPaymaster', 1],
+        [this.environment, 'baseInterchainGasPaymaster', 1],
       ),
     };
-    return super.deployInterchainGasPaymaster(chain, proxyAdmin, deployOpts);
+    return super.deployBaseInterchainGasPaymaster(
+      chain,
+      proxyAdmin,
+      deployOpts,
+    );
+  }
+
+  async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(
+    chain: LocalChain,
+    baseInterchainGasPaymasterAddress: types.Address,
+  ): Promise<OverheadIgp> {
+    const deployOpts = {
+      create2Salt: ethers.utils.solidityKeccak256(
+        ['string', 'string', 'uint8'],
+        [this.environment, 'defaultIsmInterchainGasPaymaster', 1],
+      ),
+    };
+    return super.deployDefaultIsmInterchainGasPaymaster(
+      chain,
+      baseInterchainGasPaymasterAddress,
+      deployOpts,
+    );
   }
 
   async deployMailbox<LocalChain extends Chain>(
