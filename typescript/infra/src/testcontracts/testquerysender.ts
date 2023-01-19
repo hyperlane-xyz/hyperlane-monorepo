@@ -2,6 +2,7 @@ import { TestQuerySender, TestQuerySender__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  HyperlaneCore,
   HyperlaneDeployer,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
@@ -27,14 +28,18 @@ export class TestQuerySenderDeployer<
   constructor(
     multiProvider: MultiProvider<Chain>,
     queryRouters: ChainMap<Chain, TestQuerySenderConfig>,
+    protected core: HyperlaneCore<Chain>,
   ) {
     super(multiProvider, queryRouters, factories);
   }
-  async deployContracts(chain: Chain) {
+  async deployContracts(chain: Chain, config: TestQuerySenderConfig) {
     const initCalldata =
       TestQuerySender__factory.createInterface().encodeFunctionData(
         'initialize',
-        [this.configMap[chain].queryRouterAddress],
+        [
+          config.queryRouterAddress,
+          this.core.getContracts(chain).interchainGasPaymaster.address,
+        ],
       );
     const TestQuerySender = await this.deployContract(
       chain,
