@@ -9,6 +9,7 @@ import {
 import {
   ChainMap,
   ChainName,
+  ConnectionClientContracts,
   CoreConfig,
   HyperlaneCoreDeployer,
   MultiProvider,
@@ -40,9 +41,7 @@ export class HyperlaneCoreInfraDeployer<
   async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
-  ): Promise<
-    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
-  > {
+  ): Promise<ConnectionClientContracts> {
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
