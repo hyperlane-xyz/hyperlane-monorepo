@@ -5,6 +5,7 @@ pragma solidity ^0.8.13;
 import {OwnableMulticall} from "../OwnableMulticall.sol";
 import {Router} from "../Router.sol";
 import {IInterchainAccountRouter} from "../../interfaces/IInterchainAccountRouter.sol";
+import {InterchainCallMessage} from "./InterchainCallMessage.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {CallLib} from "../libs/Call.sol";
 
@@ -13,55 +14,17 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-enum AccountAction {
-    DEFAULT,
-    WITH_VALUE
-}
-
-library IcaMessage {
-    using CallLib for CallLib.Call[];
-    using CallLib for CallLib.CallWithValue[];
-
-    function format(CallLib.Call[] memory calls)
-        internal
-        view
-        returns (bytes memory)
-    {
-        return abi.encode(AccountAction.DEFAULT, msg.sender, calls);
-    }
-
-    function format(CallLib.CallWithValue[] memory calls)
-        internal
-        view
-        returns (bytes memory)
-    {
-        return abi.encode(AccountAction.WITH_VALUE, msg.sender, calls);
-    }
-
-    function action(bytes calldata _message)
-        internal
-        pure
-        returns (AccountAction)
-    {
-        return AccountAction(uint8(bytes1(_message[31])));
-    }
-
-    function sender(bytes calldata _message) internal pure returns (address) {
-        return abi.decode(_message[32:64], (address));
-    }
-}
-
 /*
  * @title Interchain Accounts Router that relays messages via proxy contracts on other chains.
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
 contract InterchainAccountRouter is Router, IInterchainAccountRouter {
-    address immutable implementation;
-    bytes32 immutable bytecodeHash;
+    using InterchainCallMessage for CallLib.Call[];
+    using InterchainCallMessage for CallLib.CallWithValue[];
+    using InterchainCallMessage for bytes;
 
-    using IcaMessage for CallLib.Call[];
-    using IcaMessage for CallLib.CallWithValue[];
-    using IcaMessage for bytes;
+    address internal immutable implementation;
+    bytes32 internal immutable bytecodeHash;
 
     /**
      * @notice Emitted when an interchain account is created (first time message is sent from a given `origin`/`sender` pair)
@@ -115,7 +78,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         external
         returns (bytes32)
     {
-        return _dispatch(_destinationDomain, calls.format());
+        return _dispatch(_destinationDomain, calls.format(msg.sender));
     }
 
     /**
@@ -127,7 +90,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         uint32 _destinationDomain,
         CallLib.CallWithValue[] calldata calls
     ) external returns (bytes32) {
-        return _dispatch(_destinationDomain, calls.format());
+        return _dispatch(_destinationDomain, calls.format(msg.sender));
     }
 
     /**
@@ -144,7 +107,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     ) external returns (bytes32) {
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = CallLib.Call({to: target, data: data});
-        return _dispatch(_destinationDomain, calls.format());
+        return _dispatch(_destinationDomain, calls.format(msg.sender));
     }
 
     function dispatch(
@@ -155,7 +118,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     ) external returns (bytes32) {
         CallLib.CallWithValue[] memory calls = new CallLib.CallWithValue[](1);
         calls[0] = CallLib.CallWithValue(value, CallLib.Call(target, data));
-        return _dispatch(_destinationDomain, calls.format());
+        return _dispatch(_destinationDomain, calls.format(msg.sender));
     }
 
     /**
@@ -231,25 +194,17 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        AccountAction action = _message.action();
+        InterchainCallMessage.Type calltype = _message.calltype();
         OwnableMulticall interchainAccount = getDeployedInterchainAccount(
             _origin,
             _message.sender()
         );
-        if (action == AccountAction.DEFAULT) {
-            (, , CallLib.Call[] memory calls) = abi.decode(
-                _message,
-                (AccountAction, address, CallLib.Call[])
-            );
-            interchainAccount.proxyCalls(calls);
-        } else if (action == AccountAction.WITH_VALUE) {
-            (, , CallLib.CallWithValue[] memory calls) = abi.decode(
-                _message,
-                (AccountAction, address, CallLib.CallWithValue[])
-            );
-            interchainAccount.proxyCallsWithValue(calls);
+        if (calltype == InterchainCallMessage.Type.DEFAULT) {
+            interchainAccount.proxyCalls(_message.defaultCalls());
+        } else if (calltype == InterchainCallMessage.Type.WITH_VALUE) {
+            interchainAccount.proxyCallsWithValue(_message.callsWithValue());
         } else {
-            revert("Invalid action");
+            revert("Invalid call type");
         }
     }
 }

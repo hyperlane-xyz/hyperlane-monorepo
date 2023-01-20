@@ -16,7 +16,7 @@ library CallLib {
 
     struct CallWithCallback {
         Call _call;
-        Call callback;
+        bytes callbackdata;
     }
 
     function _call(Call memory call) internal returns (bytes memory) {
@@ -32,14 +32,11 @@ library CallLib {
             );
     }
 
-    // mutates callback
     function _call(CallWithCallback memory call)
         internal
-        returns (Call memory callback)
+        returns (bytes memory callbackdata)
     {
-        bytes memory returnData = _call(call._call);
-        call.callback.data = bytes.concat(call.callback.data, returnData);
-        return call.callback;
+        callbackdata = bytes.concat(call.callbackdata, _call(call._call));
     }
 
     function multicall(Call[] memory calls) internal {
@@ -64,16 +61,26 @@ library CallLib {
         }
     }
 
-    // mutates callbacks
     function multicall(CallWithCallback[] memory calls)
         internal
-        returns (Call[] memory callbacks)
+        returns (bytes[] memory callbacks)
     {
-        callbacks = new Call[](calls.length);
+        callbacks = new bytes[](calls.length);
         uint256 i = 0;
         uint256 len = calls.length;
         while (i < len) {
             callbacks[i] = _call(calls[i]);
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function multicall(address target, bytes[] memory calls) internal {
+        uint256 i = 0;
+        uint256 len = calls.length;
+        while (i < len) {
+            Address.functionCall(target, calls[i]);
             unchecked {
                 ++i;
             }
