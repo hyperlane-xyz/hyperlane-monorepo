@@ -10,8 +10,8 @@ library CallLib {
     }
 
     struct CallWithValue {
-        Call _call;
         uint256 value;
+        Call _call;
     }
 
     struct CallWithCallback {

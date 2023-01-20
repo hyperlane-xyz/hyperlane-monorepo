@@ -13,7 +13,7 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-enum Action {
+enum AccountAction {
     DEFAULT,
     WITH_VALUE
 }
@@ -24,45 +24,30 @@ library IcaMessage {
 
     function format(CallLib.Call[] memory calls)
         internal
-        pure
+        view
         returns (bytes memory)
     {
-        return abi.encode(Action.DEFAULT, msg.sender, calls);
+        return abi.encode(AccountAction.DEFAULT, msg.sender, calls);
     }
 
     function format(CallLib.CallWithValue[] memory calls)
         internal
-        pure
+        view
         returns (bytes memory)
     {
-        return abi.encode(Action.WITH_VALUE, msg.sender, calls);
+        return abi.encode(AccountAction.WITH_VALUE, msg.sender, calls);
     }
 
-    function action(bytes calldata _message) internal pure returns (Action) {
-        return Action(uint8(bytes1(_message[31])));
+    function action(bytes calldata _message)
+        internal
+        pure
+        returns (AccountAction)
+    {
+        return AccountAction(uint8(bytes1(_message[31])));
     }
 
     function sender(bytes calldata _message) internal pure returns (address) {
         return abi.decode(_message[32:64], (address));
-    }
-
-    function multicall(bytes calldata _message) internal {
-        Action _action = action(_message);
-        if (_action == Action.DEFAULT) {
-            CallLib.Call[] memory calls = abi.decode(
-                _message[64:],
-                (CallLib.Call[])
-            );
-            calls.multicall();
-        } else if (_action == Action.WITH_VALUE) {
-            CallLib.CallWithValue[] memory calls = abi.decode(
-                _message[64:],
-                (CallLib.CallWithValue[])
-            );
-            calls.multicall();
-        } else {
-            revert("Invalid action");
-        }
     }
 }
 
@@ -76,7 +61,6 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
 
     using IcaMessage for CallLib.Call[];
     using IcaMessage for CallLib.CallWithValue[];
-    using IcaMessage for OwnableMulticall;
     using IcaMessage for bytes;
 
     /**
@@ -135,6 +119,18 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     }
 
     /**
+     * @notice Dispatches a sequence of calls to be relayed by the sender's interchain account on the destination domain.
+     * @param _destinationDomain The domain of the chain where the message will be sent to.
+     * @param calls The sequence of calls to be relayed.
+     */
+    function dispatch(
+        uint32 _destinationDomain,
+        CallLib.CallWithValue[] calldata calls
+    ) external returns (bytes32) {
+        return _dispatch(_destinationDomain, calls.format());
+    }
+
+    /**
      * @notice Dispatches a single call to be relayed by the sender's interchain account on the destination domain.
      * @param _destinationDomain The domain of the chain where the message will be sent to.
      * @param target The address of the contract to be called.
@@ -148,6 +144,17 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     ) external returns (bytes32) {
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = CallLib.Call({to: target, data: data});
+        return _dispatch(_destinationDomain, calls.format());
+    }
+
+    function dispatch(
+        uint32 _destinationDomain,
+        address target,
+        bytes calldata data,
+        uint256 value
+    ) external returns (bytes32) {
+        CallLib.CallWithValue[] memory calls = new CallLib.CallWithValue[](1);
+        calls[0] = CallLib.CallWithValue(value, CallLib.Call(target, data));
         return _dispatch(_destinationDomain, calls.format());
     }
 
@@ -176,10 +183,11 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         returns (OwnableMulticall)
     {
         bytes32 salt = _salt(_origin, _sender);
-        address interchainAccount = _getInterchainAccount(salt);
+        address payable interchainAccount = _getInterchainAccount(salt);
         if (!Address.isContract(interchainAccount)) {
             bytes memory bytecode = MinimalProxy.bytecode(implementation);
-            interchainAccount = Create2.deploy(0, salt, bytecode);
+            interchainAccount = payable(Create2.deploy(0, salt, bytecode));
+            // transfers ownership to this contract
             OwnableMulticall(interchainAccount).initialize();
             emit InterchainAccountCreated(_origin, _sender, interchainAccount);
         }
@@ -208,9 +216,9 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     function _getInterchainAccount(bytes32 salt)
         internal
         view
-        returns (address)
+        returns (address payable)
     {
-        return Create2.computeAddress(salt, bytecodeHash);
+        return payable(Create2.computeAddress(salt, bytecodeHash));
     }
 
     /**
@@ -223,10 +231,25 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        address sender = _message.sender();
         OwnableMulticall interchainAccount = getDeployedInterchainAccount(
             _origin,
-            sender
+            _message.sender()
         );
+        AccountAction _action = _message.action();
+        if (_action == AccountAction.DEFAULT) {
+            CallLib.Call[] memory calls = abi.decode(
+                _message.rawCalls(),
+                (CallLib.Call[])
+            );
+            interchainAccount.proxyCalls(calls);
+        } else if (_action == AccountAction.WITH_VALUE) {
+            CallLib.CallWithValue[] memory calls = abi.decode(
+                _message.rawCalls(),
+                (CallLib.CallWithValue[])
+            );
+            interchainAccount.proxyCallsWithValue(calls);
+        } else {
+            revert("Invalid action");
+        }
     }
 }
