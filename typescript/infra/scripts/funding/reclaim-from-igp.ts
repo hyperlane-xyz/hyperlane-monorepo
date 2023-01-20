@@ -18,7 +18,7 @@ async function main() {
   );
 
   const paymasters = core.map(
-    (_, contracts) => contracts.baseInterchainGasPaymaster,
+    (_, contracts) => contracts.interchainGasPaymaster,
   );
 
   const balances = await promiseObjAll(

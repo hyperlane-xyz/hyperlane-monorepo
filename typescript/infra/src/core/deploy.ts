@@ -38,7 +38,7 @@ export class HyperlaneCoreInfraDeployer<
     this.environment = environment;
   }
 
-  async deployBaseInterchainGasPaymaster<LocalChain extends Chain>(
+  async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
   ): Promise<
@@ -47,19 +47,15 @@ export class HyperlaneCoreInfraDeployer<
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
-        [this.environment, 'baseInterchainGasPaymaster', 1],
+        [this.environment, 'interchainGasPaymaster', 1],
       ),
     };
-    return super.deployBaseInterchainGasPaymaster(
-      chain,
-      proxyAdmin,
-      deployOpts,
-    );
+    return super.deployInterchainGasPaymaster(chain, proxyAdmin, deployOpts);
   }
 
   async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
-    baseInterchainGasPaymasterAddress: types.Address,
+    interchainGasPaymasterAddress: types.Address,
   ): Promise<OverheadIgp> {
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
@@ -69,7 +65,7 @@ export class HyperlaneCoreInfraDeployer<
     };
     return super.deployDefaultIsmInterchainGasPaymaster(
       chain,
-      baseInterchainGasPaymasterAddress,
+      interchainGasPaymasterAddress,
       deployOpts,
     );
   }
@@ -123,7 +119,7 @@ export class HyperlaneCoreInfraDeployer<
       if (
         contracts == undefined ||
         contracts.mailbox == undefined ||
-        contracts.baseInterchainGasPaymaster == undefined ||
+        contracts.interchainGasPaymaster == undefined ||
         contracts.validatorAnnounce == undefined
       ) {
         return;
@@ -134,7 +130,7 @@ export class HyperlaneCoreInfraDeployer<
         domain: metadata.id.toString(),
         addresses: {
           mailbox: contracts.mailbox.contract.address,
-          interchainGasPaymaster: contracts.baseInterchainGasPaymaster.address,
+          interchainGasPaymaster: contracts.interchainGasPaymaster.address,
           validatorAnnounce: contracts.validatorAnnounce.address,
         },
         signer: null,
