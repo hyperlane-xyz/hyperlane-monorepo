@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{Context, Result};
 use prometheus::IntGauge;
 
 use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
@@ -31,7 +31,10 @@ impl LocalStorage {
     }
 
     async fn write_index(&self, index: u32) -> Result<()> {
-        tokio::fs::write(self.latest_index_file_path(), index.to_string()).await?;
+        let path = self.latest_index_file_path();
+        tokio::fs::write(&path, index.to_string())
+            .await
+            .with_context(|| format!("Writing index to {path}"))?;
         Ok(())
     }
 
@@ -72,11 +75,10 @@ impl CheckpointSyncer for LocalStorage {
 
     async fn write_checkpoint(&self, signed_checkpoint: &SignedCheckpoint) -> Result<()> {
         let serialized_checkpoint = serde_json::to_string_pretty(signed_checkpoint)?;
-        tokio::fs::write(
-            self.checkpoint_file_path(signed_checkpoint.value.index),
-            &serialized_checkpoint,
-        )
-        .await?;
+        let path = self.checkpoint_file_path(signed_checkpoint.value.index);
+        tokio::fs::write(&path, &serialized_checkpoint)
+            .await
+            .with_context(|| format!("Writing checkpoint to {path}"))?;
 
         match self.latest_index().await? {
             Some(current_latest_index) => {
@@ -92,13 +94,16 @@ impl CheckpointSyncer for LocalStorage {
 
     async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
         let serialized_announcement = serde_json::to_string_pretty(signed_announcement)?;
-        tokio::fs::write(self.announcement_file_path(), &serialized_announcement).await?;
+        let path = self.announcement_file_path();
+        tokio::fs::write(&path, &serialized_announcement)
+            .await
+            .with_context(|| format!("Writing announcement to {path}"))?;
         Ok(())
     }
 
-    fn announcement_metadata(&self) -> String {
-        let mut metadata: String = "file://".to_owned();
-        metadata.push_str(self.announcement_file_path().as_ref());
-        metadata
+    fn announcement_location(&self) -> String {
+        let mut location: String = "file://".to_owned();
+        location.push_str(self.announcement_file_path().as_ref());
+        location
     }
 }

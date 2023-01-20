@@ -8,6 +8,7 @@ import {
   OverheadIgp,
   Ownable,
   ProxyAdmin,
+  ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
@@ -123,6 +124,20 @@ export class HyperlaneCoreDeployer<
     return mailbox;
   }
 
+  async deployValidatorAnnounce<LocalChain extends Chain>(
+    chain: LocalChain,
+    mailboxAddress: string,
+    deployOpts?: DeployOptions,
+  ): Promise<ValidatorAnnounce> {
+    const validatorAnnounce = await this.deployContract(
+      chain,
+      'validatorAnnounce',
+      [mailboxAddress],
+      deployOpts,
+    );
+    return validatorAnnounce;
+  }
+
   async deployMultisigIsm<LocalChain extends Chain>(
     chain: LocalChain,
   ): Promise<MultisigIsm> {
@@ -220,6 +235,10 @@ export class HyperlaneCoreDeployer<
       multisigIsm.address,
       proxyAdmin,
     );
+    const validatorAnnounce = await this.deployValidatorAnnounce(
+      chain,
+      mailbox.address,
+    );
     // Mailbox ownership is transferred upon initialization.
     const ownables: Ownable[] = [
       multisigIsm,
@@ -230,6 +249,7 @@ export class HyperlaneCoreDeployer<
     await this.transferOwnershipOfContracts(chain, ownables);
 
     return {
+      validatorAnnounce,
       proxyAdmin,
       mailbox,
       baseInterchainGasPaymaster,

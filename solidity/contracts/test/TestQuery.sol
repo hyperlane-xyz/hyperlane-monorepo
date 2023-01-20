@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {InterchainQueryRouter} from "../middleware/InterchainQueryRouter.sol";
-import {Call} from "../OwnableMulticall.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
 contract TestQuery {
@@ -18,15 +17,13 @@ contract TestQuery {
      * @dev Fetches owner of InterchainQueryRouter on provided domain and passes along with provided secret to `this.receiveRouterOwner`
      */
     function queryRouterOwner(uint32 domain, uint256 secret) external {
-        Call memory call = Call({
-            to: TypeCasts.bytes32ToAddress(router.routers(domain)),
-            data: abi.encodeWithSignature("owner()")
-        });
+        address target = TypeCasts.bytes32ToAddress(router.routers(domain));
+        bytes memory data = abi.encodeWithSignature("owner()");
         bytes memory callback = bytes.concat(
             this.receiveRouterOwer.selector,
             bytes32(secret)
         );
-        router.query(domain, call, callback);
+        router.query(domain, target, data, callback);
     }
 
     /**

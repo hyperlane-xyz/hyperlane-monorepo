@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use ethers::prelude::{Address, Signature};
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Keccak256};
+use sha3::{digest::Update, Digest, Keccak256};
 
 use crate::{utils::domain_hash, Signable, SignedType, H256};
 

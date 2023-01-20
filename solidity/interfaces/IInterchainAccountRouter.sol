@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import {Call} from "../contracts/Call.sol";
+import {CallLib} from "../contracts/libs/Call.sol";
 
 interface IInterchainAccountRouter {
-    function dispatch(uint32 _destinationDomain, Call[] calldata calls)
+    function dispatch(uint32 _destinationDomain, CallLib.Call[] calldata calls)
         external
         returns (bytes32);
 
