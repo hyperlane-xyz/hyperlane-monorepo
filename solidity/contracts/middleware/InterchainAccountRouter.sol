@@ -231,21 +231,21 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
+        AccountAction action = _message.action();
         OwnableMulticall interchainAccount = getDeployedInterchainAccount(
             _origin,
             _message.sender()
         );
-        AccountAction _action = _message.action();
-        if (_action == AccountAction.DEFAULT) {
-            CallLib.Call[] memory calls = abi.decode(
-                _message.rawCalls(),
-                (CallLib.Call[])
+        if (action == AccountAction.DEFAULT) {
+            (, , CallLib.Call[] memory calls) = abi.decode(
+                _message,
+                (AccountAction, address, CallLib.Call[])
             );
             interchainAccount.proxyCalls(calls);
-        } else if (_action == AccountAction.WITH_VALUE) {
-            CallLib.CallWithValue[] memory calls = abi.decode(
-                _message.rawCalls(),
-                (CallLib.CallWithValue[])
+        } else if (action == AccountAction.WITH_VALUE) {
+            (, , CallLib.CallWithValue[] memory calls) = abi.decode(
+                _message,
+                (AccountAction, address, CallLib.CallWithValue[])
             );
             interchainAccount.proxyCallsWithValue(calls);
         } else {
