@@ -38,7 +38,7 @@ export class TestQuerySenderDeployer<
         'initialize',
         [
           config.queryRouterAddress,
-          this.core.getContracts(chain).baseInterchainGasPaymaster.address,
+          this.core.getContracts(chain).interchainGasPaymaster.address,
         ],
       );
     const TestQuerySender = await this.deployContract(

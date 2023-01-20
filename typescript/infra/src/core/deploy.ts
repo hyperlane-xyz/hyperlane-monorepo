@@ -37,7 +37,7 @@ export class HyperlaneCoreInfraDeployer<
     this.environment = environment;
   }
 
-  async deployBaseInterchainGasPaymaster<LocalChain extends Chain>(
+  async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
   ): Promise<
@@ -46,19 +46,15 @@ export class HyperlaneCoreInfraDeployer<
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
-        [this.environment, 'baseInterchainGasPaymaster', 1],
+        [this.environment, 'interchainGasPaymaster', 1],
       ),
     };
-    return super.deployBaseInterchainGasPaymaster(
-      chain,
-      proxyAdmin,
-      deployOpts,
-    );
+    return super.deployInterchainGasPaymaster(chain, proxyAdmin, deployOpts);
   }
 
   async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
-    baseInterchainGasPaymasterAddress: types.Address,
+    interchainGasPaymasterAddress: types.Address,
   ): Promise<OverheadIgp> {
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
@@ -68,7 +64,7 @@ export class HyperlaneCoreInfraDeployer<
     };
     return super.deployDefaultIsmInterchainGasPaymaster(
       chain,
-      baseInterchainGasPaymasterAddress,
+      interchainGasPaymasterAddress,
       deployOpts,
     );
   }

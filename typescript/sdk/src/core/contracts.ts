@@ -19,7 +19,7 @@ import {
 import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 
 export type ConnectionClientContracts = {
-  baseInterchainGasPaymaster: ProxiedContract<
+  interchainGasPaymaster: ProxiedContract<
     InterchainGasPaymaster,
     TransparentProxyAddresses
   >;
@@ -39,7 +39,7 @@ export const coreFactories = {
   validatorAnnounce: new ValidatorAnnounce__factory(),
   create2Factory: new Create2Factory__factory(),
   proxyAdmin: new ProxyAdmin__factory(),
-  baseInterchainGasPaymaster: new InterchainGasPaymaster__factory(),
+  interchainGasPaymaster: new InterchainGasPaymaster__factory(),
   defaultIsmInterchainGasPaymaster: new OverheadIgp__factory(),
   multisigIsm: new MultisigIsm__factory(),
   mailbox: new Mailbox__factory(),
