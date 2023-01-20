@@ -297,12 +297,13 @@ export abstract class HyperlaneDeployer<
       this.logger(`Upgrading and initializing transparent upgradable proxy`);
       // We now have a deployed proxy admin'd by ProxyAdmin.
       // Upgrade its implementation and initialize it
-      await proxyAdmin.upgradeAndCall(
+      const upgradeAndCallTx = await proxyAdmin.upgradeAndCall(
         proxy.address,
         implementation.address,
         initData,
         chainConnection.overrides,
       );
+      await chainConnection.handleTx(upgradeAndCallTx);
     } else {
       const constructorArgs: Parameters<
         TransparentUpgradeableProxy__factory['deploy']

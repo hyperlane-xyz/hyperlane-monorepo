@@ -67,21 +67,30 @@ export class HyperlaneCoreDeployer<
     proxyAdmin: ProxyAdmin,
     deployOpts?: DeployOptions,
   ): Promise<ConnectionClientContracts> {
+    const owner = this.configMap[chain].owner;
     const interchainGasPaymaster = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
       [],
       proxyAdmin,
-      [],
-      deployOpts,
+      [owner],
+      {
+        ...deployOpts,
+        // @ts-ignore undefined is valid salt
+        create2Salt: deployOpts.create2Salt?.concat('base'),
+      },
     );
     const interchainGasOverhead = await this.deployProxiedContract(
       chain,
       'interchainGasOverhead',
       [interchainGasPaymaster.address],
       proxyAdmin,
-      [],
-      deployOpts,
+      [owner],
+      {
+        ...deployOpts,
+        // @ts-ignore undefined is valid salt
+        create2Salt: deployOpts.create2Salt?.concat('overhead'),
+      },
     );
 
     const configChains = Object.keys(this.configMap) as Chain[];
@@ -216,6 +225,7 @@ export class HyperlaneCoreDeployer<
       proxyAdmin,
     );
     // Mailbox ownership is transferred upon initialization.
+    // This way of transferring ownership only works for non-CREATE2 contracts.
     const ownables: Ownable[] = [
       multisigIsm,
       proxyAdmin,
