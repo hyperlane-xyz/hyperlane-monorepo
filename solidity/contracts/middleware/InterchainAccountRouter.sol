@@ -167,7 +167,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     function getInterchainAccount(uint32 _origin, address _sender)
         public
         view
-        returns (address)
+        returns (address payable)
     {
         return _getInterchainAccount(_salt(_origin, _sender));
     }

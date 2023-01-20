@@ -27,7 +27,7 @@ contract InterchainAccountRouterTest is Test {
     InterchainAccountRouter remoteRouter;
 
     TestRecipient recipient;
-    address ica;
+    address payable ica;
 
     OwnableMulticall ownable;
 
@@ -128,5 +128,26 @@ contract InterchainAccountRouterTest is Test {
             address(this)
         );
         assertEq(localIca.owner(), address(originRouter));
+    }
+
+    function testReceiveValue(uint256 value) public {
+        vm.assume(value <= address(this).balance);
+        assert(ica.code.length == 0);
+        ica.transfer(value / 2);
+        remoteRouter.getDeployedInterchainAccount(originDomain, address(this));
+        assert(ica.code.length > 0);
+        ica.transfer(value / 2);
+    }
+
+    // solhint-disable-next-line no-empty-blocks
+    function receiveValue() external payable {}
+
+    function testSendValue(uint256 value) public {
+        vm.assume(value <= address(this).balance);
+        vm.deal(ica, value);
+        bytes memory data = abi.encodeWithSelector(this.receiveValue.selector);
+        originRouter.dispatch(remoteDomain, address(this), data, value);
+        vm.expectCall(address(this), value, data);
+        environment.processNextPendingMessage();
     }
 }

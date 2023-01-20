@@ -17,5 +17,5 @@ interface IInterchainAccountRouter {
     function getInterchainAccount(uint32 _originDomain, address _sender)
         external
         view
-        returns (address);
+        returns (address payable);
 }
