@@ -14,11 +14,13 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * to specify the gas amount used by their own applications.
  */
 contract OverheadIgp is IInterchainGasPaymaster, Ownable {
-    // ============ Public Storage ============
+    // ============ Constants ============
 
     /// @notice The IGP that is called when paying for or quoting gas
     /// after applying overhead gas amounts.
     IInterchainGasPaymaster immutable innerIgp;
+
+    // ============ Public Storage ============
 
     /// @notice Destination domain => overhead gas amount on that domain.
     mapping(uint32 => uint256) public destinationGasOverhead;
