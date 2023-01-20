@@ -367,68 +367,29 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  let gasOverhead: Record<number, Record<number, number>> = {};
-  // uncomment to generate gas overhead table used for configuring OverheadIgp
-  // for (let numValidators = 1; numValidators <= 18; numValidators++) {
-  //   for (let threshold = 1; threshold <= numValidators; threshold++) {
-  let threshold: number;
-  let numValidators: number;
-
   describe('#verify', () => {
     let metadata: string, message: string, recipient: string;
-    let adjustedValidators: Validator[];
-
     before(async () => {
-      // use recipient with empty handle for benchmarking process overhead
       const recipientF = new LightTestRecipient__factory(signer);
       recipient = (await recipientF.deploy()).address;
-      // comment for gas instrumentation
-      numValidators = validators.length;
-      threshold = numValidators - 1;
-      adjustedValidators = validators.slice(0, numValidators);
     });
 
     beforeEach(async () => {
       // Must be done sequentially so gas estimation is correct
       // and so that signatures are produced in the same order.
-      for (const v of adjustedValidators) {
+      for (const v of validators) {
         await multisigIsm.enrollValidator(ORIGIN_DOMAIN, v.address);
       }
-
-      await multisigIsm.setThreshold(ORIGIN_DOMAIN, threshold);
-
-      const maxBodySize = await mailbox.MAX_MESSAGE_BODY_BYTES();
-      const maxBody = '0x' + 'AA'.repeat(maxBodySize.toNumber());
+      await multisigIsm.setThreshold(ORIGIN_DOMAIN, validators.length - 1);
 
       ({ message, metadata } = await dispatchMessageAndReturnMetadata(
         mailbox,
         multisigIsm,
         DESTINATION_DOMAIN,
         recipient,
-        maxBody,
-        adjustedValidators,
-        threshold,
-        false,
+        'hello world',
+        validators.slice(1),
       ));
-    });
-
-    it(`instrument mailbox.process gas costs with ${threshold} of ${numValidators} multisig `, async () => {
-      const mailboxFactory = new TestMailbox__factory(signer);
-      const destinationMailbox = await mailboxFactory.deploy(
-        DESTINATION_DOMAIN,
-      );
-      await destinationMailbox.initialize(signer.address, multisigIsm.address);
-      const gas = await destinationMailbox.estimateGas.process(
-        metadata,
-        message,
-      );
-      // const gas = await multisigIsm.estimateGas.verify(metadata, message);
-
-      if (gasOverhead[numValidators] === undefined) {
-        gasOverhead[numValidators] = {};
-      }
-      gasOverhead[numValidators][threshold] = gas.toNumber();
-      console.log(JSON.stringify(gasOverhead));
     });
 
     it('returns true when valid metadata is provided', async () => {
@@ -491,9 +452,6 @@ describe('MultisigIsm', async () => {
       ).to.be.revertedWith('!merkle');
     });
   });
-  // uncomment to generate gas overhead table used for configuring OverheadIgp
-  //   }
-  // }
 
   describe('#isEnrolled', () => {
     beforeEach(async () => {
@@ -528,5 +486,77 @@ describe('MultisigIsm', async () => {
         expect(domainHash).to.equal(expectedDomainHash);
       }
     });
+  });
+
+  // Manually unskip to run gas instrumentation.
+  // The JSON that's logged can then be copied to `typescript/sdk/src/consts/multisigIsmVerifyCosts.json`,
+  // which is ultimately used for configuring the default ISM overhead IGP.
+  describe.skip('#verify gas instrumentation for the OverheadISM', () => {
+    const MAX_VALIDATOR_COUNT = 18;
+    let metadata: string, message: string, recipient: string;
+
+    let gasOverhead: Record<number, Record<number, number>> = {};
+
+    before(async () => {
+      const recipientF = new LightTestRecipient__factory(signer);
+      recipient = (await recipientF.deploy()).address;
+    });
+
+    after(() => {
+      console.log('Instrumented gas overheads:');
+      console.log(JSON.stringify(gasOverhead));
+    });
+
+    for (
+      let numValidators = 1;
+      numValidators <= MAX_VALIDATOR_COUNT;
+      numValidators++
+    ) {
+      for (let threshold = 1; threshold <= numValidators; threshold++) {
+        it(`instrument mailbox.process gas costs with ${threshold} of ${numValidators} multisig`, async () => {
+          const adjustedValidators = validators.slice(0, numValidators);
+          // Must be done sequentially so gas estimation is correct
+          // and so that signatures are produced in the same order.
+          for (const v of adjustedValidators) {
+            await multisigIsm.enrollValidator(ORIGIN_DOMAIN, v.address);
+          }
+
+          await multisigIsm.setThreshold(ORIGIN_DOMAIN, threshold);
+
+          const maxBodySize = await mailbox.MAX_MESSAGE_BODY_BYTES();
+          // The max body is used to estimate an upper bound on gas usage.
+          const maxBody = '0x' + 'AA'.repeat(maxBodySize.toNumber());
+
+          ({ message, metadata } = await dispatchMessageAndReturnMetadata(
+            mailbox,
+            multisigIsm,
+            DESTINATION_DOMAIN,
+            recipient,
+            maxBody,
+            adjustedValidators,
+            threshold,
+            false,
+          ));
+
+          const mailboxFactory = new TestMailbox__factory(signer);
+          const destinationMailbox = await mailboxFactory.deploy(
+            DESTINATION_DOMAIN,
+          );
+          await destinationMailbox.initialize(
+            signer.address,
+            multisigIsm.address,
+          );
+          const gas = await destinationMailbox.estimateGas.process(
+            metadata,
+            message,
+          );
+
+          if (gasOverhead[numValidators] === undefined) {
+            gasOverhead[numValidators] = {};
+          }
+          gasOverhead[numValidators][threshold] = gas.toNumber();
+        });
+      }
+    }
   });
 });
