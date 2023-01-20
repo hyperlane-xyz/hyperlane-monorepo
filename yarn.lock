@@ -4063,6 +4063,7 @@ __metadata:
     "@gnosis.pm/safe-ethers-lib": ^1.4.0
     "@gnosis.pm/safe-service-client": ^1.2.0
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
+    "@hyperlane-xyz/core": 1.0.0
     "@hyperlane-xyz/helloworld": 1.0.0
     "@hyperlane-xyz/sdk": 1.0.0
     "@hyperlane-xyz/utils": 1.0.0
