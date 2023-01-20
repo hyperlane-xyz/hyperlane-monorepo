@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 // ============ External Imports ============
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @notice An IGP that adds configured gas overheads to gas amounts and forwards
@@ -13,7 +13,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  * domains, e.g. Mailbox and/or ISM gas usage, such that users of this IGP are only required
  * to specify the gas amount used by their own applications.
  */
-contract OverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
+contract OverheadIgp is IInterchainGasPaymaster, Ownable {
     // ============ Public Storage ============
 
     /// @notice The IGP that is called when paying for or quoting gas
@@ -22,11 +22,6 @@ contract OverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
 
     /// @notice Destination domain => overhead gas amount on that domain.
     mapping(uint32 => uint256) public destinationGasOverhead;
-
-    // ============ Upgrade Gap ============
-
-    // gap for upgrade safety
-    uint256[48] private __GAP;
 
     // ============ Events ============
 
@@ -46,16 +41,6 @@ contract OverheadIgp is IInterchainGasPaymaster, OwnableUpgradeable {
 
     constructor(address _innerIgp) {
         innerIgp = IInterchainGasPaymaster(_innerIgp);
-        initialize(); // allows contract to be used without proxying
-    }
-
-    // ============ Initializers ============
-
-    /**
-     * @notice Initializes the contract.
-     */
-    function initialize() public initializer {
-        __Ownable_init();
     }
 
     // ============ External Functions ============
