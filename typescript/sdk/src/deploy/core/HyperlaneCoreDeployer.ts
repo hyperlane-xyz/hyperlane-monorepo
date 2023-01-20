@@ -7,6 +7,7 @@ import {
   MultisigIsm,
   OverheadIgp,
   Ownable,
+  Ownable__factory,
   ProxyAdmin,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
@@ -83,11 +84,19 @@ export class HyperlaneCoreDeployer<
     interchainGasPaymasterAddress: types.Address,
     deployOpts?: DeployOptions,
   ): Promise<OverheadIgp> {
+    const owner = this.configMap[chain].owner;
+    const initCalldata = Ownable__factory.createInterface().encodeFunctionData(
+      'transferOwnership',
+      [owner],
+    );
     const defaultIsmInterchainGasPaymaster = await this.deployContract(
       chain,
       'defaultIsmInterchainGasPaymaster',
       [interchainGasPaymasterAddress],
-      deployOpts,
+      {
+        ...deployOpts,
+        initCalldata,
+      },
     );
 
     const configChains = Object.keys(this.configMap) as Chain[];
@@ -241,13 +250,9 @@ export class HyperlaneCoreDeployer<
       chain,
       mailbox.address,
     );
-    // Mailbox ownership is transferred upon initialization.
-    const ownables: Ownable[] = [
-      multisigIsm,
-      proxyAdmin,
-      interchainGasPaymaster.contract,
-      defaultIsmInterchainGasPaymaster,
-    ];
+    // Ownership of the Mailbox, the interchainGasPaymaster, and defaultIsmInterchainGasPaymaster
+    // is transferred upon initialization.
+    const ownables: Ownable[] = [multisigIsm, proxyAdmin];
     await this.transferOwnershipOfContracts(chain, ownables);
 
     return {
