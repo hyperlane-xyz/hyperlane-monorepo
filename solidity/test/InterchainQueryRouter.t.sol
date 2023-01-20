@@ -13,16 +13,12 @@ import "../contracts/test/TestRecipient.sol";
 import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
 
 contract InterchainQueryRouterTest is Test {
-    // TODO: dedupe
     event QueryDispatched(
         uint32 indexed destinationDomain,
-        address indexed sender
+        bytes32 indexed queryId
     );
-    event QueryReturned(uint32 indexed originDomain, address indexed sender);
-    event QueryResolved(
-        uint32 indexed destinationDomain,
-        address indexed sender
-    );
+    event QueryReturned(uint32 indexed originDomain, bytes32 indexed queryId);
+    event QueryResolved(uint32 indexed destinationDomain);
 
     MockHyperlaneEnvironment environment;
 
@@ -77,16 +73,16 @@ contract InterchainQueryRouterTest is Test {
         bytes memory call,
         bytes memory callback
     ) public {
-        vm.expectEmit(true, true, false, true, address(originRouter));
-        emit QueryDispatched(remoteDomain, address(this));
+        vm.expectEmit(true, true, false, false, address(originRouter));
+        emit QueryDispatched(remoteDomain, bytes32(0));
         originRouter.query(remoteDomain, address(target), call, callback);
 
-        vm.expectEmit(true, true, false, true, address(remoteRouter));
-        emit QueryReturned(originDomain, address(this));
+        vm.expectEmit(true, true, false, false, address(remoteRouter));
+        emit QueryReturned(originDomain, bytes32(0));
         environment.processNextPendingMessage();
 
-        vm.expectEmit(true, true, false, true, address(originRouter));
-        emit QueryResolved(remoteDomain, address(this));
+        vm.expectEmit(true, true, false, false, address(originRouter));
+        emit QueryResolved(remoteDomain);
         environment.processNextPendingMessageFromDestination();
     }
 
