@@ -132,8 +132,12 @@ contract InterchainAccountRouterTest is Test {
 
     function testReceiveValue(uint256 value) public {
         vm.assume(value <= address(this).balance);
+
+        // receive value before deployed
         assert(ica.code.length == 0);
         ica.transfer(value / 2);
+
+        // receive value after deployed
         remoteRouter.getDeployedInterchainAccount(originDomain, address(this));
         assert(ica.code.length > 0);
         ica.transfer(value / 2);
@@ -144,7 +148,8 @@ contract InterchainAccountRouterTest is Test {
 
     function testSendValue(uint256 value) public {
         vm.assume(value <= address(this).balance);
-        vm.deal(ica, value);
+        ica.transfer(value);
+
         bytes memory data = abi.encodeWithSelector(this.receiveValue.selector);
         originRouter.dispatch(remoteDomain, address(this), data, value);
         vm.expectCall(address(this), value, data);
