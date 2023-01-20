@@ -104,6 +104,9 @@ export abstract class HyperlaneDeployer<
           2,
         ),
       );
+
+      console.log('woooo just did', chain);
+      break;
     }
     return this.deployedContracts as ChainMap<Chain, Contracts>;
   }

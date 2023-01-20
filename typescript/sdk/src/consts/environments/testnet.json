@@ -1,11 +1,6 @@
 {
   "alfajores": {
     "proxyAdmin": "0x4e4D563e2cBFC35c4BC16003685443Fae2FA702f",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
@@ -14,15 +9,17 @@
     "multisigIsm": "0x4D06A1671A2a345B14B15cbD50027979A5D1d8C9",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
-    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818",
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0xC0F8739673517517B81aB2c5d625Fc5E25e3Cf52",
+      "implementation": "0xb735A21792D182b5275C4759721C04645db8949A"
+    },
+    "defaultIsmInterchainGasPaymaster": "0x12E7a63895DBd485711a0eD0B9f23ed6D622df20",
+    "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
   },
   "fuji": {
     "proxyAdmin": "0x13474f85b808034C911B7697dee60B7d8d50ee36",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
@@ -35,11 +32,6 @@
   },
   "mumbai": {
     "proxyAdmin": "0x96b49e136581f8dfF370aDB3015D48465572a318",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
@@ -52,11 +44,6 @@
   },
   "bsctestnet": {
     "proxyAdmin": "0xfB149BC17dD3FE858fA64D678bA0c706DEac61eE",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
@@ -69,11 +56,6 @@
   },
   "goerli": {
     "proxyAdmin": "0x8f919348F9C4619A196Acb5e377f49E5E2C0B569",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
@@ -86,11 +68,6 @@
   },
   "moonbasealpha": {
     "proxyAdmin": "0xEed449c54156163bf50CFf30408975AF43F43115",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
@@ -103,11 +80,6 @@
   },
   "optimismgoerli": {
     "proxyAdmin": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
@@ -120,11 +92,6 @@
   },
   "arbitrumgoerli": {
     "proxyAdmin": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",

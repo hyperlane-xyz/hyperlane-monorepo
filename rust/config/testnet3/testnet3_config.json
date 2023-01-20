@@ -6,9 +6,10 @@
       "domain": "44787",
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-        "multisigIsm": "0x4D06A1671A2a345B14B15cbD50027979A5D1d8C9"
+        "interchainGasPaymaster": "0xC0F8739673517517B81aB2c5d625Fc5E25e3Cf52",
+        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
       },
+      "signer": null,
       "protocol": "ethereum",
       "finalityBlocks": "0",
       "connection": {
@@ -16,142 +17,8 @@
         "url": ""
       },
       "index": {
-        "from": "14863532"
-      },
-      "signer": null
-    },
-    "fuji": {
-      "name": "fuji",
-      "domain": "43113",
-      "addresses": {
-        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-        "multisigIsm": "0xD713Db664509bd057aC2b378F4B65Db468F634A5"
-      },
-      "protocol": "ethereum",
-      "finalityBlocks": "3",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "index": {
-        "from": "16330615"
-      },
-      "signer": null
-    },
-    "mumbai": {
-      "name": "mumbai",
-      "domain": "80001",
-      "addresses": {
-        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-        "multisigIsm": "0xd71f1A64659beC0781b2aa21bc7a72F7290F6Bf3"
-      },
-      "protocol": "ethereum",
-      "finalityBlocks": "32",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "index": {
-        "from": "29390033"
-      },
-      "signer": null
-    },
-    "bsctestnet": {
-      "name": "bsctestnet",
-      "domain": "97",
-      "addresses": {
-        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-        "multisigIsm": "0x34add51924C500b4428067E251168807b3f5faED"
-      },
-      "protocol": "ethereum",
-      "finalityBlocks": "9",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "index": {
-        "from": "25001629"
-      },
-      "signer": null
-    },
-    "goerli": {
-      "name": "goerli",
-      "domain": "5",
-      "addresses": {
-        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-        "multisigIsm": "0x32B34F0D86b275b92e9289d9054Db5Ec32d2CC6C"
-      },
-      "protocol": "ethereum",
-      "finalityBlocks": "2",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "index": {
-        "from": "8039005"
-      },
-      "signer": null
-    },
-    "moonbasealpha": {
-      "name": "moonbasealpha",
-      "domain": "1287",
-      "addresses": {
-        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-        "multisigIsm": "0xec8875C7cE0a814A56654618D366641859F32C7A"
-      },
-      "protocol": "ethereum",
-      "finalityBlocks": "1",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "index": {
-        "from": "3310405"
-      },
-      "signer": null
-    },
-    "optimismgoerli": {
-      "name": "optimismgoerli",
-      "domain": "420",
-      "addresses": {
-        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-        "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4"
-      },
-      "protocol": "ethereum",
-      "finalityBlocks": "1",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "index": {
-        "from": "3055263"
-      },
-      "signer": null
-    },
-    "arbitrumgoerli": {
-      "name": "arbitrumgoerli",
-      "domain": "421613",
-      "addresses": {
-        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-        "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4"
-      },
-      "protocol": "ethereum",
-      "finalityBlocks": "1",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "index": {
-        "from": "1941997"
-      },
-      "signer": null
+        "from": "15774610"
+      }
     }
   },
   "db": "db_path",
