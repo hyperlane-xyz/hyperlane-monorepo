@@ -11,6 +11,7 @@ import {
   TestMailbox__factory,
   TestMultisigIsm,
   TestMultisigIsm__factory,
+  TestRecipient__factory,
 } from '../../types';
 import {
   dispatchMessage,
@@ -370,7 +371,7 @@ describe('MultisigIsm', async () => {
   describe('#verify', () => {
     let metadata: string, message: string, recipient: string;
     before(async () => {
-      const recipientF = new LightTestRecipient__factory(signer);
+      const recipientF = new TestRecipient__factory(signer);
       recipient = (await recipientF.deploy()).address;
     });
 
