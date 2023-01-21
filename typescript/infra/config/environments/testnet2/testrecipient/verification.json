@@ -118,5 +118,33 @@
       "isProxy": false,
       "constructorArguments": ""
     }
+  ],
+  "optimismgoerli": [
+    {
+      "name": "TestRecipient",
+      "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x7785a37f53BbF694E6b524c2e8bD6BB6671eCEa6",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
+  ],
+  "arbitrumgoerli": [
+    {
+      "name": "TestRecipient",
+      "address": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+      "isProxy": false,
+      "constructorArguments": ""
+    },
+    {
+      "name": "TestTokenRecipient",
+      "address": "0x7785a37f53BbF694E6b524c2e8bD6BB6671eCEa6",
+      "isProxy": false,
+      "constructorArguments": ""
+    }
   ]
 }

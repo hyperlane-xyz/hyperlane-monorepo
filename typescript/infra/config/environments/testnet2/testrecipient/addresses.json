@@ -22,5 +22,13 @@
   "moonbasealpha": {
     "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
     "TestTokenRecipient": "0x36597C9C49F3c5887A86466398480ddB66aD0759"
+  },
+  "optimismgoerli": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+    "TestTokenRecipient": "0x7785a37f53BbF694E6b524c2e8bD6BB6671eCEa6"
+  },
+  "arbitrumgoerli": {
+    "TestRecipient": "0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE",
+    "TestTokenRecipient": "0x7785a37f53BbF694E6b524c2e8bD6BB6671eCEa6"
   }
 }
