@@ -9,17 +9,17 @@ interface IInterchainQueryRouter {
         address target,
         bytes calldata queryData,
         bytes calldata callback
-    ) external returns (bytes32);
+    ) external payable returns (bytes32);
 
     function query(
         uint32 _destinationDomain,
         CallLib.Call calldata call,
         bytes calldata callback
-    ) external returns (bytes32);
+    ) external payable returns (bytes32);
 
     function query(
         uint32 _destinationDomain,
         CallLib.Call[] calldata calls,
         bytes[] calldata callbacks
-    ) external returns (bytes32);
+    ) external payable returns (bytes32);
 }

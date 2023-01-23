@@ -18,7 +18,6 @@ abstract contract GasRouter is Router {
 
     struct GasRouterConfig {
         uint32 domain;
-        bytes32 router;
         uint256 handleGasOverhead;
     }
 
@@ -26,13 +25,12 @@ abstract contract GasRouter is Router {
      * @notice Batch version of `enrollRemoteRouterWithGas`
      * @param gasConfigs The array of GasRouterConfig structs
      */
-    function enrollRemoteRoutersWithGas(GasRouterConfig[] calldata gasConfigs)
+    function setGasOverheadConfigs(GasRouterConfig[] calldata gasConfigs)
         external
-        virtual
         onlyOwner
     {
         for (uint256 i = 0; i < gasConfigs.length; i += 1) {
-            enrollRemoteRouterWithGas(gasConfigs[i]);
+            setGasOverheadConfig(gasConfigs[i]);
         }
     }
 
@@ -40,11 +38,10 @@ abstract contract GasRouter is Router {
      * @notice Enroll a remote router with a handle gas overhead
      * @param gasConfig The GasRouterConfig struct
      */
-    function enrollRemoteRouterWithGas(GasRouterConfig calldata gasConfig)
+    function setGasOverheadConfig(GasRouterConfig calldata gasConfig)
         public
         onlyOwner
     {
-        _enrollRemoteRouter(gasConfig.domain, gasConfig.router);
         _setGasOverhead(gasConfig.domain, gasConfig.handleGasOverhead);
     }
 
@@ -55,5 +52,21 @@ abstract contract GasRouter is Router {
     function _setGasOverhead(uint32 domain, uint256 gas) internal {
         handleGasOverhead[domain] = gas;
         emit HandleGasOverheadSet(domain, gas);
+    }
+
+    function _dispatchWithGas(
+        uint32 _destinationDomain,
+        bytes memory _messageBody,
+        uint256 _gasPayment,
+        address _gasPaymentRefundAddress
+    ) internal returns (bytes32 _messageId) {
+        return
+            _dispatchWithGas(
+                _destinationDomain,
+                _messageBody,
+                handleGasOverhead[_destinationDomain],
+                _gasPayment,
+                _gasPaymentRefundAddress
+            );
     }
 }

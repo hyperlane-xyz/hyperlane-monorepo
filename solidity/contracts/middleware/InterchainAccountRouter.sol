@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
 import {OwnableMulticall} from "../OwnableMulticall.sol";
-import {Router} from "../Router.sol";
+import {GasRouter} from "../GasRouter.sol";
 import {IInterchainAccountRouter} from "../../interfaces/IInterchainAccountRouter.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {CallLib} from "../libs/Call.sol";
@@ -17,7 +17,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title Interchain Accounts Router that relays messages via proxy contracts on other chains.
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
-contract InterchainAccountRouter is Router, IInterchainAccountRouter {
+contract InterchainAccountRouter is GasRouter, IInterchainAccountRouter {
     address immutable implementation;
     bytes32 immutable bytecodeHash;
 
@@ -71,9 +71,12 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
      */
     function dispatch(uint32 _destinationDomain, CallLib.Call[] calldata calls)
         external
+        payable
         returns (bytes32)
     {
-        return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
+        bytes memory body = abi.encode(msg.sender, calls);
+        return
+            _dispatchWithGas(_destinationDomain, body, msg.value, msg.sender);
     }
 
     /**
@@ -87,10 +90,12 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         uint32 _destinationDomain,
         address target,
         bytes calldata data
-    ) external returns (bytes32) {
+    ) external payable returns (bytes32) {
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = CallLib.Call({to: target, data: data});
-        return _dispatch(_destinationDomain, abi.encode(msg.sender, calls));
+        bytes memory body = abi.encode(msg.sender, calls);
+        return
+            _dispatchWithGas(_destinationDomain, body, msg.value, msg.sender);
     }
 
     /**

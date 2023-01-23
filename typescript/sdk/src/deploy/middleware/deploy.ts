@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import {
+  GasRouter,
   InterchainAccountRouter__factory,
   InterchainQueryRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -17,17 +18,17 @@ import {
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
 import { ChainMap, ChainName } from '../../types';
-import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
-import { RouterConfig } from '../router/types';
+import { GasRouterDeployer } from '../router/GasRouterDeployer';
+import { GasRouterConfig } from '../router/types';
 
-export type InterchainAccountConfig = RouterConfig;
+export type InterchainAccountConfig = GasRouterConfig;
 
 export abstract class MiddlewareRouterDeployer<
   Chain extends ChainName,
-  MiddlewareRouterConfig extends RouterConfig,
-  MiddlewareRouterContracts extends RouterContracts,
-  MiddlewareFactories extends RouterFactories,
-> extends HyperlaneRouterDeployer<
+  MiddlewareRouterConfig extends GasRouterConfig,
+  MiddlewareRouterContracts extends RouterContracts<GasRouter>,
+  MiddlewareFactories extends RouterFactories<GasRouter>,
+> extends GasRouterDeployer<
   Chain,
   MiddlewareRouterConfig,
   MiddlewareRouterContracts,
@@ -83,7 +84,7 @@ export class InterchainAccountDeployer<
   }
 }
 
-export type InterchainQueryConfig = RouterConfig;
+export type InterchainQueryConfig = GasRouterConfig;
 
 export class InterchainQueryDeployer<
   Chain extends ChainName,
