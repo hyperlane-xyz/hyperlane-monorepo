@@ -98,17 +98,12 @@ export async function dispatchMessageAndReturnMetadata(
     utf8,
   );
   const root = await mailbox.root();
-  let signatures = await signCheckpoint(
+  const signatures = await signCheckpoint(
     root,
     index,
     mailbox.address,
     orderedValidators,
   );
-  if (threshold) {
-    signatures = signatures.slice(0, threshold);
-  } else {
-    threshold = signatures.length;
-  }
   const origin = utils.parseMessage(proofAndMessage.message).origin;
   const metadata = utils.formatMultisigIsmMetadata({
     checkpointRoot: root,
