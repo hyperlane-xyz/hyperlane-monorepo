@@ -39,6 +39,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x3bc014bafa43f93d534aed34f750997cdffcf007',
         name: 'dsrv-celo-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'dsrv-hyperlane-v2-validator-signatures-validator4-celo',
@@ -48,6 +49,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xd79d506d741fa735938f7b7847a926e34a6fe6b0',
         name: 'everstake-celo-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-v2-validator-signatures-everstake-celo',
@@ -57,6 +59,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xe4a258bc61e65914c2a477b2a8a433ab4ebdf44b',
         name: 'ZPLabs-celo-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-validator-signatures-zplabs-celo',
@@ -89,6 +92,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x84cb373148ef9112b277e68acf676fefa9a9a9a0',
         name: 'dsrv-ethereum-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'dsrv-hyperlane-v2-validator-signatures-validator1-ethereum',
@@ -98,6 +102,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x0d860c2b28bec3af4fd3a5997283e460ff6f2789',
         name: 'everstake-ethereum-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-v2-validator-signatures-everstake-ethereum',
@@ -107,6 +112,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xd4c1211f0eefb97a846c4e6d6589832e52fc03db',
         name: 'ZPLabs-ethereum-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-validator-signatures-zplabs-eth',
@@ -139,6 +145,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xb6004433fb04f643e2d48ae765c0e7f890f0bc0c',
         name: 'dsrv-avalanche-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'dsrv-hyperlane-v2-validator-signatures-validator2-avalanche',
@@ -148,6 +155,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xa07e213e0985b21a6128e6c22ab5fb73948b0cc2',
         name: 'everstake-avalanche-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-v2-validator-signatures-everstake-avalanche',
@@ -157,6 +165,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x73853ed9a5f6f2e4c521970a94d43469e3cdaea6',
         name: 'ZPLabs-avalanche-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-validator-signatures-zplabs-avax',
@@ -189,6 +198,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x009fb042d28944017177920c1d40da02bfebf474',
         name: 'dsrv-polygon-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'dsrv-hyperlane-v2-validator-signatures-validator6-polygon',
@@ -198,6 +208,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xba4b13e23705a5919c1901150d9697e8ffb3ea71',
         name: 'everstake-polygon-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-v2-validator-signatures-everstake-polygon',
@@ -207,6 +218,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x2faa4071b718972f9b4beec1d8cbaa4eb6cca6c6',
         name: 'ZPLabs-polygon-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-validator-signatures-zplabs-pgon',
@@ -239,6 +251,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xefe34eae2bca1846b895d2d0762ec21796aa196a',
         name: 'dsrv-bsc-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'dsrv-hyperlane-v2-validator-signatures-validator3-bsc',
@@ -248,6 +261,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x662674e80e189b0861d6835c287693f50ee0c2ff',
         name: 'everstake-bsc-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-v2-validator-signatures-everstake-bsc',
@@ -257,6 +271,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x8a0f59075af466841808c529624807656309c9da',
         name: 'ZPLabs-bsc-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-validator-signatures-zplabs-bsc',
@@ -289,6 +304,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xd839424e2e5ace0a81152298dc2b1e3bb3c7fb20',
         name: 'dsrv-arbitrum-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'dsrv-hyperlane-v2-validator-signatures-validator7-arbitrum',
@@ -298,6 +314,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xb8085c954b75b7088bcce69e61d12fcef797cd8d',
         name: 'everstake-arbitrum-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-v2-validator-signatures-everstake-arbitrum',
@@ -307,6 +324,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x9856dcb10fd6e5407fa74b5ab1d3b96cc193e9b7',
         name: 'ZPLabs-arbitrum-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-validator-signatures-zplabs-arbitrum',
@@ -339,6 +357,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x9c10bbe8efa03a8f49dfdb5c549258e3a8dca097',
         name: 'dsrv-optimism-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'dsrv-hyperlane-v2-validator-signatures-validator8-optimism',
@@ -348,6 +367,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x62144d4a52a0a0335ea5bb84392ef9912461d9dd',
         name: 'everstake-optimism-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-v2-validator-signatures-everstake-optimism',
@@ -357,6 +377,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xaff4718d5d637466ad07441ee3b7c4af8e328dbd',
         name: 'ZPLabs-optimism-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-validator-signatures-zplabs-optimism',
@@ -389,6 +410,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0x9509c8cf0a06955f27342262af501b74874e98fb',
         name: 'dsrv-moonbeam-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'dsrv-hyperlane-v2-validator-signatures-validator5-moonbeam',
@@ -398,6 +420,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
       {
         address: '0xb7113c999e4d587b162dd1a28c73f3f51c6bdcdc',
         name: 'everstake-moonbeam-v2',
+        readonly: true,
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: 'hyperlane-v2-validator-signatures-everstake-moonbeam',
