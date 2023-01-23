@@ -110,7 +110,7 @@ export class HyperlaneCoreDeployer<
       .multiProvider.remoteChains(chain);
 
     // Only set gas overhead configs if they differ from what's on chain
-    let configs: OverheadIgp.DomainConfigStruct[] = [];
+    const configs: OverheadIgp.DomainConfigStruct[] = [];
     for (const remote of remotes) {
       const gasOverhead = this.gasOverhead[remote];
       const existingOverhead =
