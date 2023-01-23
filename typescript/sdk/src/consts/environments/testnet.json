@@ -15,7 +15,9 @@
     },
     "defaultIsmInterchainGasPaymaster": "0xDA9F56EFd164B354FA8141423721a136830C8E0b",
     "multisigIsm": "0x4D06A1671A2a345B14B15cbD50027979A5D1d8C9",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "fuji": {
     "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
@@ -33,7 +35,9 @@
     },
     "defaultIsmInterchainGasPaymaster": "0xDA9F56EFd164B354FA8141423721a136830C8E0b",
     "multisigIsm": "0xD713Db664509bd057aC2b378F4B65Db468F634A5",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "mumbai": {
     "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
@@ -51,7 +55,9 @@
     },
     "defaultIsmInterchainGasPaymaster": "0xDA9F56EFd164B354FA8141423721a136830C8E0b",
     "multisigIsm": "0xd71f1A64659beC0781b2aa21bc7a72F7290F6Bf3",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "bsctestnet": {
     "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
@@ -69,7 +75,9 @@
     },
     "defaultIsmInterchainGasPaymaster": "0xDA9F56EFd164B354FA8141423721a136830C8E0b",
     "multisigIsm": "0x34add51924C500b4428067E251168807b3f5faED",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "goerli": {
     "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
@@ -87,7 +95,9 @@
     },
     "defaultIsmInterchainGasPaymaster": "0xDA9F56EFd164B354FA8141423721a136830C8E0b",
     "multisigIsm": "0x32B34F0D86b275b92e9289d9054Db5Ec32d2CC6C",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "moonbasealpha": {
     "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
@@ -105,7 +115,9 @@
     },
     "defaultIsmInterchainGasPaymaster": "0xDA9F56EFd164B354FA8141423721a136830C8E0b",
     "multisigIsm": "0xec8875C7cE0a814A56654618D366641859F32C7A",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "optimismgoerli": {
     "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
@@ -123,7 +135,9 @@
     },
     "defaultIsmInterchainGasPaymaster": "0xDA9F56EFd164B354FA8141423721a136830C8E0b",
     "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "arbitrumgoerli": {
     "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
@@ -141,6 +155,8 @@
     },
     "defaultIsmInterchainGasPaymaster": "0xDA9F56EFd164B354FA8141423721a136830C8E0b",
     "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4",
-    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
+    "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
+    "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   }
 }
