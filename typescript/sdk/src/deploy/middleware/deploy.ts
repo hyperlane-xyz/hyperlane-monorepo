@@ -18,19 +18,20 @@ import {
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
 import { ChainMap, ChainName } from '../../types';
+import { objMap } from '../../utils/objects';
 import { GasRouterDeployer } from '../router/GasRouterDeployer';
-import { GasRouterConfig } from '../router/types';
+import { GasRouterConfig, RouterConfig } from '../router/types';
 
-export type InterchainAccountConfig = GasRouterConfig;
+export type InterchainAccountConfig = RouterConfig;
 
 export abstract class MiddlewareRouterDeployer<
   Chain extends ChainName,
-  MiddlewareRouterConfig extends GasRouterConfig,
+  MiddlewareRouterConfig extends RouterConfig,
   MiddlewareRouterContracts extends RouterContracts<GasRouter>,
   MiddlewareFactories extends RouterFactories<GasRouter>,
 > extends GasRouterDeployer<
   Chain,
-  MiddlewareRouterConfig,
+  GasRouterConfig,
   MiddlewareRouterContracts,
   MiddlewareFactories
 > {
@@ -59,9 +60,14 @@ export class InterchainAccountDeployer<
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, InterchainAccountConfig>,
     protected core: HyperlaneCore<Chain>,
-    protected create2salt = 'asdasdsd',
+    protected create2salt = 'hyperlane',
+    protected gasOverhead = 112000, // from forge test -vvvv InterchainAccountRouter::handle
   ) {
-    super(multiProvider, configMap, interchainAccountFactories, {});
+    const gasConfigMap = objMap(configMap, (_, config) => ({
+      ...config,
+      gasOverhead,
+    }));
+    super(multiProvider, gasConfigMap, interchainAccountFactories, {});
   }
 
   // Custom contract deployment logic can go here
@@ -84,7 +90,7 @@ export class InterchainAccountDeployer<
   }
 }
 
-export type InterchainQueryConfig = GasRouterConfig;
+export type InterchainQueryConfig = RouterConfig;
 
 export class InterchainQueryDeployer<
   Chain extends ChainName,
@@ -98,10 +104,14 @@ export class InterchainQueryDeployer<
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, InterchainQueryConfig>,
     protected core: HyperlaneCore<Chain>,
-    // TODO replace salt with 'hyperlane' before next redeploy
-    protected create2salt = 'asdasdsd',
+    protected create2salt = 'hyperlane',
+    protected gasOverhead = 310000, // from forge test -vvvv InterchainAccountRouter::handle
   ) {
-    super(multiProvider, configMap, interchainQueryFactories, {});
+    const gasConfigMap = objMap(configMap, (_, config) => ({
+      ...config,
+      gasOverhead,
+    }));
+    super(multiProvider, gasConfigMap, interchainQueryFactories, {});
   }
 
   // Custom contract deployment logic can go here

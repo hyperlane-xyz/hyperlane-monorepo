@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Router} from "../../Router.sol";
+import {GasRouter} from "../../GasRouter.sol";
 
 import {ILiquidityLayerRouter} from "../../../interfaces/ILiquidityLayerRouter.sol";
 import {ICircleMessageTransmitter} from "./interfaces/circle/ICircleMessageTransmitter.sol";
@@ -12,7 +12,7 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
+contract LiquidityLayerRouter is GasRouter, ILiquidityLayerRouter {
     // Token bridge => adapter address
     mapping(string => address) public liquidityLayerAdapters;
 
