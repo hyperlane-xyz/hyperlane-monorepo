@@ -86,10 +86,12 @@ export class HyperlaneCoreDeployer<
     interchainGasPaymasterAddress: types.Address,
     deployOpts?: DeployOptions,
   ): Promise<OverheadIgp> {
-    const owner = this.configMap[chain].owner;
+    const chainSigner = this.multiProvider.getChainSigner(chain);
+    const deployer = await chainSigner.getAddress();
+    // Transfer ownership to the deployer so the destination gas overheads can be set
     const initCalldata = Ownable__factory.createInterface().encodeFunctionData(
       'transferOwnership',
-      [owner],
+      [deployer],
     );
     const defaultIsmInterchainGasPaymaster = await this.deployContract(
       chain,
@@ -119,10 +121,18 @@ export class HyperlaneCoreDeployer<
         configs.push(gasOverhead);
       }
     }
+
+    const currentOwner = await defaultIsmInterchainGasPaymaster.owner();
     if (configs.length > 0) {
-      await chainConnection.handleTx(
-        defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(configs),
-      );
+      if (currentOwner === deployer) {
+        await chainConnection.handleTx(
+          defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(configs),
+        );
+      } else {
+        this.logger(
+          `Unable to set destination gas overheads; owner is not deployer. Current owner: ${currentOwner}, deployer: ${deployer}`,
+        );
+      }
     }
 
     return defaultIsmInterchainGasPaymaster;
@@ -274,9 +284,12 @@ export class HyperlaneCoreDeployer<
       chain,
       mailbox.address,
     );
-    // Ownership of the Mailbox, the interchainGasPaymaster, and defaultIsmInterchainGasPaymaster
-    // is transferred upon initialization.
-    const ownables: Ownable[] = [multisigIsm, proxyAdmin];
+    // Ownership of the Mailbox and the interchainGasPaymaster is transferred upon initialization.
+    const ownables: Ownable[] = [
+      multisigIsm,
+      proxyAdmin,
+      defaultIsmInterchainGasPaymaster,
+    ];
     await this.transferOwnershipOfContracts(chain, ownables);
 
     return {
