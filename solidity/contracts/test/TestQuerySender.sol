@@ -29,16 +29,14 @@ contract TestQuerySender {
     function queryAddress(
         uint32 _destinationDomain,
         address _target,
-        bytes calldata _targetData,
-        uint256 _gasAmount
+        bytes calldata _targetData
     ) external payable {
-        bytes32 _messageId = queryRouter.query(
+        queryRouter.query{value: msg.value}(
             _destinationDomain,
             _target,
             _targetData,
             abi.encodePacked(this.handleQueryAddressResult.selector)
         );
-        _payForGas(_messageId, _destinationDomain, _gasAmount);
     }
 
     function handleQueryAddressResult(address _result) external {
@@ -49,16 +47,14 @@ contract TestQuerySender {
     function queryUint256(
         uint32 _destinationDomain,
         address _target,
-        bytes calldata _targetData,
-        uint256 _gasAmount
+        bytes calldata _targetData
     ) external payable {
-        bytes32 _messageId = queryRouter.query(
+        queryRouter.query{value: msg.value}(
             _destinationDomain,
             _target,
             _targetData,
             abi.encodePacked(this.handleQueryUint256Result.selector)
         );
-        _payForGas(_messageId, _destinationDomain, _gasAmount);
     }
 
     function handleQueryUint256Result(uint256 _result) external {
@@ -69,33 +65,18 @@ contract TestQuerySender {
     function queryBytes32(
         uint32 _destinationDomain,
         address _target,
-        bytes calldata _targetData,
-        uint256 _gasAmount
+        bytes calldata _targetData
     ) external payable {
-        bytes32 _messageId = queryRouter.query(
+        queryRouter.query{value: msg.value}(
             _destinationDomain,
             _target,
             _targetData,
             abi.encodePacked(this.handleQueryBytes32Result.selector)
         );
-        _payForGas(_messageId, _destinationDomain, _gasAmount);
     }
 
     function handleQueryBytes32Result(bytes32 _result) external {
         emit ReceivedBytes32Result(_result);
         lastBytes32Result = _result;
-    }
-
-    function _payForGas(
-        bytes32 _messageId,
-        uint32 _destinationDomain,
-        uint256 _gasAmount
-    ) internal {
-        interchainGasPaymaster.payForGas{value: msg.value}(
-            _messageId,
-            _destinationDomain,
-            _gasAmount,
-            msg.sender
-        );
     }
 }

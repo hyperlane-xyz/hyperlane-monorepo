@@ -49,8 +49,7 @@ contract TestQuerySenderTest is Test {
         sender.queryAddress{value: _gasPayment}(
             destinationDomain,
             address(ownable),
-            abi.encodeWithSelector(ownable.owner.selector),
-            testGasAmount
+            abi.encodeWithSelector(ownable.owner.selector)
         );
 
         testEnvironment.processNextPendingMessage();
@@ -60,12 +59,7 @@ contract TestQuerySenderTest is Test {
 
     function testSendAddressQueryRequiresGasPayment() public {
         vm.expectRevert("insufficient interchain gas payment");
-        sender.queryAddress{value: 0}(
-            destinationDomain,
-            address(0),
-            bytes(""),
-            testGasAmount
-        );
+        sender.queryAddress{value: 0}(destinationDomain, address(0), bytes(""));
     }
 
     function testSendUint256Query(uint256 balance) public {
@@ -81,8 +75,7 @@ contract TestQuerySenderTest is Test {
         sender.queryUint256{value: _gasPayment}(
             destinationDomain,
             address(token),
-            abi.encodeWithSelector(token.balanceOf.selector, address(this)),
-            testGasAmount
+            abi.encodeWithSelector(token.balanceOf.selector, address(this))
         );
 
         testEnvironment.processNextPendingMessage();
@@ -92,12 +85,7 @@ contract TestQuerySenderTest is Test {
 
     function testSendUint256QueryRequiresGasPayment() public {
         vm.expectRevert("insufficient interchain gas payment");
-        sender.queryUint256{value: 0}(
-            destinationDomain,
-            address(0),
-            bytes(""),
-            testGasAmount
-        );
+        sender.queryUint256{value: 0}(destinationDomain, address(0), bytes(""));
     }
 
     function testSendBytesQuery(uint256 balance) public {
@@ -113,8 +101,7 @@ contract TestQuerySenderTest is Test {
         sender.queryBytes32{value: _gasPayment}(
             destinationDomain,
             address(token),
-            abi.encodeWithSelector(token.balanceOf.selector, address(this)),
-            testGasAmount
+            abi.encodeWithSelector(token.balanceOf.selector, address(this))
         );
 
         testEnvironment.processNextPendingMessage();
@@ -124,11 +111,6 @@ contract TestQuerySenderTest is Test {
 
     function testSendBytesQueryRequiresGasPayment() public {
         vm.expectRevert("insufficient interchain gas payment");
-        sender.queryBytes32{value: 0}(
-            destinationDomain,
-            address(0),
-            bytes(""),
-            testGasAmount
-        );
+        sender.queryBytes32{value: 0}(destinationDomain, address(0), bytes(""));
     }
 }
