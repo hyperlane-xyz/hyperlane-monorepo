@@ -6,7 +6,7 @@
       "domain": "44787",
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xd7391E715B809e6ab39a7a99fd289165c57f2C12",
+        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
         "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
       },
       "signer": null,
@@ -17,7 +17,119 @@
         "url": ""
       },
       "index": {
-        "from": "15821552"
+        "from": "15822144"
+      }
+    },
+    "fuji": {
+      "name": "fuji",
+      "domain": "43113",
+      "addresses": {
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+      },
+      "signer": null,
+      "protocol": "ethereum",
+      "finalityBlocks": "3",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "mumbai": {
+      "name": "mumbai",
+      "domain": "80001",
+      "addresses": {
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+      },
+      "signer": null,
+      "protocol": "ethereum",
+      "finalityBlocks": "32",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "bsctestnet": {
+      "name": "bsctestnet",
+      "domain": "97",
+      "addresses": {
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+      },
+      "signer": null,
+      "protocol": "ethereum",
+      "finalityBlocks": "9",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "goerli": {
+      "name": "goerli",
+      "domain": "5",
+      "addresses": {
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+      },
+      "signer": null,
+      "protocol": "ethereum",
+      "finalityBlocks": "2",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "moonbasealpha": {
+      "name": "moonbasealpha",
+      "domain": "1287",
+      "addresses": {
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+      },
+      "signer": null,
+      "protocol": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "optimismgoerli": {
+      "name": "optimismgoerli",
+      "domain": "420",
+      "addresses": {
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+      },
+      "signer": null,
+      "protocol": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "arbitrumgoerli": {
+      "name": "arbitrumgoerli",
+      "domain": "421613",
+      "addresses": {
+        "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+      },
+      "signer": null,
+      "protocol": "ethereum",
+      "finalityBlocks": "1",
+      "connection": {
+        "type": "http",
+        "url": ""
       }
     }
   },

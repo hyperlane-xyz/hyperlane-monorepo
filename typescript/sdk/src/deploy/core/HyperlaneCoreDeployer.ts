@@ -107,10 +107,23 @@ export class HyperlaneCoreDeployer<
       .intersect(configChains, false)
       .multiProvider.remoteChains(chain);
 
-    const configs = remotes.map((remote) => this.gasOverhead[remote]);
-    await chainConnection.handleTx(
-      defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(configs),
-    );
+    // Only set gas overhead configs if they differ from what's on chain
+    let configs: OverheadIgp.DomainConfigStruct[] = [];
+    for (const remote of remotes) {
+      const gasOverhead = this.gasOverhead[remote];
+      const existingOverhead =
+        await defaultIsmInterchainGasPaymaster.destinationGasOverhead(
+          gasOverhead.domain,
+        );
+      if (!existingOverhead.eq(gasOverhead.gasOverhead)) {
+        configs.push(gasOverhead);
+      }
+    }
+    if (configs.length > 0) {
+      await chainConnection.handleTx(
+        defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(configs),
+      );
+    }
 
     return defaultIsmInterchainGasPaymaster;
   }

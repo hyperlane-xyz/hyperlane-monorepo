@@ -86,6 +86,8 @@ export abstract class HyperlaneDeployer<
     ).intersection;
 
     this.logger(`Start deploy to ${targetChains}`);
+    // if (1==1)
+    //   process.exit(0);
     for (const chain of targetChains) {
       const chainConnection = this.multiProvider.getChainConnection(chain);
       const signerUrl = await chainConnection.getAddressUrl();
@@ -104,10 +106,6 @@ export abstract class HyperlaneDeployer<
           2,
         ),
       );
-
-      // TODO remove
-      console.log('woooo just did', chain);
-      break;
     }
     return this.deployedContracts as ChainMap<Chain, Contracts>;
   }
