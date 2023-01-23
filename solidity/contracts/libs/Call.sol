@@ -34,9 +34,9 @@ library CallLib {
 
     function _call(CallWithCallback memory call)
         internal
-        returns (bytes memory callbackdata)
+        returns (bytes memory)
     {
-        callbackdata = bytes.concat(call.callbackdata, _call(call._call));
+        return bytes.concat(call.callbackdata, _call(call._call));
     }
 
     function multicall(Call[] memory calls) internal {

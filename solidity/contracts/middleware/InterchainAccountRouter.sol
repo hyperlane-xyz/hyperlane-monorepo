@@ -204,7 +204,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         } else if (calltype == InterchainCallMessage.Type.WITH_VALUE) {
             interchainAccount.proxyCallsWithValue(_message.callsWithValue());
         } else {
-            revert("Invalid call type");
+            assert(false);
         }
     }
 }

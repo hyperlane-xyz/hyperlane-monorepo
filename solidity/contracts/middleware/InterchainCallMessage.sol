@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {CallLib} from "../libs/Call.sol";
 
+// TODO: optimize call decoding with calldata slicing
 library InterchainCallMessage {
     enum Type {
         DEFAULT,
@@ -12,11 +13,13 @@ library InterchainCallMessage {
     }
 
     function calltype(bytes calldata _message) internal pure returns (Type) {
+        // left padded with zeroes
         return Type(uint8(bytes1(_message[31])));
     }
 
     function sender(bytes calldata _message) internal pure returns (address) {
-        return abi.decode(_message[32:64], (address));
+        // left padded from 32-44 with zeroes
+        return address(bytes20(_message[44:64]));
     }
 
     function format(CallLib.Call[] memory calls, address _sender)

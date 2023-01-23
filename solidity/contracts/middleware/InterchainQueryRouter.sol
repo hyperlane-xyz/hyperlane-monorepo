@@ -158,6 +158,8 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         } else if (calltype == InterchainCallMessage.Type.RAW_CALLDATA) {
             sender.multicall(_message.rawCalls());
             emit QueryResolved(_origin, sender);
+        } else {
+            assert(false);
         }
     }
 }
