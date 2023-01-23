@@ -18,7 +18,7 @@ contract OverheadIgp is IInterchainGasPaymaster, Ownable {
 
     /// @notice The IGP that is called when paying for or quoting gas
     /// after applying overhead gas amounts.
-    IInterchainGasPaymaster immutable innerIgp;
+    IInterchainGasPaymaster public immutable innerIgp;
 
     // ============ Public Storage ============
 

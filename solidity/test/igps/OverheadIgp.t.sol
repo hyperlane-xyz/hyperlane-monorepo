@@ -28,6 +28,10 @@ contract OverheadIgpTest is Test {
         igp = new OverheadIgp(address(innerIgp));
     }
 
+    function testInnerIgpSet() public {
+        assertEq(address(igp.innerIgp()), address(innerIgp));
+    }
+
     function testPayForGas() public {
         setTestDestinationGasOverhead();
 

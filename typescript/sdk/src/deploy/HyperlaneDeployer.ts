@@ -105,6 +105,7 @@ export abstract class HyperlaneDeployer<
         ),
       );
 
+      // TODO remove
       console.log('woooo just did', chain);
       break;
     }
@@ -253,6 +254,7 @@ export abstract class HyperlaneDeployer<
   protected async deployProxy<C extends ethers.Contract>(
     chain: Chain,
     implementation: C,
+    deployerOwnedProxyAdmin: ProxyAdmin,
     proxyAdmin: ProxyAdmin,
     initArgs: Parameters<C['initialize']>,
     deployOpts?: DeployOptions,
@@ -288,7 +290,7 @@ export abstract class HyperlaneDeployer<
       const initCalldata =
         new TransparentUpgradeableProxy__factory().interface.encodeFunctionData(
           'changeAdmin',
-          [proxyAdmin.address],
+          [deployerOwnedProxyAdmin.address],
         );
       proxy = await this.deployContractFromFactory(
         chain,
@@ -298,14 +300,22 @@ export abstract class HyperlaneDeployer<
         { ...deployOpts, initCalldata },
       );
       this.logger(`Upgrading and initializing transparent upgradable proxy`);
-      // We now have a deployed proxy admin'd by ProxyAdmin.
+      // We now have a deployed proxy admin'd by deployerOwnedProxyAdmin.
       // Upgrade its implementation and initialize it
-      await proxyAdmin.upgradeAndCall(
+      const upgradeAndCallTx = await deployerOwnedProxyAdmin.upgradeAndCall(
         proxy.address,
         implementation.address,
         initData,
         chainConnection.overrides,
       );
+      await chainConnection.handleTx(upgradeAndCallTx);
+      // Now change the admin from deployerOwnedProxyAdmin to proxyAdmin.
+      const changeAdminTx = await deployerOwnedProxyAdmin.changeProxyAdmin(
+        proxy.address,
+        proxyAdmin.address,
+        chainConnection.overrides,
+      );
+      await chainConnection.handleTx(changeAdminTx);
     } else {
       const constructorArgs: Parameters<
         TransparentUpgradeableProxy__factory['deploy']
@@ -351,6 +361,7 @@ export abstract class HyperlaneDeployer<
     chain: Chain,
     contractName: K,
     constructorArgs: Parameters<Factories[K]['deploy']>,
+    deployerOwnedProxyAdmin: ProxyAdmin,
     proxyAdmin: ProxyAdmin,
     initArgs: Parameters<C['initialize']>,
     deployOpts?: DeployOptions,
@@ -371,6 +382,7 @@ export abstract class HyperlaneDeployer<
     const contract = await this.deployProxy(
       chain,
       implementation as C,
+      deployerOwnedProxyAdmin,
       proxyAdmin,
       initArgs,
       deployOpts,
