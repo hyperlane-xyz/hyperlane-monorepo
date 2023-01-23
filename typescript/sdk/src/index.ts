@@ -75,11 +75,7 @@ export {
   CoreContractsMap,
   DispatchedMessage,
 } from './core/HyperlaneCore';
-export {
-  CoreContracts,
-  coreFactories,
-  ConnectionClientContracts,
-} from './core/contracts';
+export { CoreContracts, coreFactories } from './core/contracts';
 export {
   HyperlaneLifecyleEvent,
   AnnotatedDispatch,
@@ -97,6 +93,10 @@ export { TestCoreApp, TestCoreContracts } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 
 export { InterchainGasCalculator, ParsedMessage } from './gas/calculator';
+export {
+  CoinGeckoTokenPriceGetter,
+  TokenPriceGetter,
+} from './gas/token-prices';
 
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export {
