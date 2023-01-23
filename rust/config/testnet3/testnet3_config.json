@@ -6,7 +6,7 @@
       "domain": "44787",
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xC0F8739673517517B81aB2c5d625Fc5E25e3Cf52",
+        "interchainGasPaymaster": "0xd7391E715B809e6ab39a7a99fd289165c57f2C12",
         "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
       },
       "signer": null,
@@ -17,7 +17,7 @@
         "url": ""
       },
       "index": {
-        "from": "15774610"
+        "from": "15821552"
       }
     }
   },
