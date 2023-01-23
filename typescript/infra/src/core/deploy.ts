@@ -48,7 +48,7 @@ export class HyperlaneCoreInfraDeployer<
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
-        [this.environment, 'interchainGasPaymaster', 4],
+        [this.environment, 'interchainGasPaymaster', 5],
       ),
     };
     return super.deployInterchainGasPaymaster(
@@ -66,7 +66,7 @@ export class HyperlaneCoreInfraDeployer<
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
-        [this.environment, 'defaultIsmInterchainGasPaymaster', 2],
+        [this.environment, 'defaultIsmInterchainGasPaymaster', 3],
       ),
     };
     return super.deployDefaultIsmInterchainGasPaymaster(
