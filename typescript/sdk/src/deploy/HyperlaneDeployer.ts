@@ -86,8 +86,6 @@ export abstract class HyperlaneDeployer<
     ).intersection;
 
     this.logger(`Start deploy to ${targetChains}`);
-    // if (1==1)
-    //   process.exit(0);
     for (const chain of targetChains) {
       const chainConnection = this.multiProvider.getChainConnection(chain);
       const signerUrl = await chainConnection.getAddressUrl();
