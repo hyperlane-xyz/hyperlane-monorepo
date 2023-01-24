@@ -21,7 +21,7 @@ interface CheckpointMetric {
  * Shape of a checkpoint in S3 as published by the agent.
  */
 interface S3Checkpoint {
-  checkpoint: {
+  value: {
     outbox_domain: number;
     root: string;
     index: number;
@@ -149,7 +149,9 @@ export class S3Validator extends BaseValidator {
     }
     const checkpoint: types.Checkpoint = {
       signature: s3Object.data.signature,
+      // @ts-ignore Old checkpoints might still be in this format
       ...s3Object.data.checkpoint,
+      ...s3Object.data.value,
     };
     if (!utils.isCheckpoint(checkpoint)) {
       throw new Error('Failed to parse checkpoint');
