@@ -4,7 +4,6 @@ import { Ownable } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
-import { chainMetadata } from '../../consts/chainMetadata';
 import { RouterContracts } from '../../router';
 import { ChainName } from '../../types';
 import { HyperlaneAppChecker } from '../HyperlaneAppChecker';
@@ -49,9 +48,7 @@ export class HyperlaneRouterChecker<
     await Promise.all(
       this.app.remoteChains(chain).map(async (remoteChain) => {
         const remoteRouter = this.app.getContracts(remoteChain).router;
-        const remoteChainId =
-          chainMetadata[remoteChain]?.id ||
-          (await router.provider.getNetwork()).chainId;
+        const remoteChainId = this.multiProvider.getChainId(remoteChain);
         const address = await router.routers(remoteChainId);
         utils.assert(address === utils.addressToBytes32(remoteRouter.address));
       }),

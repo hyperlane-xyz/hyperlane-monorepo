@@ -10,6 +10,7 @@ import { Chains, TestChains } from './chains';
 
 function testChainConnection() {
   return {
+    id: 31337,
     provider: new ethers.providers.JsonRpcProvider(
       'http://localhost:8545',
       31337,
@@ -28,6 +29,7 @@ export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> =
         : ethers.providers.JsonRpcProvider;
 
     return {
+      id: metadata.id,
       provider: new providerClass(metadata.publicRpcUrls[0].http, metadata.id),
       confirmations: metadata.blocks.confirmations,
       blockExplorerUrl: metadata.blockExplorers[0].url,

@@ -1,6 +1,5 @@
 import { Signer, ethers } from 'ethers';
 
-import { chainMetadata } from '../consts/chainMetadata';
 import { ChainMap, ChainName, IChainConnection, Remotes } from '../types';
 import { MultiGeneric } from '../utils/MultiGeneric';
 import { objMap, pick } from '../utils/objects';
@@ -92,11 +91,8 @@ export class MultiProvider<
    * Attempts to use SDK defaults first, otherwise queries network
    * @throws if chain is invalid or has not been set
    */
-  async getChainId(chain: Chain): Promise<number> {
-    if (chainMetadata[chain]) return chainMetadata[chain].id;
-    const provider = this.getChainProvider(chain);
-    const chainId = (await provider.getNetwork()).chainId;
-    return chainId;
+  getChainId(chain: Chain): number {
+    return this.getChainConnection(chain).id;
   }
 
   /**

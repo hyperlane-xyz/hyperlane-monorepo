@@ -53,9 +53,9 @@ describe('InterchainGasCalculator', () => {
   // in InterchainGasCalculator expecting a multiprovider with providers for
   // every chain.
   const multiProvider = new MultiProvider({
-    test1: { provider },
-    test2: { provider },
-    test3: { provider },
+    test1: { id: 1, provider },
+    test2: { id: 2, provider },
+    test3: { id: 3, provider },
   });
   const core: HyperlaneCore<TestChainNames> = HyperlaneCore.fromEnvironment(
     'test',

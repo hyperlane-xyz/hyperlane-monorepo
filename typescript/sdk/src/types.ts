@@ -30,6 +30,7 @@ export type RemoteChainMap<
 export type Connection = ethers.providers.Provider | ethers.Signer;
 
 export interface IChainConnection {
+  id: number;
   provider: ethers.providers.Provider;
   signer?: ethers.Signer;
   overrides?: ethers.Overrides;
