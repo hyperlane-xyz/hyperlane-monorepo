@@ -24,7 +24,7 @@ describe('InterchainGasCalculator', async () => {
   let multiProvider: MultiProvider<TestChainNames>;
 
   let calculator: InterchainGasCalculator<TestChainNames>;
-  let localDefaultIGP: types.Address;
+  let igp: types.Address;
 
   before(async () => {
     [signer] = await ethers.getSigners();
@@ -35,12 +35,23 @@ describe('InterchainGasCalculator', async () => {
     const coreContractsMaps = await coreDeployer.deploy();
     const core = new HyperlaneCore(coreContractsMaps, multiProvider);
     calculator = new InterchainGasCalculator(multiProvider, core);
-    localDefaultIGP =
-      coreContractsMaps[localChain].interchainGasPaymaster.address;
+    igp = coreContractsMaps[localChain].interchainGasPaymaster.address;
+  });
+
+  describe('quoteGasPaymentForDefaultIsmIgp', () => {
+    it("calls the default ISM IGP's quoteGasPayment function", async () => {
+      const quote = await calculator.quoteGasPaymentForDefaultIsmIgp(
+        localChain,
+        remoteChain,
+        testGasAmount,
+      );
+
+      expect(quote).to.equal(expectedDefaultQuote);
+    });
   });
 
   describe('quoteGasPayment', () => {
-    it("calls the default IGP's quoteGasPayment function", async () => {
+    it("calls the IGP's quoteGasPayment function", async () => {
       const quote = await calculator.quoteGasPayment(
         localChain,
         remoteChain,
@@ -57,7 +68,7 @@ describe('InterchainGasCalculator', async () => {
         localChain,
         remoteChain,
         testGasAmount,
-        localDefaultIGP,
+        igp,
       );
 
       expect(quote).to.equal(expectedDefaultQuote);
