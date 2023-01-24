@@ -48,7 +48,9 @@
     "coverage": "hardhat coverage && forge coverage",
     "coverage-ci": "yarn coverage --report lcov",
     "prettier": "prettier --write ./contracts ./interfaces ./test",
-    "test": "hardhat test && forge test -vvv",
+    "test": "yarn test-hardhat && yarn test-foundry",
+    "test-hardhat": "hardhat test",
+    "test-foundry": "forge test -vvv",
     "gas": "forge snapshot",
     "gas-ci": "yarn gas --check || (echo 'Manually update gas snapshot' && exit 1)"
   },

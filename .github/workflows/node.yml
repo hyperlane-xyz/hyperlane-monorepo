@@ -104,7 +104,40 @@ jobs:
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
 
-  test-sol:
+  test-sol-hardhat:
+    env:
+      ETHERSCAN_API_KEY: ''
+
+    runs-on: ubuntu-latest
+    needs: [yarn-build]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: ./*
+          key: ${{ github.sha }}
+
+      - name: Install dependencies
+        run: cd solidity
+
+      - name: test-hardhat
+        run: yarn workspace @hyperlane-xyz/core run test-hardhat
+
+      - name: gas
+        run: yarn workspace @hyperlane-xyz/core run gas-ci
+
+      - name: coverage
+        run: yarn workspace @hyperlane-xyz/core run coverage-ci
+
+      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
+        with:
+          title: "Hardhat Coverage Report"
+          lcov-file: ./solidity/coverage/lcov.info
+          lcov-base: ./solidity/hardhat-lcov.base.info
+          delete-old-comments: true
+
+  test-sol-foundry:
     env:
       ETHERSCAN_API_KEY: ''
 
@@ -126,25 +159,15 @@ jobs:
       - name: Install dependencies
         run: cd solidity && forge install
 
-      - name: core
-        run: yarn workspace @hyperlane-xyz/core run test
+      - name: test-foundry
+        run: yarn workspace @hyperlane-xyz/core run test-foundry
 
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas-ci
-
-      - name: coverage
-        run: yarn workspace @hyperlane-xyz/core run coverage-ci
 
       - uses: osmind-development-org/lcov-reporter-action@v0.3.2
         with:
           title: "Forge Coverage Report"
           lcov-file: ./solidity/lcov.info
           lcov-base: ./solidity/forge-lcov.base.info
-          delete-old-comments: true
-
-      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
-        with:
-          title: "Hardhat Coverage Report"
-          lcov-file: ./solidity/coverage/lcov.info
-          lcov-base: ./solidity/hardhat-lcov.base.info
           delete-old-comments: true
