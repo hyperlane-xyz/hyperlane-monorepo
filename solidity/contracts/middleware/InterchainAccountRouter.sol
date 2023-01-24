@@ -75,8 +75,7 @@ contract InterchainAccountRouter is GasRouter, IInterchainAccountRouter {
         returns (bytes32)
     {
         bytes memory body = abi.encode(msg.sender, calls);
-        return
-            _dispatchWithGas(_destinationDomain, body, msg.value, msg.sender);
+        return _dispatchWithGas(_destinationDomain, body);
     }
 
     /**
@@ -94,8 +93,7 @@ contract InterchainAccountRouter is GasRouter, IInterchainAccountRouter {
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = CallLib.Call({to: target, data: data});
         bytes memory body = abi.encode(msg.sender, calls);
-        return
-            _dispatchWithGas(_destinationDomain, body, msg.value, msg.sender);
+        return _dispatchWithGas(_destinationDomain, body);
     }
 
     /**

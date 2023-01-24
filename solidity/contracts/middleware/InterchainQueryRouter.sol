@@ -129,12 +129,7 @@ contract InterchainQueryRouter is GasRouter, IInterchainQueryRouter {
             calls,
             callbacks
         );
-        messageId = _dispatchWithGas(
-            _destinationDomain,
-            body,
-            msg.value,
-            msg.sender
-        );
+        messageId = _dispatchWithGas(_destinationDomain, body);
         emit QueryDispatched(_destinationDomain, msg.sender);
     }
 
@@ -160,7 +155,9 @@ contract InterchainQueryRouter is GasRouter, IInterchainQueryRouter {
                     (Action, address, CallLib.Call[], bytes[])
                 );
             callbacks = calls._multicallAndResolve(callbacks);
-            _dispatch(_origin, abi.encode(Action.RESOLVE, sender, callbacks));
+            bytes memory body = abi.encode(Action.RESOLVE, sender, callbacks);
+            // WARN: return route does not currently pay for gas
+            _dispatch(_origin, body);
             emit QueryReturned(_origin, sender);
         } else if (action == Action.RESOLVE) {
             (, address sender, bytes[] memory resolveCallbacks) = abi.decode(

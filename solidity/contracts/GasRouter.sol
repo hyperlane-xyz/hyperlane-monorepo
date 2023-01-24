@@ -56,17 +56,15 @@ abstract contract GasRouter is Router {
 
     function _dispatchWithGas(
         uint32 _destinationDomain,
-        bytes memory _messageBody,
-        uint256 _gasPayment,
-        address _gasPaymentRefundAddress
+        bytes memory _messageBody
     ) internal returns (bytes32 _messageId) {
         return
             _dispatchWithGas(
                 _destinationDomain,
                 _messageBody,
                 handleGasOverhead[_destinationDomain],
-                _gasPayment,
-                _gasPaymentRefundAddress
+                msg.value,
+                msg.sender
             );
     }
 }
