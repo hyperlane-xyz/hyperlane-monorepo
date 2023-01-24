@@ -33,7 +33,7 @@ impl GasPaymentPolicy for GasPaymentPolicyMinimum {
 }
 
 #[tokio::test]
-async fn test_gas_payment_policy_none() {
+async fn test_gas_payment_policy_minimum() {
     use hyperlane_core::{HyperlaneMessage, H256};
 
     let min = U256::from(1000u32);
@@ -46,17 +46,20 @@ async fn test_gas_payment_policy_none() {
         payment: U256::from(999u32),
         gas_amount: U256::zero(),
     };
-    assert!(!policy
-        .message_meets_gas_payment_requirement(
-            &message,
-            &current_payment,
-            &TxCostEstimate {
-                gas_limit: U256::from(100000u32),
-                gas_price: U256::from(100000u32),
-            },
-        )
-        .await
-        .unwrap(),);
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(
+                &message,
+                &current_payment,
+                &TxCostEstimate {
+                    gas_limit: U256::from(100000u32),
+                    gas_price: U256::from(100000u32),
+                },
+            )
+            .await
+            .unwrap(),
+        None
+    );
 
     // If the payment is at least the minimum, returns false
     let current_payment = InterchainGasPayment {
@@ -64,15 +67,18 @@ async fn test_gas_payment_policy_none() {
         payment: U256::from(1000u32),
         gas_amount: U256::zero(),
     };
-    assert!(policy
-        .message_meets_gas_payment_requirement(
-            &message,
-            &current_payment,
-            &TxCostEstimate {
-                gas_limit: U256::from(100000u32),
-                gas_price: U256::from(100000u32),
-            },
-        )
-        .await
-        .unwrap());
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(
+                &message,
+                &current_payment,
+                &TxCostEstimate {
+                    gas_limit: U256::from(100000u32),
+                    gas_price: U256::from(100001u32),
+                },
+            )
+            .await
+            .unwrap(),
+        Some(U256::from(100000u32))
+    );
 }

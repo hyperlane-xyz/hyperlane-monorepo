@@ -35,19 +35,22 @@ async fn test_gas_payment_policy_none() {
     let message = HyperlaneMessage::default();
 
     // Always returns true
-    assert!(policy
-        .message_meets_gas_payment_requirement(
-            &message,
-            &InterchainGasPayment {
-                message_id: H256::zero(),
-                payment: U256::zero(),
-                gas_amount: U256::zero(),
-            },
-            &TxCostEstimate {
-                gas_limit: U256::from(100000u32),
-                gas_price: U256::from(100000u32),
-            },
-        )
-        .await
-        .unwrap());
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(
+                &message,
+                &InterchainGasPayment {
+                    message_id: H256::zero(),
+                    payment: U256::zero(),
+                    gas_amount: U256::zero(),
+                },
+                &TxCostEstimate {
+                    gas_limit: U256::from(100000u32),
+                    gas_price: U256::from(100001u32),
+                },
+            )
+            .await
+            .unwrap(),
+        Some(U256::from(100000u32))
+    );
 }

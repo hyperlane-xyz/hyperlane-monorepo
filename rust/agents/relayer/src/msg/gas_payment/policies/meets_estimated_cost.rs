@@ -291,10 +291,13 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
         message_id: H256::zero(),
         gas_amount: U256::zero(),
     };
-    assert!(!policy
-        .message_meets_gas_payment_requirement(&message, &current_payment, &tx_cost_estimate,)
-        .await
-        .unwrap());
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(&message, &current_payment, &tx_cost_estimate,)
+            .await
+            .unwrap(),
+        None
+    );
 
     // If the payment is at least 0.03 CELO, return true.
     let current_payment = InterchainGasPayment {
@@ -302,10 +305,13 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
         message_id: H256::zero(),
         gas_amount: U256::zero(),
     };
-    assert!(policy
-        .message_meets_gas_payment_requirement(&message, &current_payment, &tx_cost_estimate,)
-        .await
-        .unwrap());
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(&message, &current_payment, &tx_cost_estimate,)
+            .await
+            .unwrap(),
+        Some(tx_cost_estimate.gas_limit)
+    );
 }
 
 #[test]
