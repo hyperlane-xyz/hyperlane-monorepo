@@ -4,8 +4,11 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument};
 
-use hyperlane_base::{CachingMailbox, ChainSetup, CoreMetrics, MultisigCheckpointSyncer, CheckpointSyncer, CheckpointSyncerConf};
-use hyperlane_core::{HyperlaneMessage, Mailbox, MultisigIsm, ValidatorAnnounce, H256, H160};
+use hyperlane_base::{
+    CachingMailbox, ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics,
+    MultisigCheckpointSyncer,
+};
+use hyperlane_core::{HyperlaneMessage, Mailbox, MultisigIsm, ValidatorAnnounce, H160, H256};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
@@ -108,7 +111,8 @@ impl MetadataBuilder {
             for storage_location in validator_storage_locations.iter() {
                 if let Some(conf) = CheckpointSyncerConf::from_storage_location(storage_location) {
                     if let Ok(checkpoint_syncer) = conf.build(None) {
-                        checkpoint_syncers.insert(H160::from(validators[i]), checkpoint_syncer.into());
+                        checkpoint_syncers
+                            .insert(H160::from(validators[i]), checkpoint_syncer.into());
                         break;
                     }
                 }

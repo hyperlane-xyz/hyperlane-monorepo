@@ -86,8 +86,7 @@ pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
-    ValidatorAnnounce,
-    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, H256,
+    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
 pub use signers::SignerConf;
 

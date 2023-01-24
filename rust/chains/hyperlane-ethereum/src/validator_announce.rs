@@ -8,9 +8,8 @@ use async_trait::async_trait;
 use ethers::providers::Middleware;
 
 use hyperlane_core::{
-    ValidatorAnnounce,
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    H160, H256,
+    ValidatorAnnounce, H160, H256,
 };
 
 use crate::contracts::validator_announce::{

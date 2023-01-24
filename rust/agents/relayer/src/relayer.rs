@@ -91,8 +91,9 @@ impl BaseAgent for Relayer {
             .context("Relayer must run on a configured chain")?
             .domain()?;
 
-        let validator_announce = settings.build_validator_announce(&settings.originchainname, &core.metrics.clone()).await?;
-
+        let validator_announce = settings
+            .build_validator_announce(&settings.originchainname, &core.metrics.clone())
+            .await?;
 
         Ok(Self {
             origin_chain,
