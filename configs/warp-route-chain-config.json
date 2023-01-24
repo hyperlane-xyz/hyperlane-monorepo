@@ -1,0 +1,22 @@
+{
+  "goerli": {
+    "id": 5,
+    "name": "goerli",
+    "displayName": "Goerli",
+    "nativeToken": { "name": "Ether", "symbol": "ETH", "decimals": 18 },
+    "publicRpcUrls": [{ "http": "https://eth-goerli.public.blastapi.io" }],
+    "blockExplorers": [
+      {
+        "name": "Goerliscan",
+        "url": "https://goerli.etherscan.io",
+        "apiUrl": "https://api-goerli.etherscan.io",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 2,
+      "estimateBlockTime": 13
+    }
+  }
+}
