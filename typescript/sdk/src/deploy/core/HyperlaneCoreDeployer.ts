@@ -110,63 +110,6 @@ export class HyperlaneCoreDeployer<
       .multiProvider.remoteChains(chain);
 
     // Only set gas overhead configs if they differ from what's on chain
-    let configs: OverheadIgp.DomainConfigStruct[] = [];
-    for (const remote of remotes) {
-      const gasOverhead = this.gasOverhead[remote];
-      const existingOverhead =
-        await defaultIsmInterchainGasPaymaster.destinationGasOverhead(
-          gasOverhead.domain,
-        );
-      if (!existingOverhead.eq(gasOverhead.gasOverhead)) {
-        configs.push(gasOverhead);
-      }
-    }
-
-    const currentOwner = await defaultIsmInterchainGasPaymaster.owner();
-    if (configs.length > 0) {
-      if (currentOwner === deployer) {
-        await chainConnection.handleTx(
-          defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(configs),
-        );
-      } else {
-        this.logger(
-          `Unable to set destination gas overheads; owner is not deployer. Current owner: ${currentOwner}, deployer: ${deployer}`,
-        );
-      }
-    }
-
-    return defaultIsmInterchainGasPaymaster;
-  }
-
-  async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(
-    chain: LocalChain,
-    interchainGasPaymasterAddress: types.Address,
-    deployOpts?: DeployOptions,
-  ): Promise<OverheadIgp> {
-    const chainSigner = this.multiProvider.getChainSigner(chain);
-    const deployer = await chainSigner.getAddress();
-    // Transfer ownership to the deployer so the destination gas overheads can be set
-    const initCalldata = Ownable__factory.createInterface().encodeFunctionData(
-      'transferOwnership',
-      [deployer],
-    );
-    const defaultIsmInterchainGasPaymaster = await this.deployContract(
-      chain,
-      'defaultIsmInterchainGasPaymaster',
-      [interchainGasPaymasterAddress],
-      {
-        ...deployOpts,
-        initCalldata,
-      },
-    );
-
-    const configChains = Object.keys(this.configMap) as Chain[];
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const remotes = this.multiProvider
-      .intersect(configChains, false)
-      .multiProvider.remoteChains(chain);
-
-    // Only set gas overhead configs if they differ from what's on chain
     const configs: OverheadIgp.DomainConfigStruct[] = [];
     for (const remote of remotes) {
       const gasOverhead = this.gasOverhead[remote];
@@ -179,25 +122,14 @@ export class HyperlaneCoreDeployer<
       }
     }
 
-    const currentOwner = await defaultIsmInterchainGasPaymaster.owner();
     if (configs.length > 0) {
-      await this.runIfOwner(
-        chain,
-        defaultIsmInterchainGasPaymaster,
-        async () => {
-          if (currentOwner === deployer) {
-            await chainConnection.handleTx(
-              defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(
-                configs,
-                chainConnection.overrides,
-              ),
-            );
-          } else {
-            this.logger(
-              `Unable to set destination gas overheads; owner is not deployer. Current owner: ${currentOwner}, deployer: ${deployer}`,
-            );
-          }
-        },
+      await this.runIfOwner(chain, defaultIsmInterchainGasPaymaster, async () =>
+        chainConnection.handleTx(
+          defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(
+            configs,
+            chainConnection.overrides,
+          ),
+        ),
       );
     }
 
