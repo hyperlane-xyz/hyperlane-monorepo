@@ -5,9 +5,11 @@ import {
   Create2Factory__factory,
   Ownable,
   ProxyAdmin,
+  ProxyAdmin__factory,
   TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
+import { types } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneContract,
@@ -108,11 +110,11 @@ export abstract class HyperlaneDeployer<
     return this.deployedContracts as ChainMap<Chain, Contracts>;
   }
 
-  protected async runIfOwner(
+  protected async runIfOwner<T>(
     chain: Chain,
     ownable: Ownable,
-    fn: () => Promise<any>,
-  ): Promise<void> {
+    fn: () => Promise<T>,
+  ): Promise<T | undefined> {
     const dc = this.multiProvider.getChainConnection(chain);
     const address = await dc.signer!.getAddress();
     const owner = await ownable.owner();
@@ -123,6 +125,7 @@ export abstract class HyperlaneDeployer<
     } else {
       this.logger('Owner and signer NOT equal, skipping', logObj);
     }
+    return undefined;
   }
 
   protected async deployContractFromFactory<F extends ethers.ContractFactory>(
@@ -250,7 +253,6 @@ export abstract class HyperlaneDeployer<
   protected async deployProxy<C extends ethers.Contract>(
     chain: Chain,
     implementation: C,
-    deployerOwnedProxyAdmin: ProxyAdmin,
     proxyAdmin: ProxyAdmin,
     initArgs: Parameters<C['initialize']>,
     deployOpts?: DeployOptions,
@@ -281,6 +283,20 @@ export abstract class HyperlaneDeployer<
       const constructorArgs: Parameters<
         TransparentUpgradeableProxy__factory['deploy']
       > = [CREATE2FACTORY_ADDRESS, CREATE2FACTORY_ADDRESS, '0x'];
+      // The proxy admin during deployment must be owned by the deployer.
+      // If the canonical proxyAdmin isn't owned by the deployer, we use
+      // a temporary deployer-owned proxy admin.
+      // Note this requires the proxy contracts to ensure admin power has been
+      // transferred to the canonical proxy admin at some point in the future.
+      let deployerOwnedProxyAdmin = proxyAdmin;
+      await this.runIfOwner(chain, deployerOwnedProxyAdmin, async () => {
+        deployerOwnedProxyAdmin = await this.deployContractFromFactory(
+          chain,
+          new ProxyAdmin__factory(),
+          'DeployerOwnedProxyAdmin',
+          [],
+        );
+      });
       // We set the initCallData to atomically change admin to the proxyAdmin
       // contract.
       const initCalldata =
@@ -305,13 +321,13 @@ export abstract class HyperlaneDeployer<
         chainConnection.overrides,
       );
       await chainConnection.handleTx(upgradeAndCallTx);
-      // Now change the admin from deployerOwnedProxyAdmin to proxyAdmin.
-      const changeAdminTx = await deployerOwnedProxyAdmin.changeProxyAdmin(
+      // Change the proxy admin from deployerOwnedProxyAdmin to proxyAdmin if necessary.
+      await this.changeProxyAdmin(
+        chain,
         proxy.address,
-        proxyAdmin.address,
-        chainConnection.overrides,
+        deployerOwnedProxyAdmin,
+        proxyAdmin,
       );
-      await chainConnection.handleTx(changeAdminTx);
     } else {
       const constructorArgs: Parameters<
         TransparentUpgradeableProxy__factory['deploy']
@@ -357,7 +373,6 @@ export abstract class HyperlaneDeployer<
     chain: Chain,
     contractName: K,
     constructorArgs: Parameters<Factories[K]['deploy']>,
-    deployerOwnedProxyAdmin: ProxyAdmin,
     proxyAdmin: ProxyAdmin,
     initArgs: Parameters<C['initialize']>,
     deployOpts?: DeployOptions,
@@ -378,13 +393,41 @@ export abstract class HyperlaneDeployer<
     const contract = await this.deployProxy(
       chain,
       implementation as C,
-      deployerOwnedProxyAdmin,
       proxyAdmin,
       initArgs,
       deployOpts,
     );
     this.cacheContract(chain, contractName, contract);
     return contract;
+  }
+
+  /**
+   * Changes the proxyAdmin of `proxyAddress` from `currentProxyAdmin` to `desiredProxyAdmin`
+   * if the admin is not already the `desiredProxyAdmin`.
+   */
+  async changeProxyAdmin(
+    chain: Chain,
+    proxyAddress: types.Address,
+    currentProxyAdmin: ProxyAdmin,
+    desiredProxyAdmin: ProxyAdmin,
+  ): Promise<void> {
+    if (
+      currentProxyAdmin.address.toLowerCase() ===
+      desiredProxyAdmin.address.toLowerCase()
+    ) {
+      this.logger('Current proxy admin is the desired proxy admin');
+      return;
+    }
+    this.logger(
+      `Transferring proxy admin from ${currentProxyAdmin} to ${desiredProxyAdmin}`,
+    );
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const changeAdminTx = await currentProxyAdmin.changeProxyAdmin(
+      proxyAddress,
+      desiredProxyAdmin.address,
+      chainConnection.overrides,
+    );
+    await chainConnection.handleTx(changeAdminTx);
   }
 
   mergeWithExistingVerificationInputs(

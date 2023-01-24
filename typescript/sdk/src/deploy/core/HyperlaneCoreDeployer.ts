@@ -63,7 +63,6 @@ export class HyperlaneCoreDeployer<
 
   async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
-    deployerOwnedProxyAdmin: ProxyAdmin,
     proxyAdmin: ProxyAdmin,
     deployOpts?: DeployOptions,
   ): Promise<
@@ -73,7 +72,6 @@ export class HyperlaneCoreDeployer<
       chain,
       'interchainGasPaymaster',
       [],
-      deployerOwnedProxyAdmin,
       proxyAdmin,
       [],
       deployOpts,
@@ -124,15 +122,23 @@ export class HyperlaneCoreDeployer<
 
     const currentOwner = await defaultIsmInterchainGasPaymaster.owner();
     if (configs.length > 0) {
-      if (currentOwner === deployer) {
-        await chainConnection.handleTx(
-          defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(configs),
-        );
-      } else {
-        this.logger(
-          `Unable to set destination gas overheads; owner is not deployer. Current owner: ${currentOwner}, deployer: ${deployer}`,
-        );
-      }
+      await this.runIfOwner(
+        chain,
+        defaultIsmInterchainGasPaymaster,
+        async () => {
+          if (currentOwner === deployer) {
+            await chainConnection.handleTx(
+              defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(
+                configs,
+              ),
+            );
+          } else {
+            this.logger(
+              `Unable to set destination gas overheads; owner is not deployer. Current owner: ${currentOwner}, deployer: ${deployer}`,
+            );
+          }
+        },
+      );
     }
 
     return defaultIsmInterchainGasPaymaster;
@@ -141,7 +147,6 @@ export class HyperlaneCoreDeployer<
   async deployMailbox<LocalChain extends Chain>(
     chain: LocalChain,
     defaultIsmAddress: types.Address,
-    deployerOwnedProxyAdmin: ProxyAdmin,
     proxyAdmin: ProxyAdmin,
     deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
@@ -152,7 +157,6 @@ export class HyperlaneCoreDeployer<
       chain,
       'mailbox',
       [domain],
-      deployerOwnedProxyAdmin,
       proxyAdmin,
       [owner, defaultIsmAddress],
       deployOpts,
@@ -259,14 +263,8 @@ export class HyperlaneCoreDeployer<
     const multisigIsm = await this.deployMultisigIsm(chain);
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
-    const deployerOwnedProxyAdmin = await this.deployContract(
-      chain,
-      'deployerOwnedProxyAdmin',
-      [],
-    );
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
       chain,
-      deployerOwnedProxyAdmin,
       proxyAdmin,
     );
     const defaultIsmInterchainGasPaymaster =
@@ -277,7 +275,6 @@ export class HyperlaneCoreDeployer<
     const mailbox = await this.deployMailbox(
       chain,
       multisigIsm.address,
-      deployerOwnedProxyAdmin,
       proxyAdmin,
     );
     const validatorAnnounce = await this.deployValidatorAnnounce(
@@ -294,7 +291,6 @@ export class HyperlaneCoreDeployer<
 
     return {
       validatorAnnounce,
-      deployerOwnedProxyAdmin,
       proxyAdmin,
       mailbox,
       interchainGasPaymaster,
@@ -313,8 +309,10 @@ export class HyperlaneCoreDeployer<
       ownables.map(async (ownable) => {
         const currentOwner = await ownable.owner();
         if (currentOwner.toLowerCase() !== owner.toLowerCase()) {
-          return chainConnection.handleTx(
-            ownable.transferOwnership(owner, chainConnection.overrides),
+          return super.runIfOwner(chain, ownable, () =>
+            chainConnection.handleTx(
+              ownable.transferOwnership(owner, chainConnection.overrides),
+            ),
           );
         }
         return undefined;

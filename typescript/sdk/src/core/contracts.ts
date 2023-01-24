@@ -29,7 +29,6 @@ export type ConnectionClientContracts = {
 export type CoreContracts = ConnectionClientContracts & {
   mailbox: ProxiedContract<Mailbox, TransparentProxyAddresses>;
   multisigIsm: MultisigIsm;
-  deployerOwnedProxyAdmin: ProxyAdmin;
   proxyAdmin: ProxyAdmin;
   validatorAnnounce: ValidatorAnnounce;
 };
@@ -40,7 +39,6 @@ export const coreFactories = {
   validatorAnnounce: new ValidatorAnnounce__factory(),
   create2Factory: new Create2Factory__factory(),
   proxyAdmin: new ProxyAdmin__factory(),
-  deployerOwnedProxyAdmin: new ProxyAdmin__factory(),
   interchainGasPaymaster: new InterchainGasPaymaster__factory(),
   defaultIsmInterchainGasPaymaster: new OverheadIgp__factory(),
   multisigIsm: new MultisigIsm__factory(),
