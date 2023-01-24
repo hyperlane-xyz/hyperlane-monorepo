@@ -61,18 +61,12 @@ task('announce', 'Registers validator announcement')
       const announcement = JSON.parse(
         readFileSync(announcementFilepath, 'utf-8'),
       );
-      console.log('lookee here', announcement);
-      const signature = ethers.utils.hexConcat([
-        announcement.signature.r,
-        announcement.signature.s,
-        ethers.utils.hexValue(announcement.signature.v),
-      ]);
       const tx = await core
         .getContracts(taskArgs.chain)
         .validatorAnnounce.announce(
           announcement.value.validator,
           announcement.value.storage_location,
-          signature,
+          ethers.utils.joinSignature(announcement.signature),
         );
       await tx.wait();
     },
