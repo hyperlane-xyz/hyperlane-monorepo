@@ -19,6 +19,10 @@ pub enum GasPaymentEnforcementPolicy {
     MeetsEstimatedCost {
         coingeckoapikey: Option<String>,
     },
+
+    /// The required amount of gas on the foreign chain has been paid according
+    /// to on-chain fee quoting.
+    OnChainFeeQuoting,
 }
 
 decl_settings!(Relayer {

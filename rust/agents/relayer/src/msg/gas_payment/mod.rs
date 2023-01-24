@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use eyre::Result;
 
+use crate::msg::gas_payment::policies::GasPaymentPolicyOnChainFeeQuoting;
 use hyperlane_core::{
     db::{DbError, HyperlaneDB},
     HyperlaneMessage, InterchainGasPayment, TxCostEstimate, H256, U256,
@@ -43,6 +44,9 @@ impl GasPaymentEnforcer {
             }
             GasPaymentEnforcementPolicy::MeetsEstimatedCost { coingeckoapikey } => {
                 Box::new(GasPaymentPolicyMeetsEstimatedCost::new(coingeckoapikey))
+            }
+            GasPaymentEnforcementPolicy::OnChainFeeQuoting => {
+                Box::new(GasPaymentPolicyOnChainFeeQuoting)
             }
         };
 
