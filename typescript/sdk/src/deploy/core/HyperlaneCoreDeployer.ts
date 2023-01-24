@@ -119,25 +119,14 @@ export class HyperlaneCoreDeployer<
       }
     }
 
-    const currentOwner = await defaultIsmInterchainGasPaymaster.owner();
     if (configs.length > 0) {
-      await this.runIfOwner(
-        chain,
-        defaultIsmInterchainGasPaymaster,
-        async () => {
-          if (currentOwner === deployer) {
-            await chainConnection.handleTx(
-              defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(
-                configs,
-                chainConnection.overrides,
-              ),
-            );
-          } else {
-            this.logger(
-              `Unable to set destination gas overheads; owner is not deployer. Current owner: ${currentOwner}, deployer: ${deployer}`,
-            );
-          }
-        },
+      await this.runIfOwner(chain, defaultIsmInterchainGasPaymaster, async () =>
+        chainConnection.handleTx(
+          defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(
+            configs,
+            chainConnection.overrides,
+          ),
+        ),
       );
     }
 

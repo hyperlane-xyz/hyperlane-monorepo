@@ -1,7 +1,8 @@
 import CoinGecko from 'coingecko-api';
 import { BigNumber, FixedNumber, ethers } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
 import {
@@ -36,33 +37,34 @@ const DEFAULT_TOKEN_DECIMALS = 18;
 const GAS_INTRINSIC = 21_000;
 
 // The gas used to process a message when the quorum size is zero.
-// Includes intrinsic gas and all other gas that does not scale with the
-// quorum size. Excludes the cost of calling `recipient.handle()`.
-// Derived by observing the amount of gas consumed for a quorum of 1 (~103000 gas),
-// and subtracting the gas overhead per signature.
-const GAS_OVERHEAD_BASE = 95_000;
+// Includes intrinsic gas, mailbox overhead gas, all other gas that does not scale with the
+// quorum size. Excludes the cost of the recipient's handle function.
+const GAS_OVERHEAD_BASE = 155_000;
 
 // The amount of gas used for each signature when a signed checkpoint
 // is submitted for verification.
-// Really observed to be about 8568, but rounding up for safety.
-const GAS_OVERHEAD_PER_SIGNATURE = 9_000;
+// Really observed to be about 6500, but rounding up for safety.
+const GAS_OVERHEAD_PER_SIGNATURE = 7_500;
 
 export interface InterchainGasCalculatorConfig {
   /**
    * A multiplier applied to the estimated origin token payment amount.
    * This should be high enough to account for movements in token exchange
    * rates and gas prices.
+   * Only used for gas payment estimates that are not quoted on-chain.
    * @defaultValue 1.25
    */
   paymentEstimateMultiplier?: string;
   /**
    * An amount of additional gas to add to the estimated gas of processing a message.
    * Only used when estimating a payment from a message.
+   * Only used for gas payment estimates that are not quoted on-chain.
    * @defaultValue 50,000
    */
   messageGasEstimateBuffer?: string;
   /**
    * Used to get the native token prices of the origin and destination chains.
+   * Only used for gas payment estimates that are not quoted on-chain.
    * @defaultValue An instance of DefaultTokenPriceGetter.
    */
   tokenPriceGetter?: TokenPriceGetter;
@@ -124,6 +126,92 @@ export class InterchainGasCalculator<Chain extends ChainName> {
   }
 
   /**
+   * Only intended for IGPs that quote gas payments on-chain.
+   * Calls the default ISM IGP's `quoteGasPayment` function to get the amount of native tokens
+   * required to pay for interchain gas.
+   * The default ISM IGP will add any gas overhead amounts related to the Mailbox
+   * and default ISM on the destination to the provided gasAmount.
+   * @param origin The name of the origin chain.
+   * @param destination The name of the destination chain.
+   * @param gasAmount The amount of gas to use when calling `quoteGasPayment`.
+   * The default IGP is expected to add any gas overhead related to the Mailbox
+   * or ISM, so this gas amount is only required to cover the usage of the `handle`
+   * function.
+   * @returns The amount of native tokens required to pay for interchain gas.
+   */
+  async quoteGasPaymentForDefaultIsmIgp<Destination extends Chain>(
+    origin: Exclude<Chain, Destination>,
+    destination: Destination,
+    gasAmount: BigNumber,
+  ): Promise<BigNumber> {
+    const igpAddress =
+      this.core.getContracts(origin).defaultIsmInterchainGasPaymaster;
+    return this.quoteGasPaymentForIGP(
+      origin,
+      destination,
+      gasAmount,
+      igpAddress.address,
+    );
+  }
+
+  /**
+   * Only intended for IGPs that quote gas payments on-chain.
+   * Calls the "base" IGP's `quoteGasPayment` function to get the amount of native tokens
+   * required to pay for interchain gas.
+   * This IGP will not apply any overhead gas to the provided gasAmount.
+   * @param origin The name of the origin chain.
+   * @param destination The name of the destination chain.
+   * @param gasAmount The amount of gas to use when calling `quoteGasPayment`.
+   * This is expected to be the total amount of gas that a transaction would use
+   * on the destination chain. This should consider intrinsic transaction gas,
+   * Mailbox overhead gas costs, ISM gas costs, and the recipient's handle function
+   * gas cost.
+   * @returns The amount of native tokens required to pay for interchain gas.
+   */
+  async quoteGasPayment<Destination extends Chain>(
+    origin: Exclude<Chain, Destination>,
+    destination: Destination,
+    gasAmount: BigNumber,
+  ): Promise<BigNumber> {
+    const igpAddress = this.core.getContracts(origin).interchainGasPaymaster;
+    return this.quoteGasPaymentForIGP(
+      origin,
+      destination,
+      gasAmount,
+      igpAddress.address,
+    );
+  }
+
+  /**
+   * Only intended for IGPs that quote gas payments on-chain.
+   * Calls the origin's default IGP's `quoteGasPayment` function to get the
+   * amount of native tokens required to pay for interchain gas.
+   * The default IGP is expected to add any gas overhead related to the Mailbox
+   * and ISM to the provided gasAmount.
+   * @param origin The name of the origin chain.
+   * @param destination The name of the destination chain.
+   * @param gasAmount The amount of gas to use when calling `quoteGasPayment`.
+   * The default IGP is expected to add any gas overhead related to the Mailbox
+   * or ISM, so this gas amount is only required to cover the usage of the `handle`
+   * function.
+   * @returns The amount of native tokens required to pay for interchain gas.
+   */
+  async quoteGasPaymentForIGP<Destination extends Chain>(
+    origin: Exclude<Chain, Destination>,
+    destination: Destination,
+    gasAmount: BigNumber,
+    interchainGasPaymasterAddress: types.Address,
+  ): Promise<BigNumber> {
+    const originProvider = this.multiProvider.getChainProvider(origin);
+    const igp = InterchainGasPaymaster__factory.connect(
+      interchainGasPaymasterAddress,
+      originProvider,
+    );
+    return igp.quoteGasPayment(ChainNameToDomainId[destination], gasAmount);
+  }
+
+  /**
+   * Only intended for IGPs that do *not* quote gas payments on-chain.
    * Given an amount of gas to consume on the destination chain, calculates the
    * estimated payment denominated in the native token of the origin chain.
    * Considers the exchange rate between the native tokens of the origin and
@@ -155,6 +243,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
   }
 
   /**
+   * Only intended for IGPs that do *not* quote gas payments on-chain.
    * Given an amount of gas the message's recipient `handle` function is expected
    * to use, calculates the estimated payment denominated in the native
    * token of the origin chain. Considers the exchange rate between the native
@@ -181,6 +270,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
   }
 
   /**
+   * Only intended for IGPs that do *not* quote gas payments on-chain.
    * Calculates the estimated payment to process the message on its destination chain,
    * denominated in the native token of the origin chain. The gas used by the message's
    * recipient handler function is estimated in an eth_estimateGas call to the
