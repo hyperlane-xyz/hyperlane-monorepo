@@ -46,9 +46,10 @@ impl ValidatorSubmitter {
     async fn main_task(self) -> Result<()> {
         // Sign and post the validator announcement
         let announcement = Announcement {
+            validator: self.signer.eth_address(),
             mailbox_address: self.mailbox.address(),
             mailbox_domain: self.mailbox.domain().id(),
-            storage_metadata: self.checkpoint_syncer.announcement_metadata(),
+            storage_location: self.checkpoint_syncer.announcement_location(),
         };
         let signed_announcement = self.signer.sign(announcement).await?;
         self.checkpoint_syncer
