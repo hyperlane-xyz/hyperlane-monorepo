@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata';
 import { DomainIdToChainName } from '../../domains';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
@@ -85,7 +84,10 @@ export abstract class HyperlaneRouterDeployer<
 
       const enrollEntries = await Promise.all(
         deployedRemoteChains.map(async (remote) => {
-          const remoteDomain = chainMetadata[remote].id;
+          const remoteConnection =
+            this.multiProvider.getChainConnection(remote).provider;
+          // This assumes chainId === domainId
+          const remoteDomain = (await remoteConnection.getNetwork()).chainId;
           const current = await contracts.router.routers(remoteDomain);
           const expected = utils.addressToBytes32(
             contractsMap[remote].router.address,
@@ -105,8 +107,10 @@ export abstract class HyperlaneRouterDeployer<
       }
 
       await super.runIfOwner(local, contracts.router, async () => {
-        const chains = domains.map((id) => DomainIdToChainName[id]);
-        this.logger(`Enroll remote (${chains}) routers on ${local}`);
+        const chains = domains.map((id) => DomainIdToChainName[id] || id);
+        this.logger(
+          `Enrolling remote routers (${chains.join(', ')}) on ${local}`,
+        );
         await chainConnection.handleTx(
           contracts.router.enrollRemoteRouters(
             domains,
