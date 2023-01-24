@@ -63,7 +63,7 @@ describe('InterchainQueryRouter', async () => {
   it('completes query round trip and invokes callback', async () => {
     const secret = 123;
     const expectedOwner = await remote.owner();
-    await expect(testQuery.queryRouterOwner(remoteDomain, secret))
+    await expect(testQuery.queryRouterOwner(remoteDomain, secret, { value: 1 }))
       .to.emit(local, 'QueryDispatched')
       .withArgs(remoteDomain, testQuery.address);
     const result = await coreApp.processOutboundMessages(localChain);

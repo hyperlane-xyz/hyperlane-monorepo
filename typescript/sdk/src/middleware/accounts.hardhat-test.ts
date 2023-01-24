@@ -44,12 +44,12 @@ describe('InterchainAccountRouter', async () => {
   });
 
   beforeEach(async () => {
-    const InterchainAccount = new InterchainAccountDeployer(
+    const deployer = new InterchainAccountDeployer(
       multiProvider,
       config,
       coreApp,
     );
-    const contracts = await InterchainAccount.deploy();
+    const contracts = await deployer.deploy();
 
     local = contracts[localChain].router;
     remote = contracts[remoteChain].router;
@@ -67,9 +67,11 @@ describe('InterchainAccountRouter', async () => {
       localDomain,
       signer.address,
     );
-    await local['dispatch(uint32,(address,bytes)[])'](remoteDomain, [
-      { to: recipient.address, data },
-    ]);
+    await local['dispatch(uint32,(address,bytes)[])'](
+      remoteDomain,
+      [{ to: recipient.address, data }],
+      { value: 1 },
+    );
     await coreApp.processMessages();
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);
