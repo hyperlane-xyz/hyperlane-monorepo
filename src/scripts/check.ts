@@ -22,6 +22,7 @@ const ownerAddress = '0x123...';
 async function check() {
   console.info('Preparing utilities');
   const chainProviders = objMap(prodConfigs, (_, config) => ({
+    id: config.id,
     provider: config.provider,
     confirmations: config.confirmations,
     overrides: config.overrides,
