@@ -1,5 +1,5 @@
-InterchainAccountRouterTest:testCannotSetOwner(address) (runs: 256, μ: 476268, ~: 476268)
-InterchainAccountRouterTest:testCannotSetOwnerTwice(address) (runs: 256, μ: 624931, ~: 625398)
+InterchainAccountRouterTest:testCannotSetOwner(address) (runs: 256, μ: 476190, ~: 476268)
+InterchainAccountRouterTest:testCannotSetOwnerTwice(address) (runs: 256, μ: 625266, ~: 625577)
 InterchainAccountRouterTest:testOwner() (gas: 210427)
 InterchainAccountRouterTest:testSetOwner(address) (runs: 256, μ: 510613, ~: 510691)
 InterchainQueryRouterTest:testCannotCallbackReverting() (gas: 1478492)

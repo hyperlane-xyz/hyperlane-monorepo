@@ -162,9 +162,10 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @param origin The name of the origin chain.
    * @param destination The name of the destination chain.
    * @param gasAmount The amount of gas to use when calling `quoteGasPayment`.
-   * The default IGP is expected to add any gas overhead related to the Mailbox
-   * or ISM, so this gas amount is only required to cover the usage of the `handle`
-   * function.
+   * This is expected to be the total amount of gas that a transaction would use
+   * on the destination chain. This should consider intrinsic transaction gas,
+   * Mailbox overhead gas costs, ISM gas costs, and the recipient's handle function
+   * gas cost.
    * @returns The amount of native tokens required to pay for interchain gas.
    */
   async quoteGasPayment<Destination extends Chain>(

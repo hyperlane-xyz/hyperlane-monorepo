@@ -366,7 +366,12 @@ async function sendMessage(
   const expectedHandleGas = BigNumber.from(100_000);
 
   const value = await utils.retryAsync(
-    () => gasCalc.quoteGasPayment(origin, destination, expectedHandleGas),
+    () =>
+      gasCalc.quoteGasPaymentForDefaultIsmIgp(
+        origin,
+        destination,
+        expectedHandleGas,
+      ),
     2,
   );
   const metricLabels = { origin, remote: destination };
