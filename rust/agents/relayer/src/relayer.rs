@@ -3,36 +3,42 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{Context, Result};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio::{sync::mpsc, task::JoinHandle};
+use tokio::sync::{
+    mpsc::{self, UnboundedReceiver, UnboundedSender},
+    RwLock,
+};
+use tokio::task::JoinHandle;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_base::chains::TransactionSubmissionType;
-use hyperlane_base::CachingMailbox;
 use hyperlane_base::{
-    chains::GelatoConf, run_all, Agent, BaseAgent, ContractSyncMetrics, CoreMetrics,
-    HyperlaneAgentCore,
+    chains::{GelatoConf, TransactionSubmissionType},
+    run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
+    CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain};
+use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, ValidatorAnnounce};
 
-use tokio::sync::RwLock;
-
-use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::msg::gas_payment::GasPaymentEnforcer;
-use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
-use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
-use crate::msg::serial_submitter::SerialSubmitter;
-use crate::msg::serial_submitter::SerialSubmitterMetrics;
-use crate::msg::{metadata_builder::MetadataBuilder, SubmitMessageArgs};
-use crate::settings::matching_list::MatchingList;
-use crate::settings::{GasPaymentEnforcementPolicy, RelayerSettings};
+use crate::{
+    merkle_tree_builder::MerkleTreeBuilder,
+    msg::{
+        gas_payment::GasPaymentEnforcer,
+        gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics},
+        metadata_builder::MetadataBuilder,
+        processor::{MessageProcessor, MessageProcessorMetrics},
+        serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
+        SubmitMessageArgs,
+    },
+    settings::{matching_list::MatchingList, GasPaymentEnforcementPolicy, RelayerSettings},
+};
 
 /// A relayer agent
 #[derive(Debug)]
 pub struct Relayer {
     origin_chain: HyperlaneDomain,
     core: HyperlaneAgentCore,
+    mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
+    interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
     gas_payment_enforcement_policy: GasPaymentEnforcementPolicy,
+    validator_announce: Arc<dyn ValidatorAnnounce>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
 }
@@ -54,7 +60,26 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
-        let core = settings.try_into_hyperlane_core(metrics, None).await?;
+        let core = settings.build_hyperlane_core(metrics.clone());
+        let db = DB::from_path(&settings.db)?;
+
+        let chain_names: Vec<_> = if let Some(ref remotes) = settings.destinationchainnames {
+            // Use defined remote chains + the origin chain
+            remotes
+                .split(',')
+                .chain([settings.originchainname.as_str()])
+                .collect()
+        } else {
+            // If not provided, default to using every chain listed in self.chains.
+            settings.chains.keys().map(String::as_str).collect()
+        };
+
+        let mailboxes = settings
+            .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
+            .await?;
+        let interchain_gas_paymasters = settings
+            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db)
+            .await?;
 
         let whitelist = parse_matching_list(&settings.whitelist);
         let blacklist = parse_matching_list(&settings.blacklist);
@@ -66,9 +91,15 @@ impl BaseAgent for Relayer {
             .context("Relayer must run on a configured chain")?
             .domain()?;
 
+        let validator_announce = settings.build_validator_announce(&settings.originchainname, &core.metrics.clone()).await?;
+
+
         Ok(Self {
             origin_chain,
             core,
+            mailboxes,
+            interchain_gas_paymasters,
+            validator_announce,
             gas_payment_enforcement_policy: settings.gaspaymentenforcementpolicy,
             whitelist,
             blacklist,
@@ -77,53 +108,51 @@ impl BaseAgent for Relayer {
 
     #[allow(clippy::async_yields_async)]
     async fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let num_mailboxes = self.core.mailboxes.len();
+        let num_mailboxes = self.mailboxes.len();
 
         let mut tasks = Vec::with_capacity(num_mailboxes + 2);
 
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
             self.gas_payment_enforcement_policy.clone(),
-            self.mailbox(&self.origin_chain).unwrap().db().clone(),
+            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
         ));
 
         let prover_sync = Arc::new(RwLock::new(MerkleTreeBuilder::new(
-            self.mailbox(&self.origin_chain).unwrap().db().clone(),
+            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
         )));
         let mut send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>> = HashMap::new();
         let destinations = self
-            .core
             .mailboxes
             .keys()
             .filter(|c| **c != self.origin_chain)
             .collect::<Vec<&HyperlaneDomain>>();
-
-        let validator_announce = self.validator_announce(&self.origin_chain).unwrap().clone();
 
         for chain in &destinations {
             let (send_channel, receive_channel): (
                 UnboundedSender<SubmitMessageArgs>,
                 UnboundedReceiver<SubmitMessageArgs>,
             ) = mpsc::unbounded_channel();
-            let mailbox = self.mailbox(chain).unwrap();
+            let mailbox: &CachingMailbox = self.mailboxes.get(chain).unwrap();
             send_channels.insert(mailbox.domain().id(), send_channel);
 
             let chain_setup = self
                 .core
                 .settings
                 .chain_setup(chain.name())
-                .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()));
+                .unwrap_or_else(|_| panic!("No chain setup found for {}", chain.name()))
+                .clone();
 
+            let txsubmission = chain_setup.txsubmission;
             let metadata_builder = MetadataBuilder::new(
-                self.core.metrics.clone(),
-                self.core.settings.get_signer(chain.name()).await,
-                chain_setup.clone(),
+                chain_setup,
                 prover_sync.clone(),
-                validator_announce.clone(),
+                self.validator_announce.clone(),
+                self.core.metrics.clone(),
             );
             tasks.push(self.run_destination_mailbox(
                 mailbox.clone(),
                 metadata_builder.clone(),
-                chain_setup.txsubmission,
+                txsubmission,
                 self.core.settings.gelato.as_ref(),
                 gas_payment_enforcer.clone(),
                 receive_channel,
@@ -136,11 +165,11 @@ impl BaseAgent for Relayer {
         let metrics =
             MessageProcessorMetrics::new(&self.core.metrics, &self.origin_chain, destinations);
         let message_processor = MessageProcessor::new(
-            self.mailbox(&self.origin_chain).unwrap().db().clone(),
+            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
             self.whitelist.clone(),
             self.blacklist.clone(),
             metrics,
-            prover_sync.clone(),
+            prover_sync,
             send_channels,
         );
         tasks.push(self.run_message_processor(message_processor));
@@ -156,7 +185,7 @@ impl Relayer {
         &self,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let mailbox = self.mailbox(&self.origin_chain).unwrap();
+        let mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
         let sync = mailbox.sync(
             self.as_ref().settings.chains[self.origin_chain.name()]
                 .index
@@ -170,7 +199,10 @@ impl Relayer {
         &self,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let paymaster = self.interchain_gas_paymaster(&self.origin_chain).unwrap();
+        let paymaster = self
+            .interchain_gas_paymasters
+            .get(&self.origin_chain)
+            .unwrap();
         let sync = paymaster.sync(
             self.as_ref().settings.chains[self.origin_chain.name()]
                 .index
@@ -184,7 +216,7 @@ impl Relayer {
     /// particular mailbox.
     fn make_gelato_submitter(
         &self,
-        message_receiver: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+        message_receiver: UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
         metadata_builder: MetadataBuilder,
         gelato_config: GelatoConf,
@@ -196,7 +228,7 @@ impl Relayer {
             message_receiver,
             mailbox,
             metadata_builder,
-            self.mailbox(&self.origin_chain).unwrap().db().clone(),
+            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
             gelato_config,
             gelato_metrics,
             gas_payment_enforcer,
@@ -227,7 +259,7 @@ impl Relayer {
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
         msg_receive: UnboundedReceiver<SubmitMessageArgs>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let origin_mailbox = self.mailbox(&self.origin_chain).unwrap();
+        let origin_mailbox = self.mailboxes.get(&self.origin_chain).unwrap();
         let destination = destination_mailbox.domain();
 
         let submit_fut = match tx_submission {

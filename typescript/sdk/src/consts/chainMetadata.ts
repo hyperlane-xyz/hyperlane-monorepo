@@ -95,6 +95,7 @@ export const alfajores: ChainMetadata = {
     {
       name: 'CeloScan',
       url: 'https://alfajores.celoscan.io',
+      apiUrl: 'https://api-alfajores.celoscan.io/',
       family: ExplorerFamily.Etherscan,
     },
     {
@@ -317,7 +318,10 @@ export const goerli: ChainMetadata = {
   name: Chains.goerli,
   displayName: 'Goerli',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'https://rpc.ankr.com/eth_goerli' }],
+  publicRpcUrls: [
+    { http: 'https://eth-goerli.public.blastapi.io' },
+    { http: 'https://rpc.ankr.com/eth_goerli' },
+  ],
   blockExplorers: [
     {
       name: 'Etherscan',

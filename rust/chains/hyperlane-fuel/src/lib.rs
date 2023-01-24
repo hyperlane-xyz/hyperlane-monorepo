@@ -9,10 +9,17 @@ pub use interchain_gas::*;
 pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
-pub use validator_announce::*;
+pub use trait_builder::*;
 
+mod contracts;
+mod conversions;
 mod interchain_gas;
 mod mailbox;
 mod multisig_ism;
 mod provider;
-mod validator_announce;
+mod trait_builder;
+
+/// Safe default imports of commonly used traits/types.
+pub mod prelude {
+    pub use crate::conversions::*;
+}

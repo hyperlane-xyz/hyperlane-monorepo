@@ -1,35 +1,35 @@
+use std::num::NonZeroU64;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use ethers::signers::Signer;
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{CachingMailbox, CheckpointSyncer, CheckpointSyncers, CoreMetrics};
-use hyperlane_core::{Announcement, HyperlaneDomain, Mailbox, Signers};
+use hyperlane_base::{CheckpointSyncer, CoreMetrics};
+use hyperlane_core::{Announcement, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox};
 
 pub(crate) struct ValidatorSubmitter {
-    interval: u64,
-    reorg_period: u64,
-    signer: Arc<Signers>,
-    mailbox: CachingMailbox,
-    checkpoint_syncer: Arc<CheckpointSyncers>,
+    interval: Duration,
+    reorg_period: Option<NonZeroU64>,
+    signer: Arc<dyn HyperlaneSigner>,
+    mailbox: Arc<dyn Mailbox>,
+    checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     metrics: ValidatorSubmitterMetrics,
 }
 
 impl ValidatorSubmitter {
     pub(crate) fn new(
-        interval: u64,
+        interval: Duration,
         reorg_period: u64,
-        mailbox: CachingMailbox,
-        signer: Arc<Signers>,
-        checkpoint_syncer: Arc<CheckpointSyncers>,
+        mailbox: Arc<dyn Mailbox>,
+        signer: Arc<dyn HyperlaneSigner>,
+        checkpoint_syncer: Arc<dyn CheckpointSyncer>,
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {
         Self {
-            reorg_period,
+            reorg_period: NonZeroU64::new(reorg_period),
             interval,
             mailbox,
             signer,
@@ -44,20 +44,14 @@ impl ValidatorSubmitter {
     }
 
     async fn main_task(self) -> Result<()> {
-        let reorg_period = if self.reorg_period == 0 {
-            None
-        } else {
-            Some(self.reorg_period)
-        };
-
         // Sign and post the validator announcement
         let announcement = Announcement {
-            validator: self.signer.address(),
-            mailbox_address: self.mailbox.mailbox().address(),
-            mailbox_domain: self.mailbox.mailbox().domain().id(),
+            validator: self.signer.eth_address(),
+            mailbox_address: self.mailbox.address(),
+            mailbox_domain: self.mailbox.domain().id(),
             storage_location: self.checkpoint_syncer.announcement_location(),
         };
-        let signed_announcement = announcement.sign_with(self.signer.as_ref()).await?;
+        let signed_announcement = self.signer.sign(announcement).await?;
         self.checkpoint_syncer
             .write_announcement(&signed_announcement)
             .await?;
@@ -71,7 +65,7 @@ impl ValidatorSubmitter {
         // more details.
         while self.mailbox.count().await? == 0 {
             info!("Waiting for non-zero mailbox size");
-            sleep(Duration::from_secs(self.interval)).await;
+            sleep(self.interval).await;
         }
 
         // current_index will be None if the validator cannot find
@@ -104,14 +98,14 @@ impl ValidatorSubmitter {
         info!(current_index = current_index, "Starting Validator");
         loop {
             // Check the latest checkpoint
-            let latest_checkpoint = self.mailbox.latest_checkpoint(reorg_period).await?;
+            let latest_checkpoint = self.mailbox.latest_checkpoint(self.reorg_period).await?;
 
             self.metrics
                 .latest_checkpoint_observed
                 .set(latest_checkpoint.index as i64);
 
-            // Occasional info to make it clear to a validator operator whether things are working
-            // correctly without using the debug log level.
+            // Occasional info to make it clear to a validator operator whether things are
+            // working correctly without using the debug log level.
             if should_log_checkpoint_info() {
                 info!(
                     latest_signed_checkpoint_index=?current_index,
@@ -134,7 +128,7 @@ impl ValidatorSubmitter {
                 .map(|i| i < latest_checkpoint.index)
                 .unwrap_or(true)
             {
-                let signed_checkpoint = latest_checkpoint.sign_with(self.signer.as_ref()).await?;
+                let signed_checkpoint = self.signer.sign(latest_checkpoint).await?;
 
                 info!(signed_checkpoint = ?signed_checkpoint, signer=?self.signer, "Signed new latest checkpoint");
                 current_index = Some(latest_checkpoint.index);
@@ -144,10 +138,10 @@ impl ValidatorSubmitter {
                     .await?;
                 self.metrics
                     .latest_checkpoint_processed
-                    .set(signed_checkpoint.checkpoint.index as i64);
+                    .set(signed_checkpoint.value.index as i64);
             }
 
-            sleep(Duration::from_secs(self.interval)).await;
+            sleep(self.interval).await;
         }
     }
 }

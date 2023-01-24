@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
-import {OwnableMulticall, Call} from "../OwnableMulticall.sol";
+import {CallLib} from "../libs/Call.sol";
 import {Router} from "../Router.sol";
 import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
 
@@ -15,11 +15,10 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title Interchain Query Router that performs remote view calls on other chains and returns the result.
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
-contract InterchainQueryRouter is
-    Router,
-    OwnableMulticall,
-    IInterchainQueryRouter
-{
+contract InterchainQueryRouter is Router, IInterchainQueryRouter {
+    using CallLib for address;
+    using CallLib for CallLib.Call[];
+
     enum Action {
         DISPATCH,
         RESOLVE
@@ -55,31 +54,20 @@ contract InterchainQueryRouter is
      * @param _mailbox The address of the mailbox contract.
      * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
      * @param _interchainSecurityModule The address of the interchain security module contract.
+     * @param _owner The address with owner privileges.
      */
     function initialize(
         address _mailbox,
         address _interchainGasPaymaster,
-        address _interchainSecurityModule
-    ) public initializer {
-        // Transfer ownership of the contract to `msg.sender`
-        __Router_initialize(
+        address _interchainSecurityModule,
+        address _owner
+    ) external initializer {
+        __HyperlaneConnectionClient_initialize(
             _mailbox,
             _interchainGasPaymaster,
-            _interchainSecurityModule
+            _interchainSecurityModule,
+            _owner
         );
-    }
-
-    /**
-     * @notice Initializes the Router contract with Hyperlane core contracts.
-     * @param _mailbox The address of the mailbox contract.
-     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
-     */
-    function initialize(address _mailbox, address _interchainGasPaymaster)
-        public
-        initializer
-    {
-        // Transfer ownership of the contract to `msg.sender`
-        __Router_initialize(_mailbox, _interchainGasPaymaster);
     }
 
     /**
@@ -96,8 +84,8 @@ contract InterchainQueryRouter is
         bytes calldata callback
     ) external returns (bytes32 messageId) {
         // TODO: fix this ugly arrayification
-        Call[] memory calls = new Call[](1);
-        calls[0] = Call({to: target, data: queryData});
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({to: target, data: queryData});
         bytes[] memory callbacks = new bytes[](1);
         callbacks[0] = callback;
         messageId = query(_destinationDomain, calls, callbacks);
@@ -110,11 +98,11 @@ contract InterchainQueryRouter is
      */
     function query(
         uint32 _destinationDomain,
-        Call calldata call,
+        CallLib.Call calldata call,
         bytes calldata callback
     ) external returns (bytes32 messageId) {
         // TODO: fix this ugly arrayification
-        Call[] memory calls = new Call[](1);
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
         bytes[] memory callbacks = new bytes[](1);
         callbacks[0] = callback;
@@ -128,7 +116,7 @@ contract InterchainQueryRouter is
      */
     function query(
         uint32 _destinationDomain,
-        Call[] memory calls,
+        CallLib.Call[] memory calls,
         bytes[] memory callbacks
     ) public returns (bytes32 messageId) {
         require(
@@ -157,21 +145,21 @@ contract InterchainQueryRouter is
             (
                 ,
                 address sender,
-                Call[] memory calls,
+                CallLib.Call[] memory calls,
                 bytes[] memory callbacks
-            ) = abi.decode(_message, (Action, address, Call[], bytes[]));
-            bytes[] memory resolveCallbacks = _call(calls, callbacks);
-            _dispatch(
-                _origin,
-                abi.encode(Action.RESOLVE, sender, resolveCallbacks)
-            );
+            ) = abi.decode(
+                    _message,
+                    (Action, address, CallLib.Call[], bytes[])
+                );
+            callbacks = calls._multicallAndResolve(callbacks);
+            _dispatch(_origin, abi.encode(Action.RESOLVE, sender, callbacks));
             emit QueryReturned(_origin, sender);
         } else if (action == Action.RESOLVE) {
             (, address sender, bytes[] memory resolveCallbacks) = abi.decode(
                 _message,
                 (Action, address, bytes[])
             );
-            proxyCallBatch(sender, resolveCallbacks);
+            sender._multicall(resolveCallbacks);
             emit QueryResolved(_origin, sender);
         }
     }

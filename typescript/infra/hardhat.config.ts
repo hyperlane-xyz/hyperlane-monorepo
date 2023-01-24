@@ -4,6 +4,7 @@ import { ethers } from 'ethers';
 import { readFileSync } from 'fs';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
+import * as path from 'path';
 
 import { TestSendReceiver__factory } from '@hyperlane-xyz/core';
 import {
@@ -15,8 +16,6 @@ import {
 
 import { getCoreEnvironmentConfig } from './scripts/utils';
 import { sleep } from './src/utils/utils';
-
-const path = require('path');
 
 const chainSummary = async <Chain extends ChainName>(
   core: HyperlaneCore<Chain>,
@@ -70,7 +69,7 @@ task('announce', 'Registers validator announcement')
       const tx = await core
         .getContracts(taskArgs.chain)
         .validatorAnnounce.announce(
-          announcement.announcement.validator,
+          announcement.announcement.value,
           announcement.announcement.storage_location,
           signature,
         );

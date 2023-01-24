@@ -22,8 +22,13 @@ pub enum GasPaymentEnforcementPolicy {
 }
 
 decl_settings!(Relayer {
+    /// Database path (path on the fs)
+    db: String,
     // The name of the origin chain
     originchainname: String,
+    // Optional list of destination chains. If none are provided, ALL chains in chain_setup
+    // will be used, excluding the origin chain.
+    destinationchainnames: Option<String>,
     /// The gas payment enforcement policy configuration
     gaspaymentenforcementpolicy: GasPaymentEnforcementPolicy,
     /// This is optional. If no whitelist is provided ALL messages will be considered on the

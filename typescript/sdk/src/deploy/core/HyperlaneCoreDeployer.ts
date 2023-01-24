@@ -7,6 +7,7 @@ import {
   MultisigIsm,
   Ownable,
   ProxyAdmin,
+  ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
@@ -77,6 +78,20 @@ export class HyperlaneCoreDeployer<
       deployOpts,
     );
     return mailbox;
+  }
+
+  async deployValidatorAnnounce<LocalChain extends Chain>(
+    chain: LocalChain,
+    mailboxAddress: string,
+    deployOpts?: DeployOptions,
+  ): Promise<ValidatorAnnounce> {
+    const validatorAnnounce = await this.deployContract(
+      chain,
+      'validatorAnnounce',
+      [mailboxAddress],
+      deployOpts,
+    );
+    return validatorAnnounce;
   }
 
   async deployMultisigIsm<LocalChain extends Chain>(
@@ -173,10 +188,9 @@ export class HyperlaneCoreDeployer<
       multisigIsm.address,
       proxyAdmin,
     );
-    const validatorAnnounce = await this.deployContract(
+    const validatorAnnounce = await this.deployValidatorAnnounce(
       chain,
-      'validatorAnnounce',
-      [mailbox.address],
+      mailbox.address,
     );
     // Mailbox ownership is transferred upon initialization.
     const ownables: Ownable[] = [multisigIsm, proxyAdmin];

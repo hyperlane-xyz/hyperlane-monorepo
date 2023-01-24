@@ -235,9 +235,10 @@ export type RustCoreAddresses = {
 export type RustChainSetup = {
   name: ChainName;
   domain: string;
+  signer?: RustSigner | null;
   finalityBlocks: string;
   addresses: RustCoreAddresses;
-  rpcStyle: 'ethereum';
+  protocol: 'ethereum' | 'fuel';
   connection: RustConnection;
   index?: { from: string };
 };
@@ -247,8 +248,6 @@ export type RustConfig<Chain extends ChainName> = {
   chains: Partial<ChainMap<Chain, RustChainSetup>>;
   // TODO: Separate DBs for each chain (fold into RustChainSetup)
   db: string;
-  // TODO: Fold this into RustChainSetup
-  signers?: Partial<ChainMap<Chain, RustSigner>>;
   tracing: {
     level: string;
     fmt: 'json';
@@ -274,11 +273,28 @@ export class ChainAgentConfig<Chain extends ChainName> {
     };
   }
 
-  signers(role: KEY_ROLE_ENUM) {
-    return this.agentConfig.contextChainNames.map((name) => ({
-      name,
-      keyConfig: this.keyConfig(role),
-    }));
+  // Get the signer configuration for each chain by the chain name.
+  async signers(): Promise<Record<string, KeyConfig>> {
+    if (!this.awsKeys) {
+      Object.fromEntries(
+        this.agentConfig.contextChainNames.map((name) => [
+          name,
+          this.keyConfig(KEY_ROLE_ENUM.Relayer),
+        ]),
+      );
+    }
+    const awsUser = new AgentAwsUser(
+      this.agentConfig.environment,
+      this.agentConfig.context,
+      KEY_ROLE_ENUM.Relayer,
+      this.agentConfig.aws!.region,
+      this.chainName,
+    );
+    await awsUser.createIfNotExists();
+    const key = await awsUser.createKeyIfNotExists(this.agentConfig);
+    return Object.fromEntries(
+      this.agentConfig.contextChainNames.map((name) => [name, key.keyConfig]),
+    );
   }
 
   async validatorConfigs(): Promise<Array<ValidatorHelmConfig> | undefined> {
@@ -355,29 +371,6 @@ export class ChainAgentConfig<Chain extends ChainName> {
       `Relayer does not have AWS credentials. Be sure this is a non-k8s-based environment!`,
     );
     return false;
-  }
-
-  async relayerSigners() {
-    if (!this.relayerEnabled) {
-      return undefined;
-    }
-
-    if (!this.awsKeys) {
-      return this.signers(KEY_ROLE_ENUM.Relayer);
-    }
-    const awsUser = new AgentAwsUser(
-      this.agentConfig.environment,
-      this.agentConfig.context,
-      KEY_ROLE_ENUM.Relayer,
-      this.agentConfig.aws!.region,
-      this.chainName,
-    );
-    await awsUser.createIfNotExists();
-    const key = await awsUser.createKeyIfNotExists(this.agentConfig);
-    return this.agentConfig.contextChainNames.map((name) => ({
-      name,
-      keyConfig: key.keyConfig,
-    }));
   }
 
   get relayerConfig(): RelayerConfig | undefined {

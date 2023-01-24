@@ -1,4 +1,4 @@
-use sha3::{Digest, Keccak256};
+use sha3::{digest::Update, Digest, Keccak256};
 
 use crate::{Decode, Encode, HyperlaneProtocolError, H256};
 
@@ -118,7 +118,7 @@ impl Decode for HyperlaneMessage {
 impl HyperlaneMessage {
     /// Convert the message to a message id
     pub fn id(&self) -> H256 {
-        H256::from_slice(Keccak256::new().chain(&self.to_vec()).finalize().as_slice())
+        H256::from_slice(Keccak256::new().chain(self.to_vec()).finalize().as_slice())
     }
 }
 

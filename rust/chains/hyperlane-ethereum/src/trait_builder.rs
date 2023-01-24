@@ -17,9 +17,9 @@ use ethers_prometheus::json_rpc_client::{
 use ethers_prometheus::middleware::{
     MiddlewareMetrics, PrometheusMiddleware, PrometheusMiddlewareConf,
 };
-use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, Signers};
+use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator};
 
-use crate::{ConnectionConf, RetryingProvider};
+use crate::{signers::Signers, ConnectionConf, FallbackProvider, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
@@ -56,7 +56,7 @@ pub trait BuildableWithProvider {
     /// metrics and a signer as needed.
     async fn build_with_connection_conf(
         &self,
-        conn: ConnectionConf,
+        conn: &ConnectionConf,
         locator: &ContractLocator,
         signer: Option<Signers>,
         rpc_metrics: Option<impl FnOnce() -> JsonRpcClientMetrics + Send>,
@@ -103,6 +103,34 @@ pub trait BuildableWithProvider {
                 self.wrap_with_metrics(quorum_provider, locator, signer, middleware_metrics)
                     .await?
             }
+            ConnectionConf::HttpFallback { urls } => {
+                let rpc_metrics = rpc_metrics.map(|f| f());
+                let mut builder = FallbackProvider::builder();
+                let http_client = Client::builder()
+                    .timeout(HTTP_CLIENT_TIMEOUT)
+                    .build()
+                    .map_err(EthereumProviderConnectionError::from)?;
+                for url in urls.split(',') {
+                    let http_provider = Http::new_with_client(
+                        url.parse::<Url>().map_err(|e| {
+                            EthereumProviderConnectionError::InvalidUrl(e, url.to_owned())
+                        })?,
+                        http_client.clone(),
+                    );
+                    let metrics_provider = self.wrap_rpc_with_metrics(
+                        http_provider,
+                        Url::parse(url).map_err(|e| {
+                            EthereumProviderConnectionError::InvalidUrl(e, url.to_owned())
+                        })?,
+                        &rpc_metrics,
+                        &middleware_metrics,
+                    );
+                    builder = builder.add_provider(metrics_provider);
+                }
+                let fallback_provider = builder.build();
+                self.wrap_with_metrics(fallback_provider, locator, signer, middleware_metrics)
+                    .await?
+            }
             ConnectionConf::Http { url } => {
                 let http_client = Client::builder()
                     .timeout(HTTP_CLIENT_TIMEOUT)
@@ -110,7 +138,7 @@ pub trait BuildableWithProvider {
                     .map_err(EthereumProviderConnectionError::from)?;
                 let http_provider = Http::new_with_client(
                     url.parse::<Url>()
-                        .map_err(|e| EthereumProviderConnectionError::InvalidUrl(e, url))?,
+                        .map_err(|e| EthereumProviderConnectionError::InvalidUrl(e, url.clone()))?,
                     http_client,
                 );
                 let retrying_http_provider: RetryingProvider<Http> =

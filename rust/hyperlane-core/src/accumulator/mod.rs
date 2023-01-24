@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use sha3::{Digest, Keccak256};
+use sha3::{digest::Update, Digest, Keccak256};
 
 use crate::H256;
 
@@ -18,8 +18,8 @@ const EMPTY_SLICE: &[H256] = &[];
 pub(super) fn hash_concat(left: impl AsRef<[u8]>, right: impl AsRef<[u8]>) -> H256 {
     H256::from_slice(
         Keccak256::new()
-            .chain(left.as_ref())
-            .chain(right.as_ref())
+            .chain(left)
+            .chain(right)
             .finalize()
             .as_slice(),
     )

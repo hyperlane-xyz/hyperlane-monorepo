@@ -6,11 +6,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::providers::Middleware;
-use ethers::types::Selector;
 
 use hyperlane_core::{
+    ValidatorAnnounce,
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    ValidatorAnnounce, H160, H256,
+    H160, H256,
 };
 
 use crate::contracts::validator_announce::{
@@ -108,7 +108,9 @@ where
 pub struct EthereumValidatorAnnounceAbi;
 
 impl HyperlaneAbi for EthereumValidatorAnnounceAbi {
-    fn fn_map() -> HashMap<Selector, &'static str> {
+    const SELECTOR_SIZE_BYTES: usize = 4;
+
+    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
         super::extract_fn_map(&VALIDATORANNOUNCE_ABI)
     }
 }

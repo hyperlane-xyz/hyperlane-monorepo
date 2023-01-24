@@ -6,17 +6,15 @@
 use std::collections::HashMap;
 
 use ethers::abi::FunctionExt;
-use ethers::prelude::{
-    abi, BlockId, BlockNumber, Http, Lazy, Middleware, NameOrAddress, Provider, Selector,
-};
+use ethers::prelude::{abi, BlockId, BlockNumber, Http, Lazy, Middleware, NameOrAddress, Provider};
 
 use hyperlane_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
 pub use crate::{
-    interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, trait_builder::*,
-    validator_announce::*,
+    fallback::*, interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, signers::*, validator_announce::*,
+    trait_builder::*,
 };
 
 #[cfg(not(doctest))]
@@ -52,13 +50,23 @@ mod contracts;
 /// Retrying Provider
 mod retrying;
 
+/// Fallback provider
+mod fallback;
+
+mod signers;
+
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ConnectionConf {
-    /// A HTTP-only quorum.
+    /// An HTTP-only quorum.
     HttpQuorum {
         /// List of fully qualified strings to connect to
+        urls: String,
+    },
+    /// An HTTP-only fallback set.
+    HttpFallback {
+        /// List of fully qualified strings to connect to in order of priority
         urls: String,
     },
     /// HTTP connection details
@@ -109,8 +117,8 @@ impl hyperlane_core::Chain for Chain {
     }
 }
 
-fn extract_fn_map(abi: &'static Lazy<abi::Abi>) -> HashMap<Selector, &'static str> {
+fn extract_fn_map(abi: &'static Lazy<abi::Abi>) -> HashMap<Vec<u8>, &'static str> {
     abi.functions()
-        .map(|f| (f.selector(), f.name.as_str()))
+        .map(|f| (f.selector().to_vec(), f.name.as_str()))
         .collect()
 }
