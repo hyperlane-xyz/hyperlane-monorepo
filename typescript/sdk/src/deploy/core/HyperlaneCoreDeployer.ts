@@ -63,22 +63,19 @@ export class HyperlaneCoreDeployer<
 
   async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
-    deployerOwnedProxyAdmin: ProxyAdmin,
     proxyAdmin: ProxyAdmin,
     deployOpts?: DeployOptions,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
-    const interchainGasPaymaster = await this.deployProxiedContract(
+    return this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
       [],
-      deployerOwnedProxyAdmin,
       proxyAdmin,
       [],
       deployOpts,
     );
-    return interchainGasPaymaster;
   }
 
   async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(
@@ -139,7 +136,6 @@ export class HyperlaneCoreDeployer<
   async deployMailbox<LocalChain extends Chain>(
     chain: LocalChain,
     defaultIsmAddress: types.Address,
-    deployerOwnedProxyAdmin: ProxyAdmin,
     proxyAdmin: ProxyAdmin,
     deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
@@ -150,7 +146,6 @@ export class HyperlaneCoreDeployer<
       chain,
       'mailbox',
       [domain],
-      deployerOwnedProxyAdmin,
       proxyAdmin,
       [owner, defaultIsmAddress],
       deployOpts,
@@ -257,14 +252,8 @@ export class HyperlaneCoreDeployer<
     const multisigIsm = await this.deployMultisigIsm(chain);
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
-    const deployerOwnedProxyAdmin = await this.deployContract(
-      chain,
-      'deployerOwnedProxyAdmin',
-      [],
-    );
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
       chain,
-      deployerOwnedProxyAdmin,
       proxyAdmin,
     );
     const defaultIsmInterchainGasPaymaster =
@@ -275,7 +264,6 @@ export class HyperlaneCoreDeployer<
     const mailbox = await this.deployMailbox(
       chain,
       multisigIsm.address,
-      deployerOwnedProxyAdmin,
       proxyAdmin,
     );
     const validatorAnnounce = await this.deployValidatorAnnounce(
@@ -292,7 +280,6 @@ export class HyperlaneCoreDeployer<
 
     return {
       validatorAnnounce,
-      deployerOwnedProxyAdmin,
       proxyAdmin,
       mailbox,
       interchainGasPaymaster,

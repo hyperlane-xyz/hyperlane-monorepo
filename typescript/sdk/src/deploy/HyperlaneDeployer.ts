@@ -253,7 +253,6 @@ export abstract class HyperlaneDeployer<
   protected async deployProxy<C extends ethers.Contract>(
     chain: Chain,
     implementation: C,
-    deployerOwnedProxyAdmin: ProxyAdmin,
     proxyAdmin: ProxyAdmin,
     initArgs: Parameters<C['initialize']>,
     deployOpts?: DeployOptions,
@@ -378,7 +377,6 @@ export abstract class HyperlaneDeployer<
     chain: Chain,
     contractName: K,
     constructorArgs: Parameters<Factories[K]['deploy']>,
-    deployerOwnedProxyAdmin: ProxyAdmin,
     proxyAdmin: ProxyAdmin,
     initArgs: Parameters<C['initialize']>,
     deployOpts?: DeployOptions,
@@ -399,7 +397,6 @@ export abstract class HyperlaneDeployer<
     const contract = await this.deployProxy(
       chain,
       implementation as C,
-      deployerOwnedProxyAdmin,
       proxyAdmin,
       initArgs,
       deployOpts,

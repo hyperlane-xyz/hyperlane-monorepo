@@ -40,7 +40,6 @@ export class HyperlaneCoreInfraDeployer<
 
   async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
-    deployerOwnedProxyAdmin: ProxyAdmin,
     proxyAdmin: ProxyAdmin,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
@@ -51,12 +50,7 @@ export class HyperlaneCoreInfraDeployer<
         [this.environment, 'interchainGasPaymaster', 6],
       ),
     };
-    return super.deployInterchainGasPaymaster(
-      chain,
-      deployerOwnedProxyAdmin,
-      proxyAdmin,
-      deployOpts,
-    );
+    return super.deployInterchainGasPaymaster(chain, proxyAdmin, deployOpts);
   }
 
   async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(
@@ -79,7 +73,6 @@ export class HyperlaneCoreInfraDeployer<
   async deployMailbox<LocalChain extends Chain>(
     chain: LocalChain,
     defaultIsmAddress: types.Address,
-    deployerOwnedProxyAdmin: ProxyAdmin,
     proxyAdmin: ProxyAdmin,
   ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
     const deployOpts = {
@@ -91,7 +84,6 @@ export class HyperlaneCoreInfraDeployer<
     return super.deployMailbox(
       chain,
       defaultIsmAddress,
-      deployerOwnedProxyAdmin,
       proxyAdmin,
       deployOpts,
     );
