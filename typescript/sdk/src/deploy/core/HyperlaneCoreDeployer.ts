@@ -68,7 +68,7 @@ export class HyperlaneCoreDeployer<
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
-    const interchainGasPaymaster = await this.deployProxiedContract(
+    return this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
       [],
@@ -76,7 +76,6 @@ export class HyperlaneCoreDeployer<
       [],
       deployOpts,
     );
-    return interchainGasPaymaster;
   }
 
   async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(
