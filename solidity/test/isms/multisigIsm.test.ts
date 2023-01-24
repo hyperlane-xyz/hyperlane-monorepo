@@ -496,7 +496,7 @@ describe('MultisigIsm', async () => {
     const MAX_VALIDATOR_COUNT = 18;
     let metadata: string, message: string, recipient: string;
 
-    let gasOverhead: Record<number, Record<number, number>> = {};
+    const gasOverhead: Record<number, Record<number, number>> = {};
 
     before(async () => {
       const recipientF = new LightTestRecipient__factory(signer);
@@ -504,7 +504,9 @@ describe('MultisigIsm', async () => {
     });
 
     after(() => {
+      // eslint-disable-next-line no-console
       console.log('Instrumented gas overheads:');
+      // eslint-disable-next-line no-console
       console.log(JSON.stringify(gasOverhead));
     });
 

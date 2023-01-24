@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import {
   InterchainGasPaymaster,
   Mailbox,
+  OverheadIgp,
   ProxyAdmin,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
@@ -47,7 +48,7 @@ export class HyperlaneCoreInfraDeployer<
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
-        [this.environment, 'interchainGasPaymaster', 5],
+        [this.environment, 'interchainGasPaymaster', 6],
       ),
     };
     return super.deployInterchainGasPaymaster(
@@ -66,6 +67,23 @@ export class HyperlaneCoreInfraDeployer<
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
         [this.environment, 'defaultIsmInterchainGasPaymaster', 3],
+      ),
+    };
+    return super.deployDefaultIsmInterchainGasPaymaster(
+      chain,
+      interchainGasPaymasterAddress,
+      deployOpts,
+    );
+  }
+
+  async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(
+    chain: LocalChain,
+    interchainGasPaymasterAddress: types.Address,
+  ): Promise<OverheadIgp> {
+    const deployOpts = {
+      create2Salt: ethers.utils.solidityKeccak256(
+        ['string', 'string', 'uint8'],
+        [this.environment, 'defaultIsmInterchainGasPaymaster', 4],
       ),
     };
     return super.deployDefaultIsmInterchainGasPaymaster(

@@ -6,7 +6,7 @@
       "domain": "44787",
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
         "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
       },
       "signer": null,
@@ -25,7 +25,7 @@
       "domain": "43113",
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
         "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
       },
       "signer": null,
@@ -44,7 +44,7 @@
       "domain": "80001",
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
         "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
       },
       "signer": null,
@@ -63,7 +63,7 @@
       "domain": "97",
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
         "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
       },
       "signer": null,
@@ -82,7 +82,7 @@
       "domain": "5",
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
         "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
       },
       "signer": null,
@@ -101,7 +101,7 @@
       "domain": "1287",
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
         "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
       },
       "signer": null,
@@ -120,7 +120,7 @@
       "domain": "420",
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
         "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
       },
       "signer": null,
@@ -139,7 +139,7 @@
       "domain": "421613",
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
-        "interchainGasPaymaster": "0xc943A19A23533d1B6f34e09F01ccC71B6413FDb2",
+        "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
         "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
       },
       "signer": null,
