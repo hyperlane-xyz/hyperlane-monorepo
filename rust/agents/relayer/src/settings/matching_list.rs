@@ -193,7 +193,10 @@ impl Display for ListElement {
         write!(
             f,
             "{{originDomain: {}, senderAddress: {}, destinationDomain: {}, recipientAddress: {}}}",
-            self.origin_domain, self.sender_address, self.destination_domain, self.recipient_address
+            self.origin_domain,
+            self.sender_address,
+            self.destination_domain,
+            self.recipient_address
         )
     }
 }
