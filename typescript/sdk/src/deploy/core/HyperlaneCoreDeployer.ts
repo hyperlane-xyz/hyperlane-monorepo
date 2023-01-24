@@ -130,6 +130,7 @@ export class HyperlaneCoreDeployer<
             await chainConnection.handleTx(
               defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(
                 configs,
+                chainConnection.overrides,
               ),
             );
           } else {

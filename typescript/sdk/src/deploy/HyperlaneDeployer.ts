@@ -288,16 +288,20 @@ export abstract class HyperlaneDeployer<
       // a temporary deployer-owned proxy admin.
       // Note this requires the proxy contracts to ensure admin power has been
       // transferred to the canonical proxy admin at some point in the future.
+      const proxyAdminOwner = await proxyAdmin.owner();
+      const deployer = await this.multiProvider
+        .getChainSigner(chain)
+        .getAddress();
       let deployerOwnedProxyAdmin = proxyAdmin;
-      await this.runIfOwner(chain, deployerOwnedProxyAdmin, async () => {
+      if (proxyAdminOwner.toLowerCase() !== deployer.toLowerCase()) {
         deployerOwnedProxyAdmin = await this.deployContractFromFactory(
           chain,
           new ProxyAdmin__factory(),
           'DeployerOwnedProxyAdmin',
           [],
         );
-      });
-      // We set the initCallData to atomically change admin to the proxyAdmin
+      }
+      // We set the initCallData to atomically change admin to the deployer owned proxyAdmin
       // contract.
       const initCalldata =
         new TransparentUpgradeableProxy__factory().interface.encodeFunctionData(
