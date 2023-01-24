@@ -178,12 +178,12 @@ impl<'de> Deserialize<'de> for Filter<H256> {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
 struct ListElement {
-    #[serde(default, rename = "senderDomain")]
-    sender_domain: Filter<u32>,
+    #[serde(default, rename = "originDomain")]
+    origin_domain: Filter<u32>,
     #[serde(default, rename = "senderAddress")]
     sender_address: Filter<H256>,
-    #[serde(default, rename = "recipientDomain")]
-    recipient_domain: Filter<u32>,
+    #[serde(default, rename = "destinationDomain")]
+    destination_domain: Filter<u32>,
     #[serde(default, rename = "recipientAddress")]
     recipient_address: Filter<H256>,
 }
@@ -192,8 +192,8 @@ impl Display for ListElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{{senderDomain: {}, senderAddress: {}, recipientDomain: {}, recipientAddress: {}}}",
-            self.sender_domain, self.sender_address, self.recipient_domain, self.recipient_address
+            "{{originDomain: {}, senderAddress: {}, destinationDomain: {}, recipientAddress: {}}}",
+            self.origin_domain, self.sender_address, self.destination_domain, self.recipient_address
         )
     }
 }
@@ -237,9 +237,9 @@ impl MatchingList {
 
 fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: MatchInfo) -> bool {
     rules.any(|rule| {
-        rule.sender_domain.matches(&info.src_domain)
+        rule.origin_domain.matches(&info.src_domain)
             && rule.sender_address.matches(info.src_addr)
-            && rule.recipient_domain.matches(&info.dst_domain)
+            && rule.destination_domain.matches(&info.dst_domain)
             && rule.recipient_address.matches(info.dst_addr)
     })
 }
@@ -280,19 +280,19 @@ mod test {
 
     #[test]
     fn basic_config() {
-        let list: MatchingList = serde_json::from_str(r#"[{"senderDomain": "*", "senderAddress": "*", "recipientDomain": "*", "recipientAddress": "*"}, {}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"originDomain": "*", "senderAddress": "*", "destinationDomain": "*", "recipientAddress": "*"}, {}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 2);
         let elem = &list.0.as_ref().unwrap()[0];
-        assert_eq!(elem.recipient_domain, Wildcard);
+        assert_eq!(elem.destination_domain, Wildcard);
         assert_eq!(elem.recipient_address, Wildcard);
-        assert_eq!(elem.sender_domain, Wildcard);
+        assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);
 
         let elem = &list.0.as_ref().unwrap()[1];
-        assert_eq!(elem.recipient_domain, Wildcard);
+        assert_eq!(elem.destination_domain, Wildcard);
         assert_eq!(elem.recipient_address, Wildcard);
-        assert_eq!(elem.sender_domain, Wildcard);
+        assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);
 
         assert!(list.matches(
@@ -325,7 +325,7 @@ mod test {
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 1);
         let elem = &list.0.as_ref().unwrap()[0];
-        assert_eq!(elem.recipient_domain, Wildcard);
+        assert_eq!(elem.destination_domain, Wildcard);
         assert_eq!(
             elem.recipient_address,
             Enumerated(vec!["0x9d4454B023096f34B160D6B654540c56A1F81688"
@@ -333,7 +333,7 @@ mod test {
                 .unwrap()
                 .into()])
         );
-        assert_eq!(elem.sender_domain, Wildcard);
+        assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(
             elem.sender_address,
             Enumerated(vec!["0x9d4454B023096f34B160D6B654540c56A1F81688"
@@ -375,13 +375,13 @@ mod test {
     #[test]
     fn config_with_multiple_domains() {
         let whitelist: MatchingList =
-            serde_json::from_str(r#"[{"recipientDomain": ["13372", "13373"]}]"#).unwrap();
+            serde_json::from_str(r#"[{"destinationDomain": ["13372", "13373"]}]"#).unwrap();
         assert!(whitelist.0.is_some());
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
         let elem = &whitelist.0.as_ref().unwrap()[0];
-        assert_eq!(elem.recipient_domain, Enumerated(vec![13372, 13373]));
+        assert_eq!(elem.destination_domain, Enumerated(vec![13372, 13373]));
         assert_eq!(elem.recipient_address, Wildcard);
-        assert_eq!(elem.sender_domain, Wildcard);
+        assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);
     }
 

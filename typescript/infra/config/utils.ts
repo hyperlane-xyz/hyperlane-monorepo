@@ -7,9 +7,9 @@ import { Contexts } from './contexts';
 
 export const MATCHING_LIST_ALL_WILDCARDS = [
   {
-    senderDomain: '*',
+    originDomain: '*',
     senderAddress: '*',
-    recipientDomain: '*',
+    destinationDomain: '*',
     recipientAddress: '*',
   },
 ];
@@ -39,9 +39,9 @@ function routerMatchingList<Chain extends ChainName>(
       }
 
       matchingList.push({
-        senderDomain: chainMetadata[source].id,
+        originDomain: chainMetadata[source].id,
         senderAddress: routers[source].router,
-        recipientDomain: chainMetadata[destination].id,
+        destinationDomain: chainMetadata[destination].id,
         recipientAddress: routers[destination].router,
       });
     }

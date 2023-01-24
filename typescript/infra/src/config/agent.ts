@@ -91,9 +91,9 @@ export type ChainValidatorSets<Chain extends ChainName> = ChainMap<
 export type MatchingList = MatchingListElement[];
 
 interface MatchingListElement {
-  senderDomain?: '*' | string | string[] | number | number[];
+  originDomain?: '*' | string | string[] | number | number[];
   senderAddress?: '*' | string | string[];
-  recipientDomain?: '*' | string | string[] | number | number[];
+  destinationDomain?: '*' | string | string[] | number | number[];
   recipientAddress?: '*' | string | string[];
 }
 
