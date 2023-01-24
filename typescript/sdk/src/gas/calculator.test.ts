@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
+import { chainMetadata } from '../consts/chainMetadata';
 import { Chains } from '../consts/chains';
 import { HyperlaneCore } from '../core/HyperlaneCore';
 import { CoreContracts } from '../core/contracts';
@@ -53,9 +54,9 @@ describe('InterchainGasCalculator', () => {
   // in InterchainGasCalculator expecting a multiprovider with providers for
   // every chain.
   const multiProvider = new MultiProvider({
-    test1: { id: 1, provider },
-    test2: { id: 2, provider },
-    test3: { id: 3, provider },
+    test1: { id: chainMetadata.test1.id, provider },
+    test2: { id: chainMetadata.test2.id, provider },
+    test3: { id: chainMetadata.test3.id, provider },
   });
   const core: HyperlaneCore<TestChainNames> = HyperlaneCore.fromEnvironment(
     'test',
