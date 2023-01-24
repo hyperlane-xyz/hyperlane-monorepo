@@ -93,7 +93,7 @@ impl<'de, const N: usize> serde::Deserialize<'de> for HexString<N> {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Self::from_string(&s).map_err(serde::de::Error::custom)
+        Self::from_string(s).map_err(serde::de::Error::custom)
     }
 }
 
