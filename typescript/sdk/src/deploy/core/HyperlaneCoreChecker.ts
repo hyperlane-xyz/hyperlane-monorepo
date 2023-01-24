@@ -79,6 +79,12 @@ export class HyperlaneCoreChecker<
       contracts.interchainGasPaymaster.addresses,
       contracts.proxyAdmin.address,
     );
+    await this.checkProxiedContract(
+      chain,
+      'DefaultIsmInterchainGasPaymaster',
+      contracts.interchainGasPaymaster.addresses,
+      contracts.proxyAdmin.address,
+    );
   }
 
   async checkMultisigIsm(local: Chain): Promise<void> {

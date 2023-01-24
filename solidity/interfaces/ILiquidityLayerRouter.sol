@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import {Call} from "../contracts/Call.sol";
-
 interface ILiquidityLayerRouter {
     function dispatchWithTokens(
         uint32 _destinationDomain,

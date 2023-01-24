@@ -73,6 +73,8 @@ pub trait Signable: Sized {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SignedType<T: Signable> {
     /// The value which was signed
+    #[serde(alias = "checkpoint")]
+    #[serde(alias = "announcement")]
     pub value: T,
     /// The signature for the value
     pub signature: Signature,
