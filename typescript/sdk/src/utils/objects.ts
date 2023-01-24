@@ -23,7 +23,7 @@ export function objFilter<K extends string, I, O extends I>(
   func: (v: I) => v is O,
 ): Record<K, O> {
   return Object.fromEntries(
-    Object.entries<I>(obj).filter(([_, v]) => func(v)),
+    Object.entries<I>(obj).filter(([, v]) => func(v)),
   ) as Record<K, O>;
 }
 
