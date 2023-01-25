@@ -132,7 +132,7 @@ jobs:
 
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas-ci
-      
+   
   coverage-sol:
     env:
       ETHERSCAN_API_KEY: ''
