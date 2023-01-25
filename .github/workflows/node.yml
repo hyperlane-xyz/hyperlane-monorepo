@@ -26,10 +26,8 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
 
-      - name: Dump GitHub context
-        env:
-          GITHUB_CONTEXT: ${{ toJSON(github) }}
-        run: echo "$GITHUB_CONTEXT"
+      - name: Dump GitHub base sha
+        run: echo ${{ github.event.pull_request.base.sha }}
 
       - name: yarn-install
         # Check out the lockfile from main, reinstall, and then
@@ -141,7 +139,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: 'solidity/coverage/'
-          key: ${{ github.event.workflow_run.head_sha }}
+          key: ${{ github.event.pull_request.base.sha }}
 
       - name: persist-base-coverage
         run: |
