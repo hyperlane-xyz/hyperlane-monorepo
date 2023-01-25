@@ -132,25 +132,30 @@ jobs:
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas-ci
 
-      # TODO: Caching, skip if solidity not changed, block on decreased coverage
-      - uses: actions/checkout@v3
+      - name: base-coverage-cache
+        uses: actions/cache@v3
         with:
-          ref: ${{ github.base_ref }}
+          path: 'solidity/coverage/'
+          key: ${{ github.event.workflow_run.head_sha }}
 
-      - name: base-coverage
+      - name: persist-base-coverage
         run: |
-          yarn workspace @hyperlane-xyz/core run coverage-ci
-          mv packages/solidity/lcov.info packages/solidity/forge-lcov.base.info
+          mv packages/solidity/coverage/forge-lcov.info packages/solidity/forge-lcov.base.info
           mv packages/solidity/coverage/lcov.info packages/solidity/hardhat-lcov.base.info
 
-      - uses: actions/checkout@v3
-      - name: coverage
+      - name: ref-coverage
         run: yarn workspace @hyperlane-xyz/core run coverage-ci
+
+      - name: ref-coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: 'solidity/coverage/'
+          key: ${{ github.sha }}
 
       - uses: osmind-development-org/lcov-reporter-action@v0.3.2
         with:
           title: 'Forge Coverage Report'
-          lcov-file: ./solidity/lcov.info
+          lcov-file: ./solidity/coverage/forge.lcov.info
           lcov-base: ./solidity/forge-lcov.base.info
           delete-old-comments: true
 
@@ -160,3 +165,14 @@ jobs:
           lcov-file: ./solidity/coverage/lcov.info
           lcov-base: ./solidity/hardhat-lcov.base.info
           delete-old-comments: true
+
+      - name: check-coverage
+        run: |
+          apt-get install lcov
+          cd solidity
+          export BASE=$(lcov --summary hardhat-lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          export REF=$(lcov --summary coverage/lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          if [[ $REF < $BASE ]] exit 1 
+          export BASE=$(lcov --summary ./solidity/forge-lcov.base.info | grep "lines" | sed 's/lines......://' | sed 's/% (.*//')
+          export REF=$(lcov --summary ./solidity/coverage/forge.lcov.info | grep "lines" | sed 's/lines......://' | sed 's/% (.*//')
+          if [[ $REF < $BASE ]] exit 1
