@@ -262,7 +262,7 @@ export const celo: ChainMetadata = {
     estimateBlockTime: 5,
   },
   gnosisSafeTransactionServiceUrl:
-    'https://transaction-service.gnosis-safe-staging.celo-networks-dev.org',
+    'http://mainnet-tx-svc.celo-safe-prod.celo-networks-dev.org/',
 };
 
 export const ethereum: ChainMetadata = {
