@@ -38,6 +38,7 @@ type CheckpointReceipt = S3Receipt<types.Checkpoint>;
 const checkpointKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}.json`;
 const LATEST_KEY = 'checkpoint_latest_index.json';
+const ANNOUNCEMENT_KEY = 'announcement.json';
 
 /**
  * Extension of BaseValidator that includes AWS S3 utilities.
@@ -56,17 +57,19 @@ export class S3Validator extends BaseValidator {
     this.s3Bucket = new S3Wrapper(s3Bucket, s3Region);
   }
 
-  static fromStorageLocation(
-    address: string,
-    localDomain: number,
-    mailbox: string,
+  static async fromStorageLocation(
     storageLocation: string,
-  ): S3Validator {
+  ): Promise<S3Validator> {
     const prefix = 's3://';
     if (storageLocation.startsWith(prefix)) {
       const suffix = storageLocation.slice(prefix.length);
       const pieces = suffix.split('/');
       if (pieces.length == 2) {
+        const s3Bucket = new S3Wrapper(pieces[0], pieces[1]);
+        const announcement = await s3Bucket.getS3Obj<any>(ANNOUNCEMENT_KEY);
+        const address = announcement?.data.value.validator;
+        const mailbox = announcement?.data.value.mailbox_address;
+        const localDomain = announcement?.data.value.mailbox_domain;
         return new S3Validator(
           address,
           localDomain,
@@ -77,6 +80,10 @@ export class S3Validator extends BaseValidator {
       }
     }
     throw new Error(`Unable to parse location ${storageLocation}`);
+  }
+
+  getAnnouncement(): Promise<any> {
+    return this.s3Bucket.getS3Obj<any>(ANNOUNCEMENT_KEY);
   }
 
   async getLatestCheckpointIndex() {

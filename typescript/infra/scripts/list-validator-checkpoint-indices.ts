@@ -1,8 +1,4 @@
-import {
-  ChainNameToDomainId,
-  HyperlaneCore,
-  hyperlaneCoreAddresses,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneCore } from '@hyperlane-xyz/sdk';
 
 import { S3Validator } from '../src/agents/aws/validator';
 import { deployEnvToSdkEnv } from '../src/config/environment';
@@ -36,10 +32,7 @@ async function main() {
       let index = null;
       if (storageLocations.length == 1 && storageLocations[0].length == 1) {
         try {
-          const s3Validator = S3Validator.fromStorageLocation(
-            validator,
-            ChainNameToDomainId[chain],
-            hyperlaneCoreAddresses[chain].mailbox,
+          const s3Validator = await S3Validator.fromStorageLocation(
             storageLocations[0][0],
           );
           index = await s3Validator.getLatestCheckpointIndex();

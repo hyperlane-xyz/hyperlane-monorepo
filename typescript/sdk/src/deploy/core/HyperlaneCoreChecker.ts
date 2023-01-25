@@ -13,6 +13,7 @@ import {
   MailboxViolationType,
   MultisigIsmViolationType,
   ThresholdViolation,
+  ValidatorAnnounceViolation,
 } from './types';
 
 export class HyperlaneCoreChecker<
@@ -29,6 +30,7 @@ export class HyperlaneCoreChecker<
     await this.checkProxiedContracts(chain);
     await this.checkMailbox(chain);
     await this.checkMultisigIsm(chain);
+    await this.checkValidatorAnnounce(chain);
   }
 
   async checkDomainOwnership(chain: Chain): Promise<void> {
@@ -85,6 +87,25 @@ export class HyperlaneCoreChecker<
       contracts.interchainGasPaymaster.addresses,
       contracts.proxyAdmin.address,
     );
+  }
+
+  async checkValidatorAnnounce(chain: Chain): Promise<void> {
+    const expectedValidators = this.configMap[chain].multisigIsm.validators;
+    const validatorAnnounce = this.app.getContracts(chain).validatorAnnounce;
+    const announcedValidators =
+      await validatorAnnounce.getAnnouncedValidators();
+    expectedValidators.map((validator) => {
+      if (!announcedValidators.includes(validator)) {
+        const violation: ValidatorAnnounceViolation = {
+          type: CoreViolationType.ValidatorAnnounce,
+          chain,
+          validator,
+          actual: false,
+          expected: true,
+        };
+        this.addViolation(violation);
+      }
+    });
   }
 
   async checkMultisigIsm(local: Chain): Promise<void> {

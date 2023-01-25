@@ -1,10 +1,7 @@
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
-import { ethers } from 'ethers';
-import { readFileSync } from 'fs';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
-import * as path from 'path';
 
 import { TestSendReceiver__factory } from '@hyperlane-xyz/core';
 import {
@@ -37,40 +34,6 @@ const chainSummary = async <Chain extends ChainName>(
   };
   return summary;
 };
-
-task('announce', 'Registers validator announcement')
-  .addParam('checkpointsdir', 'Directory containing announcement json file')
-  .addParam('chain', 'Chain to announce on')
-  .setAction(
-    async (
-      taskArgs: { checkpointsdir: string; chain: ChainName },
-      hre: HardhatRuntimeEnvironment,
-    ) => {
-      const environment = 'test';
-      const config = getCoreEnvironmentConfig(environment);
-      const [signer] = await hre.ethers.getSigners();
-      const multiProvider = getTestMultiProvider(
-        signer,
-        config.transactionConfigs,
-      );
-      const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
-      const announcementFilepath = path.join(
-        taskArgs.checkpointsdir,
-        'announcement.json',
-      );
-      const announcement = JSON.parse(
-        readFileSync(announcementFilepath, 'utf-8'),
-      );
-      const tx = await core
-        .getContracts(taskArgs.chain)
-        .validatorAnnounce.announce(
-          announcement.value.validator,
-          announcement.value.storage_location,
-          ethers.utils.joinSignature(announcement.signature),
-        );
-      await tx.wait();
-    },
-  );
 
 task('kathy', 'Dispatches random hyperlane messages')
   .addParam(

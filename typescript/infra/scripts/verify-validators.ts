@@ -1,9 +1,4 @@
-import {
-  ChainNameToDomainId,
-  HyperlaneCore,
-  hyperlaneCoreAddresses,
-  objMap,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, objMap } from '@hyperlane-xyz/sdk';
 
 import { CheckpointStatus, S3Validator } from '../src/agents/aws/validator';
 import { deployEnvToSdkEnv } from '../src/config/environment';
@@ -21,26 +16,21 @@ async function main() {
   );
 
   objMap(config.core, async (chain, coreConfig) => {
-    const domainId = ChainNameToDomainId[chain];
-    const mailbox = hyperlaneCoreAddresses[chain].mailbox;
     // @ts-ignore Not sure why I need to do this..
     const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
     const storageLocations =
       await validatorAnnounce.getAnnouncedStorageLocations(
         coreConfig.multisigIsm.validators,
       );
-    const validators = coreConfig.multisigIsm.validators.map((validator, i) => {
-      // Only use the latest announcement for now
-      if (storageLocations[i].length != 1) {
-        throw new Error('Only support single announcement');
-      }
-      return S3Validator.fromStorageLocation(
-        validator,
-        domainId,
-        mailbox,
-        storageLocations[i][0],
-      );
-    });
+    const validators = await Promise.all(
+      coreConfig.multisigIsm.validators.map((validator, i) => {
+        // Only use the latest announcement for now
+        if (storageLocations[i].length != 1) {
+          throw new Error('Only support single announcement');
+        }
+        return S3Validator.fromStorageLocation(validator);
+      }),
+    );
     const controlValidator = validators[0];
     for (let i = 1; i < validators.length; i++) {
       const prospectiveValidator = validators[i];

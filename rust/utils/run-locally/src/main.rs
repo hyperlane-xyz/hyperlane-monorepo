@@ -323,10 +323,16 @@ fn main() -> ExitCode {
     // Register the validator announcement
     println!("Announcing validator...");
     let mut announce = Command::new("yarn");
-    announce.arg("announce");
+    let mut location = String::new();
+    location.push_str("file://");
+    location.push_str(checkpoints_dir.path().to_str().unwrap());
+    announce.arg("ts-node");
     announce.args([
-        "--checkpointsdir",
-        checkpoints_dir.path().to_str().unwrap(),
+        "scripts/announce-validators.ts",
+        "--environment",
+        "test",
+        "--location",
+        &location,
         "--chain",
         "test1",
     ]);
