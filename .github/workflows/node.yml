@@ -132,10 +132,9 @@ jobs:
 
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas-ci
-
       
   coverage-sol:
-    if: github.event_name == 'pull_request'
+    #if: github.event_name == 'pull_request'
     env:
       ETHERSCAN_API_KEY: ''
 
@@ -162,8 +161,7 @@ jobs:
           key: ${{ github.event.pull_request.base.sha }}
 
       - name: persist-base-coverage
-        run: |
-          mv ./solidity/lcov.info ./solidity/lcov.base.info
+        run: mv ./solidity/lcov.info ./solidity/lcov.base.info
 
       - name: ref-coverage
         run: yarn workspace @hyperlane-xyz/core run coverage
