@@ -13,13 +13,11 @@ interface IInterchainQueryRouter {
 
     function query(
         uint32 _destinationDomain,
-        CallLib.Call calldata call,
-        bytes calldata callback
+        CallLib.CallWithCallback calldata call
     ) external returns (bytes32);
 
     function query(
         uint32 _destinationDomain,
-        CallLib.Call[] calldata calls,
-        bytes[] calldata callbacks
+        CallLib.CallWithCallback[] calldata calls
     ) external returns (bytes32);
 }

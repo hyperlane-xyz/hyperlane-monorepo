@@ -83,39 +83,15 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
 
     /**
      * @param _destinationDomain Domain of destination chain
-     * @param calls Array of calls (to and data packed struct) to be made on destination chain in sequence.
-     */
-    function query(
-        uint32 _destinationDomain,
-        CallLib.Call[] memory calls,
-        bytes[] memory callbacks
-    ) external returns (bytes32 messageId) {
-        CallLib.CallWithCallback[]
-            memory callsWithCallbacks = new CallLib.CallWithCallback[](
-                calls.length
-            );
-        for (uint256 i = 0; i < calls.length; i++) {
-            callsWithCallbacks[i] = CallLib.CallWithCallback(
-                calls[i],
-                callbacks[i]
-            );
-        }
-        messageId = query(_destinationDomain, callsWithCallbacks);
-    }
-
-    /**
-     * @param _destinationDomain Domain of destination chain
      * @param call Call (to and data packed struct) to be made on destination chain.
-     * @param callback Callback function selector on `msg.sender` and optionally abi-encoded prefix arguments.
      */
     function query(
         uint32 _destinationDomain,
-        CallLib.Call memory call,
-        bytes calldata callback
+        CallLib.CallWithCallback memory call
     ) public returns (bytes32 messageId) {
         CallLib.CallWithCallback[]
             memory calls = new CallLib.CallWithCallback[](1);
-        calls[0] = CallLib.CallWithCallback(call, callback);
+        calls[0] = call;
         messageId = query(_destinationDomain, calls);
     }
 
@@ -134,8 +110,7 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
     ) external returns (bytes32 messageId) {
         messageId = query(
             _destinationDomain,
-            CallLib.Call(target, queryData),
-            callback
+            CallLib.CallWithCallback(CallLib.Call(target, queryData), callback)
         );
     }
 
@@ -152,7 +127,9 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         InterchainCallMessage.Type calltype = _message.calltype();
         address sender = _message.sender();
         if (calltype == InterchainCallMessage.Type.WITH_CALLBACK) {
-            bytes[] memory callbacks = _message.callsWithCallback().multicall();
+            bytes[] memory callbacks = _message
+                .callsWithCallback()
+                .staticmulticall();
             _dispatch(_origin, callbacks.format(sender));
             emit QueryReturned(_origin, sender);
         } else if (calltype == InterchainCallMessage.Type.RAW_CALLDATA) {

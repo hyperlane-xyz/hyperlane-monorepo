@@ -23,6 +23,14 @@ library CallLib {
         return Address.functionCall(call.to, call.data);
     }
 
+    function _staticcall(Call memory call)
+        internal
+        view
+        returns (bytes memory)
+    {
+        return Address.functionStaticCall(call.to, call.data);
+    }
+
     function _call(CallWithValue memory call) internal returns (bytes memory) {
         return
             Address.functionCallWithValue(
@@ -32,11 +40,12 @@ library CallLib {
             );
     }
 
-    function _call(CallWithCallback memory call)
+    function _staticcall(CallWithCallback memory call)
         internal
+        view
         returns (bytes memory)
     {
-        return bytes.concat(call.callbackdata, _call(call._call));
+        return bytes.concat(call.callbackdata, _staticcall(call._call));
     }
 
     function multicall(Call[] memory calls) internal {
@@ -61,15 +70,16 @@ library CallLib {
         }
     }
 
-    function multicall(CallWithCallback[] memory calls)
+    function staticmulticall(CallWithCallback[] memory calls)
         internal
+        view
         returns (bytes[] memory callbacks)
     {
         callbacks = new bytes[](calls.length);
         uint256 i = 0;
         uint256 len = calls.length;
         while (i < len) {
-            callbacks[i] = _call(calls[i]);
+            callbacks[i] = _staticcall(calls[i]);
             unchecked {
                 ++i;
             }
