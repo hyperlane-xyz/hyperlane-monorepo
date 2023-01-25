@@ -130,7 +130,10 @@ jobs:
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas-ci
 
-      # Also tests
+      - name: forge-test
+        run: yarn workspace @hyperlane-xyz/core run test:forge
+
+      # Will fail if hardhat tests fail but not if forge tests fail
       - name: coverage
         run: |
           sudo apt-get install lcov
