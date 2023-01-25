@@ -143,3 +143,45 @@ jobs:
         with:
           path: './solidity/lcov.info'
           key: ${{ github.sha }}
+
+  coverage-sol:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: [coverage-sol]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: ./*
+          key: ${{ github.sha }}
+
+      - name: base-coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: './solidity/lcov.info'
+          key: ${{ github.event.pull_request.base.sha }}
+
+      - name: persist-base-coverage
+        run: mv ./solidity/lcov.info ./solidity/lcov.base.info
+
+      - name: ref-coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: './solidity/lcov.info'
+          key: ${{ github.sha }}
+
+      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
+        with:
+          title: 'Solidity Coverage Report'
+          lcov-file: ./solidity/lcov.info
+          lcov-base: ./solidity/lcov.base.info
+          delete-old-comments: true
+
+      - name: check-coverage
+        run: |
+          sudo apt-get install lcov
+          cd ./solidity
+          export BASE=$(lcov --summary ./hardhat-lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          export REF=$(lcov --summary ./coverage/lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          if [[ $REF < $BASE ]]; then exit 1; fi
