@@ -133,15 +133,19 @@ jobs:
         run: yarn workspace @hyperlane-xyz/core run gas-ci
 
       # TODO: Caching, skip if solidity not changed, block on decreased coverage
-      - name: coverage
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.base_ref }}
+
+      - name: base-coverage
         run: |
-          git pull origin ${{ github.base_ref }}
-          git checkout ${{ github.base_ref }}
           yarn workspace @hyperlane-xyz/core run coverage-ci
           mv packages/solidity/lcov.info packages/solidity/forge-lcov.base.info
           mv packages/solidity/coverage/lcov.info packages/solidity/hardhat-lcov.base.info
-          git checkout ${{ github.head_ref }} 
-          yarn workspace @hyperlane-xyz/core run coverage-ci
+
+      - uses: actions/checkout@v3
+      - name: coverage
+        run: yarn workspace @hyperlane-xyz/core run coverage-ci
 
       - uses: osmind-development-org/lcov-reporter-action@v0.3.2
         with:
