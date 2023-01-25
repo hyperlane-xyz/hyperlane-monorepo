@@ -132,8 +132,10 @@ jobs:
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas-ci
 
+      # TODO: Caching, skip if solidity not changed, block on decreased coverage
       - name: coverage
         run: |
+          git pull origin ${{ github.base_ref }}
           git checkout ${{ github.base_ref }}
           yarn workspace @hyperlane-xyz/core run coverage-ci
           mv packages/solidity/lcov.info packages/solidity/forge-lcov.base.info
