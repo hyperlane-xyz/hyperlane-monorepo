@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/infra",
   "description": "Infrastructure utilities for the Hyperlane Network",
-  "version": "1.0.0",
+  "version": "1.0.1-beta0",
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
     "@aws-sdk/client-iam": "^3.74.0",
@@ -15,9 +15,9 @@
     "@gnosis.pm/safe-ethers-lib": "^1.4.0",
     "@gnosis.pm/safe-service-client": "^1.2.0",
     "@hyperlane-xyz/celo-ethers-provider": "^0.1.1",
-    "@hyperlane-xyz/helloworld": "1.0.0",
-    "@hyperlane-xyz/sdk": "1.0.0",
-    "@hyperlane-xyz/utils": "1.0.0",
+    "@hyperlane-xyz/helloworld": "1.0.1-beta0",
+    "@hyperlane-xyz/sdk": "1.0.1-beta0",
+    "@hyperlane-xyz/utils": "1.0.1-beta0",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@safe-global/safe-core-sdk": "3.2.0",
     "@safe-global/safe-ethers-lib": "^1.7.0",
