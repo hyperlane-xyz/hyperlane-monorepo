@@ -46,7 +46,7 @@
     "build": "hardhat compile && tsc",
     "clean": "hardhat clean && rm -rf ./dist ./cache",
     "coverage": "hardhat coverage && forge coverage",
-    "coverage-ci": "yarn coverage --report lcov",
+    "coverage-ci": "yarn coverage --report lcov && mv lcov.info coverage/forge-lcov.info",
     "prettier": "prettier --write ./contracts ./interfaces ./test",
     "test": "hardhat test && forge test -vvv",
     "gas": "forge snapshot",
