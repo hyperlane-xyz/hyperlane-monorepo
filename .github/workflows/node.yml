@@ -133,18 +133,24 @@ jobs:
         run: yarn workspace @hyperlane-xyz/core run gas-ci
 
       - name: coverage
-        run: yarn workspace @hyperlane-xyz/core run coverage-ci
+        run: |
+          git checkout ${{ github.base_ref }}
+          yarn workspace @hyperlane-xyz/core run coverage-ci
+          mv packages/solidity/lcov.info packages/solidity/forge-lcov.base.info
+          mv packages/solidity/coverage/lcov.info packages/solidity/hardhat-lcov.base.info
+          git checkout ${{ github.head_ref }} 
+          yarn workspace @hyperlane-xyz/core run coverage-ci
 
       - uses: osmind-development-org/lcov-reporter-action@v0.3.2
         with:
-          title: "Forge Coverage Report"
+          title: 'Forge Coverage Report'
           lcov-file: ./solidity/lcov.info
           lcov-base: ./solidity/forge-lcov.base.info
           delete-old-comments: true
 
       - uses: osmind-development-org/lcov-reporter-action@v0.3.2
         with:
-          title: "Hardhat Coverage Report"
+          title: 'Hardhat Coverage Report'
           lcov-file: ./solidity/coverage/lcov.info
           lcov-base: ./solidity/hardhat-lcov.base.info
           delete-old-comments: true
