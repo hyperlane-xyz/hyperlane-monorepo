@@ -15,7 +15,7 @@ use hyperlane_base::{
     run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
     CoreMetrics, HyperlaneAgentCore, MultisigCheckpointSyncer,
 };
-use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain};
+use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, U256};
 
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
@@ -41,6 +41,7 @@ pub struct Relayer {
     gas_payment_enforcement_policy: GasPaymentEnforcementPolicy,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
+    transaction_gas_limit: Option<U256>,
 }
 
 impl AsRef<HyperlaneAgentCore> for Relayer {
@@ -88,7 +89,12 @@ impl BaseAgent for Relayer {
 
         let whitelist = parse_matching_list(&settings.whitelist);
         let blacklist = parse_matching_list(&settings.blacklist);
-        info!(whitelist = %whitelist, blacklist = %blacklist, "Whitelist configuration");
+        let transaction_gas_limit = settings
+            .transactiongaslimit
+            .map(|l| l.parse())
+            .transpose()
+            .context("Invalid transaction gas limit")?;
+        info!(%whitelist, %blacklist, ?transaction_gas_limit, "Whitelist configuration");
 
         let origin_chain = core
             .settings
@@ -105,6 +111,7 @@ impl BaseAgent for Relayer {
             gas_payment_enforcement_policy: settings.gaspaymentenforcementpolicy,
             whitelist,
             blacklist,
+            transaction_gas_limit,
         })
     }
 
@@ -294,6 +301,7 @@ impl Relayer {
                         destination,
                     ),
                     gas_payment_enforcer,
+                    self.transaction_gas_limit,
                 );
                 serial_submitter.spawn()
             }

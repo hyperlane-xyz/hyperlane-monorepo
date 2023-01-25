@@ -39,4 +39,7 @@ decl_settings!(Relayer {
     /// This is optional. If no blacklist is provided ALL will be considered to not be on
     /// the blacklist.
     blacklist: Option<String>,
+    /// This is optional. If not specified, any amount of gas will be valid, otherwise this
+    /// is the max allowed gas in wei to relay a transaction.
+    transactiongaslimit: Option<String>,
 });

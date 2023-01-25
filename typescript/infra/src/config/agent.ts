@@ -120,6 +120,7 @@ interface BaseRelayerConfig {
   gasPaymentEnforcementPolicy: GasPaymentEnforcementPolicy;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
+  transactionGasLimit?: string;
 }
 
 // Per-chain relayer agent configs
@@ -135,6 +136,7 @@ interface RelayerConfig
   multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
   whitelist?: string;
   blacklist?: string;
+  transactionGasLimit?: string;
 }
 
 // ===================================
@@ -436,6 +438,9 @@ export class ChainAgentConfig<Chain extends ChainName> {
     }
     if (baseConfig.blacklist) {
       relayerConfig.blacklist = JSON.stringify(baseConfig.blacklist);
+    }
+    if (baseConfig.transactionGasLimit) {
+      relayerConfig.transactionGasLimit = baseConfig.transactionGasLimit;
     }
 
     return relayerConfig;
