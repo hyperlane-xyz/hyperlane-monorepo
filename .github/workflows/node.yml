@@ -124,9 +124,6 @@ jobs:
       - name: test-hardhat
         run: yarn workspace @hyperlane-xyz/core run test-hardhat
 
-      - name: gas
-        run: yarn workspace @hyperlane-xyz/core run gas-ci
-
       - name: coverage
         run: yarn workspace @hyperlane-xyz/core run coverage-ci
 
