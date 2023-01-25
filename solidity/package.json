@@ -45,10 +45,10 @@
   "scripts": {
     "build": "hardhat compile && tsc",
     "clean": "hardhat clean && rm -rf ./dist ./cache",
-    "coverage": "hardhat coverage && forge coverage",
-    "coverage-ci": "yarn coverage --report lcov && mv lcov.info coverage/forge-lcov.info",
+    "coverage": "./coverage.sh",
     "prettier": "prettier --write ./contracts ./interfaces ./test",
-    "test": "hardhat test && forge test -vvv",
+    "test": "hardhat test && yarn test",
+    "test:forge": "forge test -vvv",
     "gas": "forge snapshot",
     "gas-ci": "yarn gas --check || (echo 'Manually update gas snapshot' && exit 1)"
   },
