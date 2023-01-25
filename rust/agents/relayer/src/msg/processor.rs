@@ -85,7 +85,7 @@ impl MessageProcessor {
                     .retrieve_message_processed(self.message_nonce)?
                     .is_none()
                 {
-                    return Ok(Some(message))
+                    return Ok(Some(message));
                 } else {
                     debug!(
                     msg_nonce=?self.message_nonce,
@@ -96,7 +96,7 @@ impl MessageProcessor {
                 debug!(
                 msg_nonce=?self.message_nonce,
                 "No message found in DB for nonce");
-                return Ok(None)
+                return Ok(None);
             }
         }
     }
