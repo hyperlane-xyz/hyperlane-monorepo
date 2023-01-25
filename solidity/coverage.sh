@@ -1,7 +1,10 @@
 yarn hardhat coverage && forge coverage --report lcov
-# Hardhat uses absolute paths, whereas foundry uses relative paths
-# We convert hardhat's output to relative paths so they can be merged
-sed -i '' 's/\/.*hyperlane-monorepo.*solidity.//g' coverage/lcov.info 
+# Foundry uses paths relative to hyperlane-monorepo/solidity
+# whereas Hardhat uses absolute paths (locally) or paths
+# relative to hyperlane-monorepo (ci).
+# We convert Hardhat paths to Foundry paths so coverage artifacts
+# can be merged.
+sed -i '' 's/\/.*solidity.//g' coverage/lcov.info
 # Merge the two 
 find . -name lcov.info -exec echo -a {} \; | xargs lcov -o lcov.info
 # Clean up output
