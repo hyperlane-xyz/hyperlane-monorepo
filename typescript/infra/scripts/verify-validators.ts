@@ -44,20 +44,20 @@ async function main() {
     const controlValidator = validators[0];
     for (let i = 1; i < validators.length; i++) {
       const prospectiveValidator = validators[i];
-      const name = validatorSet.validators[i].name;
+      const address = prospectiveValidator.address;
       try {
         const metrics = await prospectiveValidator.compare(controlValidator);
         const valid =
           metrics.filter((metric) => metric.status !== CheckpointStatus.VALID)
             .length === 0;
         if (!valid) {
-          console.log(`${name} has >=1 non-valid checkpoints for ${chain}`);
+          console.log(`${address} has >=1 non-valid checkpoints for ${chain}`);
           console.log(JSON.stringify(metrics, null, 2));
         } else {
-          console.log(`${name} has valid checkpoints for ${chain}`);
+          console.log(`${address} has valid checkpoints for ${chain}`);
         }
       } catch (error) {
-        console.error(`Comparing validator ${name} failed:`);
+        console.error(`Comparing validator ${address} failed:`);
         console.error(error);
         throw error;
       }
