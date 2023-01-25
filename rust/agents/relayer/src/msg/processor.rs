@@ -162,7 +162,7 @@ impl MessageProcessor {
             send_channel.send(submit_args)?;
             self.message_nonce += 1;
         } else {
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
         Ok(())
     }
