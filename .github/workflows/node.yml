@@ -127,12 +127,10 @@ jobs:
       - name: Install dependencies
         run: cd solidity && forge install
 
-      - name: core
-        run: yarn workspace @hyperlane-xyz/core run test
-
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas-ci
 
+      # Also tests
       - name: coverage
         run: |
           sudo apt-get install lcov
