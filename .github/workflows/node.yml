@@ -127,52 +127,62 @@ jobs:
       - name: Install dependencies
         run: cd solidity && forge install
 
-      - name: core
-        run: yarn workspace @hyperlane-xyz/core run test
-
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas-ci
+
+      - name: forge-test
+        run: yarn workspace @hyperlane-xyz/core run test:forge
+
+      # Will fail if hardhat tests fail but not if forge tests fail
+      - name: coverage
+        run: |
+          sudo apt-get install lcov
+          yarn workspace @hyperlane-xyz/core run coverage
+
+      - name: coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: './solidity/lcov.info'
+          key: ${{ github.sha }}
+
+  coverage-sol:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: [test-sol]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: ./*
+          key: ${{ github.sha }}
 
       - name: base-coverage-cache
         uses: actions/cache@v3
         with:
-          path: './solidity/coverage/'
+          path: './solidity/lcov.info'
           key: ${{ github.event.pull_request.base.sha }}
 
       - name: persist-base-coverage
-        run: |
-          mv ./solidity/coverage/forge-lcov.info ./solidity/forge-lcov.base.info
-          mv ./solidity/coverage/lcov.info ./solidity/hardhat-lcov.base.info
-
-      - name: ref-coverage
-        run: yarn workspace @hyperlane-xyz/core run coverage-ci
+        run: mv ./solidity/lcov.info ./solidity/lcov.base.info
 
       - name: ref-coverage-cache
         uses: actions/cache@v3
         with:
-          path: './solidity/coverage/'
+          path: './solidity/lcov.info'
           key: ${{ github.sha }}
 
       - uses: osmind-development-org/lcov-reporter-action@v0.3.2
         with:
-          title: 'Forge Coverage Report'
-          lcov-file: ./solidity/coverage/forge-lcov.info
-          lcov-base: ./solidity/forge-lcov.base.info
-          delete-old-comments: true
-
-      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
-        with:
-          title: 'Hardhat Coverage Report'
-          lcov-file: ./solidity/coverage/lcov.info
-          lcov-base: ./solidity/hardhat-lcov.base.info
+          title: 'Solidity Coverage Report'
+          lcov-file: ./solidity/lcov.info
+          lcov-base: ./solidity/lcov.base.info
           delete-old-comments: true
 
       - name: check-coverage
         run: |
           sudo apt-get install lcov
           cd ./solidity
-          export H_BASE=$(lcov --summary ./hardhat-lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
-          export H_REF=$(lcov --summary ./coverage/lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
-          export F_BASE=$(lcov --summary ./forge-lcov.base.info | grep "lines" | sed 's/lines......://' | sed 's/% (.*//')
-          export F_REF=$(lcov --summary ./coverage/forge-lcov.info | grep "lines" | sed 's/lines......://' | sed 's/% (.*//')
-          if [[ $H_REF < $H_BASE ]] && [[ $F_REF < $F_BASE ]]; then exit 1; fi
+          export BASE=$(lcov --summary ./hardhat-lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          export REF=$(lcov --summary ./coverage/lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          if [[ $REF < $BASE ]]; then exit 1; fi
