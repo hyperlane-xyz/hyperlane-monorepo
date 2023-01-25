@@ -117,6 +117,7 @@ export {
 export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export { ProxyViolation } from './deploy/proxy';
 export { HyperlaneRouterDeployer } from './deploy/router/HyperlaneRouterDeployer';
+export { GasRouterDeployer } from './deploy/router/GasRouterDeployer';
 export { HyperlaneRouterChecker } from './deploy/router/HyperlaneRouterChecker';
 export {
   InterchainAccountDeployer,
@@ -137,7 +138,7 @@ export {
   interchainQueryFactories,
   liquidityLayerFactories,
 } from './middleware';
-export { RouterConfig } from './deploy/router/types';
+export { GasRouterConfig, RouterConfig } from './deploy/router/types';
 export { getTestMultiProvider, getChainToOwnerMap } from './deploy/utils';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
 export {

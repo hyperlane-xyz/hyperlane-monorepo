@@ -67,13 +67,8 @@ export class LiquidityLayerDeployer<
     configMap: ChainMap<Chain, LiquidityLayerConfig>,
     protected core: HyperlaneCore<Chain>,
     protected create2salt = 'LiquidityLayerDeployerSalt',
-    protected gasOverhead = 0, // TODO: populate
   ) {
-    const gasConfigMap = objMap(configMap, (_, config) => ({
-      ...config,
-      gasOverhead,
-    }));
-    super(multiProvider, gasConfigMap, liquidityLayerFactories, {});
+    super(multiProvider, configMap, liquidityLayerFactories, {});
   }
 
   async enrollRemoteRouters(

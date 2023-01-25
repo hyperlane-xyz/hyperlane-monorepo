@@ -1,9 +1,7 @@
 import { debug } from 'debug';
-import { BigNumberish } from 'ethers';
 
 import { GasRouter } from '@hyperlane-xyz/core';
 
-import { chainMetadata } from '../../consts/chainMetadata';
 import { DomainIdToChainName } from '../../domains';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
@@ -26,75 +24,34 @@ export abstract class GasRouterDeployer<
     options?: DeployerOptions,
   ) {
     super(multiProvider, configMap, factories, {
-      logger: debug('hyperlane:RouterDeployer'),
+      logger: debug('hyperlane:GasRouterDeployer'),
       ...options,
     });
   }
 
-  async setGasOverhead(
+  async enrollRemoteRouters(
     contractsMap: ChainMap<Chain, Contracts>,
   ): Promise<void> {
+    super.enrollRemoteRouters(contractsMap);
     this.logger(`Setting enrolled router handle gas overhead...`);
     for (const [chain, contracts] of Object.entries<Contracts>(contractsMap)) {
       const local = chain as Chain;
-      const localConfig = this.configMap[local];
 
       const remoteDomains = await contracts.router.domains();
       const remoteChains = remoteDomains.map(
         (domain) => DomainIdToChainName[domain] as Chain,
       );
-
-      let gasOverhead: BigNumberish[];
-
-      if ('messageBody' in localConfig) {
-        const localId = chainMetadata[local].id;
-        gasOverhead = await Promise.all(
-          remoteChains.map(async (remoteChain) =>
-            contractsMap[remoteChain].router.estimateGas.handle(
-              localId,
-              contracts.router.address,
-              localConfig.messageBody,
-              { from: this.configMap[remoteChain].mailbox },
-            ),
-          ),
-        );
-      } else {
-        gasOverhead = remoteChains.map((remoteChain) => {
-          const remoteConfig = this.configMap[remoteChain];
-          if ('gasOverhead' in remoteConfig) {
-            return remoteConfig.gasOverhead;
-          } else {
-            throw new Error(`No gas overhead specified for ${remoteChain}`);
-          }
-        });
-      }
-
-      const chainConnection = this.multiProvider.getChainConnection(local);
-      const configs = remoteDomains.map((domain, i) => ({
+      const remoteConfigs = remoteDomains.map((domain, i) => ({
         domain,
-        handleGasOverhead: gasOverhead[i],
+        handleGasOverhead: this.configMap[remoteChains[i]].handleGasOverhead,
       }));
       this.logger(
         `Enroll remote (${remoteChains}) handle gas overhead on ${local}`,
       );
+      const chainConnection = this.multiProvider.getChainConnection(local);
       await chainConnection.handleTx(
-        contracts.router.setGasOverheadConfigs(configs),
+        contracts.router.setGasOverheadConfigs(remoteConfigs),
       );
     }
-  }
-
-  async deploy(
-    partialDeployment?: Partial<Record<Chain, Contracts>>,
-  ): Promise<ChainMap<Chain, Contracts>> {
-    const contractsMap = await super.deploy(partialDeployment);
-
-    await super.enrollRemoteRouters(contractsMap);
-    await super.initConnectionClient(contractsMap);
-
-    await this.setGasOverhead(contractsMap);
-
-    await super.transferOwnership(contractsMap);
-
-    return contractsMap;
   }
 }
