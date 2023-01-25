@@ -65,8 +65,8 @@ export const hyperlane: AgentConfig<MainnetChains> = {
     default: {
       blacklist: [
         {
-          sourceDomain: '137',
-          destinationAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
+          originDomain: '137',
+          recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
         },
       ],
       gasPaymentEnforcementPolicy: {
