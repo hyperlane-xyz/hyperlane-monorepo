@@ -158,7 +158,7 @@ jobs:
       - uses: osmind-development-org/lcov-reporter-action@v0.3.2
         with:
           title: 'Forge Coverage Report'
-          lcov-file: ./solidity/coverage/forge.lcov.info
+          lcov-file: ./solidity/coverage/forge-lcov.info
           lcov-base: ./solidity/forge-lcov.base.info
           delete-old-comments: true
 
@@ -171,11 +171,10 @@ jobs:
 
       - name: check-coverage
         run: |
-          apt-get install lcov
-          cd solidity
-          export BASE=$(lcov --summary ./hardhat-lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
-          export REF=$(lcov --summary ./coverage/lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
-          if [[ $REF < $BASE ]] exit 1 
-          export BASE=$(lcov --summary ./forge-lcov.base.info | grep "lines" | sed 's/lines......://' | sed 's/% (.*//')
-          export REF=$(lcov --summary ./coverage/forge-lcov.info | grep "lines" | sed 's/lines......://' | sed 's/% (.*//')
-          if [[ $REF < $BASE ]] exit 1
+          sudo apt-get install lcov
+          cd ./solidity
+          export H_BASE=$(lcov --summary ./hardhat-lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          export H_REF=$(lcov --summary ./coverage/lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          export F_BASE=$(lcov --summary ./forge-lcov.base.info | grep "lines" | sed 's/lines......://' | sed 's/% (.*//')
+          export F_REF=$(lcov --summary ./coverage/forge-lcov.info | grep "lines" | sed 's/lines......://' | sed 's/% (.*//')
+          if [[ $H_REF < $H_BASE ]] && [[ $F_REF < $F_BASE ]]; then exit 1; fi
