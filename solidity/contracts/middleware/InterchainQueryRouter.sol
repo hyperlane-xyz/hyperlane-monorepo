@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
 import {CallLib} from "../libs/Call.sol";
-import {GasRouter} from "../GasRouter.sol";
+import {Router} from "../Router.sol";
 import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
 
 // ============ External Imports ============
@@ -15,7 +15,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title Interchain Query Router that performs remote view calls on other chains and returns the result.
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
-contract InterchainQueryRouter is GasRouter, IInterchainQueryRouter {
+contract InterchainQueryRouter is Router, IInterchainQueryRouter {
     using CallLib for address;
     using CallLib for CallLib.Call[];
 
@@ -82,7 +82,7 @@ contract InterchainQueryRouter is GasRouter, IInterchainQueryRouter {
         address target,
         bytes calldata queryData,
         bytes calldata callback
-    ) external payable returns (bytes32 messageId) {
+    ) external returns (bytes32 messageId) {
         // TODO: fix this ugly arrayification
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = CallLib.Call({to: target, data: queryData});
@@ -100,7 +100,7 @@ contract InterchainQueryRouter is GasRouter, IInterchainQueryRouter {
         uint32 _destinationDomain,
         CallLib.Call calldata call,
         bytes calldata callback
-    ) external payable returns (bytes32 messageId) {
+    ) external returns (bytes32 messageId) {
         // TODO: fix this ugly arrayification
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
@@ -118,18 +118,15 @@ contract InterchainQueryRouter is GasRouter, IInterchainQueryRouter {
         uint32 _destinationDomain,
         CallLib.Call[] memory calls,
         bytes[] memory callbacks
-    ) public payable returns (bytes32 messageId) {
+    ) public returns (bytes32 messageId) {
         require(
             calls.length == callbacks.length,
             "InterchainQueryRouter: calls and callbacks must be same length"
         );
-        bytes memory body = abi.encode(
-            Action.DISPATCH,
-            msg.sender,
-            calls,
-            callbacks
+        messageId = _dispatch(
+            _destinationDomain,
+            abi.encode(Action.DISPATCH, msg.sender, calls, callbacks)
         );
-        messageId = _dispatchWithGas(_destinationDomain, body);
         emit QueryDispatched(_destinationDomain, msg.sender);
     }
 
@@ -155,9 +152,7 @@ contract InterchainQueryRouter is GasRouter, IInterchainQueryRouter {
                     (Action, address, CallLib.Call[], bytes[])
                 );
             callbacks = calls._multicallAndResolve(callbacks);
-            bytes memory body = abi.encode(Action.RESOLVE, sender, callbacks);
-            // WARN: return route does not currently pay for gas
-            _dispatch(_origin, body);
+            _dispatch(_origin, abi.encode(Action.RESOLVE, sender, callbacks));
             emit QueryReturned(_origin, sender);
         } else if (action == Action.RESOLVE) {
             (, address sender, bytes[] memory resolveCallbacks) = abi.decode(

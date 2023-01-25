@@ -68,7 +68,7 @@ contract InterchainAccountRouterTest is Test {
 
     function testCannotSetOwner(address newOwner) public {
         vm.assume(newOwner != address(0x0));
-        originRouter.dispatch{value: 1}(
+        originRouter.dispatch(
             remoteDomain,
             address(ownable),
             abi.encodeWithSelector(ownable.transferOwnership.selector, newOwner)
@@ -83,7 +83,7 @@ contract InterchainAccountRouterTest is Test {
 
         ownable.transferOwnership(ica);
 
-        originRouter.dispatch{value: 1}(
+        originRouter.dispatch(
             remoteDomain,
             address(ownable),
             abi.encodeWithSelector(ownable.transferOwnership.selector, newOwner)
@@ -97,7 +97,7 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testCannotSetOwnerTwice(address newOwner) public {
-        vm.assume(newOwner != address(0x0));
+        vm.assume(newOwner != address(0x0) && newOwner != ica);
         ownable.transferOwnership(ica);
 
         CallLib.Call memory transferOwner = CallLib.Call({
@@ -110,7 +110,7 @@ contract InterchainAccountRouterTest is Test {
         CallLib.Call[] memory calls = new CallLib.Call[](2);
         calls[0] = transferOwner;
         calls[1] = transferOwner;
-        originRouter.dispatch{value: 1}(remoteDomain, calls);
+        originRouter.dispatch(remoteDomain, calls);
 
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         environment.processNextPendingMessage();

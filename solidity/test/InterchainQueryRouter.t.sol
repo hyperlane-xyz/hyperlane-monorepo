@@ -79,12 +79,7 @@ contract InterchainQueryRouterTest is Test {
     ) public {
         vm.expectEmit(true, true, false, true, address(originRouter));
         emit QueryDispatched(remoteDomain, address(this));
-        originRouter.query{value: 1}(
-            remoteDomain,
-            address(target),
-            call,
-            callback
-        );
+        originRouter.query(remoteDomain, address(target), call, callback);
 
         vm.expectEmit(true, true, false, true, address(remoteRouter));
         emit QueryReturned(originDomain, address(this));
@@ -108,7 +103,7 @@ contract InterchainQueryRouterTest is Test {
         // Deploy a random ownable contract
         OwnableMulticall ownable = new OwnableMulticall();
 
-        originRouter.query{value: 1}(
+        originRouter.query(
             remoteDomain,
             address(ownable),
             abi.encodeWithSelector(
@@ -125,7 +120,7 @@ contract InterchainQueryRouterTest is Test {
         // Deploy a random ownable contract
         OwnableMulticall ownable = new OwnableMulticall();
 
-        originRouter.query{value: 1}(
+        originRouter.query(
             remoteDomain,
             address(ownable),
             abi.encodePacked(ownable.owner.selector),

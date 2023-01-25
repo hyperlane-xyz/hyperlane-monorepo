@@ -16,14 +16,14 @@ contract TestQuery {
     /**
      * @dev Fetches owner of InterchainQueryRouter on provided domain and passes along with provided secret to `this.receiveRouterOwner`
      */
-    function queryRouterOwner(uint32 domain, uint256 secret) external payable {
+    function queryRouterOwner(uint32 domain, uint256 secret) external {
         address target = TypeCasts.bytes32ToAddress(router.routers(domain));
         bytes memory data = abi.encodeWithSignature("owner()");
         bytes memory callback = bytes.concat(
             this.receiveRouterOwer.selector,
             bytes32(secret)
         );
-        router.query{value: msg.value}(domain, target, data, callback);
+        router.query(domain, target, data, callback);
     }
 
     /**
