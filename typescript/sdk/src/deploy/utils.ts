@@ -27,6 +27,7 @@ export function getTestMultiProvider<Chain extends TestChainNames>(
   const chainProviders = objMap(configs, (_, config) => ({
     signer,
     provider,
+    id: config.id,
     confirmations: config.confirmations,
     overrides: config.overrides,
   }));

@@ -70,33 +70,34 @@ impl MessageProcessor {
     /// been marked as processed, increments self.message_nonce and returns
     /// None.
     fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
-        // First, see if we can find the message so we can update the gauge.
-        if let Some(message) = self.db.message_by_nonce(self.message_nonce)? {
-            // Update the latest nonce gauge if the message is destined for one
-            // of the domains we service.
-            if let Some(metrics) = self.metrics.get(message.destination) {
-                metrics.set(message.nonce as i64);
-            }
+        loop {
+            // First, see if we can find the message so we can update the gauge.
+            if let Some(message) = self.db.message_by_nonce(self.message_nonce)? {
+                // Update the latest nonce gauge if the message is destined for one
+                // of the domains we service.
+                if let Some(metrics) = self.metrics.get(message.destination) {
+                    metrics.set(message.nonce as i64);
+                }
 
-            // If this message has already been processed, on to the next one.
-            if self
-                .db
-                .retrieve_message_processed(self.message_nonce)?
-                .is_none()
-            {
-                Ok(Some(message))
-            } else {
-                debug!(
+                // If this message has already been processed, on to the next one.
+                if self
+                    .db
+                    .retrieve_message_processed(self.message_nonce)?
+                    .is_none()
+                {
+                    return Ok(Some(message));
+                } else {
+                    debug!(
                     msg_nonce=?self.message_nonce,
                     "Message already marked as processed in DB");
-                self.message_nonce += 1;
-                Ok(None)
-            }
-        } else {
-            debug!(
+                    self.message_nonce += 1;
+                }
+            } else {
+                debug!(
                 msg_nonce=?self.message_nonce,
                 "No message found in DB for nonce");
-            Ok(None)
+                return Ok(None);
+            }
         }
     }
 
