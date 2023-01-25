@@ -1,4 +1,4 @@
-import { AllChains, AllDeprecatedChains } from '../consts/chains';
+import { AllDeprecatedChains } from '../consts/chains';
 import { ChainMap, ChainName, Remotes } from '../types';
 
 export class MultiGeneric<Chain extends ChainName, Value> {
