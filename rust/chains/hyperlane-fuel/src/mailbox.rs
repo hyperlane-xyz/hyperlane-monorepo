@@ -60,7 +60,7 @@ impl Debug for FuelMailbox {
 
 #[async_trait]
 impl Mailbox for FuelMailbox {
-    #[instrument(err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self) -> ChainResult<u32> {
         self.contract
             .methods()
