@@ -73,6 +73,7 @@ export const hyperlane: AgentConfig<TestnetChains> = {
         type: GasPaymentEnforcementPolicyType.None,
       },
       transactionGasLimit: undefined,
+      skipTransactionGasLimitFor: [421613],
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,
