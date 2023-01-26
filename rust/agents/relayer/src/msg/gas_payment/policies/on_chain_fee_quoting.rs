@@ -19,6 +19,9 @@ impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
         let half_gas_estimate = tx_cost_estimate.gas_limit >> 1;
+        // TODO: what happens if they get it wrong but it is _enough_ to allow it to be
+        //  attempted. We would have to pay that gas and we would keep retrying
+        //  the message.
         if current_payment.gas_amount >= half_gas_estimate {
             Ok(Some(current_payment.gas_amount))
         } else {
