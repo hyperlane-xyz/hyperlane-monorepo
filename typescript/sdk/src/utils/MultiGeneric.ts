@@ -1,4 +1,4 @@
-import { AllChains, AllDeprecatedChains } from '../consts/chains';
+import { AllDeprecatedChains } from '../consts/chains';
 import { ChainMap, ChainName, Remotes } from '../types';
 
 export class MultiGeneric<Chain extends ChainName, Value> {
@@ -9,9 +9,6 @@ export class MultiGeneric<Chain extends ChainName, Value> {
    * @throws if chain is invalid or has not been set
    */
   protected get(chain: Chain): Value {
-    if (!chain || !AllChains.includes(chain)) {
-      throw new Error(`Invalid chain ${chain}`);
-    }
     const value = this.chainMap[chain] ?? null;
     if (!value) {
       throw new Error(`No chain value found for ${chain}`);
@@ -24,9 +21,6 @@ export class MultiGeneric<Chain extends ChainName, Value> {
    * @returns value or null if chain value has not been set
    */
   protected tryGet(chain: Chain): Value | null {
-    if (!chain || !AllChains.includes(chain)) {
-      return null;
-    }
     return this.chainMap[chain] ?? null;
   }
 

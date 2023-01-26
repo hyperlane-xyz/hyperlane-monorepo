@@ -36,10 +36,10 @@ export function getChainOverriddenConfig<Chain extends ChainName, T>(
 export type MatchingList = MatchingListElement[];
 
 interface MatchingListElement {
-  sourceDomain?: '*' | string | string[] | number | number[];
-  sourceAddress?: '*' | string | string[];
+  originDomain?: '*' | string | string[] | number | number[];
+  senderAddress?: '*' | string | string[];
   destinationDomain?: '*' | string | string[] | number | number[];
-  destinationAddress?: '*' | string | string[];
+  recipientAddress?: '*' | string | string[];
 }
 
 export enum GasPaymentEnforcementPolicyType {
