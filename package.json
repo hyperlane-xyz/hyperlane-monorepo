@@ -1,11 +1,11 @@
 {
   "name": "@hyperlane-xyz/hyperlane-token",
   "description": "A template for interchain ERC20 and ERC721 tokens using Hyperlane",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "dependencies": {
-    "@hyperlane-xyz/core": "1.1.0",
-    "@hyperlane-xyz/sdk": "1.1.0",
-    "@hyperlane-xyz/utils": "1.1.0",
+    "@hyperlane-xyz/core": "1.1.1",
+    "@hyperlane-xyz/sdk": "1.1.1",
+    "@hyperlane-xyz/utils": "1.1.1",
     "@openzeppelin/contracts-upgradeable": "^4.8.0",
     "ethers": "^5.7.2"
   },

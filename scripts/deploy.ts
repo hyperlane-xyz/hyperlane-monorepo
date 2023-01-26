@@ -72,13 +72,11 @@ async function deployWarpRoute() {
       // Use custom config
       const chainConfig = chainConfigs[chain] as ChainMetadata;
       multiProviderConfig[chain] = {
+        id: chainConfig.id,
         provider: new ethers.providers.JsonRpcProvider(
           chainConfig.publicRpcUrls[0].http,
-          chainConfig.id,
         ),
         confirmations: chainConfig.blocks.confirmations,
-        blockExplorerUrl: chainConfig.blockExplorers[0].url,
-        blockExplorerApiUrl: chainConfig.blockExplorers[0].apiUrl,
         // @ts-ignore
         overrides: chainConfig.overrides,
       };
