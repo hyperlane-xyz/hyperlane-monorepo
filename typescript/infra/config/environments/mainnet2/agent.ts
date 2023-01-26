@@ -59,6 +59,9 @@ export const hyperlane: AgentConfig<MainnetChains> = {
       moonbeam: {
         reorgPeriod: 0,
       },
+      gnosis: {
+        reorgPeriod: 3,
+      },
     },
   },
   relayer: {

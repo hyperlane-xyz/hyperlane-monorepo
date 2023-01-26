@@ -107,6 +107,7 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   moonbeam: '0.1',
   optimismgoerli: '0.1',
   arbitrumgoerli: '0.1',
+  gnosis: '0.1',
   // unused
   test1: '0',
   test2: '0',

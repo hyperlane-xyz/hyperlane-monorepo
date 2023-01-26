@@ -152,6 +152,25 @@
       "index": {
         "from": "2595747"
       }
+    },
+    "gnosis": {
+      "name": "gnosis",
+      "domain": "100",
+      "addresses": {
+        "mailbox": "0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70",
+        "interchainGasPaymaster": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
+        "validatorAnnounce": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f"
+      },
+      "signer": null,
+      "protocol": "ethereum",
+      "finalityBlocks": "3",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": "26149361"
+      }
     }
   },
   "db": "db_path",

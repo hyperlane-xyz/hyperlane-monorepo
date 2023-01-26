@@ -99,6 +99,8 @@ pub enum KnownHyperlaneDomain {
     Moonbeam = 1284,
     MoonbaseAlpha = 1287,
 
+    Gnosis = 100,
+
     Zksync2Testnet = 280,
 
     // -- Local test chains --

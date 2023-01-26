@@ -80,6 +80,7 @@ const celoToken = {
 };
 const etherToken = { name: 'Ether', symbol: 'ETH', decimals: 18 };
 const maticToken = { name: 'MATIC', symbol: 'MATIC', decimals: 18 };
+const xDaiToken = { name: 'xDai', symbol: 'xDai', decimals: 18 };
 
 /**
  * Chain metadata
@@ -503,6 +504,37 @@ export const polygon: ChainMetadata = {
     'https://safe-transaction.polygon.gnosis.io/',
 };
 
+export const gnosis: ChainMetadata = {
+  id: 100,
+  name: Chains.gnosis,
+  displayName: 'Gnosis',
+  nativeToken: xDaiToken,
+  publicRpcUrls: [
+    {
+      http: 'https://rpc.gnosischain.com',
+      pagination: {
+        blocks: 10000,
+        from: 25997478,
+      },
+    },
+  ],
+  blockExplorers: [
+    {
+      name: 'GnosisScan',
+      url: 'https://gnosisscan.io/',
+      apiUrl: 'https://api.gnosisscan.io/',
+      family: ExplorerFamily.Etherscan,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 3,
+    estimateBlockTime: 5,
+  },
+  gasCurrencyCoinGeckoId: 'xdai',
+  gnosisSafeTransactionServiceUrl: 'https://safe-transaction.xdai.gnosis.io/',
+};
+
 export const test1: ChainMetadata = {
   id: 13371,
   name: Chains.test1,
@@ -568,6 +600,7 @@ export const chainMetadata = {
   optimism,
   optimismgoerli,
   polygon,
+  gnosis,
   test1,
   test2,
   test3,
