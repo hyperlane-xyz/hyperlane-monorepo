@@ -303,11 +303,14 @@ impl SerialSubmitter {
             // reverting, e.g. timeouts or txs being dropped from the mempool. To avoid consistently retrying
             // only these messages, the number of retries could be considered.
 
-            let gas_limit = if let Some(max_limit) = self.transaction_gas_limit {
-                tx_cost_estimate.gas_limit.min(max_limit)
-            } else {
-                tx_cost_estimate.gas_limit
-            };
+            let gas_limit = tx_cost_estimate.gas_limit;
+
+            if let Some(max_limit) = self.transaction_gas_limit {
+                if gas_limit > max_limit {
+                    info!(nonce=msg.message.nonce, "Message delivery predicted gas exceeds max gas limit");
+                    return Ok(false)
+                }
+            }
 
             // We use the estimated gas limit from the prior call to `process_estimate_costs` to
             // avoid a second gas estimation.
