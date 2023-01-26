@@ -1,9 +1,9 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "1.0.1-beta0",
+  "version": "1.1.0",
   "dependencies": {
-    "@hyperlane-xyz/utils": "1.0.1-beta0",
+    "@hyperlane-xyz/utils": "1.1.0",
     "@openzeppelin/contracts": "^4.8.0",
     "@openzeppelin/contracts-upgradeable": "^4.8.0"
   },
@@ -52,6 +52,5 @@
     "gas": "forge snapshot",
     "gas-ci": "yarn gas --check || (echo 'Manually update gas snapshot' && exit 1)"
   },
-  "types": "dist/index.d.ts",
-  "stableVersion": "1.0.0"
+  "types": "dist/index.d.ts"
 }
