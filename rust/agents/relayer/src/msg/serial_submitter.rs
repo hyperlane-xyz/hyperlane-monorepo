@@ -307,8 +307,11 @@ impl SerialSubmitter {
 
             if let Some(max_limit) = self.transaction_gas_limit {
                 if gas_limit > max_limit {
-                    info!(nonce=msg.message.nonce, "Message delivery predicted gas exceeds max gas limit");
-                    return Ok(false)
+                    info!(
+                        nonce = msg.message.nonce,
+                        "Message delivery predicted gas exceeds max gas limit"
+                    );
+                    return Ok(false);
                 }
             }
 
