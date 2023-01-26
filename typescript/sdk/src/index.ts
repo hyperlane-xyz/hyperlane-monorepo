@@ -64,7 +64,13 @@ export {
   ProxyAddresses,
 } from './proxy';
 
-export { Router, RouterContracts, RouterFactories } from './router';
+export {
+  Router,
+  RouterContracts,
+  RouterFactories,
+  RouterApp,
+  GasRouterApp,
+} from './router';
 
 export { ChainConnection } from './providers/ChainConnection';
 export { MultiProvider } from './providers/MultiProvider';

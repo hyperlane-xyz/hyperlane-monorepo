@@ -32,7 +32,8 @@ export abstract class GasRouterDeployer<
   async enrollRemoteRouters(
     contractsMap: ChainMap<Chain, Contracts>,
   ): Promise<void> {
-    super.enrollRemoteRouters(contractsMap);
+    await super.enrollRemoteRouters(contractsMap);
+
     this.logger(`Setting enrolled router handle gas overhead...`);
     for (const [chain, contracts] of Object.entries<Contracts>(contractsMap)) {
       const local = chain as Chain;

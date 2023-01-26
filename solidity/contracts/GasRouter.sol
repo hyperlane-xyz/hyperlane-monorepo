@@ -5,7 +5,7 @@ import {Router} from "./Router.sol";
 
 abstract contract GasRouter is Router {
     // ============ Mutable Storage ============
-    mapping(uint32 => uint256) handleGasOverhead;
+    mapping(uint32 => uint256) public handleGasOverhead;
 
     // ============ Events ============
 
@@ -47,6 +47,18 @@ abstract contract GasRouter is Router {
 
     function setGasOverhead(uint32 domain, uint256 gas) external onlyOwner {
         _setGasOverhead(domain, gas);
+    }
+
+    function quoteGasPayment(uint32 _destinationDomain)
+        external
+        view
+        returns (uint256 _gasPayment)
+    {
+        return
+            interchainGasPaymaster.quoteGasPayment(
+                _destinationDomain,
+                handleGasOverhead[_destinationDomain]
+            );
     }
 
     function _setGasOverhead(uint32 domain, uint256 gas) internal {
