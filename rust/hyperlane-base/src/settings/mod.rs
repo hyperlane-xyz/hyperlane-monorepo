@@ -167,36 +167,6 @@ impl Settings {
         Ok(result)
     }
 
-    /// Try to get a map of chain name -> interchain gas paymaster contract
-    pub async fn build_all_interchain_gas_paymasters(
-        &self,
-        chain_names: &[&str],
-        metrics: &CoreMetrics,
-        db: DB,
-    ) -> eyre::Result<HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>> {
-        let mut result = HashMap::new();
-        for &chain_name in chain_names {
-            let igp = self
-                .build_caching_interchain_gas_paymaster(chain_name, db.clone(), metrics)
-                .await?;
-            result.insert(igp.paymaster().domain().clone(), igp);
-        }
-        Ok(result)
-    }
-
-    /// Try to get a map of chain name -> validator announce contract
-    pub async fn build_all_validator_announces(
-        &self,
-        chain_names: &[&str],
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<HashMap<HyperlaneDomain, Arc<dyn ValidatorAnnounce>>> {
-        let mut result = HashMap::new();
-        for &chain_name in chain_names {
-            let validator_announce = self.build_validator_announce(chain_name, metrics).await?;
-            result.insert(validator_announce.domain().clone(), validator_announce);
-        }
-        Ok(result)
-    }
     /// Try to get a CachingMailbox
     async fn build_caching_mailbox(
         &self,
@@ -215,7 +185,7 @@ impl Settings {
     }
 
     /// Try to get a CachingInterchainGasPaymaster
-    async fn build_caching_interchain_gas_paymaster(
+    pub async fn build_caching_interchain_gas_paymaster(
         &self,
         chain_name: &str,
         db: DB,

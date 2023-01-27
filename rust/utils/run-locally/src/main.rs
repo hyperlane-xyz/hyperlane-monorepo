@@ -323,9 +323,7 @@ fn main() -> ExitCode {
     // Register the validator announcement
     println!("Announcing validator...");
     let mut announce = Command::new("yarn");
-    let mut location = String::new();
-    location.push_str("file://");
-    location.push_str(checkpoints_dir.path().to_str().unwrap());
+    let location = format!("file://{}", checkpoints_dir.path().to_str().unwrap());
     announce.arg("ts-node");
     announce.args([
         "scripts/announce-validators.ts",

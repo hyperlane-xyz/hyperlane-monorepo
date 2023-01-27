@@ -31,8 +31,7 @@ impl CheckpointSyncerConf {
     pub fn from_storage_location(storage_location: &str) -> Option<Self> {
         let s3_prefix = "s3://";
         let local_prefix = "file://";
-        if storage_location.starts_with(s3_prefix) {
-            let location = storage_location.strip_prefix(s3_prefix).unwrap();
+        if let Some(location) = storage_location.strip_prefix(s3_prefix) {
             let pieces: Vec<&str> = location.split('/').collect();
             if pieces.len() == 2 {
                 Some(CheckpointSyncerConf::S3 {
@@ -42,8 +41,7 @@ impl CheckpointSyncerConf {
             } else {
                 None
             }
-        } else if storage_location.starts_with(local_prefix) {
-            let path = storage_location.strip_prefix(local_prefix).unwrap();
+        } else if let Some(path) = storage_location.strip_prefix(local_prefix) {
             Some(CheckpointSyncerConf::LocalStorage { path: path.into() })
         } else {
             None

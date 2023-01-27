@@ -36,7 +36,7 @@ pub struct Relayer {
     origin_chain: HyperlaneDomain,
     core: HyperlaneAgentCore,
     mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
-    interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
+    interchain_gas_paymaster: CachingInterchainGasPaymaster,
     gas_payment_enforcement_policy: GasPaymentEnforcementPolicy,
     validator_announce: Arc<dyn ValidatorAnnounce>,
     whitelist: Arc<MatchingList>,
@@ -77,8 +77,8 @@ impl BaseAgent for Relayer {
         let mailboxes = settings
             .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
             .await?;
-        let interchain_gas_paymasters = settings
-            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db)
+        let interchain_gas_paymaster = settings
+            .build_caching_interchain_gas_paymaster(&settings.originchainname, db, &metrics)
             .await?;
 
         let whitelist = parse_matching_list(&settings.whitelist);
@@ -99,7 +99,7 @@ impl BaseAgent for Relayer {
             origin_chain,
             core,
             mailboxes,
-            interchain_gas_paymasters,
+            interchain_gas_paymaster,
             validator_announce,
             gas_payment_enforcement_policy: settings.gaspaymentenforcementpolicy,
             whitelist,
@@ -200,11 +200,7 @@ impl Relayer {
         &self,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let paymaster = self
-            .interchain_gas_paymasters
-            .get(&self.origin_chain)
-            .unwrap();
-        let sync = paymaster.sync(
+        let sync = self.interchain_gas_paymaster.sync(
             self.as_ref().settings.chains[self.origin_chain.name()]
                 .index
                 .clone(),

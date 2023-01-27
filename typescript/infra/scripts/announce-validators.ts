@@ -50,8 +50,7 @@ async function main() {
   }
   // @ts-ignore why?
   const contracts = core.getContracts(chain);
-  // @ts-ignore why?
-  const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
+  const validatorAnnounce = contracts.validatorAnnounce;
   const address = announcement.value.validator;
   const announcedLocations =
     await validatorAnnounce.getAnnouncedStorageLocations([address]);

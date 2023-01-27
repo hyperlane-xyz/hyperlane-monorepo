@@ -41,7 +41,7 @@ impl BuildableWithProvider for ValidatorAnnounceBuilder {
     }
 }
 
-/// A reference to an ValidatorAnnounce contract on some Ethereum chain
+/// A reference to a ValidatorAnnounce contract on some Ethereum chain
 #[derive(Debug)]
 pub struct EthereumValidatorAnnounce<M>
 where
@@ -55,8 +55,8 @@ impl<M> EthereumValidatorAnnounce<M>
 where
     M: Middleware + 'static,
 {
-    /// Create a reference to a mailbox at a specific Ethereum address on some
-    /// chain
+    /// Create a reference to a ValidatoAnnounce contract at a specific Ethereum
+    /// address on some chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(EthereumValidatorAnnounceInternal::new(

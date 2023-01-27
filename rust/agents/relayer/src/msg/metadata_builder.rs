@@ -108,7 +108,7 @@ impl MetadataBuilder {
             .await?;
         // Only use the most recently announced location for now.
         for (i, validator_storage_locations) in storage_locations.iter().enumerate() {
-            for storage_location in validator_storage_locations.iter() {
+            for storage_location in validator_storage_locations.iter().rev() {
                 if let Some(conf) = CheckpointSyncerConf::from_storage_location(storage_location) {
                     if let Ok(checkpoint_syncer) = conf.build(None) {
                         checkpoint_syncers
