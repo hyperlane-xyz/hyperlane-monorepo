@@ -29,12 +29,6 @@ jobs:
             .yarn/cache
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
-      - name: count-files
-        run: |
-          find node_modules -type f | wc -l
-          find .yarn -type f | wc -l
-          ls .yarn/
-
       - name: yarn-install
         run: |
           yarn install
@@ -44,12 +38,6 @@ jobs:
             git diff
             exit 1
           fi
-
-      - name: count-files
-        run: |
-          find node_modules -type f | wc -l
-          find .yarn -type f | wc -l
-          ls .yarn/
 
   yarn-build:
     runs-on: ubuntu-latest
