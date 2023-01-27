@@ -3959,29 +3959,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:1.1.0":
-  version: 1.1.0
-  resolution: "@hyperlane-xyz/core@npm:1.1.0"
-  dependencies:
-    "@hyperlane-xyz/utils": 1.1.0
-    "@openzeppelin/contracts": ^4.8.0
-    "@openzeppelin/contracts-upgradeable": ^4.8.0
-  checksum: 39f0d0d253a14aec27e187f0e23b9875878eea6a6057421cd04932aa1951a881e5f4ad6953bb128e6d0786480c1b96155bb227cf7499bb89dc75c0483b74e14a
-  languageName: node
-  linkType: hard
-
-"@hyperlane-xyz/helloworld@npm:1.1.0":
-  version: 1.1.0
-  resolution: "@hyperlane-xyz/helloworld@npm:1.1.0"
-  dependencies:
-    "@hyperlane-xyz/sdk": ^1.1.0
-    "@openzeppelin/contracts-upgradeable": ^4.8.0
-    ethers: ^5.7.2
-  checksum: af29fff0f596be68170107720ea1decd14199ea1a98b0cab9e6b82de35377b98bac2241e00a64c12f67ba55385ec8d7df60d3a618528d7624b0390dd8fde83e8
-  languageName: node
-  linkType: hard
-
-"@hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@1.1.1, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
@@ -4063,8 +4041,8 @@ __metadata:
     "@gnosis.pm/safe-ethers-lib": ^1.4.0
     "@gnosis.pm/safe-service-client": ^1.2.0
     "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
-    "@hyperlane-xyz/helloworld": 1.1.0
-    "@hyperlane-xyz/sdk": 1.1.0
+    "@hyperlane-xyz/helloworld": 1.1.1
+    "@hyperlane-xyz/sdk": 1.1.1
     "@hyperlane-xyz/utils": 1.1.1
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-etherscan": ^3.0.3
@@ -4108,7 +4086,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@1.1.1, @hyperlane-xyz/sdk@^1.1.0, @hyperlane-xyz/sdk@^1.1.1, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@1.1.1, @hyperlane-xyz/sdk@^1.1.1, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
@@ -4138,22 +4116,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@npm:1.1.0":
-  version: 1.1.0
-  resolution: "@hyperlane-xyz/sdk@npm:1.1.0"
-  dependencies:
-    "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
-    "@hyperlane-xyz/core": 1.1.0
-    "@hyperlane-xyz/utils": 1.1.0
-    "@wagmi/chains": ^0.1.3
-    coingecko-api: ^1.0.10
-    cross-fetch: ^3.1.5
-    debug: ^4.3.4
-    ethers: ^5.7.2
-  checksum: 413fb31f0811f1c0b4b6f881619fbd76a866076889b733929c92bd8add5b03b915fbe54150af3467da7350924f15462688b1c1247937139b11f3ebc3d5e10182
-  languageName: node
-  linkType: hard
-
 "@hyperlane-xyz/utils@1.1.1, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
@@ -4164,15 +4126,6 @@ __metadata:
     typescript: ^4.7.2
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/utils@npm:1.1.0":
-  version: 1.1.0
-  resolution: "@hyperlane-xyz/utils@npm:1.1.0"
-  dependencies:
-    ethers: ^5.7.2
-  checksum: e2647b2e04b865f6de557225fca509d4a3a009ddba5ec0c5f44baedaf57be16c42f4d36ffd69acacb1dedc3f4babb5a362d2bce5ddc12b308963add0e415b8c2
-  languageName: node
-  linkType: hard
 
 "@jridgewell/gen-mapping@npm:^0.3.0":
   version: 0.3.1
