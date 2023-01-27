@@ -165,7 +165,8 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             Mainnet: [
                 Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
-                Moonbeam
+                Moonbeam,
+                Gnosis
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
@@ -181,7 +182,7 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             HyperlaneDomainProtocol::Ethereum: [
                 Ethereum, Goerli, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
-                Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo,
+                Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
                 Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
