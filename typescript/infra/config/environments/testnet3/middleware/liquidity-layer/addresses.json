@@ -1,0 +1,24 @@
+{
+  "goerli": {
+    "circleBridgeAdapter": "0xfe9d88aA85c5917822C804b949BcEDE832C02ce2",
+    "portalAdapter": "0x68D753982e89CC083917863F6dc9738448B91ef9",
+    "router": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
+  },
+  "fuji": {
+    "circleBridgeAdapter": "0xfe9d88aA85c5917822C804b949BcEDE832C02ce2",
+    "portalAdapter": "0x68D753982e89CC083917863F6dc9738448B91ef9",
+    "router": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
+  },
+  "mumbai": {
+    "portalAdapter": "0x68D753982e89CC083917863F6dc9738448B91ef9",
+    "router": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
+  },
+  "bsctestnet": {
+    "portalAdapter": "0x68D753982e89CC083917863F6dc9738448B91ef9",
+    "router": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
+  },
+  "alfajores": {
+    "portalAdapter": "0x68D753982e89CC083917863F6dc9738448B91ef9",
+    "router": "0x2abe0860D81FB4242C748132bD69D125D88eaE26"
+  }
+}

@@ -14,6 +14,7 @@ import {
 
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { readJSON, writeJSON } from '../../src/utils/utils';
 import {
   getContext,
@@ -34,7 +35,10 @@ async function main() {
     KEY_ROLE_ENUM.Deployer,
   );
   const configMap = await getConfiguration(environment, multiProvider);
-  const core = HyperlaneCore.fromEnvironment(environment, multiProvider as any);
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider as any,
+  );
   const deployer = new HelloWorldDeployer(multiProvider, configMap, core);
   const dir = path.join(
     getEnvironmentDirectory(environment),

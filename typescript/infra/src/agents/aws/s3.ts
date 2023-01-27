@@ -15,11 +15,14 @@ export class S3Wrapper {
   private readonly client: S3Client;
   readonly bucket: string;
 
-  constructor(bucketUrl: string) {
+  static fromBucketUrl(bucketUrl: string): S3Wrapper {
     const match = bucketUrl.match(S3_BUCKET_REGEX);
     if (!match) throw new Error('Could not parse bucket url');
-    this.bucket = match[1];
-    const region = match[2];
+    return new S3Wrapper(match[1], match[2]);
+  }
+
+  constructor(bucket: string, region: string) {
+    this.bucket = bucket;
     this.client = new S3Client({ region });
   }
 

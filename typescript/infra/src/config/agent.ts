@@ -55,7 +55,6 @@ export type CheckpointSyncerConfig =
   | S3CheckpointSyncerConfig;
 
 interface MultisigCheckpointSyncerConfig {
-  threshold: number;
   // Keyed by validator address
   checkpointSyncers: Record<string, CheckpointSyncerConfig>;
 }
@@ -92,10 +91,10 @@ export type ChainValidatorSets<Chain extends ChainName> = ChainMap<
 export type MatchingList = MatchingListElement[];
 
 interface MatchingListElement {
-  sourceDomain?: '*' | string | string[] | number | number[];
-  sourceAddress?: '*' | string | string[];
+  originDomain?: '*' | string | string[] | number | number[];
+  senderAddress?: '*' | string | string[];
   destinationDomain?: '*' | string | string[] | number | number[];
-  destinationAddress?: '*' | string | string[];
+  recipientAddress?: '*' | string | string[];
 }
 
 export enum GasPaymentEnforcementPolicyType {
@@ -118,8 +117,6 @@ export type GasPaymentEnforcementPolicy =
 
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
-  // The polling interval to check for new signed checkpoints in seconds
-  signedCheckpointPollingInterval: number;
   gasPaymentEnforcementPolicy: GasPaymentEnforcementPolicy;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
@@ -213,7 +210,7 @@ export enum TransactionSubmissionType {
 export interface AgentConfig<Chain extends ChainName> {
   environment: string;
   namespace: string;
-  runEnv: string;
+  runEnv: DeployEnvironment;
   context: Contexts;
   docker: DockerConfig;
   quorumProvider?: boolean;
@@ -254,15 +251,16 @@ export type RustConnection =
 export type RustCoreAddresses = {
   mailbox: types.Address;
   interchainGasPaymaster: types.Address;
-  multisigIsm: types.Address;
+  validatorAnnounce: types.Address;
 };
 
 export type RustChainSetup = {
   name: ChainName;
   domain: string;
+  signer?: RustSigner | null;
   finalityBlocks: string;
   addresses: RustCoreAddresses;
-  rpcStyle: 'ethereum';
+  protocol: 'ethereum' | 'fuel';
   connection: RustConnection;
   index?: { from: string };
 };
@@ -272,8 +270,6 @@ export type RustConfig<Chain extends ChainName> = {
   chains: Partial<ChainMap<Chain, RustChainSetup>>;
   // TODO: Separate DBs for each chain (fold into RustChainSetup)
   db: string;
-  // TODO: Fold this into RustChainSetup
-  signers?: Partial<ChainMap<Chain, RustSigner>>;
   tracing: {
     level: string;
     fmt: 'json';
@@ -299,11 +295,28 @@ export class ChainAgentConfig<Chain extends ChainName> {
     };
   }
 
-  signers(role: KEY_ROLE_ENUM) {
-    return this.agentConfig.contextChainNames.map((name) => ({
-      name,
-      keyConfig: this.keyConfig(role),
-    }));
+  // Get the signer configuration for each chain by the chain name.
+  async signers(): Promise<Record<string, KeyConfig>> {
+    if (!this.awsKeys) {
+      Object.fromEntries(
+        this.agentConfig.contextChainNames.map((name) => [
+          name,
+          this.keyConfig(KEY_ROLE_ENUM.Relayer),
+        ]),
+      );
+    }
+    const awsUser = new AgentAwsUser(
+      this.agentConfig.environment,
+      this.agentConfig.context,
+      KEY_ROLE_ENUM.Relayer,
+      this.agentConfig.aws!.region,
+      this.chainName,
+    );
+    await awsUser.createIfNotExists();
+    const key = await awsUser.createKeyIfNotExists(this.agentConfig);
+    return Object.fromEntries(
+      this.agentConfig.contextChainNames.map((name) => [name, key.keyConfig]),
+    );
   }
 
   async validatorConfigs(): Promise<Array<ValidatorConfig> | undefined> {
@@ -393,29 +406,6 @@ export class ChainAgentConfig<Chain extends ChainName> {
     return false;
   }
 
-  async relayerSigners() {
-    if (!this.relayerEnabled) {
-      return undefined;
-    }
-
-    if (!this.awsKeys) {
-      return this.signers(KEY_ROLE_ENUM.Relayer);
-    }
-    const awsUser = new AgentAwsUser(
-      this.agentConfig.environment,
-      this.agentConfig.context,
-      KEY_ROLE_ENUM.Relayer,
-      this.agentConfig.aws!.region,
-      this.chainName,
-    );
-    await awsUser.createIfNotExists();
-    const key = await awsUser.createKeyIfNotExists(this.agentConfig);
-    return this.agentConfig.contextChainNames.map((name) => ({
-      name,
-      keyConfig: key.keyConfig,
-    }));
-  }
-
   get relayerConfig(): RelayerConfig | undefined {
     if (!this.relayerEnabled) {
       return undefined;
@@ -436,10 +426,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
     const relayerConfig: RelayerConfig = {
       originChainName: this.chainName,
-      signedCheckpointPollingInterval:
-        baseConfig.signedCheckpointPollingInterval,
       multisigCheckpointSyncer: {
-        threshold: this.validatorSet.threshold,
         checkpointSyncers,
       },
       gasPaymentEnforcementPolicy: baseConfig.gasPaymentEnforcementPolicy,

@@ -2,11 +2,12 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
+use std::num::NonZeroU64;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
-use ethers::prelude::{Middleware, Selector};
+use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use tracing::instrument;
 
@@ -85,7 +86,7 @@ impl<M> Indexer for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
             .provider
@@ -230,7 +231,7 @@ impl<M> Mailbox for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self) -> ChainResult<u32> {
         Ok(self.contract.count().call().await?)
     }
@@ -241,7 +242,7 @@ where
     }
 
     #[instrument(err, ret, skip(self))]
-    async fn latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         let base_call = self.contract.latest_checkpoint();
         let call_with_lag = match maybe_lag {
             Some(lag) => {
@@ -251,7 +252,7 @@ where
                     .await
                     .map_err(ChainCommunicationError::from_other)?
                     .as_u64();
-                base_call.block(if lag > tip { 0 } else { tip - lag })
+                base_call.block(tip.saturating_sub(lag.get()))
             }
             None => base_call,
         };
@@ -270,6 +271,16 @@ where
     }
 
     #[instrument(err, ret, skip(self))]
+    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        Ok(self
+            .contract
+            .recipient_ism(recipient.into())
+            .call()
+            .await?
+            .into())
+    }
+
+    #[instrument(err, ret, skip(self))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -283,7 +294,7 @@ where
         Ok(receipt.into())
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip(self), fields(metadata=format!("{:x?}", metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
@@ -319,7 +330,9 @@ where
 pub struct EthereumMailboxAbi;
 
 impl HyperlaneAbi for EthereumMailboxAbi {
-    fn fn_map() -> HashMap<Selector, &'static str> {
+    const SELECTOR_SIZE_BYTES: usize = 4;
+
+    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
         super::extract_fn_map(&MAILBOX_ABI)
     }
 }

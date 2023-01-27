@@ -76,7 +76,13 @@ export class HyperlaneCoreChecker<
     await this.checkProxiedContract(
       chain,
       'InterchainGasPaymaster',
-      contracts.mailbox.addresses,
+      contracts.interchainGasPaymaster.addresses,
+      contracts.proxyAdmin.address,
+    );
+    await this.checkProxiedContract(
+      chain,
+      'DefaultIsmInterchainGasPaymaster',
+      contracts.interchainGasPaymaster.addresses,
       contracts.proxyAdmin.address,
     );
   }

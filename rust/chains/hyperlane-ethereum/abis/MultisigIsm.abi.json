@@ -8,6 +8,25 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "domain",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "commitment",
+        "type": "bytes32"
+      }
+    ],
+    "name": "CommitmentUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "address",
         "name": "previousOwner",
@@ -34,15 +53,9 @@
       },
       {
         "indexed": false,
-        "internalType": "uint256",
+        "internalType": "uint8",
         "name": "threshold",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "commitment",
-        "type": "bytes32"
+        "type": "uint8"
       }
     ],
     "name": "ThresholdSet",
@@ -68,12 +81,6 @@
         "internalType": "uint256",
         "name": "validatorCount",
         "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "commitment",
-        "type": "bytes32"
       }
     ],
     "name": "ValidatorEnrolled",
@@ -99,12 +106,6 @@
         "internalType": "uint256",
         "name": "validatorCount",
         "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "commitment",
-        "type": "bytes32"
       }
     ],
     "name": "ValidatorUnenrolled",
@@ -150,6 +151,24 @@
   {
     "inputs": [
       {
+        "internalType": "uint32[]",
+        "name": "_domains",
+        "type": "uint32[]"
+      },
+      {
+        "internalType": "address[][]",
+        "name": "_validators",
+        "type": "address[][]"
+      }
+    ],
+    "name": "enrollValidators",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint32",
         "name": "_domain",
         "type": "uint32"
@@ -166,6 +185,19 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "moduleType",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
       }
     ],
     "stateMutability": "view",
@@ -205,6 +237,24 @@
       }
     ],
     "name": "setThreshold",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32[]",
+        "name": "_domains",
+        "type": "uint32[]"
+      },
+      {
+        "internalType": "uint8[]",
+        "name": "_thresholds",
+        "type": "uint8[]"
+      }
+    ],
+    "name": "setThresholds",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -292,6 +342,30 @@
         "internalType": "address[]",
         "name": "",
         "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "_message",
+        "type": "bytes"
+      }
+    ],
+    "name": "validatorsAndThreshold",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
       }
     ],
     "stateMutability": "view",

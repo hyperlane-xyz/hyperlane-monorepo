@@ -3,7 +3,9 @@ import { ethers } from 'ethers';
 import {
   InterchainGasPaymaster,
   Mailbox,
+  OverheadIgp,
   ProxyAdmin,
+  ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import {
   ChainMap,
@@ -35,6 +37,7 @@ export class HyperlaneCoreInfraDeployer<
     super(multiProvider, configMap);
     this.environment = environment;
   }
+
   async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
@@ -44,10 +47,27 @@ export class HyperlaneCoreInfraDeployer<
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
-        [this.environment, 'interchainGasPaymaster', 0],
+        [this.environment, 'interchainGasPaymaster', 6],
       ),
     };
     return super.deployInterchainGasPaymaster(chain, proxyAdmin, deployOpts);
+  }
+
+  async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(
+    chain: LocalChain,
+    interchainGasPaymasterAddress: types.Address,
+  ): Promise<OverheadIgp> {
+    const deployOpts = {
+      create2Salt: ethers.utils.solidityKeccak256(
+        ['string', 'string', 'uint8'],
+        [this.environment, 'defaultIsmInterchainGasPaymaster', 4],
+      ),
+    };
+    return super.deployDefaultIsmInterchainGasPaymaster(
+      chain,
+      interchainGasPaymasterAddress,
+      deployOpts,
+    );
   }
 
   async deployMailbox<LocalChain extends Chain>(
@@ -58,7 +78,7 @@ export class HyperlaneCoreInfraDeployer<
     const deployOpts = {
       create2Salt: ethers.utils.solidityKeccak256(
         ['string', 'string', 'uint8'],
-        [this.environment, 'mailbox', 0],
+        [this.environment, 'mailbox', 1],
       ),
     };
     return super.deployMailbox(
@@ -69,11 +89,23 @@ export class HyperlaneCoreInfraDeployer<
     );
   }
 
+  async deployValidatorAnnounce<LocalChain extends Chain>(
+    chain: LocalChain,
+    mailboxAddress: types.Address,
+  ): Promise<ValidatorAnnounce> {
+    const deployOpts = {
+      create2Salt: ethers.utils.solidityKeccak256(
+        ['string', 'string', 'uint8'],
+        [this.environment, 'validatorAnnounce', 1],
+      ),
+    };
+    return super.deployValidatorAnnounce(chain, mailboxAddress, deployOpts);
+  }
+
   writeRustConfigs(directory: string) {
     const rustConfig: RustConfig<Chain> = {
       environment: this.environment,
       chains: {},
-      signers: {},
       db: 'db_path',
       tracing: {
         level: 'debug',
@@ -88,7 +120,7 @@ export class HyperlaneCoreInfraDeployer<
         contracts == undefined ||
         contracts.mailbox == undefined ||
         contracts.interchainGasPaymaster == undefined ||
-        contracts.multisigIsm == undefined
+        contracts.validatorAnnounce == undefined
       ) {
         return;
       }
@@ -99,9 +131,10 @@ export class HyperlaneCoreInfraDeployer<
         addresses: {
           mailbox: contracts.mailbox.contract.address,
           interchainGasPaymaster: contracts.interchainGasPaymaster.address,
-          multisigIsm: contracts.multisigIsm.address,
+          validatorAnnounce: contracts.validatorAnnounce.address,
         },
-        rpcStyle: 'ethereum',
+        signer: null,
+        protocol: 'ethereum',
         finalityBlocks: metadata.blocks.reorgPeriod.toString(),
         connection: {
           type: ConnectionType.Http,

@@ -6,6 +6,7 @@ import {
   interchainQueryFactories,
 } from '@hyperlane-xyz/sdk';
 
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import { mergeWithSdkContractAddressArtifacts } from '../merge-sdk-contract-addresses';
@@ -15,13 +16,14 @@ import {
   getEnvironmentDirectory,
 } from '../utils';
 
-// similar to hello world deploy script but uses freshly funded account for consistent addresses across chains
-// should eventually be deduped
 async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider();
-  const core = HyperlaneCore.fromEnvironment(environment, multiProvider as any);
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider as any,
+  );
 
   const dir = path.join(
     getEnvironmentDirectory(environment),
@@ -35,11 +37,11 @@ async function main() {
     multiProvider,
     configMap,
     core,
-    'IQS-SALT-4',
+    'IQS-SALT-5',
   );
 
   await deployWithArtifacts(dir, interchainQueryFactories, deployer);
-  await mergeWithSdkContractAddressArtifacts(environment);
+  mergeWithSdkContractAddressArtifacts(environment);
 }
 
 main()

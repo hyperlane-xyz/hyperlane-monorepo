@@ -1,17 +1,15 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{
-    sync::{mpsc, watch},
+    sync::{mpsc::UnboundedSender, RwLock},
     task::JoinHandle,
 };
-use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
+use tracing::{debug, info_span, instrument, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{CachingMailbox, CoreMetrics};
-use hyperlane_core::{
-    db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, MultisigSignedCheckpoint,
-};
+use hyperlane_base::CoreMetrics;
+use hyperlane_core::{db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage};
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
 
@@ -20,36 +18,31 @@ use super::SubmitMessageArgs;
 #[derive(Debug)]
 pub(crate) struct MessageProcessor {
     db: HyperlaneDB,
-    destination_mailbox: CachingMailbox,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,
-    tx_msg: mpsc::UnboundedSender<SubmitMessageArgs>,
-    ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
-    prover_sync: MerkleTreeBuilder,
+    prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     message_nonce: u32,
+    send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>>,
 }
 
 impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         db: HyperlaneDB,
-        destination_mailbox: CachingMailbox,
         whitelist: Arc<MatchingList>,
         blacklist: Arc<MatchingList>,
         metrics: MessageProcessorMetrics,
-        tx_msg: mpsc::UnboundedSender<SubmitMessageArgs>,
-        ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
+        prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
+        send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>>,
     ) -> Self {
         Self {
-            db: db.clone(),
-            destination_mailbox,
+            db,
             whitelist,
             blacklist,
             metrics,
-            tx_msg,
-            ckpt_rx,
-            prover_sync: MerkleTreeBuilder::new(db),
+            prover_sync,
+            send_channels,
             message_nonce: 0,
         }
     }
@@ -59,16 +52,8 @@ impl MessageProcessor {
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 
-    #[instrument(ret, err, skip(self), fields(domain=%self.destination_mailbox.domain()), level = "info")]
+    #[instrument(ret, err, skip(self), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
-        // Ensure that there is at least one valid, known checkpoint before starting
-        // work loop.
-        loop {
-            self.ckpt_rx.changed().await?;
-            if self.ckpt_rx.borrow().clone().is_some() {
-                break;
-            }
-        }
         // Forever, scan HyperlaneDB looking for new messages to send. When criteria are
         // satisfied or the message is disqualified, push the message onto
         // self.tx_msg and then continue the scan at the next highest
@@ -78,124 +63,107 @@ impl MessageProcessor {
         }
     }
 
+    /// Tries to get the next message to process.
+    ///
+    /// If no message with self.message_nonce is found, returns None.
+    /// If the message with self.message_nonce is found and has previously
+    /// been marked as processed, increments self.message_nonce and returns
+    /// None.
+    fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
+        loop {
+            // First, see if we can find the message so we can update the gauge.
+            if let Some(message) = self.db.message_by_nonce(self.message_nonce)? {
+                // Update the latest nonce gauge if the message is destined for one
+                // of the domains we service.
+                if let Some(metrics) = self.metrics.get(message.destination) {
+                    metrics.set(message.nonce as i64);
+                }
+
+                // If this message has already been processed, on to the next one.
+                if self
+                    .db
+                    .retrieve_message_processed(self.message_nonce)?
+                    .is_none()
+                {
+                    return Ok(Some(message));
+                } else {
+                    debug!(
+                    msg_nonce=?self.message_nonce,
+                    "Message already marked as processed in DB");
+                    self.message_nonce += 1;
+                }
+            } else {
+                debug!(
+                msg_nonce=?self.message_nonce,
+                "No message found in DB for nonce");
+                return Ok(None);
+            }
+        }
+    }
+
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
-        self.metrics
-            .processor_loop_gauge
-            .set(self.message_nonce as i64);
-
         // Scan until we find next nonce without delivery confirmation.
-        if self
-            .db
-            .retrieve_message_processed(self.message_nonce)?
-            .is_some()
-        {
-            debug!(
-                domain=%self.destination_mailbox.domain(),
-                nonce=?self.message_nonce,
-                "Skipping since message_nonce already in DB");
-            self.message_nonce += 1;
-            return Ok(());
-        }
-        let message = if let Some(msg) = self
-            .db
-            .message_by_nonce(self.message_nonce)?
-            .map(HyperlaneMessage::from)
-        {
-            debug!(msg=?msg, "Working on msg");
-            msg
-        } else {
-            debug!("Leaf in db without message nonce: {}", self.message_nonce);
-            // Not clear what the best thing to do here is, but there is seemingly an
-            // existing race wherein an indexer might non-atomically write leaf
-            // info to rocksdb across a few records, so we might see the leaf
-            // status above, but not the message contents here.  For now,
-            // optimistically yield and then re-enter the loop in hopes that the
-            // DB is now coherent. TODO(webbhorn): Why can't we yield here
-            // instead of sleep?
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            return Ok(());
-        };
+        if let Some(message) = self.try_get_unprocessed_message()? {
+            debug!(msg=?message, "Working on message");
 
-        // Skip if for different domain.
-        if message.destination != self.destination_mailbox.domain().id() {
-            debug!(
-                id=?message.id(),
-                destination=message.destination,
-                nonce=message.nonce,
-                "Message destined for other domain, skipping");
-            self.message_nonce += 1;
-            return Ok(());
-        }
-
-        // Skip if not whitelisted.
-        if !self.whitelist.msg_matches(&message, true) {
-            debug!(
-                id=?message.id(),
-                destination=message.destination,
-                nonce=message.nonce,
-                whitelist=?self.whitelist,
-                "Message not whitelisted, skipping");
-            self.message_nonce += 1;
-            return Ok(());
-        }
-
-        // Skip if the message is blacklisted
-        if self.blacklist.msg_matches(&message, false) {
-            debug!(
-                id=?message.id(),
-                destination=message.destination,
-                nonce=message.nonce,
-                blacklist=?self.blacklist,
-                "Message blacklisted, skipping");
-            self.message_nonce += 1;
-            return Ok(());
-        }
-
-        // If validator hasn't published checkpoint covering self.message_nonce
-        // yet, wait until it has, before forwarding the message to the
-        // submitter channel.
-        let mut ckpt;
-        loop {
-            ckpt = self.ckpt_rx.borrow().clone();
-            match &ckpt {
-                Some(ckpt) if ckpt.checkpoint.index >= self.message_nonce => {
-                    break;
-                }
-                _ => {
-                    self.ckpt_rx.changed().await?;
-                }
+            // Skip if not whitelisted.
+            if !self.whitelist.msg_matches(&message, true) {
+                debug!(
+                    msg_id=?message.id(),
+                    msg_destination=message.destination,
+                    msg_nonce=message.nonce,
+                    whitelist=?self.whitelist,
+                    "Message not whitelisted, skipping");
+                self.message_nonce += 1;
+                return Ok(());
             }
-        }
-        let checkpoint = ckpt.unwrap();
-        assert!(checkpoint.checkpoint.index >= self.message_nonce);
 
-        // Include proof against checkpoint for message in the args provided to the
-        // submitter.
-        if checkpoint.checkpoint.index >= self.prover_sync.count() {
+            // Skip if the message is blacklisted
+            if self.blacklist.msg_matches(&message, false) {
+                debug!(
+                    msg_id=?message.id(),
+                    msg_destination=message.destination,
+                    msg_nonce=message.nonce,
+                    blacklist=?self.blacklist,
+                    "Message blacklisted, skipping");
+                self.message_nonce += 1;
+                return Ok(());
+            }
+
+            // Skip if the message is intended for a destination we do not service
+            if self.send_channels.get(&message.destination).is_none() {
+                debug!(
+                    msg_id=?message.id(),
+                    msg_destination=message.destination,
+                    msg_nonce=message.nonce,
+                    "Message destined for unknown domain, skipping");
+                self.message_nonce += 1;
+                return Ok(());
+            }
+
+            // Feed the message to the prover sync
             self.prover_sync
-                .update_to_checkpoint(&checkpoint.checkpoint)
+                .write()
+                .await
+                .update_to_index(message.nonce)
                 .await?;
-        }
-        assert_eq!(checkpoint.checkpoint.index + 1, self.prover_sync.count());
-        let proof = self.prover_sync.get_proof(self.message_nonce)?;
 
-        if self.db.message_id_by_nonce(self.message_nonce)?.is_some() {
             debug!(
-                id=?message.id(),
-                nonce=message.nonce,
+                msg_id=?message.id(),
+                msg_nonce=message.nonce,
                 "Sending message to submitter"
             );
+
             // Finally, build the submit arg and dispatch it to the submitter.
-            let submit_args = SubmitMessageArgs::new(message, checkpoint, proof);
-            self.tx_msg.send(submit_args)?;
+            let submit_args = SubmitMessageArgs::new(message.clone());
+            // Guaranteed to exist as we return early above if it does not.
+            let send_channel = self.send_channels.get(&message.destination).unwrap();
+            send_channel.send(submit_args)?;
             self.message_nonce += 1;
         } else {
-            warn!(
-                nonce=self.message_nonce,
-                domain=%self.destination_mailbox.domain(),
-                "Unexpected missing message_id_by_nonce");
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
         Ok(())
     }
@@ -203,21 +171,32 @@ impl MessageProcessor {
 
 #[derive(Debug)]
 pub(crate) struct MessageProcessorMetrics {
-    processor_loop_gauge: IntGauge,
+    last_known_message_nonce_gauges: HashMap<u32, IntGauge>,
 }
 
 impl MessageProcessorMetrics {
     pub fn new(
         metrics: &CoreMetrics,
         origin: &HyperlaneDomain,
-        destination: &HyperlaneDomain,
+        destinations: Vec<&HyperlaneDomain>,
     ) -> Self {
-        Self {
-            processor_loop_gauge: metrics.last_known_message_nonce().with_label_values(&[
-                "processor_loop",
-                origin.name(),
-                destination.name(),
-            ]),
+        let mut gauges: HashMap<u32, IntGauge> = HashMap::new();
+        for destination in destinations {
+            gauges.insert(
+                destination.id(),
+                metrics.last_known_message_nonce().with_label_values(&[
+                    "processor_loop",
+                    origin.name(),
+                    destination.name(),
+                ]),
+            );
         }
+        Self {
+            last_known_message_nonce_gauges: gauges,
+        }
+    }
+
+    pub fn get(&self, destination: u32) -> Option<&IntGauge> {
+        self.last_known_message_nonce_gauges.get(&destination)
     }
 }

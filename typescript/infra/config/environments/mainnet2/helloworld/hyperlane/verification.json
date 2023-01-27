@@ -1,0 +1,66 @@
+{
+  "bsc": [
+    {
+      "name": "HelloWorld",
+      "address": "0xd54fF402ADf0a7CBad9626B1261bF4bEB26A437a",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70000000000000000000000000de86327fbfd04c4ea11dc0f270da6083534c2582",
+      "isProxy": false
+    }
+  ],
+  "avalanche": [
+    {
+      "name": "HelloWorld",
+      "address": "0x76a2f655352752Af6CE9B03932B9090009Dc5D0C",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70000000000000000000000000de86327fbfd04c4ea11dc0f270da6083534c2582",
+      "isProxy": false
+    }
+  ],
+  "polygon": [
+    {
+      "name": "HelloWorld",
+      "address": "0x4fF971fd795ACdc913Adc3cA91500c2348eb1Da4",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70000000000000000000000000de86327fbfd04c4ea11dc0f270da6083534c2582",
+      "isProxy": false
+    }
+  ],
+  "celo": [
+    {
+      "name": "HelloWorld",
+      "address": "0x133b217f9e14872a47c6da5ced5a4d7AA80EA1A4",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c700000000000000000000000005bc68c82d33160cf4ea34d0bab3f7c27cd9ed8d6",
+      "isProxy": false
+    }
+  ],
+  "arbitrum": [
+    {
+      "name": "HelloWorld",
+      "address": "0xaB402f227e892Ef37C105bf06619c0fa106a1fB2",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70000000000000000000000000de86327fbfd04c4ea11dc0f270da6083534c2582",
+      "isProxy": false
+    }
+  ],
+  "optimism": [
+    {
+      "name": "HelloWorld",
+      "address": "0x2B0860E52244F03e59f12Cfe413d6a29bC30b893",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70000000000000000000000000de86327fbfd04c4ea11dc0f270da6083534c2582",
+      "isProxy": false
+    }
+  ],
+  "ethereum": [
+    {
+      "name": "HelloWorld",
+      "address": "0xB1Ab5600bB510BED4487c97Ab16Da9E84dda45E8",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70000000000000000000000000de86327fbfd04c4ea11dc0f270da6083534c2582",
+      "isProxy": false
+    }
+  ],
+  "moonbeam": [
+    {
+      "name": "HelloWorld",
+      "address": "0xbaa8e84def81f92ECB4161e45BA5Eda16B255397",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70000000000000000000000000de86327fbfd04c4ea11dc0f270da6083534c2582",
+      "isProxy": false
+    }
+  ]
+}

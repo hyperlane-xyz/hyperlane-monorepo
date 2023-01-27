@@ -26,8 +26,7 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // TODO: Update to a commit from main
-    tag: 'sha-275771b',
+    tag: 'sha-c163fce',
   },
   aws: {
     region: 'us-east-1',
@@ -67,8 +66,9 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   },
   relayer: {
     default: {
-      signedCheckpointPollingInterval: 5,
-      // blacklist: releaseCandidateHelloworldMatchingList,
+      blacklist: [
+        { recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE' },
+      ],
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
       },

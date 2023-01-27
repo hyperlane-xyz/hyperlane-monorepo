@@ -152,9 +152,6 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
     // mark as proxy (if applicable)
     if (input.isProxy) {
-      this.logger('Skipping proxy verification');
-      return;
-
       const proxyGuid = await this.submitForm(
         chain,
         ExplorerApiActions.MARK_PROXY,

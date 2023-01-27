@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata';
 import { DomainIdToChainName } from '../../domains';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
@@ -77,17 +76,15 @@ export abstract class HyperlaneRouterDeployer<
       contractsMap,
     )) {
       const local = chain as Chain;
-      this.logger({ local });
       const chainConnection = this.multiProvider.getChainConnection(local);
       // only enroll chains which are deployed
       const deployedRemoteChains = this.multiProvider
         .remoteChains(local)
         .filter((c) => deployedChains.includes(c));
-      this.logger({ deployedRemoteChains });
 
       const enrollEntries = await Promise.all(
         deployedRemoteChains.map(async (remote) => {
-          const remoteDomain = chainMetadata[remote].id;
+          const remoteDomain = this.multiProvider.getChainId(remote);
           const current = await contracts.router.routers(remoteDomain);
           const expected = utils.addressToBytes32(
             contractsMap[remote].router.address,
@@ -98,13 +95,19 @@ export abstract class HyperlaneRouterDeployer<
       const entries = enrollEntries.filter(
         (entry): entry is [number, string] => entry !== undefined,
       );
-      this.logger({ entries });
       const domains = entries.map(([id]) => id);
       const addresses = entries.map(([, address]) => address);
 
+      // skip if no enrollments are needed
+      if (domains.length === 0) {
+        return;
+      }
+
       await super.runIfOwner(local, contracts.router, async () => {
-        const chains = domains.map((id) => DomainIdToChainName[id]);
-        this.logger(`Enroll remote (${chains}) routers on ${local}`);
+        const chains = domains.map((id) => DomainIdToChainName[id] || id);
+        this.logger(
+          `Enrolling remote routers (${chains.join(', ')}) on ${local}`,
+        );
         await chainConnection.handleTx(
           contracts.router.enrollRemoteRouters(
             domains,

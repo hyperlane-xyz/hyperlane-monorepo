@@ -18,6 +18,15 @@ export function objMap<K extends string, I = any, O = any>(
   >;
 }
 
+export function objFilter<K extends string, I, O extends I>(
+  obj: Record<K, I>,
+  func: (v: I) => v is O,
+): Record<K, O> {
+  return Object.fromEntries(
+    Object.entries<I>(obj).filter(([, v]) => func(v)),
+  ) as Record<K, O>;
+}
+
 // promiseObjectAll :: {k: Promise a} -> Promise {k: a}
 export function promiseObjAll<K extends string, V>(obj: {
   [key in K]: Promise<V>;

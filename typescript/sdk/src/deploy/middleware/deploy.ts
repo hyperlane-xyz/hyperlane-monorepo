@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import {
   InterchainAccountRouter__factory,
   InterchainQueryRouter__factory,
@@ -13,15 +15,40 @@ import {
   interchainQueryFactories,
 } from '../../middleware';
 import { MultiProvider } from '../../providers/MultiProvider';
+import { RouterContracts, RouterFactories } from '../../router';
 import { ChainMap, ChainName } from '../../types';
 import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
 import { RouterConfig } from '../router/types';
 
 export type InterchainAccountConfig = RouterConfig;
 
+export abstract class MiddlewareRouterDeployer<
+  Chain extends ChainName,
+  MiddlewareRouterConfig extends RouterConfig,
+  MiddlewareRouterContracts extends RouterContracts,
+  MiddlewareFactories extends RouterFactories,
+> extends HyperlaneRouterDeployer<
+  Chain,
+  MiddlewareRouterConfig,
+  MiddlewareRouterContracts,
+  MiddlewareFactories
+> {
+  getInitArgs(
+    config: MiddlewareRouterConfig,
+    routerInterface: ethers.utils.Interface,
+  ): string {
+    return routerInterface.encodeFunctionData('initialize', [
+      config.mailbox,
+      config.interchainGasPaymaster,
+      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.owner,
+    ]);
+  }
+}
+
 export class InterchainAccountDeployer<
   Chain extends ChainName,
-> extends HyperlaneRouterDeployer<
+> extends MiddlewareRouterDeployer<
   Chain,
   InterchainAccountConfig,
   InterchainAccountContracts,
@@ -42,15 +69,10 @@ export class InterchainAccountDeployer<
     chain: Chain,
     config: InterchainAccountConfig,
   ): Promise<InterchainAccountContracts> {
-    const initCalldata =
-      InterchainAccountRouter__factory.createInterface().encodeFunctionData(
-        'initialize',
-        [
-          config.mailbox,
-          config.interchainGasPaymaster,
-          config.interchainSecurityModule,
-        ],
-      );
+    const initCalldata = this.getInitArgs(
+      config,
+      InterchainAccountRouter__factory.createInterface(),
+    );
     const router = await this.deployContract(chain, 'router', [], {
       create2Salt: this.create2salt + 'router',
       initCalldata,
@@ -65,7 +87,7 @@ export type InterchainQueryConfig = RouterConfig;
 
 export class InterchainQueryDeployer<
   Chain extends ChainName,
-> extends HyperlaneRouterDeployer<
+> extends MiddlewareRouterDeployer<
   Chain,
   InterchainQueryConfig,
   InterchainQueryContracts,
@@ -87,15 +109,10 @@ export class InterchainQueryDeployer<
     chain: Chain,
     config: InterchainQueryConfig,
   ): Promise<InterchainQueryContracts> {
-    const initCalldata =
-      InterchainQueryRouter__factory.createInterface().encodeFunctionData(
-        'initialize(address,address,address)',
-        [
-          config.mailbox,
-          config.interchainGasPaymaster,
-          config.interchainSecurityModule,
-        ],
-      );
+    const initCalldata = this.getInitArgs(
+      config,
+      InterchainQueryRouter__factory.createInterface(),
+    );
     const router = await this.deployContract(chain, 'router', [], {
       create2Salt: this.create2salt + 'router',
       initCalldata,

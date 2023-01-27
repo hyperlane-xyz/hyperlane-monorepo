@@ -8,8 +8,8 @@ contract MockMailbox {
     using TypeCasts for address;
     using TypeCasts for bytes32;
     // Domain of chain on which the contract is deployed
-    uint32 public immutable domain;
-    uint32 public immutable version = 0;
+    uint32 public immutable localDomain;
+    uint32 public immutable VERSION = 0;
 
     uint256 public outboundNonce = 0;
     uint256 public inboundUnprocessedNonce = 0;
@@ -25,7 +25,7 @@ contract MockMailbox {
     }
 
     constructor(uint32 _domain) {
-        domain = _domain;
+        localDomain = _domain;
     }
 
     function addRemoteMailbox(uint32 _domain, MockMailbox _mailbox) external {
@@ -43,7 +43,7 @@ contract MockMailbox {
             "Missing remote mailbox"
         );
         _destinationMailbox.addInboundMessage(
-            domain,
+            localDomain,
             msg.sender,
             _recipientAddress.bytes32ToAddress(),
             _messageBody

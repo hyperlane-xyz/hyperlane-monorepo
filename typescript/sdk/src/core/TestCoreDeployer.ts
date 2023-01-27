@@ -16,8 +16,9 @@ import { coreFactories } from './contracts';
 
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
-// dummy config as TestInbox and TestOutbox do not use deployed ValidatorManager
+// dummy config as TestInbox and TestOutbox do not use deployed ISM
 const testMultisigIsmConfig: CoreConfig = {
+  owner: nonZeroAddress,
   multisigIsm: {
     validators: [nonZeroAddress],
     threshold: 1,
@@ -61,6 +62,11 @@ export class TestCoreDeployer<
     );
     await testIsm.setAccept(true);
     return testIsm as unknown as MultisigIsm;
+  }
+
+  // TestIsm is not ownable, so we skip ownership transfer
+  async transferOwnershipOfContracts(): Promise<ethers.ContractReceipt[]> {
+    return [];
   }
 
   async deployApp(): Promise<TestCoreApp<TestChain>> {
