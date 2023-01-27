@@ -1,6 +1,6 @@
 {
   "alfajores": {
-    "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0x4e4D563e2cBFC35c4BC16003685443Fae2FA702f",
     "mailbox": {
       "kind": "Transparent",
@@ -19,7 +19,7 @@
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "fuji": {
-    "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0x13474f85b808034C911B7697dee60B7d8d50ee36",
     "mailbox": {
       "kind": "Transparent",
@@ -38,7 +38,7 @@
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "mumbai": {
-    "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0x96b49e136581f8dfF370aDB3015D48465572a318",
     "mailbox": {
       "kind": "Transparent",
@@ -57,7 +57,7 @@
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "bsctestnet": {
-    "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0xfB149BC17dD3FE858fA64D678bA0c706DEac61eE",
     "mailbox": {
       "kind": "Transparent",
@@ -76,7 +76,7 @@
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "goerli": {
-    "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0x8f919348F9C4619A196Acb5e377f49E5E2C0B569",
     "mailbox": {
       "kind": "Transparent",
@@ -95,7 +95,7 @@
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "moonbasealpha": {
-    "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0xEed449c54156163bf50CFf30408975AF43F43115",
     "mailbox": {
       "kind": "Transparent",
@@ -114,7 +114,7 @@
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "optimismgoerli": {
-    "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
     "mailbox": {
       "kind": "Transparent",
@@ -133,7 +133,7 @@
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "arbitrumgoerli": {
-    "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655",
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
     "mailbox": {
       "kind": "Transparent",
