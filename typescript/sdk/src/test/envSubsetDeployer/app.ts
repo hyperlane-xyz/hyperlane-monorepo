@@ -71,9 +71,10 @@ export class EnvSubsetDeployer<
       objMap(contractsMap, async (chain, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(chain);
         const mailbox = this.configMap[chain].mailbox;
+        const igp = this.configMap[chain].interchainGasPaymaster;
         await chainConnection.handleTx(
           // @ts-ignore
-          contracts.router.initialize(mailbox, chainConnection.overrides),
+          contracts.router.initialize(mailbox, igp, chainConnection.overrides),
         );
       }),
     );

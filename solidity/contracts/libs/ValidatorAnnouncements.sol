@@ -24,7 +24,7 @@ library ValidatorAnnouncements {
             abi.encodePacked(
                 _localDomain,
                 _mailbox.addressToBytes32(),
-                "HYPERLANE"
+                "HYPERLANE_ANNOUNCEMENT"
             )
         );
         return
