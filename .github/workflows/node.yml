@@ -30,7 +30,10 @@ jobs:
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: count-files
-        run: find node_modules -type f | wc -l
+        run: |
+          find node_modules -type f | wc -l
+          find .yarn -type f | wc -l
+          ls .yarn/
 
       - name: yarn-install
         run: |
@@ -43,7 +46,10 @@ jobs:
           fi
 
       - name: count-files
-        run: find node_modules -type f | wc -l
+        run: |
+          find node_modules -type f | wc -l
+          find .yarn -type f | wc -l
+          ls .yarn/
 
   yarn-build:
     runs-on: ubuntu-latest
