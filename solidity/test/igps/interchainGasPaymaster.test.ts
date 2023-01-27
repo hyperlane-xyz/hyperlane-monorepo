@@ -6,7 +6,7 @@ import { ethers } from 'hardhat';
 import {
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
-} from '../types';
+} from '../../types';
 
 const MESSAGE_ID =
   '0x6ae9a99190641b9ed0c07143340612dde0e9cb7deaa5fe07597858ae9ba5fd7f';

@@ -5,9 +5,9 @@
       "name": "test1",
       "domain": "13371",
       "addresses": {
-        "mailbox": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+        "mailbox": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
         "interchainGasPaymaster": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
-        "validatorAnnounce": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
+        "validatorAnnounce": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -17,16 +17,16 @@
         "url": ""
       },
       "index": {
-        "from": "4"
+        "from": "2"
       }
     },
     "test2": {
       "name": "test2",
       "domain": "13372",
       "addresses": {
-        "mailbox": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
-        "interchainGasPaymaster": "0x9A676e781A523b5d0C0e43731313A708CB607508",
-        "validatorAnnounce": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE"
+        "mailbox": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1",
+        "interchainGasPaymaster": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
+        "validatorAnnounce": "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -36,16 +36,16 @@
         "url": ""
       },
       "index": {
-        "from": "13"
+        "from": "15"
       }
     },
     "test3": {
       "name": "test3",
       "domain": "13373",
       "addresses": {
-        "mailbox": "0x4A679253410272dd5232B3Ff7cF5dbB88f295319",
-        "interchainGasPaymaster": "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44",
-        "validatorAnnounce": "0x7a2088a1bFc9d81c55368AE168C2C02570cB814F"
+        "mailbox": "0xa82fF9aFd8f496c3d6ac40E2a0F282E47488CFc9",
+        "interchainGasPaymaster": "0x67d269191c92Caf3cD7723F116c85e6E9bf55933",
+        "validatorAnnounce": "0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -55,7 +55,7 @@
         "url": ""
       },
       "index": {
-        "from": "23"
+        "from": "27"
       }
     }
   },
