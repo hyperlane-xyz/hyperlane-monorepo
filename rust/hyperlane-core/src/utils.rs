@@ -30,6 +30,18 @@ pub fn domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
     )
 }
 
+/// Computes hash of domain concatenated with "HYPERLANE_ANNOUNCEMENT"
+pub fn announcement_domain_hash(address: H256, domain: impl Into<u32>) -> H256 {
+    H256::from_slice(
+        Keccak256::new()
+            .chain(domain.into().to_be_bytes())
+            .chain(address)
+            .chain("HYPERLANE_ANNOUNCEMENT")
+            .finalize()
+            .as_slice(),
+    )
+}
+
 /// A Hex String of length `N` representing bytes of length `N / 2`
 #[derive(Debug, Clone)]
 pub struct HexString<const N: usize>(String);
