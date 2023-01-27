@@ -12,11 +12,6 @@ pub(crate) fn create_json_rpc_client_metrics(
             REQUEST_COUNT_HELP,
             REQUEST_COUNT_LABELS,
         )?)
-        .request_failure_count(metrics.new_int_counter(
-            "request_failure_count",
-            REQUEST_FAILURE_COUNT_HELP,
-            REQUEST_FAILURE_COUNT_LABELS,
-        )?)
         .request_duration_seconds(metrics.new_counter(
             "request_duration_seconds",
             REQUEST_DURATION_SECONDS_HELP,
