@@ -33,12 +33,18 @@ export class HyperlaneRouterChecker<
     const mailbox = await router.mailbox();
     const igp = await router.interchainGasPaymaster();
     const ism = await router.interchainSecurityModule();
-    utils.assert(mailbox, this.configMap[chain].mailbox);
-    utils.assert(igp, this.configMap[chain].interchainGasPaymaster);
     utils.assert(
-      ism,
-      this.configMap[chain].interchainSecurityModule ||
-        ethers.constants.AddressZero,
+      utils.eqAddress(mailbox, this.configMap[chain].mailbox),
+      'Mailbox mismatch',
+    );
+    utils.assert(
+      utils.eqAddress(igp, this.configMap[chain].interchainGasPaymaster),
+      'IGP mismatch',
+    );
+    utils.assert(
+      this.configMap[chain].interchainSecurityModule
+        ? utils.eqAddress(ism, this.configMap[chain].interchainSecurityModule!)
+        : utils.eqAddress(ism, ethers.constants.AddressZero),
     );
   }
 
