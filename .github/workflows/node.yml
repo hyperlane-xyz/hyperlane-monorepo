@@ -24,8 +24,10 @@ jobs:
       - name: yarn-cache
         uses: actions/cache@v3
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
+          path: |
+            '**/node_modules'
+            './.yarn/cache'
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: count-files
         run: find node_modules -type f | wc -l
@@ -57,8 +59,10 @@ jobs:
       - name: yarn-cache
         uses: actions/cache@v3
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
+          path: |
+            '**/node_modules'
+            './.yarn/cache'
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
         uses: actions/cache@v3
@@ -76,8 +80,10 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/cache@v3
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
+          path: |
+            '**/node_modules'
+            './.yarn/cache'
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: lint-ts
         run: yarn lint-ts
