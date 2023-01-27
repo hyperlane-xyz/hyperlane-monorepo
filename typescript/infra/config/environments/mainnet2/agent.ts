@@ -60,7 +60,7 @@ export const hyperlane: AgentConfig<MainnetChains> = {
         reorgPeriod: 0,
       },
       gnosis: {
-        reorgPeriod: 3,
+        reorgPeriod: 14,
       },
     },
   },

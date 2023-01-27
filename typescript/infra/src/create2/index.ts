@@ -32,7 +32,7 @@ export class Create2FactoryDeployer<
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const signer = this.multiProvider.getChainSigner(chain);
     if (
-      (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
+      (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) === '0x'
     ) {
       const tx = await signer.signTransaction({
         data: CREATE2FACTORYBYTECODE,

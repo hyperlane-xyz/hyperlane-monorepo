@@ -528,7 +528,7 @@ export const gnosis: ChainMetadata = {
   ],
   blocks: {
     confirmations: 1,
-    reorgPeriod: 3,
+    reorgPeriod: 14,
     estimateBlockTime: 5,
   },
   gasCurrencyCoinGeckoId: 'xdai',
