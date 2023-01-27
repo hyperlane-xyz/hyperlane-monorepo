@@ -108,7 +108,13 @@ impl BaseAgent for Relayer {
             .map(|l| l.parse())
             .transpose()
             .context("Invalid transaction gas limit")?;
-        info!(%whitelist, %blacklist, ?transaction_gas_limit, "Whitelist configuration");
+        info!(
+            %whitelist,
+            %blacklist,
+            ?transaction_gas_limit,
+            ?skip_transaction_gas_limit_for,
+            "Whitelist configuration"
+        );
 
         let origin_chain = core
             .settings
