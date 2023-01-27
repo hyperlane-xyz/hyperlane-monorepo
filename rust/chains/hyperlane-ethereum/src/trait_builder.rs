@@ -100,7 +100,6 @@ pub trait BuildableWithProvider {
                     .await?
             }
             ConnectionConf::HttpFallback { urls } => {
-                let rpc_metrics = rpc_metrics.map(|f| f());
                 let mut builder = FallbackProvider::builder();
                 let http_client = Client::builder()
                     .timeout(HTTP_CLIENT_TIMEOUT)
