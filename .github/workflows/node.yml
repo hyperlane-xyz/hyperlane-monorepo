@@ -26,7 +26,7 @@ jobs:
         with:
           path: |
             '**/node_modules'
-            './.yarn/cache'
+            '.yarn/cache'
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: count-files
@@ -67,7 +67,7 @@ jobs:
         with:
           path: |
             '**/node_modules'
-            './.yarn/cache'
+            '.yarn/cache'
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
@@ -88,7 +88,7 @@ jobs:
         with:
           path: |
             '**/node_modules'
-            './.yarn/cache'
+            '.yarn/cache'
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: lint-ts
