@@ -187,6 +187,6 @@ jobs:
         run: |
           sudo apt-get install lcov
           cd ./solidity
-          export BASE=$(lcov --summary ./hardhat-lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
-          export REF=$(lcov --summary ./coverage/lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          export BASE=$(lcov --summary ./lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          export REF=$(lcov --summary ./lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
           if [[ $REF < $BASE ]]; then exit 1; fi
