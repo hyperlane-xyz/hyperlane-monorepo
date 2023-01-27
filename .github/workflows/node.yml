@@ -27,12 +27,10 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
 
-      - name: ls-node-modules
-        run: ls ./node_modules
+      - name: count-files
+        run: find node_modules -type f | wc -l
 
       - name: yarn-install
-        # Check out the lockfile from main, reinstall, and then
-        # verify the lockfile matches what was committed.
         run: |
           yarn install
           CHANGES=$(git status -s --ignore-submodules)
@@ -41,6 +39,9 @@ jobs:
             git diff
             exit 1
           fi
+
+      - name: count-files
+        run: find node_modules -type f | wc -l
 
   yarn-build:
     runs-on: ubuntu-latest
