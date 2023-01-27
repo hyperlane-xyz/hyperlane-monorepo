@@ -7,8 +7,8 @@ import { ethers } from 'hardhat';
 import { utils } from '@hyperlane-xyz/utils';
 
 import {
-  InterchainGasPaymaster,
-  InterchainGasPaymaster__factory,
+  TestInterchainGasPaymaster,
+  TestInterchainGasPaymaster__factory,
   TestIsm__factory,
   TestMailbox,
   TestMailbox__factory,
@@ -35,6 +35,7 @@ interface GasPaymentParams {
 describe('Router', async () => {
   let router: TestRouter,
     mailbox: TestMailbox,
+    igp: TestInterchainGasPaymaster,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
 
@@ -45,38 +46,44 @@ describe('Router', async () => {
   beforeEach(async () => {
     const mailboxFactory = new TestMailbox__factory(signer);
     mailbox = await mailboxFactory.deploy(origin);
+    igp = await new TestInterchainGasPaymaster__factory(signer).deploy();
     router = await new TestRouter__factory(signer).deploy();
   });
 
   describe('#initialize', () => {
     it('should set the mailbox', async () => {
-      await router.initialize(mailbox.address);
+      await router.initialize(mailbox.address, igp.address);
       expect(await router.mailbox()).to.equal(mailbox.address);
     });
 
+    it('should set the IGP', async () => {
+      await router.initialize(mailbox.address, igp.address);
+      expect(await router.interchainGasPaymaster()).to.equal(igp.address);
+    });
+
     it('should transfer owner to deployer', async () => {
-      await router.initialize(mailbox.address);
+      await router.initialize(mailbox.address, igp.address);
       expect(await router.owner()).to.equal(signer.address);
     });
 
     it('should use overloaded initialize', async () => {
-      await expect(router.initialize(mailbox.address)).to.emit(
+      await expect(router.initialize(mailbox.address, igp.address)).to.emit(
         router,
         'InitializeOverload',
       );
     });
 
     it('cannot be initialized twice', async () => {
-      await router.initialize(mailbox.address);
-      await expect(router.initialize(mailbox.address)).to.be.revertedWith(
-        'Initializable: contract is already initialized',
-      );
+      await router.initialize(mailbox.address, igp.address);
+      await expect(
+        router.initialize(mailbox.address, igp.address),
+      ).to.be.revertedWith('Initializable: contract is already initialized');
     });
   });
 
   describe('when initialized', () => {
     beforeEach(async () => {
-      await router.initialize(mailbox.address);
+      await router.initialize(mailbox.address, igp.address);
       const ism = await new TestIsm__factory(signer).deploy();
       await ism.setAccept(true);
       await mailbox.initialize(signer.address, ism.address);
@@ -155,13 +162,7 @@ describe('Router', async () => {
     });
 
     describe('dispatch functions', () => {
-      let interchainGasPaymaster: InterchainGasPaymaster;
       beforeEach(async () => {
-        const interchainGasPaymasterFactory =
-          new InterchainGasPaymaster__factory(signer);
-        interchainGasPaymaster = await interchainGasPaymasterFactory.deploy();
-        await router.setInterchainGasPaymaster(interchainGasPaymaster.address);
-
         // Enroll a remote router on the destination domain.
         // The address is arbitrary because no messages will actually be processed.
         await router.enrollRemoteRouter(
@@ -213,7 +214,7 @@ describe('Router', async () => {
             expectGasPayment,
           );
           await assertion
-            .emit(interchainGasPaymaster, 'GasPayment')
+            .emit(igp, 'GasPayment')
             .withArgs(
               id,
               testGasPaymentParams.gasAmount,
