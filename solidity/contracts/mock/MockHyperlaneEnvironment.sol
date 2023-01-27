@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "./MockMailbox.sol";
 import "../middleware/InterchainQueryRouter.sol";
-import "../InterchainGasPaymaster.sol";
+import "../igps/InterchainGasPaymaster.sol";
 import "../test/TestIsm.sol";
 
 import {TypeCasts} from "../libs/TypeCasts.sol";

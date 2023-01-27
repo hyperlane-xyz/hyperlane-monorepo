@@ -97,7 +97,7 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testCannotSetOwnerTwice(address newOwner) public {
-        vm.assume(newOwner != address(0x0));
+        vm.assume(newOwner != address(0x0) && newOwner != ica);
         ownable.transferOwnership(ica);
 
         CallLib.Call memory transferOwner = CallLib.Call({

@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
+import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
@@ -28,7 +28,6 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
 
     // ============ Constructor ============
 
-    // solhint-disable-next-line no-empty-blocks
     constructor() {
         initialize(); // allows contract to be used without proxying
     }
@@ -42,6 +41,8 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
     /**
      * @notice Deposits msg.value as a payment for the relaying of a message
      * to its destination chain.
+     * @dev Overpayment will result in a refund of native tokens to the _refundAddress.
+     * Callers should be aware that this may present reentrancy issues.
      * @param _messageId The ID of the message to pay for.
      * @param _destinationDomain The domain of the message's destination chain.
      * @param _gasAmount The amount of destination gas to pay for. Currently unused.
@@ -64,7 +65,6 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
         uint256 _overpayment = msg.value - _requiredPayment;
         if (_overpayment > 0) {
             (bool _success, ) = _refundAddress.call{value: _overpayment}("");
-            // TODO reconsider this?
             require(_success, "Interchain gas payment refund failed");
         }
 
