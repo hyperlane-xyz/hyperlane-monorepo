@@ -72,8 +72,10 @@ export const hyperlane: AgentConfig<TestnetChains> = {
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
       },
-      transactionGasLimit: undefined,
-      skipTransactionGasLimitFor: [421613],
+      transactionGasLimit: BigInt(750000),
+      // Skipping arbitrum because the gas price estimates are inclusive of L1
+      // fees which leads to wildly off predictions.
+      skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.id],
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,

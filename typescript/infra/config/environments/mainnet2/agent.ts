@@ -1,3 +1,5 @@
+import { chainMetadata } from '@hyperlane-xyz/sdk';
+
 import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
 import {
@@ -72,8 +74,10 @@ export const hyperlane: AgentConfig<MainnetChains> = {
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
       },
-      transactionGasLimit: undefined,
-      skipTransactionGasLimitFor: [42161],
+      transactionGasLimit: BigInt(750000),
+      // Skipping arbitrum because the gas price estimates are inclusive of L1
+      // fees which leads to wildly off predictions.
+      skipTransactionGasLimitFor: [chainMetadata.arbitrum.id],
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,
