@@ -24,12 +24,12 @@ jobs:
       - name: yarn-cache
         uses: actions/cache@v3
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: yarn-install
-        # Check out the lockfile from main, reinstall, and then
-        # verify the lockfile matches what was committed.
         run: |
           yarn install
           CHANGES=$(git status -s --ignore-submodules)
@@ -53,8 +53,10 @@ jobs:
       - name: yarn-cache
         uses: actions/cache@v3
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
         uses: actions/cache@v3
@@ -72,8 +74,10 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/cache@v3
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: lint-ts
         run: yarn lint-ts
@@ -183,6 +187,6 @@ jobs:
         run: |
           sudo apt-get install lcov
           cd ./solidity
-          export BASE=$(lcov --summary ./hardhat-lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
-          export REF=$(lcov --summary ./coverage/lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          export BASE=$(lcov --summary ./lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          export REF=$(lcov --summary ./lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
           if [[ $REF < $BASE ]]; then exit 1; fi
