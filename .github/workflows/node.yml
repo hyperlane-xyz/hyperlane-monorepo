@@ -31,6 +31,7 @@ jobs:
 
       - name: count-files
         run: |
+          yarn cache dir
           find node_modules -type f | wc -l
           find .yarn -type f | wc -l
           ls .yarn/
