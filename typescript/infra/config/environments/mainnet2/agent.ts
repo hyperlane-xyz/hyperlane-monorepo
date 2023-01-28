@@ -39,7 +39,7 @@ export const hyperlane: AgentConfig<MainnetChains> = {
         reorgPeriod: 0,
       },
       ethereum: {
-        reorgPeriod: 20,
+        reorgPeriod: 14,
       },
       bsc: {
         reorgPeriod: 15,

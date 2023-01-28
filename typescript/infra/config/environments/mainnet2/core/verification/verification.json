@@ -49,12 +49,6 @@
       "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
     },
     {
-      "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
-      "isProxy": false,
-      "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
-    },
-    {
       "name": "InterchainGasPaymaster",
       "address": "0xAb311C7DAE251C1eB24c5A5409d47a415828d5E5",
       "isProxy": false,
@@ -148,12 +142,6 @@
     },
     {
       "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
-      "isProxy": false,
-      "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
-    },
-    {
-      "name": "ValidatorAnnounce",
       "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
       "isProxy": false,
       "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
@@ -219,12 +207,6 @@
       "address": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
       "isProxy": false,
       "constructorArguments": "0x0000000000000000000000006ca0b6d22da47f091b7613223cd4bb03a2d77918"
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
-      "isProxy": false,
-      "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
     },
     {
       "name": "ValidatorAnnounce",
@@ -296,12 +278,6 @@
     },
     {
       "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
-      "isProxy": false,
-      "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
-    },
-    {
-      "name": "ValidatorAnnounce",
       "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
       "isProxy": false,
       "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
@@ -367,12 +343,6 @@
       "address": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
       "isProxy": false,
       "constructorArguments": "0x0000000000000000000000006ca0b6d22da47f091b7613223cd4bb03a2d77918"
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
-      "isProxy": false,
-      "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
     },
     {
       "name": "ValidatorAnnounce",
@@ -444,12 +414,6 @@
     },
     {
       "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
-      "isProxy": false,
-      "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
-    },
-    {
-      "name": "ValidatorAnnounce",
       "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
       "isProxy": false,
       "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
@@ -515,12 +479,6 @@
       "address": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
       "isProxy": false,
       "constructorArguments": "0x0000000000000000000000006ca0b6d22da47f091b7613223cd4bb03a2d77918"
-    },
-    {
-      "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
-      "isProxy": false,
-      "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
     },
     {
       "name": "ValidatorAnnounce",
@@ -592,12 +550,6 @@
     },
     {
       "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
-      "isProxy": false,
-      "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
-    },
-    {
-      "name": "ValidatorAnnounce",
       "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
       "isProxy": false,
       "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
@@ -648,7 +600,7 @@
     },
     {
       "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
+      "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
       "isProxy": false,
       "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
     }

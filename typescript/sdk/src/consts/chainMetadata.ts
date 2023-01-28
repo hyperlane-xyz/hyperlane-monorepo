@@ -287,7 +287,7 @@ export const ethereum: ChainMetadata = {
   ],
   blocks: {
     confirmations: 7,
-    reorgPeriod: 20,
+    reorgPeriod: 14,
     estimateBlockTime: 13,
   },
   gnosisSafeTransactionServiceUrl: 'https://safe-transaction.gnosis.io',
