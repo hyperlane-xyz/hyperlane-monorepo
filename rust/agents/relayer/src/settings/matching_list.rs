@@ -45,11 +45,11 @@ impl<T: Display> Display for Filter<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Wildcard => write!(f, "*"),
-            Self::Enumerated(l) if l.len() == 1 => write!(f, "{}", l[0]),
+            Self::Enumerated(l) if l.len() == 1 => write!(f, "{:?}", l[0]),
             Self::Enumerated(l) => {
                 write!(f, "[")?;
                 for i in l {
-                    write!(f, "{i},")?;
+                    write!(f, "{i:?},")?;
                 }
                 write!(f, "]")
             }
