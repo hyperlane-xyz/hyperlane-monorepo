@@ -146,7 +146,8 @@
       "implementation": "0xAb311C7DAE251C1eB24c5A5409d47a415828d5E5"
     },
     "defaultIsmInterchainGasPaymaster": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
-    "multisigIsm": "0xf3b1F415740A26568C45b1c771A737E31C198F09"
+    "multisigIsm": "0xf3b1F415740A26568C45b1c771A737E31C198F09",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   },
   "gnosis": {
     "validatorAnnounce": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
