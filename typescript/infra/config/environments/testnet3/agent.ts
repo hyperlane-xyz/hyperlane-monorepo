@@ -26,7 +26,7 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: 'sha-c163fce',
+    tag: 'sha-0477ee1',
   },
   aws: {
     region: 'us-east-1',
