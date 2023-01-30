@@ -74,14 +74,10 @@ pub trait MakeableWithProvider {
             }
             Connection::HttpFallback { urls } => {
                 let mut builder = FallbackProvider::builder();
-                let http_client = Client::builder()
-                    .timeout(HTTP_CLIENT_TIMEOUT)
-                    .build()?;
+                let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
                 for url in urls.split(',') {
-                    let http_provider = Http::new_with_client(
-                        url.parse::<Url>()?,
-                        http_client.clone(),
-                    );
+                    let http_provider =
+                        Http::new_with_client(url.parse::<Url>()?, http_client.clone());
                     let metrics_provider = self.wrap_rpc_with_metrics(
                         http_provider,
                         Url::parse(url)?,
