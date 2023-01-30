@@ -37,7 +37,7 @@ function getArgs() {
       'location, e.g. s3://hyperlane-testnet3-goerli-validator-0/us-east-1',
     )
     .string('location')
-    .check(({ environment, context, chain, location }) => {
+    .check(({ context, chain, location }) => {
       const isSet = [!!context, !!chain, !!location];
       if (isSet[0] != isSet[1] && isSet[1] == isSet[2]) {
         return true;
@@ -57,8 +57,8 @@ async function main() {
     multiProvider as any,
   );
 
-  let announcements = [];
-  let chains = [];
+  const announcements = [];
+  const chains = [];
   if (location) {
     chains.push(chain);
     if (location.startsWith('s3://')) {
