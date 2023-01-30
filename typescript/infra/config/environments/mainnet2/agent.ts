@@ -6,7 +6,7 @@ import {
 } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 import { helloworldMatchingList } from '../../utils';
-import { helloWorld } from '../testnet3/helloworld';
+import { helloWorld } from '../mainnet2/helloworld';
 
 import { MainnetChains, chainNames, environment } from './chains';
 // import { helloWorld } from './helloworld';
@@ -24,7 +24,7 @@ export const hyperlane: AgentConfig<MainnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: 'sha-c163fce',
+    tag: 'sha-0477ee1',
   },
   aws: {
     region: 'us-east-1',
@@ -92,7 +92,7 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: 'sha-c163fce',
+    tag: 'sha-0477ee1',
   },
   aws: {
     region: 'us-east-1',
