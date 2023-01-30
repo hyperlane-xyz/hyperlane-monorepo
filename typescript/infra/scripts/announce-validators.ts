@@ -4,27 +4,51 @@ import { readFileSync } from 'fs';
 import * as path from 'path';
 import yargs from 'yargs';
 
-import { AllChains, HyperlaneCore } from '@hyperlane-xyz/sdk';
+import {
+  AllChains,
+  ChainNameToDomainId,
+  HyperlaneCore,
+} from '@hyperlane-xyz/sdk';
 
 import { S3Validator } from '../src/agents/aws/validator';
+import { CheckpointSyncerType } from '../src/config/agent';
 import { deployEnvToSdkEnv } from '../src/config/environment';
+import { assertContext } from '../src/utils/utils';
 
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import {
+  assertEnvironment,
+  getContextAgentConfig,
+  getCoreEnvironmentConfig,
+} from './utils';
 
 function getArgs() {
   return yargs(process.argv.slice(2))
+    .describe('environment', 'deploy environment')
+    .coerce('environment', assertEnvironment)
+    .demandOption('environment')
+    .alias('e', 'environment')
+    .describe('context', 'deploy context')
+    .coerce('context', assertContext)
+    .alias('c', 'context')
     .describe('chain', 'chain on which to register')
     .choices('chain', AllChains)
-    .demandOption('chain')
     .describe(
       'location',
       'location, e.g. s3://hyperlane-testnet3-goerli-validator-0/us-east-1',
     )
     .string('location')
-    .demandOption('location').argv;
+    .check(({ environment, context, chain, location }) => {
+      const isSet = [!!context, !!chain, !!location];
+      if (isSet[0] != isSet[1] && isSet[1] == isSet[2]) {
+        return true;
+      } else {
+        throw new Error('Must specify context OR chain and location');
+      }
+    }).argv;
 }
+
 async function main() {
-  const environment = await getEnvironment();
+  const { environment, context, chain, location } = await getArgs();
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   // environments union doesn't work well with typescript
@@ -33,37 +57,72 @@ async function main() {
     multiProvider as any,
   );
 
-  const { chain, location } = await getArgs();
-
-  let announcement;
-  if (location.startsWith('s3://')) {
-    const validator = await S3Validator.fromStorageLocation(location);
-    announcement = await validator.getAnnouncement();
-  } else if (location.startsWith('file://')) {
-    const announcementFilepath = path.join(
-      location.substring(7),
-      'announcement.json',
+  let announcements = [];
+  let chains = [];
+  if (location) {
+    chains.push(chain);
+    if (location.startsWith('s3://')) {
+      const validator = await S3Validator.fromStorageLocation(location);
+      announcements.push(await validator.getAnnouncement());
+    } else if (location.startsWith('file://')) {
+      const announcementFilepath = path.join(
+        location.substring(7),
+        'announcement.json',
+      );
+      announcements.push(
+        JSON.parse(readFileSync(announcementFilepath, 'utf-8')),
+      );
+    } else {
+      throw new Error(`Unknown location type %{location}`);
+    }
+  } else {
+    const agentConfig = await getContextAgentConfig(config, context);
+    await Promise.all(
+      Object.entries(agentConfig.validators).map(
+        async ([chain, validatorChainConfig]) => {
+          for (const validatorBaseConfig of validatorChainConfig.validators) {
+            if (
+              validatorBaseConfig.checkpointSyncer.type ==
+              CheckpointSyncerType.S3
+            ) {
+              // @ts-ignore
+              const contracts = core.getContracts(chain);
+              const localDomain = ChainNameToDomainId[chain];
+              const validator = new S3Validator(
+                validatorBaseConfig.address,
+                localDomain,
+                contracts.mailbox.address,
+                validatorBaseConfig.checkpointSyncer.bucket,
+                validatorBaseConfig.checkpointSyncer.region,
+              );
+              announcements.push(await validator.getAnnouncement());
+              chains.push(chain);
+            }
+          }
+        },
+      ),
     );
-    announcement = JSON.parse(readFileSync(announcementFilepath, 'utf-8'));
-  } else {
-    throw new Error(`Unknown location type %{location}`);
   }
-  // @ts-ignore why?
-  const contracts = core.getContracts(chain);
-  const validatorAnnounce = contracts.validatorAnnounce;
-  const address = announcement.value.validator;
-  const announcedLocations =
-    await validatorAnnounce.getAnnouncedStorageLocations([address]);
-  assert(announcedLocations.length == 1);
-  const announced = announcedLocations[0].includes(location);
-  if (!announced) {
-    const signature = ethers.utils.joinSignature(announcement.signature);
-    const signedLocation = announcement.value.storage_location;
-    assert(location == signedLocation);
-    console.log(`Announcing ${address} checkpoints at ${location}`);
-    await validatorAnnounce.announce(address, location, signature);
-  } else {
-    console.log(`${address} -> ${location} already announced`);
+
+  for (let i = 0; i < announcements.length; i++) {
+    const announcement = announcements[i];
+    const chain = chains[i];
+    // @ts-ignore why?
+    const contracts = core.getContracts(chain);
+    const validatorAnnounce = contracts.validatorAnnounce;
+    const address = announcement.value.validator;
+    const location = announcement.value.storage_location;
+    const announcedLocations =
+      await validatorAnnounce.getAnnouncedStorageLocations([address]);
+    assert(announcedLocations.length == 1);
+    const announced = announcedLocations[0].includes(location);
+    if (!announced) {
+      const signature = ethers.utils.joinSignature(announcement.signature);
+      console.log(`Announcing ${address} checkpoints at ${location}`);
+      await validatorAnnounce.announce(address, location, signature);
+    } else {
+      console.log(`${address} -> ${location} already announced`);
+    }
   }
 }
 

@@ -82,8 +82,11 @@ export class S3Validator extends BaseValidator {
     throw new Error(`Unable to parse location ${storageLocation}`);
   }
 
-  getAnnouncement(): Promise<any> {
-    return this.s3Bucket.getS3Obj<any>(ANNOUNCEMENT_KEY);
+  async getAnnouncement(): Promise<any> {
+    const data = await this.s3Bucket.getS3Obj<any>(ANNOUNCEMENT_KEY);
+    if (data) {
+      return data.data;
+    }
   }
 
   async getLatestCheckpointIndex() {
