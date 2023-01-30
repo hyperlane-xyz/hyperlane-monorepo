@@ -41,10 +41,10 @@ impl CheckpointSyncerConf {
             } else {
                 None
             }
-        } else if let Some(path) = storage_location.strip_prefix(local_prefix) {
-            Some(CheckpointSyncerConf::LocalStorage { path: path.into() })
         } else {
-            None
+            storage_location
+                .strip_prefix(local_prefix)
+                .map(|path| CheckpointSyncerConf::LocalStorage { path: path.into() })
         }
     }
 
