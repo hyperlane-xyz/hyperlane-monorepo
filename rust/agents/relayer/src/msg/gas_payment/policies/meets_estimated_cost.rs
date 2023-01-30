@@ -273,7 +273,7 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
         // 1M gas
         gas_limit: U256::from(1000000u32),
         // 15 gwei
-        gas_price: ethers::utils::parse_units("15", "gwei").unwrap(),
+        gas_price: ethers::utils::parse_units("15", "gwei").unwrap().into(),
     };
 
     // Expected polygon fee: 1M * 15 gwei = 0.015 MATIC

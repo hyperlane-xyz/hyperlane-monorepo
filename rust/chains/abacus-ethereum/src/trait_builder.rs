@@ -18,7 +18,7 @@ use ethers_prometheus::middleware::{
     MiddlewareMetrics, PrometheusMiddleware, PrometheusMiddlewareConf,
 };
 
-use crate::{Connection, RetryingProvider};
+use crate::{Connection, FallbackProvider, RetryingProvider};
 
 // This should be whatever the prometheus scrape interval is
 const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
@@ -70,6 +70,24 @@ pub trait MakeableWithProvider {
                 }
                 let quorum_provider = builder.build();
                 self.wrap_with_metrics(quorum_provider, locator, signer, middleware_metrics)
+                    .await?
+            }
+            Connection::HttpFallback { urls } => {
+                let mut builder = FallbackProvider::builder();
+                let http_client = Client::builder().timeout(HTTP_CLIENT_TIMEOUT).build()?;
+                for url in urls.split(',') {
+                    let http_provider =
+                        Http::new_with_client(url.parse::<Url>()?, http_client.clone());
+                    let metrics_provider = self.wrap_rpc_with_metrics(
+                        http_provider,
+                        Url::parse(url)?,
+                        &rpc_metrics,
+                        &middleware_metrics,
+                    );
+                    builder = builder.add_provider(metrics_provider);
+                }
+                let fallback_provider = builder.build();
+                self.wrap_with_metrics(fallback_provider, locator, signer, middleware_metrics)
                     .await?
             }
             Connection::Http { url } => {
