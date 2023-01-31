@@ -119,9 +119,15 @@ async function main() {
     if (!announced) {
       const signature = ethers.utils.joinSignature(announcement.signature);
       console.log(`Announcing ${address} checkpoints at ${location}`);
-      await validatorAnnounce.announce(address, location, signature);
+      const chainConnection = multiProvider.tryGetChainConnection(chain);
+      await validatorAnnounce.announce(
+        address,
+        location,
+        signature,
+        chainConnection?.overrides,
+      );
     } else {
-      console.log(`${address} -> ${location} already announced`);
+      console.log(`Already announced ${address} checkpoints at ${location}`);
     }
   }
 }
