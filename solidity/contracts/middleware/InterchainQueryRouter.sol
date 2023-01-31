@@ -114,7 +114,6 @@ contract InterchainQueryRouter is
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        // TODO: fix double ABI decoding with calldata slices
         Action action = abi.decode(_message, (Action));
         if (action == Action.DISPATCH) {
             (
