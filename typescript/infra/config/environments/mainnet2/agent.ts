@@ -23,7 +23,7 @@ export const hyperlane: AgentConfig<MainnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: 'sha-c163fce',
+    tag: 'sha-d1ad862',
   },
   aws: {
     region: 'us-east-1',
@@ -45,7 +45,7 @@ export const hyperlane: AgentConfig<MainnetChains> = {
         reorgPeriod: 0,
       },
       ethereum: {
-        reorgPeriod: 20,
+        reorgPeriod: 14,
       },
       bsc: {
         reorgPeriod: 15,
@@ -64,6 +64,9 @@ export const hyperlane: AgentConfig<MainnetChains> = {
       },
       moonbeam: {
         reorgPeriod: 0,
+      },
+      gnosis: {
+        reorgPeriod: 14,
       },
     },
   },
