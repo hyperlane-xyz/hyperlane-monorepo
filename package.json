@@ -56,7 +56,8 @@
     "coverage": "hardhat coverage",
     "lint": "eslint . --ext .ts",
     "prettier": "prettier --write ./contracts ./test",
-    "test": "hardhat test ./test/*.test.ts"
+    "test": "hardhat test ./test/*.test.ts",
+    "deploy-warp-route": "DEBUG=* ts-node scripts/deploy"
   },
   "types": "dist/index.d.ts"
 }

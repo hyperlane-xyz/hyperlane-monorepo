@@ -1,6 +1,6 @@
-# Interchain tokens using Hyperlane
+# Hyperlane Warp Route
 
-This repo showcases a Hyperlane ERC20 and ERC721 tokens (HypERC20 and HypERC721). These tokens extend the base standards with an additional `transferRemote` function.
+This repo contains the base Hyperlane ERC20 and ERC721 tokens (HypERC20 and HypERC721). These tokens extend the base standards with an additional `transferRemote` function. Warp Routes are way of arranging these contracts to make existing assets interchain. Read more about Warp Routes and how to deploy your own at [Warp API docs](https://docs.hyperlane.xyz/docs/developers/warp-api).
 
 ```mermaid
 %%{init: {'theme':'base'}}%%
@@ -30,7 +30,7 @@ graph TB
     HYP_P-.->Bob
 ```
 
-## Setup
+## Setup for local development
 
 ```sh
 # Install dependencies
@@ -40,14 +40,8 @@ yarn
 yarn build:dev
 ```
 
-### (Optional) Using local core contracts
 
-```sh
-# yarn link does not work well with workspaces
-ln -s ~/path/to/monorepo/solidity node_modules/@hyperlane-xyz/core
-```
-
-## Test
+## Unit testing
 
 ```sh
 # Run all unit tests
