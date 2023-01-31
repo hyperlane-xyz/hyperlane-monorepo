@@ -109,7 +109,6 @@ contract InterchainQueryRouter is
         emit QueryDispatched(_destinationDomain, msg.sender);
     }
 
-    // TODO: add REJECT behavior ala NodeJS Promise API
     function _handle(
         uint32 _origin,
         bytes32, // router sender
