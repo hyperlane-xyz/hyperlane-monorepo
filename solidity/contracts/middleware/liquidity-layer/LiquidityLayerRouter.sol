@@ -83,7 +83,7 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
             _dispatchWithGas(
                 _destinationDomain,
                 _messageWithMetadata,
-                0, // TODO eventually accommodate gas amounts
+                0,
                 msg.value,
                 msg.sender
             );
