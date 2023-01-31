@@ -394,50 +394,39 @@ async function sendMessage(
   messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
 
   const [message] = app.core.getDispatchedMessages(receipt);
+  const ctx = { origin, destination, message };
   log('Message sent', {
-    origin,
-    destination,
+    ...ctx,
     events: receipt.events,
     logs: receipt.logs,
-    message,
   });
 
+  let isProcessed;
   try {
     await utils.timeout(
       app.waitForMessageProcessed(receipt),
       messageReceiptTimeout,
       'Timeout waiting for message to be received',
     );
-  } catch (error) {
-    // If we weren't able to get the receipt for message processing,
-    // try to read the state to ensure it wasn't a transient provider issue
-    log('Checking if message was received despite timeout', {
+    isProcessed = true;
+  } catch (timeoutError) {
+    isProcessed = await messageIsProcessed(
+      app.core,
+      origin,
+      destination,
       message,
-    });
-
-    // Try a few times to see if the message has been processed --
-    // we've seen some intermittent issues when fetching state.
-    // This will throw if the message is found to have not been processed.
-    await utils.retryAsync(async () => {
-      if (!(await messageIsProcessed(app.core, origin, destination, message))) {
-        throw error;
-      }
-    }, 3);
-
-    // Otherwise, the message has been processed
-    log(
-      'Did not receive event for message delivery even though it was delivered',
-      { origin, destination, message },
     );
   }
 
-  messageReceiptSeconds
-    .labels(metricLabels)
-    .inc((Date.now() - startTime) / 1000);
-  log('Message received', {
-    origin,
-    destination,
-  });
+  if (isProcessed) {
+    messageReceiptSeconds
+      .labels(metricLabels)
+      .inc((Date.now() - startTime) / 1000);
+    log('Message received', {
+      origin,
+      destination,
+    });
+  }
 }
 
 async function messageIsProcessed(
@@ -446,8 +435,48 @@ async function messageIsProcessed(
   destination: ChainName,
   message: DispatchedMessage,
 ): Promise<boolean> {
+  const ctx = { origin, destination, message };
+  // If we weren't able to get the receipt for message processing,
+  // try to read the state to ensure it wasn't a transient provider issue
+  log('Checking if message was received despite timeout', ctx);
+
   const destinationMailbox = core.getContracts(destination).mailbox.contract;
-  return destinationMailbox.delivered(message.id);
+
+  // Try a few times to see if the message has been processed --
+  // we've seen some intermittent issues when fetching state.
+  // This will throw if the message is found to have not been processed.
+  let isProcessed = false;
+  try {
+    isProcessed = await utils.retryAsync(async () => {
+      try {
+        return await destinationMailbox.delivered(message.id);
+      } catch (checkStatusError) {
+        log('Error checking if message was processed', {
+          ...ctx,
+          error: format(checkStatusError),
+        });
+        throw checkStatusError;
+      }
+    }, 3);
+  } catch (lastError) {
+    log('Failed checking status multiple times', {
+      ...ctx,
+      error: format(lastError),
+    });
+    return false;
+  }
+
+  if (isProcessed) {
+    log(
+      'Did not receive event for message delivery even though it was delivered',
+      ctx,
+    );
+  } else {
+    log('Confirmed that the message has not been delivered', {
+      ...ctx,
+    });
+  }
+  return isProcessed;
 }
 
 async function updateWalletBalanceMetricFor(

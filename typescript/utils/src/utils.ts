@@ -196,7 +196,7 @@ export async function retryAsync<T>(
   runner: () => T,
   attempts = 5,
   baseRetryMs = 50,
-) {
+): Promise<T> {
   let saveError;
   for (let i = 0; i < attempts; i++) {
     try {
