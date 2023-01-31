@@ -207,4 +207,37 @@ export const validators: ChainValidatorConfigs<MainnetChains> = {
       },
     ],
   },
+  gnosis: {
+    interval: 5,
+    reorgPeriod: 14,
+    validators: [
+      {
+        address: '0xd0529ec8df08d0d63c0f023786bfa81e4bb51fd6',
+        name: s3BucketName('gnosis', 0),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('gnosis', 0),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x829d6ec129bc7187fb1ed161adcf7939fe0c515f',
+        name: s3BucketName('gnosis', 1),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('gnosis', 1),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x00009f8935e94bfe52ab3441df3526ab7cc38db1',
+        name: s3BucketName('gnosis', 2),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('gnosis', 2),
+          region: s3BucketRegion,
+        },
+      },
+    ],
+  },
 };
