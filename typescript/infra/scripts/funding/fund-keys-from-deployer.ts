@@ -177,7 +177,6 @@ async function main() {
       ),
     );
   } else {
-    contextFunders = [];
     const contexts = Object.keys(argv.contextsAndRoles) as Contexts[];
     contextFunders = await Promise.all(
       contexts.map((context) =>
@@ -192,10 +191,7 @@ async function main() {
 
   let failureOccurred = false;
   for (const funder of contextFunders) {
-    const failure = await funder.fund();
-    if (failure) {
-      failureOccurred = true;
-    }
+    failureOccurred ||= await funder.fund();
   }
 
   await submitMetrics(metricsRegister, 'key-funder');
@@ -302,10 +298,10 @@ class ContextFunder {
         if (keys.length > 0) {
           await this.bridgeIfL2(chain as ChainName);
         }
-        keys.forEach(async (key) => {
+        for (const key of keys) {
           const failure = await this.attemptToFundKey(key, chain as ChainName);
-          failureOccurred = failureOccurred || failure;
-        });
+          failureOccurred ||= failure;
+        }
       }),
     );
     return failureOccurred;
