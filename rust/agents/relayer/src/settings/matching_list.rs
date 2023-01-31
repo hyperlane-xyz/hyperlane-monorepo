@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::num::ParseIntError;
 
@@ -41,15 +41,15 @@ impl<T: PartialEq> Filter<T> {
     }
 }
 
-impl<T: Display> Display for Filter<T> {
+impl<T: Debug> Display for Filter<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Wildcard => write!(f, "*"),
-            Self::Enumerated(l) if l.len() == 1 => write!(f, "{}", l[0]),
+            Self::Enumerated(l) if l.len() == 1 => write!(f, "{:?}", l[0]),
             Self::Enumerated(l) => {
                 write!(f, "[")?;
                 for i in l {
-                    write!(f, "{i},")?;
+                    write!(f, "{i:?},")?;
                 }
                 write!(f, "]")
             }
@@ -276,8 +276,9 @@ fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
 
 #[cfg(test)]
 mod test {
-    use crate::settings::matching_list::MatchInfo;
     use hyperlane_core::{H160, H256};
+
+    use crate::settings::matching_list::MatchInfo;
 
     use super::{Filter::*, MatchingList};
 
