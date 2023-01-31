@@ -37,6 +37,8 @@ pub enum Chain {
     MoonbaseAlpha = 1287,
     Moonbeam = 1284,
 
+    Gnosis = 100,
+
     Zksync2Testnet = 280,
 }
 
