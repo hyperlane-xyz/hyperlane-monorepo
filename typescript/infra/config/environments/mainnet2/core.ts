@@ -12,6 +12,7 @@ const owners: ChainMap<MainnetChains, string> = {
   arbitrum: '0xbA47E1b575980B7D1b1508cc48bE1Df4EE508111',
   optimism: '0xb523CFAf45AACF472859f8B793CB0BFDB16bD257',
   moonbeam: '0xF0cb1f968Df01fc789762fddBfA704AE0F952197',
+  gnosis: '0x36b0AA0e7d04e7b825D7E409FEa3c9A3d57E4C22',
 };
 
 export const core: ChainMap<MainnetChains, CoreConfig> = objMap(
