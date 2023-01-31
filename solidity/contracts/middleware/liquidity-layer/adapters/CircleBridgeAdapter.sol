@@ -96,11 +96,7 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         uint32 _circleDomain = hyperlaneDomainToCircleDomain[
             _destinationDomain
         ];
-        bytes32 _remoteRouter = routers(_destinationDomain);
-        require(
-            _remoteRouter != bytes32(0),
-            "CircleBridgeAdapter: No router for domain"
-        );
+        bytes32 _remoteRouter = _mustHaveRemoteRouter(_destinationDomain);
 
         // Approve the token to Circle. We assume that the LiquidityLayerRouter
         // has already transferred the token to this contract.
@@ -127,6 +123,7 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         uint256 _amount,
         bytes calldata _adapterData // The adapter data from the message
     ) external onlyLiquidityLayerRouter returns (address, uint256) {
+        _mustHaveRemoteRouter(_originDomain);
         // The origin Circle domain
         uint32 _originCircleDomain = hyperlaneDomainToCircleDomain[
             _originDomain
