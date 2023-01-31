@@ -125,7 +125,6 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         bytes32 _sender,
         bytes calldata _message
     ) external virtual override onlyMailbox onlyRemoteRouter(_origin, _sender) {
-        // TODO: callbacks on success/failure
         _handle(_origin, _sender, _message);
     }
 
