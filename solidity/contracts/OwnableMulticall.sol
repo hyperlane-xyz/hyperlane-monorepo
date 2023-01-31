@@ -46,7 +46,6 @@ contract OwnableMulticall is OwnableUpgradeable {
         }
     }
 
-    // TODO: deduplicate
     function proxyCallBatch(address to, bytes[] memory calls) internal {
         for (uint256 i = 0; i < calls.length; i += 1) {
             (bool success, bytes memory returnData) = to.call(calls[i]);
