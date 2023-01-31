@@ -22,7 +22,7 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
     /// @notice Hyperlane domain => Circle domain.
     /// ATM, known Circle domains are Ethereum = 0 and Avalanche = 1.
     /// Note this could result in ambiguity between the Circle domain being
-    /// Ethereum or unknown. TODO fix?
+    /// Ethereum or unknown.
     mapping(uint32 => uint32) public hyperlaneDomainToCircleDomain;
 
     /// @notice Token symbol => address of token on local chain.
@@ -151,7 +151,6 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         );
 
         // Transfer the token out to the recipient
-        // TODO: use safeTransfer
         // Circle doesn't charge any fee, so we can safely transfer out the
         // exact amount that was bridged over.
         require(_token.transfer(_recipient, _amount), "!transfer out");

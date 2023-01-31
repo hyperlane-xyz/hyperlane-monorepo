@@ -51,8 +51,6 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
         ILiquidityLayerAdapter _adapter = _getAdapter(_bridge);
 
         // Transfer the tokens to the adapter
-        // TODO: use safeTransferFrom
-        // TODO: Are there scenarios where a transferFrom fails and it doesn't revert?
         require(
             IERC20(_token).transferFrom(msg.sender, address(_adapter), _amount),
             "!transfer in"
