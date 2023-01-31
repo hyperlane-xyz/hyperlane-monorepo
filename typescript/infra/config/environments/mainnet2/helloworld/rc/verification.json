@@ -62,5 +62,13 @@
       "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
       "isProxy": false
     }
+  ],
+  "gnosis": [
+    {
+      "name": "router",
+      "address": "0x14aBb1f28B06272c57c37723D0e671d1c3326679",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
+    }
   ]
 }
