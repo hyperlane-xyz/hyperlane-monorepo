@@ -294,19 +294,19 @@ export class HyperlaneCoreDeployer<
   ): Promise<ethers.ContractReceipt[]> {
     const owner = this.configMap[chain].owner;
     const chainConnection = this.multiProvider.getChainConnection(chain);
-    const receipts = await Promise.all(
-      ownables.map(async (ownable) => {
-        const currentOwner = await ownable.owner();
-        if (currentOwner.toLowerCase() !== owner.toLowerCase()) {
-          return super.runIfOwner(chain, ownable, () =>
-            chainConnection.handleTx(
-              ownable.transferOwnership(owner, chainConnection.overrides),
-            ),
-          );
-        }
-        return undefined;
-      }),
-    );
+    const receipts: ethers.ContractReceipt[] = [];
+    for (const ownable of ownables) {
+      const currentOwner = await ownable.owner();
+      if (currentOwner.toLowerCase() !== owner.toLowerCase()) {
+        const receipt = await super.runIfOwner(chain, ownable, () =>
+          chainConnection.handleTx(
+            ownable.transferOwnership(owner, chainConnection.overrides),
+          ),
+        );
+        if (receipt) receipts.push(receipt);
+      }
+    }
+
     return receipts.filter((x) => x !== undefined) as ethers.ContractReceipt[];
   }
 }
