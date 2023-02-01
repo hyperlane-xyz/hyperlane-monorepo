@@ -6,23 +6,24 @@ async function main() {
   const agentConfig = await getContextAgentConfig();
 
   const keys = getAllCloudAgentKeys(agentConfig);
-
-  const keyInfos = await Promise.all(
-    keys.map(async (key) => {
-      let address = '';
-      try {
-        await key.fetch();
-        address = key.address;
-      } catch (e) {
-        // Swallow error
-      }
-      return {
-        identifier: key.identifier,
-        address,
-      };
-    }),
+  const keyInfoPromises = keys.map(async (key) => {
+    let address = '';
+    try {
+      await key.fetch();
+      address = key.address;
+    } catch (e) {
+      // Swallow error
+      console.error('Error getting address', { key: key.identifier });
+    }
+    return {
+      identifier: key.identifier,
+      address,
+    };
+  });
+  const keyInfos = (await Promise.all(keyInfoPromises)).filter(
+    // remove any keys we could not get an address for
+    ({ address }) => !!address,
   );
-
   console.log(JSON.stringify(keyInfos, null, 2));
 }
 

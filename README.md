@@ -80,6 +80,8 @@ yarn version:prepare 1.1.0-beta0
 yarn version:prepare 1.1.0
 ```
 
+Commit this preparation so that it is clear which commit the release is from.
+
 Next, ensure packages are cleaned and rebuilt:
 
 ```bash
@@ -94,3 +96,7 @@ yarn publish:all --otp YOUR_OTP_HERE
 # Or for a pre-release, include the tag
 yarn publish:all --otp YOUR_OTP_HERE --tag beta
 ```
+
+For the git submodules, you will have to undo the removal of the `yarn.lock` files, `yarn install` and check in the yarn.lock changes on the submodule as well. Then checkin the updated commits on the monorepo itself.
+
+Make PRs for the monorepo and the submodules.
