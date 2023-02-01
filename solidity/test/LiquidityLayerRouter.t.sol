@@ -95,7 +95,7 @@ contract LiquidityLayerRouterTest is Test {
             TypeCasts.addressToBytes32(address(destinationBridgeAdapter))
         );
         destinationBridgeAdapter.enrollRemoteRouter(
-            destinationDomain,
+            originDomain,
             TypeCasts.addressToBytes32(address(originBridgeAdapter))
         );
 
