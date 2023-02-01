@@ -8,20 +8,20 @@ import { environment } from './chains';
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    // TODO: Use an image built off of main
-    tag: 'sha-d1ad862',
+    tag: 'sha-59e9fda',
   },
   // We're currently using the same deployer key as mainnet.
   // To minimize nonce clobbering we offset the key funder cron
   // schedule by 30 minutes.
-  cronSchedule: '15 * * * *', // Every hour at the 15 minute mark
+  cronSchedule: '15 * * * *', // Every hour at the 15-minute mark
   namespace: environment,
   prometheusPushGateway:
     'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
     [Contexts.Hyperlane]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
-    [Contexts.ReleaseCandidate]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
+    // TODO: get secrets updated and then enable this
+    // [Contexts.ReleaseCandidate]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
   },
   connectionType: ConnectionType.Http,
 };
