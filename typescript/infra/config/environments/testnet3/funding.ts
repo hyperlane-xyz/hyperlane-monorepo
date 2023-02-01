@@ -20,6 +20,7 @@ export const keyFunderConfig: KeyFunderConfig = {
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
     [Contexts.Hyperlane]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
+    [Contexts.ReleaseCandidate]: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
   },
   connectionType: ConnectionType.Http,
 };
