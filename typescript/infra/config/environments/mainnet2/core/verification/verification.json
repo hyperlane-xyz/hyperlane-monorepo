@@ -49,12 +49,6 @@
       "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
     },
     {
-      "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
-      "isProxy": false,
-      "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
-    },
-    {
       "name": "InterchainGasPaymaster",
       "address": "0xAb311C7DAE251C1eB24c5A5409d47a415828d5E5",
       "isProxy": false,
@@ -73,10 +67,16 @@
       "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
     },
     {
-      "name": "DefaultIsmInterchainGasPaymaster",
+      "name": "OverheadIgp",
       "address": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
       "isProxy": false,
       "constructorArguments": "0x0000000000000000000000006ca0b6d22da47f091b7613223cd4bb03a2d77918"
+    },
+    {
+      "name": "ValidatorAnnounce",
+      "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
+      "isProxy": false,
+      "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
     }
   ],
   "ethereum": [
@@ -135,14 +135,14 @@
       "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
     },
     {
-      "name": "DefaultIsmInterchainGasPaymaster",
+      "name": "OverheadIgp",
       "address": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
       "isProxy": false,
       "constructorArguments": "0x0000000000000000000000006ca0b6d22da47f091b7613223cd4bb03a2d77918"
     },
     {
       "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
+      "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
       "isProxy": false,
       "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
     }
@@ -203,14 +203,14 @@
       "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
     },
     {
-      "name": "DefaultIsmInterchainGasPaymaster",
+      "name": "OverheadIgp",
       "address": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
       "isProxy": false,
       "constructorArguments": "0x0000000000000000000000006ca0b6d22da47f091b7613223cd4bb03a2d77918"
     },
     {
       "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
+      "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
       "isProxy": false,
       "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
     }
@@ -271,14 +271,14 @@
       "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
     },
     {
-      "name": "DefaultIsmInterchainGasPaymaster",
+      "name": "OverheadIgp",
       "address": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
       "isProxy": false,
       "constructorArguments": "0x0000000000000000000000006ca0b6d22da47f091b7613223cd4bb03a2d77918"
     },
     {
       "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
+      "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
       "isProxy": false,
       "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
     }
@@ -339,14 +339,14 @@
       "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
     },
     {
-      "name": "DefaultIsmInterchainGasPaymaster",
+      "name": "OverheadIgp",
       "address": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
       "isProxy": false,
       "constructorArguments": "0x0000000000000000000000006ca0b6d22da47f091b7613223cd4bb03a2d77918"
     },
     {
       "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
+      "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
       "isProxy": false,
       "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
     }
@@ -407,14 +407,14 @@
       "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
     },
     {
-      "name": "DefaultIsmInterchainGasPaymaster",
+      "name": "OverheadIgp",
       "address": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
       "isProxy": false,
       "constructorArguments": "0x0000000000000000000000006ca0b6d22da47f091b7613223cd4bb03a2d77918"
     },
     {
       "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
+      "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
       "isProxy": false,
       "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
     }
@@ -475,14 +475,14 @@
       "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
     },
     {
-      "name": "DefaultIsmInterchainGasPaymaster",
+      "name": "OverheadIgp",
       "address": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
       "isProxy": false,
       "constructorArguments": "0x0000000000000000000000006ca0b6d22da47f091b7613223cd4bb03a2d77918"
     },
     {
       "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
+      "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
       "isProxy": false,
       "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
     }
@@ -543,14 +543,64 @@
       "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
     },
     {
-      "name": "DefaultIsmInterchainGasPaymaster",
+      "name": "OverheadIgp",
       "address": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
       "isProxy": false,
       "constructorArguments": "0x0000000000000000000000006ca0b6d22da47f091b7613223cd4bb03a2d77918"
     },
     {
       "name": "ValidatorAnnounce",
-      "address": "0xB5bc6369bc2Dc8969B18f6C25488EC0a38cA637f",
+      "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
+      "isProxy": false,
+      "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
+    }
+  ],
+  "gnosis": [
+    {
+      "name": "MultisigIsm",
+      "address": "0xC343A7054838FE9F249D7E3Ec1Fa6f1D108694b8",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "ProxyAdmin",
+      "address": "0x81a92A1a272cb09d7b4970b07548463dC7aE0cB7",
+      "constructorArguments": "",
+      "isProxy": false
+    },
+    {
+      "name": "InterchainGasPaymaster",
+      "address": "0xAb311C7DAE251C1eB24c5A5409d47a415828d5E5",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0x6cA0B6D22da47f091B7613223cD4BB03a2d77918",
+      "isProxy": true,
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "OverheadIgp",
+      "address": "0x56f52c0A1ddcD557285f7CBc782D3d83096CE1Cc",
+      "isProxy": false,
+      "constructorArguments": "0x0000000000000000000000006ca0b6d22da47f091b7613223cd4bb03a2d77918"
+    },
+    {
+      "name": "Mailbox",
+      "address": "0x8e1d6B03F7A823e9302c9042cd0d00728F456e70",
+      "isProxy": false,
+      "constructorArguments": "0x0000000000000000000000000000000000000000000000000000000000000064"
+    },
+    {
+      "name": "TransparentUpgradeableProxy",
+      "address": "0x35231d4c2D8B8ADcB5617A638A0c4548684c7C70",
+      "isProxy": true,
+      "constructorArguments": "0x000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a000000000000000000000000c97d8e6f57b0d64971453ddc6eb8483fec9d163a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "ValidatorAnnounce",
+      "address": "0x9bBdef63594D5FFc2f370Fe52115DdFFe97Bc524",
       "isProxy": false,
       "constructorArguments": "0x00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70"
     }

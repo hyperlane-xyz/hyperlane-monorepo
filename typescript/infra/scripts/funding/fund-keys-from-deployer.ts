@@ -107,6 +107,7 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   moonbeam: '0.1',
   optimismgoerli: '0.1',
   arbitrumgoerli: '0.1',
+  gnosis: '0.1',
   // unused
   test1: '0',
   test2: '0',
@@ -319,11 +320,18 @@ class ContextFunder {
     for (const role of this.rolesToFund) {
       const keys = this.getKeysWithRole(role);
       for (const chain of this.chains) {
-        // Relayer keys should not be funded on the origin chain.
-        const filteredKeys = keys.filter(
-          (key) => role !== KEY_ROLE_ENUM.Relayer || key.chainName !== chain,
-        );
-        chainKeys[chain] = filteredKeys;
+        if (role === KEY_ROLE_ENUM.Relayer) {
+          // Relayer keys should not be funded on the origin chain
+          for (const remote of this.chains) {
+            chainKeys[remote] = chainKeys[remote].concat(
+              keys.filter(
+                (_) => _.chainName !== remote && _.chainName === chain,
+              ),
+            );
+          }
+        } else {
+          chainKeys[chain] = chainKeys[chain].concat(keys);
+        }
       }
     }
     return chainKeys;
