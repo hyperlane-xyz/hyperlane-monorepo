@@ -114,11 +114,11 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
       },
+      transactionGasLimit: BigInt(750000),
+      // Skipping arbitrum because the gas price estimates are inclusive of L1
+      // fees which leads to wildly off predictions.
+      skipTransactionGasLimitFor: [chainMetadata.arbitrum.id],
     },
-    transactionGasLimit: BigInt(750000),
-    // Skipping arbitrum because the gas price estimates are inclusive of L1
-    // fees which leads to wildly off predictions.
-    skipTransactionGasLimitFor: [chainMetadata.arbitrum.id],
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
 };
