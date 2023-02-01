@@ -107,7 +107,7 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   gelato: {
     enabledChains: [],
   },
-  connectionType: ConnectionType.HttpQuorum,
+  connectionType: ConnectionType.HttpFallback,
   relayer: {
     default: {
       whitelist: releaseCandidateHelloworldMatchingList,
