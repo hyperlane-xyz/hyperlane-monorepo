@@ -10,7 +10,7 @@ use tokio::time::sleep;
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{CachingMailbox, CoreMetrics};
-use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, U256};
 
 use super::metadata_builder::MetadataBuilder;
 use super::{gas_payment::GasPaymentEnforcer, SubmitMessageArgs};
@@ -123,6 +123,8 @@ pub(crate) struct SerialSubmitter {
     metrics: SerialSubmitterMetrics,
     /// Used to determine if messages have made sufficient gas payments.
     gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+    /// Hard limit on transaction gas when submitting a transaction.
+    transaction_gas_limit: Option<U256>,
 }
 
 impl SerialSubmitter {
@@ -133,6 +135,7 @@ impl SerialSubmitter {
         db: HyperlaneDB,
         metrics: SerialSubmitterMetrics,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
+        transaction_gas_limit: Option<U256>,
     ) -> Self {
         Self {
             rx,
@@ -143,6 +146,7 @@ impl SerialSubmitter {
             db,
             metrics,
             gas_payment_enforcer,
+            transaction_gas_limit,
         }
     }
 
@@ -299,11 +303,23 @@ impl SerialSubmitter {
             // reverting, e.g. timeouts or txs being dropped from the mempool. To avoid consistently retrying
             // only these messages, the number of retries could be considered.
 
+            let gas_limit = tx_cost_estimate.gas_limit;
+
+            if let Some(max_limit) = self.transaction_gas_limit {
+                if gas_limit > max_limit {
+                    info!(
+                        nonce = msg.message.nonce,
+                        "Message delivery predicted gas exceeds max gas limit"
+                    );
+                    return Ok(false);
+                }
+            }
+
             // We use the estimated gas limit from the prior call to `process_estimate_costs` to
             // avoid a second gas estimation.
             let process_result = self
                 .mailbox
-                .process(&msg.message, &metadata, Some(tx_cost_estimate.gas_limit))
+                .process(&msg.message, &metadata, Some(gas_limit))
                 .await;
             match process_result {
                 // TODO(trevor): Instead of immediately marking as processed, move to a verification

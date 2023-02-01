@@ -120,6 +120,8 @@ interface BaseRelayerConfig {
   gasPaymentEnforcementPolicy: GasPaymentEnforcementPolicy;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
+  transactionGasLimit?: bigint;
+  skipTransactionGasLimitFor?: number[];
 }
 
 // Per-chain relayer agent configs
@@ -130,11 +132,19 @@ type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
 
 // Full relayer agent config for a single chain
 interface RelayerConfig
-  extends Omit<BaseRelayerConfig, 'whitelist' | 'blacklist'> {
+  extends Omit<
+    BaseRelayerConfig,
+    | 'whitelist'
+    | 'blacklist'
+    | 'skipTransactionGasLimitFor'
+    | 'transactionGasLimit'
+  > {
   originChainName: ChainName;
   multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
   whitelist?: string;
   blacklist?: string;
+  transactionGasLimit?: string;
+  skipTransactionGasLimitFor?: string;
 }
 
 // ===================================
@@ -436,6 +446,14 @@ export class ChainAgentConfig<Chain extends ChainName> {
     }
     if (baseConfig.blacklist) {
       relayerConfig.blacklist = JSON.stringify(baseConfig.blacklist);
+    }
+    if (baseConfig.transactionGasLimit) {
+      relayerConfig.transactionGasLimit =
+        baseConfig.transactionGasLimit.toString();
+    }
+    if (baseConfig.skipTransactionGasLimitFor) {
+      relayerConfig.skipTransactionGasLimitFor =
+        baseConfig.skipTransactionGasLimitFor.join(',');
     }
 
     return relayerConfig;
