@@ -26,7 +26,7 @@ async function main() {
   // Get query router addresses
   const queryRouterDir = path.join(
     getEnvironmentDirectory(environment),
-    'interchain/queries',
+    'middleware/queries',
   );
   const queryRouterAddresses = objMap(
     readJSON(queryRouterDir, 'addresses.json'),
