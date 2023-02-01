@@ -99,10 +99,12 @@ contract MultisigIsm is IMultisigIsm, Ownable {
         uint32[] calldata _domains,
         address[][] calldata _validators
     ) external onlyOwner {
-        require(_domains.length == _validators.length, "!length");
-        for (uint256 i = 0; i < _domains.length; i += 1) {
+        uint256 domainsLength = _domains.length;
+        require(domainsLength == _validators.length, "!length");
+        for (uint256 i = 0; i < domainsLength; i += 1) {
             address[] calldata _domainValidators = _validators[i];
-            for (uint256 j = 0; j < _domainValidators.length; j += 1) {
+            uint256 validatorsLength = _domainValidators.length;
+            for (uint256 j = 0; j < validatorsLength; j += 1) {
                 _enrollValidator(_domains[i], _domainValidators[j]);
             }
             _updateCommitment(_domains[i]);
@@ -152,8 +154,9 @@ contract MultisigIsm is IMultisigIsm, Ownable {
         uint32[] calldata _domains,
         uint8[] calldata _thresholds
     ) external onlyOwner {
-        require(_domains.length == _thresholds.length, "!length");
-        for (uint256 i = 0; i < _domains.length; i += 1) {
+        uint256 length = _domains.length;
+        require(length == _thresholds.length, "!length");
+        for (uint256 i = 0; i < length; i += 1) {
             setThreshold(_domains[i], _thresholds[i]);
         }
     }

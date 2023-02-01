@@ -20,7 +20,8 @@ contract OwnableMulticall is OwnableUpgradeable {
     }
 
     function proxyCalls(Call[] calldata calls) external onlyOwner {
-        for (uint256 i = 0; i < calls.length; i += 1) {
+        uint256 length = calls.length;
+        for (uint256 i = 0; i < length; i += 1) {
             (bool success, bytes memory returnData) = calls[i].to.call(
                 calls[i].data
             );
@@ -36,8 +37,9 @@ contract OwnableMulticall is OwnableUpgradeable {
         internal
         returns (bytes[] memory resolveCalls)
     {
-        resolveCalls = new bytes[](callbacks.length);
-        for (uint256 i = 0; i < calls.length; i++) {
+        uint256 length = calls.length;
+        resolveCalls = new bytes[](length);
+        for (uint256 i = 0; i < length; i++) {
             (bool success, bytes memory returnData) = calls[i].to.call(
                 calls[i].data
             );
@@ -48,7 +50,8 @@ contract OwnableMulticall is OwnableUpgradeable {
 
     // TODO: deduplicate
     function proxyCallBatch(address to, bytes[] memory calls) internal {
-        for (uint256 i = 0; i < calls.length; i += 1) {
+        uint256 length = calls.length;
+        for (uint256 i = 0; i < length; i += 1) {
             (bool success, bytes memory returnData) = to.call(calls[i]);
             if (!success) {
                 assembly {

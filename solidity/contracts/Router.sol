@@ -71,8 +71,9 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     // ============ External functions ============
     function domains() external view returns (uint32[] memory) {
         bytes32[] storage rawKeys = _routers.keys();
-        uint32[] memory keys = new uint32[](rawKeys.length);
-        for (uint256 i = 0; i < rawKeys.length; i++) {
+        uint256 length = rawKeys.length;
+        uint32[] memory keys = new uint32[](length);
+        for (uint256 i = 0; i < length; i++) {
             keys[i] = uint32(uint256(rawKeys[i]));
         }
         return keys;
@@ -109,7 +110,8 @@ abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
         bytes32[] calldata _addresses
     ) external virtual onlyOwner {
         require(_domains.length == _addresses.length, "!length");
-        for (uint256 i = 0; i < _domains.length; i += 1) {
+        uint256 length = _domains.length;
+        for (uint256 i = 0; i < length; i += 1) {
             _enrollRemoteRouter(_domains[i], _addresses[i]);
         }
     }
