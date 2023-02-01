@@ -292,9 +292,8 @@ class ContextFunder {
   async fund(): Promise<boolean> {
     let failureOccurred = false;
 
-    const chainKeys = this.getChainKeys();
-    await Promise.all(
-      Object.entries(chainKeys).map(async ([chain, keys]) => {
+    const promises = Object.entries(this.getChainKeys()).map(
+      async ([chain, keys]) => {
         if (keys.length > 0) {
           await this.bridgeIfL2(chain as ChainName);
         }
@@ -302,8 +301,16 @@ class ContextFunder {
           const failure = await this.attemptToFundKey(key, chain as ChainName);
           failureOccurred ||= failure;
         }
-      }),
+      },
     );
+
+    try {
+      await Promise.all(promises);
+    } catch (e) {
+      error('Unhandled error when funding key', { error: format(e) });
+      failureOccurred = true;
+    }
+
     return failureOccurred;
   }
 
