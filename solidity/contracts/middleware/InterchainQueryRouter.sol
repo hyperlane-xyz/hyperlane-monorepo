@@ -64,7 +64,6 @@ contract InterchainQueryRouter is
         bytes calldata queryData,
         bytes calldata callback
     ) external returns (bytes32 messageId) {
-        // TODO: fix this ugly arrayification
         Call[] memory calls = new Call[](1);
         calls[0] = Call({to: target, data: queryData});
         bytes[] memory callbacks = new bytes[](1);
@@ -82,7 +81,6 @@ contract InterchainQueryRouter is
         Call calldata call,
         bytes calldata callback
     ) external returns (bytes32 messageId) {
-        // TODO: fix this ugly arrayification
         Call[] memory calls = new Call[](1);
         calls[0] = call;
         bytes[] memory callbacks = new bytes[](1);
@@ -111,13 +109,11 @@ contract InterchainQueryRouter is
         emit QueryDispatched(_destinationDomain, msg.sender);
     }
 
-    // TODO: add REJECT behavior ala NodeJS Promise API
     function _handle(
         uint32 _origin,
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        // TODO: fix double ABI decoding with calldata slices
         Action action = abi.decode(_message, (Action));
         if (action == Action.DISPATCH) {
             (
