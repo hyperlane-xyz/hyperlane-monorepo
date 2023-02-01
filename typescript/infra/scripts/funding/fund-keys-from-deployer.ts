@@ -377,7 +377,6 @@ class ContextFunder {
       // on L1 gas.
       const bridgeAmount = await this.getFundingAmount(
         chainConnection,
-        chain,
         funderAddress,
         desiredBalanceEther.mul(10),
       );
@@ -389,7 +388,6 @@ class ContextFunder {
 
   private async getFundingAmount(
     chainConnection: ChainConnection,
-    chain: ChainName,
     address: string,
     desiredBalance: BigNumber,
   ): Promise<BigNumber> {
@@ -415,7 +413,6 @@ class ContextFunder {
     );
     const fundingAmount = await this.getFundingAmount(
       chainConnection,
-      chain,
       key.address,
       desiredBalanceEther,
     );
