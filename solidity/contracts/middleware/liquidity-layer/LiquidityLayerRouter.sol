@@ -12,8 +12,11 @@ import {ILiquidityLayerMessageRecipient} from "../../../interfaces/ILiquidityLay
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
+    using SafeERC20 for IERC20;
+
     // Token bridge => adapter address
     mapping(string => address) public liquidityLayerAdapters;
 
@@ -51,12 +54,7 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
         ILiquidityLayerAdapter _adapter = _getAdapter(_bridge);
 
         // Transfer the tokens to the adapter
-        // TODO: use safeTransferFrom
-        // TODO: Are there scenarios where a transferFrom fails and it doesn't revert?
-        require(
-            IERC20(_token).transferFrom(msg.sender, address(_adapter), _amount),
-            "!transfer in"
-        );
+        IERC20(_token).safeTransferFrom(msg.sender, address(_adapter), _amount);
 
         // Reverts if the bridge was unsuccessful.
         // Gets adapter-specific data that is encoded into the message
