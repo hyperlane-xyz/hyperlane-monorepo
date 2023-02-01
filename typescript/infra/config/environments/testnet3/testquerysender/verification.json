@@ -1,0 +1,66 @@
+{
+  "alfajores": [
+    {
+      "name": "TestQuerySender",
+      "address": "0x96D7D6Eba6C635e3EaC12b593Ef8B2eE1F6E6683",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "fuji": [
+    {
+      "name": "TestQuerySender",
+      "address": "0x96D7D6Eba6C635e3EaC12b593Ef8B2eE1F6E6683",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "TestQuerySender",
+      "address": "0x96D7D6Eba6C635e3EaC12b593Ef8B2eE1F6E6683",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "TestQuerySender",
+      "address": "0x96D7D6Eba6C635e3EaC12b593Ef8B2eE1F6E6683",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "goerli": [
+    {
+      "name": "TestQuerySender",
+      "address": "0x96D7D6Eba6C635e3EaC12b593Ef8B2eE1F6E6683",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "moonbasealpha": [
+    {
+      "name": "TestQuerySender",
+      "address": "0x96D7D6Eba6C635e3EaC12b593Ef8B2eE1F6E6683",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "optimismgoerli": [
+    {
+      "name": "TestQuerySender",
+      "address": "0x96D7D6Eba6C635e3EaC12b593Ef8B2eE1F6E6683",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ],
+  "arbitrumgoerli": [
+    {
+      "name": "TestQuerySender",
+      "address": "0x96D7D6Eba6C635e3EaC12b593Ef8B2eE1F6E6683",
+      "isProxy": false,
+      "constructorArguments": "0x"
+    }
+  ]
+}

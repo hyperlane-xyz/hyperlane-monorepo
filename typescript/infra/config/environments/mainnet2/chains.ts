@@ -29,6 +29,7 @@ export const mainnetConfigs = {
     },
   },
   moonbeam: chainConnectionConfigs.moonbeam,
+  gnosis: chainConnectionConfigs.gnosis,
 };
 
 export type MainnetChains = keyof typeof mainnetConfigs;

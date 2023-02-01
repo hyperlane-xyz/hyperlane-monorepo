@@ -7,7 +7,7 @@
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
         "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
-        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+        "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -26,7 +26,7 @@
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
         "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
-        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+        "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -45,7 +45,7 @@
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
         "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
-        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+        "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -64,7 +64,7 @@
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
         "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
-        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+        "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -83,7 +83,7 @@
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
         "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
-        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+        "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -102,7 +102,7 @@
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
         "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
-        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+        "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -121,7 +121,7 @@
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
         "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
-        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+        "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a"
       },
       "signer": null,
       "protocol": "ethereum",
@@ -140,7 +140,7 @@
       "addresses": {
         "mailbox": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
         "interchainGasPaymaster": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
-        "validatorAnnounce": "0x81c196606092fF966446078BE3033F464Efc8655"
+        "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a"
       },
       "signer": null,
       "protocol": "ethereum",

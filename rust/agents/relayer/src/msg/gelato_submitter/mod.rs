@@ -233,6 +233,8 @@ pub fn hyperlane_domain_id_to_gelato_chain(domain: &HyperlaneDomain) -> Result<C
             KnownHyperlaneDomain::Moonbeam => Chain::Moonbeam,
             KnownHyperlaneDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
 
+            KnownHyperlaneDomain::Gnosis => Chain::Gnosis,
+
             KnownHyperlaneDomain::Zksync2Testnet => Chain::Zksync2Testnet,
 
             _ => bail!("No Gelato Chain for domain {domain}"),
