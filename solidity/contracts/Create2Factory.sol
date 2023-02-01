@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copied from https://github.com/axelarnetwork/axelar-utils-solidity/commits/main/contracts/ConstAddressDeployer.sol
 
-pragma solidity ^0.8.0;
+// requires custom errors https://blog.soliditylang.org/2021/04/21/custom-errors/
+pragma solidity ^0.8.4;
 
 contract Create2Factory {
     error EmptyBytecode();

@@ -12,8 +12,11 @@ import {ILiquidityLayerMessageRecipient} from "../../../interfaces/ILiquidityLay
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
+    using SafeERC20 for IERC20;
+
     // Token bridge => adapter address
     mapping(string => address) public liquidityLayerAdapters;
 
@@ -23,7 +26,7 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
         address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule
-    ) public initializer {
+    ) external initializer {
         // Transfer ownership of the contract to `msg.sender`
         __Router_initialize(
             _mailbox,
@@ -33,7 +36,7 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
     }
 
     function initialize(address _mailbox, address _interchainGasPaymaster)
-        public
+        external
         initializer
     {
         // Transfer ownership of the contract to `msg.sender`
@@ -51,10 +54,7 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
         ILiquidityLayerAdapter _adapter = _getAdapter(_bridge);
 
         // Transfer the tokens to the adapter
-        require(
-            IERC20(_token).transferFrom(msg.sender, address(_adapter), _amount),
-            "!transfer in"
-        );
+        IERC20(_token).safeTransferFrom(msg.sender, address(_adapter), _amount);
 
         // Reverts if the bridge was unsuccessful.
         // Gets adapter-specific data that is encoded into the message

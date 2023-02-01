@@ -199,7 +199,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
     function verify(bytes calldata _metadata, bytes calldata _message)
-        public
+        external
         view
         returns (bool)
     {

@@ -8,8 +8,11 @@ import {ICircleMessageTransmitter} from "../interfaces/circle/ICircleMessageTran
 import {ILiquidityLayerAdapter} from "../interfaces/ILiquidityLayerAdapter.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
+    using SafeERC20 for IERC20;
+
     /// @notice The CircleBridge contract.
     ICircleBridge public circleBridge;
 
@@ -70,7 +73,7 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         address _circleBridge,
         address _circleMessageTransmitter,
         address _liquidityLayerRouter
-    ) public initializer {
+    ) external initializer {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
 
@@ -96,11 +99,7 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         uint32 _circleDomain = hyperlaneDomainToCircleDomain[
             _destinationDomain
         ];
-        bytes32 _remoteRouter = routers(_destinationDomain);
-        require(
-            _remoteRouter != bytes32(0),
-            "CircleBridgeAdapter: No router for domain"
-        );
+        bytes32 _remoteRouter = _mustHaveRemoteRouter(_destinationDomain);
 
         // Approve the token to Circle. We assume that the LiquidityLayerRouter
         // has already transferred the token to this contract.
@@ -127,6 +126,7 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         uint256 _amount,
         bytes calldata _adapterData // The adapter data from the message
     ) external onlyLiquidityLayerRouter returns (address, uint256) {
+        _mustHaveRemoteRouter(_originDomain);
         // The origin Circle domain
         uint32 _originCircleDomain = hyperlaneDomainToCircleDomain[
             _originDomain
@@ -153,7 +153,7 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         // Transfer the token out to the recipient
         // Circle doesn't charge any fee, so we can safely transfer out the
         // exact amount that was bridged over.
-        require(_token.transfer(_recipient, _amount), "!transfer out");
+        _token.safeTransfer(_recipient, _amount);
 
         return (address(_token), _amount);
     }
