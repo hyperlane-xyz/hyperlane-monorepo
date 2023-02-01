@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
-import {OwnableMulticall, Call} from "../OwnableMulticall.sol";
+import {OwnableMulticall, Call, Result} from "../OwnableMulticall.sol";
 import {Router} from "../Router.sol";
 import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
 
@@ -122,18 +122,15 @@ contract InterchainQueryRouter is
                 Call[] memory calls,
                 bytes[] memory callbacks
             ) = abi.decode(_message, (Action, address, Call[], bytes[]));
-            bytes[] memory resolveCallbacks = _call(calls, callbacks);
-            _dispatch(
-                _origin,
-                abi.encode(Action.RESOLVE, sender, resolveCallbacks)
-            );
+            Result[] memory results = _staticcall(calls, callbacks);
+            _dispatch(_origin, abi.encode(Action.RESOLVE, sender, results));
             emit QueryReturned(_origin, sender);
         } else if (action == Action.RESOLVE) {
-            (, address sender, bytes[] memory resolveCallbacks) = abi.decode(
+            (, address sender, Result[] memory resolveCallbacks) = abi.decode(
                 _message,
-                (Action, address, bytes[])
+                (Action, address, Result[])
             );
-            proxyCallBatch(sender, resolveCallbacks);
+            resolveResults(sender, resolveCallbacks);
             emit QueryResolved(_origin, sender);
         }
     }

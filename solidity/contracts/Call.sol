@@ -5,3 +5,8 @@ struct Call {
     address to;
     bytes data;
 }
+
+struct Result {
+    bool success;
+    bytes data;
+}
