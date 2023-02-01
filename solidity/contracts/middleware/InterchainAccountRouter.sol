@@ -37,7 +37,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         address _mailbox,
         address _interchainGasPaymaster,
         address _interchainSecurityModule
-    ) public initializer {
+    ) external initializer {
         // Transfer ownership of the contract to `msg.sender`
         __Router_initialize(
             _mailbox,
@@ -47,7 +47,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     }
 
     function initialize(address _mailbox, address _interchainGasPaymaster)
-        public
+        external
         initializer
     {
         // Transfer ownership of the contract to `msg.sender`

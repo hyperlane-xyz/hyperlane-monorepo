@@ -70,7 +70,7 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         address _circleBridge,
         address _circleMessageTransmitter,
         address _liquidityLayerRouter
-    ) public initializer {
+    ) external initializer {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
 
