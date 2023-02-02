@@ -129,6 +129,9 @@ jobs:
       - name: core
         run: yarn workspace @hyperlane-xyz/core run test
 
+      - name: lint
+        run: yarn workspace @hyperlane-xyz/core run lint
+
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas || echo "Manually update gas snapshot"
 

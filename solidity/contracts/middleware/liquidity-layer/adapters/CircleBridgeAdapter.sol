@@ -91,10 +91,7 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         uint256 _amount
     ) external onlyLiquidityLayerRouter returns (bytes memory) {
         string memory _tokenSymbol = tokenAddressToSymbol[_token];
-        require(
-            bytes(_tokenSymbol).length > 0,
-            "CircleBridgeAdapter: Unknown token"
-        );
+        require(bytes(_tokenSymbol).length > 0, "!tokenSymbol");
 
         uint32 _circleDomain = hyperlaneDomainToCircleDomain[
             _destinationDomain
@@ -139,16 +136,10 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
 
         // Require the circle message to have been processed
         bytes32 _nonceId = _circleNonceId(_originCircleDomain, _nonce);
-        require(
-            circleMessageTransmitter.usedNonces(_nonceId),
-            "Circle message not processed yet"
-        );
+        require(circleMessageTransmitter.usedNonces(_nonceId), "!processed");
 
         IERC20 _token = tokenSymbolToAddress[_tokenSymbol];
-        require(
-            address(_token) != address(0),
-            "CircleBridgeAdapter: Unknown token"
-        );
+        require(address(_token) != address(0), "!token");
 
         // Transfer the token out to the recipient
         // Circle doesn't charge any fee, so we can safely transfer out the

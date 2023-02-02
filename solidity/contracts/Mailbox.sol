@@ -280,6 +280,7 @@ contract Mailbox is
             if (address(_val) != address(0)) {
                 return _val;
             }
+            // solhint-disable-next-line no-empty-blocks
         } catch {}
         return defaultIsm;
     }
