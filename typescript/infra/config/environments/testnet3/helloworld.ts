@@ -32,8 +32,7 @@ export const releaseCandidate: HelloWorldConfig<TestnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      // kick monorepo build
-      tag: 'sha-6ee34e4',
+      tag: 'sha-c7cbd2b',
     },
     chainsToSkip: [],
     runEnv: environment,

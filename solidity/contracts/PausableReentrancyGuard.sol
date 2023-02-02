@@ -5,9 +5,9 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 // adapted from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 abstract contract PausableReentrancyGuardUpgradeable is Initializable {
+    uint256 private constant _ENTERED = 0;
     uint256 private constant _NOT_ENTERED = 1;
-    uint256 private constant _ENTERED = 2;
-    uint256 private constant _PAUSED = 3;
+    uint256 private constant _PAUSED = 2;
 
     uint256 private _status;
 
