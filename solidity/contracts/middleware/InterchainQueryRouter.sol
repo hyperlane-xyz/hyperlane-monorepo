@@ -98,7 +98,10 @@ contract InterchainQueryRouter is
         Call[] memory calls,
         bytes[] memory callbacks
     ) public returns (bytes32 messageId) {
-        require(calls.length == callbacks.length, "!length");
+        require(
+            calls.length == callbacks.length,
+            "InterchainQueryRouter: calls and callbacks must be same length"
+        );
         messageId = _dispatch(
             _destinationDomain,
             abi.encode(Action.DISPATCH, msg.sender, calls, callbacks)

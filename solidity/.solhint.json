@@ -8,6 +8,7 @@
     "no-inline-assembly": "off",
     "code-complexity": ["warn", 4],
     "var-name-mixedcase": "off",
-    "func-name-mixedcase": "off"
+    "func-name-mixedcase": "off",
+    "reason-string": ["warn",{"maxLength":64}]
   }
 }
