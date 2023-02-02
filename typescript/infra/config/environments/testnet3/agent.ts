@@ -96,7 +96,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: 'sha-d95d9b2',
+    tag: 'sha-0477ee1',
   },
   aws: {
     region: 'us-east-1',
