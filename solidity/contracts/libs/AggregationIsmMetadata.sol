@@ -1,75 +1,78 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 
 /**
  * Format of metadata:
- * [   0:  32] Merkle root
- * [  32:  36] Root index
- * [  36:  68] Origin mailbox address
- * [  68:1092] Merkle proof
- * [1092:1093] Threshold
- * [1093:????] Validator signatures, 65 bytes each, length == Threshold
- * [????:????] Addresses of the entire validator set, left padded to bytes32
+ * [   0:   1] ISM set size
+ * [   1:????] Addresses of the entire ISM set, left padded to bytes32
+ * [????:????] Metadata offsets (i.e. for each ISM, where does the metadata for this ISM start? Zero if not provided)
+ * [????:????] ISM metadata, packed encoding
  */
 library AggregationIsmMetadata {
     uint256 private constant ISM_COUNT_OFFSET = 0;
-    uint256 private constant ISM_ADDRESS_OFFSET = 1;
+    uint256 private constant ISM_ADDRESSES_OFFSET = 1;
     uint256 private constant ISM_ADDRESS_LENGTH = 32;
+    uint256 private constant METADATA_OFFSET_LENGTH = 32;
 
-    /**
-     * @notice Returns the merkle root of the signed checkpoint.
-     * @param _metadata ABI encoded Aggregation ISM metadata.
-     * @return Merkle root of the signed checkpoint
-     */
     function count(bytes calldata _metadata) internal pure returns (uint8) {
-        return uint8(bytes1(_metadata[ISM_COUNT_OFFSET:ISM_ADDRESS_OFFSET]));
+        return uint8(bytes1(_metadata[ISM_COUNT_OFFSET:ISM_ADDRESSES_OFFSET]));
     }
 
-    /**
-     * @notice Returns the index of the signed checkpoint.
-     * @param _metadata ABI encoded Aggregation ISM metadata.
-     * @return Index of the signed checkpoint
-     */
+    function ismAddresses(bytes calldata _metadata)
+        internal
+        pure
+        returns (bytes calldata)
+    {
+        uint256 _end = ISM_ADDRESSES_OFFSET +
+            count(_metadata) *
+            ISM_ADDRESS_LENGTH;
+        return _metadata[ISM_ADDRESSES_OFFSET:_end];
+    }
+
     function ismAt(bytes calldata _metadata, uint8 _index)
         internal
         pure
-        returns (bytes32)
+        returns (IInterchainSecurityModule)
     {
-        uint256 _start = ISM_ADDRESS_OFFSET + _index * ISM_ADDRESS_LENGTH;
-        bytes32 _ism = bytes32(_metadata[_start:_start + ISM_ADDRESS_LENGTH]);
-        return _ism;
+        // ISM addresses are left padded to bytes32 in order to match
+        // abi.encodePacked(address[]).
+        uint256 _start = ISM_ADDRESSES_OFFSET + (_index * 32) + 12;
+        uint256 _end = _start + 20;
+        return
+            IInterchainSecurityModule(address(bytes20(_metadata[_start:_end])));
     }
 
-    function _metadataOffsetAndLength(bytes calldata _metadata, uint8 _index)
-        private
+    function hasMetadata(bytes calldata _metadata, uint8 _index)
+        internal
         pure
-        returns (uint128, uint128)
+        returns (bool)
     {
-        uint8 _count = count(_metadata);
-        uint256 _start = ISM_ADDRESS_OFFSET +
-            (_count + _index) *
-            ISM_ADDRESS_LENGTH;
-        uint128 _offset = uint128(bytes16(_metadata[_start:_start + 16]));
-        uint128 _length = uint128(bytes16(_metadata[_start + 16:_start + 32]));
-        return (_offset, _length);
+        return _metadataOffset(_metadata, _index) == 0;
     }
 
-    /**
-     * @notice Returns the origin mailbox of the signed checkpoint as bytes32.
-     * @param _metadata ABI encoded Aggregation ISM metadata.
-     * @return Origin mailbox of the signed checkpoint as bytes32
-     */
     function metadataAt(bytes calldata _metadata, uint8 _index)
         internal
         pure
         returns (bytes calldata)
     {
-        uint8 _count = count(_metadata);
-        // TODO: start/end more efficient
-        (uint128 _offset, uint128 _length) = _metadataOffsetAndLength(
-            _metadata,
-            _index
-        );
-        return _metadata[_offset:_offset + _length];
+        uint256 _start = _metadataOffset(_metadata, _index);
+        if (_index == count(_metadata) - 1) {
+            return _metadata[_start:];
+        } else {
+            uint256 _end = _metadataOffset(_metadata, _index + 1);
+            return _metadata[_start:_end];
+        }
+    }
+
+    function _metadataOffset(bytes calldata _metadata, uint8 _index)
+        private
+        pure
+        returns (uint256)
+    {
+        uint256 _offsetsStart = ISM_ADDRESSES_OFFSET + count(_metadata) * 32;
+        uint256 _start = _offsetsStart + (_index * 32);
+        uint256 _end = _start + 32;
+        return uint256(bytes32(_metadata[_start:_end]));
     }
 }
