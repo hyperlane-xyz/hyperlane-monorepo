@@ -29,6 +29,9 @@ pub trait GasPaymentPolicy: Debug + Send + Sync {
 #[derive(Debug)]
 pub struct GasPaymentEnforcer {
     policy: Box<dyn GasPaymentPolicy>,
+    /// A whitelist, where any matching message is considered
+    /// as having met the gas payment requirement, even if it doesn't
+    /// satisfy the policy.
     whitelist: Arc<MatchingList>,
     db: HyperlaneDB,
 }
