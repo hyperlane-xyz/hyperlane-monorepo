@@ -30,6 +30,12 @@ use crate::{
     settings::{matching_list::MatchingList, GasPaymentEnforcementPolicy, RelayerSettings},
 };
 
+#[derive(Debug)]
+pub struct GasPaymentEnforcement {
+    policy: GasPaymentEnforcementPolicy,
+    whitelist: Arc<MatchingList>,
+}
+
 /// A relayer agent
 #[derive(Debug)]
 pub struct Relayer {
@@ -38,7 +44,7 @@ pub struct Relayer {
     mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
     interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
-    gas_payment_enforcement_policy: GasPaymentEnforcementPolicy,
+    gas_payment_enforcement: GasPaymentEnforcement,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
 }
@@ -102,7 +108,10 @@ impl BaseAgent for Relayer {
             mailboxes,
             interchain_gas_paymasters,
             multisig_checkpoint_syncer,
-            gas_payment_enforcement_policy: settings.gaspaymentenforcementpolicy,
+            gas_payment_enforcement: GasPaymentEnforcement {
+                policy: settings.gaspaymentenforcement.policy,
+                whitelist: parse_matching_list(&settings.gaspaymentenforcement.whitelist),
+            },
             whitelist,
             blacklist,
         })
@@ -115,7 +124,8 @@ impl BaseAgent for Relayer {
         let mut tasks = Vec::with_capacity(num_mailboxes + 2);
 
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
-            self.gas_payment_enforcement_policy.clone(),
+            self.gas_payment_enforcement.policy.clone(),
+            self.gas_payment_enforcement.whitelist.clone(),
             self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
         ));
 
