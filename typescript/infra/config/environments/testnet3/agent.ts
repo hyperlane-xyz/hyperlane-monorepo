@@ -37,7 +37,7 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   gelato: {
     enabledChains: [],
   },
-  connectionType: ConnectionType.HttpQuorum,
+  connectionType: ConnectionType.HttpFallback,
   validator: {
     default: {
       interval: 5,
