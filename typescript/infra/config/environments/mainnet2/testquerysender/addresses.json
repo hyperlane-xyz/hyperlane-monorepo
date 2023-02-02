@@ -1,0 +1,26 @@
+{
+  "celo": {
+    "TestQuerySender": "0x8566F965f613cB47A5Bd59879d07186122590895"
+  },
+  "bsc": {
+    "TestQuerySender": "0x8566F965f613cB47A5Bd59879d07186122590895"
+  },
+  "avalanche": {
+    "TestQuerySender": "0x8566F965f613cB47A5Bd59879d07186122590895"
+  },
+  "polygon": {
+    "TestQuerySender": "0x8566F965f613cB47A5Bd59879d07186122590895"
+  },
+  "arbitrum": {
+    "TestQuerySender": "0x8566F965f613cB47A5Bd59879d07186122590895"
+  },
+  "optimism": {
+    "TestQuerySender": "0x8566F965f613cB47A5Bd59879d07186122590895"
+  },
+  "ethereum": {
+    "TestQuerySender": "0x8566F965f613cB47A5Bd59879d07186122590895"
+  },
+  "moonbeam": {
+    "TestQuerySender": "0x8566F965f613cB47A5Bd59879d07186122590895"
+  }
+}

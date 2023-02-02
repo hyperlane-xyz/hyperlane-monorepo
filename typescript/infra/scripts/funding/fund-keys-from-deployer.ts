@@ -177,7 +177,6 @@ async function main() {
       ),
     );
   } else {
-    contextFunders = [];
     const contexts = Object.keys(argv.contextsAndRoles) as Contexts[];
     contextFunders = await Promise.all(
       contexts.map((context) =>
@@ -192,10 +191,7 @@ async function main() {
 
   let failureOccurred = false;
   for (const funder of contextFunders) {
-    const failure = await funder.fund();
-    if (failure) {
-      failureOccurred = true;
-    }
+    failureOccurred ||= await funder.fund();
   }
 
   await submitMetrics(metricsRegister, 'key-funder');
@@ -296,18 +292,25 @@ class ContextFunder {
   async fund(): Promise<boolean> {
     let failureOccurred = false;
 
-    const chainKeys = this.getChainKeys();
-    await Promise.all(
-      Object.entries(chainKeys).map(async ([chain, keys]) => {
+    const promises = Object.entries(this.getChainKeys()).map(
+      async ([chain, keys]) => {
         if (keys.length > 0) {
           await this.bridgeIfL2(chain as ChainName);
         }
-        keys.forEach(async (key) => {
+        for (const key of keys) {
           const failure = await this.attemptToFundKey(key, chain as ChainName);
-          failureOccurred = failureOccurred || failure;
-        });
-      }),
+          failureOccurred ||= failure;
+        }
+      },
     );
+
+    try {
+      await Promise.all(promises);
+    } catch (e) {
+      error('Unhandled error when funding key', { error: format(e) });
+      failureOccurred = true;
+    }
+
     return failureOccurred;
   }
 
@@ -381,7 +384,6 @@ class ContextFunder {
       // on L1 gas.
       const bridgeAmount = await this.getFundingAmount(
         chainConnection,
-        chain,
         funderAddress,
         desiredBalanceEther.mul(10),
       );
@@ -393,7 +395,6 @@ class ContextFunder {
 
   private async getFundingAmount(
     chainConnection: ChainConnection,
-    chain: ChainName,
     address: string,
     desiredBalance: BigNumber,
   ): Promise<BigNumber> {
@@ -419,7 +420,6 @@ class ContextFunder {
     );
     const fundingAmount = await this.getFundingAmount(
       chainConnection,
-      chain,
       key.address,
       desiredBalanceEther,
     );
