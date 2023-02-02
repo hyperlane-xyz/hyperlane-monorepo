@@ -72,7 +72,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     }
 
     function getInterchainAccount(uint32 _origin, address _sender)
-        public
+        external
         view
         returns (address)
     {
