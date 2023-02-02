@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
+import {IGasOracle} from "../../interfaces/IGasOracle.sol";
 import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -11,7 +12,13 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  * @notice Manages payments on a source chain to cover gas costs of relaying
  * messages to destination chains.
  */
-contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
+contract InterchainGasPaymaster is
+    IInterchainGasPaymaster,
+    IGasOracle,
+    OwnableUpgradeable
+{
+    mapping(uint32 => IGasOracle) public gasOracles;
+
     // ============ Events ============
 
     /**
@@ -99,5 +106,17 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
         // Transfer the entire balance to owner.
         (bool success, ) = owner().call{value: address(this).balance}("");
         require(success, "!transfer");
+    }
+
+    function getExchangeRateAndGasPrice(uint32 _destinationDomain)
+        public
+        view
+        override
+        returns (uint128 tokenExchangeRate, uint128 gasPrice)
+    {
+        IGasOracle _gasOracle = gasOracles[_destinationDomain];
+        require(address(_gasOracle) != address(0), "!gas oracle");
+
+        return _gasOracle.getExchangeRateAndGasPrice(_destinationDomain);
     }
 }
