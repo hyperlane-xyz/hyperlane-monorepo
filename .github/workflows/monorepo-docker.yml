@@ -40,7 +40,9 @@ jobs:
 
       - name: remove submodule locks
         run: git submodule foreach rm yarn.lock
-
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y%m%d-%H%M%S')"
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v3
@@ -53,7 +55,7 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=schedule,pattern={{date 'YYYYMMDD-HHmmss'}}
-            type=sha
+            type=raw,value=${{ github.sha }}-${{ steps.date.outputs.date }}
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
       - name: Login to GCR
