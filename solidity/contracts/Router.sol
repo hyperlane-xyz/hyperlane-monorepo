@@ -11,7 +11,7 @@ import {EnumerableMapExtended} from "./libs/EnumerableMapExtended.sol";
 abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
 
-    string constant NO_ROUTER_ENROLLED_REVERT_MESSAGE =
+    string private constant NO_ROUTER_ENROLLED_REVERT_MESSAGE =
         "No router enrolled for domain. Did you specify the right domain ID?";
 
     // ============ Mutable Storage ============

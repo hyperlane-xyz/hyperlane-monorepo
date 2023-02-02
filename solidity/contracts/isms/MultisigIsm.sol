@@ -27,6 +27,8 @@ contract MultisigIsm is IMultisigIsm, Ownable {
 
     // ============ Constants ============
 
+    // (required by ISM interface)
+    // solhint-disable-next-line const-name-snakecase
     uint8 public constant moduleType = 3;
 
     // ============ Mutable Storage ============
@@ -339,7 +341,7 @@ contract MultisigIsm is IMultisigIsm, Ownable {
                 ;
                 _validatorIndex < _validatorCount &&
                     _signer != _metadata.validatorAt(_validatorIndex);
-                ++_validatorIndex
+                ++_validatorIndex // solhint-disable-next-line no-empty-blocks
             ) {}
             // Fail if we never found a match
             require(_validatorIndex < _validatorCount, "!threshold");

@@ -17,8 +17,8 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @dev You can use this simple app as a starting point for your own application.
  */
 contract InterchainAccountRouter is Router, IInterchainAccountRouter {
-    address immutable implementation;
-    bytes32 immutable bytecodeHash;
+    address public immutable implementation;
+    bytes32 private immutable bytecodeHash;
 
     event InterchainAccountCreated(
         uint32 indexed origin,
