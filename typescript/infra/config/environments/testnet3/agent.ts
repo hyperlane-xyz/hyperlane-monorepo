@@ -30,7 +30,7 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: 'sha-0477ee1',
+    tag: 'sha-d95d9b2',
   },
   aws: {
     region: 'us-east-1',
@@ -116,6 +116,10 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
           type: GasPaymentEnforcementPolicyType.None,
         },
       },
+      transactionGasLimit: BigInt(750000),
+      // Skipping arbitrum because the gas price estimates are inclusive of L1
+      // fees which leads to wildly off predictions.
+      skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.id],
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],

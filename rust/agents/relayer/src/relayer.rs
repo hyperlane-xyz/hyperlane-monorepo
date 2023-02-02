@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -15,7 +15,7 @@ use hyperlane_base::{
     run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
     CoreMetrics, HyperlaneAgentCore, MultisigCheckpointSyncer,
 };
-use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain};
+use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, U256};
 
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
@@ -47,6 +47,8 @@ pub struct Relayer {
     gas_payment_enforcement: GasPaymentEnforcement,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
+    transaction_gas_limit: Option<U256>,
+    skip_transaction_gas_limit_for: HashSet<u32>,
 }
 
 impl AsRef<HyperlaneAgentCore> for Relayer {
@@ -94,7 +96,31 @@ impl BaseAgent for Relayer {
 
         let whitelist = parse_matching_list(&settings.whitelist);
         let blacklist = parse_matching_list(&settings.blacklist);
-        info!(whitelist = %whitelist, blacklist = %blacklist, "Whitelist configuration");
+
+        let skip_transaction_gas_limit_for = settings
+            .skiptransactiongaslimitfor
+            .map(|l| {
+                l.split(',')
+                    .map(|d| {
+                        d.parse()
+                            .expect("Error parsing domain id for transaction gas limit")
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let transaction_gas_limit = settings
+            .transactiongaslimit
+            .map(|l| l.parse())
+            .transpose()
+            .context("Invalid transaction gas limit")?;
+        info!(
+            %whitelist,
+            %blacklist,
+            ?transaction_gas_limit,
+            ?skip_transaction_gas_limit_for,
+            "Whitelist configuration"
+        );
 
         let origin_chain = core
             .settings
@@ -114,6 +140,8 @@ impl BaseAgent for Relayer {
             },
             whitelist,
             blacklist,
+            transaction_gas_limit,
+            skip_transaction_gas_limit_for,
         })
     }
 
@@ -293,6 +321,14 @@ impl Relayer {
                 .spawn()
             }
             TransactionSubmissionType::Signer => {
+                let transaction_gas_limit = if self
+                    .skip_transaction_gas_limit_for
+                    .contains(&destination.id())
+                {
+                    None
+                } else {
+                    self.transaction_gas_limit
+                };
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
                     destination_mailbox.clone(),
@@ -304,6 +340,7 @@ impl Relayer {
                         destination,
                     ),
                     gas_payment_enforcer,
+                    transaction_gas_limit,
                 );
                 serial_submitter.spawn()
             }
