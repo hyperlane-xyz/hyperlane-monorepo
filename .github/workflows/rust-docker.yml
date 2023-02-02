@@ -45,7 +45,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=sha
+            type=schedule,pattern=nightly,type=sha,prefix=-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
       - name: Login to GCR
