@@ -26,12 +26,16 @@ contract StaticGasOracleTest is Test {
         oracle.setRemoteGasData(initialGasDataConfig);
     }
 
+    // ============ constructor ============
+
     function testConstructorTransfersOwnership() public {
         address _newOwner = address(0xcafe);
         oracle = new StorageGasOracle(_newOwner);
 
         assertEq(oracle.owner(), _newOwner);
     }
+
+    // ============ getExchangeRateAndGasPrice ============
 
     function testGetExchangeRateAndGasPrice() public {
         (uint128 _tokenExchangeRate, uint128 _gasPrice) = oracle
@@ -46,6 +50,8 @@ contract StaticGasOracleTest is Test {
         assertEq(_tokenExchangeRate, uint128(0));
         assertEq(_gasPrice, uint128(0));
     }
+
+    // ============ setRemoteGasDataConfigs ============
 
     function testSetRemoteGasDataConfigs() public {
         StorageGasOracle.RemoteGasDataConfig[]
@@ -85,6 +91,8 @@ contract StaticGasOracleTest is Test {
         vm.expectRevert("Ownable: caller is not the owner");
         oracle.setRemoteGasDataConfigs(_configs);
     }
+
+    // ============ setRemoteGasData ============
 
     function testSetRemoteGasData() public {
         StorageGasOracle.RemoteGasDataConfig

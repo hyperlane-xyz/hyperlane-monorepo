@@ -17,6 +17,9 @@ contract InterchainGasPaymaster is
     IGasOracle,
     OwnableUpgradeable
 {
+    uint256 internal constant TOKEN_EXCHANGE_RATE_SCALE = 1e10;
+
+    /// @notice Keyed by remote domain, the gas oracle to use.
     mapping(uint32 => IGasOracle) public gasOracles;
 
     // ============ Events ============
@@ -32,6 +35,8 @@ contract InterchainGasPaymaster is
         uint256 gasAmount,
         uint256 payment
     );
+
+    event GasOracleSet(uint32 indexed remoteDomain, address gasOracle);
 
     // ============ Constructor ============
 
@@ -75,7 +80,7 @@ contract InterchainGasPaymaster is
             require(_success, "Interchain gas payment refund failed");
         }
 
-        emit GasPayment(_messageId, _gasAmount, msg.value);
+        emit GasPayment(_messageId, _gasAmount, _requiredPayment);
     }
 
     /**
@@ -86,16 +91,30 @@ contract InterchainGasPaymaster is
      */
     function quoteGasPayment(uint32 _destinationDomain, uint256 _gasAmount)
         public
-        pure
+        view
         override
         returns (uint256)
     {
-        // Silence compiler warning.
-        _destinationDomain;
-        _gasAmount;
-        // Charge a flat 1 wei fee.
-        // This is an intermediate step toward fully on-chain accurate gas payment quoting.
-        return 1;
+        (
+            uint128 _tokenExchangeRate,
+            uint128 _gasPrice
+        ) = getExchangeRateAndGasPrice(_destinationDomain);
+
+        // The total cost quoted in destination chain's native token.
+        uint256 _destinationGasCost = _gasAmount * uint256(_gasPrice);
+
+        // Convert to the local native token
+        return
+            (_destinationGasCost * _tokenExchangeRate) /
+            TOKEN_EXCHANGE_RATE_SCALE;
+    }
+
+    function setGasOracle(uint32 _remoteDomain, address _gasOracle)
+        external
+        onlyOwner
+    {
+        gasOracles[_remoteDomain] = IGasOracle(_gasOracle);
+        emit GasOracleSet(_remoteDomain, _gasOracle);
     }
 
     /**
@@ -108,6 +127,13 @@ contract InterchainGasPaymaster is
         require(success, "!transfer");
     }
 
+    /**
+     * @notice Gets the token exchange rate and gas price from the configured gas oracle
+     * for a given destination domain.
+     * @param _destinationDomain The destination domain.
+     * @return tokenExchangeRate The exchange rate of the remote native token quoted in the local native token.
+     * @return gasPrice The gas price on the remote chain.
+     */
     function getExchangeRateAndGasPrice(uint32 _destinationDomain)
         public
         view

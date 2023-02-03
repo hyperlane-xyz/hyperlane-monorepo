@@ -27,38 +27,7 @@ contract LZRelayerV2GasOracleTest is Test {
         assertEq(address(oracle.lzRelayer()), address(lzRelayer));
     }
 
-    function testSetLzRelayer() public {
-        address newLzRelayer = address(0xdead);
-        vm.expectEmit(true, false, false, true);
-        emit LzRelayerSet(newLzRelayer);
-        oracle.setLzRelayer(newLzRelayer);
-    }
-
-    function testSetLzRelayerRevertsIfNotOwner() public {
-        address newLzRelayer = address(0xdead);
-        vm.prank(nonOwner);
-        vm.expectRevert("Ownable: caller is not the owner");
-        oracle.setLzRelayer(newLzRelayer);
-    }
-
-    function testSetHyperlaneToLzDomains() public {
-        LZRelayerV2GasOracle.DomainConfig[]
-            memory _configs = _getTestDomainConfigs();
-
-        vm.expectEmit(true, false, false, true);
-        emit HyperlaneToLzDomainSet(100, 200);
-        vm.expectEmit(true, false, false, true);
-        emit HyperlaneToLzDomainSet(101, 201);
-        oracle.setHyperlaneToLzDomains(_configs);
-    }
-
-    function testSetHyperlaneToLzDomainsRevertsIfNotOwner() public {
-        LZRelayerV2GasOracle.DomainConfig[]
-            memory _configs = _getTestDomainConfigs();
-        vm.prank(nonOwner);
-        vm.expectRevert("Ownable: caller is not the owner");
-        oracle.setHyperlaneToLzDomains(_configs);
-    }
+    // ============ getExchangeRateAndGasPrice ============
 
     function testGetExchangeRateAndGasPrice() public {
         _setTestDomainConfigs();
@@ -80,6 +49,43 @@ contract LZRelayerV2GasOracleTest is Test {
         // Intentionally don't set any domain configs
         vm.expectRevert("!lz domain");
         oracle.getExchangeRateAndGasPrice(testHyperlaneDomain);
+    }
+
+    // ============ setLzRelayer ============
+
+    function testSetLzRelayer() public {
+        address newLzRelayer = address(0xdead);
+        vm.expectEmit(true, false, false, true);
+        emit LzRelayerSet(newLzRelayer);
+        oracle.setLzRelayer(newLzRelayer);
+    }
+
+    function testSetLzRelayerRevertsIfNotOwner() public {
+        address newLzRelayer = address(0xdead);
+        vm.prank(nonOwner);
+        vm.expectRevert("Ownable: caller is not the owner");
+        oracle.setLzRelayer(newLzRelayer);
+    }
+
+    // ============ setHyperlaneToLzDomains ============
+
+    function testSetHyperlaneToLzDomains() public {
+        LZRelayerV2GasOracle.DomainConfig[]
+            memory _configs = _getTestDomainConfigs();
+
+        vm.expectEmit(true, false, false, true);
+        emit HyperlaneToLzDomainSet(100, 200);
+        vm.expectEmit(true, false, false, true);
+        emit HyperlaneToLzDomainSet(101, 201);
+        oracle.setHyperlaneToLzDomains(_configs);
+    }
+
+    function testSetHyperlaneToLzDomainsRevertsIfNotOwner() public {
+        LZRelayerV2GasOracle.DomainConfig[]
+            memory _configs = _getTestDomainConfigs();
+        vm.prank(nonOwner);
+        vm.expectRevert("Ownable: caller is not the owner");
+        oracle.setHyperlaneToLzDomains(_configs);
     }
 
     // ============ Helper functions ============
