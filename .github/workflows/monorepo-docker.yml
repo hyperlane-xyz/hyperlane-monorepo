@@ -40,7 +40,11 @@ jobs:
 
       - name: remove submodule locks
         run: git submodule foreach rm yarn.lock
-
+      - name: Generate tag data
+        id: taggen
+        run: |
+          echo "TAG_DATE=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+          echo "TAG_SHA=$(echo '${{ github.sha }}' | cut -b 1-7)" >> $GITHUB_OUTPUT
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v3
@@ -52,7 +56,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=sha
+            type=raw,value=${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
       - name: Login to GCR
