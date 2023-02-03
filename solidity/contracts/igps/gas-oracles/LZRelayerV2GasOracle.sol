@@ -7,10 +7,13 @@ import {ILZRelayerV2} from "../../../interfaces/ILZRelayerV2.sol";
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+/**
+ * @notice A gas oracle that uses data found on the LayerZero RelayerV2 contract.
+ */
 contract LZRelayerV2GasOracle is IGasOracle, Ownable {
     // ============ Public Storage ============
 
-    /// @notice A mapping of hyperlane domains to LayerZero domains.
+    /// @notice A mapping of Hyperlane domains to LayerZero domains.
     mapping(uint32 => uint16) public hyperlaneToLzDomain;
 
     /// @notice The address of the LZ Relayer contract.

@@ -6,6 +6,9 @@ import {IGasOracle} from "../../../interfaces/IGasOracle.sol";
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+/**
+ * @notice A gas oracle that uses data stored within the contract.
+ */
 contract StorageGasOracle is IGasOracle, Ownable {
     // ============ Public Storage ============
 
