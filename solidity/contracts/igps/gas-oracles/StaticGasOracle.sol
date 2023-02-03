@@ -18,7 +18,11 @@ contract StaticGasOracle is IGasOracle, Ownable {
 
     // ============ Events ============
 
-    /// @notice Emitted when `remoteGasData` is set.
+    /**
+     * @notice Emitted when `remoteGasData` is set.
+     * @param tokenExchangeRate The exchange rate of the remote native token quoted in the local native token.
+     * @param gasPrice The gas price on the remote chain.
+     */
     event RemoteGasDataSet(uint128 tokenExchangeRate, uint128 gasPrice);
 
     // ============ Constructor ============
@@ -38,6 +42,8 @@ contract StaticGasOracle is IGasOracle, Ownable {
     /**
      * @notice Returns the configured `remoteGasData` regardless of the destination domain.
      * @param _destinationDomain The destination domain.
+     * @return tokenExchangeRate The exchange rate of the remote native token quoted in the local native token.
+     * @return gasPrice The gas price on the remote chain.
      */
     function getExchangeRateAndGasPrice(uint32 _destinationDomain)
         external

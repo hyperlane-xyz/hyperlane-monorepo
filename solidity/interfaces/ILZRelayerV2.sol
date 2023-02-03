@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.8.0;
+pragma solidity >=0.7.6;
 
 interface ILZRelayerV2 {
     struct DstPrice {
@@ -7,5 +7,9 @@ interface ILZRelayerV2 {
         uint128 dstGasPriceInWei;
     }
 
-    function dstPriceLookup(uint16) external view returns (DstPrice memory);
+    // todo why?
+    function dstPriceLookup(uint16)
+        external
+        view
+        returns (uint128 dstPriceRatio, uint128 dstGasPriceInWei);
 }
