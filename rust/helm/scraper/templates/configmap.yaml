@@ -25,7 +25,7 @@ data:
   {{- if not .disabled }}
   HYP_SCRAPER_{{ .name | upper }}_OUTBOX_DISABLED: "false"
   HYP_SCRAPER_{{ .name | upper }}_OUTBOX_CONNECTION_TYPE: {{ .connection.type }}
-  {{- if eq .connection.type "httpQuorum" }}
+  {{- if or (eq .connection.type "httpQuorum") (eq .connection.type "httpFallback") }}
   HYP_SCRAPER_{{ .name | upper }}_OUTBOX_CONNECTION_URLS: ""
   {{- else }}
   HYP_SCRAPER_{{ .name | upper }}_OUTBOX_CONNECTION_URL: ""

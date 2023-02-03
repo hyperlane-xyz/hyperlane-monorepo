@@ -23,7 +23,7 @@ export const abacus: AgentConfig<MainnetChains> = {
   context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-01fc263',
+    tag: 'sha-f8bcf0a',
   },
   aws: {
     region: 'us-east-1',
@@ -41,7 +41,7 @@ export const abacus: AgentConfig<MainnetChains> = {
       // 'optimism',
     ],
   },
-  connectionType: ConnectionType.HttpQuorum,
+  connectionType: ConnectionType.HttpFallback,
   validator: {
     default: {
       interval: 5,
@@ -96,7 +96,7 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-9b17834',
+    tag: 'sha-f8bcf0a',
   },
   aws: {
     region: 'us-east-1',
@@ -114,7 +114,7 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
       // 'optimism',
     ],
   },
-  connectionType: ConnectionType.HttpQuorum,
+  connectionType: ConnectionType.HttpFallback,
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
