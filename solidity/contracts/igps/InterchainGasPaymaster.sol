@@ -24,18 +24,6 @@ contract InterchainGasPaymaster is
 
     // ============ Events ============
 
-    /**
-     * @notice Emitted when a payment is made for a message's gas costs.
-     * @param messageId The ID of the message to pay for.
-     * @param gasAmount The amount of destination gas paid for.
-     * @param payment The amount of native tokens paid.
-     */
-    event GasPayment(
-        bytes32 indexed messageId,
-        uint256 gasAmount,
-        uint256 payment
-    );
-
     event GasOracleSet(uint32 indexed remoteDomain, address gasOracle);
 
     // ============ Constructor ============

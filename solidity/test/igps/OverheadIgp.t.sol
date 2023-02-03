@@ -3,12 +3,12 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {OverheadIgp} from "../../contracts/igps/OverheadIgp.sol";
-import {InterchainGasPaymaster} from "../../contracts/igps/InterchainGasPaymaster.sol";
+import {MockInterchainGasPaymaster} from "../../contracts/mock/MockInterchainGasPaymaster.sol";
 
 contract OverheadIgpTest is Test {
     OverheadIgp igp;
 
-    InterchainGasPaymaster innerIgp;
+    MockInterchainGasPaymaster innerIgp;
 
     bytes32 constant testMessageId =
         bytes32(
@@ -24,7 +24,7 @@ contract OverheadIgpTest is Test {
     event DestinationGasOverheadSet(uint32 indexed domain, uint256 gasOverhead);
 
     function setUp() public {
-        innerIgp = new InterchainGasPaymaster();
+        innerIgp = new MockInterchainGasPaymaster();
         igp = new OverheadIgp(address(innerIgp));
     }
 
