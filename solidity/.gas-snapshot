@@ -18,7 +18,7 @@ LiquidityLayerRouterTest:testProcessingRevertsIfBridgeAdapterReverts() (gas: 596
 LiquidityLayerRouterTest:testSendToRecipientWithoutHandleWhenSpecifyingNoMessage() (gas: 1055878)
 LiquidityLayerRouterTest:testSetLiquidityLayerAdapter() (gas: 23363)
 MessagingTest:testSendMessage(string) (runs: 256, μ: 279236, ~: 295976)
-PausableReentrancyGuardTest:testNonreentrant() (gas: 14428)
+PausableReentrancyGuardTest:testNonreentrant() (gas: 9628)
 PausableReentrancyGuardTest:testNonreentrantNotPaused() (gas: 14163)
 PausableReentrancyGuardTest:testPause() (gas: 13635)
 ValidatorAnnounceTest:testAnnounce() (gas: 245554)

@@ -1,3 +1,5 @@
+import { chainMetadata } from '@hyperlane-xyz/sdk';
+
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
 import {
@@ -23,7 +25,8 @@ export const hyperlane: AgentConfig<MainnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: 'sha-d1ad862',
+    // commit date: 2023-01-31
+    tag: 'sha-d95d9b2',
   },
   aws: {
     region: 'us-east-1',
@@ -94,7 +97,8 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: 'sha-0477ee1',
+    // commit date: 2023-02-01
+    tag: 'sha-c6a8189',
   },
   aws: {
     region: 'us-east-1',
@@ -105,13 +109,17 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   gelato: {
     enabledChains: [],
   },
-  connectionType: ConnectionType.HttpQuorum,
+  connectionType: ConnectionType.HttpFallback,
   relayer: {
     default: {
       whitelist: releaseCandidateHelloworldMatchingList,
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
       },
+      transactionGasLimit: BigInt(750000),
+      // Skipping arbitrum because the gas price estimates are inclusive of L1
+      // fees which leads to wildly off predictions.
+      skipTransactionGasLimitFor: [chainMetadata.arbitrum.id],
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
