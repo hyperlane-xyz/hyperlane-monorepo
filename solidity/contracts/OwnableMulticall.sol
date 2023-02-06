@@ -9,7 +9,7 @@ import {CallLib} from "./libs/Call.sol";
 
 /*
  * @title OwnableMulticall
- * @dev Permits owner address to execute calls (optionally with value) to other contracts
+ * @dev Permits owner address to execute stateful calls with value to other contracts
  */
 contract OwnableMulticall is OwnableUpgradeable {
     using CallLib for CallLib.Call[];

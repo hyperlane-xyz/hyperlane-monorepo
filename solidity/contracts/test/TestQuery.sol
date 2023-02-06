@@ -21,16 +21,11 @@ contract TestQuery {
         address target = TypeCasts.bytes32ToAddress(router.routers(domain));
         CallLib.CallWithCallback[]
             memory calls = new CallLib.CallWithCallback[](1);
-        calls[0] = CallLib.CallWithCallback({
-            _call: CallLib.StaticCall({
-                to: target,
-                data: abi.encodeWithSignature("owner()")
-            }),
-            callback: bytes.concat(
-                this.receiveRouterOwer.selector,
-                bytes32(secret)
-            )
-        });
+        calls[0] = CallLib.build(
+            target,
+            abi.encodeWithSignature("owner()"),
+            bytes.concat(this.receiveRouterOwer.selector, bytes32(secret))
+        );
         router.query(domain, calls);
     }
 
