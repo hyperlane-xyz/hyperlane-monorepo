@@ -58,15 +58,11 @@ library AggregationIsmMetadata {
         returns (bytes calldata)
     {
         (uint256 _start, uint256 _end) = _metadataPointers(_metadata, _index);
-        if (_end == _metadata.length) {
-            return _metadata[_start:];
-        } else {
-            return _metadata[_start:_end];
-        }
+        return _metadata[_start:_end];
     }
 
     function _metadataPointerStart(bytes calldata _metadata, uint8 _index)
-        internal
+        private
         pure
         returns (uint256)
     {
@@ -78,7 +74,7 @@ library AggregationIsmMetadata {
     }
 
     function _metadataPointers(bytes calldata _metadata, uint8 _index)
-        internal
+        private
         pure
         returns (uint256, uint256)
     {

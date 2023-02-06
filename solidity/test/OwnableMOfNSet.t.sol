@@ -57,7 +57,7 @@ contract OwnableMOfNSetTest is Test {
         address value,
         address newOwner
     ) public {
-        vm.assume(newOwner != address(0x0));
+        vm.assume(newOwner != address(0x0) && newOwner != set.owner());
         set.transferOwnership(newOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         set.add(domain, value);
@@ -93,7 +93,7 @@ contract OwnableMOfNSetTest is Test {
         address value,
         address newOwner
     ) public {
-        vm.assume(newOwner != address(0x0));
+        vm.assume(newOwner != address(0x0) && newOwner != set.owner());
         set.transferOwnership(newOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         set.remove(domain, value);
@@ -132,7 +132,7 @@ contract OwnableMOfNSetTest is Test {
         uint8 threshold,
         address newOwner
     ) public {
-        vm.assume(newOwner != address(0x0));
+        vm.assume(newOwner != address(0x0) && newOwner != set.owner());
         set.transferOwnership(newOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         set.setThreshold(domain, threshold);

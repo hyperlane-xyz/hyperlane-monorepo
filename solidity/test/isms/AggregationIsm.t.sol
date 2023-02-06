@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "forge-std/console.sol";
+
 import {AggregationIsm} from "../../contracts/isms/AggregationIsm.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {AggregationIsmMetadata} from "../../contracts/libs/AggregationIsmMetadata.sol";
@@ -19,9 +19,6 @@ contract TestIsm {
         view
         returns (bool)
     {
-        //console.logBytes(_metadata);
-        console.log("Verifying");
-        console.logBytes(requiredMetadata);
         return keccak256(_metadata) == keccak256(requiredMetadata);
     }
 }
@@ -44,8 +41,6 @@ contract AggregationIsmTest is Test {
         while (chosen < m) {
             randomness = keccak256(abi.encodePacked(randomness));
             uint256 choice = (1 << (uint256(randomness) % n));
-            console.log("choice");
-            console.logUint(choice);
             if ((bitmask & choice) == 0) {
                 bitmask = bitmask | choice;
                 chosen += 1;
@@ -75,23 +70,15 @@ contract AggregationIsmTest is Test {
         uint256 bitmask
     ) private returns (bytes memory) {
         uint256[] memory pointers = new uint256[](n);
-        console.log("getting metadata for n isms");
-        console.logUint(n);
         uint256 start = 1 + (64 * uint256(n));
         bytes memory metametadata;
         for (uint256 i = 0; i < n; i++) {
-            console.log("checking chosen isms");
-            console.logUint(i);
             bool chosen = (bitmask & (1 << i)) > 0;
             if (chosen) {
-                console.log("Chose");
-                console.logUint(i);
                 bytes memory requiredMetadata = TestIsm(ism.values(domain)[i])
                     .requiredMetadata();
                 uint256 end = start + requiredMetadata.length;
                 pointers[i] = uint256((start << 128) | end);
-                console.log("Pointer");
-                console.logUint(pointers[i]);
                 start = end;
                 metametadata = abi.encodePacked(metametadata, requiredMetadata);
             }
@@ -118,11 +105,6 @@ contract AggregationIsmTest is Test {
             domain,
             messageSuffix
         );
-        console.log("ISM addresses");
-        console.logBytes(ism.ismAddresses(metadata));
-        console.logUint(ism.origin(message));
-        console.log("Metadata");
-        console.logBytes(metadata);
         require(ism.verify(metadata, message));
     }
 }
