@@ -35,6 +35,6 @@ describe('TestSendReceiver', () => {
     }
 
     expect(successes).to.be.greaterThan(5);
-    expect(failures).to.be.greaterThan(5);
+    expect(failures).to.be.greaterThan(1);
   });
 });

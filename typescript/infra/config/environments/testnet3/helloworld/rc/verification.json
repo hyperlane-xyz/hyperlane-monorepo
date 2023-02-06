@@ -1,0 +1,66 @@
+{
+  "alfajores": [
+    {
+      "name": "router",
+      "address": "0x908200F276B36dAa2FAfe0757bB7188F36E85d3E",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    }
+  ],
+  "fuji": [
+    {
+      "name": "router",
+      "address": "0xc91Fcf115926705737394c4560E8b974f28eaad6",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "router",
+      "address": "0x5B30cF4a552B32FBF9c15b98f91e863D822f355C",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "router",
+      "address": "0x07453BE646Aab789a4AcE31DB68688263fB48D53",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    }
+  ],
+  "goerli": [
+    {
+      "name": "router",
+      "address": "0x04E9e0B2EC0bB80F9A914d82435DeE7f10ce7D29",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    }
+  ],
+  "moonbasealpha": [
+    {
+      "name": "router",
+      "address": "0xa5075B2AcA697944273d67B57a3340a0730632A3",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    }
+  ],
+  "optimismgoerli": [
+    {
+      "name": "router",
+      "address": "0x793A8E343eBc1498afd644A05507fc2b6B97AfB4",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    }
+  ],
+  "arbitrumgoerli": [
+    {
+      "name": "router",
+      "address": "0xa1E338311C26a00Eb586133728c3C9B97c67fAe0",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
+    }
+  ]
+}

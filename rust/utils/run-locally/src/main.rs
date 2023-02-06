@@ -161,7 +161,7 @@ fn main() -> ExitCode {
         "HYP_RELAYER_GASPAYMENTENFORCEMENTPOLICY_TYPE" => "none",
         "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
         "HYP_RELAYER_DESTINATIONCHAINNAMES" => "test2,test3",
-        "HYP_RELAYER_WHITELIST" => r#"[{"sourceAddress": "*", "destinationDomain": ["13372", "13373"], "destinationAddress": "*"}]"#,
+        "HYP_RELAYER_WHITELIST" => r#"[{"senderAddress": "*", "destinationDomain": ["13372", "13373"], "recipientAddress": "*"}]"#,
         "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_TYPE" => "localStorage",
         "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_PATH" => checkpoints_dir.path().to_str().unwrap(),
     };
@@ -312,6 +312,31 @@ fn main() -> ExitCode {
         }
     }));
     state.validator = Some(validator);
+
+    // Rebuild the SDK to pick up the deployed contracts
+    println!("Rebuilding sdk...");
+    build_cmd(
+        &["yarn", "build"],
+        &build_log,
+        log_all,
+        Some("../typescript/sdk"),
+    );
+
+    // Register the validator announcement
+    println!("Announcing validator...");
+    let mut announce = Command::new("yarn");
+    announce.arg("announce");
+    announce.args([
+        "--checkpointsdir",
+        checkpoints_dir.path().to_str().unwrap(),
+        "--chain",
+        "test1",
+    ]);
+    announce
+        .current_dir("../typescript/infra")
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to announce validator");
 
     println!("Setup complete! Agents running in background...");
     println!("Ctrl+C to end execution...");

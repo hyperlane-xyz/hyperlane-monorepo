@@ -10,7 +10,7 @@ import {MockToken} from "../contracts/mock/MockToken.sol";
 
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import "../contracts/test/TestRecipient.sol";
-import {OwnableMulticall, Call} from "../contracts/OwnableMulticall.sol";
+import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
 
 contract InterchainQueryRouterTest is Test {
     // TODO: dedupe
@@ -92,6 +92,43 @@ contract InterchainQueryRouterTest is Test {
 
     function receiveAddress(address _result) external {
         addressResult = _result;
+    }
+
+    function badReceiveAddress(address _result) external {
+        addressResult = _result;
+        revert("bad");
+    }
+
+    function testCannotQueryReverting() public {
+        // Deploy a random ownable contract
+        OwnableMulticall ownable = new OwnableMulticall();
+
+        originRouter.query(
+            remoteDomain,
+            address(ownable),
+            abi.encodeWithSelector(
+                ownable.transferOwnership.selector,
+                address(this)
+            ),
+            abi.encodePacked(this.receiveAddress.selector)
+        );
+        vm.expectRevert(bytes("Ownable: caller is not the owner"));
+        environment.processNextPendingMessage();
+    }
+
+    function testCannotCallbackReverting() public {
+        // Deploy a random ownable contract
+        OwnableMulticall ownable = new OwnableMulticall();
+
+        originRouter.query(
+            remoteDomain,
+            address(ownable),
+            abi.encodePacked(ownable.owner.selector),
+            abi.encodePacked(this.badReceiveAddress.selector)
+        );
+        environment.processNextPendingMessage();
+        vm.expectRevert(bytes("bad"));
+        environment.processNextPendingMessageFromDestination();
     }
 
     function testQueryAddress(address owner) public {

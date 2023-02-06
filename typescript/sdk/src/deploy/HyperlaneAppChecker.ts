@@ -84,6 +84,12 @@ export abstract class HyperlaneAppChecker<
     }
   }
 
+  private removeBytecodeMetadata(bytecode: string): string {
+    // https://docs.soliditylang.org/en/v0.8.17/metadata.html#encoding-of-the-metadata-hash-in-the-bytecode
+    // Remove solc metadata from bytecode
+    return bytecode.substring(0, bytecode.length - 90);
+  }
+
   async checkBytecodeHash(
     chain: Chain,
     name: string,
@@ -93,7 +99,9 @@ export abstract class HyperlaneAppChecker<
   ): Promise<void> {
     const provider = this.multiProvider.getChainProvider(chain);
     const bytecode = await provider.getCode(address);
-    const bytecodeHash = keccak256(modifyBytecodePriorToHash(bytecode));
+    const bytecodeHash = keccak256(
+      modifyBytecodePriorToHash(this.removeBytecodeMetadata(bytecode)),
+    );
     if (bytecodeHash !== expectedByteCodeHash) {
       this.addViolation({
         type: ViolationType.BytecodeMismatch,

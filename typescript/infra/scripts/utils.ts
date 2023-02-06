@@ -180,9 +180,11 @@ export async function assertCorrectKubeContext<Chain extends ChainName>(
   if (
     !currentKubeContext.endsWith(`${coreConfig.infra.kubernetes.clusterName}`)
   ) {
+    const cluster = coreConfig.infra.kubernetes.clusterName;
     console.error(
       `Cowardly refusing to deploy using current k8s context ${currentKubeContext}; are you sure you have the right k8s context active?`,
-      `Want clusterName ${coreConfig.infra.kubernetes.clusterName}`,
+      `Want clusterName ${cluster}`,
+      `Run gcloud container clusters get-credentials ${cluster} --zone us-east1-c`,
     );
     process.exit(1);
   }

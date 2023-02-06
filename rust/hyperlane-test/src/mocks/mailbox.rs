@@ -14,6 +14,8 @@ mock! {
 
         pub fn _domain(&self) -> &HyperlaneDomain {}
 
+        pub fn _provider(&self) -> Box<dyn HyperlaneProvider> {}
+
         pub fn _domain_hash(&self) -> H256 {}
 
         pub fn _raw_message_by_id(
@@ -109,6 +111,10 @@ impl Mailbox for MockMailboxContract {
 impl HyperlaneChain for MockMailboxContract {
     fn domain(&self) -> &HyperlaneDomain {
         self._domain()
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        self._provider()
     }
 }
 

@@ -18,14 +18,17 @@ import {
 } from './types';
 
 const MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH =
-  '0x712d4be42d7ade85a8ff38319560ab0b034a4d6bc71e4353ae085bffca04a683';
+  '0x29b7294ab3ad2e8587e5cce0e2289ce65e12a2ea2f1e7ab34a05e7737616f457';
 const TRANSPARENT_PROXY_BYTECODE_HASH =
-  '0xffdc88fd786b0738d5a570b1adbb07fae19babe40843e5161d8bd0dfae601f40';
+  '0x4dde3d0906b6492bf1d4947f667afe8d53c8899f1d8788cabafd082938dceb2d';
 const MULTISIG_ISM_BYTECODE_HASH =
-  '0x7436a866f0ae4fd29c07508d0ac158a1e3d5aebebb419d563d698ea314a5e426';
+  '0x5565704ffa5b10fdf37d57abfddcf137101d5fb418ded21fa6c5f90262c57dc2';
 const PROXY_ADMIN_BYTECODE_HASH =
-  '0x9beee53a27c08893a528a0947da06cf1af7c4c0ae376f99212815f02bb661e49';
-
+  '0x7c378e9d49408861ca754fe684b9f7d1ea525bddf095ee0463902df701453ba0';
+const INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH =
+  '0xcee48ab556ae2ff12b6458fa92e5e31f4a07f7852a0ed06e43a7f06f3c4c6d76';
+const OVERHEAD_IGP_BYTECODE_HASH =
+  '0x3cfed1f24f1e9b28a76d5a8c61696a04f7bc474404b823a2fcc210ea52346252';
 export class HyperlaneCoreChecker<
   Chain extends ChainName,
 > extends HyperlaneAppChecker<Chain, HyperlaneCore<Chain>, CoreConfig> {
@@ -40,6 +43,7 @@ export class HyperlaneCoreChecker<
     await this.checkProxiedContracts(chain);
     await this.checkMailbox(chain);
     await this.checkMultisigIsm(chain);
+    await this.checkBytecodeHashes(chain);
   }
 
   async checkDomainOwnership(chain: Chain): Promise<void> {
@@ -74,6 +78,12 @@ export class HyperlaneCoreChecker<
       };
       this.addViolation(violation);
     }
+  }
+
+  async checkBytecodeHashes(chain: Chain): Promise<void> {
+    const contracts = this.app.getContracts(chain);
+    const mailbox = contracts.mailbox.contract;
+    const localDomain = await mailbox.localDomain();
 
     await this.checkBytecodeHash(
       chain,
@@ -91,22 +101,7 @@ export class HyperlaneCoreChecker<
           (match, offset) => (offset > 8000 ? match : ''),
         ),
     );
-  }
 
-  async checkProxiedContracts(chain: Chain): Promise<void> {
-    const contracts = this.app.getContracts(chain);
-    await this.checkProxiedContract(
-      chain,
-      'Mailbox',
-      contracts.mailbox.addresses,
-      contracts.proxyAdmin.address,
-    );
-    await this.checkProxiedContract(
-      chain,
-      'InterchainGasPaymaster',
-      contracts.interchainGasPaymaster.addresses,
-      contracts.proxyAdmin.address,
-    );
     await this.checkBytecodeHash(
       chain,
       'Mailbox proxy',
@@ -125,16 +120,62 @@ export class HyperlaneCoreChecker<
       contracts.proxyAdmin.address,
       PROXY_ADMIN_BYTECODE_HASH,
     );
-  }
-
-  async checkMultisigIsm(local: Chain): Promise<void> {
-    const contracts = this.app.getContracts(local);
     await this.checkBytecodeHash(
-      local,
+      chain,
       'MultisigIsm implementation',
       contracts.multisigIsm.address,
       MULTISIG_ISM_BYTECODE_HASH,
     );
+    await this.checkBytecodeHash(
+      chain,
+      'InterchainGasPaymaster implementation',
+      contracts.interchainGasPaymaster.addresses.implementation,
+      INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+    );
+
+    await this.checkBytecodeHash(
+      chain,
+      'OverheadIGP',
+      contracts.defaultIsmInterchainGasPaymaster.address,
+      OVERHEAD_IGP_BYTECODE_HASH,
+      (_) =>
+        // Remove the address of the wrapped ISM from the bytecode
+        _.replaceAll(
+          defaultAbiCoder
+            .encode(
+              ['address'],
+              [contracts.interchainGasPaymaster.addresses.proxy],
+            )
+            .slice(2),
+          '',
+        ),
+    );
+  }
+
+  async checkProxiedContracts(chain: Chain): Promise<void> {
+    const contracts = this.app.getContracts(chain);
+    await this.checkProxiedContract(
+      chain,
+      'Mailbox',
+      contracts.mailbox.addresses,
+      contracts.proxyAdmin.address,
+    );
+    await this.checkProxiedContract(
+      chain,
+      'InterchainGasPaymaster',
+      contracts.interchainGasPaymaster.addresses,
+      contracts.proxyAdmin.address,
+    );
+
+    await this.checkProxiedContract(
+      chain,
+      'DefaultIsmInterchainGasPaymaster',
+      contracts.interchainGasPaymaster.addresses,
+      contracts.proxyAdmin.address,
+    );
+  }
+
+  async checkMultisigIsm(local: Chain): Promise<void> {
     await Promise.all(
       this.app
         .remoteChains(local)

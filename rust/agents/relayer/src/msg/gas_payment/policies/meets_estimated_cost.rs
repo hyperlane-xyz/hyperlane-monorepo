@@ -50,6 +50,7 @@ fn hyperlane_domain_id_to_native_token_coingecko_id(domain_id: u32) -> Result<&'
         BinanceSmartChain => "binancecoin",
         Celo => "celo",
         Moonbeam => "moonbeam",
+        Gnosis => "xdai",
         _ => eyre::bail!("No CoinGecko ID for domain {hyperlane_domain}"),
     })
 }

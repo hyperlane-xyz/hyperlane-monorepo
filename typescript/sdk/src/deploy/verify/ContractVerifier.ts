@@ -64,7 +64,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     options?: Record<string, string>,
   ): Promise<any> {
     const chainConnection = this.multiProvider.getChainConnection(chain);
-    const apiUrl = `${chainConnection.getApiUrl()}/api`;
+    const apiUrl = chainConnection.getApiUrl();
 
     const params = new URLSearchParams({
       apikey: this.apiKeys[chain],
@@ -102,7 +102,10 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
           this.logger(`Proxy verification failed, try manually?`);
           return;
         default:
-          this.logger(`Verification failed for some unknown reason`, result);
+          this.logger(
+            `Verification failed for some unknown reason on ${chain}`,
+            result,
+          );
           throw new Error(`Verification failed: ${result.result}`);
       }
     }
@@ -146,27 +149,41 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
     // poll for verified status
     if (guid) {
-      await this.submitForm(chain, ExplorerApiActions.CHECK_STATUS, { guid });
-      this.logger(`Successfully verified ${addressUrl}#code`);
+      try {
+        await this.submitForm(chain, ExplorerApiActions.CHECK_STATUS, { guid });
+        this.logger(`Successfully verified ${addressUrl}#code`);
+      } catch (error) {
+        console.error(
+          `Verifying implementation at ${input.address} failed on ${chain}`,
+        );
+        throw error;
+      }
     }
 
     // mark as proxy (if applicable)
     if (input.isProxy) {
-      const proxyGuid = await this.submitForm(
-        chain,
-        ExplorerApiActions.MARK_PROXY,
-        {
-          address: input.address,
-        },
-      );
-      // poll for verified proxy status
-      if (proxyGuid) {
-        await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {
-          guid: proxyGuid,
-        });
-        this.logger(
-          `Successfully verified proxy ${addressUrl}#readProxyContract`,
+      try {
+        const proxyGuid = await this.submitForm(
+          chain,
+          ExplorerApiActions.MARK_PROXY,
+          {
+            address: input.address,
+          },
         );
+        // poll for verified proxy status
+        if (proxyGuid) {
+          await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {
+            guid: proxyGuid,
+          });
+          this.logger(
+            `Successfully verified proxy ${addressUrl}#readProxyContract`,
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Verification of proxy at ${input.address} failed on ${chain}`,
+        );
+        throw error;
       }
     }
   }

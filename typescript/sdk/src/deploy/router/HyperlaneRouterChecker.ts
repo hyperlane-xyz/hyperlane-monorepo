@@ -4,7 +4,6 @@ import { Ownable } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
-import { chainMetadata } from '../../consts/chainMetadata';
 import { RouterContracts } from '../../router';
 import { ChainName } from '../../types';
 import { HyperlaneAppChecker } from '../HyperlaneAppChecker';
@@ -34,12 +33,18 @@ export class HyperlaneRouterChecker<
     const mailbox = await router.mailbox();
     const igp = await router.interchainGasPaymaster();
     const ism = await router.interchainSecurityModule();
-    utils.assert(mailbox, this.configMap[chain].mailbox);
-    utils.assert(igp, this.configMap[chain].interchainGasPaymaster);
     utils.assert(
-      ism,
-      this.configMap[chain].interchainSecurityModule ||
-        ethers.constants.AddressZero,
+      utils.eqAddress(mailbox, this.configMap[chain].mailbox),
+      'Mailbox mismatch',
+    );
+    utils.assert(
+      utils.eqAddress(igp, this.configMap[chain].interchainGasPaymaster),
+      'IGP mismatch',
+    );
+    utils.assert(
+      this.configMap[chain].interchainSecurityModule
+        ? utils.eqAddress(ism, this.configMap[chain].interchainSecurityModule!)
+        : utils.eqAddress(ism, ethers.constants.AddressZero),
     );
   }
 
@@ -49,7 +54,7 @@ export class HyperlaneRouterChecker<
     await Promise.all(
       this.app.remoteChains(chain).map(async (remoteChain) => {
         const remoteRouter = this.app.getContracts(remoteChain).router;
-        const remoteChainId = chainMetadata[remoteChain].id;
+        const remoteChainId = this.multiProvider.getChainId(remoteChain);
         const address = await router.routers(remoteChainId);
         utils.assert(address === utils.addressToBytes32(remoteRouter.address));
       }),
