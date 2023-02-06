@@ -1,8 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{Context, Result};
+use hyperlane_core::U256;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     RwLock,
@@ -41,6 +42,8 @@ pub struct Relayer {
     validator_announce: Arc<dyn ValidatorAnnounce>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
+    transaction_gas_limit: Option<U256>,
+    skip_transaction_gas_limit_for: HashSet<u32>,
 }
 
 impl AsRef<HyperlaneAgentCore> for Relayer {
@@ -80,20 +83,43 @@ impl BaseAgent for Relayer {
         let interchain_gas_paymaster = settings
             .build_caching_interchain_gas_paymaster(&settings.originchainname, db, &metrics)
             .await?;
+        let validator_announce = settings
+            .build_validator_announce(&settings.originchainname, &core.metrics.clone())
+            .await?;
 
         let whitelist = parse_matching_list(&settings.whitelist);
         let blacklist = parse_matching_list(&settings.blacklist);
-        info!(whitelist = %whitelist, blacklist = %blacklist, "Whitelist configuration");
+
+        let skip_transaction_gas_limit_for = settings
+            .skiptransactiongaslimitfor
+            .map(|l| {
+                l.split(',')
+                    .map(|d| {
+                        d.parse()
+                            .expect("Error parsing domain id for transaction gas limit")
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let transaction_gas_limit = settings
+            .transactiongaslimit
+            .map(|l| l.parse())
+            .transpose()
+            .context("Invalid transaction gas limit")?;
+        info!(
+            %whitelist,
+            %blacklist,
+            ?transaction_gas_limit,
+            ?skip_transaction_gas_limit_for,
+            "Whitelist configuration"
+        );
 
         let origin_chain = core
             .settings
             .chain_setup(&settings.originchainname)
             .context("Relayer must run on a configured chain")?
             .domain()?;
-
-        let validator_announce = settings
-            .build_validator_announce(&settings.originchainname, &core.metrics.clone())
-            .await?;
 
         Ok(Self {
             origin_chain,
@@ -104,6 +130,8 @@ impl BaseAgent for Relayer {
             gas_payment_enforcement_policy: settings.gaspaymentenforcementpolicy,
             whitelist,
             blacklist,
+            transaction_gas_limit,
+            skip_transaction_gas_limit_for,
         })
     }
 
@@ -278,6 +306,14 @@ impl Relayer {
                 .spawn()
             }
             TransactionSubmissionType::Signer => {
+                let transaction_gas_limit = if self
+                    .skip_transaction_gas_limit_for
+                    .contains(&destination.id())
+                {
+                    None
+                } else {
+                    self.transaction_gas_limit
+                };
                 let serial_submitter = SerialSubmitter::new(
                     msg_receive,
                     destination_mailbox.clone(),
@@ -289,6 +325,7 @@ impl Relayer {
                         destination,
                     ),
                     gas_payment_enforcer,
+                    transaction_gas_limit,
                 );
                 serial_submitter.spawn()
             }
