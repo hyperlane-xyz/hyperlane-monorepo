@@ -8,6 +8,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @notice A gas oracle that uses data stored within the contract.
+ * @dev This contract is intended to be owned by an address that will
+ * update the stored remote gas data.
  */
 contract StorageGasOracle is IGasOracle, Ownable {
     // ============ Public Storage ============
