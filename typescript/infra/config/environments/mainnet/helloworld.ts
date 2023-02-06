@@ -19,12 +19,12 @@ export const abacus: HelloWorldConfig<MainnetChains> = {
     namespace: environment,
     runConfig: {
       mode: HelloWorldKathyRunMode.Service,
-      fullCycleTime: 1000 * 60 * 60 * 6, // every 6 hours
+      fullCycleTime: 1000 * 60 * 60 * 48, // every 48 hours
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
     connectionType: ConnectionType.Http,
-    cyclesBetweenEthereumMessages: 3, // Skip 3 cycles of Ethereum, i.e. send/receive Ethereum messages once a day.
+    cyclesBetweenEthereumMessages: 3, // Skip 3 cycles of Ethereum, i.e. send/receive Ethereum messages once a week.
   },
 };
 
