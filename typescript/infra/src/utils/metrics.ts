@@ -1,5 +1,8 @@
 import http from 'http';
 import { Pushgateway, Registry } from 'prom-client';
+import { format } from 'util';
+
+import { error, log } from '@hyperlane-xyz/utils';
 
 function getPushGateway(register: Registry): Pushgateway | null {
   const gatewayAddr = process.env['PROMETHEUS_PUSH_GATEWAY'];
@@ -22,19 +25,22 @@ export async function submitMetrics(
   if (!gateway) return;
 
   let resp;
-  if (options?.appendMode) {
-    resp = (await gateway.pushAdd({ jobName })).resp;
-  } else {
-    resp = (await gateway.push({ jobName })).resp;
+  try {
+    if (options?.appendMode) {
+      resp = (await gateway.pushAdd({ jobName })).resp;
+    } else {
+      resp = (await gateway.push({ jobName })).resp;
+    }
+  } catch (e) {
+    error('Error when pushing metrics', { error: format(e) });
+    return;
   }
 
   const statusCode =
     typeof resp == 'object' && resp != null && 'statusCode' in resp
       ? (resp as any).statusCode
       : 'unknown';
-  console.log(
-    `Prometheus metrics pushed to PushGateway with status ${statusCode}`,
-  );
+  log('Prometheus metrics pushed to PushGateway', { statusCode });
 }
 
 /**
