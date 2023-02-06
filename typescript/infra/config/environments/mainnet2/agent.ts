@@ -70,7 +70,7 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  validatorSets: validators,
+  validators,
   gelato: {
     enabledChains: [],
   },
