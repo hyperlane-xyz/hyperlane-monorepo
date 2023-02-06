@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -32,14 +32,14 @@ pub struct GasPaymentEnforcer {
     /// A whitelist, where any matching message is considered
     /// as having met the gas payment requirement, even if it doesn't
     /// satisfy the policy.
-    whitelist: Arc<MatchingList>,
+    whitelist: MatchingList,
     db: HyperlaneDB,
 }
 
 impl GasPaymentEnforcer {
     pub fn new(
         policy_config: GasPaymentEnforcementPolicy,
-        whitelist: Arc<MatchingList>,
+        whitelist: MatchingList,
         db: HyperlaneDB,
     ) -> Self {
         let policy: Box<dyn GasPaymentPolicy> = match policy_config {
