@@ -123,6 +123,14 @@ jobs:
           path: ./*
           key: ${{ github.sha }}
 
+      - name: yarn-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+
       - name: Install Foundry
         uses: onbjerg/foundry-toolchain@v1
         with:
@@ -139,6 +147,7 @@ jobs:
         id: slither
         with:
           target: 'solidity/'
+          slither-config: 'solidity/slither.config.json'
           sarif: results.sarif
           fail-on: none
           ignore-compile: true
