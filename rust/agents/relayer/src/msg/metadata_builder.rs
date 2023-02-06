@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, trace};
 
 use hyperlane_base::{CachingMailbox, ChainSetup, CoreMetrics, MultisigCheckpointSyncer};
-use hyperlane_core::{HyperlaneMessage, Mailbox, MultisigIsm};
+use hyperlane_core::{HyperlaneChain, HyperlaneMessage, Mailbox, MultisigIsm};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
@@ -37,6 +37,21 @@ impl MetadataBuilder {
         message: &HyperlaneMessage,
         mailbox: CachingMailbox,
     ) -> eyre::Result<Option<Vec<u8>>> {
+        // The Mailbox's `recipientIsm` function will revert if
+        // the recipient is not a contract. This can pose issues with
+        // our use of the RetryingProvider, which will continuously retry
+        // the eth_call to the `recipientIsm` function.
+        // As a workaround, we avoid the call entirely if the recipient is
+        // not a contract.
+        let provider = mailbox.provider();
+        if !provider.is_contract(&message.recipient).await? {
+            trace!(
+                recipient=?message.recipient,
+                "Recipient is not a contract, not fetching metadata"
+            );
+            return Ok(None);
+        }
+
         let ism_address = mailbox.recipient_ism(message.recipient).await?;
         let multisig_ism = self
             .chain_setup

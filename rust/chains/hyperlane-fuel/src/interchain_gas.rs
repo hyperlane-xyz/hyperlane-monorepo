@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use hyperlane_core::{HyperlaneDomain, H256};
+use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, H256};
 
 use hyperlane_core::{
     ChainResult, HyperlaneChain, HyperlaneContract, Indexer, InterchainGasPaymaster,
@@ -18,6 +18,10 @@ impl HyperlaneContract for FuelInterchainGasPaymaster {
 
 impl HyperlaneChain for FuelInterchainGasPaymaster {
     fn domain(&self) -> &HyperlaneDomain {
+        todo!()
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
         todo!()
     }
 }
