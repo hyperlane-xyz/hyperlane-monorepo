@@ -87,6 +87,15 @@ export class MultiProvider<
   }
 
   /**
+   * Get the id for a given chain name
+   * Attempts to use SDK defaults first, otherwise queries network
+   * @throws if chain is invalid or has not been set
+   */
+  getChainId(chain: Chain): number {
+    return this.getChainConnection(chain).id;
+  }
+
+  /**
    * Create a new MultiProvider which includes the provided chain connection config
    */
   extendWithChain<New extends Remotes<ChainName, Chain>>(

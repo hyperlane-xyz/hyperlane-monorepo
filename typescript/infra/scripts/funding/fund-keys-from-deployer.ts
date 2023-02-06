@@ -107,6 +107,7 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   moonbeam: '0.1',
   optimismgoerli: '0.1',
   arbitrumgoerli: '0.1',
+  gnosis: '0.1',
   // unused
   test1: '0',
   test2: '0',
@@ -176,7 +177,6 @@ async function main() {
       ),
     );
   } else {
-    contextFunders = [];
     const contexts = Object.keys(argv.contextsAndRoles) as Contexts[];
     contextFunders = await Promise.all(
       contexts.map((context) =>
@@ -191,10 +191,7 @@ async function main() {
 
   let failureOccurred = false;
   for (const funder of contextFunders) {
-    const failure = await funder.fund();
-    if (failure) {
-      failureOccurred = true;
-    }
+    failureOccurred ||= await funder.fund();
   }
 
   await submitMetrics(metricsRegister, 'key-funder');
@@ -295,18 +292,25 @@ class ContextFunder {
   async fund(): Promise<boolean> {
     let failureOccurred = false;
 
-    const chainKeys = this.getChainKeys();
-    await Promise.all(
-      Object.entries(chainKeys).map(async ([chain, keys]) => {
+    const promises = Object.entries(this.getChainKeys()).map(
+      async ([chain, keys]) => {
         if (keys.length > 0) {
           await this.bridgeIfL2(chain as ChainName);
         }
-        keys.forEach(async (key) => {
+        for (const key of keys) {
           const failure = await this.attemptToFundKey(key, chain as ChainName);
-          failureOccurred = failureOccurred || failure;
-        });
-      }),
+          failureOccurred ||= failure;
+        }
+      },
     );
+
+    try {
+      await Promise.all(promises);
+    } catch (e) {
+      error('Unhandled error when funding key', { error: format(e) });
+      failureOccurred = true;
+    }
+
     return failureOccurred;
   }
 
@@ -319,11 +323,18 @@ class ContextFunder {
     for (const role of this.rolesToFund) {
       const keys = this.getKeysWithRole(role);
       for (const chain of this.chains) {
-        // Relayer keys should not be funded on the origin chain.
-        const filteredKeys = keys.filter(
-          (key) => role !== KEY_ROLE_ENUM.Relayer || key.chainName !== chain,
-        );
-        chainKeys[chain] = filteredKeys;
+        if (role === KEY_ROLE_ENUM.Relayer) {
+          // Relayer keys should not be funded on the origin chain
+          for (const remote of this.chains) {
+            chainKeys[remote] = chainKeys[remote].concat(
+              keys.filter(
+                (_) => _.chainName !== remote && _.chainName === chain,
+              ),
+            );
+          }
+        } else {
+          chainKeys[chain] = chainKeys[chain].concat(keys);
+        }
       }
     }
     return chainKeys;
@@ -373,7 +384,6 @@ class ContextFunder {
       // on L1 gas.
       const bridgeAmount = await this.getFundingAmount(
         chainConnection,
-        chain,
         funderAddress,
         desiredBalanceEther.mul(10),
       );
@@ -385,7 +395,6 @@ class ContextFunder {
 
   private async getFundingAmount(
     chainConnection: ChainConnection,
-    chain: ChainName,
     address: string,
     desiredBalance: BigNumber,
   ): Promise<BigNumber> {
@@ -411,7 +420,6 @@ class ContextFunder {
     );
     const fundingAmount = await this.getFundingAmount(
       chainConnection,
-      chain,
       key.address,
       desiredBalanceEther,
     );

@@ -1,135 +1,151 @@
 {
   "alfajores": {
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0x4e4D563e2cBFC35c4BC16003685443Fae2FA702f",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
       "implementation": "0x39b3cb005C4225B88A8b3a090563e2e763407222"
     },
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
+      "implementation": "0x94096588fc66f0D3a348306c2555d474b3B6302a"
+    },
+    "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x4D06A1671A2a345B14B15cbD50027979A5D1d8C9",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "fuji": {
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0x13474f85b808034C911B7697dee60B7d8d50ee36",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
       "implementation": "0x3388A1D46337631F3597d50e98930B52eb9E710E"
     },
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
+      "implementation": "0x94096588fc66f0D3a348306c2555d474b3B6302a"
+    },
+    "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0xD713Db664509bd057aC2b378F4B65Db468F634A5",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "mumbai": {
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0x96b49e136581f8dfF370aDB3015D48465572a318",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
       "implementation": "0x179c2Da65187C2614FbeD3Af8eB3098FEEb0a958"
     },
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
+      "implementation": "0x94096588fc66f0D3a348306c2555d474b3B6302a"
+    },
+    "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0xd71f1A64659beC0781b2aa21bc7a72F7290F6Bf3",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "bsctestnet": {
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0xfB149BC17dD3FE858fA64D678bA0c706DEac61eE",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
       "implementation": "0x87891AA323d0c98D9A1F417E9F02219EBc4274CC"
     },
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
+      "implementation": "0x94096588fc66f0D3a348306c2555d474b3B6302a"
+    },
+    "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x34add51924C500b4428067E251168807b3f5faED",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "goerli": {
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0x8f919348F9C4619A196Acb5e377f49E5E2C0B569",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
       "implementation": "0x1ADF2D247E08348D18d77e69D5807a413b92Fe8E"
     },
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
+      "implementation": "0x94096588fc66f0D3a348306c2555d474b3B6302a"
+    },
+    "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x32B34F0D86b275b92e9289d9054Db5Ec32d2CC6C",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "moonbasealpha": {
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0xEed449c54156163bf50CFf30408975AF43F43115",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
       "implementation": "0xC1081e289564fd20a4a93C00042692E168Fd0378"
     },
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
+      "implementation": "0x94096588fc66f0D3a348306c2555d474b3B6302a"
+    },
+    "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0xec8875C7cE0a814A56654618D366641859F32C7A",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "optimismgoerli": {
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
       "implementation": "0x2D076fE2370950044572cB168924B8AffDA26689"
     },
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
+      "implementation": "0x94096588fc66f0D3a348306c2555d474b3B6302a"
+    },
+    "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
   },
   "arbitrumgoerli": {
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
     "proxyAdmin": "0xcD19Ff7306E04EA6b8f4B5Ab1c5A198c186aaB42",
-    "interchainGasPaymaster": {
-      "kind": "Transparent",
-      "proxy": "0xf857706CE59Cb7AE6df81Bbd0B0a656dB3e6beDA",
-      "implementation": "0x1a37635B78Dde4aCbedaFCdA365FB89dc3F3f030"
-    },
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
       "implementation": "0x0840f126eD0302B37d7476A303340a92B9eC0c5b"
     },
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
+      "implementation": "0x94096588fc66f0D3a348306c2555d474b3B6302a"
+    },
+    "defaultIsmInterchainGasPaymaster": "0xF90cB82a76492614D07B82a7658917f3aC811Ac1",
     "multisigIsm": "0x47384E33E67007B7fE4326fb096Bdf9CbA7AB6E4",
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
