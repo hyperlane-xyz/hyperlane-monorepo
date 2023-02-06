@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import "forge-std/console.sol";
 // ============ Internal Imports ============
 import {IAggregationIsm} from "../../interfaces/IAggregationIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
@@ -45,11 +46,27 @@ contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
     {
         uint8 _verified = 0;
         uint8 _count = _metadata.count();
+        console.log("count");
+        console.logUint(_count);
         for (uint8 i = 0; i < _count; i++) {
-            if (!_metadata.hasMetadata(i)) continue;
+            console.log("checking metadata for");
+            console.logUint(i);
+            if (!_metadata.hasMetadata(i)) {
+                console.log("metadata not present");
+                continue;
+            }
+            console.log("metadata present");
+            console.log("pointers");
+            (uint256 s, uint256 e) = _metadata._metadataPointers(i);
+            console.logUint(s);
+            console.logUint(e);
+            console.log("ism");
             IInterchainSecurityModule _ism = _metadata.ismAt(i);
-            require(_ism.verify(_metadata.metadataAt(i), _message));
-            _verified++;
+            console.logAddress(address(_ism));
+            console.log("metadata");
+            console.logBytes(_metadata.metadataAt(i));
+            require(_ism.verify(_metadata.metadataAt(i), _message), "!verify");
+            _verified += 1;
         }
         // Ensures the ISM set encoded in the metadata matches
         // what we've stored on chain.
@@ -61,6 +78,18 @@ contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
             "!matches"
         );
         return true;
+    }
+
+    function origin(bytes calldata _message) external view returns (uint32) {
+        return _message.origin();
+    }
+
+    function ismAddresses(bytes calldata _metadata)
+        external
+        view
+        returns (bytes calldata)
+    {
+        return _metadata.ismAddresses();
     }
 
     /**

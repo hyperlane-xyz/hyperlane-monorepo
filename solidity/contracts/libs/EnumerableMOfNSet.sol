@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
+import "forge-std/console.sol";
 
 // ============ External Imports ============
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -107,6 +108,10 @@ library EnumerableMOfNSet {
         bytes calldata _values
     ) internal view returns (bool) {
         bytes32 _commitment = keccak256(abi.encodePacked(_threshold, _values));
+        console.log("Checking commitment matches");
+        console.logBytes(abi.encodePacked(_threshold, _values));
+        console.logBytes32(_commitment);
+        console.logBytes32(_set.commitment);
         return _commitment == _set.commitment;
     }
 
@@ -133,6 +138,10 @@ library EnumerableMOfNSet {
         private
         returns (bytes32)
     {
+        console.log("Computing commitment");
+        console.logBytes(
+            abi.encodePacked(_set.threshold, _set.addresses.values())
+        );
         bytes32 _commitment = _computeCommitment(
             _set.threshold,
             _set.addresses.values()

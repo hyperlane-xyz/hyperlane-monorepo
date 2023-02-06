@@ -25,7 +25,7 @@ library AggregationIsmMetadata {
         returns (bytes calldata)
     {
         uint256 _end = ISM_ADDRESSES_OFFSET +
-            count(_metadata) *
+            uint256(count(_metadata)) *
             ISM_ADDRESS_LENGTH;
         return _metadata[ISM_ADDRESSES_OFFSET:_end];
     }
@@ -37,7 +37,7 @@ library AggregationIsmMetadata {
     {
         // ISM addresses are left padded to bytes32 in order to match
         // abi.encodePacked(address[]).
-        uint256 _start = ISM_ADDRESSES_OFFSET + (_index * 32) + 12;
+        uint256 _start = ISM_ADDRESSES_OFFSET + (uint256(_index) * 32) + 12;
         uint256 _end = _start + 20;
         return
             IInterchainSecurityModule(address(bytes20(_metadata[_start:_end])));
@@ -48,7 +48,8 @@ library AggregationIsmMetadata {
         pure
         returns (bool)
     {
-        return _metadataOffset(_metadata, _index) == 0;
+        (uint256 _start, ) = _metadataPointers(_metadata, _index);
+        return _start > 0;
     }
 
     function metadataAt(bytes calldata _metadata, uint8 _index)
@@ -56,23 +57,40 @@ library AggregationIsmMetadata {
         pure
         returns (bytes calldata)
     {
-        uint256 _start = _metadataOffset(_metadata, _index);
-        if (_index == count(_metadata) - 1) {
+        (uint256 _start, uint256 _end) = _metadataPointers(_metadata, _index);
+        if (_end == _metadata.length) {
             return _metadata[_start:];
         } else {
-            uint256 _end = _metadataOffset(_metadata, _index + 1);
             return _metadata[_start:_end];
         }
     }
 
-    function _metadataOffset(bytes calldata _metadata, uint8 _index)
-        private
+    function _metadataPointerStart(bytes calldata _metadata, uint8 _index)
+        internal
         pure
         returns (uint256)
     {
-        uint256 _offsetsStart = ISM_ADDRESSES_OFFSET + count(_metadata) * 32;
-        uint256 _start = _offsetsStart + (_index * 32);
-        uint256 _end = _start + 32;
-        return uint256(bytes32(_metadata[_start:_end]));
+        uint256 _offsetsStart = ISM_ADDRESSES_OFFSET +
+            uint256(count(_metadata)) *
+            32;
+        uint256 _start = _offsetsStart + (uint256(_index) * 32);
+        return _start;
+    }
+
+    function _metadataPointers(bytes calldata _metadata, uint8 _index)
+        internal
+        pure
+        returns (uint256, uint256)
+    {
+        uint256 _offsetsStart = ISM_ADDRESSES_OFFSET +
+            uint256(count(_metadata)) *
+            32;
+        uint256 _start = _offsetsStart + (uint256(_index) * 32);
+        uint256 _mid = _start + 16;
+        uint256 _end = _mid + 16;
+        return (
+            uint256(uint128(bytes16(_metadata[_start:_mid]))),
+            uint256(uint128(bytes16(_metadata[_mid:_end])))
+        );
     }
 }
