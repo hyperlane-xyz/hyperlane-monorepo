@@ -14,13 +14,14 @@ use tracing::instrument;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    Indexer, LogMeta, Mailbox, MailboxIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome,
-    H256, U256,
+    HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer, RawHyperlaneMessage,
+    TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::report_tx;
+use crate::EthereumProvider;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -214,6 +215,13 @@ where
 {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(EthereumProvider::new(
+            self.provider.clone(),
+            self.domain.clone(),
+        ))
     }
 }
 
