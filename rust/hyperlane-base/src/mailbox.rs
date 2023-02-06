@@ -11,7 +11,7 @@ use tracing::{info_span, Instrument};
 use hyperlane_core::db::HyperlaneDB;
 use hyperlane_core::{
     ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneProvider, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::chains::IndexSettings;
@@ -139,6 +139,10 @@ impl Mailbox for CachingMailbox {
 impl HyperlaneChain for CachingMailbox {
     fn domain(&self) -> &HyperlaneDomain {
         self.mailbox.domain()
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        self.mailbox.provider()
     }
 }
 
