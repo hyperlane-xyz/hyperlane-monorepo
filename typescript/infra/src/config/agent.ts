@@ -260,6 +260,7 @@ export enum ConnectionType {
   Http = 'http',
   Ws = 'ws',
   HttpQuorum = 'httpQuorum',
+  HttpFallback = 'httpFallback',
 }
 
 export type RustConnection =
