@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
-use tracing::{debug, info, instrument, trace};
+use tracing::{debug, info, instrument};
 
 use hyperlane_base::{CachingMailbox, ChainSetup, CoreMetrics, MultisigCheckpointSyncer};
 use hyperlane_core::{HyperlaneChain, HyperlaneMessage, Mailbox, MultisigIsm};
@@ -45,7 +45,7 @@ impl MetadataBuilder {
         // not a contract.
         let provider = mailbox.provider();
         if !provider.is_contract(&message.recipient).await? {
-            trace!(
+            debug!(
                 recipient=?message.recipient,
                 "Recipient is not a contract, not fetching metadata"
             );
