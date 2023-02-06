@@ -6,27 +6,25 @@ This repo contains the base Hyperlane ERC20 and ERC721 tokens (HypERC20 and HypE
 %%{init: {'theme':'base'}}%%
 graph TB
     Alice((Alice))
-    Operator((Operator))
+    Relayer((Relayer))
 
     subgraph "Ethereum"
-        HYP_E[(HYP)]
-        O_E[/Outbox\]
+        HYP_E[HYP]
+        M_E[(Mailbox)]
     end
 
     subgraph "Polygon"
-        HYP_P[(HYP)]
-        EthereumInbox[\EthereumInbox/]
+        HYP_P[HYP]
+        M_P[(Mailbox)]
     end
 
     Bob((Bob))
 
     Alice -- "transferRemote(Polygon, Bob, 5)" --> HYP_E
-    HYP_E -- "dispatch(Polygon, (Bob, 5))" --> O_E
-    Operator -- "checkpoint()" --> O_E
-    O_E-.->EthereumInbox
-    Operator -- "relay()" --> EthereumInbox
-    Operator -- "process(Ethereum, (Bob, 5))" --> EthereumInbox
-    EthereumInbox-->|"handle(Ethereum, (Bob, 5))"|HYP_P
+    HYP_E -- "dispatch(Polygon, (Bob, 5))" --> M_E
+    M_E-.->Relayer
+    Relayer -- "process(Ethereum, (Bob, 5))" --> M_P
+    M_P-->|"handle(Ethereum, (Bob, 5))"|HYP_P
     HYP_P-.->Bob
 ```
 
