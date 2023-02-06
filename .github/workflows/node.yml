@@ -131,12 +131,6 @@ jobs:
       - name: Install dependencies
         run: cd solidity && forge install
 
-      - name: gas
-        run: yarn workspace @hyperlane-xyz/core run gas-ci
-
-      - name: forge-test
-        run: yarn workspace @hyperlane-xyz/core run test:forge
-
       - name: Run Slither
         uses: crytic/slither-action@v0.2.0
         id: slither
@@ -144,11 +138,19 @@ jobs:
           target: 'solidity/'
           sarif: results.sarif
           fail-on: none
+          ignore-compile: true
   
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: ${{ steps.slither.outputs.sarif }}
+  
+      - name: gas
+        run: yarn workspace @hyperlane-xyz/core run gas-ci
+
+      - name: forge-test
+        run: yarn workspace @hyperlane-xyz/core run test:forge
+
 
       # Will fail if hardhat tests fail but not if forge tests fail
       - name: coverage
