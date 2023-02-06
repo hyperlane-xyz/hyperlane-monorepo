@@ -7,6 +7,7 @@ import {
   TestQuery,
   TestQuery__factory,
 } from '@hyperlane-xyz/core';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { testChainConnectionConfigs } from '../consts/chainConnectionConfigs';
 import { TestCoreApp } from '../core/TestCoreApp';
@@ -62,20 +63,21 @@ describe('InterchainQueryRouter', async () => {
 
   it('completes query round trip and invokes callback', async () => {
     const secret = 123;
+    const sender = utils.addressToBytes32(testQuery.address);
     const expectedOwner = await remote.owner();
     await expect(testQuery.queryRouterOwner(remoteDomain, secret))
       .to.emit(local, 'QueryDispatched')
-      .withArgs(remoteDomain, testQuery.address);
+      .withArgs(remoteDomain, sender);
     const result = await coreApp.processOutboundMessages(localChain);
     const response = result.get(remoteChain)![0];
     await expect(response)
       .to.emit(remote, 'QueryReturned')
-      .withArgs(localDomain, testQuery.address);
+      .withArgs(localDomain, sender);
     const result2 = await coreApp.processOutboundMessages(remoteChain);
     const response2 = result2.get(localChain)![0];
     await expect(response2)
       .to.emit(local, 'QueryResolved')
-      .withArgs(remoteDomain, testQuery.address);
+      .withArgs(remoteDomain, sender);
     await expect(response2)
       .to.emit(testQuery, 'Owner')
       .withArgs(secret, expectedOwner);
