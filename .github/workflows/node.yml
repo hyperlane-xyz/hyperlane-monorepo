@@ -132,7 +132,7 @@ jobs:
         run: cd solidity && forge install
 
       - name: Run Slither
-        uses: crytic/slither-action@v0.2.0
+        uses: crytic/slither-action@main
         id: slither
         with:
           target: 'solidity/'
