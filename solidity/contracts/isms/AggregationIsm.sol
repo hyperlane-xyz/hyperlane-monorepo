@@ -6,18 +6,18 @@ import {IAggregationIsm} from "../../interfaces/IAggregationIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../libs/Message.sol";
 import {AggregationIsmMetadata} from "../libs/AggregationIsmMetadata.sol";
-import {EnumerableThresholdedSet} from "../libs/EnumerableThresholdedSet.sol";
-import {OwnableThresholdedSet} from "../libs/OwnableThresholdedSet.sol";
+import {EnumerableMOfNSet} from "../libs/EnumerableMOfNSet.sol";
+import {OwnableMOfNSet} from "../libs/OwnableMOfNSet.sol";
 
 /**
  * @title AggregationIsm
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
  * reach a quorum.
  */
-contract AggregationIsm is IAggregationIsm, OwnableThresholdedSet {
+contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
     // ============ Libraries ============
 
-    using EnumerableThresholdedSet for EnumerableThresholdedSet.AddressSet;
+    using EnumerableMOfNSet for EnumerableMOfNSet.AddressSet;
     using Message for bytes;
     using AggregationIsmMetadata for bytes;
 
@@ -28,7 +28,7 @@ contract AggregationIsm is IAggregationIsm, OwnableThresholdedSet {
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
-    constructor() OwnableThresholdedSet() {}
+    constructor() OwnableMOfNSet() {}
 
     // ============ Public Functions ============
 
@@ -76,6 +76,6 @@ contract AggregationIsm is IAggregationIsm, OwnableThresholdedSet {
         view
         returns (address[] memory, uint8)
     {
-        return elementsAndThreshold(_message);
+        return valuesAndThreshold(_message);
     }
 }

@@ -4,7 +4,7 @@ pragma solidity >=0.6.11;
 // ============ External Imports ============
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-library EnumerableThresholdedSet {
+library EnumerableMOfNSet {
     // ============ Libraries ============
 
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -16,38 +16,38 @@ library EnumerableThresholdedSet {
     }
 
     // ============ Library Functions ============
-    function add(AddressSet storage _set, address _element)
+    function add(AddressSet storage _set, address _value)
         internal
         returns (bytes32)
     {
-        _add(_set, _element);
+        _add(_set, _value);
         return _updateCommitment(_set);
     }
 
-    function add(AddressSet storage _set, address[] memory _elements)
+    function add(AddressSet storage _set, address[] memory _values)
         internal
         returns (bytes32)
     {
-        for (uint256 i = 0; i < _elements.length; i++) {
-            _add(_set, _elements[i]);
+        for (uint256 i = 0; i < _values.length; i++) {
+            _add(_set, _values[i]);
         }
         return _updateCommitment(_set);
     }
 
-    function remove(AddressSet storage _set, address _element)
+    function remove(AddressSet storage _set, address _value)
         internal
         returns (bytes32)
     {
-        _remove(_set, _element);
+        _remove(_set, _value);
         return _updateCommitment(_set);
     }
 
-    function remove(AddressSet storage _set, address[] memory _elements)
+    function remove(AddressSet storage _set, address[] memory _values)
         internal
         returns (bytes32)
     {
-        for (uint256 i = 0; i < _elements.length; i++) {
-            _remove(_set, _elements[i]);
+        for (uint256 i = 0; i < _values.length; i++) {
+            _remove(_set, _values[i]);
         }
         return _updateCommitment(_set);
     }
@@ -95,20 +95,18 @@ library EnumerableThresholdedSet {
     function matches(
         AddressSet storage _set,
         uint8 _threshold,
-        address[] memory _elements
+        address[] memory _values
     ) internal view returns (bool) {
-        bytes32 _commitment = _computeCommitment(_threshold, _elements);
+        bytes32 _commitment = _computeCommitment(_threshold, _values);
         return _commitment == _set.commitment;
     }
 
     function matches(
         AddressSet storage _set,
         uint8 _threshold,
-        bytes calldata _elements
+        bytes calldata _values
     ) internal view returns (bool) {
-        bytes32 _commitment = keccak256(
-            abi.encodePacked(_threshold, _elements)
-        );
+        bytes32 _commitment = keccak256(abi.encodePacked(_threshold, _values));
         return _commitment == _set.commitment;
     }
 
@@ -121,13 +119,13 @@ library EnumerableThresholdedSet {
     }
 
     // ============ Internal Functions ============
-    function _add(AddressSet storage _set, address _element) private {
-        require(_element != address(0), "zero address");
-        require(_set.addresses.add(_element), "already added");
+    function _add(AddressSet storage _set, address _value) private {
+        require(_value != address(0), "zero address");
+        require(_set.addresses.add(_value), "already added");
     }
 
-    function _remove(AddressSet storage _set, address _element) private {
-        require(_set.addresses.remove(_element), "not added");
+    function _remove(AddressSet storage _set, address _value) private {
+        require(_set.addresses.remove(_value), "not added");
         require(_set.addresses.length() >= _set.threshold, "reduce threshold");
     }
 
@@ -143,11 +141,11 @@ library EnumerableThresholdedSet {
         return _commitment;
     }
 
-    function _computeCommitment(uint8 _threshold, address[] memory _elements)
+    function _computeCommitment(uint8 _threshold, address[] memory _values)
         private
         pure
         returns (bytes32)
     {
-        return keccak256(abi.encodePacked(_threshold, _elements));
+        return keccak256(abi.encodePacked(_threshold, _values));
     }
 }

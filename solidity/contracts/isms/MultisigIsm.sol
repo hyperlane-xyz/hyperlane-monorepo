@@ -9,8 +9,8 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
 import {Message} from "../libs/Message.sol";
 import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
-import {EnumerableThresholdedSet} from "../libs/EnumerableThresholdedSet.sol";
-import {OwnableThresholdedSet} from "../libs/OwnableThresholdedSet.sol";
+import {EnumerableMOfNSet} from "../libs/EnumerableMOfNSet.sol";
+import {OwnableMOfNSet} from "../libs/OwnableMOfNSet.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 
 /**
@@ -18,10 +18,10 @@ import {MerkleLib} from "../libs/Merkle.sol";
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
  * reach a quorum.
  */
-contract MultisigIsm is IMultisigIsm, OwnableThresholdedSet {
+contract MultisigIsm is IMultisigIsm, OwnableMOfNSet {
     // ============ Libraries ============
 
-    using EnumerableThresholdedSet for EnumerableThresholdedSet.AddressSet;
+    using EnumerableMOfNSet for EnumerableMOfNSet.AddressSet;
     using Message for bytes;
     using MultisigIsmMetadata for bytes;
     using MerkleLib for MerkleLib.Tree;
@@ -33,7 +33,7 @@ contract MultisigIsm is IMultisigIsm, OwnableThresholdedSet {
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
-    constructor() OwnableThresholdedSet() {}
+    constructor() OwnableMOfNSet() {}
 
     // ============ Public Functions ============
 
@@ -68,7 +68,7 @@ contract MultisigIsm is IMultisigIsm, OwnableThresholdedSet {
         returns (address[] memory, uint8)
     {
         uint32 _origin = _message.origin();
-        address[] memory _validators = elements(_origin);
+        address[] memory _validators = values(_origin);
         uint8 _threshold = threshold(_origin);
         return (_validators, _threshold);
     }
