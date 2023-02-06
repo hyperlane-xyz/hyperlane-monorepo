@@ -64,7 +64,7 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  describe('#enrollValidators', () => {
+  describe('#addMany', () => {
     let validatorAddresses: string[];
     const domains = [ORIGIN_DOMAIN, DESTINATION_DOMAIN];
     before(async () => {
@@ -72,35 +72,35 @@ describe('MultisigIsm', async () => {
     });
 
     it('enrolls validators into multiple validator sets', async () => {
-      await multisigIsm.enrollValidators(
+      await multisigIsm.addMany(
         domains,
         domains.map(() => validatorAddresses),
       );
 
       await Promise.all(
         domains.map(async (domain) => {
-          expect(await multisigIsm.validators(domain)).to.deep.equal(
+          expect(await multisigIsm.values(domain)).to.deep.equal(
             validatorAddresses,
           );
         }),
       );
     });
 
-    it('emits the ValidatorEnrolled event', async () => {
+    it('emits the ValueAdded event', async () => {
       expect(
-        await multisigIsm.enrollValidators(
+        await multisigIsm.addMany(
           domains,
           domains.map(() => validatorAddresses),
         ),
       )
-        .to.emit(multisigIsm, 'ValidatorEnrolled')
+        .to.emit(multisigIsm, 'ValueAdded')
         .withArgs(ORIGIN_DOMAIN, validatorAddresses[0], 1);
     });
 
     it('emits the CommitmentUpdated event', async () => {
       const expectedCommitment = getCommitment(0, validatorAddresses);
       expect(
-        await multisigIsm.enrollValidators(
+        await multisigIsm.addMany(
           domains,
           domains.map(() => validatorAddresses),
         ),
@@ -111,7 +111,7 @@ describe('MultisigIsm', async () => {
 
     it('reverts when called by a non-owner', async () => {
       await expect(
-        multisigIsm.connect(nonOwner).enrollValidators(
+        multisigIsm.connect(nonOwner).addMany(
           domains,
           domains.map(() => validatorAddresses),
         ),
@@ -119,78 +119,62 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  describe('#enrollValidator', () => {
+  describe('#add', () => {
     it('enrolls a validator into the validator set', async () => {
-      await multisigIsm.enrollValidator(ORIGIN_DOMAIN, validators[0].address);
+      await multisigIsm.add(ORIGIN_DOMAIN, validators[0].address);
 
-      expect(await multisigIsm.validators(ORIGIN_DOMAIN)).to.deep.equal([
+      expect(await multisigIsm.values(ORIGIN_DOMAIN)).to.deep.equal([
         validators[0].address,
       ]);
     });
 
-    it('emits the ValidatorEnrolled event', async () => {
-      expect(
-        await multisigIsm.enrollValidator(ORIGIN_DOMAIN, validators[0].address),
-      )
-        .to.emit(multisigIsm, 'ValidatorEnrolled')
+    it('emits the ValueAdded event', async () => {
+      expect(await multisigIsm.add(ORIGIN_DOMAIN, validators[0].address))
+        .to.emit(multisigIsm, 'ValueAdded')
         .withArgs(ORIGIN_DOMAIN, validators[0].address, 1);
     });
 
     it('emits the CommitmentUpdated event', async () => {
       const expectedCommitment = getCommitment(0, [validators[0].address]);
-      expect(
-        await multisigIsm.enrollValidator(ORIGIN_DOMAIN, validators[0].address),
-      )
+      expect(await multisigIsm.add(ORIGIN_DOMAIN, validators[0].address))
         .to.emit(multisigIsm, 'CommitmentUpdated')
         .withArgs(ORIGIN_DOMAIN, expectedCommitment);
     });
 
-    it('reverts if the validator is already enrolled', async () => {
-      await multisigIsm.enrollValidator(ORIGIN_DOMAIN, validators[0].address);
+    it('reverts if the validator is contained', async () => {
+      await multisigIsm.add(ORIGIN_DOMAIN, validators[0].address);
       await expect(
-        multisigIsm.enrollValidator(ORIGIN_DOMAIN, validators[0].address),
-      ).to.be.revertedWith('already enrolled');
+        multisigIsm.add(ORIGIN_DOMAIN, validators[0].address),
+      ).to.be.revertedWith('contained');
     });
 
     it('reverts when called by a non-owner', async () => {
       await expect(
-        multisigIsm
-          .connect(nonOwner)
-          .enrollValidator(ORIGIN_DOMAIN, validators[0].address),
+        multisigIsm.connect(nonOwner).add(ORIGIN_DOMAIN, validators[0].address),
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
 
-  describe('#unenrollValidator', () => {
+  describe('#remove', () => {
     beforeEach(async () => {
-      await multisigIsm.enrollValidator(ORIGIN_DOMAIN, validators[0].address);
+      await multisigIsm.add(ORIGIN_DOMAIN, validators[0].address);
     });
 
     it('unenrolls a validator from the validator set', async () => {
-      await multisigIsm.unenrollValidator(ORIGIN_DOMAIN, validators[0].address);
+      await multisigIsm.remove(ORIGIN_DOMAIN, validators[0].address);
 
-      expect(await multisigIsm.validators(ORIGIN_DOMAIN)).to.deep.equal([]);
+      expect(await multisigIsm.values(ORIGIN_DOMAIN)).to.deep.equal([]);
     });
 
-    it('emits the ValidatorUnenrolled event', async () => {
-      expect(
-        await multisigIsm.unenrollValidator(
-          ORIGIN_DOMAIN,
-          validators[0].address,
-        ),
-      )
-        .to.emit(multisigIsm, 'ValidatorUnenrolled')
+    it('emits the ValueRemoved event', async () => {
+      expect(await multisigIsm.remove(ORIGIN_DOMAIN, validators[0].address))
+        .to.emit(multisigIsm, 'ValueRemoved')
         .withArgs(ORIGIN_DOMAIN, validators[0].address, 0);
     });
 
     it('emits the CommitmentUpdated event', async () => {
       const expectedCommitment = getCommitment(0, []);
-      expect(
-        await multisigIsm.unenrollValidator(
-          ORIGIN_DOMAIN,
-          validators[0].address,
-        ),
-      )
+      expect(await multisigIsm.remove(ORIGIN_DOMAIN, validators[0].address))
         .to.emit(multisigIsm, 'CommitmentUpdated')
         .withArgs(ORIGIN_DOMAIN, expectedCommitment);
     });
@@ -199,21 +183,21 @@ describe('MultisigIsm', async () => {
       await multisigIsm.setThreshold(ORIGIN_DOMAIN, 1);
 
       await expect(
-        multisigIsm.unenrollValidator(ORIGIN_DOMAIN, validators[0].address),
-      ).to.be.revertedWith('violates quorum threshold');
+        multisigIsm.remove(ORIGIN_DOMAIN, validators[0].address),
+      ).to.be.revertedWith('reduce threshold');
     });
 
-    it('reverts if the validator is not already enrolled', async () => {
+    it('reverts if the validator is not already contained', async () => {
       await expect(
-        multisigIsm.unenrollValidator(ORIGIN_DOMAIN, validators[1].address),
-      ).to.be.revertedWith('!enrolled');
+        multisigIsm.remove(ORIGIN_DOMAIN, validators[1].address),
+      ).to.be.revertedWith('!contained');
     });
 
     it('reverts when called by a non-owner', async () => {
       await expect(
         multisigIsm
           .connect(nonOwner)
-          .unenrollValidator(ORIGIN_DOMAIN, validators[0].address),
+          .remove(ORIGIN_DOMAIN, validators[0].address),
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
@@ -227,7 +211,7 @@ describe('MultisigIsm', async () => {
     });
 
     beforeEach(async () => {
-      await multisigIsm.enrollValidators(
+      await multisigIsm.addMany(
         domains,
         domains.map(() => validatorAddresses),
       );
@@ -267,8 +251,8 @@ describe('MultisigIsm', async () => {
     beforeEach(async () => {
       // Have 2 validators to allow us to have more than 1 valid
       // quorum threshold
-      await multisigIsm.enrollValidator(ORIGIN_DOMAIN, validators[0].address);
-      await multisigIsm.enrollValidator(ORIGIN_DOMAIN, validators[1].address);
+      await multisigIsm.add(ORIGIN_DOMAIN, validators[0].address);
+      await multisigIsm.add(ORIGIN_DOMAIN, validators[1].address);
     });
 
     it('sets the quorum threshold', async () => {
@@ -314,14 +298,14 @@ describe('MultisigIsm', async () => {
 
   describe('#validators', () => {
     beforeEach(async () => {
-      await multisigIsm.enrollValidators(
+      await multisigIsm.addMany(
         [ORIGIN_DOMAIN],
         [validators.map((v) => v.address)],
       );
     });
 
     it('returns the validators', async () => {
-      expect(await multisigIsm.validators(ORIGIN_DOMAIN)).to.deep.equal(
+      expect(await multisigIsm.values(ORIGIN_DOMAIN)).to.deep.equal(
         validators.map((v) => v.address),
       );
     });
@@ -331,7 +315,7 @@ describe('MultisigIsm', async () => {
     const threshold = 7;
     let message: string;
     beforeEach(async () => {
-      await multisigIsm.enrollValidators(
+      await multisigIsm.addMany(
         [ORIGIN_DOMAIN],
         [validators.map((v) => v.address)],
       );
@@ -357,12 +341,12 @@ describe('MultisigIsm', async () => {
     beforeEach(async () => {
       // Must be done sequentially so gas estimation is correct.
       for (const v of validators) {
-        await multisigIsm.enrollValidator(ORIGIN_DOMAIN, v.address);
+        await multisigIsm.add(ORIGIN_DOMAIN, v.address);
       }
     });
 
-    it('returns the number of validators enrolled in the validator set', async () => {
-      expect(await multisigIsm.validatorCount(ORIGIN_DOMAIN)).to.equal(
+    it('returns the number of validators contained in the validator set', async () => {
+      expect(await multisigIsm.length(ORIGIN_DOMAIN)).to.equal(
         validators.length,
       );
     });
@@ -379,7 +363,7 @@ describe('MultisigIsm', async () => {
       // Must be done sequentially so gas estimation is correct
       // and so that signatures are produced in the same order.
       for (const v of validators) {
-        await multisigIsm.enrollValidator(ORIGIN_DOMAIN, v.address);
+        await multisigIsm.add(ORIGIN_DOMAIN, v.address);
       }
       await multisigIsm.setThreshold(ORIGIN_DOMAIN, validators.length - 1);
 
@@ -439,7 +423,7 @@ describe('MultisigIsm', async () => {
       });
       await expect(
         multisigIsm.verify(modifiedMetadata, message),
-      ).to.be.revertedWith('!commitment');
+      ).to.be.revertedWith('!matches');
     });
 
     it('reverts when an invalid merkle proof is provided', async () => {
@@ -454,18 +438,18 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  describe('#isEnrolled', () => {
+  describe('#contains', () => {
     beforeEach(async () => {
-      await multisigIsm.enrollValidator(ORIGIN_DOMAIN, validators[0].address);
+      await multisigIsm.add(ORIGIN_DOMAIN, validators[0].address);
     });
 
-    it('returns true if an address is enrolled in the validator set', async () => {
-      expect(await multisigIsm.isEnrolled(ORIGIN_DOMAIN, validators[0].address))
+    it('returns true if an address is contained in the validator set', async () => {
+      expect(await multisigIsm.contains(ORIGIN_DOMAIN, validators[0].address))
         .to.be.true;
     });
 
-    it('returns false if an address is not enrolled in the validator set', async () => {
-      expect(await multisigIsm.isEnrolled(ORIGIN_DOMAIN, validators[1].address))
+    it('returns false if an address is not contained in the validator set', async () => {
+      expect(await multisigIsm.contains(ORIGIN_DOMAIN, validators[1].address))
         .to.be.false;
     });
   });
@@ -521,7 +505,7 @@ describe('MultisigIsm', async () => {
           // Must be done sequentially so gas estimation is correct
           // and so that signatures are produced in the same order.
           for (const v of adjustedValidators) {
-            await multisigIsm.enrollValidator(ORIGIN_DOMAIN, v.address);
+            await multisigIsm.add(ORIGIN_DOMAIN, v.address);
           }
 
           await multisigIsm.setThreshold(ORIGIN_DOMAIN, threshold);

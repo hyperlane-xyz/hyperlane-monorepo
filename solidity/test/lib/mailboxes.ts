@@ -111,7 +111,7 @@ export async function dispatchMessageAndReturnMetadata(
     originMailbox: mailbox.address,
     proof: proofAndMessage.proof.branch,
     signatures,
-    validators: await multisigIsm.validators(origin),
+    validators: await multisigIsm.values(origin),
   });
   return { metadata, message: proofAndMessage.message };
 }

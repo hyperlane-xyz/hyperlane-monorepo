@@ -57,7 +57,7 @@ abstract contract OwnableMOfNSet is Ownable {
      * @param domain The remote domain of the set.
      * @param commitment A commitment to the set and threshold.
      */
-    event CommitmentUpdated(uint32 domain, bytes32 commitment);
+    event CommitmentUpdated(uint32 indexed domain, bytes32 commitment);
 
     // ============ Constructor ============
 

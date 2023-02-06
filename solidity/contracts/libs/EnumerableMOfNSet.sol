@@ -121,11 +121,11 @@ library EnumerableMOfNSet {
     // ============ Internal Functions ============
     function _add(AddressSet storage _set, address _value) private {
         require(_value != address(0), "zero address");
-        require(_set.addresses.add(_value), "already added");
+        require(_set.addresses.add(_value), "contained");
     }
 
     function _remove(AddressSet storage _set, address _value) private {
-        require(_set.addresses.remove(_value), "not added");
+        require(_set.addresses.remove(_value), "!contained");
         require(_set.addresses.length() >= _set.threshold, "reduce threshold");
     }
 
