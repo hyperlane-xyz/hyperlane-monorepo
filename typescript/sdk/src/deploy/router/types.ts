@@ -8,8 +8,8 @@ export type OwnableConfig = {
 
 export type RouterConfig = ConnectionClientConfig & OwnableConfig;
 
-type OverheadConfig = {
-  handleGasOverhead: number;
+type GasConfig = {
+  gas: number;
 };
 
-export type GasRouterConfig = RouterConfig & OverheadConfig;
+export type GasRouterConfig = RouterConfig & GasConfig;

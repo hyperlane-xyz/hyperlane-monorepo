@@ -42,16 +42,21 @@ export abstract class GasRouterDeployer<
       const remoteChains = remoteDomains.map(
         (domain) => DomainIdToChainName[domain] as Chain,
       );
-      const remoteConfigs = remoteDomains.map((domain, i) => ({
-        domain,
-        handleGasOverhead: this.configMap[remoteChains[i]].handleGasOverhead,
-      }));
+      const currentConfigs = await Promise.all(
+        remoteDomains.map((domain) => contracts.router.destinationGas(domain)),
+      );
+      const remoteConfigs = remoteDomains
+        .map((domain, i) => ({
+          domain,
+          gas: this.configMap[remoteChains[i]].gas,
+        }))
+        .filter(({ gas }, index) => !currentConfigs[index].eq(gas));
       this.logger(
         `Enroll remote (${remoteChains}) handle gas overhead on ${local}`,
       );
       const chainConnection = this.multiProvider.getChainConnection(local);
       await chainConnection.handleTx(
-        contracts.router.setGasOverheadConfigs(remoteConfigs),
+        contracts.router.setDestinationGas(remoteConfigs),
       );
     }
   }
