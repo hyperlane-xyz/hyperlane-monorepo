@@ -4,89 +4,74 @@ pragma solidity ^0.8.13;
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 library CallLib {
-    struct Call {
+    struct StaticCall {
         address to;
         bytes data;
     }
 
-    struct CallWithValue {
+    struct Call {
+        address to;
         uint256 value;
-        Call _call;
+        bytes data;
     }
 
     struct CallWithCallback {
-        Call _call;
-        bytes callbackdata;
+        StaticCall _call;
+        bytes callback;
     }
 
-    function _call(Call memory call) internal returns (bytes memory) {
-        return Address.functionCall(call.to, call.data);
+    function call(Call memory _call)
+        internal
+        returns (bytes memory returnData)
+    {
+        return Address.functionCallWithValue(_call.to, _call.data, _call.value);
     }
 
-    function _staticcall(Call memory call)
+    function staticcall(StaticCall memory _call)
         internal
         view
         returns (bytes memory)
     {
-        return Address.functionStaticCall(call.to, call.data);
+        return Address.functionStaticCall(_call.to, _call.data);
     }
 
-    function _call(CallWithValue memory call) internal returns (bytes memory) {
-        return
-            Address.functionCallWithValue(
-                call._call.to,
-                call._call.data,
-                call.value
-            );
-    }
-
-    function _staticcall(CallWithCallback memory call)
+    function staticcall(CallWithCallback memory _call)
         internal
         view
-        returns (bytes memory)
+        returns (bytes memory callback)
     {
-        return bytes.concat(call.callbackdata, _staticcall(call._call));
+        return bytes.concat(_call.callback, staticcall(_call._call));
     }
 
     function multicall(Call[] memory calls) internal {
         uint256 i = 0;
         uint256 len = calls.length;
         while (i < len) {
-            _call(calls[i]);
+            call(calls[i]);
             unchecked {
                 ++i;
             }
         }
     }
 
-    function multicall(CallWithValue[] memory calls) internal {
-        uint256 i = 0;
-        uint256 len = calls.length;
-        while (i < len) {
-            _call(calls[i]);
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    function staticmulticall(CallWithCallback[] memory calls)
+    function staticmulticall(CallWithCallback[] memory _calls)
         internal
         view
-        returns (bytes[] memory callbacks)
+        returns (bytes[] memory)
     {
-        callbacks = new bytes[](calls.length);
         uint256 i = 0;
-        uint256 len = calls.length;
+        uint256 len = _calls.length;
+        bytes[] memory callbacks = new bytes[](len);
         while (i < len) {
-            callbacks[i] = _staticcall(calls[i]);
+            callbacks[i] = staticcall(_calls[i]);
             unchecked {
                 ++i;
             }
         }
+        return callbacks;
     }
 
-    function multicall(address target, bytes[] memory calls) internal {
+    function multicallto(bytes[] memory calls, address target) internal {
         uint256 i = 0;
         uint256 len = calls.length;
         while (i < len) {
@@ -95,5 +80,29 @@ library CallLib {
                 ++i;
             }
         }
+    }
+
+    function build(
+        address to,
+        uint256 value,
+        bytes memory data
+    ) internal pure returns (Call memory) {
+        return Call({to: to, value: value, data: data});
+    }
+
+    function build(address to, bytes memory data)
+        internal
+        pure
+        returns (StaticCall memory)
+    {
+        return StaticCall({to: to, data: data});
+    }
+
+    function build(
+        address to,
+        bytes memory data,
+        bytes memory callback
+    ) internal pure returns (CallWithCallback memory) {
+        return CallWithCallback({callback: callback, _call: build(to, data)});
     }
 }

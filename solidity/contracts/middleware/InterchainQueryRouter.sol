@@ -6,6 +6,7 @@ import {CallLib} from "../libs/Call.sol";
 import {Router} from "../Router.sol";
 import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
 import {InterchainCallMessage} from "./InterchainCallMessage.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -17,15 +18,16 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
 contract InterchainQueryRouter is Router, IInterchainQueryRouter {
-    using CallLib for CallLib.Call[];
     using CallLib for CallLib.CallWithCallback[];
-    using CallLib for address;
+    using CallLib for bytes[];
 
-    using InterchainCallMessage for CallLib.Call[];
-    using InterchainCallMessage for CallLib.CallWithValue[];
+    using InterchainCallMessage for CallLib.StaticCall[];
     using InterchainCallMessage for CallLib.CallWithCallback[];
     using InterchainCallMessage for bytes[];
     using InterchainCallMessage for bytes;
+
+    using TypeCasts for address;
+    using TypeCasts for bytes32;
 
     /**
      * @notice Emitted when a query is dispatched to another chain.
@@ -34,14 +36,14 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
      */
     event QueryDispatched(
         uint32 indexed destinationDomain,
-        address indexed sender
+        bytes32 indexed sender
     );
     /**
      * @notice Emitted when a query is returned to the origin chain.
      * @param originDomain The domain of the chain to return the result to.
      * @param sender The address to receive the result.
      */
-    event QueryReturned(uint32 indexed originDomain, address indexed sender);
+    event QueryReturned(uint32 indexed originDomain, bytes32 indexed sender);
     /**
      * @notice Emitted when a query is resolved on the origin chain.
      * @param destinationDomain The domain of the chain that was queried.
@@ -49,7 +51,7 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
      */
     event QueryResolved(
         uint32 indexed destinationDomain,
-        address indexed sender
+        bytes32 indexed sender
     );
 
     /**
@@ -75,43 +77,14 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
 
     function query(
         uint32 _destinationDomain,
-        CallLib.CallWithCallback[] memory calls
+        CallLib.CallWithCallback[] calldata calls
     ) public returns (bytes32 messageId) {
-        messageId = _dispatch(_destinationDomain, calls.format(msg.sender));
-        emit QueryDispatched(_destinationDomain, msg.sender);
-    }
-
-    /**
-     * @param _destinationDomain Domain of destination chain
-     * @param call Call (to and data packed struct) to be made on destination chain.
-     */
-    function query(
-        uint32 _destinationDomain,
-        CallLib.CallWithCallback memory call
-    ) public returns (bytes32 messageId) {
-        CallLib.CallWithCallback[]
-            memory calls = new CallLib.CallWithCallback[](1);
-        calls[0] = call;
-        messageId = query(_destinationDomain, calls);
-    }
-
-    /**
-     * @param _destinationDomain Domain of destination chain
-     * @param target The address of the contract to query on destination chain.
-     * @param queryData The calldata of the view call to make on the destination chain.
-     * @param callback Callback function selector on `msg.sender` and optionally abi-encoded prefix arguments.
-     * @return messageId The ID of the message encoding the query.
-     */
-    function query(
-        uint32 _destinationDomain,
-        address target,
-        bytes calldata queryData,
-        bytes calldata callback
-    ) external returns (bytes32 messageId) {
-        messageId = query(
+        bytes32 sender = msg.sender.addressToBytes32();
+        messageId = _dispatch(
             _destinationDomain,
-            CallLib.CallWithCallback(CallLib.Call(target, queryData), callback)
+            InterchainCallMessage.format(calls, sender)
         );
+        emit QueryDispatched(_destinationDomain, sender);
     }
 
     /**
@@ -124,16 +97,16 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        InterchainCallMessage.Type calltype = _message.calltype();
-        address sender = _message.sender();
-        if (calltype == InterchainCallMessage.Type.WITH_CALLBACK) {
+        InterchainCallMessage.CallType calltype = _message.calltype();
+        bytes32 sender = _message.sender();
+        if (calltype == InterchainCallMessage.CallType.CALLBACK) {
             bytes[] memory callbacks = _message
-                .callsWithCallback()
+                .callsWithCallbacks()
                 .staticmulticall();
             _dispatch(_origin, callbacks.format(sender));
             emit QueryReturned(_origin, sender);
-        } else if (calltype == InterchainCallMessage.Type.RAW_CALLDATA) {
-            sender.multicall(_message.rawCalls());
+        } else if (calltype == InterchainCallMessage.CallType.RAW) {
+            _message.rawCalls().multicallto(sender.bytes32ToAddress());
             emit QueryResolved(_origin, sender);
         } else {
             assert(false);

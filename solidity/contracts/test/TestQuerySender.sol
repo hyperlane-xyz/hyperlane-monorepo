@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
+import {CallLib} from "../libs/Call.sol";
 
 contract TestQuerySender {
     IInterchainQueryRouter queryRouter;
@@ -32,13 +33,13 @@ contract TestQuerySender {
         bytes calldata _targetData,
         uint256 _gasAmount
     ) external payable {
-        bytes32 _messageId = queryRouter.query(
+        queryAndPayFor(
             _destinationDomain,
             _target,
             _targetData,
-            abi.encodePacked(this.handleQueryAddressResult.selector)
+            this.handleQueryAddressResult.selector,
+            _gasAmount
         );
-        _payForGas(_messageId, _destinationDomain, _gasAmount);
     }
 
     function handleQueryAddressResult(address _result) external {
@@ -52,13 +53,13 @@ contract TestQuerySender {
         bytes calldata _targetData,
         uint256 _gasAmount
     ) external payable {
-        bytes32 _messageId = queryRouter.query(
+        queryAndPayFor(
             _destinationDomain,
             _target,
             _targetData,
-            abi.encodePacked(this.handleQueryUint256Result.selector)
+            this.handleQueryUint256Result.selector,
+            _gasAmount
         );
-        _payForGas(_messageId, _destinationDomain, _gasAmount);
     }
 
     function handleQueryUint256Result(uint256 _result) external {
@@ -72,13 +73,13 @@ contract TestQuerySender {
         bytes calldata _targetData,
         uint256 _gasAmount
     ) external payable {
-        bytes32 _messageId = queryRouter.query(
+        queryAndPayFor(
             _destinationDomain,
             _target,
             _targetData,
-            abi.encodePacked(this.handleQueryBytes32Result.selector)
+            this.handleQueryBytes32Result.selector,
+            _gasAmount
         );
-        _payForGas(_messageId, _destinationDomain, _gasAmount);
     }
 
     function handleQueryBytes32Result(bytes32 _result) external {
@@ -86,11 +87,21 @@ contract TestQuerySender {
         lastBytes32Result = _result;
     }
 
-    function _payForGas(
-        bytes32 _messageId,
+    function queryAndPayFor(
         uint32 _destinationDomain,
+        address _target,
+        bytes calldata _targetData,
+        bytes4 _callbackSelector,
         uint256 _gasAmount
     ) internal {
+        CallLib.CallWithCallback[]
+            memory calls = new CallLib.CallWithCallback[](1);
+        calls[0] = CallLib.build(
+            _target,
+            _targetData,
+            abi.encodePacked(_callbackSelector)
+        );
+        bytes32 _messageId = queryRouter.query(_destinationDomain, calls);
         interchainGasPaymaster.payForGas{value: msg.value}(
             _messageId,
             _destinationDomain,

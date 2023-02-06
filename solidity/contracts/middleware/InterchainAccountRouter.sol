@@ -8,6 +8,7 @@ import {IInterchainAccountRouter} from "../../interfaces/IInterchainAccountRoute
 import {InterchainCallMessage} from "./InterchainCallMessage.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {CallLib} from "../libs/Call.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -19,9 +20,10 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
 contract InterchainAccountRouter is Router, IInterchainAccountRouter {
-    using InterchainCallMessage for CallLib.Call[];
-    using InterchainCallMessage for CallLib.CallWithValue[];
     using InterchainCallMessage for bytes;
+
+    using TypeCasts for address;
+    using TypeCasts for bytes32;
 
     address internal immutable implementation;
     bytes32 internal immutable bytecodeHash;
@@ -34,7 +36,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
      */
     event InterchainAccountCreated(
         uint32 indexed origin,
-        address sender,
+        bytes32 sender,
         address account
     );
 
@@ -78,47 +80,14 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         external
         returns (bytes32)
     {
-        return _dispatch(_destinationDomain, calls.format(msg.sender));
-    }
-
-    /**
-     * @notice Dispatches a sequence of calls to be relayed by the sender's interchain account on the destination domain.
-     * @param _destinationDomain The domain of the chain where the message will be sent to.
-     * @param calls The sequence of calls to be relayed.
-     */
-    function dispatch(
-        uint32 _destinationDomain,
-        CallLib.CallWithValue[] calldata calls
-    ) external returns (bytes32) {
-        return _dispatch(_destinationDomain, calls.format(msg.sender));
-    }
-
-    /**
-     * @notice Dispatches a single call to be relayed by the sender's interchain account on the destination domain.
-     * @param _destinationDomain The domain of the chain where the message will be sent to.
-     * @param target The address of the contract to be called.
-     * @param data The ABI-encoded data to be called on target contract.
-     * @return The message ID of the dispatched message.
-     */
-    function dispatch(
-        uint32 _destinationDomain,
-        address target,
-        bytes calldata data
-    ) external returns (bytes32) {
-        CallLib.Call[] memory calls = new CallLib.Call[](1);
-        calls[0] = CallLib.Call({to: target, data: data});
-        return _dispatch(_destinationDomain, calls.format(msg.sender));
-    }
-
-    function dispatch(
-        uint32 _destinationDomain,
-        address target,
-        bytes calldata data,
-        uint256 value
-    ) external returns (bytes32) {
-        CallLib.CallWithValue[] memory calls = new CallLib.CallWithValue[](1);
-        calls[0] = CallLib.CallWithValue(value, CallLib.Call(target, data));
-        return _dispatch(_destinationDomain, calls.format(msg.sender));
+        return
+            _dispatch(
+                _destinationDomain,
+                InterchainCallMessage.format(
+                    calls,
+                    msg.sender.addressToBytes32()
+                )
+            );
     }
 
     /**
@@ -127,12 +96,20 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
      * @param _sender The parent account address on the origin domain.
      * @return The address of the interchain account.
      */
-    function getInterchainAccount(uint32 _origin, address _sender)
+    function getInterchainAccount(uint32 _origin, bytes32 _sender)
         public
         view
         returns (address payable)
     {
         return _getInterchainAccount(_salt(_origin, _sender));
+    }
+
+    function getInterchainAccount(uint32 _origin, address _sender)
+        external
+        view
+        returns (address payable)
+    {
+        return getInterchainAccount(_origin, _sender.addressToBytes32());
     }
 
     /**
@@ -141,7 +118,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
      * @param _sender The parent account address on the origin domain.
      * @return The address of the interchain account.
      */
-    function getDeployedInterchainAccount(uint32 _origin, address _sender)
+    function getDeployedInterchainAccount(uint32 _origin, bytes32 _sender)
         public
         returns (OwnableMulticall)
     {
@@ -157,13 +134,21 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         return OwnableMulticall(interchainAccount);
     }
 
+    function getDeployedInterchainAccount(uint32 _origin, address _sender)
+        public
+        returns (OwnableMulticall)
+    {
+        return
+            getDeployedInterchainAccount(_origin, _sender.addressToBytes32());
+    }
+
     /**
      * @notice Returns the salt used to deploy the interchain account for a given `origin`/`sender` pair.
      * @param _origin The origin domain of the interchain account.
      * @param _sender The parent account address on the origin domain.
      * @return The CREATE2 salt used for deploying the interchain account.
      */
-    function _salt(uint32 _origin, address _sender)
+    function _salt(uint32 _origin, bytes32 _sender)
         internal
         pure
         returns (bytes32)
@@ -194,17 +179,10 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        InterchainCallMessage.Type calltype = _message.calltype();
         OwnableMulticall interchainAccount = getDeployedInterchainAccount(
             _origin,
             _message.sender()
         );
-        if (calltype == InterchainCallMessage.Type.DEFAULT) {
-            interchainAccount.proxyCalls(_message.defaultCalls());
-        } else if (calltype == InterchainCallMessage.Type.WITH_VALUE) {
-            interchainAccount.proxyCallsWithValue(_message.callsWithValue());
-        } else {
-            assert(false);
-        }
+        interchainAccount.proxyCalls(_message.calls());
     }
 }

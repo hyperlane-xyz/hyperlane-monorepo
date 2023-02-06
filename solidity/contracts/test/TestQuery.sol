@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {InterchainQueryRouter} from "../middleware/InterchainQueryRouter.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
+import {CallLib} from "../libs/Call.sol";
 
 contract TestQuery {
     InterchainQueryRouter public router;
@@ -18,12 +19,19 @@ contract TestQuery {
      */
     function queryRouterOwner(uint32 domain, uint256 secret) external {
         address target = TypeCasts.bytes32ToAddress(router.routers(domain));
-        bytes memory data = abi.encodeWithSignature("owner()");
-        bytes memory callback = bytes.concat(
-            this.receiveRouterOwer.selector,
-            bytes32(secret)
-        );
-        router.query(domain, target, data, callback);
+        CallLib.CallWithCallback[]
+            memory calls = new CallLib.CallWithCallback[](1);
+        calls[0] = CallLib.CallWithCallback({
+            _call: CallLib.StaticCall({
+                to: target,
+                data: abi.encodeWithSignature("owner()")
+            }),
+            callback: bytes.concat(
+                this.receiveRouterOwer.selector,
+                bytes32(secret)
+            )
+        });
+        router.query(domain, calls);
     }
 
     /**
