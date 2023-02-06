@@ -131,6 +131,9 @@ jobs:
       - name: Install dependencies
         run: cd solidity && forge install
 
+      - name: Forge build
+        run: cd solidity && forge build --build-info
+
       - name: Run Slither
         uses: crytic/slither-action@main
         id: slither
