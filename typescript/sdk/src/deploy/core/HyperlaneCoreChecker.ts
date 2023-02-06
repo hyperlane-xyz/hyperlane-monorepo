@@ -1,4 +1,5 @@
 import { utils } from '@hyperlane-xyz/utils';
+import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { ChainNameToDomainId } from '../../domains';
@@ -95,7 +96,10 @@ export class HyperlaneCoreChecker<
     const announcedValidators =
       await validatorAnnounce.getAnnouncedValidators();
     expectedValidators.map((validator) => {
-      if (!announcedValidators.includes(validator)) {
+      const matches = announcedValidators.filter((x) =>
+        eqAddress(x, validator),
+      );
+      if (matches.length == 0) {
         const violation: ValidatorAnnounceViolation = {
           type: CoreViolationType.ValidatorAnnounce,
           chain,
