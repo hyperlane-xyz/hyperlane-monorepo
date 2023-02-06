@@ -103,7 +103,7 @@ export class HyperlaneCoreChecker<
     const remoteDomain = ChainNameToDomainId[remote];
     const multisigIsmConfig = config.multisigIsm;
     const expectedValidators = multisigIsmConfig.validators;
-    const actualValidators = await multisigIsm.validators(remoteDomain);
+    const actualValidators = await multisigIsm.values(remoteDomain);
 
     const expectedSet = new Set<string>(
       expectedValidators.map((_) => _.toLowerCase()),

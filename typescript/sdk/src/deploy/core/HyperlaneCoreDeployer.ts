@@ -180,7 +180,7 @@ export class HyperlaneCoreDeployer<
       // TODO: Remove extraneous validators
       const remoteDomains = remotes.map((chain) => ChainNameToDomainId[chain]);
       const actualValidators = await Promise.all(
-        remoteDomains.map((id) => multisigIsm.validators(id)),
+        remoteDomains.map((id) => multisigIsm.values(id)),
       );
       const expectedValidators = remotes.map(
         (chain) => this.configMap[chain].multisigIsm.validators,
@@ -200,7 +200,7 @@ export class HyperlaneCoreDeployer<
           `Enroll ${chainsToEnrollValidators} validators on ${chain}`,
         );
         await chainConnection.handleTx(
-          multisigIsm.enrollValidators(
+          multisigIsm.addMany(
             chainsToEnrollValidators.map((c) => ChainNameToDomainId[c]),
             validatorsToEnroll.filter((validators) => validators.length > 0),
             chainConnection.overrides,

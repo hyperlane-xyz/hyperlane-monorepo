@@ -73,7 +73,7 @@ abstract contract OwnableMOfNSet is Ownable {
      * @param _values The values to add to the sets.
      * @dev _values[i] are the values to add for _domains[i].
      */
-    function add(uint32[] calldata _domains, address[][] calldata _values)
+    function addMany(uint32[] calldata _domains, address[][] calldata _values)
         external
         onlyOwner
     {
