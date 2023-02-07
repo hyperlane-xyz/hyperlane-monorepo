@@ -121,10 +121,19 @@ impl BaseAgent for Relayer {
             .chain_setup(&settings.originchainname)
             .context("Relayer must run on a configured chain")?
             .domain()?;
+        
+        let gas_enforcement_policy = settings.gaspaymentenforcement.policy;
+        let gas_enforcement_whitelist = parse_matching_list(&settings.gaspaymentenforcement.whitelist);
+
+        info!(
+            ?gas_enforcement_policy,
+            %gas_enforcement_whitelist,
+            "Gas enforcement configuration"
+        );
 
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
-            settings.gaspaymentenforcement.policy,
-            parse_matching_list(&settings.gaspaymentenforcement.whitelist),
+            gas_enforcement_policy,
+            gas_enforcement_whitelist,
             mailboxes.get(&origin_chain).unwrap().db().clone(),
         ));
 
