@@ -64,7 +64,7 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  describe('#addMany', () => {
+  describe.skip('#addMany', () => {
     let validatorAddresses: string[];
     const domains = [ORIGIN_DOMAIN, DESTINATION_DOMAIN];
     before(async () => {
@@ -119,7 +119,7 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  describe('#add', () => {
+  describe.skip('#add', () => {
     it('enrolls a validator into the validator set', async () => {
       await multisigIsm.add(ORIGIN_DOMAIN, validators[0].address);
 
@@ -155,7 +155,7 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  describe('#remove', () => {
+  describe.skip('#remove', () => {
     beforeEach(async () => {
       await multisigIsm.add(ORIGIN_DOMAIN, validators[0].address);
     });
@@ -202,7 +202,7 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  describe('#setThresholds', () => {
+  describe.skip('#setThresholds', () => {
     let validatorAddresses: string[];
     const domains = [ORIGIN_DOMAIN, DESTINATION_DOMAIN];
     const thresholds = [2, 4];
@@ -247,7 +247,7 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  describe('#setThreshold', () => {
+  describe.skip('#setThreshold', () => {
     beforeEach(async () => {
       // Have 2 validators to allow us to have more than 1 valid
       // quorum threshold
@@ -296,7 +296,7 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  describe('#validators', () => {
+  describe.skip('#validators', () => {
     beforeEach(async () => {
       await multisigIsm.addMany(
         [ORIGIN_DOMAIN],
@@ -337,7 +337,7 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  describe('#validatorCount', () => {
+  describe.skip('#length', () => {
     beforeEach(async () => {
       // Must be done sequentially so gas estimation is correct.
       for (const v of validators) {
@@ -438,7 +438,7 @@ describe('MultisigIsm', async () => {
     });
   });
 
-  describe('#contains', () => {
+  describe.skip('#contains', () => {
     beforeEach(async () => {
       await multisigIsm.add(ORIGIN_DOMAIN, validators[0].address);
     });

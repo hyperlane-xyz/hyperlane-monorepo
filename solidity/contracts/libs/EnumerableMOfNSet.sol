@@ -9,6 +9,8 @@ library EnumerableMOfNSet {
 
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    // ============ Structs ============
+
     struct AddressSet {
         uint8 threshold;
         EnumerableSet.AddressSet addresses;

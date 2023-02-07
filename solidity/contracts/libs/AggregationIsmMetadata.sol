@@ -6,14 +6,13 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
  * Format of metadata:
  * [   0:   1] ISM set size
  * [   1:????] Addresses of the entire ISM set, left padded to bytes32
- * [????:????] Metadata offsets (i.e. for each ISM, where does the metadata for this ISM start? Zero if not provided)
+ * [????:????] Metadata pointers (i.e. for each ISM, where does the metadata for this ISM start and end? Zero if not provided)
  * [????:????] ISM metadata, packed encoding
  */
 library AggregationIsmMetadata {
     uint256 private constant ISM_COUNT_OFFSET = 0;
     uint256 private constant ISM_ADDRESSES_OFFSET = 1;
     uint256 private constant ISM_ADDRESS_LENGTH = 32;
-    uint256 private constant METADATA_OFFSET_LENGTH = 32;
 
     function count(bytes calldata _metadata) internal pure returns (uint8) {
         return uint8(bytes1(_metadata[ISM_COUNT_OFFSET:ISM_ADDRESSES_OFFSET]));

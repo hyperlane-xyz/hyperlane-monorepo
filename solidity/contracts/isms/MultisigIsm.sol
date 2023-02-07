@@ -160,6 +160,7 @@ contract MultisigIsm is IMultisigIsm, OwnableMOfNSet {
     /**
      * @notice Returns the digest validators are expected to sign when signing checkpoints.
      * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
+     * @param _origin The origin domain of the checkpoint.
      * @return The digest of the checkpoint.
      */
     function _getCheckpointDigest(bytes calldata _metadata, uint32 _origin)
