@@ -265,83 +265,83 @@ impl SerialSubmitter {
             info!("Message already processed");
             return Ok(true);
         }
-        if let Some(metadata) = self
-            .metadata_builder
+
+        let Some(metadata) = self.metadata_builder
             .fetch_metadata(&msg.message, self.mailbox.clone())
             .await?
-        {
-            // Estimate transaction costs for the process call. If there are issues, it's likely
-            // that gas estimation has failed because the message is reverting. This is defined behavior,
-            // so we just log the error and move onto the next tick.
-            let tx_cost_estimate = match self
-                .mailbox
-                .process_estimate_costs(&msg.message, &metadata)
-                .await
-            {
-                Ok(tx_cost_estimate) => tx_cost_estimate,
-                Err(err) => {
-                    info!(msg=?msg, error=?err, "Error estimating process costs");
-                    return Ok(false);
-                }
-            };
+        else {
+            info!("Unable to fetch metadata for message");
+            return Ok(false)
+        };
 
-            // If the gas payment requirement hasn't been met, move to the next tick.
-            let (meets_gas_requirement, gas_payment) = self
-                .gas_payment_enforcer
-                .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
-                .await?;
-            if !meets_gas_requirement {
-                info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
+        // Estimate transaction costs for the process call. If there are issues, it's likely
+        // that gas estimation has failed because the message is reverting. This is defined behavior,
+        // so we just log the error and move onto the next tick.
+        let tx_cost_estimate = match self
+            .mailbox
+            .process_estimate_costs(&msg.message, &metadata)
+            .await
+        {
+            Ok(tx_cost_estimate) => tx_cost_estimate,
+            Err(err) => {
+                info!(msg=?msg, error=?err, "Error estimating process costs");
                 return Ok(false);
             }
+        };
 
-            // Go ahead and attempt processing of message to destination chain.
-            debug!(gas_payment=?gas_payment, msg=?msg, "Ready to process message");
+        // If the gas payment requirement hasn't been met, move to the next tick.
+        let (meets_gas_requirement, gas_payment) = self
+            .gas_payment_enforcer
+            .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
+            .await?;
+        if !meets_gas_requirement {
+            info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
+            return Ok(false);
+        }
 
-            // TODO: consider differentiating types of processing errors, and pushing to the front of the
-            // run queue for intermittent types of errors that can occur even if a message's processing isn't
-            // reverting, e.g. timeouts or txs being dropped from the mempool. To avoid consistently retrying
-            // only these messages, the number of retries could be considered.
+        // Go ahead and attempt processing of message to destination chain.
+        debug!(gas_payment=?gas_payment, msg=?msg, "Ready to process message");
 
-            let gas_limit = tx_cost_estimate.gas_limit;
+        // TODO: consider differentiating types of processing errors, and pushing to the front of the
+        // run queue for intermittent types of errors that can occur even if a message's processing isn't
+        // reverting, e.g. timeouts or txs being dropped from the mempool. To avoid consistently retrying
+        // only these messages, the number of retries could be considered.
 
-            if let Some(max_limit) = self.transaction_gas_limit {
-                if gas_limit > max_limit {
-                    info!(
-                        nonce = msg.message.nonce,
-                        "Message delivery predicted gas exceeds max gas limit"
-                    );
-                    return Ok(false);
-                }
+        let gas_limit = tx_cost_estimate.gas_limit;
+
+        if let Some(max_limit) = self.transaction_gas_limit {
+            if gas_limit > max_limit {
+                info!(
+                    nonce = msg.message.nonce,
+                    "Message delivery predicted gas exceeds max gas limit"
+                );
+                return Ok(false);
             }
+        }
 
-            // We use the estimated gas limit from the prior call to `process_estimate_costs` to
-            // avoid a second gas estimation.
-            let process_result = self
-                .mailbox
-                .process(&msg.message, &metadata, Some(gas_limit))
-                .await;
-            match process_result {
-                // TODO(trevor): Instead of immediately marking as processed, move to a verification
-                // queue, which will wait for finality and indexing by the mailbox indexer and then mark
-                // as processed (or eventually retry if no confirmation is ever seen).
+        // We use the estimated gas limit from the prior call to `process_estimate_costs` to
+        // avoid a second gas estimation.
+        let process_result = self
+            .mailbox
+            .process(&msg.message, &metadata, Some(gas_limit))
+            .await;
+        match process_result {
+            // TODO(trevor): Instead of immediately marking as processed, move to a verification
+            // queue, which will wait for finality and indexing by the mailbox indexer and then mark
+            // as processed (or eventually retry if no confirmation is ever seen).
 
-                // Only mark the message as processed if the transaction didn't revert.
-                Ok(outcome) if outcome.executed => {
-                    info!(hash=?outcome.txid,
-                    wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
-                    "Message successfully processed by transaction");
-                    Ok(true)
-                }
-                Ok(outcome) => {
-                    info!(hash=?outcome.txid, "Transaction attempting to process transaction reverted");
-                    Ok(false)
-                }
-                Err(e) => Err(e.into()),
+            // Only mark the message as processed if the transaction didn't revert.
+            Ok(outcome) if outcome.executed => {
+                info!(hash=?outcome.txid,
+                wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
+                "Message successfully processed by transaction");
+                Ok(true)
             }
-        } else {
-            info!("Unable to fetch metadata for message");
-            Ok(false)
+            Ok(outcome) => {
+                info!(hash=?outcome.txid, "Transaction attempting to process transaction reverted");
+                Ok(false)
+            }
+            Err(e) => Err(e.into()),
         }
     }
 
