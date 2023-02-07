@@ -80,14 +80,10 @@ abstract contract OwnableMOfNSet is Ownable {
         for (uint256 i = 0; i < _domains.length; i += 1) {
             uint32 _domain = _domains[i];
             EnumerableMOfNSet.AddressSet storage _set = _sets[_domain];
+            uint256 _startLength = EnumerableMOfNSet.length(_set);
+            EnumerableMOfNSet.add(_set, _values[i]);
             for (uint256 j = 0; j < _values[i].length; j += 1) {
-                address _value = _values[i][j];
-                EnumerableMOfNSet.add(_set, _values[i][j]);
-                emit ValueAdded(
-                    _domain,
-                    _value,
-                    EnumerableMOfNSet.length(_set)
-                );
+                emit ValueAdded(_domain, _values[i][j], _startLength + j);
             }
             emit CommitmentUpdated(_domain, _set.commitment);
         }
