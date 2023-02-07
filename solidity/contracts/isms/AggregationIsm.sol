@@ -18,8 +18,8 @@ contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
     // ============ Libraries ============
 
     using EnumerableMOfNSet for EnumerableMOfNSet.AddressSet;
-    using Message for bytes;
     using AggregationIsmMetadata for bytes;
+    using Message for bytes;
 
     // ============ Constants ============
 
