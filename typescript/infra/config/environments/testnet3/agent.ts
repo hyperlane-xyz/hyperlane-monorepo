@@ -31,7 +31,7 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
     // commit date: 2023-02-07
-    tag: '1f88d0d-20230207-132109',
+    tag: 'b55d7c5-20230207-165646',
   },
   aws: {
     region: 'us-east-1',
@@ -77,7 +77,8 @@ export const hyperlane: AgentConfig<TestnetChains> = {
       ],
       gasPaymentEnforcement: {
         policy: {
-          type: GasPaymentEnforcementPolicyType.None,
+          type: GasPaymentEnforcementPolicyType.Minimum,
+          payment: 1,
         },
         // To continue relaying interchain query callbacks, we whitelist
         // all messages between interchain query routers.
@@ -98,7 +99,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
     // commit date: 2023-02-07
-    tag: '1f88d0d-20230207-132109',
+    tag: 'b55d7c5-20230207-165646',
   },
   aws: {
     region: 'us-east-1',
