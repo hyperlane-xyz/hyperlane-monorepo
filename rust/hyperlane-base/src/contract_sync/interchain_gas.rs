@@ -45,14 +45,14 @@ where
             let mut cursor = cursor.await?;
 
             let start_block = cursor.current_position();
-            info!(from = start_block, "[GasPayments]: resuming indexer");
+            info!(from = start_block, "Resuming indexer");
             indexed_height.set(start_block as i64);
 
             loop {
                 let (from, to) = match cursor.next_range().await {
                     Ok(range) => range,
                     Err(err) => {
-                        warn!(error = %err, "[GasPayments]: failed to get next block range");
+                        warn!(error = %err, "Failed to get next block range");
                         continue;
                     }
                 };
@@ -63,7 +63,7 @@ where
                     from,
                     to,
                     gas_payments_count = gas_payments.len(),
-                    "[GasPayments]: indexed block range"
+                    "Indexed block range"
                 );
 
                 let mut new_payments_processed: u64 = 0;

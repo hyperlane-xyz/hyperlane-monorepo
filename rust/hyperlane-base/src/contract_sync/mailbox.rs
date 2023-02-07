@@ -103,7 +103,7 @@ where
 
             let start_block = cursor.current_position();
             let mut last_valid_range_start_block = start_block;
-            info!(from = start_block, "[Messages]: resuming indexer from latest valid message range start block");
+            info!(from = start_block, "Resuming indexer from latest valid message range start block");
             indexed_height.set(start_block as i64);
 
             loop {
@@ -111,7 +111,7 @@ where
                 let (from, to) = match cursor.next_range().await {
                     Ok(range) => range,
                     Err(err) => {
-                        warn!(error = %err, "[Messages]: failed to get next block range");
+                        warn!(error = %err, "Failed to get next block range");
                         continue;
                     }
                 };
@@ -123,7 +123,7 @@ where
                     .map(|(msg, _)| msg)
                     .collect();
 
-                info!(from, to, message_count = sorted_messages.len(), "[Messages]: indexed block range");
+                info!(from, to, message_count = sorted_messages.len(), "Indexed block range");
 
                 // Get the latest known nonce. All messages whose indices are <= this index
                 // have been stored in the DB.
@@ -135,7 +135,7 @@ where
                     sorted_messages.retain(|m| m.nonce > min_nonce);
                 }
 
-                debug!(from, to, message_count = sorted_messages.len(), "[Messages]: filtered any messages already indexed");
+                debug!(from, to, message_count = sorted_messages.len(), "Filtered any messages already indexed");
 
                 // Ensure the sorted messages are a valid continuation of last_nonce
                 match validate_message_continuity(last_nonce, &sorted_messages.iter().collect::<Vec<_>>()) {
@@ -171,7 +171,7 @@ where
                             start_block = from,
                             end_block = to,
                             last_valid_range_start_block,
-                            "[Messages]: Found invalid continuation in range. Re-indexing from the start block of the last successful range.",
+                            "Found invalid continuation in range. Re-indexing from the start block of the last successful range.",
                         );
 
                         cursor.backtrack(last_valid_range_start_block);
@@ -185,7 +185,7 @@ where
                             last_nonce = ?last_nonce,
                             start_block = from,
                             end_block = to,
-                            "[Messages]: Found gaps in the messages in range, re-indexing the same range.",
+                            "Found gaps in the messages in range, re-indexing the same range.",
                         );
                     }
                     ListValidity::Empty =>  {
