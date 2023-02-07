@@ -18,7 +18,6 @@ contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
     // ============ Libraries ============
 
     using EnumerableMOfNSet for EnumerableMOfNSet.AddressSet;
-    using AggregationIsmMetadata for bytes;
     using Message for bytes;
 
     // ============ Constants ============
@@ -44,11 +43,20 @@ contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
         returns (bool)
     {
         uint8 _verified = 0;
-        uint8 _count = _metadata.count();
+        uint8 _count = AggregationIsmMetadata.count(_metadata);
         for (uint8 i = 0; i < _count; i++) {
-            if (!_metadata.hasMetadata(i)) continue;
-            IInterchainSecurityModule _ism = _metadata.ismAt(i);
-            require(_ism.verify(_metadata.metadataAt(i), _message), "!verify");
+            if (!AggregationIsmMetadata.hasMetadata(_metadata, i)) continue;
+            IInterchainSecurityModule _ism = AggregationIsmMetadata.ismAt(
+                _metadata,
+                i
+            );
+            require(
+                _ism.verify(
+                    AggregationIsmMetadata.metadataAt(_metadata, i),
+                    _message
+                ),
+                "!verify"
+            );
             _verified += 1;
         }
         // Ensures the ISM set encoded in the metadata matches
@@ -57,7 +65,11 @@ contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
         // non-zero computed commitment, and this check will fail
         // as the commitment in storage will be zero.
         require(
-            setMatches(_message.origin(), _verified, _metadata.ismAddresses()),
+            setMatches(
+                _message.origin(),
+                _verified,
+                AggregationIsmMetadata.ismAddresses(_metadata)
+            ),
             "!matches"
         );
         return true;
