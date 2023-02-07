@@ -17,7 +17,7 @@ describe('InterchainGasCalculator', async () => {
   const localChain = 'test1';
   const remoteChain = 'test2';
 
-  const expectedDefaultQuote = BigNumber.from('1');
+  const expectedDefaultQuote = BigNumber.from('0');
   const testGasAmount = BigNumber.from('100000');
 
   let signer: SignerWithAddress;

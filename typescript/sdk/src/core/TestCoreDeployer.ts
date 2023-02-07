@@ -1,14 +1,19 @@
 import { ethers } from 'ethers';
 
 import {
+  InterchainGasPaymaster,
   MultisigIsm,
+  ProxyAdmin,
+  TestInterchainGasPaymaster__factory,
   TestIsm__factory,
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
 
+import { DeployOptions } from '../deploy/HyperlaneDeployer';
 import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
 import { CoreConfig } from '../deploy/core/types';
 import { MultiProvider } from '../providers/MultiProvider';
+import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 import { ChainMap, TestChainNames } from '../types';
 
 import { TestCoreApp } from './TestCoreApp';
@@ -29,6 +34,7 @@ const testCoreFactories = {
   ...coreFactories,
   mailbox: new TestMailbox__factory(),
   testIsm: new TestIsm__factory(),
+  testInterchainGasPaymaster: new TestInterchainGasPaymaster__factory(),
 };
 
 export class TestCoreDeployer<
@@ -62,6 +68,35 @@ export class TestCoreDeployer<
     );
     await testIsm.setAccept(true);
     return testIsm as unknown as MultisigIsm;
+  }
+
+  // deploy a test IGP instead
+  async deployInterchainGasPaymaster<LocalChain extends TestChain>(
+    chain: LocalChain,
+    proxyAdmin: ProxyAdmin,
+    deployOpts?: DeployOptions,
+  ): Promise<
+    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
+  > {
+    const implementation = await this.deployContractFromFactory(
+      chain,
+      testCoreFactories.testInterchainGasPaymaster,
+      'testInterchainGasPaymaster',
+      [],
+      deployOpts,
+    );
+
+    const contract = await this.deployProxy(
+      chain,
+      implementation,
+      proxyAdmin,
+      [],
+      deployOpts,
+    );
+    return contract as ProxiedContract<
+      InterchainGasPaymaster,
+      TransparentProxyAddresses
+    >;
   }
 
   // TestIsm is not ownable, so we skip ownership transfer
