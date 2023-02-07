@@ -25,7 +25,7 @@ export function helloworldMatchingList<Chain extends ChainName>(
   return routerMatchingList(helloWorldConfig.addresses);
 }
 
-function routerMatchingList<Chain extends ChainName>(
+export function routerMatchingList<Chain extends ChainName>(
   routers: ChainMap<Chain, { router: string }>,
 ) {
   const chains = Object.keys(routers) as Chain[];

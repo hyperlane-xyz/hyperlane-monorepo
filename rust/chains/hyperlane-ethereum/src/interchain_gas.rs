@@ -10,7 +10,7 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, Indexer, InterchainGasPaymaster,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
     InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentMeta,
     InterchainGasPaymentWithMeta, H160, H256,
 };
@@ -19,6 +19,7 @@ use crate::contracts::interchain_gas_paymaster::{
     InterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, INTERCHAINGASPAYMASTER_ABI,
 };
 use crate::trait_builder::BuildableWithProvider;
+use crate::EthereumProvider;
 
 impl<M> Display for EthereumInterchainGasPaymasterInternal<M>
 where
@@ -182,6 +183,13 @@ where
 {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(EthereumProvider::new(
+            self.contract.client(),
+            self.domain.clone(),
+        ))
     }
 }
 
