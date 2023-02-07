@@ -65,7 +65,7 @@ impl From<Level> for LevelFilter {
 }
 
 /// Configuration for the tracing subscribers used by Hyperlane agents
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Deserialize)]
 pub struct TracingConfig {
     jaeger: Option<JaegerConfig>,
     zipkin: Option<ZipkinConfig>,
@@ -73,17 +73,6 @@ pub struct TracingConfig {
     fmt: Style,
     #[serde(default)]
     level: Level,
-}
-
-impl Default for TracingConfig {
-    fn default() -> Self {
-        Self {
-            jaeger: None,
-            zipkin: None,
-            fmt: Style::Pretty,
-            level: Level::Trace,
-        }
-    }
 }
 
 impl TracingConfig {
