@@ -60,9 +60,14 @@ export type GasPaymentEnforcementPolicy =
       type: GasPaymentEnforcementPolicyType.MeetsEstimatedCost;
     };
 
+export interface GasPaymentEnforcementConfig {
+  policy: GasPaymentEnforcementPolicy;
+  whitelist?: MatchingList;
+}
+
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
-  gasPaymentEnforcementPolicy: GasPaymentEnforcementPolicy;
+  gasPaymentEnforcement: GasPaymentEnforcementConfig;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
   transactionGasLimit?: bigint;
@@ -75,6 +80,11 @@ type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
   BaseRelayerConfig
 >;
 
+interface SerializableGasPaymentEnforcementConfig
+  extends Omit<GasPaymentEnforcementConfig, 'whitelist'> {
+  whitelist?: string;
+}
+
 // Full relayer agent config for a single chain
 interface RelayerConfig
   extends Omit<
@@ -83,8 +93,10 @@ interface RelayerConfig
     | 'blacklist'
     | 'skipTransactionGasLimitFor'
     | 'transactionGasLimit'
+    | 'gasPaymentEnforcement'
   > {
   originChainName: ChainName;
+  gasPaymentEnforcement: SerializableGasPaymentEnforcementConfig;
   whitelist?: string;
   blacklist?: string;
   transactionGasLimit?: string;
@@ -396,7 +408,12 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
     const relayerConfig: RelayerConfig = {
       originChainName: this.chainName,
-      gasPaymentEnforcementPolicy: baseConfig.gasPaymentEnforcementPolicy,
+      gasPaymentEnforcement: {
+        ...baseConfig.gasPaymentEnforcement,
+        whitelist: baseConfig.gasPaymentEnforcement.whitelist
+          ? JSON.stringify(baseConfig.gasPaymentEnforcement.whitelist)
+          : undefined,
+      },
     };
     if (baseConfig.whitelist) {
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
@@ -444,7 +461,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
   async ensureCoingeckoApiKeySecretExistsIfRequired() {
     // The CoinGecko API Key is only needed when using the "MeetsEstimatedCost" policy.
     if (
-      this.relayerConfig?.gasPaymentEnforcementPolicy.type !==
+      this.relayerConfig?.gasPaymentEnforcement.policy.type !==
       GasPaymentEnforcementPolicyType.MeetsEstimatedCost
     ) {
       return;

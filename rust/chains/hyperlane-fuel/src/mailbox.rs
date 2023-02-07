@@ -8,8 +8,8 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, Indexer, LogMeta,
-    Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::{
@@ -49,6 +49,10 @@ impl HyperlaneContract for FuelMailbox {
 impl HyperlaneChain for FuelMailbox {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        todo!()
     }
 }
 

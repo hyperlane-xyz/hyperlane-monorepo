@@ -10,7 +10,8 @@ use tracing::instrument;
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H160,
+    H256,
 };
 
 use crate::BuildableWithProvider;
@@ -26,12 +27,29 @@ where
     domain: HyperlaneDomain,
 }
 
+impl<M> EthereumProvider<M>
+where
+    M: Middleware,
+{
+    /// Creates a new EthereumProvider
+    pub fn new(provider: Arc<M>, domain: HyperlaneDomain) -> Self {
+        Self { provider, domain }
+    }
+}
+
 impl<M> HyperlaneChain for EthereumProvider<M>
 where
     M: Middleware + 'static,
 {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(EthereumProvider::new(
+            self.provider.clone(),
+            self.domain.clone(),
+        ))
     }
 }
 
@@ -82,6 +100,16 @@ where
             receipt,
         })
     }
+
+    #[instrument(err, skip(self))]
+    async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
+        let code = self
+            .provider
+            .get_code(H160::from(*address), None)
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        Ok(!code.is_empty())
+    }
 }
 
 /// Builder for hyperlane providers.
@@ -96,10 +124,10 @@ impl BuildableWithProvider for HyperlaneProviderBuilder {
         provider: M,
         locator: &ContractLocator,
     ) -> Self::Output {
-        Box::new(EthereumProvider {
-            provider: Arc::new(provider),
-            domain: locator.domain.clone(),
-        })
+        Box::new(EthereumProvider::new(
+            Arc::new(provider),
+            locator.domain.clone(),
+        ))
     }
 }
 

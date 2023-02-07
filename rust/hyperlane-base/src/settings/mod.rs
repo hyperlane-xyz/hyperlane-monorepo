@@ -167,6 +167,23 @@ impl Settings {
         Ok(result)
     }
 
+    /// Try to get a map of chain name -> interchain gas paymaster contract
+    pub async fn build_all_interchain_gas_paymasters(
+        &self,
+        chain_names: &[&str],
+        metrics: &CoreMetrics,
+        db: DB,
+    ) -> eyre::Result<HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>> {
+        let mut result = HashMap::new();
+        for &chain_name in chain_names {
+            let igp = self
+                .build_caching_interchain_gas_paymaster(chain_name, db.clone(), metrics)
+                .await?;
+            result.insert(igp.paymaster().domain().clone(), igp);
+        }
+        Ok(result)
+    }
+
     /// Try to get a CachingMailbox
     async fn build_caching_mailbox(
         &self,

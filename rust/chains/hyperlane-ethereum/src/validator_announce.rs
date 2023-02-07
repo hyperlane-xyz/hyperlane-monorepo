@@ -9,13 +9,14 @@ use ethers::providers::Middleware;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    ValidatorAnnounce, H160, H256,
+    ValidatorAnnounce, H160, H256, HyperlaneProvider,
 };
 
 use crate::contracts::validator_announce::{
     ValidatorAnnounce as EthereumValidatorAnnounceInternal, VALIDATORANNOUNCE_ABI,
 };
 use crate::trait_builder::BuildableWithProvider;
+use crate::EthereumProvider;
 
 impl<M> std::fmt::Display for EthereumValidatorAnnounceInternal<M>
 where
@@ -74,6 +75,13 @@ where
 {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(EthereumProvider::new(
+            self.contract.client(),
+            self.domain.clone(),
+        ))
     }
 }
 

@@ -21,6 +21,9 @@ pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
 
     /// Get txn info for a given txn hash
     async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo>;
+
+    /// Returns whether a contract exists at the provided address
+    async fn is_contract(&self, address: &H256) -> ChainResult<bool>;
 }
 
 /// Errors when querying for provider information.
