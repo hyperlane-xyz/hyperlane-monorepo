@@ -15,7 +15,7 @@ library CallLib {
         bytes data;
     }
 
-    struct CallWithCallback {
+    struct StaticCallWithCallback {
         StaticCall _call;
         bytes callback;
     }
@@ -35,7 +35,7 @@ library CallLib {
         return Address.functionStaticCall(_call.to, _call.data);
     }
 
-    function staticcall(CallWithCallback memory _call)
+    function staticcall(StaticCallWithCallback memory _call)
         internal
         view
         returns (bytes memory callback)
@@ -54,7 +54,7 @@ library CallLib {
         }
     }
 
-    function staticmulticall(CallWithCallback[] memory _calls)
+    function multistaticcall(StaticCallWithCallback[] memory _calls)
         internal
         view
         returns (bytes[] memory)
@@ -102,7 +102,11 @@ library CallLib {
         address to,
         bytes memory data,
         bytes memory callback
-    ) internal pure returns (CallWithCallback memory) {
-        return CallWithCallback({callback: callback, _call: build(to, data)});
+    ) internal pure returns (StaticCallWithCallback memory) {
+        return
+            StaticCallWithCallback({
+                callback: callback,
+                _call: build(to, data)
+            });
     }
 }

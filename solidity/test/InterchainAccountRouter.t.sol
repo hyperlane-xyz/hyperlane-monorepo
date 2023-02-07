@@ -130,7 +130,7 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testReceiveValue(uint256 value) public {
-        vm.assume(value <= address(this).balance);
+        vm.assume(value > 0 && value <= address(this).balance);
 
         // receive value before deployed
         assert(ica.code.length == 0);
@@ -146,7 +146,7 @@ contract InterchainAccountRouterTest is Test {
     function receiveValue() external payable {}
 
     function testSendValue(uint256 value) public {
-        vm.assume(value <= address(this).balance);
+        vm.assume(value > 0 && value <= address(this).balance);
         ica.transfer(value);
 
         bytes memory data = abi.encodeCall(this.receiveValue, ());

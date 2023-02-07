@@ -18,11 +18,11 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
 contract InterchainQueryRouter is Router, IInterchainQueryRouter {
-    using CallLib for CallLib.CallWithCallback[];
+    using CallLib for CallLib.StaticCallWithCallback[];
     using CallLib for bytes[];
 
     using InterchainCallMessage for CallLib.StaticCall[];
-    using InterchainCallMessage for CallLib.CallWithCallback[];
+    using InterchainCallMessage for CallLib.StaticCallWithCallback[];
     using InterchainCallMessage for bytes[];
     using InterchainCallMessage for bytes;
 
@@ -36,7 +36,7 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
      */
     event QueryDispatched(
         uint32 indexed destinationDomain,
-        bytes32 indexed sender
+        address indexed sender
     );
     /**
      * @notice Emitted when a query is returned to the origin chain.
@@ -51,7 +51,7 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
      */
     event QueryResolved(
         uint32 indexed destinationDomain,
-        bytes32 indexed sender
+        address indexed sender
     );
 
     /**
@@ -77,14 +77,13 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
 
     function query(
         uint32 _destinationDomain,
-        CallLib.CallWithCallback[] calldata calls
+        CallLib.StaticCallWithCallback[] calldata calls
     ) public returns (bytes32 messageId) {
-        bytes32 sender = msg.sender.addressToBytes32();
         messageId = _dispatch(
             _destinationDomain,
-            InterchainCallMessage.format(calls, sender)
+            InterchainCallMessage.format(calls, msg.sender.addressToBytes32())
         );
-        emit QueryDispatched(_destinationDomain, sender);
+        emit QueryDispatched(_destinationDomain, msg.sender);
     }
 
     /**
@@ -99,15 +98,18 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
     ) internal override {
         InterchainCallMessage.CallType calltype = _message.calltype();
         bytes32 sender = _message.sender();
-        if (calltype == InterchainCallMessage.CallType.CALLBACK) {
+        if (
+            calltype == InterchainCallMessage.CallType.STATIC_CALL_WITH_CALLBACK
+        ) {
             bytes[] memory callbacks = _message
                 .callsWithCallbacks()
-                .staticmulticall();
+                .multistaticcall();
             _dispatch(_origin, callbacks.format(sender));
             emit QueryReturned(_origin, sender);
-        } else if (calltype == InterchainCallMessage.CallType.RAW) {
-            _message.rawCalls().multicallto(sender.bytes32ToAddress());
-            emit QueryResolved(_origin, sender);
+        } else if (calltype == InterchainCallMessage.CallType.RAW_CALLDATA) {
+            address senderAddress = sender.bytes32ToAddress();
+            _message.rawCalls().multicallto(senderAddress);
+            emit QueryResolved(_origin, senderAddress);
         } else {
             assert(false);
         }

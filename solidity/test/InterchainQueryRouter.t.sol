@@ -82,8 +82,8 @@ contract InterchainQueryRouterTest is Test {
         vm.expectEmit(true, true, false, true, address(originRouter));
         emit QueryDispatched(remoteDomain, address(this).addressToBytes32());
 
-        CallLib.CallWithCallback[]
-            memory calls = new CallLib.CallWithCallback[](1);
+        CallLib.StaticCallWithCallback[]
+            memory calls = new CallLib.StaticCallWithCallback[](1);
         calls[0] = CallLib.build(target, call, callback);
         originRouter.query(remoteDomain, calls);
     }

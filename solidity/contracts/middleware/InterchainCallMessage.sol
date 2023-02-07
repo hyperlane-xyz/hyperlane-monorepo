@@ -15,10 +15,10 @@ library InterchainCallMessage {
     uint256 private constant CALLS_OFFSET = 64;
 
     enum CallType {
-        DEFAULT,
-        STATIC,
-        CALLBACK,
-        RAW
+        CALL,
+        STATIC_CALL,
+        STATIC_CALL_WITH_CALLBACK,
+        RAW_CALLDATA
     }
 
     function sender(bytes calldata _message) internal pure returns (bytes32) {
@@ -39,7 +39,7 @@ library InterchainCallMessage {
         pure
         returns (bytes memory)
     {
-        return abi.encode(_sender, CallType.DEFAULT, _calls);
+        return abi.encode(_sender, CallType.CALL, _calls);
     }
 
     function calls(bytes calldata _message)
@@ -47,7 +47,7 @@ library InterchainCallMessage {
         pure
         returns (CallLib.Call[] memory _calls)
     {
-        assert(calltype(_message) == CallType.DEFAULT);
+        assert(calltype(_message) == CallType.CALL);
         (, , _calls) = abi.decode(
             _message,
             (bytes32, CallType, CallLib.Call[])
@@ -59,7 +59,7 @@ library InterchainCallMessage {
         pure
         returns (bytes memory)
     {
-        return abi.encode(_sender, CallType.STATIC, _calls);
+        return abi.encode(_sender, CallType.STATIC_CALL, _calls);
     }
 
     function staticCalls(bytes calldata _message)
@@ -67,30 +67,29 @@ library InterchainCallMessage {
         pure
         returns (CallLib.StaticCall[] memory _calls)
     {
-        assert(calltype(_message) == CallType.STATIC);
+        assert(calltype(_message) == CallType.STATIC_CALL);
         (, , _calls) = abi.decode(
             _message,
             (bytes32, CallType, CallLib.StaticCall[])
         );
     }
 
-    function format(CallLib.CallWithCallback[] calldata _calls, bytes32 _sender)
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return abi.encode(_sender, CallType.CALLBACK, _calls);
+    function format(
+        CallLib.StaticCallWithCallback[] calldata _calls,
+        bytes32 _sender
+    ) internal pure returns (bytes memory) {
+        return abi.encode(_sender, CallType.STATIC_CALL_WITH_CALLBACK, _calls);
     }
 
     function callsWithCallbacks(bytes calldata _message)
         internal
         pure
-        returns (CallLib.CallWithCallback[] memory _calls)
+        returns (CallLib.StaticCallWithCallback[] memory _calls)
     {
-        assert(calltype(_message) == CallType.CALLBACK);
+        assert(calltype(_message) == CallType.STATIC_CALL_WITH_CALLBACK);
         (, , _calls) = abi.decode(
             _message,
-            (bytes32, CallType, CallLib.CallWithCallback[])
+            (bytes32, CallType, CallLib.StaticCallWithCallback[])
         );
     }
 
@@ -99,7 +98,7 @@ library InterchainCallMessage {
         pure
         returns (bytes memory)
     {
-        return abi.encode(_sender, CallType.RAW, _calls);
+        return abi.encode(_sender, CallType.RAW_CALLDATA, _calls);
     }
 
     function rawCalls(bytes calldata _message)
@@ -107,7 +106,7 @@ library InterchainCallMessage {
         pure
         returns (bytes[] memory _calls)
     {
-        assert(calltype(_message) == CallType.RAW);
+        assert(calltype(_message) == CallType.RAW_CALLDATA);
         (, , _calls) = abi.decode(_message, (bytes32, CallType, bytes[]));
     }
 }

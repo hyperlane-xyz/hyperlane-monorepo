@@ -94,8 +94,8 @@ contract TestQuerySender {
         bytes4 _callbackSelector,
         uint256 _gasAmount
     ) internal {
-        CallLib.CallWithCallback[]
-            memory calls = new CallLib.CallWithCallback[](1);
+        CallLib.StaticCallWithCallback[]
+            memory calls = new CallLib.StaticCallWithCallback[](1);
         calls[0] = CallLib.build(
             _target,
             _targetData,
