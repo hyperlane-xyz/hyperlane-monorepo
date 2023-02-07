@@ -71,9 +71,9 @@ export const abacus: AgentConfig<TestnetChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      blacklist: [
-        ...releaseCandidateHelloworldMatchingList,
-        { destinationAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE' },
+      whitelist: [
+        { destinationAddress: '0xdb45A8869f94c15954e282F28e272f5597063e9A' },
+        { destinationAddress: '0xf9a49993DF24366AB8EDf617C080ca36a4ADb86e' },
       ],
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
