@@ -1,5 +1,5 @@
 use tokio::task::JoinHandle;
-use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
+use tracing::{info, info_span, instrument::Instrumented, warn, Instrument, debug};
 
 use hyperlane_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
 
@@ -59,7 +59,7 @@ where
 
                 let gas_payments = indexer.fetch_gas_payments(from, to).await?;
 
-                info!(
+                debug!(
                     from,
                     to,
                     gas_payments_count = gas_payments.len(),
