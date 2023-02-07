@@ -96,6 +96,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "gnosis",
+        token: "xDAI",
+        domain: 100,
+        chain_id: 100,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "moonbasealpha",
         token: "DEV",
         domain: 1287,
