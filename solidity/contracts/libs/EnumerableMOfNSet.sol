@@ -18,6 +18,7 @@ library EnumerableMOfNSet {
     }
 
     // ============ Library Functions ============
+
     function add(AddressSet storage _set, address _value)
         internal
         returns (bytes32)
@@ -113,7 +114,7 @@ library EnumerableMOfNSet {
     }
 
     function valuesAndThreshold(AddressSet storage _set)
-        external
+        internal
         view
         returns (address[] memory, uint8)
     {
@@ -121,6 +122,7 @@ library EnumerableMOfNSet {
     }
 
     // ============ Internal Functions ============
+
     function _add(AddressSet storage _set, address _value) private {
         require(_value != address(0), "zero address");
         require(_set.addresses.add(_value), "contained");
