@@ -30,7 +30,6 @@ library InterchainCallMessage {
         pure
         returns (CallType)
     {
-        // left padded with zeroes
         return CallType(uint8(bytes1(_message[CALLS_OFFSET - 1])));
     }
 
