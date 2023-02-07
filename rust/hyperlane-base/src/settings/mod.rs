@@ -202,7 +202,7 @@ impl Settings {
     }
 
     /// Try to get a CachingInterchainGasPaymaster
-    pub async fn build_caching_interchain_gas_paymaster(
+    async fn build_caching_interchain_gas_paymaster(
         &self,
         chain_name: &str,
         db: DB,
