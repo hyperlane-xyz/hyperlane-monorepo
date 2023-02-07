@@ -42,7 +42,7 @@ impl ScraperDb {
             .await
             .context("When fetching transactions")?
             .into_iter()
-            .map(|(id, hash)| Ok((parse_h256(&hash)?, id)))
+            .map(|(id, hash)| Ok((parse_h256(hash)?, id)))
             .collect::<Result<_>>()
     }
 

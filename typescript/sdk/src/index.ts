@@ -75,7 +75,11 @@ export {
   CoreContractsMap,
   DispatchedMessage,
 } from './core/HyperlaneCore';
-export { CoreContracts, coreFactories } from './core/contracts';
+export {
+  CoreContracts,
+  coreFactories,
+  ConnectionClientContracts,
+} from './core/contracts';
 export {
   HyperlaneLifecyleEvent,
   AnnotatedDispatch,
@@ -127,6 +131,7 @@ export {
   BridgeAdapterType,
   BridgeAdapterConfig,
   CircleBridgeAdapterConfig,
+  PortalAdapterConfig,
 } from './deploy/middleware/LiquidityLayerRouterDeployer';
 export { LiquidityLayerApp } from './deploy/middleware/LiquidityLayerApp';
 

@@ -30,7 +30,6 @@ export const hyperlane: AgentConfig<TestChains> = {
   },
   relayer: {
     default: {
-      signedCheckpointPollingInterval: 5,
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
       },

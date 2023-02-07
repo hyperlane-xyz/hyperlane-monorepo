@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
-import {OwnableMulticall, Call, Result} from "../OwnableMulticall.sol";
+import {CallLib} from "../libs/Call.sol";
 import {Router} from "../Router.sol";
 import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
 
@@ -11,45 +11,63 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract InterchainQueryRouter is
-    Router,
-    OwnableMulticall,
-    IInterchainQueryRouter
-{
+/**
+ * @title Interchain Query Router that performs remote view calls on other chains and returns the result.
+ * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
+ */
+contract InterchainQueryRouter is Router, IInterchainQueryRouter {
+    using CallLib for address;
+    using CallLib for CallLib.Call[];
+
     enum Action {
         DISPATCH,
         RESOLVE
     }
 
+    /**
+     * @notice Emitted when a query is dispatched to another chain.
+     * @param destinationDomain The domain of the chain to query.
+     * @param sender The address that dispatched the query.
+     */
     event QueryDispatched(
         uint32 indexed destinationDomain,
         address indexed sender
     );
+    /**
+     * @notice Emitted when a query is returned to the origin chain.
+     * @param originDomain The domain of the chain to return the result to.
+     * @param sender The address to receive the result.
+     */
     event QueryReturned(uint32 indexed originDomain, address indexed sender);
+    /**
+     * @notice Emitted when a query is resolved on the origin chain.
+     * @param destinationDomain The domain of the chain that was queried.
+     * @param sender The address that resolved the query.
+     */
     event QueryResolved(
         uint32 indexed destinationDomain,
         address indexed sender
     );
 
+    /**
+     * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
+     * @param _mailbox The address of the mailbox contract.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
+     * @param _interchainSecurityModule The address of the interchain security module contract.
+     * @param _owner The address with owner privileges.
+     */
     function initialize(
         address _mailbox,
         address _interchainGasPaymaster,
-        address _interchainSecurityModule
+        address _interchainSecurityModule,
+        address _owner
     ) external initializer {
-        // Transfer ownership of the contract to `msg.sender`
-        __Router_initialize(
+        __HyperlaneConnectionClient_initialize(
             _mailbox,
             _interchainGasPaymaster,
-            _interchainSecurityModule
+            _interchainSecurityModule,
+            _owner
         );
-    }
-
-    function initialize(address _mailbox, address _interchainGasPaymaster)
-        external
-        initializer
-    {
-        // Transfer ownership of the contract to `msg.sender`
-        __Router_initialize(_mailbox, _interchainGasPaymaster);
     }
 
     /**
@@ -57,6 +75,7 @@ contract InterchainQueryRouter is
      * @param target The address of the contract to query on destination chain.
      * @param queryData The calldata of the view call to make on the destination chain.
      * @param callback Callback function selector on `msg.sender` and optionally abi-encoded prefix arguments.
+     * @return messageId The ID of the message encoding the query.
      */
     function query(
         uint32 _destinationDomain,
@@ -64,8 +83,9 @@ contract InterchainQueryRouter is
         bytes calldata queryData,
         bytes calldata callback
     ) external returns (bytes32 messageId) {
-        Call[] memory calls = new Call[](1);
-        calls[0] = Call({to: target, data: queryData});
+        // TODO: fix this ugly arrayification
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({to: target, data: queryData});
         bytes[] memory callbacks = new bytes[](1);
         callbacks[0] = callback;
         messageId = query(_destinationDomain, calls, callbacks);
@@ -78,10 +98,11 @@ contract InterchainQueryRouter is
      */
     function query(
         uint32 _destinationDomain,
-        Call calldata call,
+        CallLib.Call calldata call,
         bytes calldata callback
     ) external returns (bytes32 messageId) {
-        Call[] memory calls = new Call[](1);
+        // TODO: fix this ugly arrayification
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
         bytes[] memory callbacks = new bytes[](1);
         callbacks[0] = callback;
@@ -95,7 +116,7 @@ contract InterchainQueryRouter is
      */
     function query(
         uint32 _destinationDomain,
-        Call[] memory calls,
+        CallLib.Call[] memory calls,
         bytes[] memory callbacks
     ) public returns (bytes32 messageId) {
         require(
@@ -109,28 +130,36 @@ contract InterchainQueryRouter is
         emit QueryDispatched(_destinationDomain, msg.sender);
     }
 
+    /**
+     * @notice Handles a message from remote enrolled Interchain Query Router.
+     * @param _origin The domain of the chain that sent the message.
+     * @param _message The ABI-encoded interchain query.
+     */
     function _handle(
         uint32 _origin,
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        Action action = abi.decode(_message, (Action));
+        Action action = Action(uint8(bytes1(_message[31])));
         if (action == Action.DISPATCH) {
             (
                 ,
                 address sender,
-                Call[] memory calls,
+                CallLib.Call[] memory calls,
                 bytes[] memory callbacks
-            ) = abi.decode(_message, (Action, address, Call[], bytes[]));
-            Result[] memory results = _staticcall(calls, callbacks);
-            _dispatch(_origin, abi.encode(Action.RESOLVE, sender, results));
+            ) = abi.decode(
+                    _message,
+                    (Action, address, CallLib.Call[], bytes[])
+                );
+            callbacks = calls._multicallAndResolve(callbacks);
+            _dispatch(_origin, abi.encode(Action.RESOLVE, sender, callbacks));
             emit QueryReturned(_origin, sender);
         } else if (action == Action.RESOLVE) {
             (, address sender, Result[] memory resolveCallbacks) = abi.decode(
                 _message,
                 (Action, address, Result[])
             );
-            resolveResults(sender, resolveCallbacks);
+            sender._multicall(resolveCallbacks);
             emit QueryResolved(_origin, sender);
         }
     }

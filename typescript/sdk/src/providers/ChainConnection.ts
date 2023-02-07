@@ -4,6 +4,7 @@ import { ethers } from 'ethers';
 import { IChainConnection } from '../types';
 
 export class ChainConnection {
+  id: number;
   provider: ethers.providers.Provider;
   signer?: ethers.Signer;
   overrides: ethers.Overrides;
@@ -13,6 +14,7 @@ export class ChainConnection {
   logger: Debugger;
 
   constructor(dc: IChainConnection) {
+    this.id = dc.id;
     this.provider = dc.provider;
     this.signer = dc.signer;
     this.overrides = dc.overrides ?? {};
@@ -38,7 +40,7 @@ export class ChainConnection {
   }
 
   getApiUrl(): string {
-    return this.blockExplorerApiUrl;
+    return this.blockExplorerApiUrl + '/api';
   }
 
   async handleTx(

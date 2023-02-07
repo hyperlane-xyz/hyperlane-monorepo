@@ -1,7 +1,8 @@
 import path from 'path';
 
-import { objMap } from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, objMap } from '@hyperlane-xyz/sdk';
 
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { deployWithArtifacts } from '../../src/deploy';
 import {
   TestQuerySenderDeployer,
@@ -18,10 +19,14 @@ async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider();
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider,
+  );
   // Get query router addresses
   const queryRouterDir = path.join(
     getEnvironmentDirectory(environment),
-    'interchain/queries',
+    'middleware/queries',
   );
   const queryRouterAddresses = objMap(
     readJSON(queryRouterDir, 'addresses.json'),
@@ -31,6 +36,7 @@ async function main() {
   const deployer = new TestQuerySenderDeployer(
     multiProvider,
     queryRouterAddresses,
+    core,
   );
 
   const dir = path.join(

@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::num::NonZeroU64;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -100,13 +101,17 @@ impl Mailbox for CachingMailbox {
         self.mailbox.delivered(id).await
     }
 
-    async fn latest_checkpoint(&self, maybe_lag: Option<u64>) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         self.mailbox.latest_checkpoint(maybe_lag).await
     }
 
     /// Fetch the current default interchain security module value
     async fn default_ism(&self) -> ChainResult<H256> {
         self.mailbox.default_ism().await
+    }
+
+    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        self.mailbox.recipient_ism(recipient).await
     }
 
     async fn process(

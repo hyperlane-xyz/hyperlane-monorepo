@@ -6,6 +6,7 @@ import {
   interchainAccountFactories,
 } from '@hyperlane-xyz/sdk';
 
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import { mergeWithSdkContractAddressArtifacts } from '../merge-sdk-contract-addresses';
@@ -21,7 +22,10 @@ async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider();
-  const core = HyperlaneCore.fromEnvironment(environment, multiProvider as any);
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider as any,
+  );
 
   const dir = path.join(
     getEnvironmentDirectory(environment),
@@ -35,11 +39,11 @@ async function main() {
     multiProvider,
     configMap,
     core,
-    'ica2',
+    'icav3',
   );
 
   await deployWithArtifacts(dir, interchainAccountFactories, deployer);
-  await mergeWithSdkContractAddressArtifacts(environment);
+  mergeWithSdkContractAddressArtifacts(environment);
 }
 
 main()

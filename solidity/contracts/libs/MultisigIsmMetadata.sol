@@ -144,21 +144,6 @@ library MultisigIsmMetadata {
      * @param _metadata ABI encoded Multisig ISM metadata.
      * @return The size of the validator set encoded in the metadata
      */
-    function commitment(bytes calldata _metadata)
-        internal
-        pure
-        returns (uint256)
-    {
-        return (_metadata.length - _validatorsOffset(_metadata)) / 32;
-    }
-
-    /**
-     * @notice Returns the size of the validator set encoded in the metadata
-     * @dev Validator addresses are encoded as tightly packed array of bytes32,
-     * sorted to match the enumerable set stored by the module.
-     * @param _metadata ABI encoded Multisig ISM metadata.
-     * @return The size of the validator set encoded in the metadata
-     */
     function validatorCount(bytes calldata _metadata)
         internal
         pure

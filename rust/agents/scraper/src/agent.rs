@@ -8,7 +8,8 @@ use tracing::instrument::Instrumented;
 use tracing::{info_span, trace, Instrument};
 
 use hyperlane_base::{
-    decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, Settings,
+    decl_settings, run_all, BaseAgent, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
+    Settings,
 };
 
 use crate::chain_scraper::{Contracts, SqlChainScraper};
@@ -18,14 +19,16 @@ use crate::db::ScraperDb;
 #[derive(Debug)]
 #[allow(unused)]
 pub struct Scraper {
+    core: HyperlaneAgentCore,
     db: ScraperDb,
-    metrics: Arc<CoreMetrics>,
-    // TODO: Use HyperlaneAgentCore
     /// A map of scrapers by domain.
     scrapers: HashMap<u32, SqlChainScraper>,
 }
 
-decl_settings!(Scraper {});
+decl_settings!(Scraper {
+    /// Database connection string
+    db: String,
+});
 
 #[async_trait]
 impl BaseAgent for Scraper {
@@ -40,6 +43,7 @@ impl BaseAgent for Scraper {
         Self: Sized,
     {
         let db = ScraperDb::connect(&settings.db).await?;
+        let core = settings.build_hyperlane_core(metrics.clone());
 
         let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
         let mut scrapers: HashMap<u32, SqlChainScraper> = HashMap::new();
@@ -65,11 +69,7 @@ impl BaseAgent for Scraper {
 
         trace!(domain_count = scrapers.len(), "Creating scraper");
 
-        Ok(Self {
-            db,
-            metrics,
-            scrapers,
-        })
+        Ok(Self { core, db, scrapers })
     }
 
     #[allow(clippy::async_yields_async)]
@@ -111,5 +111,11 @@ impl Scraper {
                 .with_context(ctx)?
                 .into(),
         })
+    }
+}
+
+impl AsRef<HyperlaneAgentCore> for Scraper {
+    fn as_ref(&self) -> &HyperlaneAgentCore {
+        &self.core
     }
 }

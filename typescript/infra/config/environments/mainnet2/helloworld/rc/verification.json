@@ -1,0 +1,74 @@
+{
+  "bsc": [
+    {
+      "name": "router",
+      "address": "0x3f4663873A9aC7Ec683a5Bddc0acbC00091c10D0",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
+    }
+  ],
+  "avalanche": [
+    {
+      "name": "router",
+      "address": "0xaC5a4925d8aab7B9fb33F0a1722e3b94b6f87dB4",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
+    }
+  ],
+  "polygon": [
+    {
+      "name": "router",
+      "address": "0x3Ee06Da5110117c5B9AD41e2F827B774cBb15CC3",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
+    }
+  ],
+  "celo": [
+    {
+      "name": "router",
+      "address": "0x8E10405F4D23060b1a75005EFB99d99D537e0A7f",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
+    }
+  ],
+  "arbitrum": [
+    {
+      "name": "router",
+      "address": "0xb44a2B834FFdf762051Ee26Eb41531a4A02fA8d0",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
+    }
+  ],
+  "optimism": [
+    {
+      "name": "router",
+      "address": "0xe5F7E241F9bb6A644e88f2ca38fC373196b5392b",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
+    }
+  ],
+  "ethereum": [
+    {
+      "name": "router",
+      "address": "0x43ae568363c4FA6897EE9dF0c9ca445d3872c906",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
+    }
+  ],
+  "moonbeam": [
+    {
+      "name": "router",
+      "address": "0x1Efd1EdC42ef6cf2612F75e6C599C081d650c513",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
+    }
+  ],
+  "gnosis": [
+    {
+      "name": "router",
+      "address": "0x14aBb1f28B06272c57c37723D0e671d1c3326679",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
+    }
+  ]
+}

@@ -86,7 +86,7 @@ pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, Signers,
+    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, H256,
 };
 pub use signers::SignerConf;
 
@@ -134,12 +134,8 @@ static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainSetup>,
-    /// Transaction signers
-    pub signers: HashMap<String, SignerConf>,
     /// Gelato config
     pub gelato: Option<GelatoConf>,
-    /// Database connection string (might be a path on the fs or a remote db)
-    pub db: String,
     /// Port to listen for prometheus scrape requests
     pub metrics: Option<String>,
     /// The tracing configuration
@@ -147,42 +143,13 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// Try to generate an agent core for a named agent
-    pub async fn try_into_hyperlane_core(
-        &self,
-        metrics: Arc<CoreMetrics>,
-        chain_names: Option<Vec<&str>>,
-    ) -> eyre::Result<HyperlaneAgentCore> {
-        let db = DB::from_path(&self.db)?;
-        // If not provided, default to using every chain listed in self.chains.
-        let chain_names =
-            chain_names.unwrap_or_else(|| Vec::from_iter(self.chains.keys().map(String::as_str)));
-
-        let mailboxes = self
-            .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
-            .await?;
-        let interchain_gas_paymasters = self
-            .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db.clone())
-            .await?;
-        let multisig_isms = self
-            .build_all_multisig_isms(chain_names.as_slice(), &metrics)
-            .await?;
-
-        Ok(HyperlaneAgentCore {
-            mailboxes,
-            interchain_gas_paymasters,
-            multisig_isms,
-            db,
+    /// Generate an agent core
+    pub fn build_hyperlane_core(&self, metrics: Arc<CoreMetrics>) -> HyperlaneAgentCore {
+        HyperlaneAgentCore {
             metrics,
             settings: self.clone(),
-        })
+        }
     }
-
-    /// Try to get a signer instance by name
-    pub async fn get_signer(&self, name: &str) -> Option<Signers> {
-        self.signers.get(name)?.try_into_signer().await.ok()
-    }
-
     /// Try to get a map of chain name -> mailbox contract
     pub async fn build_all_mailboxes(
         &self,
@@ -213,20 +180,6 @@ impl Settings {
                 .build_caching_interchain_gas_paymaster(chain_name, db.clone(), metrics)
                 .await?;
             result.insert(igp.paymaster().domain().clone(), igp);
-        }
-        Ok(result)
-    }
-
-    /// Try to get a map of chain name -> multisig ism contract
-    pub async fn build_all_multisig_isms(
-        &self,
-        chain_names: &[&str],
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<HashMap<HyperlaneDomain, Arc<dyn MultisigIsm>>> {
-        let mut result = HashMap::new();
-        for &chain_name in chain_names {
-            let multisig_ism = self.build_multisig_ism(chain_name, metrics).await?;
-            result.insert(multisig_ism.domain().clone(), multisig_ism.into());
         }
         Ok(result)
     }
@@ -269,6 +222,17 @@ impl Settings {
         ))
     }
 
+    /// TODO
+    pub async fn build_multisig_ism(
+        &self,
+        chain_name: &str,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Box<dyn MultisigIsm>> {
+        let setup = self.chain_setup(chain_name)?;
+        setup.build_multisig_ism(address, metrics).await
+    }
+
     /// Try to get the chain setup for the provided chain name
     pub fn chain_setup(&self, chain_name: &str) -> eyre::Result<&ChainSetup> {
         self.chains
@@ -293,9 +257,7 @@ impl Settings {
     fn clone(&self) -> Self {
         Self {
             chains: self.chains.clone(),
-            signers: self.signers.clone(),
             gelato: self.gelato.clone(),
-            db: self.db.clone(),
             metrics: self.metrics.clone(),
             tracing: self.tracing.clone(),
         }
@@ -311,9 +273,8 @@ macro_rules! delegate_fn {
             chain_name: &str,
             metrics: &CoreMetrics,
         ) -> eyre::Result<Box<$ret>> {
-            let signer = self.get_signer(chain_name).await;
             let setup = self.chain_setup(chain_name)?;
-            setup.$name(signer, metrics).await
+            setup.$name(metrics).await
         }
     };
 }
@@ -323,6 +284,5 @@ impl Settings {
     delegate_fn!(build_interchain_gas_paymaster_indexer -> dyn InterchainGasPaymasterIndexer);
     delegate_fn!(build_mailbox -> dyn Mailbox);
     delegate_fn!(build_mailbox_indexer -> dyn MailboxIndexer);
-    delegate_fn!(build_multisig_ism -> dyn MultisigIsm);
     delegate_fn!(build_provider -> dyn HyperlaneProvider);
 }

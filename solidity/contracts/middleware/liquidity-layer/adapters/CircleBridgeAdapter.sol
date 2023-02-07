@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Router} from "../../../Router.sol";
 
-import {ICircleBridge} from "../interfaces/circle/ICircleBridge.sol";
+import {ITokenMessenger} from "../interfaces/circle/ITokenMessenger.sol";
 import {ICircleMessageTransmitter} from "../interfaces/circle/ICircleMessageTransmitter.sol";
 import {ILiquidityLayerAdapter} from "../interfaces/ILiquidityLayerAdapter.sol";
 
@@ -13,8 +13,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
     using SafeERC20 for IERC20;
 
-    /// @notice The CircleBridge contract.
-    ICircleBridge public circleBridge;
+    /// @notice The TokenMessenger contract.
+    ITokenMessenger public tokenMessenger;
 
     /// @notice The Circle MessageTransmitter contract.
     ICircleMessageTransmitter public circleMessageTransmitter;
@@ -64,20 +64,20 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
 
     /**
      * @param _owner The new owner.
-     * @param _circleBridge The CircleBridge contract.
+     * @param _tokenMessenger The TokenMessenger contract.
      * @param _circleMessageTransmitter The Circle MessageTransmitter contract.
      * @param _liquidityLayerRouter The LiquidityLayerRouter contract.
      */
     function initialize(
         address _owner,
-        address _circleBridge,
+        address _tokenMessenger,
         address _circleMessageTransmitter,
         address _liquidityLayerRouter
     ) external initializer {
         // Transfer ownership of the contract to deployer
         _transferOwnership(_owner);
 
-        circleBridge = ICircleBridge(_circleBridge);
+        tokenMessenger = ITokenMessenger(_tokenMessenger);
         circleMessageTransmitter = ICircleMessageTransmitter(
             _circleMessageTransmitter
         );
@@ -104,11 +104,11 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         // Approve the token to Circle. We assume that the LiquidityLayerRouter
         // has already transferred the token to this contract.
         require(
-            IERC20(_token).approve(address(circleBridge), _amount),
+            IERC20(_token).approve(address(tokenMessenger), _amount),
             "!approval"
         );
 
-        uint64 _nonce = circleBridge.depositForBurn(
+        uint64 _nonce = tokenMessenger.depositForBurn(
             _amount,
             _circleDomain,
             _remoteRouter, // Mint to the remote router
@@ -235,8 +235,6 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
         pure
         returns (bytes32)
     {
-        // The hash is of a uint256 nonce, not a uint64 one.
-        return
-            keccak256(abi.encodePacked(_originCircleDomain, uint256(_nonce)));
+        return keccak256(abi.encodePacked(_originCircleDomain, _nonce));
     }
 }

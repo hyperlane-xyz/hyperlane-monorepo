@@ -1,3 +1,4 @@
+import { chainMetadata } from '../../consts/chainMetadata';
 import { buildContracts } from '../../contracts';
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { getChainToOwnerMap } from '../../deploy/utils';
@@ -28,6 +29,7 @@ async function check() {
   console.info('Preparing utilities');
   const multiProvider = new MultiProvider({
     alfajores: {
+      id: chainMetadata.alfajores.id,
       provider,
       confirmations: alfajoresChainConfig.alfajores.confirmations,
       overrides: alfajoresChainConfig.alfajores.overrides,
@@ -39,7 +41,7 @@ async function check() {
     envSubsetFactories,
   ) as ChainMap<ChainName, RouterContracts>;
   const app = new EnvSubsetApp(contractsMap, multiProvider);
-  const core = HyperlaneCore.fromEnvironment('testnet2', multiProvider);
+  const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
   const config = core.extendWithConnectionClientConfig(
     getChainToOwnerMap(alfajoresChainConfig, ownerAddress),
   );

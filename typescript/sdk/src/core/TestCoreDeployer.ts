@@ -64,6 +64,11 @@ export class TestCoreDeployer<
     return testIsm as unknown as MultisigIsm;
   }
 
+  // TestIsm is not ownable, so we skip ownership transfer
+  async transferOwnershipOfContracts(): Promise<ethers.ContractReceipt[]> {
+    return [];
+  }
+
   async deployApp(): Promise<TestCoreApp<TestChain>> {
     return new TestCoreApp(await this.deploy(), this.multiProvider);
   }

@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {Router} from "../../Router.sol";
 
 import {ILiquidityLayerRouter} from "../../../interfaces/ILiquidityLayerRouter.sol";
-import {ICircleBridge} from "./interfaces/circle/ICircleBridge.sol";
 import {ICircleMessageTransmitter} from "./interfaces/circle/ICircleMessageTransmitter.sol";
 import {ILiquidityLayerAdapter} from "./interfaces/ILiquidityLayerAdapter.sol";
 import {ILiquidityLayerMessageRecipient} from "../../../interfaces/ILiquidityLayerMessageRecipient.sol";
@@ -22,35 +21,35 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
 
     event LiquidityLayerAdapterSet(string indexed bridge, address adapter);
 
+    /**
+     * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
+     * @param _mailbox The address of the mailbox contract.
+     * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
+     * @param _interchainSecurityModule The address of the interchain security module contract.
+     * @param _owner The address with owner privileges.
+     */
     function initialize(
         address _mailbox,
         address _interchainGasPaymaster,
-        address _interchainSecurityModule
+        address _interchainSecurityModule,
+        address _owner
     ) external initializer {
-        // Transfer ownership of the contract to `msg.sender`
-        __Router_initialize(
+        __HyperlaneConnectionClient_initialize(
             _mailbox,
             _interchainGasPaymaster,
-            _interchainSecurityModule
+            _interchainSecurityModule,
+            _owner
         );
-    }
-
-    function initialize(address _mailbox, address _interchainGasPaymaster)
-        external
-        initializer
-    {
-        // Transfer ownership of the contract to `msg.sender`
-        __Router_initialize(_mailbox, _interchainGasPaymaster);
     }
 
     function dispatchWithTokens(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
-        bytes calldata _messageBody,
         address _token,
         uint256 _amount,
-        string calldata _bridge
-    ) external payable returns (bytes32) {
+        string calldata _bridge,
+        bytes calldata _messageBody
+    ) external returns (bytes32) {
         ILiquidityLayerAdapter _adapter = _getAdapter(_bridge);
 
         // Transfer the tokens to the adapter
@@ -77,14 +76,7 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
         );
 
         // Dispatch the _messageWithMetadata to the destination's LiquidityLayerRouter.
-        return
-            _dispatchWithGas(
-                _destinationDomain,
-                _messageWithMetadata,
-                0,
-                msg.value,
-                msg.sender
-            );
+        return _dispatch(_destinationDomain, _messageWithMetadata);
     }
 
     // Handles a message from an enrolled remote LiquidityLayerRouter
@@ -119,13 +111,15 @@ contract LiquidityLayerRouter is Router, ILiquidityLayerRouter {
                 _adapterData
             );
 
-        _userRecipient.handleWithTokens(
-            _origin,
-            _originalSender,
-            _userMessageBody,
-            _token,
-            _receivedAmount
-        );
+        if (_userMessageBody.length > 0) {
+            _userRecipient.handleWithTokens(
+                _origin,
+                _originalSender,
+                _userMessageBody,
+                _token,
+                _receivedAmount
+            );
+        }
     }
 
     function setLiquidityLayerAdapter(string calldata _bridge, address _adapter)

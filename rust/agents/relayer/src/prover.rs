@@ -7,6 +7,7 @@ use hyperlane_core::accumulator::{
     TREE_DEPTH,
 };
 use hyperlane_core::H256;
+use tracing::{error, instrument};
 
 /// A depth-32 sparse Merkle tree capable of producing proofs for arbitrary
 /// elements.
@@ -75,21 +76,23 @@ impl Prover {
     }
 
     /// Create a proof of a leaf in this tree.
-    ///
-    /// Note, if the tree ingests more leaves, the root will need to be recalculated.
-    pub fn prove(&self, index: usize) -> Result<Proof, ProverError> {
-        if index > u32::MAX as usize {
-            return Err(ProverError::IndexTooHigh(index));
+    #[instrument(err, skip(self), fields(prover_msg_count=self.count()))]
+    pub fn prove_against_previous(
+        &self,
+        leaf_index: usize,
+        root_index: usize,
+    ) -> Result<Proof, ProverError> {
+        if root_index > u32::MAX as usize {
+            return Err(ProverError::IndexTooHigh(root_index));
         }
         let count = self.count();
-        if index >= count {
-            return Err(ProverError::ZeroProof { index, count });
+        if root_index >= count {
+            return Err(ProverError::ZeroProof {
+                index: root_index,
+                count,
+            });
         }
-
-        let (leaf, hashes) = self.tree.generate_proof(index, TREE_DEPTH);
-        let mut path = [H256::zero(); 32];
-        path.copy_from_slice(&hashes[..32]);
-        Ok(Proof { leaf, index, path })
+        Ok(self.tree.prove_against_previous(leaf_index, root_index))
     }
 
     /// Verify a proof against this tree's root.
@@ -166,7 +169,7 @@ mod test {
 
             for n in 0..test_case.leaves.len() {
                 // assert the tree generates the proper proof for this leaf
-                let proof = tree.prove(n).unwrap();
+                let proof = tree.prove_against_previous(n, tree.count() - 1).unwrap();
                 assert_eq!(proof, test_case.proofs[n]);
 
                 // check that the tree can verify the proof for this leaf

@@ -1,18 +1,22 @@
 import { prompts } from 'prompts';
 
+import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
   ChainNameToDomainId,
+  CoreContracts,
   CoreViolationType,
   EnrolledValidatorsViolation,
   HyperlaneCoreChecker,
   MultisigIsmViolation,
   MultisigIsmViolationType,
   OwnerViolation,
+  ProxyViolation,
   ViolationType,
   objMap,
 } from '@hyperlane-xyz/sdk';
+import { ProxyKind } from '@hyperlane-xyz/sdk/dist/proxy';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { canProposeSafeTransactions } from '../utils/safe';
@@ -38,10 +42,12 @@ type AnnotatedCallData = types.CallData & {
 export class HyperlaneCoreGovernor<Chain extends ChainName> {
   readonly checker: HyperlaneCoreChecker<Chain>;
   private calls: ChainMap<Chain, AnnotatedCallData[]>;
+  private canPropose: ChainMap<Chain, Map<string, boolean>>;
 
   constructor(checker: HyperlaneCoreChecker<Chain>) {
     this.checker = checker;
     this.calls = objMap(this.checker.app.contractsMap, () => []);
+    this.canPropose = objMap(this.checker.app.contractsMap, () => new Map());
   }
 
   async govern() {
@@ -72,7 +78,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
           `> ${calls.length} calls will be submitted via ${submissionType}`,
         );
         calls.map((c) => console.log(`> > ${c.description}`));
-        const response = await prompts.confirm({
+        const response = prompts.confirm({
           type: 'confirm',
           name: 'value',
           message: 'Can you confirm?',
@@ -132,10 +138,42 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
           this.handleOwnerViolation(violation as OwnerViolation);
           break;
         }
+        case ProxyKind.Transparent: {
+          this.handleProxyViolation(violation as ProxyViolation);
+          break;
+        }
         default:
           throw new Error(`Unsupported violation type ${violation.type}`);
       }
     }
+  }
+
+  handleProxyViolation(violation: ProxyViolation) {
+    const contracts: CoreContracts =
+      this.checker.app.contractsMap[violation.chain as Chain];
+    let initData = '0x';
+    switch (violation.data.name) {
+      case 'InterchainGasPaymaster':
+        initData =
+          InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
+            'initialize',
+          );
+        break;
+      default:
+        throw new Error(`Unsupported proxy violation ${violation.data.name}`);
+    }
+    this.pushCall(violation.chain as Chain, {
+      to: contracts.proxyAdmin.address,
+      data: contracts.proxyAdmin.interface.encodeFunctionData(
+        'upgradeAndCall',
+        [
+          violation.data.proxyAddresses.proxy,
+          violation.data.proxyAddresses.implementation,
+          initData,
+        ],
+      ),
+      description: `Upgrade ${violation.data.proxyAddresses.proxy} to ${violation.data.proxyAddresses.implementation}`,
+    });
   }
 
   protected async inferCallSubmissionTypes() {
@@ -167,15 +205,20 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     const signer = connection.signer;
     if (!signer) throw new Error(`no signer found`);
     const signerAddress = await signer.getAddress();
-    const proposer = await canProposeSafeTransactions(
-      signerAddress,
-      chain,
-      connection,
-      safeAddress,
-    );
+    if (!this.canPropose[chain].has(safeAddress)) {
+      this.canPropose[chain].set(
+        safeAddress,
+        await canProposeSafeTransactions(
+          signerAddress,
+          chain,
+          connection,
+          safeAddress,
+        ),
+      );
+    }
 
     // 2b. Check if calling from the owner will succeed.
-    if (proposer) {
+    if (this.canPropose[chain].get(safeAddress)) {
       try {
         await connection.provider.estimateGas({
           ...call,

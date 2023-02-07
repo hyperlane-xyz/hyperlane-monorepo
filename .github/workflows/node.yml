@@ -1,7 +1,7 @@
 name: node
 
 on:
-  # Triggers the workflow on push or pull request events but only for the main and v2 branches
+  # Triggers the workflow on push or pull request against main
   push:
     branches: [main, audit-v2-remediation]
   pull_request:
@@ -21,14 +21,15 @@ jobs:
       - name: remove submodule locks
         run: git submodule foreach rm yarn.lock
 
-      - uses: actions/cache@v3
+      - name: yarn-cache
+        uses: actions/cache@v3
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: yarn-install
-        # Check out the lockfile from main, reinstall, and then
-        # verify the lockfile matches what was committed.
         run: |
           yarn install
           CHANGES=$(git status -s --ignore-submodules)
@@ -52,8 +53,10 @@ jobs:
       - name: yarn-cache
         uses: actions/cache@v3
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
         uses: actions/cache@v3
@@ -64,18 +67,23 @@ jobs:
       - name: build
         run: yarn build
 
-  lint-prettier:
+  lint:
     runs-on: ubuntu-latest
     needs: [yarn-install]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/cache@v3
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
+          path: |
+            **/node_modules
+            .yarn/cache
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: lint-ts
         run: yarn lint-ts
+
+      - name: lint-sol
+        run: yarn workspace @hyperlane-xyz/core run lint
 
       - name: prettier
         run: |
@@ -126,12 +134,64 @@ jobs:
       - name: Install dependencies
         run: cd solidity && forge install
 
-      - name: core
-        run: yarn workspace @hyperlane-xyz/core run test
-
-      - name: lint
-        run: yarn workspace @hyperlane-xyz/core run lint
-
       - name: gas
-        run: yarn workspace @hyperlane-xyz/core run gas || echo "Manually update gas snapshot"
+        run: yarn workspace @hyperlane-xyz/core run gas-ci
 
+      - name: forge-test
+        run: yarn workspace @hyperlane-xyz/core run test:forge
+
+      - 
+
+      # Will fail if hardhat tests fail but not if forge tests fail
+      - name: coverage
+        run: |
+          sudo apt-get install lcov
+          yarn workspace @hyperlane-xyz/core run coverage
+
+      - name: coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: './solidity/lcov.info'
+          key: ${{ github.sha }}
+
+  coverage-sol:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: [test-sol]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: ./*
+          key: ${{ github.sha }}
+
+      - name: base-coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: './solidity/lcov.info'
+          key: ${{ github.event.pull_request.base.sha }}
+
+      - name: persist-base-coverage
+        run: mv ./solidity/lcov.info ./solidity/lcov.base.info
+
+      - name: ref-coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: './solidity/lcov.info'
+          key: ${{ github.sha }}
+
+      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
+        with:
+          title: 'Solidity Coverage Report'
+          lcov-file: ./solidity/lcov.info
+          lcov-base: ./solidity/lcov.base.info
+          delete-old-comments: true
+
+      - name: check-coverage
+        run: |
+          sudo apt-get install lcov
+          cd ./solidity
+          export BASE=$(lcov --summary ./lcov.base.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          export REF=$(lcov --summary ./lcov.info | grep "lines" | sed 's/.*lines......:\ //' | sed 's/% (.*//')
+          if [[ $REF < $BASE ]]; then exit 1; fi

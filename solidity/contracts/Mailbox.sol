@@ -107,7 +107,6 @@ contract Mailbox is
 
     // ============ Constructor ============
 
-    // solhint-disable-next-line no-empty-blocks
     constructor(uint32 _localDomain) {
         localDomain = _localDomain;
     }

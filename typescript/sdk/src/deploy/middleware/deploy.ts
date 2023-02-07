@@ -1,8 +1,9 @@
+import { ethers } from 'ethers';
+
 import {
   InterchainAccountRouter__factory,
   InterchainQueryRouter__factory,
 } from '@hyperlane-xyz/core';
-import { RouterInterface } from '@hyperlane-xyz/core/dist/contracts/Router';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import {
@@ -34,20 +35,14 @@ export abstract class MiddlewareRouterDeployer<
 > {
   getInitArgs(
     config: MiddlewareRouterConfig,
-    routerInterface: RouterInterface,
+    routerInterface: ethers.utils.Interface,
   ): string {
-    const initArgs: [string, string] | [string, string, string] = [
+    return routerInterface.encodeFunctionData('initialize', [
       config.mailbox,
       config.interchainGasPaymaster,
-    ];
-    let functionName = 'initialize(address,address)';
-    if (config.interchainSecurityModule) {
-      functionName = 'initialize(address,address,address)';
-      initArgs.push(config.interchainSecurityModule);
-    }
-
-    // @ts-ignore Compiler can't infer correct signature
-    return routerInterface.encodeFunctionData(functionName, initArgs);
+      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      config.owner,
+    ]);
   }
 }
 

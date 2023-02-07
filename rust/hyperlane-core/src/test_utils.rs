@@ -1,7 +1,10 @@
-use std::{fs::File, io::Read, path::PathBuf};
+use std::fs::File;
+use std::io::Read;
+use std::path::PathBuf;
+
+use primitive_types::H256;
 
 use crate::accumulator::merkle::Proof;
-use crate::H256;
 
 /// Struct representing a single merkle test case
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -17,6 +20,14 @@ pub struct MerkleTestCase {
     pub expected_root: H256,
 }
 
+/// Reads merkle test case json file and returns a vector of `MerkleTestCase`s
+pub fn load_merkle_test_json() -> Vec<MerkleTestCase> {
+    let mut file = File::open(find_vector("merkle.json")).unwrap();
+    let mut data = String::new();
+    file.read_to_string(&mut data).unwrap();
+    serde_json::from_str(&data).unwrap()
+}
+
 /// Find a vector file assuming that a git checkout exists
 // TODO: look instead for the workspace `Cargo.toml`? use a cargo env var?
 pub fn find_vector(final_component: &str) -> PathBuf {
@@ -27,12 +38,4 @@ pub fn find_vector(final_component: &str) -> PathBuf {
         .expect("could not find .git somewhere! confused about workspace layout");
 
     git_dir.join("vectors").join(final_component)
-}
-
-/// Reads merkle test case json file and returns a vector of `MerkleTestCase`s
-pub fn load_merkle_test_json() -> Vec<MerkleTestCase> {
-    let mut file = File::open(find_vector("merkle.json")).unwrap();
-    let mut data = String::new();
-    file.read_to_string(&mut data).unwrap();
-    serde_json::from_str(&data).unwrap()
 }

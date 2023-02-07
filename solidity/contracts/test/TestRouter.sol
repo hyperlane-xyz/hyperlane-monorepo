@@ -6,8 +6,14 @@ import "../Router.sol";
 contract TestRouter is Router {
     event InitializeOverload();
 
-    function initialize(address _mailbox) external initializer {
-        __Router_initialize(_mailbox);
+    function initialize(address _mailbox, address _interchainGasPaymaster)
+        external
+        initializer
+    {
+        __HyperlaneConnectionClient_initialize(
+            _mailbox,
+            _interchainGasPaymaster
+        );
         emit InitializeOverload();
     }
 

@@ -158,7 +158,7 @@ export function writeJSON(directory: string, filename: string, obj: any) {
   }
   fs.writeFileSync(
     path.join(directory, filename),
-    JSON.stringify(obj, null, 2),
+    JSON.stringify(obj, null, 2) + '\n',
   );
 }
 

@@ -9,16 +9,14 @@ use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use gelato::types::Chain;
 use hyperlane_base::{chains::GelatoConf, CachingMailbox, CoreMetrics};
-use hyperlane_core::{
-    db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, KnownHyperlaneDomain, MultisigIsm,
-};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, KnownHyperlaneDomain};
 
+use super::gas_payment::GasPaymentEnforcer;
+use super::metadata_builder::MetadataBuilder;
+use super::SubmitMessageArgs;
 use crate::msg::gelato_submitter::sponsored_call_op::{
     SponsoredCallOp, SponsoredCallOpArgs, SponsoredCallOptions,
 };
-
-use super::gas_payment::GasPaymentEnforcer;
-use super::SubmitMessageArgs;
 
 mod sponsored_call_op;
 
@@ -32,8 +30,8 @@ pub(crate) struct GelatoSubmitter {
     message_receiver: UnboundedReceiver<SubmitMessageArgs>,
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
-    /// Multisig ISM on the destination chain.
-    multisig_ism: Arc<dyn MultisigIsm>,
+    /// Metadata builder for the destination chain.
+    metadata_builder: MetadataBuilder,
     /// The destination chain in the format expected by the Gelato crate.
     destination_gelato_chain: Chain,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
@@ -54,7 +52,7 @@ impl GelatoSubmitter {
     pub fn new(
         message_receiver: UnboundedReceiver<SubmitMessageArgs>,
         mailbox: CachingMailbox,
-        multisig_ism: Arc<dyn MultisigIsm>,
+        metadata_builder: MetadataBuilder,
         hyperlane_db: HyperlaneDB,
         gelato_config: GelatoConf,
         metrics: GelatoSubmitterMetrics,
@@ -71,7 +69,7 @@ impl GelatoSubmitter {
             destination_gelato_chain: hyperlane_domain_id_to_gelato_chain(mailbox.domain())
                 .unwrap(),
             mailbox,
-            multisig_ism,
+            metadata_builder,
             db: hyperlane_db,
             gelato_config,
             http_client,
@@ -120,7 +118,7 @@ impl GelatoSubmitter {
                 http: self.http_client.clone(),
                 message: msg,
                 mailbox: self.mailbox.clone(),
-                multisig_ism: self.multisig_ism.clone(),
+                metadata_builder: self.metadata_builder.clone(),
                 sponsor_api_key: self.gelato_config.sponsorapikey.clone(),
                 destination_chain: self.destination_gelato_chain,
                 message_processed_sender: self.message_processed_sender.clone(),
@@ -234,6 +232,8 @@ pub fn hyperlane_domain_id_to_gelato_chain(domain: &HyperlaneDomain) -> Result<C
 
             KnownHyperlaneDomain::Moonbeam => Chain::Moonbeam,
             KnownHyperlaneDomain::MoonbaseAlpha => Chain::MoonbaseAlpha,
+
+            KnownHyperlaneDomain::Gnosis => Chain::Gnosis,
 
             KnownHyperlaneDomain::Zksync2Testnet => Chain::Zksync2Testnet,
 

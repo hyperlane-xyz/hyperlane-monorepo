@@ -55,6 +55,8 @@ async function helmValuesForChain<Chain extends ChainName>(
     };
   }
 
+  const signers = await chainAgentConfig.signers();
+
   return {
     image: {
       repository: agentConfig.docker.repo,
@@ -66,16 +68,19 @@ async function helmValuesForChain<Chain extends ChainName>(
       baseConfig: `${agentConfig.runEnv}_config.json`,
       aws: !!agentConfig.aws,
       gelatoApiKeyRequired,
-      chains: agentConfig.environmentChainNames.map((envChainName) => {
-        return {
-          name: envChainName,
-          disabled: !agentConfig.contextChainNames.includes(envChainName),
-          txsubmission: {
-            type: chainAgentConfig.transactionSubmissionType(envChainName),
-          },
-          connection: baseConnectionConfig,
-        };
-      }),
+      chains: agentConfig.environmentChainNames.map((envChainName) => ({
+        name: envChainName,
+        disabled: !agentConfig.contextChainNames.includes(envChainName),
+        txsubmission: {
+          type: chainAgentConfig.transactionSubmissionType(envChainName),
+        },
+        connection: baseConnectionConfig,
+      })),
+      // Only the relayer has the signers on the chains config object
+      relayerChains: agentConfig.environmentChainNames.map((envChainName) => ({
+        name: envChainName,
+        signer: signers[envChainName],
+      })),
       validator: {
         enabled: chainAgentConfig.validatorEnabled,
         configs: await chainAgentConfig.validatorConfigs(),
@@ -83,7 +88,6 @@ async function helmValuesForChain<Chain extends ChainName>(
       relayer: {
         enabled: chainAgentConfig.relayerEnabled,
         aws: await chainAgentConfig.relayerRequiresAwsCredentials(),
-        signers: await chainAgentConfig.relayerSigners(),
         config: chainAgentConfig.relayerConfig,
       },
     },
@@ -142,11 +146,13 @@ export async function getAgentEnvVars<Chain extends ChainName>(
     if (role === KEY_ROLE_ENUM.Relayer) {
       chainNames.forEach((name) => {
         envVars.push(
-          `HYP_BASE_SIGNERS_${name.toUpperCase()}_KEY=${utils.strip0x(
+          `HYP_BASE_CHAINS_${name.toUpperCase()}_SIGNER_KEY=${utils.strip0x(
             gcpKeys[keyId].privateKey,
           )}`,
         );
-        envVars.push(`HYP_BASE_SIGNERS_${name.toUpperCase()}_TYPE=hexKey`);
+        envVars.push(
+          `HYP_BASE_CHAINS_${name.toUpperCase()}_SIGNER_TYPE=hexKey`,
+        );
       });
     } else if (role === KEY_ROLE_ENUM.Validator) {
       const privateKey = gcpKeys[keyId].privateKey;
@@ -201,7 +207,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
           configEnvVars(
             key.keyConfig,
             'BASE',
-            `SIGNERS_${chainName.toUpperCase()}_`,
+            `CHAINS_${chainName.toUpperCase()}_SIGNER_`,
           ),
         );
       });
