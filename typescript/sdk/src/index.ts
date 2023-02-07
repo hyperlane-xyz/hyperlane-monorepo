@@ -161,3 +161,4 @@ export {
 } from './utils/number';
 export { objMap, objMapEntries, promiseObjAll, pick } from './utils/objects';
 export { delay } from './utils/time';
+export { chainMetadataToWagmiChain } from './utils/wagmi';
