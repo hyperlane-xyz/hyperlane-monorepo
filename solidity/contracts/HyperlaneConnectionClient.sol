@@ -16,6 +16,7 @@ abstract contract HyperlaneConnectionClient is
 {
     // ============ Mutable Storage ============
 
+    // @custom:security non-reentrant
     IMailbox public mailbox;
     // Interchain Gas Paymaster contract. The relayer associated with this contract
     // must be willing to relay messages dispatched from the current Mailbox contract,

@@ -123,6 +123,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         returns (OwnableMulticall)
     {
         bytes32 salt = _salt(_origin, _sender);
+        // @custom:security non-reentrant
         address payable interchainAccount = _getInterchainAccount(salt);
         if (!Address.isContract(interchainAccount)) {
             bytes memory bytecode = MinimalProxy.bytecode(implementation);
