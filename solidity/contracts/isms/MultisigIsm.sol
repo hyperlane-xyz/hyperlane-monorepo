@@ -21,7 +21,6 @@ import {MerkleLib} from "../libs/Merkle.sol";
 contract MultisigIsm is IMultisigIsm, OwnableMOfNSet {
     // ============ Libraries ============
 
-    using EnumerableMOfNSet for EnumerableMOfNSet.AddressSet;
     using Message for bytes;
     using MultisigIsmMetadata for bytes;
     using MerkleLib for MerkleLib.Tree;

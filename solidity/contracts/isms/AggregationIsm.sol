@@ -17,7 +17,6 @@ import {OwnableMOfNSet} from "../libs/OwnableMOfNSet.sol";
 contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
     // ============ Libraries ============
 
-    using EnumerableMOfNSet for EnumerableMOfNSet.AddressSet;
     using Message for bytes;
 
     // ============ Constants ============
