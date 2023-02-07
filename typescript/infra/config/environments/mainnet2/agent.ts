@@ -30,8 +30,8 @@ export const hyperlane: AgentConfig<MainnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // commit date: 2023-01-31
-    tag: 'sha-d95d9b2',
+    // commit date: 2023-02-07
+    tag: '1f88d0d-20230207-132109',
   },
   aws: {
     region: 'us-east-1',
@@ -109,8 +109,8 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // commit date: 2023-02-01
-    tag: 'sha-c6a8189',
+    // commit date: 2023-02-07
+    tag: '1f88d0d-20230207-132109',
   },
   aws: {
     region: 'us-east-1',
