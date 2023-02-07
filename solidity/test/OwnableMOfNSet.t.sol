@@ -138,6 +138,32 @@ contract OwnableMOfNSetTest is Test {
         set.setThreshold(domain, threshold);
     }
 
+    function testSetThresholds(uint32[] memory domains, address value) public {
+        vm.assume(value != address(0));
+        uint8 threshold = 1;
+        uint8[] memory thresholds = new uint8[](domains.length);
+        // `domains` could contain repeats
+        bool[] memory skip = new bool[](domains.length);
+        for (uint256 i = 0; i < domains.length; i++) {
+            thresholds[i] = threshold;
+            if (set.contains(domains[i], value)) {
+                skip[i] = true;
+            } else {
+                set.add(domains[i], value);
+            }
+        }
+        for (uint256 i = 0; i < domains.length; i++) {
+            if (skip[i]) continue;
+            vm.expectEmit(true, true, false, true, address(set));
+            emit ThresholdSet(domains[i], threshold);
+            bytes32 commitment = keccak256(
+                abi.encodePacked(uint8(threshold), [value])
+            );
+            emit CommitmentUpdated(domains[i], commitment);
+        }
+        set.setThresholds(domains, thresholds);
+    }
+
     function testContains(uint32 domain, address value) public {
         vm.assume(value != address(0x0));
         require(!set.contains(domain, value));
@@ -152,5 +178,29 @@ contract OwnableMOfNSetTest is Test {
         require(set.length(domain) == 0);
         set.add(domain, value);
         require(set.length(domain) == 1);
+    }
+
+    function testValuesAndThreshold(uint32 domain, address value) public {
+        vm.assume(value != address(0x0));
+        (address[] memory values, uint8 threshold) = set.valuesAndThreshold(
+            domain
+        );
+        address[] memory emptySet = new address[](0);
+        require(
+            keccak256(abi.encodePacked(values)) ==
+                keccak256(abi.encodePacked(emptySet))
+        );
+        require(threshold == 0);
+
+        set.add(domain, value);
+        set.setThreshold(domain, 1);
+        (values, threshold) = set.valuesAndThreshold(domain);
+        address[] memory nonEmptySet = new address[](1);
+        nonEmptySet[0] = value;
+        require(
+            keccak256(abi.encodePacked(values)) ==
+                keccak256(abi.encodePacked(nonEmptySet))
+        );
+        require(threshold == 1);
     }
 }

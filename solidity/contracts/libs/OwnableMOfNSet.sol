@@ -190,19 +190,17 @@ abstract contract OwnableMOfNSet is Ownable {
     }
 
     /**
-     * @notice Returns the set of values responsible for verifying _message
-     * and the number of signatures required
-     * @dev Can change based on the content of _message
-     * @param _message Hyperlane formatted interchain message
+     * @notice Returns the set of values in the specified set
+     * and the threshold
+     * @param _domain The remote domain of the set.
      * @return values The array of value addresses
      * @return threshold The number of value signatures needed
      */
-    function valuesAndThreshold(bytes calldata _message)
-        internal
+    function valuesAndThreshold(uint32 _domain)
+        public
         view
         returns (address[] memory, uint8)
     {
-        uint32 _origin = _message.origin();
-        return _sets[_origin].valuesAndThreshold();
+        return _sets[_domain].valuesAndThreshold();
     }
 }

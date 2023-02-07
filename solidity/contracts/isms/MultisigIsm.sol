@@ -68,9 +68,7 @@ contract MultisigIsm is IMultisigIsm, OwnableMOfNSet {
         returns (address[] memory, uint8)
     {
         uint32 _origin = _message.origin();
-        address[] memory _validators = values(_origin);
-        uint8 _threshold = threshold(_origin);
-        return (_validators, _threshold);
+        return valuesAndThreshold(_origin);
     }
 
     // ============ Internal Functions ============

@@ -76,6 +76,7 @@ contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
         view
         returns (address[] memory, uint8)
     {
-        return valuesAndThreshold(_message);
+        uint32 _origin = _message.origin();
+        return valuesAndThreshold(_origin);
     }
 }
