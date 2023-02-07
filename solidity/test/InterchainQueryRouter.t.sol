@@ -18,12 +18,12 @@ contract InterchainQueryRouterTest is Test {
 
     event QueryDispatched(
         uint32 indexed destinationDomain,
-        bytes32 indexed sender
+        address indexed sender
     );
     event QueryReturned(uint32 indexed originDomain, bytes32 indexed sender);
     event QueryResolved(
         uint32 indexed destinationDomain,
-        bytes32 indexed sender
+        address indexed sender
     );
 
     MockHyperlaneEnvironment environment;
@@ -80,7 +80,7 @@ contract InterchainQueryRouterTest is Test {
         bytes memory callback
     ) public {
         vm.expectEmit(true, true, false, true, address(originRouter));
-        emit QueryDispatched(remoteDomain, address(this).addressToBytes32());
+        emit QueryDispatched(remoteDomain, address(this));
 
         CallLib.StaticCallWithCallback[]
             memory calls = new CallLib.StaticCallWithCallback[](1);
@@ -94,7 +94,7 @@ contract InterchainQueryRouterTest is Test {
         environment.processNextPendingMessage();
 
         vm.expectEmit(true, true, false, true, address(originRouter));
-        emit QueryResolved(remoteDomain, address(this).addressToBytes32());
+        emit QueryResolved(remoteDomain, address(this));
         environment.processNextPendingMessageFromDestination();
     }
 
