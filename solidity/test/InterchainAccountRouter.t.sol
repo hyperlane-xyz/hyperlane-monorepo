@@ -129,6 +129,20 @@ contract InterchainAccountRouterTest is Test {
         assertEq(localIca.owner(), address(originRouter));
     }
 
+    function testBytes32Owner() public {
+        OwnableMulticall remoteIca = remoteRouter.getDeployedInterchainAccount(
+            originDomain,
+            address(this).addressToBytes32()
+        );
+        assertEq(remoteIca.owner(), address(remoteRouter));
+
+        OwnableMulticall localIca = originRouter.getDeployedInterchainAccount(
+            remoteDomain,
+            address(this).addressToBytes32()
+        );
+        assertEq(localIca.owner(), address(originRouter));
+    }
+
     function testReceiveValue(uint256 value) public {
         vm.assume(value > 0 && value <= address(this).balance);
 
