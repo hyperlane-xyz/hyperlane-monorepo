@@ -73,7 +73,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
     // commit date: 2023-02-07
-    tag: 'b55d7c5-20230207-165646',
+    tag: 'f921c53-20230207-205730',
   },
   aws: {
     region: 'us-east-1',
