@@ -30,8 +30,8 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // commit date: 2023-02-01
-    tag: 'sha-c6a8189',
+    // commit date: 2023-02-07
+    tag: 'b55d7c5-20230207-165646',
   },
   aws: {
     region: 'us-east-1',
@@ -51,7 +51,8 @@ export const hyperlane: AgentConfig<TestnetChains> = {
       ],
       gasPaymentEnforcement: {
         policy: {
-          type: GasPaymentEnforcementPolicyType.None,
+          type: GasPaymentEnforcementPolicyType.Minimum,
+          payment: 1,
         },
         // To continue relaying interchain query callbacks, we whitelist
         // all messages between interchain query routers.
@@ -71,8 +72,8 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // commit date: 2023-02-01
-    tag: 'sha-c6a8189',
+    // commit date: 2023-02-07
+    tag: 'b55d7c5-20230207-165646',
   },
   aws: {
     region: 'us-east-1',
@@ -89,8 +90,10 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
       whitelist: releaseCandidateHelloworldMatchingList,
       gasPaymentEnforcement: {
         policy: {
-          type: GasPaymentEnforcementPolicyType.None,
+          type: GasPaymentEnforcementPolicyType.Minimum,
+          payment: 1, // require 1 wei
         },
+        whitelist: interchainQueriesMatchingList,
       },
       transactionGasLimit: BigInt(750000),
       // Skipping arbitrum because the gas price estimates are inclusive of L1

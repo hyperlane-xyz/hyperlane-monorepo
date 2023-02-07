@@ -2,7 +2,7 @@
 
 The Hyperlane SDK helps developers create and manage interchain applications.
 
-For details on how to use the various abstractions and utilities, [see the documentation](https://docs.hyperlane.xyz/hyperlane-docs-1/developers/building-applications)
+For details on how to use the various abstractions and utilities, [see the documentation](https://docs.hyperlane.xyz/docs/sdks/building-applications)
 
 ## Install
 
@@ -16,7 +16,7 @@ The names and relevant metadata for all Hyperlane-supported chains are included 
 
 ### Deployment, testing, and development classes
 
-Classes for deploying, testing, and building applications using Hyperlane are included in the SDK. See [the docs](https://docs.hyperlane.xyz/hyperlane-docs-1/developers/building-applications/nodejs-sdk) for details.
+Classes for deploying, testing, and building applications using Hyperlane are included in the SDK. See [the docs](https://docs.hyperlane.xyz/docs/sdks/building-applications/nodejs-sdk) for details.
 
 ### Chain Logos
 
