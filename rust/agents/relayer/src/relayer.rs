@@ -121,9 +121,10 @@ impl BaseAgent for Relayer {
             .chain_setup(&settings.originchainname)
             .context("Relayer must run on a configured chain")?
             .domain()?;
-        
+
         let gas_enforcement_policy = settings.gaspaymentenforcement.policy;
-        let gas_enforcement_whitelist = parse_matching_list(&settings.gaspaymentenforcement.whitelist);
+        let gas_enforcement_whitelist =
+            parse_matching_list(&settings.gaspaymentenforcement.whitelist);
 
         info!(
             ?gas_enforcement_policy,
