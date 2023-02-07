@@ -11,7 +11,6 @@ import {Message} from "./Message.sol";
 abstract contract OwnableMOfNSet is Ownable {
     // ============ Libraries ============
 
-    using EnumerableMOfNSet for EnumerableMOfNSet.AddressSet;
     using Message for bytes;
 
     // ============ Mutable Storage ============
@@ -83,8 +82,12 @@ abstract contract OwnableMOfNSet is Ownable {
             EnumerableMOfNSet.AddressSet storage _set = _sets[_domain];
             for (uint256 j = 0; j < _values[i].length; j += 1) {
                 address _value = _values[i][j];
-                _set.add(_values[i][j]);
-                emit ValueAdded(_domain, _value, _set.length());
+                EnumerableMOfNSet.add(_set, _values[i][j]);
+                emit ValueAdded(
+                    _domain,
+                    _value,
+                    EnumerableMOfNSet.length(_set)
+                );
             }
             emit CommitmentUpdated(_domain, _set.commitment);
         }
@@ -98,8 +101,8 @@ abstract contract OwnableMOfNSet is Ownable {
      */
     function add(uint32 _domain, address _value) external onlyOwner {
         EnumerableMOfNSet.AddressSet storage _set = _sets[_domain];
-        bytes32 _commitment = _set.add(_value);
-        emit ValueAdded(_domain, _value, _set.length());
+        bytes32 _commitment = EnumerableMOfNSet.add(_set, _value);
+        emit ValueAdded(_domain, _value, EnumerableMOfNSet.length(_set));
         emit CommitmentUpdated(_domain, _commitment);
     }
 
@@ -111,8 +114,8 @@ abstract contract OwnableMOfNSet is Ownable {
      */
     function remove(uint32 _domain, address _value) external onlyOwner {
         EnumerableMOfNSet.AddressSet storage _set = _sets[_domain];
-        bytes32 _commitment = _set.remove(_value);
-        emit ValueRemoved(_domain, _value, _set.length());
+        bytes32 _commitment = EnumerableMOfNSet.remove(_set, _value);
+        emit ValueRemoved(_domain, _value, EnumerableMOfNSet.length(_set));
         emit CommitmentUpdated(_domain, _commitment);
     }
 
@@ -142,7 +145,7 @@ abstract contract OwnableMOfNSet is Ownable {
         view
         returns (bool)
     {
-        return _sets[_domain].contains(_value);
+        return EnumerableMOfNSet.contains(_sets[_domain], _value);
     }
 
     // ============ Public Functions ============
@@ -154,7 +157,7 @@ abstract contract OwnableMOfNSet is Ownable {
      */
     function setThreshold(uint32 _domain, uint8 _threshold) public onlyOwner {
         EnumerableMOfNSet.AddressSet storage _set = _sets[_domain];
-        bytes32 _commitment = _set.setThreshold(_threshold);
+        bytes32 _commitment = EnumerableMOfNSet.setThreshold(_set, _threshold);
         emit ThresholdSet(_domain, _threshold);
         emit CommitmentUpdated(_domain, _commitment);
     }
@@ -165,7 +168,7 @@ abstract contract OwnableMOfNSet is Ownable {
      * @return The addresses of the set.
      */
     function values(uint32 _domain) public view returns (address[] memory) {
-        return _sets[_domain].values();
+        return EnumerableMOfNSet.values(_sets[_domain]);
     }
 
     function threshold(uint32 _domain) public view returns (uint8) {
@@ -178,7 +181,7 @@ abstract contract OwnableMOfNSet is Ownable {
      * @return The number of values contained in the set.
      */
     function length(uint32 _domain) public view returns (uint256) {
-        return _sets[_domain].length();
+        return EnumerableMOfNSet.length(_sets[_domain]);
     }
 
     function setMatches(
@@ -186,7 +189,7 @@ abstract contract OwnableMOfNSet is Ownable {
         uint8 _threshold,
         bytes calldata _values
     ) public view returns (bool) {
-        return _sets[_domain].matches(_threshold, _values);
+        return EnumerableMOfNSet.matches(_sets[_domain], _threshold, _values);
     }
 
     /**
@@ -201,6 +204,6 @@ abstract contract OwnableMOfNSet is Ownable {
         view
         returns (address[] memory, uint8)
     {
-        return _sets[_domain].valuesAndThreshold();
+        return EnumerableMOfNSet.valuesAndThreshold(_sets[_domain]);
     }
 }

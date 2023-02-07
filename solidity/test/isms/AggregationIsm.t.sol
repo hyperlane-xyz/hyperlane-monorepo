@@ -54,14 +54,17 @@ contract AggregationIsmTest is Test {
         uint8 m,
         uint8 n,
         bytes32 seed
-    ) private {
+    ) private returns (address[] memory) {
         bytes32 randomness = seed;
+        address[] memory isms = new address[](n);
         for (uint256 i = 0; i < n; i++) {
             randomness = keccak256(abi.encode(randomness));
             TestIsm subIsm = new TestIsm(abi.encode(randomness));
             ism.add(domain, address(subIsm));
+            isms[i] = address(subIsm);
         }
         ism.setThreshold(domain, m);
+        return isms;
     }
 
     function getMetadata(
@@ -106,7 +109,7 @@ contract AggregationIsmTest is Test {
             domain,
             messageSuffix
         );
-        require(ism.verify(metadata, message));
+        assertTrue(ism.verify(metadata, message));
     }
 
     function testVerifyMissingMetadata(
@@ -159,5 +162,27 @@ contract AggregationIsmTest is Test {
         );
         vm.expectRevert(bytes("!verify"));
         ism.verify(metadata, message);
+    }
+
+    function testIsmsAndThreshold(
+        uint32 domain,
+        uint8 m,
+        uint8 n,
+        bytes5 messagePrefix,
+        bytes calldata messageSuffix,
+        bytes32 seed
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10);
+        vm.assume(messageSuffix.length < 100);
+        address[] memory expectedIsms = deployIsms(domain, m, n, seed);
+        bytes memory message = abi.encodePacked(
+            messagePrefix,
+            domain,
+            messageSuffix
+        );
+        (address[] memory actualIsms, uint8 actualThreshold) = ism
+            .ismsAndThreshold(message);
+        assertEq(abi.encode(actualIsms), abi.encode(expectedIsms));
+        assertEq(actualThreshold, m);
     }
 }

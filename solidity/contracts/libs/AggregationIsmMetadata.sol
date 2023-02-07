@@ -60,18 +60,6 @@ library AggregationIsmMetadata {
         return _metadata[_start:_end];
     }
 
-    function _metadataPointerStart(bytes calldata _metadata, uint8 _index)
-        private
-        pure
-        returns (uint256)
-    {
-        uint256 _offsetsStart = ISM_ADDRESSES_OFFSET +
-            uint256(count(_metadata)) *
-            32;
-        uint256 _start = _offsetsStart + (uint256(_index) * 32);
-        return _start;
-    }
-
     function _metadataPointers(bytes calldata _metadata, uint8 _index)
         private
         pure
