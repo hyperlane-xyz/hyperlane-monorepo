@@ -9,7 +9,7 @@ use ethers::providers::Middleware;
 
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    ValidatorAnnounce, H160, H256, HyperlaneProvider,
+    HyperlaneProvider, ValidatorAnnounce, H160, H256,
 };
 
 use crate::contracts::validator_announce::{

@@ -4,8 +4,13 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument};
 
-use hyperlane_base::{CachingMailbox, ChainSetup, CoreMetrics, CheckpointSyncer, MultisigCheckpointSyncer, CheckpointSyncerConf};
-use hyperlane_core::{HyperlaneChain, HyperlaneMessage, Mailbox, MultisigIsm, ValidatorAnnounce, H160, H256};
+use hyperlane_base::{
+    CachingMailbox, ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics,
+    MultisigCheckpointSyncer,
+};
+use hyperlane_core::{
+    HyperlaneChain, HyperlaneMessage, Mailbox, MultisigIsm, ValidatorAnnounce, H160, H256,
+};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
