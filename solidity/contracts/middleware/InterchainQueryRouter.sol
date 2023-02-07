@@ -79,6 +79,7 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         uint32 _destinationDomain,
         CallLib.StaticCallWithCallback[] calldata calls
     ) public returns (bytes32 messageId) {
+        // slither-disable-next-line reentrancy-events
         messageId = _dispatch(
             _destinationDomain,
             InterchainCallMessage.format(calls, msg.sender.addressToBytes32())

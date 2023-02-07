@@ -123,12 +123,12 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         returns (OwnableMulticall)
     {
         bytes32 salt = _salt(_origin, _sender);
-        // @custom:security non-reentrant
         address payable interchainAccount = _getInterchainAccount(salt);
         if (!Address.isContract(interchainAccount)) {
             bytes memory bytecode = MinimalProxy.bytecode(implementation);
             interchainAccount = payable(Create2.deploy(0, salt, bytecode));
             // transfers ownership to this contract
+            // slither-disable-next-line reentrancy-events
             OwnableMulticall(interchainAccount).initialize();
             emit InterchainAccountCreated(_origin, _sender, interchainAccount);
         }
