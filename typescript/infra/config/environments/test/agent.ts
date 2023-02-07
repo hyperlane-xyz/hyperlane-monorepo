@@ -30,8 +30,10 @@ export const hyperlane: AgentConfig<TestChains> = {
   },
   relayer: {
     default: {
-      gasPaymentEnforcementPolicy: {
-        type: GasPaymentEnforcementPolicyType.None,
+      gasPaymentEnforcement: {
+        policy: {
+          type: GasPaymentEnforcementPolicyType.None,
+        },
       },
     },
   },

@@ -27,7 +27,7 @@ use crate::{
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         SubmitMessageArgs,
     },
-    settings::{matching_list::MatchingList, GasPaymentEnforcementPolicy, RelayerSettings},
+    settings::{matching_list::MatchingList, RelayerSettings},
 };
 
 /// A relayer agent
@@ -38,7 +38,7 @@ pub struct Relayer {
     mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
     interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
-    gas_payment_enforcement_policy: GasPaymentEnforcementPolicy,
+    gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     transaction_gas_limit: Option<U256>,
@@ -88,8 +88,8 @@ impl BaseAgent for Relayer {
             core.metrics.validator_checkpoint_index(),
         )?;
 
-        let whitelist = parse_matching_list(&settings.whitelist);
-        let blacklist = parse_matching_list(&settings.blacklist);
+        let whitelist = Arc::new(parse_matching_list(&settings.whitelist));
+        let blacklist = Arc::new(parse_matching_list(&settings.blacklist));
 
         let skip_transaction_gas_limit_for = settings
             .skiptransactiongaslimitfor
@@ -122,13 +122,19 @@ impl BaseAgent for Relayer {
             .context("Relayer must run on a configured chain")?
             .domain()?;
 
+        let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
+            settings.gaspaymentenforcement.policy,
+            parse_matching_list(&settings.gaspaymentenforcement.whitelist),
+            mailboxes.get(&origin_chain).unwrap().db().clone(),
+        ));
+
         Ok(Self {
             origin_chain,
             core,
             mailboxes,
             interchain_gas_paymasters,
             multisig_checkpoint_syncer,
-            gas_payment_enforcement_policy: settings.gaspaymentenforcementpolicy,
+            gas_payment_enforcer,
             whitelist,
             blacklist,
             transaction_gas_limit,
@@ -141,11 +147,6 @@ impl BaseAgent for Relayer {
         let num_mailboxes = self.mailboxes.len();
 
         let mut tasks = Vec::with_capacity(num_mailboxes + 2);
-
-        let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
-            self.gas_payment_enforcement_policy.clone(),
-            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
-        ));
 
         let prover_sync = Arc::new(RwLock::new(MerkleTreeBuilder::new(
             self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
@@ -184,7 +185,7 @@ impl BaseAgent for Relayer {
                 metadata_builder.clone(),
                 txsubmission,
                 self.core.settings.gelato.as_ref(),
-                gas_payment_enforcer.clone(),
+                self.gas_payment_enforcer.clone(),
                 receive_channel,
             ));
         }
@@ -345,14 +346,12 @@ impl Relayer {
     }
 }
 
-fn parse_matching_list(list: &Option<String>) -> Arc<MatchingList> {
-    Arc::new(
-        list.as_deref()
-            .map(serde_json::from_str)
-            .transpose()
-            .expect("Invalid matching list received")
-            .unwrap_or_default(),
-    )
+fn parse_matching_list(list: &Option<String>) -> MatchingList {
+    list.as_deref()
+        .map(serde_json::from_str)
+        .transpose()
+        .expect("Invalid matching list received")
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
