@@ -25,7 +25,8 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: 'sha-0477ee1',
+    // commit date: 2023-02-01
+    tag: 'sha-c6a8189',
   },
   aws: {
     region: 'us-east-1',
@@ -36,7 +37,7 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   gelato: {
     enabledChains: [],
   },
-  connectionType: ConnectionType.HttpQuorum,
+  connectionType: ConnectionType.HttpFallback,
   validator: {
     default: {
       interval: 5,
@@ -84,7 +85,8 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: 'sha-0477ee1',
+    // commit date: 2023-02-01
+    tag: 'sha-c6a8189',
   },
   aws: {
     region: 'us-east-1',
@@ -95,7 +97,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   gelato: {
     enabledChains: [],
   },
-  connectionType: ConnectionType.HttpQuorum,
+  connectionType: ConnectionType.HttpFallback,
   relayer: {
     default: {
       whitelist: releaseCandidateHelloworldMatchingList,

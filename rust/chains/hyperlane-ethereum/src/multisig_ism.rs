@@ -12,12 +12,13 @@ use tracing::instrument;
 use hyperlane_core::accumulator::merkle::Proof;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, MultisigIsm, MultisigSignedCheckpoint, RawHyperlaneMessage,
-    SignatureWithSigner, H256,
+    HyperlaneMessage, HyperlaneProvider, MultisigIsm, MultisigSignedCheckpoint,
+    RawHyperlaneMessage, SignatureWithSigner, H256,
 };
 
 use crate::contracts::multisig_ism::{MultisigIsm as EthereumMultisigIsmInternal, MULTISIGISM_ABI};
 use crate::trait_builder::BuildableWithProvider;
+use crate::EthereumProvider;
 
 impl<M> std::fmt::Display for EthereumMultisigIsmInternal<M>
 where
@@ -73,6 +74,13 @@ where
 {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(EthereumProvider::new(
+            self.contract.client(),
+            self.domain.clone(),
+        ))
     }
 }
 

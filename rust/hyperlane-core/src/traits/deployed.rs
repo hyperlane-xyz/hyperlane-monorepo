@@ -1,4 +1,4 @@
-use crate::{HyperlaneDomain, H256};
+use crate::{HyperlaneDomain, HyperlaneProvider, H256};
 use std::fmt;
 
 /// Interface for features of something deployed on/in a domain or is otherwise
@@ -7,6 +7,8 @@ use std::fmt;
 pub trait HyperlaneChain {
     /// Return the domain
     fn domain(&self) -> &HyperlaneDomain;
+    /// A provider for the chain
+    fn provider(&self) -> Box<dyn HyperlaneProvider>;
 }
 
 /// Interface for a deployed contract.
