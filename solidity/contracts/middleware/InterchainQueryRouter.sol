@@ -79,12 +79,11 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         uint32 _destinationDomain,
         CallLib.StaticCallWithCallback[] calldata calls
     ) public returns (bytes32 messageId) {
-        // slither-disable-next-line reentrancy-events
+        emit QueryDispatched(_destinationDomain, msg.sender);
         messageId = _dispatch(
             _destinationDomain,
             InterchainCallMessage.format(calls, msg.sender.addressToBytes32())
         );
-        emit QueryDispatched(_destinationDomain, msg.sender);
     }
 
     /**
@@ -102,15 +101,15 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         if (
             calltype == InterchainCallMessage.CallType.STATIC_CALL_WITH_CALLBACK
         ) {
+            emit QueryReturned(_origin, sender);
             bytes[] memory callbacks = _message
                 .callsWithCallbacks()
                 .multistaticcall();
             _dispatch(_origin, callbacks.format(sender));
-            emit QueryReturned(_origin, sender);
         } else if (calltype == InterchainCallMessage.CallType.RAW_CALLDATA) {
             address senderAddress = sender.bytes32ToAddress();
-            _message.rawCalls().multicallto(senderAddress);
             emit QueryResolved(_origin, senderAddress);
+            _message.rawCalls().multicallto(senderAddress);
         } else {
             assert(false);
         }
