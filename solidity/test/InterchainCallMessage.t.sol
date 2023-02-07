@@ -59,7 +59,7 @@ contract InterchainCallMessageTest is Test {
                 InterchainCallMessage.CallType.STATIC_CALL_WITH_CALLBACK,
             "!calltype"
         );
-        assertEq(abi.encode(message.calls()), abi.encode(calls));
+        assertEq(abi.encode(message.calls()), abi.encode(calls), "!calls");
     }
 
     function testCallsWithCallback(
@@ -78,7 +78,7 @@ contract InterchainCallMessageTest is Test {
             message.calltype() == InterchainCallMessage.CallType.RAW_CALLDATA,
             "!calltype"
         );
-        assertEq(abi.encode(message.calls()), abi.encode(calls));
+        assertEq(abi.encode(message.calls()), abi.encode(calls), "!calls");
     }
 
     function testRawCalls(bytes[] calldata calls) public {
