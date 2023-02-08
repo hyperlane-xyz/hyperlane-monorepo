@@ -2,30 +2,21 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
+import {InterchainGasPaymaster} from "../igps/InterchainGasPaymaster.sol";
 
-contract TestInterchainGasPaymaster is IInterchainGasPaymaster {
-    event GasPayment(
-        bytes32 indexed messageId,
-        uint256 gasAmount,
-        uint256 payment
-    );
+contract TestInterchainGasPaymaster is InterchainGasPaymaster {
+    uint256 gasPrice = 0;
 
-    function payForGas(
-        bytes32 _messageId,
-        uint32,
-        uint256 _gasAmount,
-        address
-    ) external payable override {
-        emit GasPayment(_messageId, _gasAmount, msg.value);
+    function setGasPrice(uint256 _gasPrice) external {
+        gasPrice = _gasPrice;
     }
 
-    function quoteGasPayment(uint32, uint256)
+    function quoteGasPayment(uint32, uint256 gasAmount)
         public
-        pure
+        view
         override
         returns (uint256)
     {
-        return 0;
+        return gasPrice * gasAmount;
     }
 }

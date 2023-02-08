@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::env;
+use std::error::Error;
 
 use config::{Config, Environment, File};
 use eyre::{Context, Result};
@@ -74,15 +75,19 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
         )
         .build()?;
     let formatted_config = format!("{:#?}", config_deserializer).replace('\n', "\\n");
-    match serde_path_to_error::deserialize(config_deserializer) {
+    match Config::try_deserialize(config_deserializer) {
         Ok(cfg) => Ok(cfg),
         Err(err) => {
             println!(
                 "Error during deserialization, showing the config for debugging: {}",
                 formatted_config
             );
-            let ctx = format!("Invalid config at `{}` {:?}", err.path(), err);
-            Err(err).context(ctx)
+            if let Some(source_err) = err.source() {
+                let source = format!("Config error source: {source_err}");
+                Err(err).context(source)
+            } else {
+                Err(err.into())
+            }
         }
     }
 }

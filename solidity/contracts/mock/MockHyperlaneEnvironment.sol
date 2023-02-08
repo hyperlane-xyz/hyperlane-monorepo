@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "./MockMailbox.sol";
 import "../middleware/InterchainQueryRouter.sol";
-import "../igps/InterchainGasPaymaster.sol";
+import "../test/TestInterchainGasPaymaster.sol";
 import "../test/TestIsm.sol";
 
 import {TypeCasts} from "../libs/TypeCasts.sol";
@@ -13,7 +13,7 @@ contract MockHyperlaneEnvironment {
     uint32 destinationDomain;
 
     mapping(uint32 => MockMailbox) public mailboxes;
-    mapping(uint32 => InterchainGasPaymaster) public igps;
+    mapping(uint32 => TestInterchainGasPaymaster) public igps;
     mapping(uint32 => IInterchainSecurityModule) public isms;
     mapping(uint32 => InterchainQueryRouter) public queryRouters;
 
@@ -27,8 +27,8 @@ contract MockHyperlaneEnvironment {
         originMailbox.addRemoteMailbox(_destinationDomain, destinationMailbox);
         destinationMailbox.addRemoteMailbox(_originDomain, originMailbox);
 
-        igps[originDomain] = new InterchainGasPaymaster();
-        igps[destinationDomain] = new InterchainGasPaymaster();
+        igps[originDomain] = new TestInterchainGasPaymaster();
+        igps[destinationDomain] = new TestInterchainGasPaymaster();
 
         isms[originDomain] = new TestIsm();
         isms[destinationDomain] = new TestIsm();
