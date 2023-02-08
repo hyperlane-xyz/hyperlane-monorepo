@@ -10,7 +10,7 @@ abstract contract GasRouter is Router {
     // ============ Events ============
 
     /**
-     * @notice Emitted when a domain's destination gas overhead is set.
+     * @notice Emitted when a domain's destination gas is set.
      * @param domain The domain of the router.
      * @param gas The gas amount used by the handle function of the domain's router.
      */
@@ -30,7 +30,7 @@ abstract contract GasRouter is Router {
         onlyOwner
     {
         for (uint256 i = 0; i < gasConfigs.length; i += 1) {
-            _setGasOverhead(gasConfigs[i].domain, gasConfigs[i].gas);
+            _setDestinationGas(gasConfigs[i].domain, gasConfigs[i].gas);
         }
     }
 
@@ -51,7 +51,7 @@ abstract contract GasRouter is Router {
             );
     }
 
-    function _setGasOverhead(uint32 domain, uint256 gas) internal {
+    function _setDestinationGas(uint32 domain, uint256 gas) internal {
         destinationGas[domain] = gas;
         emit DestinationGasSet(domain, gas);
     }

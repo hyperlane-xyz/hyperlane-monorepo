@@ -34,7 +34,7 @@ export abstract class GasRouterDeployer<
   ): Promise<void> {
     await super.enrollRemoteRouters(contractsMap);
 
-    this.logger(`Setting enrolled router handle gas overhead...`);
+    this.logger(`Setting enrolled router destination gas...`);
     for (const [chain, contracts] of Object.entries<Contracts>(contractsMap)) {
       const local = chain as Chain;
 
@@ -55,9 +55,7 @@ export abstract class GasRouterDeployer<
         continue;
       }
 
-      this.logger(
-        `Enroll remote (${remoteChains}) handle gas overhead on ${local}`,
-      );
+      this.logger(`Set destination gas on ${local} for ${remoteChains}`);
       const chainConnection = this.multiProvider.getChainConnection(local);
       await chainConnection.handleTx(
         contracts.router.setDestinationGas(remoteConfigs),
