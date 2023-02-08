@@ -1,5 +1,5 @@
 use tokio::task::JoinHandle;
-use tracing::{info, info_span, instrument::Instrumented, warn, Instrument, debug};
+use tracing::{debug, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_core::{InterchainGasPaymasterIndexer, SyncBlockRangeCursor};
 
