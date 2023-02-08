@@ -30,10 +30,12 @@
     "typescript/*"
   ],
   "resolutions": {
-    "underscore": "^1.13",
-    "fetch-ponyfill": "^7.1",
-    "lodash": "^4.17.21",
     "async": "^2.6.4",
+    "fetch-ponyfill": "^7.1",
+    "flat": "^5.0.2",
+    "lodash": "^4.17.21",
+    "recursive-readdir": "^2.2.3",
+    "underscore": "^1.13",
     "undici": "^5.11"
   }
 }
