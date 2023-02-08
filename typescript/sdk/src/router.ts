@@ -6,7 +6,7 @@ import type { types } from '@hyperlane-xyz/utils';
 import { HyperlaneApp } from './HyperlaneApp';
 import { HyperlaneContracts, HyperlaneFactories } from './contracts';
 import { ChainNameToDomainId } from './domains';
-import { ChainName } from './types';
+import { ChainMap, ChainName } from './types';
 import { objMap, promiseObjAll } from './utils/objects';
 
 export type RouterContracts<RouterContract extends Router = Router> =
@@ -36,14 +36,14 @@ export class RouterApp<
   Contracts extends RouterContracts,
   Chain extends ChainName = ChainName,
 > extends HyperlaneApp<Contracts, Chain> {
-  getSecurityModules = () =>
+  getSecurityModules = (): Promise<ChainMap<Chain, string>> =>
     promiseObjAll(
       objMap(this.contractsMap, (_, contracts) =>
         contracts.router.interchainSecurityModule(),
       ),
     );
 
-  getOwners = () =>
+  getOwners = (): Promise<ChainMap<Chain, string>> =>
     promiseObjAll(
       objMap(this.contractsMap, (_, contracts) => contracts.router.owner()),
     );
