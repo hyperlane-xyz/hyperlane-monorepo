@@ -79,7 +79,8 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
      */
     function quoteGasPayment(uint32 _destinationDomain, uint256 _gasAmount)
         public
-        pure
+        view
+        virtual
         override
         returns (uint256)
     {
