@@ -4,8 +4,6 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import {OwnableMOfNSet} from "../contracts/libs/OwnableMOfNSet.sol";
 
-contract ConcreteOwnableMOfNSet is OwnableMOfNSet {}
-
 contract OwnableMOfNSetTest is Test {
     event ValueAdded(
         uint32 indexed domain,
@@ -20,10 +18,10 @@ contract OwnableMOfNSetTest is Test {
     event ThresholdSet(uint32 indexed domain, uint8 threshold);
     event CommitmentUpdated(uint32 indexed domain, bytes32 commitment);
 
-    ConcreteOwnableMOfNSet set;
+    OwnableMOfNSet set;
 
     function setUp() public {
-        set = new ConcreteOwnableMOfNSet();
+        set = new OwnableMOfNSet();
     }
 
     // addMany
@@ -167,18 +165,26 @@ contract OwnableMOfNSetTest is Test {
 
     function testContains(uint32 domain, address value) public {
         vm.assume(value != address(0x0));
-        require(!set.contains(domain, value));
+        assertFalse(set.contains(domain, value));
         set.add(domain, value);
-        require(set.contains(domain, value));
+        assertTrue(set.contains(domain, value));
         set.remove(domain, value);
-        require(!set.contains(domain, value));
+        assertFalse(set.contains(domain, value));
     }
 
     function testLength(uint32 domain, address value) public {
         vm.assume(value != address(0x0));
-        require(set.length(domain) == 0);
+        assertEq(set.length(domain), 0);
         set.add(domain, value);
-        require(set.length(domain) == 1);
+        assertEq(set.length(domain), 1);
+    }
+
+    function testThreshold(uint32 domain, address value) public {
+        vm.assume(value != address(0x0));
+        assertEq(set.threshold(domain), 0);
+        set.add(domain, value);
+        set.setThreshold(domain, 1);
+        assertEq(set.threshold(domain), 1);
     }
 
     function testValuesAndThreshold(uint32 domain, address value) public {
@@ -187,21 +193,15 @@ contract OwnableMOfNSetTest is Test {
             domain
         );
         address[] memory emptySet = new address[](0);
-        require(
-            keccak256(abi.encodePacked(values)) ==
-                keccak256(abi.encodePacked(emptySet))
-        );
-        require(threshold == 0);
+        assertEq(abi.encodePacked(values), abi.encodePacked(emptySet));
+        assertEq(threshold, 0);
 
         set.add(domain, value);
         set.setThreshold(domain, 1);
         (values, threshold) = set.valuesAndThreshold(domain);
         address[] memory nonEmptySet = new address[](1);
         nonEmptySet[0] = value;
-        require(
-            keccak256(abi.encodePacked(values)) ==
-                keccak256(abi.encodePacked(nonEmptySet))
-        );
-        require(threshold == 1);
+        assertEq(abi.encodePacked(values), abi.encodePacked(nonEmptySet));
+        assertEq(threshold, 1);
     }
 }

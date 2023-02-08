@@ -8,7 +8,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {EnumerableMOfNSet} from "./EnumerableMOfNSet.sol";
 import {Message} from "./Message.sol";
 
-abstract contract OwnableMOfNSet is Ownable {
+contract OwnableMOfNSet is Ownable {
     // ============ Libraries ============
 
     using Message for bytes;
