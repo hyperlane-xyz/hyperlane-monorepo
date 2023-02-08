@@ -41,6 +41,7 @@ export class HyperlaneCoreInfraDeployer<
   async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
+    storageGasOracleAddress: types.Address,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
@@ -50,7 +51,12 @@ export class HyperlaneCoreInfraDeployer<
         [this.environment, 'interchainGasPaymaster', 6],
       ),
     };
-    return super.deployInterchainGasPaymaster(chain, proxyAdmin, deployOpts);
+    return super.deployInterchainGasPaymaster(
+      chain,
+      proxyAdmin,
+      storageGasOracleAddress,
+      deployOpts,
+    );
   }
 
   async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(

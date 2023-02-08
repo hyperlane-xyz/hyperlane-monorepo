@@ -26,7 +26,7 @@ contract InterchainGasPaymasterTest is Test {
 
     function setUp() public {
         igp = new InterchainGasPaymaster();
-        oracle = new StorageGasOracle(address(this));
+        oracle = new StorageGasOracle();
         igp.setGasOracle(testDestinationDomain, address(oracle));
     }
 

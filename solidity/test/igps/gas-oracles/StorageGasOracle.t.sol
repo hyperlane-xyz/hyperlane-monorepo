@@ -22,17 +22,14 @@ contract StaticGasOracleTest is Test {
             tokenExchangeRate: 12345,
             gasPrice: 54321
         });
-        oracle = new StorageGasOracle(address(this));
+        oracle = new StorageGasOracle();
         oracle.setRemoteGasData(initialGasDataConfig);
     }
 
     // ============ constructor ============
 
-    function testConstructorTransfersOwnership() public {
-        address _newOwner = address(0xcafe);
-        oracle = new StorageGasOracle(_newOwner);
-
-        assertEq(oracle.owner(), _newOwner);
+    function testConstructorSetsOwnership() public {
+        assertEq(oracle.owner(), address(this));
     }
 
     // ============ getExchangeRateAndGasPrice ============

@@ -8,6 +8,7 @@ import {
   TestIsm__factory,
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
+import { types } from '@hyperlane-xyz/utils';
 
 import { DeployOptions } from '../deploy/HyperlaneDeployer';
 import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
@@ -74,6 +75,7 @@ export class TestCoreDeployer<
   async deployInterchainGasPaymaster<LocalChain extends TestChain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
+    _storageGasOracleAddress: types.Address,
     deployOpts?: DeployOptions,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
