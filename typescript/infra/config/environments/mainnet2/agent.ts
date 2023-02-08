@@ -83,7 +83,6 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  validators,
   gelato: {
     enabledChains: [],
   },

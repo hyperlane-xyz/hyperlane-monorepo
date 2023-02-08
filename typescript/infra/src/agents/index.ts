@@ -167,7 +167,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
 
     let user: AgentAwsUser<Chain>;
 
-    if (role === KEY_ROLE_ENUM.Validator) {
+    if (role === KEY_ROLE_ENUM.Validator && agentConfig.validators) {
       const checkpointSyncer =
         agentConfig.validators[outboxChainName].validators[index!]
           .checkpointSyncer;

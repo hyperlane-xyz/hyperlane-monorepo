@@ -80,7 +80,6 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  validators,
   gelato: {
     enabledChains: [],
   },

@@ -77,6 +77,10 @@ async function main() {
     }
   } else {
     const agentConfig = await getContextAgentConfig(config, context);
+    if (agentConfig.validators == undefined) {
+      console.warn('No validators provided for context');
+      return;
+    }
     await Promise.all(
       Object.entries(agentConfig.validators).map(
         async ([chain, validatorChainConfig]) => {

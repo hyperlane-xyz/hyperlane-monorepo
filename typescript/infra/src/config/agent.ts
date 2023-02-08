@@ -223,7 +223,8 @@ export interface AgentConfig<Chain extends ChainName> {
   // Names of chains this context cares about
   contextChainNames: Chain[];
   gelato?: GelatoConfig<Chain>;
-  validators: ChainValidatorConfigs<Chain>;
+  // RC contexts do not provide validators
+  validators?: ChainValidatorConfigs<Chain>;
   relayer?: ChainRelayerConfigs<Chain>;
   // Roles to manage keys for
   rolesWithKeys: KEY_ROLE_ENUM[];
@@ -325,8 +326,6 @@ export class ChainAgentConfig<Chain extends ChainName> {
       return undefined;
     }
 
-    // Filter out readonly validator keys, as we do not need to run
-    // validators for these.
     return Promise.all(
       this.validators.validators.map(async (val, i) => {
         let validator: KeyConfig = {
@@ -485,7 +484,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
   }
 
   get validators(): ValidatorChainConfig {
-    return this.agentConfig.validators[this.chainName];
+    return this.agentConfig.validators![this.chainName];
   }
 
   get awsKeys(): boolean {
