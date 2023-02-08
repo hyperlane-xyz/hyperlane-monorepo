@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {IInterchainGasPaymaster} from "../../../interfaces/IInterchainGasPaymaster.sol";
+import {TestInterchainGasPaymaster} from "../../../contracts/test/TestInterchainGasPaymaster.sol";
 import {InterchainQueryRouter} from "../../../contracts/middleware/InterchainQueryRouter.sol";
 import {TestQuerySender} from "../../../contracts/test/TestQuerySender.sol";
 import {MockHyperlaneEnvironment} from "../../../contracts/mock/MockHyperlaneEnvironment.sol";
@@ -15,7 +15,7 @@ contract OwnableContract is Ownable {}
 
 contract TestQuerySenderTest is Test {
     MockHyperlaneEnvironment testEnvironment;
-    IInterchainGasPaymaster igp;
+    TestInterchainGasPaymaster igp;
     TestQuerySender sender;
     uint32 originDomain = 123;
     uint32 destinationDomain = 321;
@@ -27,6 +27,7 @@ contract TestQuerySenderTest is Test {
             destinationDomain
         );
         igp = testEnvironment.igps(originDomain);
+        igp.setGasPrice(1);
 
         sender = new TestQuerySender();
         sender.initialize(
