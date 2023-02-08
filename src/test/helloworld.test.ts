@@ -16,7 +16,11 @@ import {
 
 import { HelloWorldConfig } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
-import { HelloWorld } from '../types';
+import {
+  HelloWorld,
+  IInterchainGasPaymaster,
+  IInterchainGasPaymaster__factory,
+} from '../types';
 
 describe('HelloWorld', async () => {
   const localChain = 'test1';
@@ -27,6 +31,7 @@ describe('HelloWorld', async () => {
   let signer: SignerWithAddress;
   let local: HelloWorld;
   let remote: HelloWorld;
+  let localIgp: IInterchainGasPaymaster;
   let multiProvider: MultiProvider<TestChainNames>;
   let coreApp: TestCoreApp;
   let config: ChainMap<TestChainNames, HelloWorldConfig>;
@@ -50,6 +55,10 @@ describe('HelloWorld', async () => {
 
     local = contracts[localChain].router;
     remote = contracts[remoteChain].router;
+    localIgp = IInterchainGasPaymaster__factory.connect(
+      config[localChain].interchainGasPaymaster,
+      multiProvider.getChainProvider(localChain),
+    );
 
     // The all counts start empty
     expect(await local.sent()).to.equal(0);
@@ -58,11 +67,21 @@ describe('HelloWorld', async () => {
     expect(await remote.received()).to.equal(0);
   });
 
+  async function quoteGasPayment(
+    fromRouter: HelloWorld,
+    destinationDomain: number,
+    igp: IInterchainGasPaymaster,
+  ) {
+    const handleGasAmount = await fromRouter.HANDLE_GAS_AMOUNT();
+    return igp.quoteGasPayment(destinationDomain, handleGasAmount);
+  }
+
   it('sends a message', async () => {
-    await expect(local.sendHelloWorld(remoteDomain, 'Hello')).to.emit(
-      local,
-      'SentHelloWorld',
-    );
+    await expect(
+      local.sendHelloWorld(remoteDomain, 'Hello', {
+        value: await quoteGasPayment(local, remoteDomain, localIgp),
+      }),
+    ).to.emit(local, 'SentHelloWorld');
     // The sent counts are correct
     expect(await local.sent()).to.equal(1);
     expect(await local.sentTo(remoteDomain)).to.equal(1);
@@ -70,8 +89,18 @@ describe('HelloWorld', async () => {
     expect(await local.received()).to.equal(0);
   });
 
+  it('reverts if there is insufficient payment', async () => {
+    await expect(
+      local.sendHelloWorld(remoteDomain, 'Hello', {
+        value: 0,
+      }),
+    ).to.be.revertedWith('insufficient interchain gas payment');
+  });
+
   it('handles a message', async () => {
-    await local.sendHelloWorld(remoteDomain, 'World');
+    await local.sendHelloWorld(remoteDomain, 'World', {
+      value: await quoteGasPayment(local, remoteDomain, localIgp),
+    });
     // Mock processing of the message by Hyperlane
     await coreApp.processOutboundMessages(localChain);
     // The initial message has been dispatched.

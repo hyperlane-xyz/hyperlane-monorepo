@@ -6,6 +6,7 @@ import {
   ChainNameToDomainId,
   HyperlaneApp,
   HyperlaneCore,
+  InterchainGasCalculator,
   MultiProvider,
   Remotes,
 } from '@hyperlane-xyz/sdk';
@@ -59,6 +60,24 @@ export class HelloWorldApp<
       tx,
     });
     return tx.wait(chainConnection.confirmations);
+  }
+
+  async quoteGasPayment<To extends Chain>(
+    from: Exclude<Chain, To>,
+    to: To,
+  ): Promise<BigNumber> {
+    const sender = this.getContracts(from).router;
+
+    const handleGasAmount = await sender.HANDLE_GAS_AMOUNT();
+    const calculator = new InterchainGasCalculator(
+      this.multiProvider,
+      this.core,
+    );
+    return calculator.quoteGasPaymentForDefaultIsmIgp(
+      from,
+      to,
+      handleGasAmount,
+    );
   }
 
   async waitForMessageReceipt(

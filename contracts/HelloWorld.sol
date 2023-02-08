@@ -9,6 +9,10 @@ import {Router} from "@hyperlane-xyz/core/contracts/Router.sol";
  * @dev You can use this simple app as a starting point for your own application.
  */
 contract HelloWorld is Router {
+    // A generous upper bound on the amount of gas to use in the handle
+    // function when a message is processed. Used for paying for gas.
+    uint256 public constant HANDLE_GAS_AMOUNT = 50_000;
+
     // A counter of how many messages have been sent from this contract.
     uint256 public sent;
     // A counter of how many messages have been received by this contract.
@@ -33,12 +37,18 @@ contract HelloWorld is Router {
         bytes32 sender,
         string message
     );
+    event HandleGasAmountSet(
+        uint32 indexed destination,
+        uint256 handleGasAmount
+    );
 
-    constructor(address _mailbox, address _interchainGasPaymaster) initializer {
-        __HyperlaneConnectionClient_initialize(
-            _mailbox,
-            _interchainGasPaymaster
-        );
+    constructor(address _mailbox, address _interchainGasPaymaster) {
+        // Transfer ownership of the contract to deployer
+        _transferOwnership(msg.sender);
+        // Set the addresses for the Mailbox and IGP
+        // Alternatively, this could be done later in an initialize method
+        _setMailbox(_mailbox);
+        _setInterchainGasPaymaster(_interchainGasPaymaster);
     }
 
     // ============ External functions ============
@@ -47,6 +57,7 @@ contract HelloWorld is Router {
      * @notice Sends a message to the _destinationDomain. Any msg.value is
      * used as interchain gas payment.
      * @param _destinationDomain The destination domain to send the message to.
+     * @param _message The message to send.
      */
     function sendHelloWorld(uint32 _destinationDomain, string calldata _message)
         external
@@ -54,8 +65,13 @@ contract HelloWorld is Router {
     {
         sent += 1;
         sentTo[_destinationDomain] += 1;
-        // TODO: pay for gas in v2
-        _dispatch(_destinationDomain, bytes(_message));
+        _dispatchWithGas(
+            _destinationDomain,
+            bytes(_message),
+            HANDLE_GAS_AMOUNT,
+            msg.value,
+            msg.sender
+        );
         emit SentHelloWorld(
             mailbox.localDomain(),
             _destinationDomain,
