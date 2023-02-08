@@ -51,6 +51,10 @@ export abstract class GasRouterDeployer<
           gas: this.configMap[remoteChains[i]].gas,
         }))
         .filter(({ gas }, index) => !currentConfigs[index].eq(gas));
+      if (remoteConfigs.length == 0) {
+        continue;
+      }
+
       this.logger(
         `Enroll remote (${remoteChains}) handle gas overhead on ${local}`,
       );
