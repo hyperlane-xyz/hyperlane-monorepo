@@ -12,8 +12,6 @@ import {CallLib} from "./libs/Call.sol";
  * @dev Permits owner address to execute stateful calls with value to other contracts
  */
 contract OwnableMulticall is OwnableUpgradeable {
-    using CallLib for CallLib.Call[];
-
     constructor() {
         _transferOwnership(msg.sender);
     }
@@ -23,7 +21,7 @@ contract OwnableMulticall is OwnableUpgradeable {
     }
 
     function proxyCalls(CallLib.Call[] calldata calls) external onlyOwner {
-        return calls.multicall();
+        return CallLib.multicall(calls);
     }
 
     // solhint-disable-next-line no-empty-blocks

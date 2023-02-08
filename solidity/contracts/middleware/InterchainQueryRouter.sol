@@ -18,14 +18,6 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
 contract InterchainQueryRouter is Router, IInterchainQueryRouter {
-    using CallLib for CallLib.StaticCallWithCallback[];
-    using CallLib for bytes[];
-
-    using InterchainCallMessage for CallLib.StaticCall[];
-    using InterchainCallMessage for CallLib.StaticCallWithCallback[];
-    using InterchainCallMessage for bytes[];
-    using InterchainCallMessage for bytes;
-
     using TypeCasts for address;
     using TypeCasts for bytes32;
 
@@ -96,20 +88,25 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        InterchainCallMessage.CallType calltype = _message.calltype();
-        bytes32 sender = _message.sender();
+        InterchainCallMessage.CallType calltype = InterchainCallMessage
+            .calltype(_message);
+        bytes32 sender = InterchainCallMessage.sender(_message);
         if (
             calltype == InterchainCallMessage.CallType.STATIC_CALL_WITH_CALLBACK
         ) {
             emit QueryReturned(_origin, sender);
-            bytes[] memory callbacks = _message
-                .callsWithCallbacks()
-                .multistaticcall();
-            _dispatch(_origin, callbacks.format(sender));
+            CallLib.StaticCallWithCallback[]
+                memory callsWithCallback = InterchainCallMessage
+                    .callsWithCallbacks(_message);
+            bytes[] memory callbacks = CallLib.multistaticcall(
+                callsWithCallback
+            );
+            _dispatch(_origin, InterchainCallMessage.format(callbacks, sender));
         } else if (calltype == InterchainCallMessage.CallType.RAW_CALLDATA) {
             address senderAddress = sender.bytes32ToAddress();
             emit QueryResolved(_origin, senderAddress);
-            _message.rawCalls().multicallto(senderAddress);
+            bytes[] memory rawCalls = InterchainCallMessage.rawCalls(_message);
+            CallLib.multicallto(rawCalls, senderAddress);
         } else {
             assert(false);
         }

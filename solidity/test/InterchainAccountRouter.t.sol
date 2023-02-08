@@ -12,7 +12,6 @@ import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
 import {CallLib} from "../contracts/libs/Call.sol";
 
 contract InterchainAccountRouterTest is Test {
-    using CallLib for address;
     using TypeCasts for address;
 
     event InterchainAccountCreated(

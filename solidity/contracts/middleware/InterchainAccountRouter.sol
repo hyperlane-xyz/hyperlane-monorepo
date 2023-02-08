@@ -20,8 +20,6 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
 contract InterchainAccountRouter is Router, IInterchainAccountRouter {
-    using InterchainCallMessage for bytes;
-
     using TypeCasts for address;
     using TypeCasts for bytes32;
 
@@ -181,8 +179,8 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     ) internal override {
         OwnableMulticall interchainAccount = getDeployedInterchainAccount(
             _origin,
-            _message.sender()
+            InterchainCallMessage.sender(_message)
         );
-        interchainAccount.proxyCalls(_message.calls());
+        interchainAccount.proxyCalls(InterchainCallMessage.calls(_message));
     }
 }
