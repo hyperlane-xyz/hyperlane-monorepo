@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -8,12 +9,22 @@ use hyperlane_core::{HyperlaneChain, HyperlaneMessage, Mailbox, MultisigIsm};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MetadataBuilder {
     metrics: Arc<CoreMetrics>,
     chain_setup: ChainSetup,
     checkpoint_syncer: MultisigCheckpointSyncer,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
+}
+
+impl Debug for MetadataBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MetadataBuilder {{ chain_setup: {:?}, checkpoint_syncer: {:?} }}",
+            self.chain_setup, self.checkpoint_syncer
+        )
+    }
 }
 
 impl MetadataBuilder {
