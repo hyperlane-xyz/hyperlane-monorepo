@@ -143,21 +143,25 @@ impl ChainSetup {
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn HyperlaneProvider>> {
+        let ctx = "Building provider";
         match &self.chain {
             ChainConf::Ethereum(conf) => {
-                let locator = self.locator("0x0000000000000000000000000000000000000000")?;
+                let locator = self
+                    .locator("0x0000000000000000000000000000000000000000")
+                    .context(ctx)?;
                 self.build_ethereum(conf, &locator, metrics, h_eth::HyperlaneProviderBuilder {})
                     .await
             }
 
             ChainConf::Fuel(_) => todo!(),
         }
-        .context("Building provider")
+        .context(ctx)
     }
 
     /// Try to convert the chain setting into a Mailbox contract
     pub async fn build_mailbox(&self, metrics: &CoreMetrics) -> Result<Box<dyn Mailbox>> {
-        let locator = self.locator(&self.addresses.mailbox)?;
+        let ctx = "Building provider";
+        let locator = self.locator(&self.addresses.mailbox).context(ctx)?;
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {
@@ -166,13 +170,13 @@ impl ChainSetup {
             }
 
             ChainConf::Fuel(conf) => {
-                let wallet = self.fuel_signer().await?;
+                let wallet = self.fuel_signer().await.context(ctx)?;
                 hyperlane_fuel::FuelMailbox::new(conf, locator, wallet)
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
         }
-        .context("Building mailbox")
+        .context(ctx)
     }
 
     /// Try to convert the chain settings into a mailbox indexer
@@ -180,7 +184,8 @@ impl ChainSetup {
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MailboxIndexer>> {
-        let locator = self.locator(&self.addresses.mailbox)?;
+        let ctx = "Building mailbox indexer";
+        let locator = self.locator(&self.addresses.mailbox).context(ctx)?;
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {
@@ -197,7 +202,7 @@ impl ChainSetup {
 
             ChainConf::Fuel(_) => todo!(),
         }
-        .context("Building mailbox indexer")
+        .context(ctx)
     }
 
     /// Try to convert the chain setting into an interchain gas paymaster
@@ -206,7 +211,10 @@ impl ChainSetup {
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn InterchainGasPaymaster>> {
-        let locator = self.locator(&self.addresses.interchain_gas_paymaster)?;
+        let ctx = "Building IGP";
+        let locator = self
+            .locator(&self.addresses.interchain_gas_paymaster)
+            .context(ctx)?;
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {
@@ -221,7 +229,7 @@ impl ChainSetup {
 
             ChainConf::Fuel(_) => todo!(),
         }
-        .context("Building IGP")
+        .context(ctx)
     }
 
     /// Try to convert the chain settings into a IGP indexer
@@ -229,7 +237,10 @@ impl ChainSetup {
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn InterchainGasPaymasterIndexer>> {
-        let locator = self.locator(&self.addresses.interchain_gas_paymaster)?;
+        let ctx = "Building IGP indexer";
+        let locator = self
+            .locator(&self.addresses.interchain_gas_paymaster)
+            .context(ctx)?;
 
         match &self.chain {
             ChainConf::Ethereum(conf) => {
@@ -238,7 +249,12 @@ impl ChainSetup {
                     &locator,
                     metrics,
                     h_eth::InterchainGasPaymasterIndexerBuilder {
-                        mailbox_address: self.addresses.mailbox.parse()?,
+                        mailbox_address: self
+                            .addresses
+                            .mailbox
+                            .parse()
+                            .context("Parsing mailbox address")
+                            .context(ctx)?,
                         finality_blocks: self.finality_blocks(),
                     },
                 )
@@ -247,7 +263,7 @@ impl ChainSetup {
 
             ChainConf::Fuel(_) => todo!(),
         }
-        .context("Building IGP indexer")
+        .context(ctx)
     }
 
     /// Try to convert the chain setting into a Multisig Ism contract
@@ -256,8 +272,12 @@ impl ChainSetup {
         address: H256,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn MultisigIsm>> {
+        let ctx = "Building multisig ISM";
         let locator = ContractLocator {
-            domain: self.domain()?,
+            domain: self
+                .domain()
+                .context("Invalid domain for locating contract")
+                .context(ctx)?,
             address,
         };
 
@@ -269,7 +289,7 @@ impl ChainSetup {
 
             ChainConf::Fuel(_) => todo!(),
         }
-        .context("Building multisig ISM")
+        .context(ctx)
     }
 
     /// Get the domain for this chain setup
@@ -348,15 +368,17 @@ impl ChainSetup {
     }
 
     fn locator(&self, address: &str) -> Result<ContractLocator> {
-        let domain = self.domain()?;
+        let domain = self
+            .domain()
+            .context("Invalid domain for locating contract")?;
         let address = match self.chain {
             ChainConf::Ethereum(_) => address
                 .parse::<ethers::types::Address>()
-                .context("Invalid ethereum address")?
+                .context("Invalid ethereum address for locating contract")?
                 .into(),
             ChainConf::Fuel(_) => address
                 .parse::<fuels::tx::ContractId>()
-                .map_err(|e| eyre!("Invalid fuel contract id: {e}"))?
+                .map_err(|e| eyre!("Invalid fuel contract id for locating contract: {e}"))?
                 .into_h256(),
         };
 
