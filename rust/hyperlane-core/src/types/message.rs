@@ -1,5 +1,5 @@
 use sha3::{digest::Update, Digest, Keccak256};
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 use crate::utils::fmt_address_for_domain;
 use crate::{Decode, Encode, HyperlaneProtocolError, H256};
@@ -40,7 +40,8 @@ impl Debug for HyperlaneMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "HyperlaneMessage {{ version: {}, nonce: {}, origin: {}, sender: {}, destination: {}, recipient: {}, body: 0x{} }}",
+            "HyperlaneMessage {{ id: {:?}, version: {}, nonce: {}, origin: {}, sender: {}, destination: {}, recipient: {}, body: 0x{} }}",
+            self.id(),
             self.version,
             self.nonce,
             self.origin,
@@ -49,6 +50,12 @@ impl Debug for HyperlaneMessage {
             fmt_address_for_domain(self.destination, self.recipient),
             hex::encode(&self.body)
         )
+    }
+}
+
+impl Display for HyperlaneMessage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "HyperlaneMessage {{ id: {:?}, nonce: {}, .. }}", self.id(), self.nonce)
     }
 }
 
@@ -137,11 +144,5 @@ impl HyperlaneMessage {
     /// Convert the message to a message id
     pub fn id(&self) -> H256 {
         H256::from_slice(Keccak256::new().chain(self.to_vec()).finalize().as_slice())
-    }
-}
-
-impl std::fmt::Display for HyperlaneMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "HyperlaneMessage {}->{}", self.origin, self.destination)
     }
 }

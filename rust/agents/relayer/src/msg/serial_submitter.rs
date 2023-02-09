@@ -228,17 +228,17 @@ impl SerialSubmitter {
 
         match self.process_message(&msg).await {
             Ok(true) => {
-                info!(id=?msg.message.id(), nonce=msg.message.nonce, "Message processed");
+                info!(message = %msg.message, "Message processed");
                 self.record_message_process_success(&msg)?;
                 return Ok(());
             }
             Ok(false) => {
-                info!(id=?msg.message.id(), nonce=msg.message.nonce, "Message not processed");
+                info!(message = %msg.message, "Message not processed");
             }
             // We expect this branch to be hit when there is unexpected behavior -
             // defined behavior like gas estimation failing will not hit this branch.
-            Err(err) => {
-                warn!(id=?msg.message.id(), nonce=msg.message.nonce, error=?err, "Error occurred when attempting to process message");
+            Err(error) => {
+                warn!(message = %msg.message, ?error, "Error occurred when attempting to process message");
             }
         }
 
@@ -256,13 +256,13 @@ impl SerialSubmitter {
     /// been processed, Ok(true) is returned. If this message is unable to
     /// be processed, either due to failed gas estimation or an insufficient gas payment,
     /// Ok(false) is returned.
-    #[instrument(skip(self, msg), fields(msg_nonce=msg.message.nonce, msg_id=?msg.message.id()))]
+    #[instrument(skip(self, msg), fields(message=%msg.message))]
     async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<bool> {
         // If the message has already been processed, e.g. due to another relayer having already
         // processed, then mark it as already-processed, and move on to the next tick.
         // TODO(webbhorn): Make this robust to re-orgs on mailbox.
         if self.mailbox.delivered(msg.message.id()).await? {
-            info!("Message already processed");
+            debug!("Message already processed");
             return Ok(true);
         }
 
@@ -270,7 +270,6 @@ impl SerialSubmitter {
             .fetch_metadata(&msg.message, self.mailbox.clone())
             .await?
         else {
-            info!("Unable to fetch metadata for message");
             return Ok(false)
         };
 
@@ -283,8 +282,8 @@ impl SerialSubmitter {
             .await
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
-            Err(err) => {
-                info!(msg=?msg, error=?err, "Error estimating process costs");
+            Err(error) => {
+                info!(?error, "Error estimating process costs");
                 return Ok(false);
             }
         };
@@ -295,7 +294,7 @@ impl SerialSubmitter {
             .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
             .await?;
         if !meets_gas_requirement {
-            info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
+            info!(?gas_payment, "Gas payment requirement not met yet");
             return Ok(false);
         }
 
@@ -311,10 +310,7 @@ impl SerialSubmitter {
 
         if let Some(max_limit) = self.transaction_gas_limit {
             if gas_limit > max_limit {
-                info!(
-                    nonce = msg.message.nonce,
-                    "Message delivery predicted gas exceeds max gas limit"
-                );
+                info!("Message delivery predicted gas exceeds max gas limit");
                 return Ok(false);
             }
         }

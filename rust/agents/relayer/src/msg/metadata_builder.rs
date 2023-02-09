@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::{Debug};
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -48,7 +48,7 @@ impl MetadataBuilder {
         }
     }
 
-    #[instrument(err, skip(mailbox), fields(msg_id=?message.id()))]
+    #[instrument(err, skip(mailbox))]
     pub async fn fetch_metadata(
         &self,
         message: &HyperlaneMessage,
@@ -62,9 +62,9 @@ impl MetadataBuilder {
         // not a contract.
         let provider = mailbox.provider();
         if !provider.is_contract(&message.recipient).await? {
-            debug!(
+            info!(
                 recipient=?message.recipient,
-                "Recipient is not a contract, not fetching metadata"
+                "Could not fetch metadata: Recipient is not a contract"
             );
             return Ok(None);
         }
@@ -78,7 +78,7 @@ impl MetadataBuilder {
         let (validators, threshold) = multisig_ism.validators_and_threshold(message).await?;
         let highest_known_nonce = self.prover_sync.read().await.count() - 1;
         let checkpoint_syncer = self.build_checkpoint_syncer(&validators).await?;
-        if let Some(checkpoint) = checkpoint_syncer
+        let Some(checkpoint) = checkpoint_syncer
             .fetch_checkpoint_in_range(
                 &validators,
                 threshold.into(),
@@ -86,38 +86,41 @@ impl MetadataBuilder {
                 highest_known_nonce,
             )
             .await?
-        {
-            // At this point we have a signed checkpoint with a quorum of validator
-            // signatures. But it may be a fraudulent checkpoint that doesn't
-            // match the canonical root at the checkpoint's index.
+        else {
             info!(
-                checkpoint_index = checkpoint.checkpoint.index,
-                signature_count = checkpoint.signatures.len(),
-                "Found checkpoint with quorum"
+                ?validators, threshold, highest_known_nonce,
+                "Could not fetch metadata: Unable to reach quorum"
             );
+            return Ok(None);
+        };
 
-            let proof = self
-                .prover_sync
-                .read()
-                .await
-                .get_proof(message.nonce, checkpoint.checkpoint.index)?;
+        // At this point we have a signed checkpoint with a quorum of validator
+        // signatures. But it may be a fraudulent checkpoint that doesn't
+        // match the canonical root at the checkpoint's index.
+        debug!(?checkpoint, "Found checkpoint with quorum");
 
-            if checkpoint.checkpoint.root == proof.root() {
-                let metadata =
-                    multisig_ism.format_metadata(&validators, threshold, &checkpoint, &proof);
-                Ok(Some(metadata))
-            } else {
-                debug!(
-                    checkpoint = ?checkpoint.checkpoint,
-                    canonical_root = ?proof.root(),
-                    "Signed checkpoint does not match canonical root"
-                );
-                Ok(None)
-            }
-        } else {
+        let proof = self
+            .prover_sync
+            .read()
+            .await
+            .get_proof(message.nonce, checkpoint.checkpoint.index)?;
+
+        if checkpoint.checkpoint.root == proof.root() {
             debug!(
                 ?validators,
-                threshold, highest_known_nonce, "Unable to reach quorum"
+                threshold,
+                ?checkpoint,
+                ?proof,
+                "Fetched metadata"
+            );
+            let metadata =
+                multisig_ism.format_metadata(&validators, threshold, &checkpoint, &proof);
+            Ok(Some(metadata))
+        } else {
+            info!(
+                ?checkpoint,
+                canonical_root = ?proof.root(),
+                "Could not fetch metadata: Signed checkpoint does not match canonical root"
             );
             Ok(None)
         }

@@ -66,27 +66,22 @@ impl SponsoredCallOp {
         Self(args)
     }
 
-    #[instrument(skip(self), fields(msg_id=?self.message.message.id(), msg_nonce=self.message.message.nonce))]
+    #[instrument(skip(self), fields(message=?self.message.message))]
     pub async fn run(&mut self) {
         loop {
             match self.tick().await {
                 Ok(true) => {
                     // If the message was processed, send it over the channel and
                     // stop running.
-                    if let Err(err) = self.send_message_processed() {
+                    if let Err(error) = self.send_message_processed() {
                         error!(
-                            err=?err,
+                            ?error,
                             "Unable to send processed message, receiver is closed or dropped.",
                         );
                     }
                     return;
                 }
-                Err(err) => {
-                    warn!(
-                        err=?err,
-                        "Error occurred in sponsored_call_op tick",
-                    );
-                }
+                Err(error) => warn!(?error, "Error occurred in sponsored_call_op tick"),
                 _ => {}
             }
 
@@ -107,7 +102,6 @@ impl SponsoredCallOp {
             .fetch_metadata(&self.message.message, self.mailbox.clone())
             .await?
         else {
-            info!("Unable to fetch metadata for message");
             return Ok(false)
         };
 
@@ -135,7 +129,7 @@ impl SponsoredCallOp {
             .await?;
 
         if !meets_gas_requirement {
-            info!(gas_payment=?gas_payment, "Gas payment requirement not met yet");
+            info!(?gas_payment, "Gas payment requirement not met yet");
             return Ok(false);
         }
 
@@ -161,7 +155,7 @@ impl SponsoredCallOp {
             // If a timeout occurred, don't bubble up an error, instead just log
             // and set ourselves up for the next tick.
             Err(err) => {
-                info!(err=?err, "Sponsored call timed out, reattempting");
+                info!(error=?err, "Sponsored call timed out, reattempting");
                 Ok(false)
             }
         }
