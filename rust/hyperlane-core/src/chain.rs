@@ -269,10 +269,10 @@ impl HyperlaneDomain {
             if name == domain.as_str() {
                 Ok(HyperlaneDomain::Known(domain))
             } else {
-                Err("Chain name does not match the name of a known domain id; the config is probably wrong.")
+                Err("Chain name does not match the name of a known domain id; the chain name is probably misspelled.")
             }
         } else if name.as_str().parse::<KnownHyperlaneDomain>().is_ok() {
-            Err("Chain name is known the domain is incorrect; the config is probably wrong.")
+            Err("Chain name implies a different domain than the domain id provided; the domain id is probably wrong.")
         } else {
             Ok(HyperlaneDomain::Unknown {
                 domain_id,

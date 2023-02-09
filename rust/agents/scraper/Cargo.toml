@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 async-trait = { version = "0.1", default-features = false }
 chrono = "0.4"
-config = "0.13"
+config = "~0.13.3"
 ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", branch = "mattie/better-debug-logging" }
 eyre = "0.6"
 itertools = "0.10"

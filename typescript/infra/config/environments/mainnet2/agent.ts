@@ -30,54 +30,19 @@ export const hyperlane: AgentConfig<MainnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // commit date: 2023-01-31
-    tag: 'sha-d95d9b2',
+    // commit date: 2023-02-08
+    tag: '91b75a7-20230208-233139',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  validatorSets: validators,
   gelato: {
     enabledChains: [],
   },
   connectionType: ConnectionType.HttpQuorum,
-  validator: {
-    default: {
-      interval: 5,
-      reorgPeriod: 1,
-    },
-    chainOverrides: {
-      celo: {
-        reorgPeriod: 0,
-      },
-      ethereum: {
-        reorgPeriod: 14,
-      },
-      bsc: {
-        reorgPeriod: 15,
-      },
-      optimism: {
-        reorgPeriod: 0,
-      },
-      arbitrum: {
-        reorgPeriod: 0,
-      },
-      avalanche: {
-        reorgPeriod: 3,
-      },
-      polygon: {
-        reorgPeriod: 256,
-      },
-      moonbeam: {
-        reorgPeriod: 0,
-      },
-      gnosis: {
-        reorgPeriod: 14,
-      },
-    },
-  },
+  validators,
   relayer: {
     default: {
       blacklist: [
@@ -89,7 +54,8 @@ export const hyperlane: AgentConfig<MainnetChains> = {
       ],
       gasPaymentEnforcement: {
         policy: {
-          type: GasPaymentEnforcementPolicyType.None,
+          type: GasPaymentEnforcementPolicyType.Minimum,
+          payment: 1,
         },
         // To continue relaying interchain query callbacks, we whitelist
         // all messages between interchain query routers.
@@ -109,15 +75,14 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // commit date: 2023-02-01
-    tag: 'sha-c6a8189',
+    // commit date: 2023-02-08
+    tag: '91b75a7-20230208-233139',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  validatorSets: validators,
   gelato: {
     enabledChains: [],
   },
@@ -127,8 +92,10 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
       whitelist: releaseCandidateHelloworldMatchingList,
       gasPaymentEnforcement: {
         policy: {
-          type: GasPaymentEnforcementPolicyType.None,
+          type: GasPaymentEnforcementPolicyType.Minimum,
+          payment: 1,
         },
+        whitelist: interchainQueriesMatchingList,
       },
       transactionGasLimit: BigInt(750000),
       // Skipping arbitrum because the gas price estimates are inclusive of L1

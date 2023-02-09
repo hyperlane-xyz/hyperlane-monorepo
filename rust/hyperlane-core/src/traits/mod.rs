@@ -7,6 +7,7 @@ pub use mailbox::*;
 pub use multisig_ism::*;
 pub use provider::*;
 pub use signing::*;
+pub use validator_announce::*;
 
 mod cursor;
 mod deployed;
@@ -17,6 +18,7 @@ mod mailbox;
 mod multisig_ism;
 mod provider;
 mod signing;
+mod validator_announce;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]

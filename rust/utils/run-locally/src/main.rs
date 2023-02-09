@@ -162,8 +162,6 @@ fn main() -> ExitCode {
         "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
         "HYP_RELAYER_DESTINATIONCHAINNAMES" => "test2,test3",
         "HYP_RELAYER_WHITELIST" => r#"[{"senderAddress": "*", "destinationDomain": ["13372", "13373"], "recipientAddress": "*"}]"#,
-        "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_TYPE" => "localStorage",
-        "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_PATH" => checkpoints_dir.path().to_str().unwrap(),
     };
 
     let validator_env = hashmap! {
@@ -325,10 +323,14 @@ fn main() -> ExitCode {
     // Register the validator announcement
     println!("Announcing validator...");
     let mut announce = Command::new("yarn");
-    announce.arg("announce");
+    let location = format!("file://{}", checkpoints_dir.path().to_str().unwrap());
+    announce.arg("ts-node");
     announce.args([
-        "--checkpointsdir",
-        checkpoints_dir.path().to_str().unwrap(),
+        "scripts/announce-validators.ts",
+        "--environment",
+        "test",
+        "--location",
+        &location,
         "--chain",
         "test1",
     ]);

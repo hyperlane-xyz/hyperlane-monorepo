@@ -102,11 +102,22 @@ impl MultisigCheckpointSyncer {
                 {
                     // If the signed checkpoint is for a different index, ignore it
                     if signed_checkpoint.value.index != index {
+                        debug!(
+                            validator = format!("{:#x}", validator),
+                            index = index,
+                            checkpoint_index = signed_checkpoint.value.index,
+                            "Checkpoint index mismatch"
+                        );
                         continue;
                     }
                     // Ensure that the signature is actually by the validator
                     let signer = signed_checkpoint.recover()?;
                     if H256::from(signer) != *validator {
+                        debug!(
+                            validator = format!("{:#x}", validator),
+                            index = index,
+                            "Checkpoint signature mismatch"
+                        );
                         continue;
                     }
 
@@ -128,6 +139,13 @@ impl MultisigCheckpointSyncer {
                             1 // length of 1
                         }
                     };
+                    debug!(
+                        validator = format!("{:#x}", validator),
+                        index = index,
+                        root = format!("{:#x}", root),
+                        signature_count = signature_count,
+                        "Found signed checkpoint"
+                    );
                     // If we've hit a quorum, create a MultisigSignedCheckpoint
                     if signature_count >= threshold {
                         if let Some(signed_checkpoints) = signed_checkpoints_per_root.get(&root) {
@@ -137,6 +155,12 @@ impl MultisigCheckpointSyncer {
                             return Ok(Some(checkpoint));
                         }
                     }
+                } else {
+                    debug!(
+                        validator = format!("{:#x}", validator),
+                        index = index,
+                        "Unable to find signed checkpoint"
+                    );
                 }
             } else {
                 debug!(%validator, "Unable to find checkpoint syncer");

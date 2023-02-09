@@ -249,7 +249,7 @@ where
         Ok(self.contract.delivered(id.into()).call().await?)
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         let base_call = self.contract.latest_checkpoint();
         let call_with_lag = match maybe_lag {

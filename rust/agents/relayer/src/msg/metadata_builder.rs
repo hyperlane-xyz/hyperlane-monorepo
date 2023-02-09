@@ -1,11 +1,17 @@
-use std::fmt::{Debug, Formatter};
+use std::collections::HashMap;
+use std::fmt::{Debug};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument};
 
-use hyperlane_base::{CachingMailbox, ChainSetup, CoreMetrics, MultisigCheckpointSyncer};
-use hyperlane_core::{HyperlaneChain, HyperlaneMessage, Mailbox, MultisigIsm};
+use hyperlane_base::{
+    CachingMailbox, ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics,
+    MultisigCheckpointSyncer,
+};
+use hyperlane_core::{
+    HyperlaneChain, HyperlaneMessage, Mailbox, MultisigIsm, ValidatorAnnounce, H160, H256,
+};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
@@ -13,16 +19,16 @@ use crate::merkle_tree_builder::MerkleTreeBuilder;
 pub struct MetadataBuilder {
     metrics: Arc<CoreMetrics>,
     chain_setup: ChainSetup,
-    checkpoint_syncer: MultisigCheckpointSyncer,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
+    validator_announce: Arc<dyn ValidatorAnnounce>,
 }
 
 impl Debug for MetadataBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "MetadataBuilder {{ chain_setup: {:?}, checkpoint_syncer: {:?} }}",
-            self.chain_setup, self.checkpoint_syncer
+            "MetadataBuilder {{ chain_setup: {:?}, validator_announce: {:?} }}",
+            self.chain_setup, self.validator_announce
         )
     }
 }
@@ -30,15 +36,15 @@ impl Debug for MetadataBuilder {
 impl MetadataBuilder {
     pub fn new(
         chain_setup: ChainSetup,
-        checkpoint_syncer: MultisigCheckpointSyncer,
         prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
+        validator_announce: Arc<dyn ValidatorAnnounce>,
         metrics: Arc<CoreMetrics>,
     ) -> Self {
         MetadataBuilder {
             metrics,
             chain_setup,
-            checkpoint_syncer,
             prover_sync,
+            validator_announce,
         }
     }
 
@@ -71,8 +77,8 @@ impl MetadataBuilder {
 
         let (validators, threshold) = multisig_ism.validators_and_threshold(message).await?;
         let highest_known_nonce = self.prover_sync.read().await.count() - 1;
-        if let Some(checkpoint) = self
-            .checkpoint_syncer
+        let checkpoint_syncer = self.build_checkpoint_syncer(&validators).await?;
+        if let Some(checkpoint) = checkpoint_syncer
             .fetch_checkpoint_in_range(
                 &validators,
                 threshold.into(),
@@ -115,5 +121,29 @@ impl MetadataBuilder {
             );
             Ok(None)
         }
+    }
+
+    async fn build_checkpoint_syncer(
+        &self,
+        validators: &[H256],
+    ) -> eyre::Result<MultisigCheckpointSyncer> {
+        let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
+        let storage_locations = self
+            .validator_announce
+            .get_announced_storage_locations(validators)
+            .await?;
+        // Only use the most recently announced location for now.
+        for (i, validator_storage_locations) in storage_locations.iter().enumerate() {
+            for storage_location in validator_storage_locations.iter().rev() {
+                if let Some(conf) = CheckpointSyncerConf::from_storage_location(storage_location) {
+                    if let Ok(checkpoint_syncer) = conf.build(None) {
+                        checkpoint_syncers
+                            .insert(H160::from(validators[i]), checkpoint_syncer.into());
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))
     }
 }

@@ -127,9 +127,9 @@ export abstract class HyperlaneRouterDeployer<
       objMap(contractsMap, async (chain, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(chain);
         const owner = this.configMap[chain].owner;
-        this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
         const currentOwner = await contracts.router.owner();
         if (owner != currentOwner) {
+          this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
           await super.runIfOwner(chain, contracts.router, async () => {
             await chainConnection.handleTx(
               contracts.router.transferOwnership(
