@@ -1,6 +1,7 @@
 import type { Chain as WagmiChain } from '@wagmi/chains';
 
 import { objMap } from '../utils/objects';
+import { chainMetadataToWagmiChain } from '../utils/wagmi';
 
 import { ChainName, Chains, Mainnets, Testnets } from './chains';
 
@@ -43,7 +44,7 @@ export interface ChainMetadata {
   blocks: {
     // Number of blocks to wait before considering a transaction confirmed
     confirmations: number;
-    // TODO consider merging with confirmations, require agent code changes
+    // TODO consider merging with confirmations, requires agent code changes
     // Number of blocks before a transaction has a near-zero chance of reverting
     reorgPeriod: number;
     // Rough estimate of time per block in seconds
@@ -320,8 +321,9 @@ export const goerli: ChainMetadata = {
   displayName: 'Goerli',
   nativeToken: etherToken,
   publicRpcUrls: [
-    { http: 'https://eth-goerli.public.blastapi.io' },
+    { http: 'https://endpoints.omniatech.io/v1/eth/goerli/public' },
     { http: 'https://rpc.ankr.com/eth_goerli' },
+    { http: 'https://eth-goerli.public.blastapi.io' },
   ],
   blockExplorers: [
     {
@@ -521,8 +523,8 @@ export const gnosis: ChainMetadata = {
   blockExplorers: [
     {
       name: 'GnosisScan',
-      url: 'https://gnosisscan.io/',
-      apiUrl: 'https://api.gnosisscan.io/',
+      url: 'https://gnosisscan.io',
+      apiUrl: 'https://api.gnosisscan.io',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -609,22 +611,7 @@ export const chainMetadata = {
 // For convenient use in wagmi-based apps
 export const wagmiChainMetadata: Record<ChainName, WagmiChain> = objMap(
   chainMetadata,
-  (_, metadata) => ({
-    id: metadata.id,
-    name: metadata.displayName,
-    network: metadata.name as string,
-    nativeCurrency: metadata.nativeToken,
-    rpcUrls: { default: { http: [metadata.publicRpcUrls[0].http] } },
-    blockExplorers: metadata.blockExplorers.length
-      ? {
-          default: {
-            name: metadata.blockExplorers[0].name,
-            url: metadata.blockExplorers[0].url,
-          },
-        }
-      : undefined,
-    testnet: Testnets.includes(metadata.name),
-  }),
+  (_, metadata) => chainMetadataToWagmiChain(metadata),
 );
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<

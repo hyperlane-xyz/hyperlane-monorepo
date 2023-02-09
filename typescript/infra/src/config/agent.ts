@@ -29,61 +29,6 @@ export function getChainOverriddenConfig<Chain extends ChainName, T>(
   };
 }
 
-// =====================================
-// =====     Checkpoint Syncer     =====
-// =====================================
-
-// These values are eventually passed to Rust, which expects the values to be camelCase
-export const enum CheckpointSyncerType {
-  LocalStorage = 'localStorage',
-  S3 = 's3',
-}
-
-interface LocalCheckpointSyncerConfig {
-  type: CheckpointSyncerType.LocalStorage;
-  path: string;
-}
-
-interface S3CheckpointSyncerConfig {
-  type: CheckpointSyncerType.S3;
-  bucket: string;
-  region: string;
-}
-
-export type CheckpointSyncerConfig =
-  | LocalCheckpointSyncerConfig
-  | S3CheckpointSyncerConfig;
-
-interface MultisigCheckpointSyncerConfig {
-  // Keyed by validator address
-  checkpointSyncers: Record<string, CheckpointSyncerConfig>;
-}
-
-// =================================
-// =====     Validator Set     =====
-// =================================
-
-// A validator set for a single chain
-interface ValidatorSet {
-  threshold: number;
-  validators: Array<Validator>;
-}
-
-// A validator. This isn't agent-specific configuration, just information
-// on the validator that is enrolled in a validator set.
-interface Validator {
-  name: string;
-  address: string;
-  checkpointSyncer: CheckpointSyncerConfig;
-  readonly?: boolean;
-}
-
-// Validator sets for each chain
-export type ChainValidatorSets<Chain extends ChainName> = ChainMap<
-  Chain,
-  ValidatorSet
->;
-
 // =================================
 // =====     Relayer Agent     =====
 // =================================
@@ -115,9 +60,14 @@ export type GasPaymentEnforcementPolicy =
       type: GasPaymentEnforcementPolicyType.MeetsEstimatedCost;
     };
 
+export interface GasPaymentEnforcementConfig {
+  policy: GasPaymentEnforcementPolicy;
+  whitelist?: MatchingList;
+}
+
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
-  gasPaymentEnforcementPolicy: GasPaymentEnforcementPolicy;
+  gasPaymentEnforcement: GasPaymentEnforcementConfig;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
   transactionGasLimit?: bigint;
@@ -130,6 +80,11 @@ type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
   BaseRelayerConfig
 >;
 
+interface SerializableGasPaymentEnforcementConfig
+  extends Omit<GasPaymentEnforcementConfig, 'whitelist'> {
+  whitelist?: string;
+}
+
 // Full relayer agent config for a single chain
 interface RelayerConfig
   extends Omit<
@@ -138,35 +93,71 @@ interface RelayerConfig
     | 'blacklist'
     | 'skipTransactionGasLimitFor'
     | 'transactionGasLimit'
+    | 'gasPaymentEnforcement'
   > {
   originChainName: ChainName;
-  multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
+  gasPaymentEnforcement: SerializableGasPaymentEnforcementConfig;
   whitelist?: string;
   blacklist?: string;
   transactionGasLimit?: string;
   skipTransactionGasLimitFor?: string;
 }
 
+// =====================================
+// =====     Checkpoint Syncer     =====
+// =====================================
+
+// These values are eventually passed to Rust, which expects the values to be camelCase
+export const enum CheckpointSyncerType {
+  LocalStorage = 'localStorage',
+  S3 = 's3',
+}
+
+interface LocalCheckpointSyncerConfig {
+  type: CheckpointSyncerType.LocalStorage;
+  path: string;
+}
+
+interface S3CheckpointSyncerConfig {
+  type: CheckpointSyncerType.S3;
+  bucket: string;
+  region: string;
+}
+
+export type CheckpointSyncerConfig =
+  | LocalCheckpointSyncerConfig
+  | S3CheckpointSyncerConfig;
+
 // ===================================
 // =====     Validator Agent     =====
 // ===================================
 
-// Incomplete basic validator agent config
-interface BaseValidatorConfig {
+// Configuration for a validator agent.
+interface ValidatorBaseConfig {
+  name: string;
+  address: string;
+  checkpointSyncer: CheckpointSyncerConfig;
+}
+
+interface ValidatorChainConfig {
   // How frequently to check for new checkpoints
   interval: number;
   // The reorg_period in blocks
   reorgPeriod: number;
+  // Individual validator agents
+  validators: Array<ValidatorBaseConfig>;
 }
 
-// Per-chain validator agent configs
-type ChainValidatorConfigs<Chain extends ChainName> = ChainOverridableConfig<
+// Validator agents for each chain.
+export type ChainValidatorConfigs<Chain extends ChainName> = ChainMap<
   Chain,
-  BaseValidatorConfig
+  ValidatorChainConfig
 >;
 
-// Full validator agent config for a single chain
-interface ValidatorConfig extends BaseValidatorConfig {
+// Helm config for a single validator
+interface ValidatorHelmConfig {
+  interval: number;
+  reorgPeriod: number;
   originChainName: ChainName;
   checkpointSyncer: CheckpointSyncerConfig;
   validator: KeyConfig;
@@ -231,9 +222,9 @@ export interface AgentConfig<Chain extends ChainName> {
   environmentChainNames: Chain[];
   // Names of chains this context cares about
   contextChainNames: Chain[];
-  validatorSets: ChainValidatorSets<Chain>;
   gelato?: GelatoConfig<Chain>;
-  validator?: ChainValidatorConfigs<Chain>;
+  // RC contexts do not provide validators
+  validators?: ChainValidatorConfigs<Chain>;
   relayer?: ChainRelayerConfigs<Chain>;
   // Roles to manage keys for
   rolesWithKeys: KEY_ROLE_ENUM[];
@@ -330,74 +321,58 @@ export class ChainAgentConfig<Chain extends ChainName> {
     );
   }
 
-  async validatorConfigs(): Promise<Array<ValidatorConfig> | undefined> {
+  async validatorConfigs(): Promise<Array<ValidatorHelmConfig> | undefined> {
     if (!this.validatorEnabled) {
       return undefined;
     }
-    const baseConfig = getChainOverriddenConfig(
-      this.agentConfig.validator!,
-      this.chainName,
-    );
 
-    // Filter out readonly validator keys, as we do not need to run
-    // validators for these.
     return Promise.all(
-      this.validatorSet.validators
-        .filter((val) => !val.readonly)
-        .map(async (val, i) => {
-          let validator: KeyConfig = {
-            type: KeyType.Hex,
-          };
-          if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
-            const awsUser = new ValidatorAgentAwsUser(
-              this.agentConfig.environment,
-              this.agentConfig.context,
-              this.chainName,
-              i,
-              val.checkpointSyncer.region,
-              val.checkpointSyncer.bucket,
-            );
-            await awsUser.createIfNotExists();
-            await awsUser.createBucketIfNotExists();
+      this.validators.validators.map(async (val, i) => {
+        let validator: KeyConfig = {
+          type: KeyType.Hex,
+        };
+        if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
+          const awsUser = new ValidatorAgentAwsUser(
+            this.agentConfig.environment,
+            this.agentConfig.context,
+            this.chainName,
+            i,
+            val.checkpointSyncer.region,
+            val.checkpointSyncer.bucket,
+          );
+          await awsUser.createIfNotExists();
+          await awsUser.createBucketIfNotExists();
 
-            if (this.awsKeys) {
-              const key = await awsUser.createKeyIfNotExists(this.agentConfig);
-              validator = key.keyConfig;
-            }
-          } else {
-            console.warn(
-              `Validator ${val.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
-            );
+          if (this.awsKeys) {
+            const key = await awsUser.createKeyIfNotExists(this.agentConfig);
+            validator = key.keyConfig;
           }
+        } else {
+          console.warn(
+            `Validator ${val.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
+          );
+        }
 
-          return {
-            ...baseConfig,
-            checkpointSyncer: val.checkpointSyncer,
-            originChainName: this.chainName,
-            validator,
-          };
-        }),
+        return {
+          interval: this.validators.interval,
+          reorgPeriod: this.validators.reorgPeriod,
+          checkpointSyncer: val.checkpointSyncer,
+          originChainName: this.chainName,
+          validator,
+        };
+      }),
     );
   }
 
   get validatorEnabled(): boolean {
-    return this.agentConfig.validator !== undefined;
+    return this.agentConfig.validators !== undefined;
   }
 
-  // Returns whetehr the relayer requires AWS credentials, creating them if required.
+  // Returns whether the relayer requires AWS credentials, creating them if required.
   async relayerRequiresAwsCredentials(): Promise<boolean> {
-    // If there is an S3 checkpoint syncer, we need AWS credentials.
-    // We ensure they are created here, but they are actually read from using `external-secrets`
-    // on the cluster.
-    const firstS3Syncer = this.validatorSet.validators.find(
-      (validator) =>
-        validator.checkpointSyncer.type === CheckpointSyncerType.S3,
-    )?.checkpointSyncer as S3CheckpointSyncerConfig | undefined;
-
     // If AWS is present on the agentConfig, we are using AWS keys and need credentials regardless.
     // This is undefined if AWS is not required
-    const awsRegion: string | undefined =
-      this.agentConfig.aws?.region ?? firstS3Syncer?.region;
+    const awsRegion: string | undefined = this.agentConfig.aws?.region;
 
     if (awsRegion !== undefined) {
       const awsUser = new AgentAwsUser(
@@ -414,6 +389,9 @@ export class ChainAgentConfig<Chain extends ChainName> {
       }
       return true;
     }
+    console.warn(
+      `Relayer does not have AWS credentials. Be sure this is a non-k8s-based environment!`,
+    );
     return false;
   }
 
@@ -427,20 +405,14 @@ export class ChainAgentConfig<Chain extends ChainName> {
       this.chainName,
     );
 
-    const checkpointSyncers = this.validatorSet.validators.reduce(
-      (agg, val) => ({
-        ...agg,
-        [val.address]: val.checkpointSyncer,
-      }),
-      {},
-    );
-
     const relayerConfig: RelayerConfig = {
       originChainName: this.chainName,
-      multisigCheckpointSyncer: {
-        checkpointSyncers,
+      gasPaymentEnforcement: {
+        ...baseConfig.gasPaymentEnforcement,
+        whitelist: baseConfig.gasPaymentEnforcement.whitelist
+          ? JSON.stringify(baseConfig.gasPaymentEnforcement.whitelist)
+          : undefined,
       },
-      gasPaymentEnforcementPolicy: baseConfig.gasPaymentEnforcementPolicy,
     };
     if (baseConfig.whitelist) {
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
@@ -488,7 +460,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
   async ensureCoingeckoApiKeySecretExistsIfRequired() {
     // The CoinGecko API Key is only needed when using the "MeetsEstimatedCost" policy.
     if (
-      this.relayerConfig?.gasPaymentEnforcementPolicy.type !==
+      this.relayerConfig?.gasPaymentEnforcement.policy.type !==
       GasPaymentEnforcementPolicyType.MeetsEstimatedCost
     ) {
       return;
@@ -511,18 +483,8 @@ export class ChainAgentConfig<Chain extends ChainName> {
     return TransactionSubmissionType.Signer;
   }
 
-  get validatorSet(): ValidatorSet {
-    return this.agentConfig.validatorSets[this.chainName];
-  }
-
-  // Returns true if any of the validators in the validator set are using an S3 checkpoint syncer.
-  get s3CheckpointSyncerExists(): boolean {
-    return (
-      this.validatorSet.validators.find(
-        (validator) =>
-          validator.checkpointSyncer.type === CheckpointSyncerType.S3,
-      ) !== undefined
-    );
+  get validators(): ValidatorChainConfig {
+    return this.agentConfig.validators![this.chainName];
   }
 
   get awsKeys(): boolean {

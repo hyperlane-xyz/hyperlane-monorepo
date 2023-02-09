@@ -1,6 +1,7 @@
 import { defaultAbiCoder } from 'ethers/lib/utils';
 
 import { utils } from '@hyperlane-xyz/utils';
+import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { ChainNameToDomainId } from '../../domains';
@@ -15,6 +16,7 @@ import {
   MailboxViolationType,
   MultisigIsmViolationType,
   ThresholdViolation,
+  ValidatorAnnounceViolation,
 } from './types';
 
 const MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH =
@@ -44,6 +46,7 @@ export class HyperlaneCoreChecker<
     await this.checkMailbox(chain);
     await this.checkMultisigIsm(chain);
     await this.checkBytecodeHashes(chain);
+    await this.checkValidatorAnnounce(chain);
   }
 
   async checkDomainOwnership(chain: Chain): Promise<void> {
@@ -173,6 +176,28 @@ export class HyperlaneCoreChecker<
       contracts.interchainGasPaymaster.addresses,
       contracts.proxyAdmin.address,
     );
+  }
+
+  async checkValidatorAnnounce(chain: Chain): Promise<void> {
+    const expectedValidators = this.configMap[chain].multisigIsm.validators;
+    const validatorAnnounce = this.app.getContracts(chain).validatorAnnounce;
+    const announcedValidators =
+      await validatorAnnounce.getAnnouncedValidators();
+    expectedValidators.map((validator) => {
+      const matches = announcedValidators.filter((x) =>
+        eqAddress(x, validator),
+      );
+      if (matches.length == 0) {
+        const violation: ValidatorAnnounceViolation = {
+          type: CoreViolationType.ValidatorAnnounce,
+          chain,
+          validator,
+          actual: false,
+          expected: true,
+        };
+        this.addViolation(violation);
+      }
+    });
   }
 
   async checkMultisigIsm(local: Chain): Promise<void> {

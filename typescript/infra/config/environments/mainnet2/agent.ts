@@ -7,15 +7,20 @@ import {
   GasPaymentEnforcementPolicyType,
 } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
-import { helloworldMatchingList } from '../../utils';
+import { helloworldMatchingList, routerMatchingList } from '../../utils';
 
 import { MainnetChains, chainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
+import interchainQueryRouters from './middleware/queries/addresses.json';
 import { validators } from './validators';
 
 const releaseCandidateHelloworldMatchingList = helloworldMatchingList(
   helloWorld,
   Contexts.ReleaseCandidate,
+);
+
+const interchainQueriesMatchingList = routerMatchingList(
+  interchainQueryRouters,
 );
 
 export const hyperlane: AgentConfig<MainnetChains> = {
@@ -25,54 +30,19 @@ export const hyperlane: AgentConfig<MainnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // commit date: 2023-01-31
-    tag: 'sha-d95d9b2',
+    // commit date: 2023-02-08
+    tag: '91b75a7-20230208-233139',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  validatorSets: validators,
   gelato: {
     enabledChains: [],
   },
   connectionType: ConnectionType.HttpQuorum,
-  validator: {
-    default: {
-      interval: 5,
-      reorgPeriod: 1,
-    },
-    chainOverrides: {
-      celo: {
-        reorgPeriod: 0,
-      },
-      ethereum: {
-        reorgPeriod: 14,
-      },
-      bsc: {
-        reorgPeriod: 15,
-      },
-      optimism: {
-        reorgPeriod: 0,
-      },
-      arbitrum: {
-        reorgPeriod: 0,
-      },
-      avalanche: {
-        reorgPeriod: 3,
-      },
-      polygon: {
-        reorgPeriod: 256,
-      },
-      moonbeam: {
-        reorgPeriod: 0,
-      },
-      gnosis: {
-        reorgPeriod: 14,
-      },
-    },
-  },
+  validators,
   relayer: {
     default: {
       blacklist: [
@@ -82,8 +52,16 @@ export const hyperlane: AgentConfig<MainnetChains> = {
           recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
         },
       ],
-      gasPaymentEnforcementPolicy: {
-        type: GasPaymentEnforcementPolicyType.None,
+      gasPaymentEnforcement: {
+        policy: {
+          type: GasPaymentEnforcementPolicyType.Minimum,
+          payment: 1,
+        },
+        // To continue relaying interchain query callbacks, we whitelist
+        // all messages between interchain query routers.
+        // This whitelist will become more strict with
+        // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
+        whitelist: interchainQueriesMatchingList,
       },
     },
   },
@@ -97,15 +75,14 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // commit date: 2023-02-01
-    tag: 'sha-c6a8189',
+    // commit date: 2023-02-08
+    tag: '91b75a7-20230208-233139',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  validatorSets: validators,
   gelato: {
     enabledChains: [],
   },
@@ -113,8 +90,12 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
   relayer: {
     default: {
       whitelist: releaseCandidateHelloworldMatchingList,
-      gasPaymentEnforcementPolicy: {
-        type: GasPaymentEnforcementPolicyType.None,
+      gasPaymentEnforcement: {
+        policy: {
+          type: GasPaymentEnforcementPolicyType.Minimum,
+          payment: 1,
+        },
+        whitelist: interchainQueriesMatchingList,
       },
       transactionGasLimit: BigInt(750000),
       // Skipping arbitrum because the gas price estimates are inclusive of L1

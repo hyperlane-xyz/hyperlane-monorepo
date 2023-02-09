@@ -2718,7 +2718,6 @@ dependencies = [
  "rusoto_s3",
  "serde",
  "serde_json",
- "serde_path_to_error",
  "thiserror",
  "tokio",
  "tracing",
@@ -5011,15 +5010,6 @@ checksum = "877c235533714907a8c2464236f5c4b2a17262ef1bd71f38f35ea592c8da6883"
 dependencies = [
  "itoa",
  "ryu",
- "serde",
-]
-
-[[package]]
-name = "serde_path_to_error"
-version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26b04f22b563c91331a10074bda3dd5492e3cc39d56bd557e91c0af42b6c7341"
-dependencies = [
  "serde",
 ]
 
