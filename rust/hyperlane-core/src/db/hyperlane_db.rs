@@ -187,7 +187,10 @@ impl HyperlaneDB {
         let meta = &gas_payment_with_meta.meta;
         // If the gas payment has already been processed, do nothing
         if self.retrieve_gas_payment_meta_processed(meta)? {
-            trace!(?gas_payment_with_meta, "Attempted to process an already-processed gas payment");
+            trace!(
+                ?gas_payment_with_meta,
+                "Attempted to process an already-processed gas payment"
+            );
             // Return false to indicate the gas payment was already processed
             return Ok(false);
         }
