@@ -8,10 +8,6 @@ import type { types } from '@hyperlane-xyz/utils';
 import { ChainName, PartialChainMap } from '../../types';
 import type { CheckerViolation } from '../types';
 
-// export type StorageGasOracleConfig = {
-
-// };
-
 export enum GasOracleContractType {
   StorageGasOracle = 'StorageGasOracle',
 }

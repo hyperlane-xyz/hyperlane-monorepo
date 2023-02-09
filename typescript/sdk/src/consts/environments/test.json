@@ -1,5 +1,6 @@
 {
   "test1": {
+    "storageGasOracle": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
     "validatorAnnounce": "0x9A676e781A523b5d0C0e43731313A708CB607508",
     "proxyAdmin": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
     "mailbox": {
@@ -7,7 +8,6 @@
       "proxy": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
       "implementation": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0"
     },
-    "storageGasOracle": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
     "interchainGasPaymaster": {
       "kind": "Transparent",
       "proxy": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
@@ -17,6 +17,7 @@
     "multisigIsm": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
   },
   "test2": {
+    "storageGasOracle": "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c",
     "validatorAnnounce": "0x67d269191c92Caf3cD7723F116c85e6E9bf55933",
     "proxyAdmin": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
     "mailbox": {
@@ -24,7 +25,6 @@
       "proxy": "0xc5a5C42992dECbae36851359345FE25997F5C42d",
       "implementation": "0x09635F643e140090A9A8Dcd712eD6285858ceBef"
     },
-    "storageGasOracle": "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c",
     "interchainGasPaymaster": {
       "kind": "Transparent",
       "proxy": "0x59b670e9fA9D0A427751Af201D676719a970857b",
@@ -34,6 +34,7 @@
     "multisigIsm": "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
   },
   "test3": {
+    "storageGasOracle": "0xa82fF9aFd8f496c3d6ac40E2a0F282E47488CFc9",
     "validatorAnnounce": "0x8f86403A4DE0BB5791fa46B8e795C547942fE4Cf",
     "proxyAdmin": "0x9E545E3C0baAB3E08CdfD552C960A1050f373042",
     "mailbox": {
@@ -41,7 +42,6 @@
       "proxy": "0x0E801D84Fa97b50751Dbf25036d067dCf18858bF",
       "implementation": "0x99bbA657f2BbC93c02D617f8bA121cB8Fc104Acf"
     },
-    "storageGasOracle": "0xa82fF9aFd8f496c3d6ac40E2a0F282E47488CFc9",
     "interchainGasPaymaster": {
       "kind": "Transparent",
       "proxy": "0x851356ae760d987E095750cCeb3bC6014560891C",

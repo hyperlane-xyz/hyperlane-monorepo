@@ -16,6 +16,11 @@ import {
   ViolationType,
   objMap,
 } from '@hyperlane-xyz/sdk';
+import {
+  IgpGasOracleViolation,
+  IgpViolation,
+  IgpViolationType,
+} from '@hyperlane-xyz/sdk/dist/deploy/core/types';
 import { ProxyKind } from '@hyperlane-xyz/sdk/dist/proxy';
 import { types, utils } from '@hyperlane-xyz/utils';
 
@@ -140,6 +145,10 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
         }
         case ProxyKind.Transparent: {
           this.handleProxyViolation(violation as ProxyViolation);
+          break;
+        }
+        case CoreViolationType.InterchainGasPaymaster: {
+          this.handleIgpViolation(violation as IgpViolation);
           break;
         }
         default:
@@ -308,5 +317,25 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
       ),
       description: `Transfer ownership of ${violation.contract.address} to ${violation.expected}`,
     });
+  }
+
+  handleIgpViolation(violation: IgpViolation) {
+    switch (violation.subType) {
+      case IgpViolationType.GasOracle: {
+        const gasOracleViolation = violation as IgpGasOracleViolation;
+        const remoteId = ChainNameToDomainId[gasOracleViolation.remote];
+        this.pushCall(gasOracleViolation.chain as Chain, {
+          to: gasOracleViolation.contract.address,
+          data: gasOracleViolation.contract.interface.encodeFunctionData(
+            'setGasOracle',
+            [remoteId, gasOracleViolation.expected],
+          ),
+          description: `Set IGP gas oracle for ${gasOracleViolation.remote} (domain ID ${remoteId}) to ${gasOracleViolation.expected}`,
+        });
+        break;
+      }
+      default:
+        throw new Error(`Unsupported IgpViolationType: ${violation.subType}`);
+    }
   }
 }

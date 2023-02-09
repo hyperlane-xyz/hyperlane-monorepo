@@ -8,7 +8,6 @@ import {
   TestIsm__factory,
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
 
 import { DeployOptions } from '../deploy/HyperlaneDeployer';
 import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
@@ -18,7 +17,7 @@ import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 import { ChainMap, TestChainNames } from '../types';
 
 import { TestCoreApp } from './TestCoreApp';
-import { coreFactories } from './contracts';
+import { GasOracleContracts, coreFactories } from './contracts';
 
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
@@ -82,7 +81,7 @@ export class TestCoreDeployer<
   async deployInterchainGasPaymaster<LocalChain extends TestChain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
-    _storageGasOracleAddress: types.Address,
+    _gasOracleContracts: GasOracleContracts,
     deployOpts?: DeployOptions,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>

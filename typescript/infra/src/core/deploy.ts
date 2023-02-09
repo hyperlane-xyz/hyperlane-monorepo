@@ -18,6 +18,7 @@ import {
   chainMetadata,
   objMap,
 } from '@hyperlane-xyz/sdk';
+import { GasOracleContracts } from '@hyperlane-xyz/sdk/dist/core/contracts';
 import { types } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';
@@ -41,7 +42,7 @@ export class HyperlaneCoreInfraDeployer<
   async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
-    storageGasOracleAddress: types.Address,
+    gasOracleContracts: GasOracleContracts,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
@@ -54,7 +55,7 @@ export class HyperlaneCoreInfraDeployer<
     return super.deployInterchainGasPaymaster(
       chain,
       proxyAdmin,
-      storageGasOracleAddress,
+      gasOracleContracts,
       deployOpts,
     );
   }
