@@ -256,7 +256,7 @@ impl SerialSubmitter {
     /// been processed, Ok(true) is returned. If this message is unable to
     /// be processed, either due to failed gas estimation or an insufficient gas payment,
     /// Ok(false) is returned.
-    #[instrument(skip(self, msg), fields(msg_nonce=msg.message.nonce, msg_id=format!("{:x}", msg.message.id())))]
+    #[instrument(skip(self, msg), fields(msg_nonce=msg.message.nonce, msg_id=?msg.message.id()))]
     async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<bool> {
         // If the message has already been processed, e.g. due to another relayer having already
         // processed, then mark it as already-processed, and move on to the next tick.

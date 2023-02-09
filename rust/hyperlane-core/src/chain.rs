@@ -154,6 +154,16 @@ pub enum HyperlaneDomainProtocol {
     Fuel,
 }
 
+impl HyperlaneDomainProtocol {
+    pub fn fmt_address(&self, addr: H256) -> String {
+        use HyperlaneDomainProtocol::*;
+        match self {
+            Ethereum => format!("{:?}", H160::from(addr)),
+            Fuel => format!("{:?}", addr),
+        }
+    }
+}
+
 impl KnownHyperlaneDomain {
     pub fn as_str(self) -> &'static str {
         self.into()

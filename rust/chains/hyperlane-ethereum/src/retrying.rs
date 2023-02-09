@@ -19,9 +19,9 @@ const METHODS_TO_NOT_RETRY: &[&str] = &[
 /// An HTTP Provider with a simple naive exponential backoff built-in
 #[derive(Debug, Clone)]
 pub struct RetryingProvider<P> {
-    inner: P,
     max_requests: u32,
     base_retry_ms: u64,
+    inner: P,
 }
 
 impl<P> RetryingProvider<P> {

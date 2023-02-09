@@ -42,7 +42,7 @@ impl MetadataBuilder {
         }
     }
 
-    #[instrument(err, skip(mailbox), fields(msg_id=format!("{:x}", message.id())))]
+    #[instrument(err, skip(mailbox), fields(msg_id=?message.id()))]
     pub async fn fetch_metadata(
         &self,
         message: &HyperlaneMessage,
@@ -102,19 +102,14 @@ impl MetadataBuilder {
                 Ok(Some(metadata))
             } else {
                 debug!(
-                    checkpoint = format!("{}", checkpoint.checkpoint),
-                    canonical_root = format!("{:x}", proof.root()),
+                    checkpoint = ?checkpoint.checkpoint,
+                    canonical_root = ?proof.root(),
                     "Signed checkpoint does not match canonical root"
                 );
                 Ok(None)
             }
         } else {
-            debug!(
-                validators = format!("{:?}", validators),
-                threshold = threshold,
-                highest_known_nonce = highest_known_nonce,
-                "Unable to reach quorum"
-            );
+            debug!(?validators, threshold, highest_known_nonce, "Unable to reach quorum");
             Ok(None)
         }
     }

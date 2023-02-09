@@ -5,6 +5,7 @@ use ethers::prelude::{NameOrAddress, TransactionReceipt};
 use ethers_contract::builders::ContractCall;
 use tracing::{error, info};
 
+use hyperlane_core::utils::fmt_bytes;
 use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
 
 use crate::Middleware;
@@ -15,11 +16,11 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    // "0x..."
-    let data = format!(
-        "0x{}",
-        hex::encode(tx.tx.data().map(|b| b.to_vec()).unwrap_or_default())
-    );
+    let data = tx
+        .tx
+        .data()
+        .map(|b| fmt_bytes(b))
+        .unwrap_or_else(|| "None".into());
 
     let to = tx
         .tx

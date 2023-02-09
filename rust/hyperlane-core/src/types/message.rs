@@ -1,6 +1,8 @@
 use sha3::{digest::Update, Digest, Keccak256};
+use std::fmt::{Debug, Formatter};
 
 use crate::{Decode, Encode, HyperlaneProtocolError, H256};
+use crate::utils::fmt_address_for_domain;
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
 
@@ -16,7 +18,7 @@ impl From<&HyperlaneMessage> for RawHyperlaneMessage {
 }
 
 /// A full Hyperlane message between chains
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct HyperlaneMessage {
     /// 1   Hyperlane version number
     pub version: u8,
@@ -32,6 +34,22 @@ pub struct HyperlaneMessage {
     pub recipient: H256,
     /// 0+  Message contents
     pub body: Vec<u8>,
+}
+
+impl Debug for HyperlaneMessage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "HyperlaneMessage {{ version: {}, nonce: {}, origin: {}, sender: {}, destination: {}, recipient: {}, body: 0x{} }}",
+            self.version,
+            self.nonce,
+            self.origin,
+            fmt_address_for_domain(self.origin, self.sender),
+            self.destination,
+            fmt_address_for_domain(self.destination, self.recipient),
+            hex::encode(&self.body)
+        )
+    }
 }
 
 impl From<RawHyperlaneMessage> for HyperlaneMessage {

@@ -66,7 +66,7 @@ impl SponsoredCallOp {
         Self(args)
     }
 
-    #[instrument(skip(self), fields(msg_id=format!("{:x}", self.message.message.id()), msg_nonce=self.message.message.nonce))]
+    #[instrument(skip(self), fields(msg_id=?self.message.message.id(), msg_nonce=self.message.message.nonce))]
     pub async fn run(&mut self) {
         loop {
             match self.tick().await {
