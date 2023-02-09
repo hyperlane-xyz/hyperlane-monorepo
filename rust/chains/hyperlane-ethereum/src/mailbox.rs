@@ -12,16 +12,16 @@ use ethers_contract::builders::ContractCall;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, H256,
+    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
     HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer,
-    RawHyperlaneMessage, TxCostEstimate, TxOutcome, U256, utils::fmt_bytes,
+    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, MAILBOX_ABI, ProcessCall};
-use crate::EthereumProvider;
+use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::report_tx;
+use crate::EthereumProvider;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where

@@ -109,7 +109,10 @@ impl MetadataBuilder {
                 Ok(None)
             }
         } else {
-            debug!(?validators, threshold, highest_known_nonce, "Unable to reach quorum");
+            debug!(
+                ?validators,
+                threshold, highest_known_nonce, "Unable to reach quorum"
+            );
             Ok(None)
         }
     }

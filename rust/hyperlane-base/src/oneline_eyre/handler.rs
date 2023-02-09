@@ -21,7 +21,11 @@ pub struct Handler {
 impl Handler {
     /// Format a single error on a single line
     fn fmt_error(&self, error: &(dyn Error + 'static), f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", error.to_string().replace('\n', self.line_separator))
+        write!(
+            f,
+            "{}",
+            error.to_string().replace('\n', self.line_separator)
+        )
     }
 
     /// Format the cause of an error on a single line.
