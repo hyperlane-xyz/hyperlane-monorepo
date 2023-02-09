@@ -89,7 +89,7 @@ contract StorageGasOracle is IGasOracle, Ownable {
      * @notice Sets the remote gas data using the values in `_config`.
      * @param _config The config to use when setting the remote gas data.
      */
-    function _setRemoteGasData(RemoteGasDataConfig memory _config) internal {
+    function _setRemoteGasData(RemoteGasDataConfig calldata _config) internal {
         remoteGasData[_config.remoteDomain] = IGasOracle.RemoteGasData({
             tokenExchangeRate: _config.tokenExchangeRate,
             gasPrice: _config.gasPrice

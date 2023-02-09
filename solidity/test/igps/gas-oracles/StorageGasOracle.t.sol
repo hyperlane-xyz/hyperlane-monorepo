@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {StorageGasOracle} from "../../../contracts/igps/gas-oracles/StorageGasOracle.sol";
 import {IGasOracle} from "../../../interfaces/IGasOracle.sol";
 
-contract StaticGasOracleTest is Test {
+contract StorageGasOracleTest is Test {
     StorageGasOracle oracle;
 
     StorageGasOracle.RemoteGasDataConfig initialGasDataConfig;
