@@ -85,6 +85,7 @@ export {
   CoreContracts,
   coreFactories,
   ConnectionClientContracts,
+  GasOracleContracts,
 } from './core/contracts';
 export {
   HyperlaneLifecyleEvent,
@@ -124,6 +125,9 @@ export {
   GasOracleContractType,
   MultisigIsmViolation,
   MultisigIsmViolationType,
+  IgpGasOracleViolation,
+  IgpViolation,
+  IgpViolationType,
 } from './deploy/core/types';
 export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export { ProxyViolation } from './deploy/proxy';

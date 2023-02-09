@@ -11,6 +11,7 @@ import {
   ChainMap,
   ChainName,
   CoreConfig,
+  GasOracleContracts,
   HyperlaneCoreDeployer,
   MultiProvider,
   ProxiedContract,
@@ -18,7 +19,6 @@ import {
   chainMetadata,
   objMap,
 } from '@hyperlane-xyz/sdk';
-import { GasOracleContracts } from '@hyperlane-xyz/sdk/dist/core/contracts';
 import { types } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';

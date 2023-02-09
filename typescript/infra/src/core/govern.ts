@@ -9,6 +9,9 @@ import {
   CoreViolationType,
   EnrolledValidatorsViolation,
   HyperlaneCoreChecker,
+  IgpGasOracleViolation,
+  IgpViolation,
+  IgpViolationType,
   MultisigIsmViolation,
   MultisigIsmViolationType,
   OwnerViolation,
@@ -16,11 +19,6 @@ import {
   ViolationType,
   objMap,
 } from '@hyperlane-xyz/sdk';
-import {
-  IgpGasOracleViolation,
-  IgpViolation,
-  IgpViolationType,
-} from '@hyperlane-xyz/sdk/dist/deploy/core/types';
 import { ProxyKind } from '@hyperlane-xyz/sdk/dist/proxy';
 import { types, utils } from '@hyperlane-xyz/utils';
 
