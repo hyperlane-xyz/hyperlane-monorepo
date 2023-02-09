@@ -148,17 +148,6 @@ library EnumerableMOfNSet {
         return _set.addresses.length();
     }
 
-    /*
-    function matches(
-        AddressSet storage _set,
-        uint8 _threshold,
-        address[] memory _values
-    ) internal view returns (bool) {
-        bytes32 _commitment = _computeCommitment(_threshold, _values);
-        return _commitment == _set.commitment;
-    }
-    */
-
     /**
      * @notice Returns whether or two sets are identical
      * @param _set One of the two sets to check for equality

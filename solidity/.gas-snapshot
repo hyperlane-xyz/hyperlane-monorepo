@@ -33,7 +33,7 @@ OwnableMOfNSetTest:testSetThreshold(uint32,address) (runs: 256, μ: 136798, ~: 1
 OwnableMOfNSetTest:testSetThresholdNonowner(uint32,uint8,address) (runs: 256, μ: 18382, ~: 18382)
 OwnableMOfNSetTest:testSetThresholdTooHigh(uint32,address) (runs: 256, μ: 108823, ~: 108823)
 OwnableMOfNSetTest:testSetThresholdZero(uint32,address) (runs: 256, μ: 108674, ~: 108674)
-OwnableMOfNSetTest:testSetThresholds(uint32[],address) (runs: 256, μ: 11315656, ~: 10123899)
+OwnableMOfNSetTest:testSetThresholds(uint32[],address) (runs: 256, μ: 11315185, ~: 10123899)
 OwnableMOfNSetTest:testThreshold(uint32,address) (runs: 256, μ: 134775, ~: 134775)
 OwnableMOfNSetTest:testValuesAndThreshold(uint32,address) (runs: 256, μ: 139095, ~: 139095)
 PausableReentrancyGuardTest:testNonreentrant() (gas: 9628)
