@@ -3,7 +3,16 @@
 This repo contains the base Hyperlane ERC20 and ERC721 tokens (HypERC20 and HypERC721). These tokens extend the base standards with an additional `transferRemote` function. Warp Routes are way of arranging these contracts to make existing assets interchain. Read more about Warp Routes and how to deploy your own at [Warp API docs](https://docs.hyperlane.xyz/docs/developers/warp-api).
 
 ```mermaid
-%%{init: {'theme': 'neutral', 'themeCSS': '.node rect { fill: #025AA1 } .edgeLabel { color: black } .nodeLabel { color: white }'}}%%
+%%{ init: {
+  "theme": "neutral",
+  "themeVariables": {
+    "mainBkg": "#025AA1",
+    "textColor": "white",
+    "clusterBkg": "beige"
+  },
+  "themeCSS": ".edgeLabel { color: black }"
+}}%%
+
 graph TB
     Alice((Alice))
     Relayer((Relayer))
