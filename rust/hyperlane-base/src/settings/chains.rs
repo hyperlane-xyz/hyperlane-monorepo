@@ -10,7 +10,7 @@ use ethers_prometheus::middleware::{
 use hyperlane_core::{
     ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider,
     HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox,
-    MailboxIndexer, MultisigIsm, H256,
+    MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
@@ -75,6 +75,8 @@ pub struct CoreContractAddresses {
     pub mailbox: String,
     /// Address of the InterchainGasPaymaster contract
     pub interchain_gas_paymaster: String,
+    /// Address of the ValidatorAnnounce contract
+    pub validator_announce: String,
 }
 
 /// Indexing settings
@@ -264,6 +266,23 @@ impl ChainSetup {
             ChainConf::Fuel(_) => todo!(),
         }
         .context(ctx)
+    }
+
+    /// Try to convert the chain settings into a ValidatorAnnounce
+    pub async fn build_validator_announce(
+        &self,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn ValidatorAnnounce>> {
+        let locator = self.locator(&self.addresses.validator_announce)?;
+        match &self.chain {
+            ChainConf::Ethereum(conf) => {
+                self.build_ethereum(conf, &locator, metrics, h_eth::ValidatorAnnounceBuilder {})
+                    .await
+            }
+
+            ChainConf::Fuel(_) => todo!(),
+        }
+        .context("Building ValidatorAnnounce")
     }
 
     /// Try to convert the chain setting into a Multisig Ism contract

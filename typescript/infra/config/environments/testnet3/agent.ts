@@ -30,45 +30,19 @@ export const hyperlane: AgentConfig<TestnetChains> = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // commit date: 2023-02-07
-    tag: 'b55d7c5-20230207-165646',
+    // commit date: 2023-02-08
+    tag: '91b75a7-20230208-233139',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  validatorSets: validators,
   gelato: {
     enabledChains: [],
   },
   connectionType: ConnectionType.HttpFallback,
-  validator: {
-    default: {
-      interval: 5,
-      reorgPeriod: 1,
-    },
-    chainOverrides: {
-      alfajores: {
-        reorgPeriod: chainMetadata.alfajores.blocks.reorgPeriod,
-      },
-      fuji: {
-        reorgPeriod: chainMetadata.fuji.blocks.reorgPeriod,
-      },
-      mumbai: {
-        reorgPeriod: chainMetadata.mumbai.blocks.reorgPeriod,
-      },
-      bsctestnet: {
-        reorgPeriod: chainMetadata.bsctestnet.blocks.reorgPeriod,
-      },
-      goerli: {
-        reorgPeriod: chainMetadata.goerli.blocks.reorgPeriod,
-      },
-      moonbasealpha: {
-        reorgPeriod: chainMetadata.moonbasealpha.blocks.reorgPeriod,
-      },
-    },
-  },
+  validators,
   relayer: {
     default: {
       blacklist: [
@@ -98,15 +72,14 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    // commit date: 2023-02-07
-    tag: 'b55d7c5-20230207-165646',
+    // commit date: 2023-02-08
+    tag: '91b75a7-20230208-233139',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  validatorSets: validators,
   gelato: {
     enabledChains: [],
   },
