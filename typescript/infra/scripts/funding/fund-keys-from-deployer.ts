@@ -91,7 +91,8 @@ const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 
 // Don't send the full amount over to RC keys
-const RC_FUNDING_DISCOUNT = 0.2;
+const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
+const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 
 const desiredBalancePerChain: CompleteChainMap<string> = {
   celo: '0.3',
@@ -423,7 +424,9 @@ class ContextFunder {
     );
     const adjustedDesiredBalance =
       this.context === Contexts.ReleaseCandidate
-        ? desiredBalanceEther.mul(RC_FUNDING_DISCOUNT)
+        ? desiredBalanceEther
+            .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
+            .div(RC_FUNDING_DISCOUNT_DENOMINATOR)
         : desiredBalanceEther;
 
     const fundingAmount = await this.getFundingAmount(
