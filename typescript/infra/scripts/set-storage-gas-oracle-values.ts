@@ -13,6 +13,11 @@ import { RemoteGasDataConfig } from '../src/config/gas-oracle';
 
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
+/**
+ * Updates the currently stored gas data on the StorageGasOracle contract
+ * if the configured data differs from the on-chain data.
+ * Expects the deployer key to be the owner of the StorageGasOracle contract.
+ */
 async function main() {
   const environment = await getEnvironment();
   const coreEnvConfig = getCoreEnvironmentConfig(environment);
@@ -72,7 +77,6 @@ async function setStorageGasOracleValues(
         ...desiredGasData,
       });
     }
-    // new line
     console.log('---');
   }
 
