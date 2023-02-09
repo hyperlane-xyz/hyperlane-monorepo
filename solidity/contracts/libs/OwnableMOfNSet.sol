@@ -15,7 +15,7 @@ contract OwnableMOfNSet is Ownable {
 
     // ============ Mutable Storage ============
 
-    /// @notice The thresholded set for each remote domain.
+    /// @notice The set for each remote domain.
     mapping(uint32 => EnumerableMOfNSet.AddressSet) private _sets;
 
     // ============ Events ============
@@ -66,11 +66,11 @@ contract OwnableMOfNSet is Ownable {
     // ============ External Functions ============
 
     /**
-     * @notice Adds multiple values into a set.
+     * @notice Adds multiple values to multiple sets.
      * @dev Reverts if `_value` is already in the set.
+     * @dev _values[i] are the values to add for _domains[i].
      * @param _domains The remote domains of the sets.
      * @param _values The values to add to the sets.
-     * @dev _values[i] are the values to add for _domains[i].
      */
     function addMany(uint32[] calldata _domains, address[][] calldata _values)
         external
@@ -167,6 +167,11 @@ contract OwnableMOfNSet is Ownable {
         return EnumerableMOfNSet.values(_sets[_domain]);
     }
 
+    /**
+     * @notice Gets the current threshold
+     * @param _domain The remote domain of the set.
+     * @return The threshold of the set.
+     */
     function threshold(uint32 _domain) public view returns (uint8) {
         return _sets[_domain].threshold;
     }
@@ -180,6 +185,14 @@ contract OwnableMOfNSet is Ownable {
         return EnumerableMOfNSet.length(_sets[_domain]);
     }
 
+    /**
+     * @notice Returns whether or not the provided set matches the set for
+     * `_domain`
+     * @param _domain The remote domain of the set.
+     * @param _threshold The threshold of the set to check equality
+     * @param _values The values of the set to check equality
+     * @return Whether or not the two sets match
+     */
     function setMatches(
         uint32 _domain,
         uint8 _threshold,
@@ -193,7 +206,7 @@ contract OwnableMOfNSet is Ownable {
      * and the threshold
      * @param _domain The remote domain of the set.
      * @return values The array of value addresses
-     * @return threshold The number of value signatures needed
+     * @return threshold The threshold of the set
      */
     function valuesAndThreshold(uint32 _domain)
         public

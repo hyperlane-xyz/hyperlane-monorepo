@@ -15,8 +15,8 @@ import {MerkleLib} from "../libs/Merkle.sol";
 
 /**
  * @title MultisigIsm
- * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
- * reach a quorum.
+ * @notice Manages per-domain m-of-n Validator sets that are used to verify
+ * interchain messages.
  */
 contract MultisigIsm is IMultisigIsm, OwnableMOfNSet {
     // ============ Libraries ============
@@ -37,9 +37,8 @@ contract MultisigIsm is IMultisigIsm, OwnableMOfNSet {
     // ============ Public Functions ============
 
     /**
-     * @notice Verifies that a quorum of the origin domain's validators signed
-     * a checkpoint, and verifies the merkle proof of `_message` against that
-     * checkpoint.
+     * @notice Requires that m-of-n validators verify a merkle root,
+     * and verifies a merkle proof of `_message` against that root.
      * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */

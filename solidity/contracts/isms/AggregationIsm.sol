@@ -11,8 +11,8 @@ import {OwnableMOfNSet} from "../libs/OwnableMOfNSet.sol";
 
 /**
  * @title AggregationIsm
- * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
- * reach a quorum.
+ * @notice Manages per-domain m-of-n ISM sets that are used to verify
+ * interchain messages.
  */
 contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
     // ============ Libraries ============
@@ -31,9 +31,7 @@ contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
     // ============ Public Functions ============
 
     /**
-     * @notice Verifies that a quorum of the origin domain's validators signed
-     * a checkpoint, and verifies the merkle proof of `_message` against that
-     * checkpoint.
+     * @notice Requires that m-of-n ISMs verify the provided interchain message.
      * @param _metadata ABI encoded module metadata (see AggregationIsmMetadata.sol)
      * @param _message Formatted Hyperlane message (see Message.sol).
      */
