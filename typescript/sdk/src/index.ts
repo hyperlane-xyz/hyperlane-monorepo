@@ -121,6 +121,7 @@ export {
   CoreConfig,
   CoreViolationType,
   EnrolledValidatorsViolation,
+  GasOracleContractType,
   MultisigIsmViolation,
   MultisigIsmViolationType,
 } from './deploy/core/types';

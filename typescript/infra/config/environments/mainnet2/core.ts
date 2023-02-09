@@ -1,6 +1,18 @@
-import { ChainMap, CoreConfig } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  CoreConfig,
+  GasOracleContractType,
+} from '@hyperlane-xyz/sdk';
 
-import { MainnetChains } from './chains';
+import { MainnetChains, chainNames } from './chains';
+
+function getGasOracles(local: MainnetChains) {
+  return Object.fromEntries(
+    chainNames
+      .filter((name) => name !== local)
+      .map((name) => [name, GasOracleContractType.StorageGasOracle]),
+  );
+}
 
 export const core: ChainMap<MainnetChains, CoreConfig> = {
   celo: {
@@ -15,6 +27,9 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0xe4a258bc61e65914c2a477b2a8a433ab4ebdf44b',
       ],
     },
+    igp: {
+      gasOracles: getGasOracles('celo'),
+    },
   },
   ethereum: {
     owner: '0x12C5AB61Fe17dF9c65739DBa73dF294708f78d23',
@@ -27,6 +42,9 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x0d860c2b28bec3af4fd3a5997283e460ff6f2789',
         '0xd4c1211f0eefb97a846c4e6d6589832e52fc03db',
       ],
+    },
+    igp: {
+      gasOracles: getGasOracles('ethereum'),
     },
   },
   avalanche: {
@@ -41,6 +59,9 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x73853ed9a5f6f2e4c521970a94d43469e3cdaea6',
       ],
     },
+    igp: {
+      gasOracles: getGasOracles('avalanche'),
+    },
   },
   polygon: {
     owner: '0x0D195469f76146F6ae3De8fc887e0f0DFBA691e7',
@@ -53,6 +74,9 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0xba4b13e23705a5919c1901150d9697e8ffb3ea71',
         '0x2faa4071b718972f9b4beec1d8cbaa4eb6cca6c6',
       ],
+    },
+    igp: {
+      gasOracles: getGasOracles('polygon'),
     },
   },
   bsc: {
@@ -67,6 +91,9 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x8a0f59075af466841808c529624807656309c9da',
       ],
     },
+    igp: {
+      gasOracles: getGasOracles('bsc'),
+    },
   },
   arbitrum: {
     owner: '0xbA47E1b575980B7D1b1508cc48bE1Df4EE508111',
@@ -79,6 +106,9 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0xb8085c954b75b7088bcce69e61d12fcef797cd8d',
         '0x9856dcb10fd6e5407fa74b5ab1d3b96cc193e9b7',
       ],
+    },
+    igp: {
+      gasOracles: getGasOracles('arbitrum'),
     },
   },
   optimism: {
@@ -93,6 +123,9 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0xaff4718d5d637466ad07441ee3b7c4af8e328dbd',
       ],
     },
+    igp: {
+      gasOracles: getGasOracles('optimism'),
+    },
   },
   moonbeam: {
     owner: '0xF0cb1f968Df01fc789762fddBfA704AE0F952197',
@@ -105,6 +138,9 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0xb7113c999e4d587b162dd1a28c73f3f51c6bdcdc',
       ],
     },
+    igp: {
+      gasOracles: getGasOracles('moonbeam'),
+    },
   },
   gnosis: {
     owner: '0x36b0AA0e7d04e7b825D7E409FEa3c9A3d57E4C22',
@@ -115,6 +151,9 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
         '0x829d6ec129bc7187fb1ed161adcf7939fe0c515f',
         '0x00009f8935e94bfe52ab3441df3526ab7cc38db1',
       ],
+    },
+    igp: {
+      gasOracles: getGasOracles('gnosis'),
     },
   },
 };

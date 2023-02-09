@@ -35,6 +35,7 @@ export class HyperlaneCoreChecker<
     await this.checkMailbox(chain);
     await this.checkMultisigIsm(chain);
     await this.checkValidatorAnnounce(chain);
+    await this.checkInterchainGasPaymaster(chain);
   }
 
   async checkDomainOwnership(chain: Chain): Promise<void> {
