@@ -28,7 +28,7 @@ async function main() {
         if (storageLocations[i].length != 1) {
           throw new Error('Only support single announcement');
         }
-        return S3Validator.fromStorageLocation(validator);
+        return S3Validator.fromStorageLocation(storageLocations[i][0]);
       }),
     );
     const controlValidator = validators[0];
