@@ -118,12 +118,12 @@ where
 
             i += 1;
             if i <= self.max_requests {
-                trace!(backoff_ms, "Retrying provider going to sleep.");
+                trace!(backoff_ms, "Retrying provider going to sleep");
                 sleep(Duration::from_millis(backoff_ms)).await;
             } else {
                 trace!(
                     requests_made = self.max_requests,
-                    "Retrying provider reached max requests."
+                    "Retrying provider reached max requests"
                 );
                 return Err(RetryingProviderError::MaxRequests(last_err));
             }
@@ -169,7 +169,7 @@ impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
         self.request_with_retry::<T, R>(method, params, |res, attempt, next_backoff_ms| match res {
             Ok(res) => HandleMethod::Accept(res),
             Err(HttpClientError::ReqwestError(e)) => {
-                warn!(next_backoff_ms, retries_remaining = self.max_requests - attempt, error = %e, "ReqwestError in http provider.");
+                warn!(next_backoff_ms, retries_remaining = self.max_requests - attempt, error = %e, "ReqwestError in http provider");
                 HandleMethod::Retry(HttpClientError::ReqwestError(e))
             }
             Err(HttpClientError::JsonRpcError(e)) => {
@@ -177,10 +177,10 @@ impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
                 // retrying them or that indicate an error in higher-order logic and not
                 // transient provider (connection or other) errors.
                 if METHODS_TO_NOT_RETRY.contains(&method) {
-                    warn!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider; not retrying.");
+                    warn!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider; not retrying");
                     HandleMethod::Halt(HttpClientError::JsonRpcError(e))
                 } else {
-                    info!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider.");
+                    info!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider");
                     HandleMethod::Retry(HttpClientError::JsonRpcError(e))
                 }
             }

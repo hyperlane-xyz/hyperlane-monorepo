@@ -84,7 +84,7 @@ impl HyperlaneDB {
     pub fn store_message(&self, message: &HyperlaneMessage) -> Result<()> {
         let id = message.id();
 
-        info!(?message, "Storing new message in db.",);
+        info!(?message, "Storing new message in db",);
         self.store_message_id(message.nonce, message.destination, id)?;
         self.store_keyed_encodable(MESSAGE, &id, message)?;
         Ok(())
