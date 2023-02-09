@@ -90,6 +90,9 @@ metricsRegister.registerMetric(walletBalanceGauge);
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 
+// Don't send the full amount over to RC keys
+const RC_FUNDING_DISCOUNT = 0.2;
+
 const desiredBalancePerChain: CompleteChainMap<string> = {
   celo: '0.3',
   alfajores: '1',
@@ -418,10 +421,15 @@ class ContextFunder {
       desiredBalance,
       'ether',
     );
+    const adjustedDesiredBalance =
+      this.context === Contexts.ReleaseCandidate
+        ? desiredBalanceEther.mul(RC_FUNDING_DISCOUNT)
+        : desiredBalanceEther;
+
     const fundingAmount = await this.getFundingAmount(
       chainConnection,
       key.address,
-      desiredBalanceEther,
+      adjustedDesiredBalance,
     );
     const keyInfo = await getKeyInfo(key, chain, chainConnection);
     const funderAddress = await chainConnection.getAddress()!;
