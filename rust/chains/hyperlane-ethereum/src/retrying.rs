@@ -8,7 +8,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{debug, error, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 const METHODS_TO_NOT_RETRY: &[&str] = &[
     "eth_estimateGas",
@@ -180,7 +180,7 @@ impl JsonRpcClient for RetryingProvider<PrometheusJsonRpcClient<Http>> {
                     warn!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider; not retrying.");
                     HandleMethod::Halt(HttpClientError::JsonRpcError(e))
                 } else {
-                    warn!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider.");
+                    info!(attempt, next_backoff_ms, error = %e, "JsonRpcError in http provider.");
                     HandleMethod::Retry(HttpClientError::JsonRpcError(e))
                 }
             }
