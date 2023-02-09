@@ -7,6 +7,7 @@ import { CoreEnvironmentConfig } from '../../../src/config';
 import { agents } from './agent';
 import { TestChains, testConfigs } from './chains';
 import { core } from './core';
+import { storageGasOracleConfig } from './gas-oracle';
 import { infra } from './infra';
 
 export const environment: CoreEnvironmentConfig<TestChains> = {
@@ -21,4 +22,5 @@ export const environment: CoreEnvironmentConfig<TestChains> = {
     const signer = provider.getSigner(0);
     return getTestMultiProvider(signer, testConfigs);
   },
+  storageGasOracleConfig,
 };

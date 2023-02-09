@@ -208,6 +208,8 @@ export class HyperlaneCoreDeployer<
     chain: LocalChain,
     deployOpts?: DeployOptions,
   ): Promise<StorageGasOracle> {
+    // Intentionally do not transfer ownership, we keep the ownership
+    // as the deployer key for now so we can easily set the on-chain remote gas data.
     const contract = await this.deployContract(
       chain,
       'storageGasOracle',
