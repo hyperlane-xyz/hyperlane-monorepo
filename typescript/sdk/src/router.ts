@@ -1,9 +1,13 @@
-import type { ethers } from 'ethers';
+import type { BigNumber, ethers } from 'ethers';
 
-import { Router } from '@hyperlane-xyz/core';
+import { GasRouter, Router } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
+import { HyperlaneApp } from './HyperlaneApp';
 import { HyperlaneContracts, HyperlaneFactories } from './contracts';
+import { ChainNameToDomainId } from './domains';
+import { ChainMap, ChainName } from './types';
+import { objMap, promiseObjAll } from './utils/objects';
 
 export type RouterContracts<RouterContract extends Router = Router> =
   HyperlaneContracts & {
@@ -27,3 +31,34 @@ export type ConnectionClientConfig = {
 };
 
 export { Router } from '@hyperlane-xyz/core';
+
+export class RouterApp<
+  Contracts extends RouterContracts,
+  Chain extends ChainName = ChainName,
+> extends HyperlaneApp<Contracts, Chain> {
+  getSecurityModules = (): Promise<ChainMap<Chain, string>> =>
+    promiseObjAll(
+      objMap(this.contractsMap, (_, contracts) =>
+        contracts.router.interchainSecurityModule(),
+      ),
+    );
+
+  getOwners = (): Promise<ChainMap<Chain, string>> =>
+    promiseObjAll(
+      objMap(this.contractsMap, (_, contracts) => contracts.router.owner()),
+    );
+}
+
+export class GasRouterApp<
+  Contracts extends RouterContracts<GasRouter>,
+  Chain extends ChainName = ChainName,
+> extends RouterApp<Contracts, Chain> {
+  async quoteGasPayment<Origin extends Chain>(
+    origin: Origin,
+    destination: Exclude<Chain, Origin>,
+  ): Promise<BigNumber> {
+    return this.getContracts(origin).router.quoteGasPayment(
+      ChainNameToDomainId[destination],
+    );
+  }
+}

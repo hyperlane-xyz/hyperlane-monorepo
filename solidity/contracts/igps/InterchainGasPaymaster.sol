@@ -111,6 +111,7 @@ contract InterchainGasPaymaster is
     function quoteGasPayment(uint32 _destinationDomain, uint256 _gasAmount)
         public
         view
+        virtual
         override
         returns (uint256)
     {

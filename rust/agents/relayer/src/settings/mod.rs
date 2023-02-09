@@ -41,8 +41,6 @@ decl_settings!(Relayer {
     // Optional list of destination chains. If none are provided, ALL chains in chain_setup
     // will be used, excluding the origin chain.
     destinationchainnames: Option<String>,
-    /// The multisig checkpoint syncer configuration
-    multisigcheckpointsyncer: hyperlane_base::MultisigCheckpointSyncerConf,
     /// The gas payment enforcement configuration
     gaspaymentenforcement: GasPaymentEnforcementConfig,
     /// This is optional. If no whitelist is provided ALL messages will be considered on the

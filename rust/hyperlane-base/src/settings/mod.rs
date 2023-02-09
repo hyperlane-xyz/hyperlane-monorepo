@@ -86,7 +86,7 @@ pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, H256,
+    InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
 pub use signers::SignerConf;
 
@@ -222,7 +222,7 @@ impl Settings {
         ))
     }
 
-    /// TODO
+    /// Try to get a MultisigIsm
     pub async fn build_multisig_ism(
         &self,
         chain_name: &str,
@@ -231,6 +231,17 @@ impl Settings {
     ) -> eyre::Result<Box<dyn MultisigIsm>> {
         let setup = self.chain_setup(chain_name)?;
         setup.build_multisig_ism(address, metrics).await
+    }
+
+    /// Try to get a ValidatorAnnounce
+    pub async fn build_validator_announce(
+        &self,
+        chain_name: &str,
+        metrics: &CoreMetrics,
+    ) -> eyre::Result<Arc<dyn ValidatorAnnounce>> {
+        let setup = self.chain_setup(chain_name)?;
+        let announce = setup.build_validator_announce(metrics).await?;
+        Ok(announce.into())
     }
 
     /// Try to get the chain setup for the provided chain name

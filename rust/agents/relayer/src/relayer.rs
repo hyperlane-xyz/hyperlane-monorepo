@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{Context, Result};
+use hyperlane_core::U256;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
     RwLock,
@@ -13,9 +14,9 @@ use tracing::{info, info_span, instrument::Instrumented, Instrument};
 use hyperlane_base::{
     chains::{GelatoConf, TransactionSubmissionType},
     run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
-    CoreMetrics, HyperlaneAgentCore, MultisigCheckpointSyncer,
+    CoreMetrics, HyperlaneAgentCore,
 };
-use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, U256};
+use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, ValidatorAnnounce};
 
 use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
@@ -36,8 +37,8 @@ pub struct Relayer {
     origin_chain: HyperlaneDomain,
     core: HyperlaneAgentCore,
     mailboxes: HashMap<HyperlaneDomain, CachingMailbox>,
+    validator_announce: Arc<dyn ValidatorAnnounce>,
     interchain_gas_paymasters: HashMap<HyperlaneDomain, CachingInterchainGasPaymaster>,
-    multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     gas_payment_enforcer: Arc<GasPaymentEnforcer>,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
@@ -82,11 +83,9 @@ impl BaseAgent for Relayer {
         let interchain_gas_paymasters = settings
             .build_all_interchain_gas_paymasters(chain_names.as_slice(), &metrics, db)
             .await?;
-
-        let multisig_checkpoint_syncer = settings.multisigcheckpointsyncer.build(
-            &settings.originchainname,
-            core.metrics.validator_checkpoint_index(),
-        )?;
+        let validator_announce = settings
+            .build_validator_announce(&settings.originchainname, &core.metrics.clone())
+            .await?;
 
         let whitelist = Arc::new(parse_matching_list(&settings.whitelist));
         let blacklist = Arc::new(parse_matching_list(&settings.blacklist));
@@ -142,8 +141,8 @@ impl BaseAgent for Relayer {
             origin_chain,
             core,
             mailboxes,
+            validator_announce,
             interchain_gas_paymasters,
-            multisig_checkpoint_syncer,
             gas_payment_enforcer,
             whitelist,
             blacklist,
@@ -186,8 +185,8 @@ impl BaseAgent for Relayer {
             let txsubmission = chain_setup.txsubmission;
             let metadata_builder = MetadataBuilder::new(
                 chain_setup,
-                self.multisig_checkpoint_syncer.clone(),
                 prover_sync.clone(),
+                self.validator_announce.clone(),
                 self.core.metrics.clone(),
             );
             tasks.push(self.run_destination_mailbox(
