@@ -92,8 +92,6 @@ export class HyperlaneCoreDeployer<
 
     const remotes = this.multiProvider.remoteChains(chain);
 
-    this.configMap[chain];
-
     for (const remote of remotes) {
       const remoteId = ChainNameToDomainId[remote];
       const currentGasOracle = await igp.contract.gasOracles(remoteId);
