@@ -17,7 +17,7 @@ futures-util = "0.3"
 eyre = "0.6"
 reqwest = { version = "0", features = ["json"]}
 strum = "0.24"
-tracing = "0.1"
+tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-futures = "0.2"
 tracing-subscriber = "0.3"
 

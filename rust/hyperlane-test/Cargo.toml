@@ -17,4 +17,4 @@ rocksdb = "0.18"
 tempfile = "3.3"
 
 hyperlane-core = { path = "../hyperlane-core" }
-tracing = "0.1"
+tracing = { version = "0.1", features = ["release_max_level_debug"] }

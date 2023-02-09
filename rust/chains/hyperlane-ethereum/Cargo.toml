@@ -14,7 +14,7 @@ ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", branch = 
 ethers-contract = { git = "https://github.com/hyperlane-xyz/ethers-rs", branch = "mattie/better-debug-logging", features=["legacy"] }
 async-trait = { version = "0.1", default-features = false }
 thiserror = "1.0"
-tracing = "0.1"
+tracing = { version = "0.1", features = ["release_max_level_debug"] }
 num = "0.4"
 tokio = "1"
 hex = "0.4.3"
