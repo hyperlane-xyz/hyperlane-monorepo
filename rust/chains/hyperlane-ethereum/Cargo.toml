@@ -9,9 +9,9 @@ edition = "2021"
 # Main block
 serde = "1.0"
 serde_json = { version = "1.0", default-features = false }
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04", features = ["abigen"] }
-ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04", features = ["aws"] }
-ethers-contract = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04", features=["legacy"] }
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", branch = "mattie/better-debug-logging", features = ["abigen"] }
+ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", branch = "mattie/better-debug-logging", features = ["aws"] }
+ethers-contract = { git = "https://github.com/hyperlane-xyz/ethers-rs", branch = "mattie/better-debug-logging", features=["legacy"] }
 async-trait = { version = "0.1", default-features = false }
 thiserror = "1.0"
 tracing = "0.1"
