@@ -24,6 +24,7 @@ export const core: ChainMap<TestChains, CoreConfig> = {
       threshold: 1,
     },
     igp: {
+      beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
       gasOracles: getGasOracles('test1'),
     },
   },
@@ -34,6 +35,7 @@ export const core: ChainMap<TestChains, CoreConfig> = {
       threshold: 1,
     },
     igp: {
+      beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
       gasOracles: getGasOracles('test2'),
     },
   },
@@ -44,6 +46,7 @@ export const core: ChainMap<TestChains, CoreConfig> = {
       threshold: 1,
     },
     igp: {
+      beneficiary: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
       gasOracles: getGasOracles('test3'),
     },
   },

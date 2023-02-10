@@ -79,12 +79,13 @@ export class HyperlaneCoreDeployer<
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
+    const beneficiary = this.configMap[chain].igp.beneficiary;
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
-      [],
+      [beneficiary],
       proxyAdmin,
-      [],
+      [beneficiary],
       deployOpts,
     );
 
@@ -92,6 +93,7 @@ export class HyperlaneCoreDeployer<
 
     const remotes = this.multiProvider.remoteChains(chain);
 
+    // Set gas oracles for all remotes if they're not already set
     for (const remote of remotes) {
       const remoteId = ChainNameToDomainId[remote];
       const currentGasOracle = await igp.contract.gasOracles(remoteId);

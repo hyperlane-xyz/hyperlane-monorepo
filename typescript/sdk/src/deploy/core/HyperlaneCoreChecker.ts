@@ -11,6 +11,7 @@ import {
   CoreViolationType,
   EnrolledValidatorsViolation,
   GasOracleContractType,
+  IgpBeneficiaryViolation,
   IgpGasOracleViolation,
   IgpViolationType,
   MailboxViolation,
@@ -177,6 +178,7 @@ export class HyperlaneCoreChecker<
     const coreContracts = this.app.getContracts(local);
     const igp = coreContracts.interchainGasPaymaster.contract;
 
+    // Check gas oracles
     const remotes = this.multiProvider.remoteChains(local);
     for (const remote of remotes) {
       const remoteId = ChainNameToDomainId[remote];
@@ -195,6 +197,21 @@ export class HyperlaneCoreChecker<
         };
         this.addViolation(violation);
       }
+    }
+
+    // Check beneficiary
+    const actualBeneficiary = await igp.beneficiary();
+    const expectedBeneficiary = this.configMap[local].igp.beneficiary;
+    if (!utils.eqAddress(actualBeneficiary, expectedBeneficiary)) {
+      const violation: IgpBeneficiaryViolation = {
+        type: CoreViolationType.InterchainGasPaymaster,
+        subType: IgpViolationType.Beneficiary,
+        contract: igp,
+        chain: local,
+        actual: actualBeneficiary,
+        expected: expectedBeneficiary,
+      };
+      this.addViolation(violation);
     }
   }
 

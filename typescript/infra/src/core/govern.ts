@@ -1,6 +1,5 @@
 import { prompts } from 'prompts';
 
-import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
@@ -9,6 +8,7 @@ import {
   CoreViolationType,
   EnrolledValidatorsViolation,
   HyperlaneCoreChecker,
+  IgpBeneficiaryViolation,
   IgpGasOracleViolation,
   IgpViolation,
   IgpViolationType,
@@ -161,26 +161,36 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     let initData = '0x';
     switch (violation.data.name) {
       case 'InterchainGasPaymaster':
-        initData =
-          InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
-            'initialize',
-          );
+        // Don't re-initialize
+        initData = '0x';
         break;
       default:
         throw new Error(`Unsupported proxy violation ${violation.data.name}`);
     }
-    this.pushCall(violation.chain as Chain, {
-      to: contracts.proxyAdmin.address,
-      data: contracts.proxyAdmin.interface.encodeFunctionData(
-        'upgradeAndCall',
-        [
+
+    if (initData === '0x') {
+      this.pushCall(violation.chain as Chain, {
+        to: contracts.proxyAdmin.address,
+        data: contracts.proxyAdmin.interface.encodeFunctionData('upgrade', [
           violation.data.proxyAddresses.proxy,
           violation.data.proxyAddresses.implementation,
-          initData,
-        ],
-      ),
-      description: `Upgrade ${violation.data.proxyAddresses.proxy} to ${violation.data.proxyAddresses.implementation}`,
-    });
+        ]),
+        description: `Upgrade ${violation.data.proxyAddresses.proxy} to ${violation.data.proxyAddresses.implementation}`,
+      });
+    } else {
+      this.pushCall(violation.chain as Chain, {
+        to: contracts.proxyAdmin.address,
+        data: contracts.proxyAdmin.interface.encodeFunctionData(
+          'upgradeAndCall',
+          [
+            violation.data.proxyAddresses.proxy,
+            violation.data.proxyAddresses.implementation,
+            initData,
+          ],
+        ),
+        description: `Upgrade ${violation.data.proxyAddresses.proxy} to ${violation.data.proxyAddresses.implementation} and call with init data ${initData}`,
+      });
+    }
   }
 
   protected async inferCallSubmissionTypes() {
@@ -328,7 +338,19 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
             'setGasOracle',
             [remoteId, gasOracleViolation.expected],
           ),
-          description: `Set IGP gas oracle for ${gasOracleViolation.remote} (domain ID ${remoteId}) to ${gasOracleViolation.expected}`,
+          description: `Set IGP gas oracle for remote ${gasOracleViolation.remote} (domain ID ${remoteId}) to ${gasOracleViolation.expected}`,
+        });
+        break;
+      }
+      case IgpViolationType.Beneficiary: {
+        const beneficiaryViolation = violation as IgpBeneficiaryViolation;
+        this.pushCall(beneficiaryViolation.chain as Chain, {
+          to: beneficiaryViolation.contract.address,
+          data: beneficiaryViolation.contract.interface.encodeFunctionData(
+            'setBeneficiary',
+            [beneficiaryViolation.expected],
+          ),
+          description: `Set IGP beneficiary to ${beneficiaryViolation.expected}`,
         });
         break;
       }

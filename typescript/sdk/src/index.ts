@@ -125,6 +125,7 @@ export {
   GasOracleContractType,
   MultisigIsmViolation,
   MultisigIsmViolationType,
+  IgpBeneficiaryViolation,
   IgpGasOracleViolation,
   IgpViolation,
   IgpViolationType,

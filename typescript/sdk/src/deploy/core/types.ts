@@ -13,6 +13,7 @@ export enum GasOracleContractType {
 }
 
 export type InterchainGasPaymasterConfig = {
+  beneficiary: types.Address;
   gasOracles: PartialChainMap<GasOracleContractType>;
 };
 
@@ -47,6 +48,7 @@ export enum MailboxViolationType {
 
 export enum IgpViolationType {
   GasOracle = 'GasOracle',
+  Beneficiary = 'Beneficiary',
 }
 
 export interface MailboxViolation extends CheckerViolation {
@@ -96,6 +98,12 @@ export interface IgpViolation extends CheckerViolation {
 export interface IgpGasOracleViolation extends IgpViolation {
   subType: IgpViolationType.GasOracle;
   remote: ChainName;
+  actual: types.Address;
+  expected: types.Address;
+}
+
+export interface IgpBeneficiaryViolation extends IgpViolation {
+  subType: IgpViolationType.Beneficiary;
   actual: types.Address;
   expected: types.Address;
 }

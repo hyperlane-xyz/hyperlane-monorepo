@@ -14,9 +14,11 @@ function getGasOracles(local: TestnetChains) {
   );
 }
 
+const DEPLOYER_ADDRESS = '0xfaD1C94469700833717Fa8a3017278BC1cA8031C';
+
 export const core: ChainMap<TestnetChains, CoreConfig> = {
   alfajores: {
-    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
+    owner: DEPLOYER_ADDRESS,
     multisigIsm: {
       threshold: 2,
       validators: [
@@ -26,11 +28,12 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: DEPLOYER_ADDRESS,
       gasOracles: getGasOracles('alfajores'),
     },
   },
   fuji: {
-    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
+    owner: DEPLOYER_ADDRESS,
     multisigIsm: {
       threshold: 2,
       validators: [
@@ -40,11 +43,12 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: DEPLOYER_ADDRESS,
       gasOracles: getGasOracles('fuji'),
     },
   },
   mumbai: {
-    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
+    owner: DEPLOYER_ADDRESS,
     multisigIsm: {
       threshold: 2,
       validators: [
@@ -54,11 +58,12 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: DEPLOYER_ADDRESS,
       gasOracles: getGasOracles('mumbai'),
     },
   },
   bsctestnet: {
-    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
+    owner: DEPLOYER_ADDRESS,
     multisigIsm: {
       threshold: 2,
       validators: [
@@ -68,11 +73,12 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: DEPLOYER_ADDRESS,
       gasOracles: getGasOracles('bsctestnet'),
     },
   },
   goerli: {
-    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
+    owner: DEPLOYER_ADDRESS,
     multisigIsm: {
       threshold: 2,
       validators: [
@@ -82,11 +88,12 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: DEPLOYER_ADDRESS,
       gasOracles: getGasOracles('goerli'),
     },
   },
   moonbasealpha: {
-    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
+    owner: DEPLOYER_ADDRESS,
     multisigIsm: {
       threshold: 2,
       validators: [
@@ -96,11 +103,12 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: DEPLOYER_ADDRESS,
       gasOracles: getGasOracles('moonbasealpha'),
     },
   },
   optimismgoerli: {
-    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
+    owner: DEPLOYER_ADDRESS,
     multisigIsm: {
       threshold: 2,
       validators: [
@@ -110,11 +118,12 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: DEPLOYER_ADDRESS,
       gasOracles: getGasOracles('optimismgoerli'),
     },
   },
   arbitrumgoerli: {
-    owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
+    owner: DEPLOYER_ADDRESS,
     multisigIsm: {
       threshold: 2,
       validators: [
@@ -124,6 +133,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: DEPLOYER_ADDRESS,
       gasOracles: getGasOracles('arbitrumgoerli'),
     },
   },
