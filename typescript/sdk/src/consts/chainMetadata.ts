@@ -17,6 +17,8 @@ export enum ExplorerFamily {
  */
 export interface ChainMetadata {
   id: number;
+  /** Hyperlane domain, only required if differs from id above */
+  domainId?: number;
   name: ChainName;
   /** Human-readable name */
   displayName: string;
@@ -38,21 +40,21 @@ export interface ChainMetadata {
   blockExplorers: Array<{
     name: string;
     url: string;
-    family: ExplorerFamily;
+    family?: ExplorerFamily;
     apiUrl?: string;
   }>;
   blocks: {
-    // Number of blocks to wait before considering a transaction confirmed
+    /** Number of blocks to wait before considering a transaction confirmed */
     confirmations: number;
-    // TODO consider merging with confirmations, requires agent code changes
-    // Number of blocks before a transaction has a near-zero chance of reverting
-    reorgPeriod: number;
-    // Rough estimate of time per block in seconds
+    //  TODO consider merging with confirmations, requires agent code changes */
+    /** Number of blocks before a transaction has a near-zero chance of reverting */
+    reorgPeriod?: number;
+    /** Rough estimate of time per block in seconds */
     estimateBlockTime: number;
   };
-  // The CoinGecko API sometimes expects IDs that do not match ChainNames
+  /** The CoinGecko API sometimes expects IDs that do not match ChainNames */
   gasCurrencyCoinGeckoId?: string;
-  // URL of the gnosis safe transaction service.
+  /** URL of the gnosis safe transaction service */
   gnosisSafeTransactionServiceUrl?: string;
 }
 

@@ -120,6 +120,7 @@ export class LiquidityLayerApp<
       { origin: chain, nonce, portalSequence, destination },
     ] as PortalBridgeMessage<Chain>[];
   }
+
   async parseCircleMessages(
     chain: Chain,
     txHash: string,
@@ -219,6 +220,7 @@ export class LiquidityLayerApp<
       ),
     );
   }
+
   async attemptCircleAttestationSubmission(
     message: CircleBridgeMessage<Chain>,
   ): Promise<void> {

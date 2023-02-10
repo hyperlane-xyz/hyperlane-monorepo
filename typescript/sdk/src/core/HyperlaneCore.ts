@@ -21,8 +21,8 @@ export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
   ChainName
 >;
 
-export type CoreContractsMap<Chain extends ChainName> = {
-  [local in Chain]: CoreContracts;
+export type CoreContractsMap = {
+  [chain: ChainName]: CoreContracts;
 };
 
 export type DispatchedMessage = {
@@ -31,21 +31,15 @@ export type DispatchedMessage = {
   parsed: types.ParsedMessage;
 };
 
-export class HyperlaneCore<
-  Chain extends ChainName = ChainName,
-> extends HyperlaneApp<CoreContracts, Chain> {
-  constructor(
-    contractsMap: CoreContractsMap<Chain>,
-    multiProvider: MultiProvider<Chain>,
-  ) {
+export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
+  constructor(contractsMap: CoreContractsMap, multiProvider: MultiProvider) {
     super(contractsMap, multiProvider);
   }
 
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   static fromEnvironment<
     Env extends CoreEnvironment,
     Chain extends ChainName = ChainName,
-  >(env: Env, multiProvider: MultiProvider<Chain>) {
+  >(env: Env, multiProvider: MultiProvider): HyperlaneCore {
     const envConfig = environments[env];
     if (!envConfig) {
       throw new Error(`No default env config found for ${env}`);

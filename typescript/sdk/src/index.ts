@@ -28,7 +28,7 @@ export {
 } from './consts/environments';
 
 export {
-  ChainMap,
+  ChainMap as ChainMap,
   CompleteChainMap,
   Connection,
   NameOrDomain,

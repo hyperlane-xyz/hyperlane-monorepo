@@ -5,36 +5,28 @@ import {
   serializeContracts,
 } from './contracts';
 import { MultiProvider } from './providers/MultiProvider';
-import { ChainMap, ChainName, Connection } from './types';
+import { ChainMap, ChainName } from './types';
 import { MultiGeneric } from './utils/MultiGeneric';
 import { objMap } from './utils/objects';
 
 export class HyperlaneApp<
   Contracts extends HyperlaneContracts,
-  Chain extends ChainName = ChainName,
-> extends MultiGeneric<Chain, Contracts> {
+> extends MultiGeneric<Contracts> {
   constructor(
-    public readonly contractsMap: ChainMap<Chain, Contracts>,
-    public readonly multiProvider: MultiProvider<Chain>,
+    public readonly contractsMap: ChainMap<Contracts>,
+    public readonly multiProvider: MultiProvider,
   ) {
     const connectedContractsMap = objMap(contractsMap, (chain, contracts) =>
-      connectContracts(
-        contracts,
-        multiProvider.getChainConnection(chain).getConnection(),
-      ),
+      connectContracts(contracts, multiProvider.getProvider(chain)),
     );
     super(connectedContractsMap);
   }
 
-  getContracts(chain: Chain): Contracts {
+  getContracts(chain: ChainName): Contracts {
     return this.get(chain);
   }
 
-  getAddresses(chain: Chain): HyperlaneAddresses {
+  getAddresses(chain: ChainName): HyperlaneAddresses {
     return serializeContracts(this.get(chain));
-  }
-
-  connectToChain(chain: Chain, connection: Connection): void {
-    this.set(chain, connectContracts(this.get(chain), connection));
   }
 }

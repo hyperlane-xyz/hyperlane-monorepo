@@ -10,6 +10,17 @@ import {
 } from '../gas/token-prices';
 import { ChainMap, ChainName } from '../types';
 
+export function testChainConnection(id: number) {
+  return {
+    id,
+    provider: new ethers.providers.JsonRpcProvider(
+      'http://localhost:8545',
+      31337,
+    ),
+    confirmations: 1,
+  };
+}
+
 const MOCK_NETWORK = {
   name: 'MockNetwork',
   chainId: 1337,

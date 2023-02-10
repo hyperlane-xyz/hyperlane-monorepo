@@ -25,7 +25,7 @@ export enum Chains {
   test3 = 'test3',
 }
 
-export type ChainName = keyof typeof Chains;
+export type CoreChainName = keyof typeof Chains;
 
 export enum DeprecatedChains {
   arbitrumkovan = 'arbitrumkovan',
@@ -48,7 +48,7 @@ export const Mainnets = [
   Chains.optimism,
   Chains.polygon,
   Chains.gnosis,
-] as Array<ChainName>;
+] as Array<CoreChainName>;
 
 export const Testnets = [
   Chains.alfajores,
@@ -59,12 +59,12 @@ export const Testnets = [
   Chains.moonbasealpha,
   Chains.mumbai,
   Chains.optimismgoerli,
-] as Array<ChainName>;
+] as Array<CoreChainName>;
 
 export const TestChains = [
   Chains.test1,
   Chains.test2,
   Chains.test3,
-] as Array<ChainName>;
+] as Array<CoreChainName>;
 
-export const AllChains = Object.keys(Chains) as Array<ChainName>;
+export const AllChains = Object.keys(Chains) as Array<CoreChainName>;
