@@ -7,11 +7,10 @@ import {
   HyperlaneCore,
 } from '@hyperlane-xyz/sdk';
 
-import { RemoteGasData, StorageGasOracleConfig } from '../src/config';
-import { deployEnvToSdkEnv } from '../src/config/environment';
-import { RemoteGasDataConfig } from '../src/config/gas-oracle';
-
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import { RemoteGasData, StorageGasOracleConfig } from '../../src/config';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
+import { RemoteGasDataConfig } from '../../src/config/gas-oracle';
+import { getArgs, getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
 /**
  * Updates the currently stored gas data on the StorageGasOracle contract
@@ -19,6 +18,11 @@ import { getCoreEnvironmentConfig, getEnvironment } from './utils';
  * Expects the deployer key to be the owner of the StorageGasOracle contract.
  */
 async function main() {
+  const args = await getArgs()
+    .boolean('dry-run')
+    .describe('dry-run', 'If true, will not submit any transactions')
+    .default('dry-run', false).argv;
+
   const environment = await getEnvironment();
   const coreEnvConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreEnvConfig.getMultiProvider();
@@ -34,7 +38,12 @@ async function main() {
   );
 
   for (const chain of core.chains()) {
-    await setStorageGasOracleValues(core, storageGasOracleConfig[chain], chain);
+    await setStorageGasOracleValues(
+      core,
+      storageGasOracleConfig[chain],
+      chain,
+      args.dryRun,
+    );
     console.log('\n===========');
   }
 }
@@ -43,6 +52,7 @@ async function setStorageGasOracleValues(
   core: HyperlaneCore<any>,
   localStorageGasOracleConfig: StorageGasOracleConfig<any>,
   local: ChainName,
+  dryRun: boolean,
 ) {
   console.log(`Setting remote gas data on local chain ${local}...`);
   const storageGasOracle = core.getContracts(local).storageGasOracle;
@@ -84,9 +94,13 @@ async function setStorageGasOracleValues(
     console.log(`Updating ${configsToSet.length} configs on local ${local}:`);
     console.log(configsToSet.map(prettyRemoteGasDataConfig).join('\n\t'));
 
-    await chainConnection.handleTx(
-      storageGasOracle.setRemoteGasDataConfigs(configsToSet),
-    );
+    if (dryRun) {
+      console.log('Running in dry run mode, not sending tx');
+    } else {
+      await chainConnection.handleTx(
+        storageGasOracle.setRemoteGasDataConfigs(configsToSet),
+      );
+    }
   }
 }
 
