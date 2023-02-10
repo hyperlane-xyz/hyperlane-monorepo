@@ -7,7 +7,7 @@ use prometheus::{IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, error::TryRecvError};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
+use tracing::{debug, info, info_span, instrument, instrument::Instrumented, Instrument, error};
 
 use hyperlane_base::{CachingMailbox, CoreMetrics};
 use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, U256};
@@ -238,7 +238,7 @@ impl SerialSubmitter {
             // We expect this branch to be hit when there is unexpected behavior -
             // defined behavior like gas estimation failing will not hit this branch.
             Err(error) => {
-                warn!(message = %msg.message, ?error, "Error occurred when attempting to process message");
+                error!(message = %msg.message, ?error, "Error occurred when attempting to process message");
             }
         }
 
@@ -294,12 +294,12 @@ impl SerialSubmitter {
             .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
             .await?;
         if !meets_gas_requirement {
-            info!(?gas_payment, "Gas payment requirement not met yet");
+            info!(?gas_payment, ?tx_cost_estimate, "Gas payment requirement not met yet");
             return Ok(false);
         }
 
         // Go ahead and attempt processing of message to destination chain.
-        debug!(gas_payment=?gas_payment, msg=?msg, "Ready to process message");
+        debug!(?gas_payment, ?tx_cost_estimate, "Ready to process message");
 
         // TODO: consider differentiating types of processing errors, and pushing to the front of the
         // run queue for intermittent types of errors that can occur even if a message's processing isn't
@@ -310,7 +310,7 @@ impl SerialSubmitter {
 
         if let Some(max_limit) = self.transaction_gas_limit {
             if gas_limit > max_limit {
-                info!("Message delivery predicted gas exceeds max gas limit");
+                info!("Message delivery estimated gas exceeds max gas limit");
                 return Ok(false);
             }
         }

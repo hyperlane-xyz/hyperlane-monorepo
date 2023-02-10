@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::{Debug, Formatter};
 
-use crate::utils::fmt_address_for_domain;
+use crate::utils::{fmt_address_for_domain, fmt_domain};
 use crate::{utils::announcement_domain_hash, Signable, SignedType, H160, H256};
 
 /// An Hyperlane checkpoint
@@ -26,7 +26,7 @@ impl Debug for Announcement {
             "Announcement {{ validator: {:?}, mailbox_address: {}, mailbox_domain: {}, storage_location: {} }}",
             self.validator,
             fmt_address_for_domain(self.mailbox_domain, self.mailbox_address),
-            self.mailbox_domain,
+            fmt_domain(self.mailbox_domain),
             self.storage_location
         )
     }

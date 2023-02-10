@@ -115,8 +115,8 @@ impl SponsoredCallOp {
             .await
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
-            Err(err) => {
-                info!(error=?err, "Error estimating process costs");
+            Err(error) => {
+                info!(?error, "Error estimating process costs");
                 return Ok(false);
             }
         };
@@ -154,8 +154,8 @@ impl SponsoredCallOp {
             }
             // If a timeout occurred, don't bubble up an error, instead just log
             // and set ourselves up for the next tick.
-            Err(err) => {
-                info!(error=?err, "Sponsored call timed out, reattempting");
+            Err(error) => {
+                info!(?error, "Sponsored call timed out, reattempting");
                 Ok(false)
             }
         }

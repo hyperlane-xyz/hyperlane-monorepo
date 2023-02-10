@@ -121,6 +121,13 @@ pub fn fmt_bytes(bytes: &[u8]) -> String {
     format!("0x{}", hex::encode(bytes))
 }
 
+/// Format a domain id as a name if it is known or just the number if not.
+pub fn fmt_domain(domain: u32) -> String {
+    KnownHyperlaneDomain::try_from(domain)
+        .map(|d| d.to_string())
+        .unwrap_or_else(|_| domain.to_string())
+}
+
 /// Shortcut for many-to-one match statements that get very redundant. Flips the
 /// order such that the thing which is mapped to is listed first.
 ///

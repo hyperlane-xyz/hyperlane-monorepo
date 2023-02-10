@@ -1,7 +1,7 @@
 use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::utils::fmt_address_for_domain;
+use crate::utils::{fmt_address_for_domain, fmt_domain};
 use crate::{Decode, Encode, HyperlaneProtocolError, H256};
 
 const HYPERLANE_MESSAGE_PREFIX_LEN: usize = 77;
@@ -44,9 +44,9 @@ impl Debug for HyperlaneMessage {
             self.id(),
             self.version,
             self.nonce,
-            self.origin,
+            fmt_domain(self.origin),
             fmt_address_for_domain(self.origin, self.sender),
-            self.destination,
+            fmt_domain(self.destination),
             fmt_address_for_domain(self.destination, self.recipient),
             hex::encode(&self.body)
         )
