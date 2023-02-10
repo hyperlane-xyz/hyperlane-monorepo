@@ -1507,7 +1507,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?branch=mattie/better-debug-logging#80eecd4a25e7d756b4ca369e65530654e40bc739"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-02-10-01#fe5d88220fc15d99ed19ae20e80ef7985673fa9a"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -1521,7 +1521,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?branch=mattie/better-debug-logging#80eecd4a25e7d756b4ca369e65530654e40bc739"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-02-10-01#fe5d88220fc15d99ed19ae20e80ef7985673fa9a"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -1532,7 +1532,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?branch=mattie/better-debug-logging#80eecd4a25e7d756b4ca369e65530654e40bc739"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-02-10-01#fe5d88220fc15d99ed19ae20e80ef7985673fa9a"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -1550,7 +1550,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?branch=mattie/better-debug-logging#80eecd4a25e7d756b4ca369e65530654e40bc739"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-02-10-01#fe5d88220fc15d99ed19ae20e80ef7985673fa9a"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -1574,7 +1574,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?branch=mattie/better-debug-logging#80eecd4a25e7d756b4ca369e65530654e40bc739"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-02-10-01#fe5d88220fc15d99ed19ae20e80ef7985673fa9a"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -1588,7 +1588,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?branch=mattie/better-debug-logging#80eecd4a25e7d756b4ca369e65530654e40bc739"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-02-10-01#fe5d88220fc15d99ed19ae20e80ef7985673fa9a"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -1618,7 +1618,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?branch=mattie/better-debug-logging#80eecd4a25e7d756b4ca369e65530654e40bc739"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-02-10-01#fe5d88220fc15d99ed19ae20e80ef7985673fa9a"
 dependencies = [
  "ethers-core",
  "getrandom",
@@ -1634,7 +1634,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?branch=mattie/better-debug-logging#80eecd4a25e7d756b4ca369e65530654e40bc739"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-02-10-01#fe5d88220fc15d99ed19ae20e80ef7985673fa9a"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -1679,7 +1679,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?branch=mattie/better-debug-logging#80eecd4a25e7d756b4ca369e65530654e40bc739"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-02-10-01#fe5d88220fc15d99ed19ae20e80ef7985673fa9a"
 dependencies = [
  "async-trait",
  "auto_impl 1.0.1",
@@ -1715,7 +1715,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?branch=mattie/better-debug-logging#80eecd4a25e7d756b4ca369e65530654e40bc739"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2023-02-10-01#fe5d88220fc15d99ed19ae20e80ef7985673fa9a"
 dependencies = [
  "async-trait",
  "coins-bip32",
