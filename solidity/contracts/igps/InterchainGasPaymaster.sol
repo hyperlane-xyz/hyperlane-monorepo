@@ -23,6 +23,9 @@ contract InterchainGasPaymaster is
     /// @notice Keyed by remote domain, the gas oracle to use for the domain.
     mapping(uint32 => IGasOracle) public gasOracles;
 
+    /// @notice The benficiary that can receive native tokens paid into this contract.
+    address public beneficiary;
+
     // ============ Events ============
 
     /**
@@ -32,16 +35,23 @@ contract InterchainGasPaymaster is
      */
     event GasOracleSet(uint32 indexed remoteDomain, address gasOracle);
 
+    /**
+     * @notice Emitted when the beneficiary is set.
+     * @param beneficiary The new beneficiary.
+     */
+    event BeneficiarySet(address beneficiary);
+
     // ============ Constructor ============
 
-    constructor() {
-        initialize(); // allows contract to be used without proxying
+    constructor(address _beneficiary) {
+        initialize(_beneficiary); // allows contract to be used without proxying
     }
 
     // ============ External Functions ============
 
-    function initialize() public initializer {
+    function initialize(address _beneficiary) public initializer {
         __Ownable_init();
+        _setBeneficiary(_beneficiary);
     }
 
     /**
@@ -78,6 +88,16 @@ contract InterchainGasPaymaster is
     }
 
     /**
+     * @notice Transfers the entire native token balance to the beneficiary.
+     * @dev The beneficiary must be able to receive native tokens.
+     */
+    function claim() external {
+        // Transfer the entire balance to owner.
+        (bool success, ) = beneficiary.call{value: address(this).balance}("");
+        require(success, "!transfer");
+    }
+
+    /**
      * @notice Sets the gas oracle for a remote domain.
      * @param _remoteDomain The remote domain.
      * @param _gasOracle The gas oracle.
@@ -91,13 +111,11 @@ contract InterchainGasPaymaster is
     }
 
     /**
-     * @notice Transfers the entire native token balance to the owner of the contract.
-     * @dev The owner must be able to receive native tokens.
+     * @notice Sets the beneficiary.
+     * @param _beneficiary The new beneficiary.
      */
-    function claim() external {
-        // Transfer the entire balance to owner.
-        (bool success, ) = owner().call{value: address(this).balance}("");
-        require(success, "!transfer");
+    function setBeneficiary(address _beneficiary) external onlyOwner {
+        _setBeneficiary(_beneficiary);
     }
 
     // ============ Public Functions ============
@@ -147,5 +165,16 @@ contract InterchainGasPaymaster is
         require(address(_gasOracle) != address(0), "!gas oracle");
 
         return _gasOracle.getExchangeRateAndGasPrice(_destinationDomain);
+    }
+
+    // ============ Internal Functions ============
+
+    /**
+     * @notice Sets the beneficiary.
+     * @param _beneficiary The new beneficiary.
+     */
+    function _setBeneficiary(address _beneficiary) internal {
+        beneficiary = _beneficiary;
+        emit BeneficiarySet(_beneficiary);
     }
 }

@@ -10,6 +10,8 @@ contract InterchainGasPaymasterTest is Test {
     InterchainGasPaymaster igp;
     StorageGasOracle oracle;
 
+    address constant beneficiary = address(0x444444);
+
     uint32 constant testDestinationDomain = 11111;
     uint256 constant testGasAmount = 300000;
     bytes32 constant testMessageId =
@@ -24,15 +26,25 @@ contract InterchainGasPaymasterTest is Test {
 
     event GasOracleSet(uint32 indexed remoteDomain, address gasOracle);
 
+    event BeneficiarySet(address beneficiary);
+
     function setUp() public {
-        igp = new InterchainGasPaymaster();
+        igp = new InterchainGasPaymaster(beneficiary);
         oracle = new StorageGasOracle();
         igp.setGasOracle(testDestinationDomain, address(oracle));
     }
 
+    // ============ constructor ============
+
+    function testConstructorSetsBeneficiary() public {
+        assertEq(igp.beneficiary(), beneficiary);
+    }
+
+    // ============ initialize ============
+
     function testInitializeRevertsIfCalledTwice() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        igp.initialize();
+        igp.initialize(beneficiary);
     }
 
     // ============ payForGas ============
@@ -180,6 +192,28 @@ contract InterchainGasPaymasterTest is Test {
         igp.setGasOracle(_remoteDomain, address(oracle));
     }
 
+    // ============ setBeneficiary ============
+
+    function testSetBeneficiary() public {
+        address _newBeneficiary = address(0xbeeeeee);
+
+        vm.expectEmit(true, false, false, true);
+        emit BeneficiarySet(_newBeneficiary);
+        igp.setBeneficiary(_newBeneficiary);
+
+        assertEq(igp.beneficiary(), _newBeneficiary);
+    }
+
+    function testSetBeneficiaryRevertsIfNotOwner() public {
+        address _newBeneficiary = address(0xbeeeeee);
+
+        // Repurpose the refund address as a non-owner to prank as
+        vm.prank(testRefundAddress);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        igp.setBeneficiary(_newBeneficiary);
+    }
+
     // ============ claim ============
 
     function testClaim() public {
@@ -200,17 +234,11 @@ contract InterchainGasPaymasterTest is Test {
             testRefundAddress
         );
 
-        // Change ownership away from address(this) to more clearly test
-        // that the owner doesn't need to call claim and that funds shouldn't
-        // go to the msg.sender
-        address _owner = address(0x444444);
-        igp.transferOwnership(_owner);
-
-        uint256 _ownerBalanceBefore = _owner.balance;
+        uint256 _beneficiaryBalanceBefore = beneficiary.balance;
         igp.claim();
-        uint256 _ownerBalanceAfter = _owner.balance;
+        uint256 _beneficiaryBalanceAfter = beneficiary.balance;
 
-        assertEq(_ownerBalanceAfter - _ownerBalanceBefore, _quote);
+        assertEq(_beneficiaryBalanceAfter - _beneficiaryBalanceBefore, _quote);
         assertEq(address(igp).balance, 0);
     }
 

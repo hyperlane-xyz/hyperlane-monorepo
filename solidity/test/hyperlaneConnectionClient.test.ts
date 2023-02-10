@@ -65,7 +65,7 @@ describe('HyperlaneConnectionClient', async () => {
 
     before(async () => {
       const paymasterFactory = new InterchainGasPaymaster__factory(signer);
-      newPaymaster = await paymasterFactory.deploy();
+      newPaymaster = await paymasterFactory.deploy(signer.address);
     });
 
     it('Allows owner to set the interchainGasPaymaster', async () => {
