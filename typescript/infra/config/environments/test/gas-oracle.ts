@@ -1,26 +1,33 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
-import { AllStorageGasOracleConfigs, RemoteGasData } from '../../../src/config';
+import { ChainMap, Remotes } from '@hyperlane-xyz/sdk';
 
-import { TestChains } from './chains';
+import { AllStorageGasOracleConfigs } from '../../../src/config';
+import {
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+  getAllStorageGasOracleConfigs,
+} from '../../../src/config/gas-oracle';
 
-const testGasData: RemoteGasData = {
-  // 10 decimals of precision
-  tokenExchangeRate: ethers.utils.parseUnits('1', 10),
-  gasPrice: ethers.utils.parseUnits('2', 'gwei'),
+import { TestChains, chainNames } from './chains';
+
+const TEST_TOKEN_EXCHANGE_RATE = ethers.utils.parseUnits(
+  '1',
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+);
+const TEST_GAS_PRICE = ethers.utils.parseUnits('2', 'gwei');
+
+const gasPrices: ChainMap<TestChains, BigNumber> = {
+  test1: TEST_GAS_PRICE,
+  test2: TEST_GAS_PRICE,
+  test3: TEST_GAS_PRICE,
 };
 
-export const storageGasOracleConfig: AllStorageGasOracleConfigs<TestChains> = {
-  test1: {
-    test2: testGasData,
-    test3: testGasData,
-  },
-  test2: {
-    test1: testGasData,
-    test3: testGasData,
-  },
-  test3: {
-    test1: testGasData,
-    test2: testGasData,
-  },
-};
+function getTokenExchangeRate<LocalChain extends TestChains>(
+  _local: LocalChain,
+  _remote: Remotes<TestChains, LocalChain>,
+): BigNumber {
+  return TEST_TOKEN_EXCHANGE_RATE;
+}
+
+export const storageGasOracleConfig: AllStorageGasOracleConfigs<TestChains> =
+  getAllStorageGasOracleConfigs(chainNames, gasPrices, getTokenExchangeRate);

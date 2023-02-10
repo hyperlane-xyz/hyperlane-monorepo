@@ -14,7 +14,7 @@ import {
 import { TestnetChains, chainNames } from './chains';
 
 // Taken by looking at each testnet and overestimating gas prices
-const testnetGasPrices: ChainMap<TestnetChains, BigNumber> = {
+const gasPrices: ChainMap<TestnetChains, BigNumber> = {
   alfajores: ethers.utils.parseUnits('10', 'gwei'),
   fuji: ethers.utils.parseUnits('30', 'gwei'),
   mumbai: ethers.utils.parseUnits('45', 'gwei'),
@@ -59,7 +59,7 @@ function getApproximateValue(chain: TestnetChains): BigNumber {
 }
 
 // Gets the exchange rate of the remote quoted in local tokens
-function getTestnetTokenExchangeRate<LocalChain extends TestnetChains>(
+function getTokenExchangeRate<LocalChain extends TestnetChains>(
   local: LocalChain,
   remote: Remotes<TestnetChains, LocalChain>,
 ): BigNumber {
@@ -70,8 +70,4 @@ function getTestnetTokenExchangeRate<LocalChain extends TestnetChains>(
 }
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs<TestnetChains> =
-  getAllStorageGasOracleConfigs(
-    chainNames,
-    testnetGasPrices,
-    getTestnetTokenExchangeRate,
-  );
+  getAllStorageGasOracleConfigs(chainNames, gasPrices, getTokenExchangeRate);
