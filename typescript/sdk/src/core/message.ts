@@ -3,7 +3,6 @@ import { utils as ethersUtils, providers } from 'ethers';
 import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
-import { ChainNameToDomainId, DomainIdToChainName } from '../domains';
 import { Annotated, findAnnotatedSingleEvent } from '../events';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName, NameOrDomain } from '../types';
@@ -18,22 +17,13 @@ import {
   ProcessEvent,
 } from './events';
 
-export const resolveDomain = (nameOrDomain: NameOrDomain): ChainName =>
-  typeof nameOrDomain === 'number'
-    ? DomainIdToChainName[nameOrDomain]
-    : nameOrDomain;
-
-export const resolveId = (nameOrDomain: NameOrDomain): number =>
-  typeof nameOrDomain === 'string'
-    ? ChainNameToDomainId[nameOrDomain]
-    : nameOrDomain;
-
 export const resolveChains = (
   message: types.ParsedMessage,
+  multiProvider: MultiProvider,
 ): { origin: ChainName; destination: ChainName } => {
   return {
-    origin: resolveDomain(message.origin),
-    destination: resolveDomain(message.destination),
+    origin: multiProvider.domainIdToChainName(message.origin),
+    destination: multiProvider.domainIdToChainName(message.destination),
   };
 };
 
@@ -78,7 +68,7 @@ export class HyperlaneMessage {
     this.message = utils.parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
 
-    const messageChains = resolveChains(this.message);
+    const messageChains = resolveChains(this.message, multiProvider);
 
     this.outbox = core.getContracts(messageChains.origin).mailbox.contract;
     this.inbox = core.getContracts(messageChains.destination).mailbox.contract;
@@ -108,8 +98,8 @@ export class HyperlaneMessage {
   ): HyperlaneMessage[] {
     const messages: HyperlaneMessage[] = [];
     const outbox = new Mailbox__factory().interface;
-    const chain = resolveDomain(nameOrDomain);
-    const provider = multiProvider.getChainConnection(chain).provider!;
+    const chain = multiProvider.resolveDomainOrName(nameOrDomain);
+    const provider = multiProvider.getProvider(chain);
 
     for (const log of receipt.logs) {
       try {
@@ -124,7 +114,7 @@ export class HyperlaneMessage {
           } as unknown as DispatchEvent;
 
           const annotated = new Annotated<DispatchEvent>(
-            resolveId(nameOrDomain),
+            multiProvider.getDomainId(chain),
             receipt,
             dispatch,
             true,
@@ -182,9 +172,8 @@ export class HyperlaneMessage {
     nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<HyperlaneMessage[]> {
-    const provider = multiProvider.getChainConnection(
-      resolveDomain(nameOrDomain),
-    ).provider!;
+    const chain = multiProvider.resolveDomainOrName(nameOrDomain);
+    const provider = multiProvider.getProvider(chain);
     const receipt = await provider.getTransactionReceipt(transactionHash);
     if (!receipt) {
       throw new Error(`No receipt for ${transactionHash} on ${nameOrDomain}`);
@@ -213,9 +202,8 @@ export class HyperlaneMessage {
     nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<HyperlaneMessage> {
-    const provider = multiProvider.getChainConnection(
-      resolveDomain(nameOrDomain),
-    ).provider!;
+    const chain = multiProvider.resolveDomainOrName(nameOrDomain);
+    const provider = multiProvider.getProvider(chain);
     const receipt = await provider.getTransactionReceipt(transactionHash);
     if (!receipt) {
       throw new Error(`No receipt for ${transactionHash} on ${nameOrDomain}`);
@@ -318,7 +306,7 @@ export class HyperlaneMessage {
   }
 
   get originName(): ChainName {
-    return resolveDomain(this.origin);
+    return this.multiProvider.domainIdToChainName(this.origin);
   }
 
   /**
@@ -336,7 +324,7 @@ export class HyperlaneMessage {
   }
 
   get destinationName(): ChainName {
-    return resolveDomain(this.destination);
+    return this.multiProvider.domainIdToChainName(this.destination);
   }
 
   /**

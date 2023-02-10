@@ -3,7 +3,7 @@ import CoinGecko from 'coingecko-api';
 import { warn } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { Mainnets } from '../consts/chains';
+import { CoreChainName, Mainnets } from '../consts/chains';
 import { ChainName } from '../types';
 
 export interface TokenPriceGetter {
@@ -89,7 +89,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   }
 
   private async getTokenPrices(chains: ChainName[]): Promise<number[]> {
-    const isMainnet = chains.map((c) => Mainnets.includes(c));
+    const isMainnet = chains.map((c) => Mainnets.includes(c as CoreChainName));
     const allMainnets = isMainnet.every((v) => v === true);
     const allTestnets = isMainnet.every((v) => v === false);
     if (allTestnets) {

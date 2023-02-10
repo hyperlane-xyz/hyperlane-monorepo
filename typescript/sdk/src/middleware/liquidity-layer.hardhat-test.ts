@@ -16,7 +16,6 @@ import {
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { testChainConnectionConfigs } from '../consts/chainConnectionConfigs';
 import { TestCoreApp } from '../core/TestCoreApp';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
 import { LiquidityLayerApp } from '../deploy/middleware/LiquidityLayerApp';
@@ -27,10 +26,10 @@ import {
   LiquidityLayerDeployer,
   PortalAdapterConfig,
 } from '../deploy/middleware/LiquidityLayerRouterDeployer';
-import { getChainToOwnerMap, getTestMultiProvider } from '../deploy/utils';
 import { ChainNameToDomainId } from '../domains';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, TestChainNames } from '../types';
+import { getTestOwnerConfig } from '../test/testUtils';
+import { ChainMap } from '../types';
 import { objMap } from '../utils/objects';
 
 describe('LiquidityLayerRouter', async () => {
@@ -41,11 +40,11 @@ describe('LiquidityLayerRouter', async () => {
 
   let signer: SignerWithAddress;
   let local: LiquidityLayerRouter;
-  let multiProvider: MultiProvider<TestChainNames>;
+  let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
 
-  let liquidityLayerApp: LiquidityLayerApp<TestChainNames>;
-  let config: ChainMap<TestChainNames, LiquidityLayerConfig>;
+  let liquidityLayerApp: LiquidityLayerApp;
+  let config: ChainMap<LiquidityLayerConfig>;
   let mockToken: MockToken;
   let circleTokenMessenger: MockCircleTokenMessenger;
   let portalBridge: MockPortalBridge;
@@ -54,7 +53,7 @@ describe('LiquidityLayerRouter', async () => {
   before(async () => {
     [signer] = await ethers.getSigners();
 
-    multiProvider = getTestMultiProvider(signer);
+    multiProvider = MultiProvider.createTestMultiProvider(signer);
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
@@ -74,42 +73,39 @@ describe('LiquidityLayerRouter', async () => {
     messageTransmitter = await messageTransmitterF.deploy(mockToken.address);
 
     config = coreApp.extendWithConnectionClientConfig(
-      objMap(
-        getChainToOwnerMap(testChainConnectionConfigs, signer.address),
-        (_chain, conf) => ({
-          ...conf,
-          circle: {
-            type: BridgeAdapterType.Circle,
-            tokenMessengerAddress: circleTokenMessenger.address,
-            messageTransmitterAddress: messageTransmitter.address,
-            usdcAddress: mockToken.address,
-            circleDomainMapping: [
-              {
-                hyperlaneDomain: localDomain,
-                circleDomain: localDomain,
-              },
-              {
-                hyperlaneDomain: remoteDomain,
-                circleDomain: remoteDomain,
-              },
-            ],
-          } as CircleBridgeAdapterConfig,
-          portal: {
-            type: BridgeAdapterType.Portal,
-            portalBridgeAddress: portalBridge.address,
-            wormholeDomainMapping: [
-              {
-                hyperlaneDomain: localDomain,
-                wormholeDomain: localDomain,
-              },
-              {
-                hyperlaneDomain: remoteDomain,
-                wormholeDomain: remoteDomain,
-              },
-            ],
-          } as PortalAdapterConfig,
-        }),
-      ),
+      objMap(getTestOwnerConfig(signer.address), (_chain, conf) => ({
+        ...conf,
+        circle: {
+          type: BridgeAdapterType.Circle,
+          tokenMessengerAddress: circleTokenMessenger.address,
+          messageTransmitterAddress: messageTransmitter.address,
+          usdcAddress: mockToken.address,
+          circleDomainMapping: [
+            {
+              hyperlaneDomain: localDomain,
+              circleDomain: localDomain,
+            },
+            {
+              hyperlaneDomain: remoteDomain,
+              circleDomain: remoteDomain,
+            },
+          ],
+        } as CircleBridgeAdapterConfig,
+        portal: {
+          type: BridgeAdapterType.Portal,
+          portalBridgeAddress: portalBridge.address,
+          wormholeDomainMapping: [
+            {
+              hyperlaneDomain: localDomain,
+              wormholeDomain: localDomain,
+            },
+            {
+              hyperlaneDomain: remoteDomain,
+              wormholeDomain: remoteDomain,
+            },
+          ],
+        } as PortalAdapterConfig,
+      })),
     );
   });
 

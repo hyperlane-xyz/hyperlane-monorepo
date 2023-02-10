@@ -17,10 +17,11 @@ import {
   ValidatorAnnounceViolation,
 } from './types';
 
-export class HyperlaneCoreChecker<
-  Chain extends ChainName,
-> extends HyperlaneAppChecker<Chain, HyperlaneCore<Chain>, CoreConfig> {
-  async checkChain(chain: Chain): Promise<void> {
+export class HyperlaneCoreChecker extends HyperlaneAppChecker<
+  HyperlaneCore,
+  CoreConfig
+> {
+  async checkChain(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
     // skip chains that are configured to be removed
     if (config.remove) {
@@ -34,7 +35,7 @@ export class HyperlaneCoreChecker<
     await this.checkValidatorAnnounce(chain);
   }
 
-  async checkDomainOwnership(chain: Chain): Promise<void> {
+  async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
     if (config.owner) {
       const contracts = this.app.getContracts(chain);
@@ -47,7 +48,7 @@ export class HyperlaneCoreChecker<
     }
   }
 
-  async checkMailbox(chain: Chain): Promise<void> {
+  async checkMailbox(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
     const mailbox = contracts.mailbox.contract;
     const localDomain = await mailbox.localDomain();
@@ -68,7 +69,7 @@ export class HyperlaneCoreChecker<
     }
   }
 
-  async checkProxiedContracts(chain: Chain): Promise<void> {
+  async checkProxiedContracts(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
     await this.checkProxiedContract(
       chain,
@@ -90,7 +91,7 @@ export class HyperlaneCoreChecker<
     );
   }
 
-  async checkValidatorAnnounce(chain: Chain): Promise<void> {
+  async checkValidatorAnnounce(chain: ChainName): Promise<void> {
     const expectedValidators = this.configMap[chain].multisigIsm.validators;
     const validatorAnnounce = this.app.getContracts(chain).validatorAnnounce;
     const announcedValidators =
@@ -112,7 +113,7 @@ export class HyperlaneCoreChecker<
     });
   }
 
-  async checkMultisigIsm(local: Chain): Promise<void> {
+  async checkMultisigIsm(local: ChainName): Promise<void> {
     await Promise.all(
       this.app
         .remoteChains(local)
@@ -120,7 +121,10 @@ export class HyperlaneCoreChecker<
     );
   }
 
-  async checkMultisigIsmForRemote(local: Chain, remote: Chain): Promise<void> {
+  async checkMultisigIsmForRemote(
+    local: ChainName,
+    remote: ChainName,
+  ): Promise<void> {
     const coreContracts = this.app.getContracts(local);
     const multisigIsm = coreContracts.multisigIsm;
     const config = this.configMap[remote];

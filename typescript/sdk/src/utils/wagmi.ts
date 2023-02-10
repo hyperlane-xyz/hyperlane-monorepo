@@ -1,7 +1,7 @@
 import type { Chain as WagmiChain } from '@wagmi/chains';
 
 import type { ChainMetadata } from '../consts/chainMetadata';
-import { Testnets } from '../consts/chains';
+import { CoreChainName, Testnets } from '../consts/chains';
 
 export function chainMetadataToWagmiChain(metadata: ChainMetadata): WagmiChain {
   return {
@@ -21,6 +21,6 @@ export function chainMetadataToWagmiChain(metadata: ChainMetadata): WagmiChain {
           },
         }
       : undefined,
-    testnet: Testnets.includes(metadata.name),
+    testnet: Testnets.includes(metadata.name as CoreChainName),
   };
 }

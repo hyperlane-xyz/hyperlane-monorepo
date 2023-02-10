@@ -1,6 +1,9 @@
 import { ethers } from 'ethers';
 
+import { types } from '@hyperlane-xyz/utils';
+
 import { chainMetadata } from '../consts/chainMetadata';
+import { TestChains } from '../consts/chains';
 import {
   CoinGeckoInterface,
   CoinGeckoResponse,
@@ -10,15 +13,10 @@ import {
 } from '../gas/token-prices';
 import { ChainMap, ChainName } from '../types';
 
-export function testChainConnection(id: number) {
-  return {
-    id,
-    provider: new ethers.providers.JsonRpcProvider(
-      'http://localhost:8545',
-      31337,
-    ),
-    confirmations: 1,
-  };
+export function getTestOwnerConfig(owner: types.Address) {
+  const config: ChainMap<{ owner: types.Address }> = {};
+  TestChains.forEach((t) => (config[t] = { owner }));
+  return config;
 }
 
 const MOCK_NETWORK = {
@@ -106,7 +104,7 @@ export class MockCoinGecko implements CoinGeckoInterface {
 
 // A mock TokenPriceGetter intended to be used by tests when mocking token prices
 export class MockTokenPriceGetter implements TokenPriceGetter {
-  private tokenPrices: Partial<ChainMap<ChainName, number>>;
+  private tokenPrices: Partial<ChainMap<number>>;
 
   constructor() {
     this.tokenPrices = {};

@@ -8,15 +8,14 @@ import {
   TestQuery__factory,
 } from '@hyperlane-xyz/core';
 
-import { testChainConnectionConfigs } from '../consts/chainConnectionConfigs';
 import { TestCoreApp } from '../core/TestCoreApp';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
 import { InterchainQueryDeployer } from '../deploy/middleware/deploy';
 import { RouterConfig } from '../deploy/router/types';
-import { getChainToOwnerMap, getTestMultiProvider } from '../deploy/utils';
 import { ChainNameToDomainId } from '../domains';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, TestChainNames } from '../types';
+import { getTestOwnerConfig } from '../test/testUtils';
+import { ChainMap } from '../types';
 
 describe('InterchainQueryRouter', async () => {
   const localChain = 'test1';
@@ -27,21 +26,21 @@ describe('InterchainQueryRouter', async () => {
   let signer: SignerWithAddress;
   let local: InterchainQueryRouter;
   let remote: InterchainQueryRouter;
-  let multiProvider: MultiProvider<TestChainNames>;
+  let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let config: ChainMap<TestChainNames, RouterConfig>;
+  let config: ChainMap<RouterConfig>;
   let testQuery: TestQuery;
 
   before(async () => {
     [signer] = await ethers.getSigners();
 
-    multiProvider = getTestMultiProvider(signer);
+    multiProvider = MultiProvider.createTestMultiProvider(signer);
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
     config = coreApp.extendWithConnectionClientConfig(
-      getChainToOwnerMap(testChainConnectionConfigs, signer.address),
+      getTestOwnerConfig(signer.address),
     );
   });
 

@@ -1,9 +1,11 @@
 import type { Chain as WagmiChain } from '@wagmi/chains';
+import type { providers } from 'ethers';
 
+import { ChainName } from '../types';
 import { objMap } from '../utils/objects';
 import { chainMetadataToWagmiChain } from '../utils/wagmi';
 
-import { ChainName, Chains, Mainnets, Testnets } from './chains';
+import { Chains, Mainnets, Testnets } from './chains';
 
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
@@ -52,6 +54,7 @@ export interface ChainMetadata {
     /** Rough estimate of time per block in seconds */
     estimateBlockTime: number;
   };
+  transactionOverrides?: Partial<providers.TransactionRequest>;
   /** The CoinGecko API sometimes expects IDs that do not match ChainNames */
   gasCurrencyCoinGeckoId?: string;
   /** URL of the gnosis safe transaction service */
@@ -99,7 +102,7 @@ export const alfajores: ChainMetadata = {
     {
       name: 'CeloScan',
       url: 'https://alfajores.celoscan.io',
-      apiUrl: 'https://api-alfajores.celoscan.io/',
+      apiUrl: 'https://api-alfajores.celoscan.io',
       family: ExplorerFamily.Etherscan,
     },
     {
@@ -149,7 +152,7 @@ export const arbitrumgoerli: ChainMetadata = {
   blockExplorers: [
     {
       name: 'Arbiscan',
-      url: 'https://goerli.arbiscan.io/',
+      url: 'https://goerli.arbiscan.io',
       apiUrl: 'https://api-goerli.arbiscan.io',
       family: ExplorerFamily.Etherscan,
     },

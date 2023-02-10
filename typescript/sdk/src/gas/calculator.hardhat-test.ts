@@ -7,9 +7,7 @@ import { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../core/HyperlaneCore';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
-import { getTestMultiProvider } from '../deploy/utils';
 import { MultiProvider } from '../providers/MultiProvider';
-import { TestChainNames } from '../types';
 
 import { InterchainGasCalculator } from './calculator';
 
@@ -21,15 +19,15 @@ describe('InterchainGasCalculator', async () => {
   const testGasAmount = BigNumber.from('100000');
 
   let signer: SignerWithAddress;
-  let multiProvider: MultiProvider<TestChainNames>;
+  let multiProvider: MultiProvider;
 
-  let calculator: InterchainGasCalculator<TestChainNames>;
+  let calculator: InterchainGasCalculator;
   let igp: types.Address;
 
   before(async () => {
     [signer] = await ethers.getSigners();
 
-    multiProvider = getTestMultiProvider(signer);
+    multiProvider = MultiProvider.createTestMultiProvider(signer);
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();

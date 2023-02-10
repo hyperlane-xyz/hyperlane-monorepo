@@ -1,6 +1,6 @@
 import { Ownable } from '@hyperlane-xyz/core';
-import { utils } from '@hyperlane-xyz/utils';
 import type { types } from '@hyperlane-xyz/utils';
+import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { MultiProvider } from '../providers/MultiProvider';
@@ -12,19 +12,18 @@ import { proxyAdmin, proxyImplementation, proxyViolation } from './proxy';
 import { CheckerViolation, OwnerViolation, ViolationType } from './types';
 
 export abstract class HyperlaneAppChecker<
-  Chain extends ChainName,
-  App extends HyperlaneApp<any, Chain>,
+  App extends HyperlaneApp<any>,
   Config,
 > {
-  readonly multiProvider: MultiProvider<Chain>;
+  readonly multiProvider: MultiProvider;
   readonly app: App;
-  readonly configMap: ChainMap<Chain, Config>;
+  readonly configMap: ChainMap<Config>;
   readonly violations: CheckerViolation[];
 
   constructor(
-    multiProvider: MultiProvider<Chain>,
+    multiProvider: MultiProvider,
     app: App,
-    configMap: ChainMap<Chain, Config>,
+    configMap: ChainMap<Config>,
   ) {
     this.multiProvider = multiProvider;
     this.app = app;
@@ -32,15 +31,15 @@ export abstract class HyperlaneAppChecker<
     this.configMap = configMap;
   }
 
-  abstract checkChain(chain: Chain): Promise<void>;
+  abstract checkChain(chain: ChainName): Promise<void>;
 
   async check(): Promise<void[]> {
     Object.keys(this.configMap)
-      .filter((_) => !this.app.chains().includes(_ as Chain))
+      .filter((_) => !this.app.chains().includes(_))
       .forEach((chain: string) =>
         this.addViolation({
           type: ViolationType.NotDeployed,
-          chain: chain as Chain,
+          chain,
           expected: '',
           actual: '',
         }),
@@ -56,14 +55,14 @@ export abstract class HyperlaneAppChecker<
   }
 
   async checkProxiedContract(
-    chain: Chain,
+    chain: ChainName,
     name: string,
     proxiedAddress: TransparentProxyAddresses,
     proxyAdminAddress?: types.Address,
   ): Promise<void> {
-    const dc = this.multiProvider.getChainConnection(chain);
+    const provider = this.multiProvider.getProvider(chain);
     const implementation = await proxyImplementation(
-      dc.provider,
+      provider,
       proxiedAddress.proxy,
     );
     if (implementation !== proxiedAddress.implementation) {
@@ -72,13 +71,13 @@ export abstract class HyperlaneAppChecker<
       );
     }
     if (proxyAdminAddress) {
-      const admin = await proxyAdmin(dc.provider, proxiedAddress.proxy);
+      const admin = await proxyAdmin(provider, proxiedAddress.proxy);
       utils.assert(admin === proxyAdminAddress, 'Proxy admin mismatch');
     }
   }
 
   async checkOwnership(
-    chain: Chain,
+    chain: ChainName,
     owner: types.Address,
     ownables: Ownable[],
   ): Promise<void> {

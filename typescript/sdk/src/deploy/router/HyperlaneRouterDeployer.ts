@@ -3,24 +3,22 @@ import { ethers } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
 
-import { DomainIdToChainName } from '../../domains';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
-import { ChainMap, ChainName } from '../../types';
+import { ChainMap } from '../../types';
 import { objMap, promiseObjAll } from '../../utils/objects';
 import { DeployerOptions, HyperlaneDeployer } from '../HyperlaneDeployer';
 
 import { RouterConfig } from './types';
 
 export abstract class HyperlaneRouterDeployer<
-  Chain extends ChainName,
   Config extends RouterConfig,
   Contracts extends RouterContracts,
   Factories extends RouterFactories,
-> extends HyperlaneDeployer<Chain, Config, Contracts, Factories> {
+> extends HyperlaneDeployer<Config, Contracts, Factories> {
   constructor(
-    multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, Config>,
+    multiProvider: MultiProvider,
+    configMap: ChainMap<Config>,
     factories: Factories,
     options?: DeployerOptions,
   ) {
@@ -30,13 +28,10 @@ export abstract class HyperlaneRouterDeployer<
     });
   }
 
-  async initConnectionClient(
-    contractsMap: ChainMap<Chain, Contracts>,
-  ): Promise<void> {
+  async initConnectionClient(contractsMap: ChainMap<Contracts>): Promise<void> {
     this.logger(`Initializing connection clients (if not already)...`);
     await promiseObjAll(
       objMap(contractsMap, async (local, contracts) => {
-        const chainConnection = this.multiProvider.getChainConnection(local);
         // set mailbox if not already set (and configured)
         const mailbox = this.configMap[local].mailbox;
         if (
@@ -44,7 +39,10 @@ export abstract class HyperlaneRouterDeployer<
           (await contracts.router.mailbox()) === ethers.constants.AddressZero
         ) {
           this.logger(`Set mailbox on ${local}`);
-          await chainConnection.handleTx(contracts.router.setMailbox(mailbox));
+          await this.multiProvider.handleTx(
+            local,
+            contracts.router.setMailbox(mailbox),
+          );
         }
 
         // set interchain gas paymaster if not already set (and configured)
@@ -56,7 +54,8 @@ export abstract class HyperlaneRouterDeployer<
             ethers.constants.AddressZero
         ) {
           this.logger(`Set interchain gas paymaster on ${local}`);
-          await chainConnection.handleTx(
+          await this.multiProvider.handleTx(
+            local,
             contracts.router.setInterchainGasPaymaster(interchainGasPaymaster),
           );
         }
@@ -65,7 +64,7 @@ export abstract class HyperlaneRouterDeployer<
   }
 
   async enrollRemoteRouters(
-    contractsMap: ChainMap<Chain, RouterContracts>,
+    contractsMap: ChainMap<RouterContracts>,
   ): Promise<void> {
     this.logger(
       `Enrolling deployed routers with each other (if not already)...`,
@@ -75,11 +74,9 @@ export abstract class HyperlaneRouterDeployer<
     for (const [chain, contracts] of Object.entries<RouterContracts>(
       contractsMap,
     )) {
-      const local = chain as Chain;
-      const chainConnection = this.multiProvider.getChainConnection(local);
       // only enroll chains which are deployed
       const deployedRemoteChains = this.multiProvider
-        .remoteChains(local)
+        .getRemoteChains(chain)
         .filter((c) => deployedChains.includes(c));
 
       const enrollEntries = await Promise.all(
@@ -103,38 +100,39 @@ export abstract class HyperlaneRouterDeployer<
         return;
       }
 
-      await super.runIfOwner(local, contracts.router, async () => {
-        const chains = domains.map((id) => DomainIdToChainName[id] || id);
-        this.logger(
-          `Enrolling remote routers (${chains.join(', ')}) on ${local}`,
+      await super.runIfOwner(chain, contracts.router, async () => {
+        const chains = domains.map((id) =>
+          this.multiProvider.domainIdToChainName(id),
         );
-        await chainConnection.handleTx(
+        this.logger(
+          `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
+        );
+        await this.multiProvider.handleTx(
+          chain,
           contracts.router.enrollRemoteRouters(
             domains,
             addresses,
-            chainConnection.overrides,
+            this.multiProvider.getTransactionOverrides(chain),
           ),
         );
       });
     }
   }
 
-  async transferOwnership(
-    contractsMap: ChainMap<Chain, Contracts>,
-  ): Promise<void> {
+  async transferOwnership(contractsMap: ChainMap<Contracts>): Promise<void> {
     this.logger(`Transferring ownership of routers...`);
     await promiseObjAll(
       objMap(contractsMap, async (chain, contracts) => {
-        const chainConnection = this.multiProvider.getChainConnection(chain);
         const owner = this.configMap[chain].owner;
         const currentOwner = await contracts.router.owner();
         if (owner != currentOwner) {
           this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
           await super.runIfOwner(chain, contracts.router, async () => {
-            await chainConnection.handleTx(
+            await this.multiProvider.handleTx(
+              chain,
               contracts.router.transferOwnership(
                 owner,
-                chainConnection.overrides,
+                this.multiProvider.getTransactionOverrides(chain),
               ),
             );
           });
@@ -144,8 +142,8 @@ export abstract class HyperlaneRouterDeployer<
   }
 
   async deploy(
-    partialDeployment?: Partial<Record<Chain, Contracts>>,
-  ): Promise<ChainMap<Chain, Contracts>> {
+    partialDeployment?: ChainMap<Contracts>,
+  ): Promise<ChainMap<Contracts>> {
     const contractsMap = await super.deploy(partialDeployment);
 
     await this.enrollRemoteRouters(contractsMap);

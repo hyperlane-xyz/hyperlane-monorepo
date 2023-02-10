@@ -5,14 +5,10 @@ import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import {
-  CoreEnvironment,
-  CoreEnvironmentChain,
-  HyperlaneCore,
-} from '../core/HyperlaneCore';
+import { CoreEnvironment, HyperlaneCore } from '../core/HyperlaneCore';
 import { ChainNameToDomainId } from '../domains';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName, Remotes } from '../types';
+import { ChainName } from '../types';
 import { convertDecimalValue, mulBigAndFixed } from '../utils/number';
 
 import { CoinGeckoTokenPriceGetter, TokenPriceGetter } from './token-prices';
@@ -70,23 +66,20 @@ export interface InterchainGasCalculatorConfig {
   tokenPriceGetter?: TokenPriceGetter;
 }
 
-export type ParsedMessage<
-  Chain extends ChainName,
-  Destination extends Chain,
-> = {
-  origin: Exclude<Chain, Destination>;
+export interface ParsedMessage {
+  origin: ChainName;
   sender: string;
-  destination: Destination;
+  destination: ChainName;
   recipient: string;
   body: string;
-};
+}
 
 /**
  * Calculates interchain gas payments.
  */
-export class InterchainGasCalculator<Chain extends ChainName> {
-  private core: HyperlaneCore<Chain>;
-  private multiProvider: MultiProvider<Chain>;
+export class InterchainGasCalculator {
+  private core: HyperlaneCore;
+  private multiProvider: MultiProvider;
 
   private tokenPriceGetter: TokenPriceGetter;
 
@@ -95,16 +88,16 @@ export class InterchainGasCalculator<Chain extends ChainName> {
 
   static fromEnvironment<Env extends CoreEnvironment>(
     env: Env,
-    multiProvider: MultiProvider<CoreEnvironmentChain<Env>>,
+    multiProvider: MultiProvider,
     config?: InterchainGasCalculatorConfig,
-  ): InterchainGasCalculator<CoreEnvironmentChain<Env>> {
+  ): InterchainGasCalculator {
     const core = HyperlaneCore.fromEnvironment(env, multiProvider);
     return new InterchainGasCalculator(multiProvider, core, config);
   }
 
   constructor(
-    multiProvider: MultiProvider<Chain>,
-    core: HyperlaneCore<Chain>,
+    multiProvider: MultiProvider,
+    core: HyperlaneCore,
     config?: InterchainGasCalculatorConfig,
   ) {
     this.multiProvider = multiProvider;
@@ -139,9 +132,9 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * function.
    * @returns The amount of native tokens required to pay for interchain gas.
    */
-  async quoteGasPaymentForDefaultIsmIgp<Destination extends Chain>(
-    origin: Exclude<Chain, Destination>,
-    destination: Destination,
+  async quoteGasPaymentForDefaultIsmIgp(
+    origin: ChainName,
+    destination: ChainName,
     gasAmount: BigNumber,
   ): Promise<BigNumber> {
     const igpAddress =
@@ -168,9 +161,9 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * gas cost.
    * @returns The amount of native tokens required to pay for interchain gas.
    */
-  async quoteGasPayment<Destination extends Chain>(
-    origin: Exclude<Chain, Destination>,
-    destination: Destination,
+  async quoteGasPayment(
+    origin: ChainName,
+    destination: ChainName,
     gasAmount: BigNumber,
   ): Promise<BigNumber> {
     const igpAddress = this.core.getContracts(origin).interchainGasPaymaster;
@@ -196,13 +189,13 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * function.
    * @returns The amount of native tokens required to pay for interchain gas.
    */
-  async quoteGasPaymentForIGP<Destination extends Chain>(
-    origin: Exclude<Chain, Destination>,
-    destination: Destination,
+  async quoteGasPaymentForIGP(
+    origin: ChainName,
+    destination: ChainName,
     gasAmount: BigNumber,
     interchainGasPaymasterAddress: types.Address,
   ): Promise<BigNumber> {
-    const originProvider = this.multiProvider.getChainProvider(origin);
+    const originProvider = this.multiProvider.getProvider(origin);
     const igp = InterchainGasPaymaster__factory.connect(
       interchainGasPaymasterAddress,
       originProvider,
@@ -222,9 +215,9 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns An estimated amount of origin chain tokens to cover gas costs on the
    * destination chain.
    */
-  async estimatePaymentForGas<Destination extends Chain>(
-    origin: Exclude<Chain, Destination>,
-    destination: Destination,
+  async estimatePaymentForGas(
+    origin: ChainName,
+    destination: ChainName,
     gas: BigNumber,
   ): Promise<BigNumber> {
     const destinationGasPrice = await this.getGasPrice(destination);
@@ -258,9 +251,9 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns An estimated amount of origin chain tokens to cover gas costs of the
    * message on the destination chain.
    */
-  async estimatePaymentForHandleGas<Destination extends Chain>(
-    origin: Exclude<Chain, Destination>,
-    destination: Destination,
+  async estimatePaymentForHandleGas(
+    origin: ChainName,
+    destination: ChainName,
     handleGas: BigNumber,
   ): Promise<BigNumber> {
     const destinationGas = handleGas.add(
@@ -281,8 +274,8 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns An estimated amount of origin chain tokens to cover gas costs of the
    * message on the destination chain.
    */
-  protected async estimatePaymentForMessage<Destination extends Chain>(
-    message: ParsedMessage<Chain, Destination>,
+  protected async estimatePaymentForMessage(
+    message: ParsedMessage,
   ): Promise<BigNumber> {
     const handleGas = await this.estimateGasForHandle(message);
     return this.estimatePaymentForHandleGas(
@@ -303,8 +296,8 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * `fromAmount` of `fromChain` native tokens.
    */
   protected async convertBetweenTokens(
-    fromChain: Chain,
-    toChain: Chain,
+    fromChain: ChainName,
+    toChain: ChainName,
     value: BigNumber,
   ): Promise<BigNumber> {
     // Does not factor in differing token decimals.
@@ -328,8 +321,8 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @param chainName The name of the chain to get the gas price for
    * @returns The suggested gas price in wei on the destination chain.
    */
-  protected async getGasPrice(chain: Chain): Promise<BigNumber> {
-    const provider = this.multiProvider.getChainConnection(chain).provider!;
+  protected async getGasPrice(chain: ChainName): Promise<BigNumber> {
+    const provider = this.multiProvider.getProvider(chain);
     if (provider == undefined) {
       throw new Error(`Missing provider for ${chain}`);
     }
@@ -341,7 +334,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @param chain The chain.
    * @returns The number of decimals of `chain`'s native token.
    */
-  protected tokenDecimals(chain: Chain): number {
+  protected tokenDecimals(chain: ChainName): number {
     return chainMetadata[chain].nativeToken.decimals ?? DEFAULT_TOKEN_DECIMALS;
   }
 
@@ -359,11 +352,10 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns The estimated gas required by the message's recipient handle function
    * on the destination chain.
    */
-  protected async estimateGasForHandle<LocalChain extends Chain>(
-    message: ParsedMessage<Chain, LocalChain>,
+  protected async estimateGasForHandle(
+    message: ParsedMessage,
   ): Promise<BigNumber> {
-    const provider = this.multiProvider.getChainConnection(message.destination)
-      .provider!;
+    const provider = this.multiProvider.getProvider(message.destination);
 
     const mailbox = this.core.getContracts(message.destination).mailbox
       .contract;
@@ -398,9 +390,9 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * operations within Inbox.sol, including intrinsic gas. Does not include any gas
    * consumed within a message's recipient `handle` function.
    */
-  protected async estimateGasForProcess<Destination extends Chain>(
-    origin: Remotes<Chain, Destination>,
-    destination: Destination,
+  protected async estimateGasForProcess(
+    origin: ChainName,
+    destination: ChainName,
   ): Promise<BigNumber> {
     // TODO: Check the recipient module
     const module = this.core.getContracts(destination).multisigIsm;

@@ -7,39 +7,36 @@ import {
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 
-import { testChainConnectionConfigs } from '../consts/chainConnectionConfigs';
+import { Chains } from '../consts/chains';
 import { TestCoreApp } from '../core/TestCoreApp';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
 import { InterchainAccountDeployer } from '../deploy/middleware/deploy';
 import { RouterConfig } from '../deploy/router/types';
-import { getChainToOwnerMap, getTestMultiProvider } from '../deploy/utils';
-import { ChainNameToDomainId } from '../domains';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, TestChainNames } from '../types';
+import { getTestOwnerConfig } from '../test/testUtils';
+import { ChainMap } from '../types';
 
 describe('InterchainAccountRouter', async () => {
-  const localChain = 'test1';
-  const remoteChain = 'test2';
-  const localDomain = ChainNameToDomainId[localChain];
-  const remoteDomain = ChainNameToDomainId[remoteChain];
+  const localChain = Chains.test1;
+  const remoteChain = Chains.test2;
 
   let signer: SignerWithAddress;
   let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;
-  let multiProvider: MultiProvider<TestChainNames>;
+  let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let config: ChainMap<TestChainNames, RouterConfig>;
+  let config: ChainMap<RouterConfig>;
 
   before(async () => {
     [signer] = await ethers.getSigners();
 
-    multiProvider = getTestMultiProvider(signer);
+    multiProvider = MultiProvider.createTestMultiProvider(signer);
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
     config = coreApp.extendWithConnectionClientConfig(
-      getChainToOwnerMap(testChainConnectionConfigs, signer.address),
+      getTestOwnerConfig(signer.address),
     );
   });
 
@@ -64,10 +61,10 @@ describe('InterchainAccountRouter', async () => {
       fooMessage,
     ]);
     const icaAddress = await remote.getInterchainAccount(
-      localDomain,
+      localChain,
       signer.address,
     );
-    await local['dispatch(uint32,(address,bytes)[])'](remoteDomain, [
+    await local['dispatch(uint32,(address,bytes)[])'](remoteChain, [
       { to: recipient.address, data },
     ]);
     await coreApp.processMessages();

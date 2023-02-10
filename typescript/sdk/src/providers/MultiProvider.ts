@@ -1,6 +1,17 @@
-import { Signer, providers } from 'ethers';
+import { Debugger, debug } from 'debug';
+import {
+  BigNumber,
+  ContractReceipt,
+  ContractTransaction,
+  PopulatedTransaction,
+  Signer,
+  providers,
+} from 'ethers';
+
+import { types } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, chainMetadata } from '../consts/chainMetadata';
+import { CoreChainName, TestChains } from '../consts/chains';
 import { ChainMap, ChainName } from '../types';
 import { pick } from '../utils/objects';
 
@@ -16,11 +27,13 @@ export class MultiProvider {
   public readonly metadata: ChainMap<ChainMetadata>;
   private readonly providers: ChainMap<Provider>;
   private readonly signers: ChainMap<Signer>;
+  private readonly logger: Debugger;
 
   constructor({ metadata, providers, signers }: Params = {}) {
     this.metadata = metadata ?? chainMetadata;
     this.providers = providers ?? {};
     this.signers = signers ?? {};
+    this.logger = debug('hyperlane:MultiProvider');
   }
 
   /**
@@ -139,17 +152,36 @@ export class MultiProvider {
   }
 
   /**
+   * Returns name for given domain id or name
+   */
+  resolveDomainOrName(domainIdOrName: ChainName | number): ChainName {
+    if (typeof domainIdOrName === 'string') return domainIdOrName;
+    else return this.domainIdToChainName(domainIdOrName);
+  }
+
+  /**
    * Get an Ethers provider for a given chain name or id
    */
   tryGetProvider(chainNameOrId: ChainName | number): Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
-    if (metadata && this.providers[metadata.name])
-      return this.providers[metadata.name];
-    if (!metadata?.publicRpcUrls.length) return null;
-    return new providers.JsonRpcProvider(
-      metadata.publicRpcUrls[0].http,
-      metadata.id,
-    );
+    if (!metadata) return null;
+    const { name, id, publicRpcUrls } = metadata;
+
+    if (this.providers[name]) return this.providers[name];
+
+    if (TestChains.includes(name as CoreChainName)) {
+      this.providers[name] = new providers.JsonRpcProvider(
+        'http://localhost:8545',
+        31337,
+      );
+    } else if (publicRpcUrls.length) {
+      this.providers[name] = new providers.JsonRpcProvider(
+        publicRpcUrls[0].http,
+        id,
+      );
+    }
+
+    return this.providers[name] ?? null;
   }
 
   /**
@@ -190,6 +222,18 @@ export class MultiProvider {
     const chainName = this.getChainName(chainNameOrId);
     if (this.signers[chainName]) return this.signers[chainName];
     else throw new Error(`No chain signer set for ${chainNameOrId}`);
+  }
+
+  /**
+   * Get an Ethers signer for a given chain name or id
+   * @throws if chain's metadata or signer has not been set
+   */
+  async getSignerAddress(
+    chainNameOrId: ChainName | number,
+  ): Promise<types.Address> {
+    const signer = this.getSigner(chainNameOrId);
+    const address = await signer.getAddress();
+    return address;
   }
 
   /**
@@ -244,12 +288,145 @@ export class MultiProvider {
     return { intersection, multiProvider };
   }
 
-  // rotateSigner(newSigner: Signer): void {
-  //   this.forEach((chain, dc) => {
-  //     this.setChainConnection(chain, {
-  //       ...dc,
-  //       signer: newSigner.connect(dc.provider),
-  //     });
-  //   });
-  // }
+  /**
+   * Get chain names excluding given chain name
+   */
+  getRemoteChains(name: ChainName): ChainName[] {
+    return this.getChainNames().filter((n) => n !== name);
+  }
+
+  /**
+   * Get an RPC URL for given chain
+   * @throws if chain's metadata or signer has not been set
+   */
+  getRpcUrl(chainNameOrId: ChainName | number): string {
+    return this.getChainMetadata(chainNameOrId).publicRpcUrls[0].http;
+  }
+
+  /**
+   * Get a block explorer URL for given chain
+   * @throws if chain's metadata or signer has not been set
+   */
+  getExplorerUrl(chainNameOrId: ChainName | number): string {
+    return this.getChainMetadata(chainNameOrId).blockExplorers[0].url;
+  }
+
+  /**
+   * Get a block explorer API URL for given chain
+   * @throws if chain's metadata or signer has not been set
+   */
+  getExplorerApiUrl(chainNameOrId: ChainName | number): string {
+    const explorer = this.getChainMetadata(chainNameOrId).blockExplorers[0];
+    return (explorer.apiUrl || explorer.url) + '/api';
+  }
+
+  /**
+   * Get a block explorer URL for given chain's tx
+   * @throws if chain's metadata or signer has not been set
+   */
+  getExplorerTxUrl(
+    chainNameOrId: ChainName | number,
+    response: providers.TransactionResponse,
+  ): string {
+    return `${this.getExplorerUrl(chainNameOrId)}/tx/${response.hash}`;
+  }
+
+  /**
+   * Get a block explorer URL for given chain's address
+   * @throws if chain's metadata or signer has not been set
+   */
+  async getExplorerAddressUrl(
+    chainNameOrId: ChainName | number,
+    address?: string,
+  ): Promise<string> {
+    const base = `${this.getExplorerUrl(chainNameOrId)}/address`;
+    if (address) return `${base}/${address}`;
+    const signerAddress = await this.getSignerAddress(chainNameOrId);
+    return `${base}/${signerAddress}`;
+  }
+
+  /**
+   * Get a block explorer URL for given chain's address
+   * @throws if chain's metadata has not been set
+   */
+  getTransactionOverrides(
+    chainNameOrId: ChainName | number,
+  ): Partial<providers.TransactionRequest> | undefined {
+    return this.getChainMetadata(chainNameOrId)?.transactionOverrides;
+  }
+
+  /**
+   * Wait for given tx to be confirmed
+   * @throws if chain's metadata or signer has not been set or tx fails
+   */
+  async handleTx(
+    chainNameOrId: ChainName | number,
+    tx: ContractTransaction | Promise<ContractTransaction>,
+  ): Promise<ContractReceipt> {
+    const confirmations =
+      this.getChainMetadata(chainNameOrId).blocks.confirmations;
+    const response = await tx;
+    this.logger(
+      `Pending ${this.getExplorerTxUrl(
+        chainNameOrId,
+        response,
+      )} (waiting ${confirmations} blocks for confirmation)`,
+    );
+    return response.wait(confirmations);
+  }
+
+  /**
+   * Estimate gas for given tx
+   * @throws if chain's metadata has not been set or tx fails
+   */
+  async estimateGas(
+    chainNameOrId: ChainName | number,
+    tx: PopulatedTransaction,
+    from?: string,
+  ): Promise<BigNumber> {
+    let txFrom = from;
+    if (!txFrom) {
+      txFrom = await this.getSignerAddress(chainNameOrId);
+    }
+    const provider = this.getProvider(chainNameOrId);
+    const overrides = this.getTransactionOverrides(chainNameOrId);
+    return provider.estimateGas({
+      ...tx,
+      from: txFrom,
+      ...overrides,
+    });
+  }
+
+  /**
+   * Send a transaction and wait for confirmation
+   * @throws if chain's metadata or signer has not been set or tx fails
+   */
+  async sendTransaction(
+    chainNameOrId: ChainName | number,
+    tx: PopulatedTransaction,
+  ): Promise<ContractReceipt> {
+    const signer = this.getSigner(chainNameOrId);
+    const from = await signer.getAddress();
+    const overrides = this.getTransactionOverrides(chainNameOrId);
+    const response = await signer.sendTransaction({
+      ...tx,
+      from,
+      ...overrides,
+    });
+    this.logger(`Sent tx ${response.hash}`);
+    return this.handleTx(chainNameOrId, response);
+  }
+
+  /**
+   * Creates a MultiProvider using the given signer for all test networks
+   */
+  static createTestMultiProvider(signer: Signer): MultiProvider {
+    const metadata = pick(chainMetadata, TestChains);
+    const signers: ChainMap<Signer> = {};
+    TestChains.forEach((t) => (signers[t] = signer));
+    return new MultiProvider({
+      metadata,
+      signers,
+    });
+  }
 }

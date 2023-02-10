@@ -4,9 +4,8 @@ import { TestMailbox } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { DomainIdToChainName } from '../domains';
 import { ProxiedContract } from '../proxy';
-import { ChainName, TestChainNames } from '../types';
+import { ChainName } from '../types';
 
 import { HyperlaneCore } from './HyperlaneCore';
 import { CoreContracts } from './contracts';
@@ -21,15 +20,13 @@ export type TestCoreContracts = CoreContracts & {
   mailbox: ProxiedContract<TestMailbox, MockProxyAddresses>;
 };
 
-export class TestCoreApp<
-  TestChain extends TestChainNames = TestChainNames,
-> extends HyperlaneCore<TestChain> {
-  getContracts<Local extends TestChain>(chain: Local): TestCoreContracts {
+export class TestCoreApp extends HyperlaneCore {
+  getContracts(chain: ChainName): TestCoreContracts {
     return super.getContracts(chain) as TestCoreContracts;
   }
 
   async processMessages(): Promise<
-    Map<TestChain, Map<TestChain, ethers.providers.TransactionResponse[]>>
+    Map<ChainName, Map<ChainName, ethers.providers.TransactionResponse[]>>
   > {
     const responses = new Map();
     for (const origin of this.chains()) {
@@ -43,8 +40,8 @@ export class TestCoreApp<
     return responses;
   }
 
-  async processOutboundMessages<Local extends TestChain>(
-    origin: Local,
+  async processOutboundMessages(
+    origin: ChainName,
   ): Promise<Map<ChainName, ethers.providers.TransactionResponse[]>> {
     const responses = new Map<ChainName, any>();
     const contracts = this.getContracts(origin);
@@ -57,7 +54,8 @@ export class TestCoreApp<
       if (destination === chainMetadata[origin].id) {
         throw new Error('Dispatched message to local domain');
       }
-      const destinationChain = DomainIdToChainName[destination] as TestChain;
+      const destinationChain =
+        this.multiProvider.domainIdToChainName(destination);
       const inbox = this.getContracts(destinationChain).mailbox.contract;
       const id = utils.messageId(dispatch.args.message);
       const delivered = await inbox.delivered(id);
