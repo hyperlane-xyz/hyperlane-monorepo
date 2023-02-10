@@ -35,19 +35,24 @@ async function main() {
     for (let i = 1; i < validators.length; i++) {
       const prospectiveValidator = validators[i];
       const address = prospectiveValidator.address;
+      const bucket = prospectiveValidator.s3Bucket.bucket;
       try {
         const metrics = await prospectiveValidator.compare(controlValidator);
         const valid =
           metrics.filter((metric) => metric.status !== CheckpointStatus.VALID)
             .length === 0;
         if (!valid) {
-          console.log(`${address} has >=1 non-valid checkpoints for ${chain}`);
+          console.log(
+            `${address}@${bucket} has >=1 non-valid checkpoints for ${chain}`,
+          );
           console.log(JSON.stringify(metrics, null, 2));
         } else {
-          console.log(`${address} has valid checkpoints for ${chain}`);
+          console.log(
+            `${address}@${bucket} has valid checkpoints for ${chain}`,
+          );
         }
       } catch (error) {
-        console.error(`Comparing validator ${address} failed:`);
+        console.error(`Comparing validator ${address}@${bucket} failed:`);
         console.error(error);
         throw error;
       }

@@ -30,11 +30,13 @@ async function main() {
         await validatorAnnounce.getAnnouncedStorageLocations([validator]);
       // Only use the latest announcement for now
       let index = null;
+      let identifier = validator;
       if (storageLocations.length == 1 && storageLocations[0].length == 1) {
         try {
           const s3Validator = await S3Validator.fromStorageLocation(
             storageLocations[0][0],
           );
+          identifier = storageLocations[0][0];
           index = await s3Validator.getLatestCheckpointIndex();
         } catch (e) {
           console.error(e);
@@ -42,13 +44,13 @@ async function main() {
       }
       return {
         chain,
-        address: validator,
+        identifier,
         index,
       };
     },
   );
 
-  console.table(indices, ['chain', 'index', 'address']);
+  console.table(indices, ['chain', 'index', 'identifier']);
 }
 
 main().catch(console.error);
