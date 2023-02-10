@@ -92,7 +92,7 @@ contract InterchainGasPaymaster is
      * @dev The beneficiary must be able to receive native tokens.
      */
     function claim() external {
-        // Transfer the entire balance to owner.
+        // Transfer the entire balance to the beneficiary.
         (bool success, ) = beneficiary.call{value: address(this).balance}("");
         require(success, "!transfer");
     }
