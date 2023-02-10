@@ -7,7 +7,7 @@ use prometheus::{IntCounter, IntGauge};
 use tokio::sync::mpsc::{self, error::TryRecvError};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::{debug, info, info_span, instrument, instrument::Instrumented, Instrument, error};
+use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{CachingMailbox, CoreMetrics};
 use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, U256};
@@ -294,7 +294,11 @@ impl SerialSubmitter {
             .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
             .await?;
         if !meets_gas_requirement {
-            info!(?gas_payment, ?tx_cost_estimate, "Gas payment requirement not met yet");
+            info!(
+                ?gas_payment,
+                ?tx_cost_estimate,
+                "Gas payment requirement not met yet"
+            );
             return Ok(false);
         }
 
