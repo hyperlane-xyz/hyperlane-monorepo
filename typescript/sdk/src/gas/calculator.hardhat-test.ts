@@ -5,6 +5,7 @@ import { ethers } from 'hardhat';
 
 import { types } from '@hyperlane-xyz/utils';
 
+import { Chains } from '../consts/chains';
 import { HyperlaneCore } from '../core/HyperlaneCore';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
@@ -12,8 +13,8 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { InterchainGasCalculator } from './calculator';
 
 describe('InterchainGasCalculator', async () => {
-  const localChain = 'test1';
-  const remoteChain = 'test2';
+  const localChain = Chains.test1;
+  const remoteChain = Chains.test2;
 
   const expectedDefaultQuote = BigNumber.from('1');
   const testGasAmount = BigNumber.from('100000');

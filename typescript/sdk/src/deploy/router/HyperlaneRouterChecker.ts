@@ -53,8 +53,8 @@ export class HyperlaneRouterChecker<
     await Promise.all(
       this.app.remoteChains(chain).map(async (remoteChain) => {
         const remoteRouter = this.app.getContracts(remoteChain).router;
-        const remoteChainId = this.multiProvider.getChainId(remoteChain);
-        const address = await router.routers(remoteChainId);
+        const remoteDomainId = this.multiProvider.getDomainId(remoteChain);
+        const address = await router.routers(remoteDomainId);
         utils.assert(address === utils.addressToBytes32(remoteRouter.address));
       }),
     );

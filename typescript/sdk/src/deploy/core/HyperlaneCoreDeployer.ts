@@ -13,10 +13,8 @@ import {
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../../consts/chainMetadata';
 import multisigIsmVerifyCosts from '../../consts/multisigIsmVerifyCosts.json';
 import { CoreContracts, coreFactories } from '../../core/contracts';
-import { ChainNameToDomainId } from '../../domains';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../../proxy';
 import { ChainMap, ChainName } from '../../types';
@@ -51,7 +49,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
           `Unknown verification cost for ${threshold} of ${validators.length}`,
         );
       return {
-        domain: ChainNameToDomainId[chain],
+        domain: multiProvider.getDomainId(chain),
         gasOverhead: verifyCost,
       };
     });
@@ -135,7 +133,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     proxyAdmin: ProxyAdmin,
     deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
-    const domain = chainMetadata[chain].id;
+    const domain = this.multiProvider.getDomainId(chain);
     const owner = this.configMap[chain].owner;
 
     const mailbox = await this.deployProxiedContract(
@@ -173,7 +171,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     await super.runIfOwner(chain, multisigIsm, async () => {
       // TODO: Remove extraneous validators
-      const remoteDomains = remotes.map((chain) => ChainNameToDomainId[chain]);
+      const remoteDomains = remotes.map((chain) =>
+        this.multiProvider.getDomainId(chain),
+      );
       const actualValidators = await Promise.all(
         remoteDomains.map((id) => multisigIsm.validators(id)),
       );
@@ -197,7 +197,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         await this.multiProvider.handleTx(
           chain,
           multisigIsm.enrollValidators(
-            chainsToEnrollValidators.map((c) => ChainNameToDomainId[c]),
+            chainsToEnrollValidators.map((c) =>
+              this.multiProvider.getDomainId(c),
+            ),
             validatorsToEnroll.filter((validators) => validators.length > 0),
             overrides,
           ),
@@ -220,7 +222,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         await this.multiProvider.handleTx(
           chain,
           multisigIsm.setThresholds(
-            chainsToSetThreshold.map((c) => ChainNameToDomainId[c]),
+            chainsToSetThreshold.map((c) => this.multiProvider.getDomainId(c)),
             chainsToSetThreshold.map(
               (c) => this.configMap[c].multisigIsm.threshold,
             ),

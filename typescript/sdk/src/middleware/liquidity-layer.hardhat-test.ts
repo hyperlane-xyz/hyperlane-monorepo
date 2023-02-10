@@ -16,6 +16,8 @@ import {
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
+import { chainMetadata } from '../consts/chainMetadata';
+import { Chains } from '../consts/chains';
 import { TestCoreApp } from '../core/TestCoreApp';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
 import { LiquidityLayerApp } from '../deploy/middleware/LiquidityLayerApp';
@@ -26,17 +28,16 @@ import {
   LiquidityLayerDeployer,
   PortalAdapterConfig,
 } from '../deploy/middleware/LiquidityLayerRouterDeployer';
-import { ChainNameToDomainId } from '../domains';
 import { MultiProvider } from '../providers/MultiProvider';
 import { getTestOwnerConfig } from '../test/testUtils';
 import { ChainMap } from '../types';
 import { objMap } from '../utils/objects';
 
 describe('LiquidityLayerRouter', async () => {
-  const localChain = 'test1';
-  const remoteChain = 'test2';
-  const localDomain = ChainNameToDomainId[localChain];
-  const remoteDomain = ChainNameToDomainId[remoteChain];
+  const localChain = Chains.test1;
+  const remoteChain = Chains.test2;
+  const localDomain = chainMetadata[localChain].id;
+  const remoteDomain = chainMetadata[remoteChain].id;
 
   let signer: SignerWithAddress;
   let local: LiquidityLayerRouter;

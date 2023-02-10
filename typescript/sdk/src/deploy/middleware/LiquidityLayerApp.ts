@@ -11,7 +11,6 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
 import { Chains } from '../../consts/chains';
-import { ChainNameToDomainId, DomainIdToChainName } from '../../domains';
 import { LiquidityLayerContracts } from '../../middleware';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
@@ -112,7 +111,9 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
     const event = matchingLogs.find((_) => _!.name === 'BridgedToken')!;
     const portalSequence = event.args.portalSequence.toNumber();
     const nonce = event.args.nonce.toNumber();
-    const destination = DomainIdToChainName[event.args.destination];
+    const destination = this.multiProvider.domainIdToChainName(
+      event.args.destination,
+    );
 
     return [{ origin: chain, nonce, portalSequence, destination }];
   }
@@ -144,7 +145,7 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
       .nonce;
     const remoteChain = chain === Chains.fuji ? Chains.goerli : Chains.fuji;
     const domain = this.config[chain].circle!.circleDomainMapping.find(
-      (_) => _.hyperlaneDomain === ChainNameToDomainId[chain],
+      (_) => _.hyperlaneDomain === this.multiProvider.getDomainId(chain),
     )!.circleDomain;
     return [
       {
@@ -169,7 +170,7 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
       .portalAdapter!;
 
     const transferId = await destinationPortalAdapter.transferId(
-      ChainNameToDomainId[message.origin],
+      this.multiProvider.getDomainId(message.origin),
       message.nonce,
     );
 
@@ -186,7 +187,8 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
     const wormholeOriginDomain = this.config[
       message.destination
     ].portal!.wormholeDomainMapping.find(
-      (_) => _.hyperlaneDomain === ChainNameToDomainId[message.origin],
+      (_) =>
+        _.hyperlaneDomain === this.multiProvider.getDomainId(message.origin),
     )?.wormholeDomain;
     const emitter = utils.strip0x(
       utils.addressToBytes32(

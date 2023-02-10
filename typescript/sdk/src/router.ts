@@ -5,7 +5,6 @@ import type { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from './HyperlaneApp';
 import { HyperlaneContracts, HyperlaneFactories } from './contracts';
-import { ChainNameToDomainId } from './domains';
 import { ChainMap, ChainName } from './types';
 import { objMap, promiseObjAll } from './utils/objects';
 
@@ -56,7 +55,7 @@ export class GasRouterApp<
     destination: ChainName,
   ): Promise<BigNumber> {
     return this.getContracts(origin).router.quoteGasPayment(
-      ChainNameToDomainId[destination],
+      this.multiProvider.getDomainId(destination),
     );
   }
 }

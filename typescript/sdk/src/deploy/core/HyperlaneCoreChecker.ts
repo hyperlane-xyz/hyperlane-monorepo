@@ -2,7 +2,6 @@ import { utils } from '@hyperlane-xyz/utils';
 import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
-import { ChainNameToDomainId } from '../../domains';
 import { ChainName } from '../../types';
 import { HyperlaneAppChecker } from '../HyperlaneAppChecker';
 
@@ -52,7 +51,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const contracts = this.app.getContracts(chain);
     const mailbox = contracts.mailbox.contract;
     const localDomain = await mailbox.localDomain();
-    utils.assert(localDomain === ChainNameToDomainId[chain]);
+    utils.assert(localDomain === this.multiProvider.getDomainId(chain));
 
     const actualIsm = await mailbox.defaultIsm();
     const expectedIsm = contracts.multisigIsm.address;
@@ -129,7 +128,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const multisigIsm = coreContracts.multisigIsm;
     const config = this.configMap[remote];
 
-    const remoteDomain = ChainNameToDomainId[remote];
+    const remoteDomain = this.multiProvider.getDomainId(remote);
     const multisigIsmConfig = config.multisigIsm;
     const expectedValidators = multisigIsmConfig.validators;
     const actualValidators = await multisigIsm.validators(remoteDomain);

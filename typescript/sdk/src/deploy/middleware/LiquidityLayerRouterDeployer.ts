@@ -9,7 +9,6 @@ import {
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
-import { ChainNameToDomainId } from '../../domains';
 import {
   LiquidityLayerContracts,
   LiquidityLayerFactories,
@@ -145,7 +144,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
       PortalAdapter__factory.createInterface().encodeFunctionData(
         'initialize',
         [
-          ChainNameToDomainId[chain],
+          this.multiProvider.getDomainId(chain),
           owner,
           adapterConfig.portalBridgeAddress,
           router.address,

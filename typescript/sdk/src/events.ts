@@ -5,7 +5,7 @@ import type {
   TypedEventFilter,
 } from '@hyperlane-xyz/core/dist/common';
 
-import { chainMetadata } from './consts/chainMetadata';
+// import { chainMetadata } from './consts/chainMetadata';
 import { MultiProvider } from './providers/MultiProvider';
 import { ChainName } from './types';
 
@@ -95,7 +95,7 @@ export async function queryAnnotatedEvents<T extends TypedEvent>(
     startBlock,
     endBlock,
   );
-  return Annotated.fromEvents(chainMetadata[chain].id, events);
+  return Annotated.fromEvents(multiprovider.getChainId(chain), events);
 }
 
 export async function findAnnotatedSingleEvent<T extends TypedEvent>(
@@ -112,7 +112,7 @@ export async function findAnnotatedSingleEvent<T extends TypedEvent>(
     filter,
     startBlock,
   );
-  return Annotated.fromEvents(chainMetadata[chain].id, events);
+  return Annotated.fromEvents(multiprovider.getChainId(chain), events);
 }
 
 export async function getEvents<T extends TypedEvent>(
@@ -123,7 +123,8 @@ export async function getEvents<T extends TypedEvent>(
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<T>> {
-  const mustPaginate = !!chainMetadata[chain].publicRpcUrls[0].pagination;
+  const metadata = multiprovider.getChainMetadata(chain);
+  const mustPaginate = !!metadata.publicRpcUrls[0].pagination;
   if (mustPaginate) {
     return getPaginatedEvents(
       multiprovider,
@@ -144,7 +145,8 @@ export async function findEvent<T extends TypedEvent>(
   filter: TypedEventFilter<T>,
   startBlock?: number,
 ): Promise<Array<T>> {
-  const mustPaginate = !!chainMetadata[chain].publicRpcUrls[0].pagination;
+  const metadata = multiprovider.getChainMetadata(chain);
+  const mustPaginate = !!metadata.publicRpcUrls[0].pagination;
   if (mustPaginate) {
     return findFromPaginatedEvents(
       multiprovider,
@@ -165,7 +167,8 @@ async function getPaginatedEvents<T extends TypedEvent>(
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<T>> {
-  const pagination = chainMetadata[chain].publicRpcUrls[0].pagination;
+  const metadata = multiprovider.getChainMetadata(chain);
+  const pagination = metadata.publicRpcUrls[0].pagination;
   if (!pagination) {
     throw new Error('Domain need not be paginated');
   }
@@ -208,7 +211,8 @@ async function findFromPaginatedEvents<T extends TypedEvent>(
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<T>> {
-  const pagination = chainMetadata[chain].publicRpcUrls[0].pagination;
+  const metadata = multiprovider.getChainMetadata(chain);
+  const pagination = metadata.publicRpcUrls[0].pagination;
   if (!pagination) {
     throw new Error('Domain need not be paginated');
   }

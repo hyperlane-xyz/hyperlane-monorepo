@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 import { TestMailbox } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
 import { ProxiedContract } from '../proxy';
 import { ChainName } from '../types';
 
@@ -51,7 +50,7 @@ export class TestCoreApp extends HyperlaneCore {
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
       const destination = dispatch.args.destination;
-      if (destination === chainMetadata[origin].id) {
+      if (destination === this.multiProvider.getDomainId(origin)) {
         throw new Error('Dispatched message to local domain');
       }
       const destinationChain =

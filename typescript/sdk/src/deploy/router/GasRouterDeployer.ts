@@ -2,7 +2,6 @@ import { debug } from 'debug';
 
 import { GasRouter } from '@hyperlane-xyz/core';
 
-import { DomainIdToChainName } from '../../domains';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
 import { ChainMap } from '../../types';
@@ -34,8 +33,8 @@ export abstract class GasRouterDeployer<
     this.logger(`Setting enrolled router destination gas...`);
     for (const [chain, contracts] of Object.entries<Contracts>(contractsMap)) {
       const remoteDomains = await contracts.router.domains();
-      const remoteChains = remoteDomains.map(
-        (domain) => DomainIdToChainName[domain],
+      const remoteChains = remoteDomains.map((domain) =>
+        this.multiProvider.domainIdToChainName(domain),
       );
       const currentConfigs = await Promise.all(
         remoteDomains.map((domain) => contracts.router.destinationGas(domain)),

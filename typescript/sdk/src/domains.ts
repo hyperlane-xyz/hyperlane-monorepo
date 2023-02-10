@@ -2,6 +2,9 @@ import { chainMetadata } from './consts/chainMetadata';
 import { AllChains } from './consts/chains';
 import { ChainMap, ChainName } from './types';
 
+/**
+ * @deprecated Prefer using methods in MultiProvider for PI support
+ */
 export const DomainIdToChainName = Object.fromEntries(
   AllChains.map((chain) => {
     if (!chainMetadata[chain])
@@ -10,6 +13,9 @@ export const DomainIdToChainName = Object.fromEntries(
   }),
 ) as Record<number, ChainName>;
 
+/**
+ * @deprecated Prefer using methods in MultiProvider for PI support
+ */
 export const ChainNameToDomainId = Object.fromEntries(
   AllChains.map((chain) => [chain, chainMetadata[chain].id]),
 ) as ChainMap<number>;

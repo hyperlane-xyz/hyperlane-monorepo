@@ -4,9 +4,7 @@ import { BigNumber, FixedNumber, ethers } from 'ethers';
 import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
 import { CoreEnvironment, HyperlaneCore } from '../core/HyperlaneCore';
-import { ChainNameToDomainId } from '../domains';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 import { convertDecimalValue, mulBigAndFixed } from '../utils/number';
@@ -200,7 +198,8 @@ export class InterchainGasCalculator {
       interchainGasPaymasterAddress,
       originProvider,
     );
-    return igp.quoteGasPayment(ChainNameToDomainId[destination], gasAmount);
+    const domainId = this.multiProvider.getDomainId(destination);
+    return igp.quoteGasPayment(domainId, gasAmount);
   }
 
   /**
@@ -335,7 +334,10 @@ export class InterchainGasCalculator {
    * @returns The number of decimals of `chain`'s native token.
    */
   protected tokenDecimals(chain: ChainName): number {
-    return chainMetadata[chain].nativeToken.decimals ?? DEFAULT_TOKEN_DECIMALS;
+    return (
+      this.multiProvider.tryGetChainMetadata(chain)?.nativeToken?.decimals ??
+      DEFAULT_TOKEN_DECIMALS
+    );
   }
 
   /**
@@ -370,7 +372,7 @@ export class InterchainGasCalculator {
       to: utils.bytes32ToAddress(message.recipient),
       from: mailbox.address,
       data: handlerInterface.encodeFunctionData('handle', [
-        chainMetadata[message.origin].id,
+        this.multiProvider.getChainId(message.origin),
         utils.addressToBytes32(message.sender),
         message.body,
       ]),
@@ -396,7 +398,9 @@ export class InterchainGasCalculator {
   ): Promise<BigNumber> {
     // TODO: Check the recipient module
     const module = this.core.getContracts(destination).multisigIsm;
-    const threshold = await module.threshold(ChainNameToDomainId[origin]);
+    const threshold = await module.threshold(
+      this.multiProvider.getDomainId(origin),
+    );
     return BigNumber.from(threshold)
       .mul(GAS_OVERHEAD_PER_SIGNATURE)
       .add(GAS_OVERHEAD_BASE);
