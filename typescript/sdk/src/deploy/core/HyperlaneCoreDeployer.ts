@@ -66,11 +66,6 @@ export class HyperlaneCoreDeployer<
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
-  // TODO(trevor): will refactor all this gas oracle logic
-  // in a subsequent PR - getting a version working was necessary
-  // to satisfy e2e tests, which requires being able to call the
-  // IGP without it reverting (& therefore requiring gas oracles being set
-  // for the remote domains)
   async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
