@@ -9,7 +9,7 @@ contract MockMailbox {
     using TypeCasts for bytes32;
     // Domain of chain on which the contract is deployed
     
-    ============ Constants ============
+    // ============ Constants ============
     uint32 public immutable localDomain;
     uint32 public immutable VERSION = 0;
     uint256 public constant MAX_MESSAGE_BODY_BYTES = 2 * 2**10;
