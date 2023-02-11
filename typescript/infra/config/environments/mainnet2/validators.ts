@@ -28,15 +28,6 @@ export const validators: ChainValidatorConfigs<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
-      {
-        address: '0xef6db730fca69e1438c9ea19fefb3060901a8dfa',
-        name: s3BucketName('celo', 1),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('celo', 1),
-          region: s3BucketRegion,
-        },
-      },
     ],
   },
   ethereum: {
@@ -49,15 +40,6 @@ export const validators: ChainValidatorConfigs<MainnetChains> = {
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('ethereum', 0),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0xf4db15933d204b38c17cc027c3f1c9f3c5da9a7c',
-        name: s3BucketName('ethereum', 1),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('ethereum', 1),
           region: s3BucketRegion,
         },
       },
@@ -76,15 +58,6 @@ export const validators: ChainValidatorConfigs<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
-      {
-        address: '0x37a2c96f82dc6c7fa290d858d02ea5d1e0ce86ff',
-        name: s3BucketName('avalanche', 1),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('avalanche', 1),
-          region: s3BucketRegion,
-        },
-      },
     ],
   },
   polygon: {
@@ -97,15 +70,6 @@ export const validators: ChainValidatorConfigs<MainnetChains> = {
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('polygon', 0),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0x3e549171d0954194442d6b16fa780d1ec83072fd',
-        name: s3BucketName('polygon', 1),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('polygon', 1),
           region: s3BucketRegion,
         },
       },
@@ -124,15 +88,6 @@ export const validators: ChainValidatorConfigs<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
-      {
-        address: '0x62229ff38de88464fd49d79bea0cdc48ebdebd79',
-        name: s3BucketName('bsc', 1),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('bsc', 1),
-          region: s3BucketRegion,
-        },
-      },
     ],
   },
   arbitrum: {
@@ -145,15 +100,6 @@ export const validators: ChainValidatorConfigs<MainnetChains> = {
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('arbitrum', 0),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0xa0d92ee2156f74b18c6d116527e3c9001f123dac',
-        name: s3BucketName('arbitrum', 1),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('arbitrum', 1),
           region: s3BucketRegion,
         },
       },
@@ -172,15 +118,6 @@ export const validators: ChainValidatorConfigs<MainnetChains> = {
           region: s3BucketRegion,
         },
       },
-      {
-        address: '0xd2d9baadd72d3a9983b06ba5f103856e5fea63cb',
-        name: s3BucketName('optimism', 1),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('optimism', 1),
-          region: s3BucketRegion,
-        },
-      },
     ],
   },
   moonbeam: {
@@ -193,15 +130,6 @@ export const validators: ChainValidatorConfigs<MainnetChains> = {
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('moonbeam', 0),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0x02424d4222f35c04da62a2f2dea8c778030bb324',
-        name: s3BucketName('moonbeam', 1),
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('moonbeam', 1),
           region: s3BucketRegion,
         },
       },
