@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use coingecko::CoinGeckoClient;
 use eyre::{eyre, Result};
 use tokio::{sync::RwLock, time::timeout};
+use tracing::{debug, info};
 
 use hyperlane_core::{HyperlaneMessage, KnownHyperlaneDomain, TxCostEstimate, U256};
 
@@ -200,16 +201,25 @@ impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
             .await?;
 
         let meets_requirement = *current_payment >= origin_token_tx_cost;
-        tracing::info!(
-            message_id=?message.id(),
-            message_nonce=?message.nonce,
-            tx_cost_estimate=?tx_cost_estimate,
-            destination_token_tx_cost=?destination_token_tx_cost,
-            origin_token_tx_cost=?origin_token_tx_cost,
-            current_payment=?current_payment,
-            meets_requirement=?meets_requirement,
-            "Evaluated whether message gas payment meets estimated cost",
-        );
+        if !meets_requirement {
+            info!(
+                %message,
+                ?tx_cost_estimate,
+                ?destination_token_tx_cost,
+                ?origin_token_tx_cost,
+                ?current_payment,
+                "Message gas payment does not meet estimated cost",
+            );
+        } else {
+            debug!(
+                %message,
+                ?tx_cost_estimate,
+                ?destination_token_tx_cost,
+                ?origin_token_tx_cost,
+                ?current_payment,
+                "Message gas payment meets estimated cost",
+            );
+        }
 
         Ok(meets_requirement)
     }
