@@ -125,7 +125,7 @@ export {
   GasOracleContractType,
   MultisigIsmViolation,
   MultisigIsmViolationType,
-  IgpGasOracleViolation,
+  IgpGasOraclesViolation,
   IgpViolation,
   IgpViolationType,
 } from './deploy/core/types';

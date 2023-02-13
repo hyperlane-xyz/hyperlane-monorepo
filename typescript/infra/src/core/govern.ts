@@ -1,6 +1,9 @@
 import { prompts } from 'prompts';
 
-import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
+import {
+  InterchainGasPaymaster,
+  InterchainGasPaymaster__factory,
+} from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
@@ -9,7 +12,7 @@ import {
   CoreViolationType,
   EnrolledValidatorsViolation,
   HyperlaneCoreChecker,
-  IgpGasOracleViolation,
+  IgpGasOraclesViolation,
   IgpViolation,
   IgpViolationType,
   MultisigIsmViolation,
@@ -319,16 +322,33 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
 
   handleIgpViolation(violation: IgpViolation) {
     switch (violation.subType) {
-      case IgpViolationType.GasOracle: {
-        const gasOracleViolation = violation as IgpGasOracleViolation;
-        const remoteId = ChainNameToDomainId[gasOracleViolation.remote];
-        this.pushCall(gasOracleViolation.chain as Chain, {
-          to: gasOracleViolation.contract.address,
-          data: gasOracleViolation.contract.interface.encodeFunctionData(
-            'setGasOracle',
-            [remoteId, gasOracleViolation.expected],
+      case IgpViolationType.GasOracles: {
+        const gasOraclesViolation = violation as IgpGasOraclesViolation;
+
+        const configs: InterchainGasPaymaster.GasOracleConfigStruct[] = [];
+        const descriptions = [];
+        for (const [remote, expected] of Object.entries(
+          gasOraclesViolation.expected,
+        )) {
+          const remoteId = ChainNameToDomainId[remote];
+
+          configs.push({
+            remoteDomain: remoteId,
+            gasOracle: expected,
+          });
+
+          descriptions.push(
+            `gas oracle for ${remote} (domain ID ${remoteId}) to ${expected}`,
+          );
+        }
+
+        this.pushCall(gasOraclesViolation.chain as Chain, {
+          to: gasOraclesViolation.contract.address,
+          data: gasOraclesViolation.contract.interface.encodeFunctionData(
+            'setGasOracles',
+            [configs],
           ),
-          description: `Set IGP gas oracle for ${gasOracleViolation.remote} (domain ID ${remoteId}) to ${gasOracleViolation.expected}`,
+          description: `Setting ${descriptions.join(', ')}`,
         });
         break;
       }

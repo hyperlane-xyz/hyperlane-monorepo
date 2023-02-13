@@ -11,7 +11,7 @@ import {
   CoreViolationType,
   EnrolledValidatorsViolation,
   GasOracleContractType,
-  IgpGasOracleViolation,
+  IgpGasOraclesViolation,
   IgpViolationType,
   MailboxViolation,
   MailboxViolationType,
@@ -178,23 +178,32 @@ export class HyperlaneCoreChecker<
     const igp = coreContracts.interchainGasPaymaster.contract;
 
     const remotes = this.multiProvider.remoteChains(local);
+
+    // Construct the violation, updating the actual & expected
+    // objects as violations are found.
+    const gasOraclesViolation: IgpGasOraclesViolation = {
+      type: CoreViolationType.InterchainGasPaymaster,
+      subType: IgpViolationType.GasOracles,
+      contract: igp,
+      chain: local,
+      actual: {},
+      expected: {},
+    };
+
     for (const remote of remotes) {
       const remoteId = ChainNameToDomainId[remote];
       const actualGasOracle = await igp.gasOracles(remoteId);
       const expectedGasOracle = this.getGasOracleAddress(local, remote);
 
       if (!utils.eqAddress(actualGasOracle, expectedGasOracle)) {
-        const violation: IgpGasOracleViolation = {
-          type: CoreViolationType.InterchainGasPaymaster,
-          subType: IgpViolationType.GasOracle,
-          contract: igp,
-          chain: local,
-          remote,
-          actual: actualGasOracle,
-          expected: expectedGasOracle,
-        };
-        this.addViolation(violation);
+        const remoteChain = remote as ChainName;
+        gasOraclesViolation.actual[remoteChain] = actualGasOracle;
+        gasOraclesViolation.expected[remoteChain] = expectedGasOracle;
       }
+    }
+    // Add the violation only if it's been populated with actual & expected values
+    if (Object.keys(gasOraclesViolation.actual).length > 0) {
+      this.addViolation(gasOraclesViolation);
     }
   }
 
