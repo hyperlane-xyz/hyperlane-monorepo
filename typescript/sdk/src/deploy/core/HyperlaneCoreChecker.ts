@@ -45,7 +45,7 @@ export class HyperlaneCoreChecker<
     await this.checkProxiedContracts(chain);
     await this.checkMailbox(chain);
     await this.checkMultisigIsm(chain);
-    await this.checkBytecodeHashes(chain);
+    await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
   }
 
@@ -83,12 +83,12 @@ export class HyperlaneCoreChecker<
     }
   }
 
-  async checkBytecodeHashes(chain: Chain): Promise<void> {
+  async checkBytecodes(chain: Chain): Promise<void> {
     const contracts = this.app.getContracts(chain);
     const mailbox = contracts.mailbox.contract;
     const localDomain = await mailbox.localDomain();
 
-    await this.checkBytecodeHash(
+    await this.checkBytecode(
       chain,
       'Mailbox implementation',
       contracts.mailbox.addresses.implementation,
@@ -105,38 +105,38 @@ export class HyperlaneCoreChecker<
         ),
     );
 
-    await this.checkBytecodeHash(
+    await this.checkBytecode(
       chain,
       'Mailbox proxy',
       contracts.mailbox.address,
       TRANSPARENT_PROXY_BYTECODE_HASH,
     );
-    await this.checkBytecodeHash(
+    await this.checkBytecode(
       chain,
       'InterchainGasPaymaster proxy',
       contracts.interchainGasPaymaster.address,
       TRANSPARENT_PROXY_BYTECODE_HASH,
     );
-    await this.checkBytecodeHash(
+    await this.checkBytecode(
       chain,
       'ProxyAdmin',
       contracts.proxyAdmin.address,
       PROXY_ADMIN_BYTECODE_HASH,
     );
-    await this.checkBytecodeHash(
+    await this.checkBytecode(
       chain,
       'MultisigIsm implementation',
       contracts.multisigIsm.address,
       MULTISIG_ISM_BYTECODE_HASH,
     );
-    await this.checkBytecodeHash(
+    await this.checkBytecode(
       chain,
       'InterchainGasPaymaster implementation',
       contracts.interchainGasPaymaster.addresses.implementation,
       INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
     );
 
-    await this.checkBytecodeHash(
+    await this.checkBytecode(
       chain,
       'OverheadIGP',
       contracts.defaultIsmInterchainGasPaymaster.address,
@@ -169,7 +169,6 @@ export class HyperlaneCoreChecker<
       contracts.interchainGasPaymaster.addresses,
       contracts.proxyAdmin.address,
     );
-
     await this.checkProxiedContract(
       chain,
       'DefaultIsmInterchainGasPaymaster',
