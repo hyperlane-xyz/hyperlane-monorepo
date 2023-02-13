@@ -13,7 +13,7 @@ thiserror = "1.0"
 serde = "1.0"
 anyhow = "1.0"
 tracing-futures = "0.2"
-tracing = "0.1"
+tracing = { version = "0.1", features = ["release_max_level_debug"] }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["fuels"] }

@@ -27,7 +27,7 @@ contract InterchainGasPaymasterTest is Test {
     function setUp() public {
         igp = new InterchainGasPaymaster();
         oracle = new StorageGasOracle();
-        igp.setGasOracle(testDestinationDomain, address(oracle));
+        setGasOracle(testDestinationDomain, address(oracle));
     }
 
     function testInitializeRevertsIfCalledTwice() public {
@@ -159,14 +159,14 @@ contract InterchainGasPaymasterTest is Test {
         igp.quoteGasPayment(_unknownDomain, testGasAmount);
     }
 
-    // ============ setGasOracle ============
+    // ============ setGasOracles ============
 
     function testSetGasOracle() public {
         uint32 _remoteDomain = 22222;
 
         vm.expectEmit(true, true, false, true);
         emit GasOracleSet(_remoteDomain, address(oracle));
-        igp.setGasOracle(_remoteDomain, address(oracle));
+        setGasOracle(_remoteDomain, address(oracle));
 
         assertEq(address(igp.gasOracles(_remoteDomain)), address(oracle));
     }
@@ -177,7 +177,7 @@ contract InterchainGasPaymasterTest is Test {
         vm.prank(testRefundAddress);
 
         vm.expectRevert("Ownable: caller is not the owner");
-        igp.setGasOracle(_remoteDomain, address(oracle));
+        setGasOracle(_remoteDomain, address(oracle));
     }
 
     // ============ claim ============
@@ -237,6 +237,16 @@ contract InterchainGasPaymasterTest is Test {
     }
 
     // ============ Helper functions ============
+
+    function setGasOracle(uint32 _remoteDomain, address _gasOracle) internal {
+        InterchainGasPaymaster.GasOracleConfig[]
+            memory _configs = new InterchainGasPaymaster.GasOracleConfig[](1);
+        _configs[0] = InterchainGasPaymaster.GasOracleConfig({
+            remoteDomain: _remoteDomain,
+            gasOracle: _gasOracle
+        });
+        igp.setGasOracles(_configs);
+    }
 
     function setRemoteGasData(
         uint32 _remoteDomain,

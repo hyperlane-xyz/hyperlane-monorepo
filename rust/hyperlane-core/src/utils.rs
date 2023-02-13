@@ -3,7 +3,7 @@ use std::str::FromStr;
 use sha3::{digest::Update, Digest, Keccak256};
 use thiserror::Error;
 
-use crate::H256;
+use crate::{KnownHyperlaneDomain, H256};
 
 /// Strips the '0x' prefix off of hex string so it can be deserialized.
 ///
@@ -109,8 +109,27 @@ impl<'de, const N: usize> serde::Deserialize<'de> for HexString<N> {
     }
 }
 
-/// Shortcut for many-to-one match statements that get very redundant. Flips the order such that
-/// the thing which is mapped to is listed first.
+/// Pretty print an address based on the domain it is for.
+pub fn fmt_address_for_domain(domain: u32, addr: H256) -> String {
+    KnownHyperlaneDomain::try_from(domain)
+        .map(|d| d.domain_protocol().fmt_address(addr))
+        .unwrap_or_else(|_| format!("{addr:?}"))
+}
+
+/// Pretty print a byte slice for logging
+pub fn fmt_bytes(bytes: &[u8]) -> String {
+    format!("0x{}", hex::encode(bytes))
+}
+
+/// Format a domain id as a name if it is known or just the number if not.
+pub fn fmt_domain(domain: u32) -> String {
+    KnownHyperlaneDomain::try_from(domain)
+        .map(|d| d.to_string())
+        .unwrap_or_else(|_| domain.to_string())
+}
+
+/// Shortcut for many-to-one match statements that get very redundant. Flips the
+/// order such that the thing which is mapped to is listed first.
 ///
 /// ```ignore
 /// match v {
