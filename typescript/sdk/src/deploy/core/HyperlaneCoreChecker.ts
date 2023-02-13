@@ -177,7 +177,18 @@ export class HyperlaneCoreChecker<
     const coreContracts = this.app.getContracts(local);
     const igp = coreContracts.interchainGasPaymaster.contract;
 
-    const remotes = this.multiProvider.remoteChains(local);
+    // The `gasOracles` mapping was added in a new implementation of the IGP.
+    // If calling this reverts, we are still using an old implementation that
+    // must be upgraded. A proxy violation will be created by the `checkProxiedContracts`
+    // function, which will result in an `upgradeAndCall` that will correctly
+    // set the `gasOracles` mapping. We therefore skip the IgpGasOraclesViolation
+    // logic if the implementation has not been ugpraded yet.
+    try {
+      await igp.gasOracles(0);
+    } catch (_) {
+      // If calling `gasOracles` reverts, skip the IgpGasOraclesViolation logic
+      return;
+    }
 
     // Construct the violation, updating the actual & expected
     // objects as violations are found.
@@ -190,6 +201,7 @@ export class HyperlaneCoreChecker<
       expected: {},
     };
 
+    const remotes = this.multiProvider.remoteChains(local);
     for (const remote of remotes) {
       const remoteId = ChainNameToDomainId[remote];
       const actualGasOracle = await igp.gasOracles(remoteId);
@@ -207,7 +219,7 @@ export class HyperlaneCoreChecker<
     }
   }
 
-  private getGasOracleAddress(local: Chain, remote: Chain): types.Address {
+  getGasOracleAddress(local: Chain, remote: Chain): types.Address {
     const config = this.configMap[local];
     const gasOracleType = config.igp.gasOracles[remote];
     if (!gasOracleType) {

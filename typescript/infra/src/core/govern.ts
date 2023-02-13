@@ -159,20 +159,29 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
   }
 
   handleProxyViolation(violation: ProxyViolation) {
-    const contracts: CoreContracts =
-      this.checker.app.contractsMap[violation.chain as Chain];
+    const chain = violation.chain as Chain;
+    const contracts: CoreContracts = this.checker.app.contractsMap[chain];
     let initData = '0x';
     switch (violation.data.name) {
       case 'InterchainGasPaymaster':
+        // Set all the gas oracles when performing the proxy upgrade
+        const remotes = this.checker.multiProvider.remoteChains(chain);
+        const configs: InterchainGasPaymaster.GasOracleConfigStruct[] =
+          remotes.map((remote) => ({
+            remoteDomain: ChainNameToDomainId[remote],
+            gasOracle: this.checker.getGasOracleAddress(chain, remote),
+          }));
+
         initData =
           InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
-            'initialize',
+            'setGasOracles',
+            [configs],
           );
         break;
       default:
         throw new Error(`Unsupported proxy violation ${violation.data.name}`);
     }
-    this.pushCall(violation.chain as Chain, {
+    this.pushCall(chain, {
       to: contracts.proxyAdmin.address,
       data: contracts.proxyAdmin.interface.encodeFunctionData(
         'upgradeAndCall',
