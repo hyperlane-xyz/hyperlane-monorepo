@@ -18,11 +18,11 @@ const METHODS_TO_NOT_TO_FALLBACK_ON: &[&str] = &[
 /// A provider that bundles multiple providers and attempts to call the first,
 /// then the second, and so on until a response is received.
 #[derive(Debug, Clone)]
-pub struct FallbackProvider<T> {
+pub struct FallbackProvider<T>(
     /// Sorted list of providers this provider calls in order of most primary to
     /// most fallback.
-    providers: Vec<T>,
-}
+    Vec<T>,
+);
 
 impl<T> FallbackProvider<T> {
     /// Convenience method for creating a `FallbackProviderBuilder` with same
@@ -66,9 +66,7 @@ impl<T> FallbackProviderBuilder<T> {
 
     /// Create a fallback provider.
     pub fn build(self) -> FallbackProvider<T> {
-        FallbackProvider {
-            providers: self.providers,
-        }
+        FallbackProvider(self.providers)
     }
 }
 
@@ -99,7 +97,7 @@ impl JsonRpcClient for FallbackProvider<PrometheusJsonRpcClient<Http>> {
         let params = serde_json::to_value(params).expect("valid");
 
         let mut errors = vec![];
-        for (idx, provider) in self.providers.iter().enumerate() {
+        for (idx, provider) in self.0.iter().enumerate() {
             let fut = match params {
                 Value::Null => provider.request(method, ()),
                 _ => provider.request(method, &params),
