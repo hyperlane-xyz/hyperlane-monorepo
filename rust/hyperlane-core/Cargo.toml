@@ -7,17 +7,17 @@ edition = "2021"
 
 [dependencies]
 auto_impl = "1.0"
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04" }
-ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04", features=["aws"] }
-ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04", features=["ws", "rustls"] }
-config = "0.13"
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01" }
+ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features=["aws"] }
+ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features=["ws", "rustls"] }
+config = "~0.13.3"
 hex = "0.4.3"
 sha3 = "0.10"
 lazy_static = "*"
 thiserror = "1.0"
 async-trait = { version = "0.1", default-features = false }
 tokio = { version = "1", features = ["rt", "macros"] }
-tracing = "0.1"
+tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-futures = "0.2"
 serde = {version = "1.0", features = ["derive"]}
 serde_json = {version = "1.0"}
