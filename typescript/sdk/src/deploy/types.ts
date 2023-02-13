@@ -20,6 +20,7 @@ export type EnvironmentConfig<Chain extends ChainName> = ChainMap<
 export enum ViolationType {
   Owner = 'Owner',
   NotDeployed = 'NotDeployed',
+  BytecodeMismatch = 'BytecodeMismatch',
 }
 
 export interface OwnerViolation extends CheckerViolation {
@@ -29,4 +30,9 @@ export interface OwnerViolation extends CheckerViolation {
 
 export interface NotDeployedViolation extends CheckerViolation {
   type: ViolationType.NotDeployed;
+}
+
+export interface BytecodeMismatchViolation extends CheckerViolation {
+  type: ViolationType.BytecodeMismatch;
+  name: string;
 }

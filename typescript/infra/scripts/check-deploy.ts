@@ -25,6 +25,7 @@ async function check() {
     console.table(coreChecker.violations, [
       'chain',
       'remote',
+      'name',
       'type',
       'subType',
       'actual',
