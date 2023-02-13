@@ -31,11 +31,11 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         address indexed sender
     );
     /**
-     * @notice Emitted when a query is returned to the origin chain.
-     * @param originDomain The domain of the chain to return the result to.
+     * @notice Emitted when a query is executed on the and callback dispatched to the origin chain.
+     * @param originDomain The domain of the chain that dispatched the query and receives the callback.
      * @param sender The address to receive the result.
      */
-    event QueryReturned(uint32 indexed originDomain, bytes32 indexed sender);
+    event QueryExecuted(uint32 indexed originDomain, bytes32 indexed sender);
     /**
      * @notice Emitted when a query is resolved on the origin chain.
      * @param destinationDomain The domain of the chain that was queried.
@@ -67,6 +67,13 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         );
     }
 
+    /**
+     * @notice Dispatches a sequence of static calls (query) to the destination domain and set of callbacks to resolve the results on the dispatcher.
+     * @param _destinationDomain The domain of the chain to query.
+     * @param calls The sequence of static calls to dispatch and callbacks on the sender to resolve the results.
+     * @dev Recommend using CallLib.build to format the interchain calls.
+     * @dev Callbacks must be returned to the `msg.sender` for security reasons. Require this contract is the `msg.sender` on callbacks.
+     */
     function query(
         uint32 _destinationDomain,
         CallLib.StaticCallWithCallback[] calldata calls
@@ -94,19 +101,20 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         if (
             calltype == InterchainCallMessage.CallType.STATIC_CALL_WITH_CALLBACK
         ) {
-            emit QueryReturned(_origin, sender);
             CallLib.StaticCallWithCallback[]
                 memory callsWithCallback = InterchainCallMessage
                     .callsWithCallbacks(_message);
             bytes[] memory callbacks = CallLib.multistaticcall(
                 callsWithCallback
             );
+            emit QueryExecuted(_origin, sender);
             _dispatch(_origin, InterchainCallMessage.format(callbacks, sender));
         } else if (calltype == InterchainCallMessage.CallType.RAW_CALLDATA) {
             address senderAddress = sender.bytes32ToAddress();
-            emit QueryResolved(_origin, senderAddress);
             bytes[] memory rawCalls = InterchainCallMessage.rawCalls(_message);
-            CallLib.multicallto(rawCalls, senderAddress);
+            CallLib.multicallto(senderAddress, rawCalls);
+            //
+            emit QueryResolved(_origin, senderAddress);
         } else {
             assert(false);
         }

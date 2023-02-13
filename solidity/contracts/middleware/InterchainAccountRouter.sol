@@ -73,6 +73,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
      * @notice Dispatches a sequence of calls to be relayed by the sender's interchain account on the destination domain.
      * @param _destinationDomain The domain of the chain where the message will be sent to.
      * @param calls The sequence of calls to be relayed.
+     * @dev Recommend using CallLib.build to format the interchain calls.
      */
     function dispatch(uint32 _destinationDomain, CallLib.Call[] calldata calls)
         external

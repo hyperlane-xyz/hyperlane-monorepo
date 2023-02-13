@@ -3,16 +3,18 @@ pragma solidity ^0.8.13;
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
+import {TypeCasts} from "./TypeCasts.sol";
+
 library CallLib {
     struct StaticCall {
-        address to;
+        // supporting non EVM targets
+        bytes32 to;
         bytes data;
     }
 
     struct Call {
-        address to;
         uint256 value;
-        bytes data;
+        StaticCall _call;
     }
 
     struct StaticCallWithCallback {
@@ -20,19 +22,28 @@ library CallLib {
         bytes callback;
     }
 
+    function target(StaticCall memory _call) internal pure returns (address) {
+        return TypeCasts.bytes32ToAddress(_call.to);
+    }
+
     function call(Call memory _call)
         internal
         returns (bytes memory returnData)
     {
-        return Address.functionCallWithValue(_call.to, _call.data, _call.value);
+        return
+            Address.functionCallWithValue(
+                target(_call._call),
+                _call._call.data,
+                _call.value
+            );
     }
 
     function staticcall(StaticCall memory _call)
-        internal
+        private
         view
         returns (bytes memory)
     {
-        return Address.functionStaticCall(_call.to, _call.data);
+        return Address.functionStaticCall(target(_call), _call.data);
     }
 
     function staticcall(StaticCallWithCallback memory _call)
@@ -71,23 +82,23 @@ library CallLib {
         return callbacks;
     }
 
-    function multicallto(bytes[] memory calls, address target) internal {
+    function multicallto(address to, bytes[] memory calls) internal {
         uint256 i = 0;
         uint256 len = calls.length;
         while (i < len) {
-            Address.functionCall(target, calls[i]);
+            Address.functionCall(to, calls[i]);
             unchecked {
                 ++i;
             }
         }
     }
 
-    function build(
-        address to,
-        uint256 value,
-        bytes memory data
-    ) internal pure returns (Call memory) {
-        return Call({to: to, value: value, data: data});
+    function build(bytes32 to, bytes memory data)
+        internal
+        pure
+        returns (StaticCall memory)
+    {
+        return StaticCall(to, data);
     }
 
     function build(address to, bytes memory data)
@@ -95,7 +106,31 @@ library CallLib {
         pure
         returns (StaticCall memory)
     {
-        return StaticCall({to: to, data: data});
+        return build(TypeCasts.addressToBytes32(to), data);
+    }
+
+    function build(
+        bytes32 to,
+        uint256 value,
+        bytes memory data
+    ) internal pure returns (Call memory) {
+        return Call(value, build(to, data));
+    }
+
+    function build(
+        address to,
+        uint256 value,
+        bytes memory data
+    ) internal pure returns (Call memory) {
+        return Call(value, build(to, data));
+    }
+
+    function build(
+        bytes32 to,
+        bytes memory data,
+        bytes memory callback
+    ) internal pure returns (StaticCallWithCallback memory) {
+        return StaticCallWithCallback(build(to, data), callback);
     }
 
     function build(
@@ -103,10 +138,6 @@ library CallLib {
         bytes memory data,
         bytes memory callback
     ) internal pure returns (StaticCallWithCallback memory) {
-        return
-            StaticCallWithCallback({
-                callback: callback,
-                _call: build(to, data)
-            });
+        return StaticCallWithCallback(build(to, data), callback);
     }
 }

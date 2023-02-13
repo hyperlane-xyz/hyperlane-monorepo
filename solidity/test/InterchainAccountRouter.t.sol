@@ -70,11 +70,11 @@ contract InterchainAccountRouterTest is Test {
 
     function dispatchTransferOwner(address newOwner) public {
         vm.assume(newOwner != address(0x0));
-        CallLib.Call memory call = CallLib.Call({
-            to: address(ownable),
-            data: abi.encodeCall(ownable.transferOwnership, (newOwner)),
-            value: 0
-        });
+        CallLib.Call memory call = CallLib.build(
+            address(ownable),
+            0,
+            abi.encodeCall(ownable.transferOwnership, (newOwner))
+        );
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
         originRouter.dispatch(remoteDomain, calls);
@@ -163,11 +163,7 @@ contract InterchainAccountRouterTest is Test {
         ica.transfer(value);
 
         bytes memory data = abi.encodeCall(this.receiveValue, ());
-        CallLib.Call memory call = CallLib.Call({
-            to: address(this),
-            data: data,
-            value: value
-        });
+        CallLib.Call memory call = CallLib.build(address(this), value, data);
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
 

@@ -20,7 +20,7 @@ contract InterchainQueryRouterTest is Test {
         uint32 indexed destinationDomain,
         address indexed sender
     );
-    event QueryReturned(uint32 indexed originDomain, bytes32 indexed sender);
+    event QueryExecuted(uint32 indexed originDomain, bytes32 indexed sender);
     event QueryResolved(
         uint32 indexed destinationDomain,
         address indexed sender
@@ -90,7 +90,7 @@ contract InterchainQueryRouterTest is Test {
 
     function processQuery() public {
         vm.expectEmit(true, true, false, true, address(remoteRouter));
-        emit QueryReturned(originDomain, address(this).addressToBytes32());
+        emit QueryExecuted(originDomain, address(this).addressToBytes32());
         environment.processNextPendingMessage();
 
         vm.expectEmit(true, true, false, true, address(originRouter));
