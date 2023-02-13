@@ -4,8 +4,6 @@ export {
   chainMetadata,
   ExplorerFamily,
   mainnetChainsMetadata,
-  PartialChainMetadata,
-  partialChainMetadata,
   RpcPagination,
   testnetChainsMetadata,
   wagmiChainMetadata,

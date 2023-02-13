@@ -21,8 +21,8 @@ import { ChainMap } from '../types';
 describe('InterchainQueryRouter', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
-  const localDomain = chainMetadata[localChain].id;
-  const remoteDomain = chainMetadata[remoteChain].id;
+  const localDomain = chainMetadata[localChain].chainId;
+  const remoteDomain = chainMetadata[remoteChain].chainId;
 
   let signer: SignerWithAddress;
   let local: InterchainQueryRouter;

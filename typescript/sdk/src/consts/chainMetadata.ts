@@ -18,7 +18,7 @@ export enum ExplorerFamily {
  * for Hyperlane-supported chains
  */
 export interface ChainMetadata {
-  id: number;
+  chainId: number;
   /** Hyperlane domain, only required if differs from id above */
   domainId?: number;
   name: ChainName;
@@ -27,7 +27,7 @@ export interface ChainMetadata {
   /** Shorter human-readable name */
   displayNameShort?: string;
   /** Default currency/token used by chain */
-  nativeToken: {
+  nativeToken?: {
     name: string;
     symbol: string;
     decimals: number;
@@ -52,7 +52,7 @@ export interface ChainMetadata {
     /** Number of blocks before a transaction has a near-zero chance of reverting */
     reorgPeriod?: number;
     /** Rough estimate of time per block in seconds */
-    estimateBlockTime: number;
+    estimateBlockTime?: number;
   };
   transactionOverrides?: Partial<providers.TransactionRequest>;
   /** The CoinGecko API sometimes expects IDs that do not match ChainNames */
@@ -69,31 +69,31 @@ export interface RpcPagination {
 /**
  * Common native currencies
  */
-const avaxToken = {
+export const avaxToken = {
   decimals: 18,
   name: 'Avalanche',
   symbol: 'AVAX',
 };
-const bnbToken = {
+export const bnbToken = {
   decimals: 18,
   name: 'BNB',
   symbol: 'BNB',
 };
-const celoToken = {
+export const celoToken = {
   decimals: 18,
   name: 'CELO',
   symbol: 'CELO',
 };
-const etherToken = { name: 'Ether', symbol: 'ETH', decimals: 18 };
-const maticToken = { name: 'MATIC', symbol: 'MATIC', decimals: 18 };
-const xDaiToken = { name: 'xDai', symbol: 'xDai', decimals: 18 };
+export const etherToken = { name: 'Ether', symbol: 'ETH', decimals: 18 };
+export const maticToken = { name: 'MATIC', symbol: 'MATIC', decimals: 18 };
+export const xDaiToken = { name: 'xDai', symbol: 'xDai', decimals: 18 };
 
 /**
  * Chain metadata
  */
 
 export const alfajores: ChainMetadata = {
-  id: 44787,
+  chainId: 44787,
   name: Chains.alfajores,
   displayName: 'Alfajores',
   nativeToken: celoToken,
@@ -119,7 +119,7 @@ export const alfajores: ChainMetadata = {
 };
 
 export const arbitrum: ChainMetadata = {
-  id: 42161,
+  chainId: 42161,
   name: Chains.arbitrum,
   displayName: 'Arbitrum',
   nativeToken: etherToken,
@@ -143,7 +143,7 @@ export const arbitrum: ChainMetadata = {
 };
 
 export const arbitrumgoerli: ChainMetadata = {
-  id: 421613,
+  chainId: 421613,
   name: Chains.arbitrumgoerli,
   displayName: 'Arbitrum Goerli',
   displayNameShort: 'Arb. Goerli',
@@ -165,7 +165,7 @@ export const arbitrumgoerli: ChainMetadata = {
 };
 
 export const avalanche: ChainMetadata = {
-  id: 43114,
+  chainId: 43114,
   name: Chains.avalanche,
   displayName: 'Avalanche',
   nativeToken: avaxToken,
@@ -197,7 +197,7 @@ export const avalanche: ChainMetadata = {
 };
 
 export const bsc: ChainMetadata = {
-  id: 56,
+  chainId: 56,
   name: Chains.bsc,
   displayName: 'Binance Smart Chain',
   displayNameShort: 'Binance',
@@ -224,7 +224,7 @@ export const bsc: ChainMetadata = {
 };
 
 export const bsctestnet: ChainMetadata = {
-  id: 97,
+  chainId: 97,
   name: Chains.bsctestnet,
   displayName: 'BSC Testnet',
   nativeToken: bnbToken,
@@ -245,7 +245,7 @@ export const bsctestnet: ChainMetadata = {
 };
 
 export const celo: ChainMetadata = {
-  id: 42220,
+  chainId: 42220,
   name: Chains.celo,
   displayName: 'Celo',
   nativeToken: celoToken,
@@ -273,7 +273,7 @@ export const celo: ChainMetadata = {
 };
 
 export const ethereum: ChainMetadata = {
-  id: 1,
+  chainId: 1,
   name: Chains.ethereum,
   displayName: 'Ethereum',
   nativeToken: etherToken,
@@ -300,7 +300,7 @@ export const ethereum: ChainMetadata = {
 };
 
 export const fuji: ChainMetadata = {
-  id: 43113,
+  chainId: 43113,
   name: Chains.fuji,
   displayName: 'Fuji',
   nativeToken: avaxToken,
@@ -321,7 +321,7 @@ export const fuji: ChainMetadata = {
 };
 
 export const goerli: ChainMetadata = {
-  id: 5,
+  chainId: 5,
   name: Chains.goerli,
   displayName: 'Goerli',
   nativeToken: etherToken,
@@ -346,7 +346,7 @@ export const goerli: ChainMetadata = {
 };
 
 export const moonbasealpha: ChainMetadata = {
-  id: 1287,
+  chainId: 1287,
   name: Chains.moonbasealpha,
   displayName: 'Moonbase Alpha',
   displayNameShort: 'Moonbase',
@@ -372,7 +372,7 @@ export const moonbasealpha: ChainMetadata = {
 };
 
 export const moonbeam: ChainMetadata = {
-  id: 1284,
+  chainId: 1284,
   name: Chains.moonbeam,
   displayName: 'Moonbeam',
   nativeToken: {
@@ -399,7 +399,7 @@ export const moonbeam: ChainMetadata = {
 };
 
 export const mumbai: ChainMetadata = {
-  id: 80001,
+  chainId: 80001,
   name: Chains.mumbai,
   displayName: 'Mumbai',
   nativeToken: maticToken,
@@ -432,7 +432,7 @@ export const mumbai: ChainMetadata = {
 };
 
 export const optimism: ChainMetadata = {
-  id: 10,
+  chainId: 10,
   name: Chains.optimism,
   displayName: 'Optimism',
   nativeToken: etherToken,
@@ -456,7 +456,7 @@ export const optimism: ChainMetadata = {
 };
 
 export const optimismgoerli: ChainMetadata = {
-  id: 420,
+  chainId: 420,
   name: Chains.optimismgoerli,
   displayName: 'Optimism Goerli',
   displayNameShort: 'Opt. Goerli',
@@ -478,7 +478,7 @@ export const optimismgoerli: ChainMetadata = {
 };
 
 export const polygon: ChainMetadata = {
-  id: 137,
+  chainId: 137,
   name: Chains.polygon,
   displayName: 'Polygon',
   nativeToken: etherToken,
@@ -512,7 +512,7 @@ export const polygon: ChainMetadata = {
 };
 
 export const gnosis: ChainMetadata = {
-  id: 100,
+  chainId: 100,
   name: Chains.gnosis,
   displayName: 'Gnosis',
   nativeToken: xDaiToken,
@@ -543,7 +543,7 @@ export const gnosis: ChainMetadata = {
 };
 
 export const test1: ChainMetadata = {
-  id: 13371,
+  chainId: 13371,
   name: Chains.test1,
   displayName: 'Test 1',
   nativeToken: etherToken,
@@ -557,7 +557,7 @@ export const test1: ChainMetadata = {
 };
 
 export const test2: ChainMetadata = {
-  id: 13372,
+  chainId: 13372,
   name: Chains.test2,
   displayName: 'Test 2',
   nativeToken: etherToken,
@@ -571,7 +571,7 @@ export const test2: ChainMetadata = {
 };
 
 export const test3: ChainMetadata = {
-  id: 13373,
+  chainId: 13373,
   name: Chains.test3,
   displayName: 'Test 3',
   nativeToken: etherToken,
@@ -622,7 +622,7 @@ export const wagmiChainMetadata: Record<ChainName, WagmiChain> = objMap(
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<
   Record<number, ChainMetadata>
 >((result, chain) => {
-  result[chain.id] = chain;
+  result[chain.chainId] = chain;
   return result;
 }, {});
 
@@ -632,31 +632,3 @@ export const mainnetChainsMetadata: Array<ChainMetadata> = Mainnets.map(
 export const testnetChainsMetadata: Array<ChainMetadata> = Testnets.map(
   (chainName) => chainMetadata[chainName],
 );
-
-/**
- * @deprecated use ChainMetadata
- */
-export type PartialChainMetadata = {
-  id: number;
-  finalityBlocks: number;
-  nativeTokenDecimals?: number;
-  paginate?: RpcPagination;
-  // The CoinGecko API expects, in some cases, IDs that do not match
-  // ChainNames.
-  gasCurrencyCoinGeckoId?: string;
-  // URL of the gnosis safe transaction service.
-  gnosisSafeTransactionServiceUrl?: string;
-};
-
-/**
- * @deprecated use chainMetadata
- */
-export const partialChainMetadata: Record<ChainName, PartialChainMetadata> =
-  objMap(chainMetadata, (_, metadata) => ({
-    id: metadata.id,
-    finalityBlocks: metadata.blocks.confirmations,
-    nativeTokenDecimals: metadata.nativeToken.decimals,
-    paginate: metadata.publicRpcUrls[0]?.pagination,
-    gasCurrencyCoinGeckoId: metadata.gasCurrencyCoinGeckoId,
-    gnosisSafeTransactionServiceUrl: metadata.gnosisSafeTransactionServiceUrl,
-  }));
