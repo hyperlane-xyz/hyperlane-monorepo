@@ -11,14 +11,16 @@ import {MockToken} from "../contracts/mock/MockToken.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import "../contracts/test/TestRecipient.sol";
 import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
+import {CallLib} from "../contracts/libs/Call.sol";
 
 contract InterchainQueryRouterTest is Test {
-    // TODO: dedupe
+    using TypeCasts for address;
+
     event QueryDispatched(
         uint32 indexed destinationDomain,
         address indexed sender
     );
-    event QueryReturned(uint32 indexed originDomain, address indexed sender);
+    event QueryExecuted(uint32 indexed originDomain, bytes32 indexed sender);
     event QueryResolved(
         uint32 indexed destinationDomain,
         address indexed sender
@@ -72,17 +74,23 @@ contract InterchainQueryRouterTest is Test {
         );
     }
 
-    function queryHelper(
+    function dispatchQuery(
         address target,
         bytes memory call,
         bytes memory callback
     ) public {
         vm.expectEmit(true, true, false, true, address(originRouter));
         emit QueryDispatched(remoteDomain, address(this));
-        originRouter.query(remoteDomain, address(target), call, callback);
 
+        CallLib.StaticCallWithCallback[]
+            memory calls = new CallLib.StaticCallWithCallback[](1);
+        calls[0] = CallLib.build(target, call, callback);
+        originRouter.query(remoteDomain, calls);
+    }
+
+    function processQuery() public {
         vm.expectEmit(true, true, false, true, address(remoteRouter));
-        emit QueryReturned(originDomain, address(this));
+        emit QueryExecuted(originDomain, address(this).addressToBytes32());
         environment.processNextPendingMessage();
 
         vm.expectEmit(true, true, false, true, address(originRouter));
@@ -102,9 +110,7 @@ contract InterchainQueryRouterTest is Test {
     function testCannotQueryReverting() public {
         // Deploy a random ownable contract
         OwnableMulticall ownable = new OwnableMulticall();
-
-        originRouter.query(
-            remoteDomain,
+        dispatchQuery(
             address(ownable),
             abi.encodeWithSelector(
                 ownable.transferOwnership.selector,
@@ -120,8 +126,7 @@ contract InterchainQueryRouterTest is Test {
         // Deploy a random ownable contract
         OwnableMulticall ownable = new OwnableMulticall();
 
-        originRouter.query(
-            remoteDomain,
+        dispatchQuery(
             address(ownable),
             abi.encodePacked(ownable.owner.selector),
             abi.encodePacked(this.badReceiveAddress.selector)
@@ -138,11 +143,12 @@ contract InterchainQueryRouterTest is Test {
         // Set the routers owner
         ownable.transferOwnership(owner);
 
-        queryHelper(
+        dispatchQuery(
             address(ownable),
             abi.encodePacked(ownable.owner.selector),
             abi.encodePacked(this.receiveAddress.selector)
         );
+        processQuery();
         assertEq(addressResult, owner);
     }
 
@@ -156,11 +162,12 @@ contract InterchainQueryRouterTest is Test {
         MockToken token = new MockToken();
         token.mint(address(this), balance);
 
-        queryHelper(
+        dispatchQuery(
             address(token),
             abi.encodeWithSelector(token.balanceOf.selector, address(this)),
             abi.encodePacked(this.receiveUint256.selector)
         );
+        processQuery();
         assertEq(uint256Result, balance);
     }
 }
