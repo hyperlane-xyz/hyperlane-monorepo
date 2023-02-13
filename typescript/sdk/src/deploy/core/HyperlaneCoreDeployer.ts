@@ -172,14 +172,7 @@ export class HyperlaneCoreDeployer<
     chain: LocalChain,
     deployOpts?: DeployOptions,
   ): Promise<StorageGasOracle> {
-    const contract = await this.deployContract(
-      chain,
-      'storageGasOracle',
-      [],
-      deployOpts,
-    );
-
-    return contract;
+    return this.deployContract(chain, 'storageGasOracle', [], deployOpts);
   }
 
   async deployMailbox<LocalChain extends Chain>(
