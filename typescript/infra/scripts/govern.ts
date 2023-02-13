@@ -23,7 +23,7 @@ async function check() {
     config.core,
   );
   await coreChecker.check();
-  coreChecker.expectViolations({ Transparent: 1 });
+  coreChecker.expectViolations({ Transparent: 3, ValidatorAnnounce: 3 });
 
   const governor = new HyperlaneCoreGovernor(coreChecker);
   await governor.govern();

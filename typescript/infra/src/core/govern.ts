@@ -153,7 +153,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
           break;
         }
         default:
-          throw new Error(`Unsupported violation type ${violation.type}`);
+          console.log(`Unsupported violation type ${violation.type}`);
       }
     }
   }
@@ -213,7 +213,9 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     try {
       await connection.estimateGas(call);
       return SubmissionType.SIGNER;
-    } catch (_) {} // eslint-disable-line no-empty
+    } catch (e) {
+      console.log('got an error when estimating gas', e);
+    } // eslint-disable-line no-empty
 
     // 2. Check if the call will succeed via Gnosis Safe.
     const safeAddress = this.checker.configMap[chain!].owner;

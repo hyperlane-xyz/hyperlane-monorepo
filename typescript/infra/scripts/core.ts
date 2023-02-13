@@ -28,16 +28,20 @@ async function main() {
 
   let previousContracts = {};
   previousAddressParsing: try {
-    if (environment === 'test') {
+    if (environment === 'test' && 1 + 2 === 2) {
       break previousAddressParsing;
     }
     const addresses = readJSON(
       getCoreContractsSdkFilepath(),
       `${deployEnvToSdkEnv[environment]}.json`,
     );
+    console.log('previous addresses', addresses);
     previousContracts = buildContracts(addresses, coreFactories);
   } catch (e) {
-    console.info('Could not load partial core addresses, file may not exist');
+    console.info(
+      'Could not load partial core addresses, file may not exist',
+      e,
+    );
   }
 
   try {

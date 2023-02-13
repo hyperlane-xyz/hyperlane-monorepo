@@ -21,7 +21,7 @@ export function isProxyAddresses(
     addresses !== null &&
     typeof addresses === 'object' &&
     'proxy' in addresses &&
-    'implementation' in addresses &&
+    // 'implementation' in addresses &&
     'kind' in addresses &&
     Object.keys(ProxyKind).includes((addresses as any).kind)
   );

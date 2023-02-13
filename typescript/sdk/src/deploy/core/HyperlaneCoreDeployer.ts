@@ -83,6 +83,16 @@ export class HyperlaneCoreDeployer<
       deployOpts,
     );
 
+    try {
+      await igp.contract.gasOracles(0);
+    } catch (_) {
+      // If there's an error, we're still using the old
+      // IGP implementation, and we should leave the setting of
+      // gas oracles for the contract upgrade done by the
+      // govern / checker scripts
+      return igp;
+    }
+
     const chainConnection = this.multiProvider.getChainConnection(chain);
 
     const remotes = this.multiProvider.remoteChains(chain);
