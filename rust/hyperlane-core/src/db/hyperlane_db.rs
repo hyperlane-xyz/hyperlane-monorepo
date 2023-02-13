@@ -69,11 +69,7 @@ impl HyperlaneDB {
         // If this message is not building off the latest nonce, log it.
         if let Some(nonce) = self.retrieve_latest_nonce()? {
             if nonce != message.nonce - 1 {
-                debug!(
-                    "Attempted to store message not building off latest nonce. Latest nonce: {}. Message nonce: {}.",
-                    nonce,
-                    message.nonce,
-                )
+                debug!(%message, "Attempted to store message not building off latest nonce")
             }
         }
 
@@ -88,13 +84,7 @@ impl HyperlaneDB {
     pub fn store_message(&self, message: &HyperlaneMessage) -> Result<()> {
         let id = message.id();
 
-        info!(
-            id = ?id,
-            nonce = &message.nonce,
-            origin = &message.origin,
-            destination = &message.destination,
-            "Storing new message in db.",
-        );
+        info!(?message, "Storing new message in db",);
         self.store_message_id(message.nonce, message.destination, id)?;
         self.store_keyed_encodable(MESSAGE, &id, message)?;
         Ok(())
@@ -136,11 +126,7 @@ impl HyperlaneDB {
 
     /// Store the message id keyed by nonce
     fn store_message_id(&self, nonce: u32, destination: u32, id: H256) -> Result<()> {
-        debug!(
-            nonce,
-            id = ?id,
-            "storing leaf hash keyed by index"
-        );
+        debug!(nonce, ?id, "storing leaf hash keyed by index");
         self.store_keyed_encodable(MESSAGE_ID, &nonce, &id)?;
         self.update_latest_nonce(nonce)?;
         self.update_latest_nonce_for_destination(destination, nonce)
@@ -181,7 +167,7 @@ impl HyperlaneDB {
 
     /// Mark nonce as processed
     pub fn mark_nonce_as_processed(&self, nonce: u32) -> Result<()> {
-        debug!(nonce = ?nonce, "mark nonce as processed");
+        debug!(?nonce, "mark nonce as processed");
         self.store_keyed_encodable(NONCE_PROCESSED, &nonce, &true)
     }
 
@@ -201,7 +187,10 @@ impl HyperlaneDB {
         let meta = &gas_payment_with_meta.meta;
         // If the gas payment has already been processed, do nothing
         if self.retrieve_gas_payment_meta_processed(meta)? {
-            trace!(gas_payment_with_meta=?gas_payment_with_meta, "Attempted to process an already-processed gas payment");
+            trace!(
+                ?gas_payment_with_meta,
+                "Attempted to process an already-processed gas payment"
+            );
             // Return false to indicate the gas payment was already processed
             return Ok(false);
         }
@@ -243,7 +232,7 @@ impl HyperlaneDB {
         let existing_payment = self.retrieve_gas_payment_for_message_id(*message_id)?;
         let total = existing_payment + payment;
 
-        info!(message_id=?message_id, gas_payment_amount=?payment, new_total_gas_payment=?total, "Storing gas payment");
+        info!(id=?message_id, gas_payment_amount=?payment, new_total_gas_payment=?total, "Storing gas payment");
         self.store_keyed_encodable(GAS_PAYMENT_FOR_MESSAGE_ID, &gas_payment.message_id, &total)?;
 
         Ok(())

@@ -1,11 +1,13 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
+use std::fmt::{Debug, Formatter};
 
+use crate::utils::{fmt_address_for_domain, fmt_domain};
 use crate::{utils::announcement_domain_hash, Signable, SignedType, H160, H256};
 
 /// An Hyperlane checkpoint
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Announcement {
     /// The validator address
     pub validator: H160,
@@ -17,12 +19,15 @@ pub struct Announcement {
     pub storage_location: String,
 }
 
-impl std::fmt::Display for Announcement {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for Announcement {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Announcement(domain: {}, mailbox: {:x}, location: {})",
-            self.mailbox_domain, self.mailbox_address, self.storage_location
+            "Announcement {{ validator: {:?}, mailbox_address: {}, mailbox_domain: {}, storage_location: {} }}",
+            self.validator,
+            fmt_address_for_domain(self.mailbox_domain, self.mailbox_address),
+            fmt_domain(self.mailbox_domain),
+            self.storage_location
         )
     }
 }
