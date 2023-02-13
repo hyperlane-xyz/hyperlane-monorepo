@@ -150,7 +150,7 @@ fn main() -> ExitCode {
         "RUN_ENV" => "test",
         "HYP_BASE_METRICS" => "9092",
         "HYP_BASE_TRACING_FMT" => "pretty",
-        "HYP_BASE_TRACING_LEVEL" => "info",
+        "HYP_BASE_TRACING_LEVEL" => "debug",
         "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
         "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
         "HYP_BASE_CHAINS_TEST1_SIGNER_TYPE" => "hexKey",
@@ -162,8 +162,6 @@ fn main() -> ExitCode {
         "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
         "HYP_RELAYER_DESTINATIONCHAINNAMES" => "test2,test3",
         "HYP_RELAYER_WHITELIST" => r#"[{"senderAddress": "*", "destinationDomain": ["13372", "13373"], "recipientAddress": "*"}]"#,
-        "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_TYPE" => "localStorage",
-        "HYP_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_PATH" => checkpoints_dir.path().to_str().unwrap(),
     };
 
     let validator_env = hashmap! {
@@ -177,7 +175,7 @@ fn main() -> ExitCode {
         "RUN_ENV" => "test",
         "HYP_BASE_METRICS" => "9091",
         "HYP_BASE_TRACING_FMT" => "pretty",
-        "HYP_BASE_TRACING_LEVEL" => "info",
+        "HYP_BASE_TRACING_LEVEL" => "debug",
         "HYP_BASE_DB" => validator_db.to_str().unwrap(),
         "HYP_VALIDATOR_ORIGINCHAINNAME" => "test1",
         "HYP_VALIDATOR_VALIDATOR_KEY" => "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
@@ -325,10 +323,14 @@ fn main() -> ExitCode {
     // Register the validator announcement
     println!("Announcing validator...");
     let mut announce = Command::new("yarn");
-    announce.arg("announce");
+    let location = format!("file://{}", checkpoints_dir.path().to_str().unwrap());
+    announce.arg("ts-node");
     announce.args([
-        "--checkpointsdir",
-        checkpoints_dir.path().to_str().unwrap(),
+        "scripts/announce-validators.ts",
+        "--environment",
+        "test",
+        "--location",
+        &location,
         "--chain",
         "test1",
     ]);

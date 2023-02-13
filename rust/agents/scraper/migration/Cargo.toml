@@ -17,7 +17,7 @@ tokio = { version = "1", features = ["rt", "macros"] }
 
 # bin-only deps
 tracing-subscriber = { version = "0.3" }
-tracing = { version = "0.1" }
+tracing = { version = "0.1", features = ["release_max_level_debug"] }
 
 [[bin]]
 name = "init-db"
