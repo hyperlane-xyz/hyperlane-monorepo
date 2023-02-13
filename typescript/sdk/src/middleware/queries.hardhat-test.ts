@@ -72,7 +72,7 @@ describe('InterchainQueryRouter', async () => {
     const result = await coreApp.processOutboundMessages(localChain);
     const response = result.get(remoteChain)![0];
     await expect(response)
-      .to.emit(remote, 'QueryReturned')
+      .to.emit(remote, 'QueryExecuted')
       .withArgs(localDomain, bytes32sender);
     const result2 = await coreApp.processOutboundMessages(remoteChain);
     const response2 = result2.get(localChain)![0];
