@@ -3,7 +3,6 @@
 use ethers::types::U256;
 use serde::{Serialize, Serializer};
 use serde_repr::Serialize_repr;
-use std::fmt;
 
 // Each chain and chain ID supported by Hyperlane
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize_repr, Hash)]
@@ -42,12 +41,6 @@ pub enum Chain {
     Zksync2Testnet = 280,
 }
 
-impl fmt::Display for Chain {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "{:?}", self)
-    }
-}
-
 impl From<Chain> for u32 {
     fn from(chain: Chain) -> Self {
         chain as u32
@@ -71,7 +64,7 @@ where
     S: Serializer,
 {
     if let Some(n) = maybe_n {
-        return s.serialize_str(&format!("{}", n));
+        return s.serialize_str(&n.to_string());
     }
     maybe_n.serialize(s)
 }
