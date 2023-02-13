@@ -6,12 +6,15 @@ import {
   AllStorageGasOracleConfigs,
   getAllStorageGasOracleConfigs,
 } from '../../../src/config';
-import {
-  TOKEN_EXCHANGE_RATE_DECIMALS,
-  TOKEN_EXCHANGE_RATE_SCALE,
-} from '../../../src/config/gas-oracle';
+import { TOKEN_EXCHANGE_RATE_DECIMALS } from '../../../src/config/gas-oracle';
 
 import { TestnetChains, chainNames } from './chains';
+
+// Overcharge by 30% to account for market making risk
+const TOKEN_EXCHANGE_RATE_MULTIPLIER = ethers.utils.parseUnits(
+  '1.30',
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+);
 
 // Taken by looking at each testnet and overestimating gas prices
 const gasPrices: ChainMap<TestnetChains, BigNumber> = {
@@ -35,7 +38,7 @@ enum Rarity {
 
 // "Value" of the testnet tokens with 10 decimals of precision.
 // Imagine these as quoted in USD
-const rarityApproximateValue: Record<Rarity, BigNumber> = {
+const RARITY_APPROXIMATE_VALUE: Record<Rarity, BigNumber> = {
   [Rarity.Common]: ethers.utils.parseUnits('0.5', TOKEN_EXCHANGE_RATE_DECIMALS),
   [Rarity.Rare]: ethers.utils.parseUnits('1', TOKEN_EXCHANGE_RATE_DECIMALS),
   [Rarity.Mythic]: ethers.utils.parseUnits('5', TOKEN_EXCHANGE_RATE_DECIMALS),
@@ -55,7 +58,7 @@ const chainTokenRarity: ChainMap<TestnetChains, Rarity> = {
 // Gets the "value" of a testnet chain
 function getApproximateValue(chain: TestnetChains): BigNumber {
   const rarity = chainTokenRarity[chain];
-  return rarityApproximateValue[rarity];
+  return RARITY_APPROXIMATE_VALUE[rarity];
 }
 
 // Gets the exchange rate of the remote quoted in local tokens
@@ -66,7 +69,8 @@ function getTokenExchangeRate<LocalChain extends TestnetChains>(
   const localValue = getApproximateValue(local);
   const remoteValue = getApproximateValue(remote);
 
-  return remoteValue.mul(TOKEN_EXCHANGE_RATE_SCALE).div(localValue);
+  // Apply multiplier to overcharge
+  return remoteValue.mul(TOKEN_EXCHANGE_RATE_MULTIPLIER).div(localValue);
 }
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs<TestnetChains> =
