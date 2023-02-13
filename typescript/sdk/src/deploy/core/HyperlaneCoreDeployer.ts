@@ -88,16 +88,26 @@ export class HyperlaneCoreDeployer<
 
     const remotes = this.multiProvider.remoteChains(chain);
 
+    const gasOracleConfigsToSet: InterchainGasPaymaster.GasOracleConfigStruct[] =
+      [];
+
     for (const remote of remotes) {
       const remoteId = ChainNameToDomainId[remote];
       const currentGasOracle = await igp.contract.gasOracles(remoteId);
       if (!utils.eqAddress(currentGasOracle, storageGasOracleAddress)) {
-        await this.runIfOwner(chain, igp.contract, async () =>
-          chainConnection.handleTx(
-            igp.contract.setGasOracle(remoteId, storageGasOracleAddress),
-          ),
-        );
+        gasOracleConfigsToSet.push({
+          remoteDomain: remoteId,
+          gasOracle: storageGasOracleAddress,
+        });
       }
+    }
+
+    if (gasOracleConfigsToSet.length > 0) {
+      await this.runIfOwner(chain, igp.contract, async () =>
+        chainConnection.handleTx(
+          igp.contract.setGasOracles(gasOracleConfigsToSet),
+        ),
+      );
     }
 
     return igp;
