@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
+import {Message} from "./libs/Message.sol";
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
@@ -10,15 +11,18 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
  * @author Abacus Works
  */
 contract HypERC721Collateral is TokenRouter {
-    address public immutable wrappedToken;
+    IERC721 public immutable wrappedToken;
 
     /**
      * @notice Constructor
      * @param erc721 Address of the token to keep as collateral
-     * @param gasAmount Amount of destination gas to be paid for processing
      */
-    constructor(address erc721, uint256 gasAmount) TokenRouter(gasAmount) {
-        wrappedToken = erc721;
+    constructor(address erc721) {
+        wrappedToken = IERC721(erc721);
+    }
+
+    function ownerOf(uint256 _tokenId) external view returns (address) {
+        return IERC721(wrappedToken).ownerOf(_tokenId);
     }
 
     /**
@@ -46,7 +50,7 @@ contract HypERC721Collateral is TokenRouter {
         override
         returns (bytes memory)
     {
-        IERC721(wrappedToken).transferFrom(msg.sender, address(this), _tokenId);
+        wrappedToken.transferFrom(msg.sender, address(this), _tokenId);
         return bytes(""); // no metadata
     }
 
@@ -59,6 +63,6 @@ contract HypERC721Collateral is TokenRouter {
         uint256 _tokenId,
         bytes calldata // no metadata
     ) internal override {
-        IERC721(wrappedToken).transferFrom(address(this), _recipient, _tokenId);
+        wrappedToken.transferFrom(address(this), _recipient, _tokenId);
     }
 }

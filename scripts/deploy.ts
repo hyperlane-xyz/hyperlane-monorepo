@@ -66,7 +66,7 @@ async function deployWarpRoute() {
     );
   }
 
-  let multiProviderConfig: ChainMap<any, IChainConnection> = {};
+  const multiProviderConfig: ChainMap<any, IChainConnection> = {};
   for (const chain of targetChains) {
     if (chainConfigs && chainConfigs[chain]) {
       // Use custom config

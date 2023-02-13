@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
+import {Message} from "./libs/Message.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -15,9 +16,8 @@ contract HypERC20Collateral is TokenRouter {
     /**
      * @notice Constructor
      * @param erc20 Address of the token to keep as collateral
-     * @param gasAmount Amount of destination gas to be paid for processing
      */
-    constructor(address erc20, uint256 gasAmount) TokenRouter(gasAmount) {
+    constructor(address erc20) {
         wrappedToken = IERC20(erc20);
     }
 
@@ -34,6 +34,10 @@ contract HypERC20Collateral is TokenRouter {
             _mailbox,
             _interchainGasPaymaster
         );
+    }
+
+    function balanceOf(address _account) external view returns (uint256) {
+        return wrappedToken.balanceOf(_account);
     }
 
     /**

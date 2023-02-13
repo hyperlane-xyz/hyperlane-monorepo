@@ -13,12 +13,6 @@ import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC72
  */
 contract HypERC721URIStorage is HypERC721, ERC721URIStorageUpgradeable {
     /**
-     * @notice Constructor
-     * @param gasAmount Amount of destination gas to be paid for processing
-     */
-    constructor(uint256 gasAmount) HypERC721(gasAmount) {}
-
-    /**
      * @return _tokenURI The URI of `_tokenId`.
      * @inheritdoc HypERC721
      */

@@ -11,12 +11,6 @@ import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/t
  */
 contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
     /**
-     * @notice Constructor
-     * @param gasAmount Amount of destination gas to be paid for processing
-     */
-    constructor(uint256 gasAmount) TokenRouter(gasAmount) {}
-
-    /**
      * @notice Initializes the Hyperlane router, ERC721 metadata, and mints initial supply to deployer.
      * @param _mailbox The address of the mailbox contract.
      * @param _interchainGasPaymaster The address of the interchain gas paymaster contract.
