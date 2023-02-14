@@ -9,7 +9,7 @@ use tokio::{
     sync::mpsc::UnboundedSender,
     time::{sleep, timeout},
 };
-use tracing::instrument;
+use tracing::{error, info, instrument, warn};
 
 use gelato::{
     sponsored_call::{SponsoredCallApiCall, SponsoredCallApiCallResult, SponsoredCallArgs},
@@ -66,27 +66,22 @@ impl SponsoredCallOp {
         Self(args)
     }
 
-    #[instrument(skip(self), fields(msg_id=format!("{:x}", self.message.message.id()), msg_nonce=self.message.message.nonce))]
+    #[instrument(skip(self), fields(message=?self.message.message))]
     pub async fn run(&mut self) {
         loop {
             match self.tick().await {
                 Ok(true) => {
                     // If the message was processed, send it over the channel and
                     // stop running.
-                    if let Err(err) = self.send_message_processed() {
-                        tracing::error!(
-                            err=?err,
+                    if let Err(error) = self.send_message_processed() {
+                        error!(
+                            ?error,
                             "Unable to send processed message, receiver is closed or dropped.",
                         );
                     }
                     return;
                 }
-                Err(err) => {
-                    tracing::warn!(
-                        err=?err,
-                        "Error occurred in sponsored_call_op tick",
-                    );
-                }
+                Err(error) => warn!(?error, "Error occurred in sponsored_call_op tick"),
                 _ => {}
             }
 
@@ -102,69 +97,68 @@ impl SponsoredCallOp {
         if let Ok(true) = self.message_delivered().await {
             return Ok(true);
         }
-        if let Some(metadata) = self
+        let Some(metadata) = self
             .metadata_builder
             .fetch_metadata(&self.message.message, self.mailbox.clone())
             .await?
+        else {
+            return Ok(false)
+        };
+
+        // Estimate transaction costs for the process call. If there are issues, it's
+        // likely that gas estimation has failed because the message is
+        // reverting. This is defined behavior, so we just log the error and
+        // move onto the next tick.
+        let tx_cost_estimate = match self
+            .mailbox
+            .process_estimate_costs(&self.message.message, &metadata)
+            .await
         {
-            // Estimate transaction costs for the process call. If there are issues, it's
-            // likely that gas estimation has failed because the message is
-            // reverting. This is defined behavior, so we just log the error and
-            // move onto the next tick.
-            let tx_cost_estimate = match self
-                .mailbox
-                .process_estimate_costs(&self.message.message, &metadata)
-                .await
-            {
-                Ok(tx_cost_estimate) => tx_cost_estimate,
-                Err(err) => {
-                    tracing::info!(error=?err, "Error estimating process costs");
-                    return Ok(false);
-                }
-            };
-
-            // If the gas payment requirement hasn't been met, sleep briefly and wait for
-            // the next tick.
-            let Some(gas_limit) = self
-                .gas_payment_enforcer
-                .message_meets_gas_payment_requirement(&self.message.message, &tx_cost_estimate)
-                .await?
-            else {
-                tracing::info!("Gas payment requirement not met yet");
+            Ok(tx_cost_estimate) => tx_cost_estimate,
+            Err(error) => {
+                info!(?error, "Error estimating process costs");
                 return Ok(false);
-            };
+            }
+        };
 
-            // Send the sponsored call.
-            let sponsored_call_result = self
+        // If the gas payment requirement hasn't been met, sleep briefly and wait for
+        // the next tick.
+        let Some(gas_limit) = self
+            .gas_payment_enforcer
+            .message_meets_gas_payment_requirement(&self.message.message, &tx_cost_estimate)
+            .await?
+        else {
+            info!(?gas_payment, "Gas payment requirement not met yet");
+            return Ok(false);
+        };
+
+        // Send the sponsored call.
+        let sponsored_call_result = self
                 .send_sponsored_call_api_call(&metadata, gas_limit)
                 .await?;
-            tracing::info!(
-                msg=?self.message,
-                task_id=sponsored_call_result.task_id,
-                "Sent sponsored call",
-            );
+        info!(
+            message=?self.message,
+            task_id=sponsored_call_result.task_id,
+            "Sent sponsored call",
+        );
 
-            // Wait for a terminal state, timing out according to the retry_submit_interval.
-            match timeout(
-                self.opts.retry_submit_interval,
-                self.poll_for_terminal_state(sponsored_call_result.task_id.clone()),
-            )
-            .await
-            {
-                Ok(result) => {
-                    // Bubble up any error that may have occurred in `poll_for_terminal_state`.
-                    result
-                }
-                // If a timeout occurred, don't bubble up an error, instead just log
-                // and set ourselves up for the next tick.
-                Err(err) => {
-                    tracing::info!(err=?err, "Sponsored call timed out, reattempting");
-                    Ok(false)
-                }
+        // Wait for a terminal state, timing out according to the retry_submit_interval.
+        match timeout(
+            self.opts.retry_submit_interval,
+            self.poll_for_terminal_state(sponsored_call_result.task_id.clone()),
+        )
+        .await
+        {
+            Ok(result) => {
+                // Bubble up any error that may have occurred in `poll_for_terminal_state`.
+                result
             }
-        } else {
-            tracing::info!("Unable to fetch metadata for message");
-            Ok(false)
+            // If a timeout occurred, don't bubble up an error, instead just log
+            // and set ourselves up for the next tick.
+            Err(error) => {
+                info!(?error, "Sponsored call timed out, reattempting");
+                Ok(false)
+            }
         }
     }
 
@@ -193,7 +187,7 @@ impl SponsoredCallOp {
             let task_status_result = task_status_api_call.run().await?;
             let task_state = task_status_result.task_state();
 
-            tracing::info!(
+            info!(
                 task_id=task_id,
                 task_state=?task_state,
                 task_status_result=?task_status_result,

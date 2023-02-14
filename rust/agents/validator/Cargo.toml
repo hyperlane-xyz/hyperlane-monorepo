@@ -5,15 +5,15 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1", features = ["rt", "macros"] }
-config = "0.13"
+config = "~0.13.3"
 serde = "1.0"
 serde_json = { version = "1.0", default-features = false }
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-01-10-04" }
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01" }
 thiserror = "1.0"
 async-trait = { version = "0.1", default-features = false }
 futures-util = "0.3"
 eyre = "0.6"
-tracing = "0.1"
+tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-futures = "0.2"
 tracing-subscriber = "0.3"
 rocksdb = "0.18"

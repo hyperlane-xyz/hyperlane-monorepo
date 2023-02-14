@@ -19,6 +19,7 @@ export enum CoreViolationType {
   MultisigIsm = 'MultisigIsm',
   Mailbox = 'Mailbox',
   ConnectionManager = 'ConnectionManager',
+  ValidatorAnnounce = 'ValidatorAnnounce',
 }
 
 export enum MultisigIsmViolationType {
@@ -58,4 +59,12 @@ export interface ThresholdViolation extends MultisigIsmViolation {
   subType: MultisigIsmViolationType.Threshold;
   actual: number;
   expected: number;
+}
+
+export interface ValidatorAnnounceViolation extends CheckerViolation {
+  type: CoreViolationType.ValidatorAnnounce;
+  chain: ChainName;
+  validator: types.Address;
+  actual: boolean;
+  expected: boolean;
 }

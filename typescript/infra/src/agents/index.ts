@@ -71,11 +71,15 @@ async function helmValuesForChain<Chain extends ChainName>(
       chains: agentConfig.environmentChainNames.map((envChainName) => ({
         name: envChainName,
         disabled: !agentConfig.contextChainNames.includes(envChainName),
-        signer: signers[envChainName],
         txsubmission: {
           type: chainAgentConfig.transactionSubmissionType(envChainName),
         },
         connection: baseConnectionConfig,
+      })),
+      // Only the relayer has the signers on the chains config object
+      relayerChains: agentConfig.environmentChainNames.map((envChainName) => ({
+        name: envChainName,
+        signer: signers[envChainName],
       })),
       validator: {
         enabled: chainAgentConfig.validatorEnabled,
@@ -163,9 +167,9 @@ export async function getAgentEnvVars<Chain extends ChainName>(
 
     let user: AgentAwsUser<Chain>;
 
-    if (role === KEY_ROLE_ENUM.Validator) {
+    if (role === KEY_ROLE_ENUM.Validator && agentConfig.validators) {
       const checkpointSyncer =
-        agentConfig.validatorSets[outboxChainName].validators[index!]
+        agentConfig.validators[outboxChainName].validators[index!]
           .checkpointSyncer;
       if (checkpointSyncer.type !== CheckpointSyncerType.S3) {
         throw Error(

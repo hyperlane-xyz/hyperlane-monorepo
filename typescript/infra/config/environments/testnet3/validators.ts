@@ -1,7 +1,7 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import {
-  ChainValidatorSets,
+  ChainValidatorConfigs,
   CheckpointSyncerType,
 } from '../../../src/config/agent';
 
@@ -14,9 +14,10 @@ const s3BucketName = <Chain extends ChainName>(
   index: number,
 ) => `hyperlane-${environment}-${chainName}-validator-${index}`;
 
-export const validators: ChainValidatorSets<TestnetChains> = {
+export const validators: ChainValidatorConfigs<TestnetChains> = {
   alfajores: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: chainMetadata.alfajores.blocks.reorgPeriod,
     validators: [
       {
         address: '0xe6072396568e73ce6803b12b7e04164e839f1e54',
@@ -48,7 +49,8 @@ export const validators: ChainValidatorSets<TestnetChains> = {
     ],
   },
   fuji: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: chainMetadata.fuji.blocks.reorgPeriod,
     validators: [
       {
         address: '0x9fa19ead5ec76e437948b35e227511b106293c40',
@@ -80,7 +82,8 @@ export const validators: ChainValidatorSets<TestnetChains> = {
     ],
   },
   mumbai: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: chainMetadata.mumbai.blocks.reorgPeriod,
     validators: [
       {
         address: '0x0a664ea799447da6b15645cf8b9e82072a68343f',
@@ -112,7 +115,8 @@ export const validators: ChainValidatorSets<TestnetChains> = {
     ],
   },
   bsctestnet: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: chainMetadata.bsctestnet.blocks.reorgPeriod,
     validators: [
       {
         address: '0x23338c8714976dd4a57eaeff17cbd26d7e275c08',
@@ -144,7 +148,8 @@ export const validators: ChainValidatorSets<TestnetChains> = {
     ],
   },
   goerli: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: chainMetadata.goerli.blocks.reorgPeriod,
     validators: [
       {
         address: '0xf43fbd072fd38e1121d4b3b0b8a35116bbb01ea9',
@@ -176,7 +181,8 @@ export const validators: ChainValidatorSets<TestnetChains> = {
     ],
   },
   moonbasealpha: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: chainMetadata.moonbasealpha.blocks.reorgPeriod,
     validators: [
       {
         address: '0x890c2aeac157c3f067f3e42b8afc797939c59a32',
@@ -208,7 +214,8 @@ export const validators: ChainValidatorSets<TestnetChains> = {
     ],
   },
   optimismgoerli: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: chainMetadata.optimismgoerli.blocks.reorgPeriod,
     validators: [
       {
         address: '0xbb8d77eefbecc55db6e5a19b0fc3dc290776f189',
@@ -240,7 +247,8 @@ export const validators: ChainValidatorSets<TestnetChains> = {
     ],
   },
   arbitrumgoerli: {
-    threshold: 2,
+    interval: 5,
+    reorgPeriod: chainMetadata.arbitrumgoerli.blocks.reorgPeriod,
     validators: [
       {
         address: '0xce798fa21e323f6b24d9838a10ffecdefdfc4f30',

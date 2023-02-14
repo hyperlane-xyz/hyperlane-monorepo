@@ -70,33 +70,34 @@ impl MessageProcessor {
     /// been marked as processed, increments self.message_nonce and returns
     /// None.
     fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
-        // First, see if we can find the message so we can update the gauge.
-        if let Some(message) = self.db.message_by_nonce(self.message_nonce)? {
-            // Update the latest nonce gauge if the message is destined for one
-            // of the domains we service.
-            if let Some(metrics) = self.metrics.get(message.destination) {
-                metrics.set(message.nonce as i64);
-            }
+        loop {
+            // First, see if we can find the message so we can update the gauge.
+            if let Some(message) = self.db.message_by_nonce(self.message_nonce)? {
+                // Update the latest nonce gauge if the message is destined for one
+                // of the domains we service.
+                if let Some(metrics) = self.metrics.get(message.destination) {
+                    metrics.set(message.nonce as i64);
+                }
 
-            // If this message has already been processed, on to the next one.
-            if self
-                .db
-                .retrieve_message_processed(self.message_nonce)?
-                .is_none()
-            {
-                Ok(Some(message))
+                // If this message has already been processed, on to the next one.
+                if self
+                    .db
+                    .retrieve_message_processed(self.message_nonce)?
+                    .is_none()
+                {
+                    return Ok(Some(message));
+                } else {
+                    debug!(
+                    nonce=?self.message_nonce,
+                    "Message already marked as processed in DB");
+                    self.message_nonce += 1;
+                }
             } else {
                 debug!(
-                    msg_nonce=?self.message_nonce,
-                    "Message already marked as processed in DB");
-                self.message_nonce += 1;
-                Ok(None)
-            }
-        } else {
-            debug!(
-                msg_nonce=?self.message_nonce,
+                nonce=?self.message_nonce,
                 "No message found in DB for nonce");
-            Ok(None)
+                return Ok(None);
+            }
         }
     }
 
@@ -105,39 +106,25 @@ impl MessageProcessor {
     async fn tick(&mut self) -> Result<()> {
         // Scan until we find next nonce without delivery confirmation.
         if let Some(message) = self.try_get_unprocessed_message()? {
-            debug!(msg=?message, "Working on message");
+            debug!(?message, "Processor working on message");
 
             // Skip if not whitelisted.
             if !self.whitelist.msg_matches(&message, true) {
-                debug!(
-                    msg_id=?message.id(),
-                    msg_destination=message.destination,
-                    msg_nonce=message.nonce,
-                    whitelist=?self.whitelist,
-                    "Message not whitelisted, skipping");
+                debug!(?message, whitelist=?self.whitelist, "Message not whitelisted, skipping");
                 self.message_nonce += 1;
                 return Ok(());
             }
 
             // Skip if the message is blacklisted
             if self.blacklist.msg_matches(&message, false) {
-                debug!(
-                    msg_id=?message.id(),
-                    msg_destination=message.destination,
-                    msg_nonce=message.nonce,
-                    blacklist=?self.blacklist,
-                    "Message blacklisted, skipping");
+                debug!(?message, blacklist=?self.blacklist, "Message blacklisted, skipping");
                 self.message_nonce += 1;
                 return Ok(());
             }
 
             // Skip if the message is intended for a destination we do not service
             if self.send_channels.get(&message.destination).is_none() {
-                debug!(
-                    msg_id=?message.id(),
-                    msg_destination=message.destination,
-                    msg_nonce=message.nonce,
-                    "Message destined for unknown domain, skipping");
+                debug!(?message, "Message destined for unknown domain, skipping");
                 self.message_nonce += 1;
                 return Ok(());
             }
@@ -149,11 +136,7 @@ impl MessageProcessor {
                 .update_to_index(message.nonce)
                 .await?;
 
-            debug!(
-                msg_id=?message.id(),
-                msg_nonce=message.nonce,
-                "Sending message to submitter"
-            );
+            debug!(%message, "Sending message to submitter");
 
             // Finally, build the submit arg and dispatch it to the submitter.
             let submit_args = SubmitMessageArgs::new(message.clone());

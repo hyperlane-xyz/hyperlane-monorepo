@@ -12,15 +12,16 @@ use ethers_contract::builders::ContractCall;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    Indexer, LogMeta, Mailbox, MailboxIndexer, RawHyperlaneMessage, TxCostEstimate, TxOutcome,
-    H256, U256,
+    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
+    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer,
+    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::report_tx;
+use crate::EthereumProvider;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -86,7 +87,7 @@ impl<M> Indexer for EthereumMailboxIndexer<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         Ok(self
             .provider
@@ -215,6 +216,13 @@ where
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(EthereumProvider::new(
+            self.provider.clone(),
+            self.domain.clone(),
+        ))
+    }
 }
 
 impl<M> HyperlaneContract for EthereumMailbox<M>
@@ -231,7 +239,7 @@ impl<M> Mailbox for EthereumMailbox<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn count(&self) -> ChainResult<u32> {
         Ok(self.contract.count().call().await?)
     }
@@ -241,7 +249,7 @@ where
         Ok(self.contract.delivered(id.into()).call().await?)
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
         let base_call = self.contract.latest_checkpoint();
         let call_with_lag = match maybe_lag {
@@ -280,7 +288,7 @@ where
             .into())
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip(self), fields(metadata=%fmt_bytes(metadata)))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -294,7 +302,7 @@ where
         Ok(receipt.into())
     }
 
-    #[instrument(err, ret, skip(self), fields(metadata=format!("{:x?}", metadata)))]
+    #[instrument(err, ret, skip(self), fields(message=%message, metadata=%fmt_bytes(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

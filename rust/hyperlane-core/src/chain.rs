@@ -99,6 +99,8 @@ pub enum KnownHyperlaneDomain {
     Moonbeam = 1284,
     MoonbaseAlpha = 1287,
 
+    Gnosis = 100,
+
     Zksync2Testnet = 280,
 
     // -- Local test chains --
@@ -152,6 +154,16 @@ pub enum HyperlaneDomainProtocol {
     Fuel,
 }
 
+impl HyperlaneDomainProtocol {
+    pub fn fmt_address(&self, addr: H256) -> String {
+        use HyperlaneDomainProtocol::*;
+        match self {
+            Ethereum => format!("{:?}", H160::from(addr)),
+            Fuel => format!("{:?}", addr),
+        }
+    }
+}
+
 impl KnownHyperlaneDomain {
     pub fn as_str(self) -> &'static str {
         self.into()
@@ -163,7 +175,8 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             Mainnet: [
                 Ethereum, Avalanche, Arbitrum, Polygon, Optimism, BinanceSmartChain, Celo,
-                Moonbeam
+                Moonbeam,
+                Gnosis
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
@@ -179,7 +192,7 @@ impl KnownHyperlaneDomain {
         many_to_one!(match self {
             HyperlaneDomainProtocol::Ethereum: [
                 Ethereum, Goerli, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
-                Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo,
+                Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
                 Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
@@ -256,10 +269,10 @@ impl HyperlaneDomain {
             if name == domain.as_str() {
                 Ok(HyperlaneDomain::Known(domain))
             } else {
-                Err("Chain name does not match the name of a known domain id; the config is probably wrong.")
+                Err("Chain name does not match the name of a known domain id; the chain name is probably misspelled.")
             }
         } else if name.as_str().parse::<KnownHyperlaneDomain>().is_ok() {
-            Err("Chain name is known the domain is incorrect; the config is probably wrong.")
+            Err("Chain name implies a different domain than the domain id provided; the domain id is probably wrong.")
         } else {
             Ok(HyperlaneDomain::Unknown {
                 domain_id,

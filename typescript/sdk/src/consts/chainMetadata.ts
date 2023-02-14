@@ -1,6 +1,7 @@
 import type { Chain as WagmiChain } from '@wagmi/chains';
 
 import { objMap } from '../utils/objects';
+import { chainMetadataToWagmiChain } from '../utils/wagmi';
 
 import { ChainName, Chains, Mainnets, Testnets } from './chains';
 
@@ -43,7 +44,7 @@ export interface ChainMetadata {
   blocks: {
     // Number of blocks to wait before considering a transaction confirmed
     confirmations: number;
-    // TODO consider merging with confirmations, require agent code changes
+    // TODO consider merging with confirmations, requires agent code changes
     // Number of blocks before a transaction has a near-zero chance of reverting
     reorgPeriod: number;
     // Rough estimate of time per block in seconds
@@ -80,6 +81,7 @@ const celoToken = {
 };
 const etherToken = { name: 'Ether', symbol: 'ETH', decimals: 18 };
 const maticToken = { name: 'MATIC', symbol: 'MATIC', decimals: 18 };
+const xDaiToken = { name: 'xDai', symbol: 'xDai', decimals: 18 };
 
 /**
  * Chain metadata
@@ -286,7 +288,7 @@ export const ethereum: ChainMetadata = {
   ],
   blocks: {
     confirmations: 7,
-    reorgPeriod: 20,
+    reorgPeriod: 14,
     estimateBlockTime: 13,
   },
   gnosisSafeTransactionServiceUrl: 'https://safe-transaction.gnosis.io',
@@ -319,8 +321,9 @@ export const goerli: ChainMetadata = {
   displayName: 'Goerli',
   nativeToken: etherToken,
   publicRpcUrls: [
-    { http: 'https://eth-goerli.public.blastapi.io' },
+    { http: 'https://endpoints.omniatech.io/v1/eth/goerli/public' },
     { http: 'https://rpc.ankr.com/eth_goerli' },
+    { http: 'https://eth-goerli.public.blastapi.io' },
   ],
   blockExplorers: [
     {
@@ -503,6 +506,37 @@ export const polygon: ChainMetadata = {
     'https://safe-transaction.polygon.gnosis.io/',
 };
 
+export const gnosis: ChainMetadata = {
+  id: 100,
+  name: Chains.gnosis,
+  displayName: 'Gnosis',
+  nativeToken: xDaiToken,
+  publicRpcUrls: [
+    {
+      http: 'https://rpc.gnosischain.com',
+      pagination: {
+        blocks: 10000,
+        from: 25997478,
+      },
+    },
+  ],
+  blockExplorers: [
+    {
+      name: 'GnosisScan',
+      url: 'https://gnosisscan.io',
+      apiUrl: 'https://api.gnosisscan.io',
+      family: ExplorerFamily.Etherscan,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 14,
+    estimateBlockTime: 5,
+  },
+  gasCurrencyCoinGeckoId: 'xdai',
+  gnosisSafeTransactionServiceUrl: 'https://safe-transaction.xdai.gnosis.io/',
+};
+
 export const test1: ChainMetadata = {
   id: 13371,
   name: Chains.test1,
@@ -568,6 +602,7 @@ export const chainMetadata = {
   optimism,
   optimismgoerli,
   polygon,
+  gnosis,
   test1,
   test2,
   test3,
@@ -576,22 +611,7 @@ export const chainMetadata = {
 // For convenient use in wagmi-based apps
 export const wagmiChainMetadata: Record<ChainName, WagmiChain> = objMap(
   chainMetadata,
-  (_, metadata) => ({
-    id: metadata.id,
-    name: metadata.displayName,
-    network: metadata.name as string,
-    nativeCurrency: metadata.nativeToken,
-    rpcUrls: { default: { http: [metadata.publicRpcUrls[0].http] } },
-    blockExplorers: metadata.blockExplorers.length
-      ? {
-          default: {
-            name: metadata.blockExplorers[0].name,
-            url: metadata.blockExplorers[0].url,
-          },
-        }
-      : undefined,
-    testnet: Testnets.includes(metadata.name),
-  }),
+  (_, metadata) => chainMetadataToWagmiChain(metadata),
 );
 
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<

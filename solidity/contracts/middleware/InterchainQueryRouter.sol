@@ -5,6 +5,8 @@ pragma solidity ^0.8.13;
 import {CallLib} from "../libs/Call.sol";
 import {Router} from "../Router.sol";
 import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
+import {InterchainCallMessage} from "./InterchainCallMessage.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -16,13 +18,8 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
 contract InterchainQueryRouter is Router, IInterchainQueryRouter {
-    using CallLib for address;
-    using CallLib for CallLib.Call[];
-
-    enum Action {
-        DISPATCH,
-        RESOLVE
-    }
+    using TypeCasts for address;
+    using TypeCasts for bytes32;
 
     /**
      * @notice Emitted when a query is dispatched to another chain.
@@ -34,11 +31,11 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         address indexed sender
     );
     /**
-     * @notice Emitted when a query is returned to the origin chain.
-     * @param originDomain The domain of the chain to return the result to.
+     * @notice Emitted when a query is executed on the and callback dispatched to the origin chain.
+     * @param originDomain The domain of the chain that dispatched the query and receives the callback.
      * @param sender The address to receive the result.
      */
-    event QueryReturned(uint32 indexed originDomain, address indexed sender);
+    event QueryExecuted(uint32 indexed originDomain, bytes32 indexed sender);
     /**
      * @notice Emitted when a query is resolved on the origin chain.
      * @param destinationDomain The domain of the chain that was queried.
@@ -71,63 +68,21 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
     }
 
     /**
-     * @param _destinationDomain Domain of destination chain
-     * @param target The address of the contract to query on destination chain.
-     * @param queryData The calldata of the view call to make on the destination chain.
-     * @param callback Callback function selector on `msg.sender` and optionally abi-encoded prefix arguments.
-     * @return messageId The ID of the message encoding the query.
+     * @notice Dispatches a sequence of static calls (query) to the destination domain and set of callbacks to resolve the results on the dispatcher.
+     * @param _destinationDomain The domain of the chain to query.
+     * @param calls The sequence of static calls to dispatch and callbacks on the sender to resolve the results.
+     * @dev Recommend using CallLib.build to format the interchain calls.
+     * @dev Callbacks must be returned to the `msg.sender` for security reasons. Require this contract is the `msg.sender` on callbacks.
      */
     function query(
         uint32 _destinationDomain,
-        address target,
-        bytes calldata queryData,
-        bytes calldata callback
-    ) external returns (bytes32 messageId) {
-        // TODO: fix this ugly arrayification
-        CallLib.Call[] memory calls = new CallLib.Call[](1);
-        calls[0] = CallLib.Call({to: target, data: queryData});
-        bytes[] memory callbacks = new bytes[](1);
-        callbacks[0] = callback;
-        messageId = query(_destinationDomain, calls, callbacks);
-    }
-
-    /**
-     * @param _destinationDomain Domain of destination chain
-     * @param call Call (to and data packed struct) to be made on destination chain.
-     * @param callback Callback function selector on `msg.sender` and optionally abi-encoded prefix arguments.
-     */
-    function query(
-        uint32 _destinationDomain,
-        CallLib.Call calldata call,
-        bytes calldata callback
-    ) external returns (bytes32 messageId) {
-        // TODO: fix this ugly arrayification
-        CallLib.Call[] memory calls = new CallLib.Call[](1);
-        calls[0] = call;
-        bytes[] memory callbacks = new bytes[](1);
-        callbacks[0] = callback;
-        messageId = query(_destinationDomain, calls, callbacks);
-    }
-
-    /**
-     * @param _destinationDomain Domain of destination chain
-     * @param calls Array of calls (to and data packed struct) to be made on destination chain in sequence.
-     * @param callbacks Array of callback function selectors on `msg.sender` and optionally abi-encoded prefix arguments.
-     */
-    function query(
-        uint32 _destinationDomain,
-        CallLib.Call[] memory calls,
-        bytes[] memory callbacks
+        CallLib.StaticCallWithCallback[] calldata calls
     ) public returns (bytes32 messageId) {
-        require(
-            calls.length == callbacks.length,
-            "InterchainQueryRouter: calls and callbacks must be same length"
-        );
+        emit QueryDispatched(_destinationDomain, msg.sender);
         messageId = _dispatch(
             _destinationDomain,
-            abi.encode(Action.DISPATCH, msg.sender, calls, callbacks)
+            InterchainCallMessage.format(calls, msg.sender.addressToBytes32())
         );
-        emit QueryDispatched(_destinationDomain, msg.sender);
     }
 
     /**
@@ -140,27 +95,28 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        Action action = Action(uint8(bytes1(_message[31])));
-        if (action == Action.DISPATCH) {
-            (
-                ,
-                address sender,
-                CallLib.Call[] memory calls,
-                bytes[] memory callbacks
-            ) = abi.decode(
-                    _message,
-                    (Action, address, CallLib.Call[], bytes[])
-                );
-            callbacks = calls._multicallAndResolve(callbacks);
-            _dispatch(_origin, abi.encode(Action.RESOLVE, sender, callbacks));
-            emit QueryReturned(_origin, sender);
-        } else if (action == Action.RESOLVE) {
-            (, address sender, bytes[] memory resolveCallbacks) = abi.decode(
-                _message,
-                (Action, address, bytes[])
+        InterchainCallMessage.CallType calltype = InterchainCallMessage
+            .calltype(_message);
+        bytes32 sender = InterchainCallMessage.sender(_message);
+        if (
+            calltype == InterchainCallMessage.CallType.STATIC_CALL_WITH_CALLBACK
+        ) {
+            CallLib.StaticCallWithCallback[]
+                memory callsWithCallback = InterchainCallMessage
+                    .callsWithCallbacks(_message);
+            bytes[] memory callbacks = CallLib.multistaticcall(
+                callsWithCallback
             );
-            sender._multicall(resolveCallbacks);
-            emit QueryResolved(_origin, sender);
+            emit QueryExecuted(_origin, sender);
+            _dispatch(_origin, InterchainCallMessage.format(callbacks, sender));
+        } else if (calltype == InterchainCallMessage.CallType.RAW_CALLDATA) {
+            address senderAddress = sender.bytes32ToAddress();
+            bytes[] memory rawCalls = InterchainCallMessage.rawCalls(_message);
+            CallLib.multicallto(senderAddress, rawCalls);
+            //
+            emit QueryResolved(_origin, senderAddress);
+        } else {
+            assert(false);
         }
     }
 }

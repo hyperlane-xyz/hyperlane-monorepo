@@ -90,23 +90,28 @@ metricsRegister.registerMetric(walletBalanceGauge);
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 
+// Don't send the full amount over to RC keys
+const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
+const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
+
 const desiredBalancePerChain: CompleteChainMap<string> = {
-  celo: '0.1',
+  celo: '0.3',
   alfajores: '1',
-  avalanche: '0.1',
+  avalanche: '0.3',
   fuji: '1',
-  ethereum: '0.2',
-  polygon: '1',
-  mumbai: '0.5',
-  optimism: '0.05',
-  arbitrum: '0.01',
-  bsc: '0.01',
+  ethereum: '0.4',
+  polygon: '2',
+  mumbai: '0.8',
+  optimism: '0.15',
+  arbitrum: '0.1',
+  bsc: '0.05',
   bsctestnet: '1',
   goerli: '0.5',
   moonbasealpha: '1',
-  moonbeam: '0.1',
-  optimismgoerli: '0.1',
+  moonbeam: '0.5',
+  optimismgoerli: '0.3',
   arbitrumgoerli: '0.1',
+  gnosis: '0.1',
   // unused
   test1: '0',
   test2: '0',
@@ -176,7 +181,6 @@ async function main() {
       ),
     );
   } else {
-    contextFunders = [];
     const contexts = Object.keys(argv.contextsAndRoles) as Contexts[];
     contextFunders = await Promise.all(
       contexts.map((context) =>
@@ -191,10 +195,7 @@ async function main() {
 
   let failureOccurred = false;
   for (const funder of contextFunders) {
-    const failure = await funder.fund();
-    if (failure) {
-      failureOccurred = true;
-    }
+    failureOccurred ||= await funder.fund();
   }
 
   await submitMetrics(metricsRegister, 'key-funder');
@@ -295,18 +296,25 @@ class ContextFunder {
   async fund(): Promise<boolean> {
     let failureOccurred = false;
 
-    const chainKeys = this.getChainKeys();
-    await Promise.all(
-      Object.entries(chainKeys).map(async ([chain, keys]) => {
+    const promises = Object.entries(this.getChainKeys()).map(
+      async ([chain, keys]) => {
         if (keys.length > 0) {
           await this.bridgeIfL2(chain as ChainName);
         }
-        keys.forEach(async (key) => {
+        for (const key of keys) {
           const failure = await this.attemptToFundKey(key, chain as ChainName);
-          failureOccurred = failureOccurred || failure;
-        });
-      }),
+          failureOccurred ||= failure;
+        }
+      },
     );
+
+    try {
+      await Promise.all(promises);
+    } catch (e) {
+      error('Unhandled error when funding key', { error: format(e) });
+      failureOccurred = true;
+    }
+
     return failureOccurred;
   }
 
@@ -319,11 +327,18 @@ class ContextFunder {
     for (const role of this.rolesToFund) {
       const keys = this.getKeysWithRole(role);
       for (const chain of this.chains) {
-        // Relayer keys should not be funded on the origin chain.
-        const filteredKeys = keys.filter(
-          (key) => role !== KEY_ROLE_ENUM.Relayer || key.chainName !== chain,
-        );
-        chainKeys[chain] = filteredKeys;
+        if (role === KEY_ROLE_ENUM.Relayer) {
+          // Relayer keys should not be funded on the origin chain
+          for (const remote of this.chains) {
+            chainKeys[remote] = chainKeys[remote].concat(
+              keys.filter(
+                (_) => _.chainName !== remote && _.chainName === chain,
+              ),
+            );
+          }
+        } else {
+          chainKeys[chain] = chainKeys[chain].concat(keys);
+        }
       }
     }
     return chainKeys;
@@ -373,7 +388,6 @@ class ContextFunder {
       // on L1 gas.
       const bridgeAmount = await this.getFundingAmount(
         chainConnection,
-        chain,
         funderAddress,
         desiredBalanceEther.mul(10),
       );
@@ -385,7 +399,6 @@ class ContextFunder {
 
   private async getFundingAmount(
     chainConnection: ChainConnection,
-    chain: ChainName,
     address: string,
     desiredBalance: BigNumber,
   ): Promise<BigNumber> {
@@ -409,11 +422,17 @@ class ContextFunder {
       desiredBalance,
       'ether',
     );
+    const adjustedDesiredBalance =
+      this.context === Contexts.ReleaseCandidate
+        ? desiredBalanceEther
+            .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
+            .div(RC_FUNDING_DISCOUNT_DENOMINATOR)
+        : desiredBalanceEther;
+
     const fundingAmount = await this.getFundingAmount(
       chainConnection,
-      chain,
       key.address,
-      desiredBalanceEther,
+      adjustedDesiredBalance,
     );
     const keyInfo = await getKeyInfo(key, chain, chainConnection);
     const funderAddress = await chainConnection.getAddress()!;

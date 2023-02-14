@@ -43,7 +43,7 @@ pub struct SponsoredCallApiCallResult {
 impl<'a> SponsoredCallApiCall<'a> {
     #[instrument]
     pub async fn run(self) -> eyre::Result<SponsoredCallApiCallResult> {
-        let url = format!("{}/relays/v2/sponsored-call", RELAY_URL);
+        let url = format!("{RELAY_URL}/relays/v2/sponsored-call");
         let http_args = HTTPArgs {
             args: self.args,
             sponsor_api_key: self.sponsor_api_key,

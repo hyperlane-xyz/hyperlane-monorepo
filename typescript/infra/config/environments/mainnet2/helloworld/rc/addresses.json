@@ -1,0 +1,29 @@
+{
+  "gnosis": {
+    "router": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a"
+  },
+  "bsc": {
+    "router": "0xe5554478F167936dB253f79f57c41770bfa00Bae"
+  },
+  "avalanche": {
+    "router": "0xe1De9910fe71cC216490AC7FCF019e13a34481D7"
+  },
+  "polygon": {
+    "router": "0xAb65C41a1BC580a52f0b166879122EFdce0cB868"
+  },
+  "celo": {
+    "router": "0xfE29f6a4468536029Fc9c97d3a9669b9fe38E114"
+  },
+  "arbitrum": {
+    "router": "0x414B67F62b143d6db6E9b633168Dd6fd4DA20642"
+  },
+  "optimism": {
+    "router": "0xB4caf2CA864B413DAA502fA18A8D48cD0740fC52"
+  },
+  "ethereum": {
+    "router": "0xed31c20c5517EaC05decD5F6dCd01Fe6d16fD09D"
+  },
+  "moonbeam": {
+    "router": "0x3eB9eE2CFC8DCB6F58B5869D33336CFcBf1dC354"
+  }
+}

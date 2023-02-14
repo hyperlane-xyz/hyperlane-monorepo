@@ -62,5 +62,19 @@
       "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c70000000000000000000000000de86327fbfd04c4ea11dc0f270da6083534c2582",
       "isProxy": false
     }
+  ],
+  "gnosis": [
+    {
+      "name": "HelloWorld",
+      "address": "0xBC9cd961BF6c224FAc51fb049aB6788e38e4A9C0",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
+    },
+    {
+      "name": "router",
+      "address": "0x182E8d7c5F1B06201b102123FC7dF0EaeB445a7B",
+      "constructorArguments": "00000000000000000000000035231d4c2d8b8adcb5617a638a0c4548684c7c7000000000000000000000000056f52c0a1ddcd557285f7cbc782d3d83096ce1cc",
+      "isProxy": false
+    }
   ]
 }
