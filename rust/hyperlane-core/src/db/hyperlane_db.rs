@@ -15,7 +15,7 @@ static MESSAGE: &str = "message_";
 static LATEST_NONCE: &str = "latest_known_nonce_";
 static LATEST_NONCE_FOR_DESTINATION: &str = "latest_known_nonce_for_destination_";
 static NONCE_PROCESSED: &str = "nonce_processed_";
-static GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_";
+static GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
 static GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_";
 
 type Result<T> = std::result::Result<T, DbError>;
