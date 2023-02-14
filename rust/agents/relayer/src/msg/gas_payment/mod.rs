@@ -31,38 +31,40 @@ pub trait GasPaymentPolicy: Debug + Send + Sync {
 
 #[derive(Debug)]
 pub struct GasPaymentEnforcer {
-    policy: Box<dyn GasPaymentPolicy>,
-    /// A whitelist, where any matching message is considered
-    /// as having met the gas payment requirement, even if it doesn't
-    /// satisfy the policy.
-    whitelist: MatchingList,
+    /// List of policies and a whitelist to decide if it should be used for a
+    /// given transaction. It is highly recommended to have the last policy
+    /// use a wild-card white list to ensure all messages fall into one
+    /// policy or another. If a message matches multiple policies'
+    /// whitelists, then whichever is first in the list will be used.
+    policies: Vec<(Box<dyn GasPaymentPolicy>, MatchingList)>,
     db: HyperlaneDB,
 }
 
 impl GasPaymentEnforcer {
     pub fn new(
-        policy_config: GasPaymentEnforcementPolicy,
-        whitelist: MatchingList,
+        policy_configs: impl IntoIterator<Item = (GasPaymentEnforcementPolicy, MatchingList)>,
         db: HyperlaneDB,
     ) -> Self {
-        let policy: Box<dyn GasPaymentPolicy> = match policy_config {
-            GasPaymentEnforcementPolicy::None => Box::new(GasPaymentPolicyNone::new()),
-            GasPaymentEnforcementPolicy::Minimum { payment } => {
-                Box::new(GasPaymentPolicyMinimum::new(payment))
-            }
-            GasPaymentEnforcementPolicy::MeetsEstimatedCost { coingeckoapikey } => {
-                Box::new(GasPaymentPolicyMeetsEstimatedCost::new(coingeckoapikey))
-            }
-            GasPaymentEnforcementPolicy::OnChainFeeQuoting => {
-                Box::new(GasPaymentPolicyOnChainFeeQuoting)
-            }
-        };
+        let policies = policy_configs
+            .into_iter()
+            .map(|(policy, whitelist)| {
+                let p: Box<dyn GasPaymentPolicy> = match policy {
+                    GasPaymentEnforcementPolicy::None => Box::new(GasPaymentPolicyNone::new()),
+                    GasPaymentEnforcementPolicy::Minimum { payment } => {
+                        Box::new(GasPaymentPolicyMinimum::new(payment))
+                    }
+                    GasPaymentEnforcementPolicy::MeetsEstimatedCost { coingeckoapikey } => {
+                        Box::new(GasPaymentPolicyMeetsEstimatedCost::new(coingeckoapikey))
+                    }
+                    GasPaymentEnforcementPolicy::OnChainFeeQuoting => {
+                        Box::new(GasPaymentPolicyOnChainFeeQuoting)
+                    }
+                };
+                (p, whitelist)
+            })
+            .collect();
 
-        Self {
-            policy,
-            whitelist,
-            db,
-        }
+        Self { policies, db }
     }
 }
 
@@ -75,17 +77,16 @@ impl GasPaymentEnforcer {
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
         let current_payment = self.get_message_gas_payment(message.id())?;
-
-        // If the message matches the whitelist, consider it as meeting the gas payment requirement
-        if self.whitelist.msg_matches(message, false) {
-            /// TODO: use a policy list and then whitelist by policy?
-            return Ok((true, current_payment));
+        for (policy, whitelist) in &self.policies {
+            if !whitelist.msg_matches(message, true) {
+                continue;
+            }
+            return policy
+                .message_meets_gas_payment_requirement(message, &current_payment, tx_cost_estimate)
+                .await;
         }
 
-        self
-            .policy
-            .message_meets_gas_payment_requirement(message, &current_payment, tx_cost_estimate)
-            .await
+        panic!("No gas payment policy matched for message; consider adding a default policy to the end of the policies array which uses a wildcard whitelist. {message:?}")
     }
 
     fn get_message_gas_payment(&self, msg_id: H256) -> Result<InterchainGasPayment, DbError> {
@@ -111,16 +112,17 @@ mod test {
 
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
-                GasPaymentEnforcementPolicy::Minimum {
-                    payment: U256::one(),
-                },
-                // Empty whitelist
-                MatchingList::default().into(),
+                vec![(
+                    GasPaymentEnforcementPolicy::Minimum {
+                        payment: U256::one(),
+                    },
+                    MatchingList::default(),
+                )],
                 hyperlane_db,
             );
 
-            // Ensure that message without any payment is considered as not meeting the requirement
-            // because it doesn't match the GasPaymentEnforcementPolicy or whitelist
+            // Ensure that message without any payment is considered as not meeting the
+            // requirement because it doesn't match the GasPaymentEnforcementPolicy
             assert_eq!(
                 enforcer
                     .message_meets_gas_payment_requirement(
@@ -129,8 +131,37 @@ mod test {
                     )
                     .await
                     .unwrap(),
-                (false, U256::zero())
+                None
             );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    #[should_panic]
+    async fn test_no_whitelist_match() {
+        #[allow(unused_must_use)]
+        test_utils::run_test_db(|db| async move {
+            let hyperlane_db = HyperlaneDB::new("mailbox", db);
+
+            let Ok(matching_list) = serde_json::from_str(r#"[{"originDomain": 234}]"#) else {
+                // weird, but don't panic since then the test will pass by accident
+                eprintln!("Failed to parse matching list");
+                return
+            };
+
+            let enforcer = GasPaymentEnforcer::new(
+                // Require a payment
+                vec![(GasPaymentEnforcementPolicy::None, matching_list)],
+                hyperlane_db,
+            );
+
+            enforcer
+                .message_meets_gas_payment_requirement(
+                    &HyperlaneMessage::default(),
+                    &TxCostEstimate::default(),
+                )
+                .await;
         })
         .await;
     }
@@ -143,17 +174,25 @@ mod test {
             let sender_address = "0xaa000000000000000000000000000000000000aa";
             let recipient_address = "0xbb000000000000000000000000000000000000bb";
 
+            let matching_list = serde_json::from_str(
+                &format!(r#"[{{"senderAddress": "{sender_address}", "recipientAddress": "{recipient_address}"}}]"#)
+            ).unwrap();
+
             let enforcer = GasPaymentEnforcer::new(
-                // Require a payment
-                GasPaymentEnforcementPolicy::Minimum {
-                    payment: U256::one(),
-                },
-                // Whitelist
-                serde_json::from_str(&format!(
-                    r#"[{{"senderAddress": "{}", "recipientAddress": "{}"}}]"#,
-                    sender_address, recipient_address,
-                ))
-                .unwrap(),
+                vec![
+                    (
+                        // No payment for special cases
+                        GasPaymentEnforcementPolicy::None,
+                        matching_list,
+                    ),
+                    (
+                        // All other messages must pass a minimum
+                        GasPaymentEnforcementPolicy::Minimum {
+                            payment: U256::one(),
+                        },
+                        MatchingList::default(),
+                    ),
+                ],
                 hyperlane_db,
             );
 
@@ -166,18 +205,16 @@ mod test {
                 ..HyperlaneMessage::default()
             };
 
-            // The message should meet the requirement because it's on the whitelist, even
-            // though it has no payment and doesn't satisfy the GasPaymentEnforcementPolicy
-            assert_eq!(
-                enforcer
-                    .message_meets_gas_payment_requirement(
-                        &matching_message,
-                        &TxCostEstimate::default(),
-                    )
-                    .await
-                    .unwrap(),
-                (true, U256::zero())
-            );
+            // The message should meet the requirement because it's on the whitelist for the first
+            // policy, even though it would not pass the second (default) policy.
+            assert!(enforcer
+                .message_meets_gas_payment_requirement(
+                    &matching_message,
+                    &TxCostEstimate::default(),
+                )
+                .await
+                .unwrap()
+                .is_some());
 
             // Switch the sender & recipient
             let not_matching_message = HyperlaneMessage {
@@ -186,18 +223,16 @@ mod test {
                 ..HyperlaneMessage::default()
             };
 
-            // The message should not meet the requirement because it's NOT on the whitelist and
-            // doesn't satisfy the GasPaymentEnforcementPolicy
-            assert_eq!(
-                enforcer
-                    .message_meets_gas_payment_requirement(
-                        &not_matching_message,
-                        &TxCostEstimate::default(),
-                    )
-                    .await
-                    .unwrap(),
-                (false, U256::zero())
-            );
+            // The message should not meet the requirement because it's NOT on the first whitelist
+            // and doesn't satisfy the GasPaymentEnforcementPolicy
+            assert!(enforcer
+                .message_meets_gas_payment_requirement(
+                    &not_matching_message,
+                    &TxCostEstimate::default(),
+                )
+                .await
+                .unwrap()
+                .is_none());
         })
         .await;
     }

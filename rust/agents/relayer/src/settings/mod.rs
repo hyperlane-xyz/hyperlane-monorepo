@@ -46,7 +46,7 @@ decl_settings!(Relayer {
     // will be used, excluding the origin chain.
     destinationchainnames: Option<String>,
     /// The gas payment enforcement configuration
-    gaspaymentenforcement: GasPaymentEnforcementConfig,
+    gaspaymentenforcement: Vec<GasPaymentEnforcementConfig>,
     /// This is optional. If no whitelist is provided ALL messages will be considered on the
     /// whitelist.
     whitelist: Option<String>,

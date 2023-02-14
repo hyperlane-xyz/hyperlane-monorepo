@@ -134,8 +134,8 @@ impl SponsoredCallOp {
 
         // Send the sponsored call.
         let sponsored_call_result = self
-                .send_sponsored_call_api_call(&metadata, gas_limit)
-                .await?;
+            .send_sponsored_call_api_call(&metadata, gas_limit)
+            .await?;
         info!(
             message=?self.message,
             task_id=sponsored_call_result.task_id,
