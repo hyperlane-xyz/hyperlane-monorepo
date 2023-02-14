@@ -23,7 +23,7 @@ export interface ChainMetadata {
   domainId?: number;
   name: ChainName;
   /** Human-readable name */
-  displayName: string;
+  displayName?: string;
   /** Shorter human-readable name */
   displayNameShort?: string;
   /** Default currency/token used by chain */

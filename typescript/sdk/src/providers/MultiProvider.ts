@@ -16,27 +16,23 @@ import {
 } from '../consts/chainMetadata';
 import { CoreChainName, TestChains } from '../consts/chains';
 import { ChainMap, ChainName } from '../types';
-import { pick } from '../utils/objects';
+import { objMap, pick } from '../utils/objects';
 
 type Provider = providers.Provider;
 
-interface Params {
-  chainMetadata?: ChainMap<ChainMetadata>;
-  providers?: ChainMap<Provider>;
-  signers?: ChainMap<Signer>;
-}
-
 export class MultiProvider {
-  public readonly metadata: ChainMap<ChainMetadata>;
-  private readonly providers: ChainMap<Provider>;
-  private readonly signers: ChainMap<Signer>;
-  private readonly logger: Debugger;
+  public readonly metadata: ChainMap<ChainMetadata> = {};
+  private readonly providers: ChainMap<Provider> = {};
+  private readonly signers: ChainMap<Signer> = {};
+  private readonly logger: Debugger = debug('hyperlane:MultiProvider');
+  private sharedSigner: Signer | null = null; // A single signer to be used for all chains
 
-  constructor({ chainMetadata, providers, signers }: Params = {}) {
-    this.metadata = chainMetadata ?? defaultChainMetadata;
-    this.providers = providers ?? {};
-    this.signers = signers ?? {};
-    this.logger = debug('hyperlane:MultiProvider');
+  /**
+   * Create a new MultiProvider with the given chainMetadata,
+   * or the SDK's default metadata if not provided
+   */
+  constructor(chainMetadata: ChainMap<ChainMetadata> = defaultChainMetadata) {
+    this.metadata = chainMetadata;
   }
 
   /**
@@ -184,7 +180,7 @@ export class MultiProvider {
       );
     }
 
-    return this.providers[name] ?? null;
+    return this.providers[name];
   }
 
   /**
@@ -209,22 +205,50 @@ export class MultiProvider {
   }
 
   /**
-   * Get an Ethers signer for a given chain name or chain id
+   * Sets Ethers providers for a set of chains
+   * @throws if chain's metadata has not been set
    */
-  tryGetSigner(chainNameOrId: ChainName | number): Signer | null {
-    const chainName = this.tryGetChainName(chainNameOrId);
-    if (chainName && this.signers[chainName]) return this.signers[chainName];
-    return null;
+  setProviders(providers: ChainMap<Provider>): void {
+    for (const chain of Object.keys(providers)) {
+      const chainName = this.getChainName(chain);
+      this.providers[chainName] = providers[chain];
+    }
   }
 
   /**
    * Get an Ethers signer for a given chain name or chain id
+   * If signer is not yet connected, it will be connected
+   */
+  tryGetSigner(chainNameOrId: ChainName | number): Signer | null {
+    const chainName = this.tryGetChainName(chainNameOrId);
+    if (!chainName) return null;
+
+    // Prefer shared signer if one has been set
+    if (this.sharedSigner) {
+      const provider = this.tryGetProvider(chainName);
+      return provider ? this.sharedSigner.connect(provider) : this.sharedSigner;
+    }
+
+    // Otherwise check the chain-to-signer map
+    let signer = this.signers[chainName];
+    if (!signer) return null;
+    if (!signer.provider) {
+      // Auto-connect the signer for convenience
+      const provider = this.tryGetProvider(chainName);
+      signer = provider ? signer.connect(provider) : signer;
+    }
+    return signer;
+  }
+
+  /**
+   * Get an Ethers signer for a given chain name or chain id
+   * If signer is not yet connected, it will be connected
    * @throws if chain's metadata or signer has not been set
    */
   getSigner(chainNameOrId: ChainName | number): Signer {
-    const chainName = this.getChainName(chainNameOrId);
-    if (this.signers[chainName]) return this.signers[chainName];
-    else throw new Error(`No chain signer set for ${chainNameOrId}`);
+    const signer = this.tryGetSigner(chainNameOrId);
+    if (!signer) throw new Error(`No chain signer set for ${chainNameOrId}`);
+    return signer;
   }
 
   /**
@@ -241,12 +265,58 @@ export class MultiProvider {
 
   /**
    * Sets an Ethers Signer for a given chain name or chain id
-   * @throws if chain's metadata has not been set
+   * @throws if chain's metadata has not been set or shared signer has already been set
    */
   setSigner(chainNameOrId: ChainName | number, signer: Signer): Signer {
+    if (this.sharedSigner) {
+      throw new Error('MultiProvider already set to use a shared signer');
+    }
     const chainName = this.getChainName(chainNameOrId);
     this.signers[chainName] = signer;
+    if (signer.provider && !this.providers[chainName]) {
+      this.providers[chainName] = signer.provider;
+    }
     return signer;
+  }
+
+  /**
+   * Sets Ethers Signers for a set of chains
+   * @throws if chain's metadata has not been set or shared signer has already been set
+   */
+  setSigners(signers: ChainMap<Signer>): void {
+    if (this.sharedSigner) {
+      throw new Error('MultiProvider already set to use a shared signer');
+    }
+    for (const chain of Object.keys(signers)) {
+      const chainName = this.getChainName(chain);
+      this.signers[chainName] = signers[chain];
+    }
+  }
+
+  /**
+   * Gets the shared Ethers Signers used for all chains
+   * @throws if shared signer has not been set
+   */
+  tryGetSharedSigner(): Signer | null {
+    return this.sharedSigner;
+  }
+
+  /**
+   * Gets the shared Ethers Signers used for all chains
+   * @throws if shared signer has not been set
+   */
+  getSharedSigner(): Signer {
+    if (this.sharedSigner) return this.sharedSigner;
+    else throw new Error('Shared signer has not been set');
+  }
+
+  /**
+   * Sets Ethers Signers to be used for all chains
+   * Any subsequent calls to getSigner will return given signer
+   */
+  setSharedSigner(sharedSigner: Signer): Signer {
+    this.sharedSigner = sharedSigner;
+    return sharedSigner;
   }
 
   /**
@@ -282,12 +352,16 @@ export class MultiProvider {
     const intersectionMetadata = pick(this.metadata, intersection);
     const intersectionProviders = pick(this.providers, intersection);
     const intersectionSigners = pick(this.signers, intersection);
+    const metadataWithConnection = objMap(
+      intersectionMetadata,
+      (chainName, metadata) => ({
+        ...metadata,
+        provider: intersectionProviders[chainName],
+        signer: intersectionSigners[chainName],
+      }),
+    );
 
-    const multiProvider = new MultiProvider({
-      chainMetadata: intersectionMetadata,
-      providers: intersectionProviders,
-      signers: intersectionSigners,
-    });
+    const multiProvider = new MultiProvider(metadataWithConnection);
     return { intersection, multiProvider };
   }
 
@@ -424,12 +498,9 @@ export class MultiProvider {
    * Creates a MultiProvider using the given signer for all test networks
    */
   static createTestMultiProvider(signer: Signer): MultiProvider {
-    const metadata = pick(defaultChainMetadata, TestChains);
-    const signers: ChainMap<Signer> = {};
-    TestChains.forEach((t) => (signers[t] = signer));
-    return new MultiProvider({
-      chainMetadata: metadata,
-      signers,
-    });
+    const chainMetadata = pick(defaultChainMetadata, TestChains);
+    const mp = new MultiProvider(chainMetadata);
+    mp.setSharedSigner(signer);
+    return mp;
   }
 }

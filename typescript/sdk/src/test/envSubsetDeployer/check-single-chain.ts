@@ -11,7 +11,6 @@ import {
   alfajoresChainConfig,
   envSubsetFactories,
 } from './app';
-import { getAlfajoresProvider } from './utils';
 
 // Copied from output of deploy-single-chain.ts script
 const deploymentAddresses = {
@@ -23,12 +22,8 @@ const deploymentAddresses = {
 const ownerAddress = '0x35b74Ed5038bf0488Ff33bD9819b9D12D10A7560';
 
 async function check() {
-  const provider = getAlfajoresProvider();
-
   console.info('Preparing utilities');
-  const multiProvider = new MultiProvider({
-    providers: { alfajores: provider },
-  });
+  const multiProvider = new MultiProvider();
 
   const contractsMap = buildContracts(
     deploymentAddresses,

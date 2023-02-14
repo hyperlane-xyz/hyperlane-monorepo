@@ -6,7 +6,7 @@ import { CoreChainName, Testnets } from '../consts/chains';
 export function chainMetadataToWagmiChain(metadata: ChainMetadata): WagmiChain {
   return {
     id: metadata.chainId,
-    name: metadata.displayName,
+    name: metadata.displayName || metadata.name,
     network: metadata.name as string,
     nativeCurrency: metadata.nativeToken || etherToken,
     rpcUrls: {

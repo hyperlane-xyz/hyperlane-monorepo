@@ -1,3 +1,4 @@
+import { Chains } from '../../consts/chains';
 import { serializeContracts } from '../../contracts';
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { getChainToOwnerMap } from '../../deploy/utils';
@@ -10,10 +11,8 @@ async function main() {
   const signer = getAlfajoresSigner();
 
   console.info('Preparing utilities');
-  const multiProvider = new MultiProvider({
-    providers: { alfajores: signer.provider },
-    signers: { alfajores: signer },
-  });
+  const multiProvider = new MultiProvider();
+  multiProvider.setSigner(Chains.alfajores, signer);
 
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
   const config = core.extendWithConnectionClientConfig(
