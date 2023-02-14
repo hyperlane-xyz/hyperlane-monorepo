@@ -1,35 +1,41 @@
-import { chainConnectionConfigs } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainMetadata, chainMetadata } from '@hyperlane-xyz/sdk';
 
-export const mainnetConfigs = {
+export const mainnetConfigs: ChainMap<ChainMetadata> = {
   bsc: {
-    ...chainConnectionConfigs.bsc,
-    overrides: {
+    ...chainMetadata.bsc,
+    transactionOverrides: {
       gasPrice: 7 * 10 ** 9, // 7 gwei
     },
   },
-  avalanche: chainConnectionConfigs.avalanche,
+  avalanche: chainMetadata.avalanche,
   polygon: {
-    ...chainConnectionConfigs.polygon,
-    confirmations: 3,
-    overrides: {
+    ...chainMetadata.polygon,
+    blocks: {
+      ...chainMetadata.polygon.blocks,
+      confirmations: 3,
+    },
+    transactionOverrides: {
       maxFeePerGas: 500 * 10 ** 9, // 500 gwei
       maxPriorityFeePerGas: 100 * 10 ** 9, // 100 gwei
       // gasPrice: 50 * 10 ** 9, // 50 gwei
     },
   },
-  celo: chainConnectionConfigs.celo,
-  arbitrum: chainConnectionConfigs.arbitrum,
-  optimism: chainConnectionConfigs.optimism,
+  celo: chainMetadata.celo,
+  arbitrum: chainMetadata.arbitrum,
+  optimism: chainMetadata.optimism,
   ethereum: {
-    ...chainConnectionConfigs.ethereum,
-    confirmations: 3,
-    overrides: {
+    ...chainMetadata.ethereum,
+    blocks: {
+      ...chainMetadata.ethereum.blocks,
+      confirmations: 3,
+    },
+    transactionOverrides: {
       maxFeePerGas: 150 * 10 ** 9, // gwei
       maxPriorityFeePerGas: 5 * 10 ** 9, // gwei
     },
   },
-  moonbeam: chainConnectionConfigs.moonbeam,
-  gnosis: chainConnectionConfigs.gnosis,
+  moonbeam: chainMetadata.moonbeam,
+  gnosis: chainMetadata.gnosis,
 };
 
 export type MainnetChains = keyof typeof mainnetConfigs;

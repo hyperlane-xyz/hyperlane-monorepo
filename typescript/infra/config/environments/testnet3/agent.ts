@@ -95,7 +95,7 @@ export const releaseCandidate: AgentConfig<TestnetChains> = {
       transactionGasLimit: BigInt(750000),
       // Skipping arbitrum because the gas price estimates are inclusive of L1
       // fees which leads to wildly off predictions.
-      skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.id],
+      skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.chainId],
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],
