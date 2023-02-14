@@ -212,4 +212,4 @@ const MISSING_URL_CTX: &str = concat!(
     "(2) `url` is used for connection types that only accept a single url like `http` and `urls` is used for connection type that accept multiple like `httpQuorum` and `httpFallback`"
 );
 
-const MISSING_DB_CTX: &str = concat!(str_lits!(bp), " (1) `db` config string is specified");
+const MISSING_DB_CTX: &str = concat!(str_lits!(bp), "(1) `db` config string is specified");
