@@ -92,7 +92,6 @@ contract AggregationIsmTest is Test {
                 offsets = bytes.concat(offsets, abi.encodePacked(offset));
             }
         }
-        console.logBytes(abi.encodePacked(offsets));
         return abi.encodePacked(n, ism.values(domain), offsets, metametadata);
     }
 
