@@ -74,21 +74,26 @@ contract AggregationIsmTest is Test {
         bytes32 seed
     ) private view returns (bytes memory) {
         uint256 bitmask = choose(m, n, seed);
-        uint256[] memory pointers = new uint256[](n);
-        uint256 start = 1 + (64 * uint256(n));
+        bytes memory offsets;
+        uint32 start = 1 + ((32 + 8) * uint32(n));
         bytes memory metametadata;
         for (uint256 i = 0; i < n; i++) {
             bool chosen = (bitmask & (1 << i)) > 0;
             if (chosen) {
                 bytes memory requiredMetadata = TestIsm(ism.values(domain)[i])
                     .requiredMetadata();
-                uint256 end = start + requiredMetadata.length;
-                pointers[i] = uint256((start << 128) | end);
+                uint32 end = start + uint32(requiredMetadata.length);
+                uint64 offset = (uint64(start) << 32) | uint64(end);
+                offsets = bytes.concat(offsets, abi.encodePacked(offset));
                 start = end;
                 metametadata = abi.encodePacked(metametadata, requiredMetadata);
+            } else {
+                uint64 offset = 0;
+                offsets = bytes.concat(offsets, abi.encodePacked(offset));
             }
         }
-        return abi.encodePacked(n, ism.values(domain), pointers, metametadata);
+        console.logBytes(abi.encodePacked(offsets));
+        return abi.encodePacked(n, ism.values(domain), offsets, metametadata);
     }
 
     function testVerify(
