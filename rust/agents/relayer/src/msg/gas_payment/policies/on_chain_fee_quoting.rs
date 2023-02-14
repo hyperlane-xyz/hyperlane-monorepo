@@ -10,8 +10,6 @@ pub struct GasPaymentPolicyOnChainFeeQuoting;
 
 #[async_trait]
 impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
-    /// Returns (gas payment requirement met, current payment according to the
-    /// DB)
     async fn message_meets_gas_payment_requirement(
         &self,
         _message: &HyperlaneMessage,
