@@ -8,7 +8,7 @@ contract MockMailbox {
     using TypeCasts for address;
     using TypeCasts for bytes32;
     // Domain of chain on which the contract is deployed
-    
+
     // ============ Constants ============
     uint32 public immutable localDomain;
     uint32 public immutable VERSION = 0;
