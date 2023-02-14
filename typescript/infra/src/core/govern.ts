@@ -213,15 +213,16 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     const signer = this.checker.multiProvider.getChainSigner(chain);
     const signerAddress = await signer.getAddress();
 
+    const getContractOwner = async (): Promise<types.Address> => {
+      const ownable = Ownable__factory.connect(call.to, signer);
+      return ownable.owner();
+    };
+
     // 1. Assess whether the default signer can be used
     // If onlyCheckOwnership is true, check if the signer is the owner of
     // the contract.
-    let contractOwner: types.Address | undefined;
     if (call.onlyCheckOwnership) {
-      const ownable = Ownable__factory.connect(call.to, signer);
-      contractOwner = await ownable.owner();
-
-      if (eqAddress(signerAddress, contractOwner)) {
+      if (eqAddress(signerAddress, await getContractOwner())) {
         return SubmissionType.SIGNER;
       }
     } else {
@@ -252,12 +253,10 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
 
     // 2b. Check if calling from the owner/safeAddress will succeed.
     if (this.canPropose[chain].get(safeAddress)) {
-      // If onlyCheckOwnership is true, we expect the contractOwner
-      // to have already been set, and just check that the safeAddress
-      // is the contractOwner
+      // If onlyCheckOwnership is true, just check that the safeAddress
+      // is the contract owner
       if (call.onlyCheckOwnership) {
-        if (!contractOwner) throw new Error('Expected contractOwner to be set');
-        if (eqAddress(safeAddress, contractOwner)) {
+        if (eqAddress(safeAddress, await getContractOwner())) {
           return SubmissionType.SAFE;
         }
       } else {
