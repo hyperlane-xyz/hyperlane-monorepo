@@ -133,8 +133,9 @@ const MISSING_ENV_CTX: &str = concat!(
 const MISSING_NAME_CTX: &str = concat!(
     str_lits!(bp),
     "(1) the `chains` config value is set and spelled correctly ",
-    "(2) all expected chains are present in the `chains` object; ", str_lits!(env), " ",
-    "(3) all chains are correctly named e.g. `chains.alfajores` being misspelled may lead to `chains.alfajores.name` not being found"
+    "(2) a connection URL may have been specified for a chain that is not fully configured, e.g. `HYP_BASE_CHAINS_ALFAJORES_CONNECTION_URL` ",
+    "(3) ", str_lits!(env), " ",
+    "(4) all chains are correctly named e.g. `chains.alfajores` being misspelled may lead to `chains.alfajores.name` not being found"
 );
 
 const MISSING_DOMAIN_CTX: &str = concat!(
