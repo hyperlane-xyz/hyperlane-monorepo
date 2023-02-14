@@ -175,6 +175,8 @@ export class HyperlaneCoreChecker<
 
     // Construct the violation, updating the actual & expected
     // objects as violations are found.
+    // A single violation is used so that only a single `setGasOracles`
+    // call is generated to set multiple gas oracles.
     const gasOraclesViolation: IgpGasOraclesViolation = {
       type: CoreViolationType.InterchainGasPaymaster,
       subType: IgpViolationType.GasOracles,
@@ -189,7 +191,7 @@ export class HyperlaneCoreChecker<
     // must be upgraded, so we just consider the mapping as unset and default
     // to address(0) for all gas oracles.
     // Note that it's important that `checkProxiedContracts` is called before
-    // checkInterchainGasPaymaster - this way, the govern script will first
+    // `checkInterchainGasPaymaster` - this way, the govern script will first
     // change the IGP proxy to use the correct new implementation, and the
     // IgpGasOraclesViolation will be able to be correctly handled.
     const getCurrentGasOracle = async (
@@ -214,7 +216,7 @@ export class HyperlaneCoreChecker<
         gasOraclesViolation.expected[remoteChain] = expectedGasOracle;
       }
     }
-    // Add the violation only if it's been populated with actual & expected values
+    // Add the violation only if it's been populated with gas oracle inconsistencies
     if (Object.keys(gasOraclesViolation.actual).length > 0) {
       this.addViolation(gasOraclesViolation);
     }

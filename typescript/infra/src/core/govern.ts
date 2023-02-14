@@ -384,7 +384,8 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
           description: `Setting ${descriptions.join(', ')}`,
           // We expect this to be ran when the IGP implementation is being set
           // in a prior call. This means that any attempts to estimate gas will
-          // be unsuccessful, so for now we settle for only checking ownership
+          // be unsuccessful, so for now we settle for only checking ownership.
+          // TODO: once the IGP contract upgrade has been performed, consider removing this
           onlyCheckOwnership: true,
         });
         break;
