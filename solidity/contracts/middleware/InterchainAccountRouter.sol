@@ -23,21 +23,24 @@ contract InterchainAccountRouter is
     HyperlaneConnectionClient,
     IInterchainAccountRouter
 {
+    // ============ Libraries ============
+
     using TypeCasts for address;
     using TypeCasts for bytes32;
 
-    struct InterchainAccountConfig {
-        bytes32 router;
-        bytes32 ism;
-    }
+    // ============ Constants ============
 
     address internal immutable implementation;
     bytes32 internal immutable bytecodeHash;
+
+    // ============ Public Storage ============
 
     // Maps destination domain to global default configs
     mapping(uint32 => InterchainAccountConfig) globalDefaults;
     // Maps user address to overrides for global default configs
     mapping(address => mapping(uint32 => InterchainAccountConfig)) userDefaults;
+
+    // ============ Events ============
 
     /**
      * @notice Emitted when an interchain account is created (first time message is sent from a given `origin`/`sender` pair)
@@ -51,6 +54,8 @@ contract InterchainAccountRouter is
         address account
     );
 
+    // ============ Constructor ============
+
     /**
      * @notice Constructor deploys a relay (OwnableMulticall.sol) contract that will be cloned for each interchain account.
      */
@@ -60,6 +65,8 @@ contract InterchainAccountRouter is
         bytes memory bytecode = MinimalProxy.bytecode(implementation);
         bytecodeHash = keccak256(bytecode);
     }
+
+    // ============ Initializers ============
 
     /**
      * @notice Initializes the Router contract with Hyperlane core contracts and the address of the interchain security module.
@@ -81,6 +88,8 @@ contract InterchainAccountRouter is
             _owner
         );
     }
+
+    // ============ External Functions ============
 
     /**
      * @notice Dispatches a sequence of remote calls to be made by a sender's
@@ -131,21 +140,27 @@ contract InterchainAccountRouter is
             );
     }
 
-    function _getInterchainAccountConfig(
-        address _sender,
-        uint32 _destinationDomain
-    ) private returns (InterchainAccountConfig storage) {
-        InterchainAccountConfig storage _userDefault = userDefaults[_sender][
-            _destinationDomain
-        ];
-        if (_userDefault.router != bytes32(0)) {
-            return _userDefault;
-        }
-        return globalDefaults[_destinationDomain];
+    /**
+     * @notice Handles dispatched messages by relaying calls to the interchain account.
+     * @param _origin The origin domain of the interchain account.
+     * @param _message The ABI-encoded message containing the sender and the sequence of calls to be relayed.
+     */
+    function handle(
+        uint32 _origin,
+        bytes32, // router sender
+        bytes calldata _message
+    ) external {
+        OwnableMulticall interchainAccount = _getDeployedInterchainAccount(
+            _origin,
+            InterchainAccountMessage.owner(_message),
+            InterchainAccountMessage.ismAddress(_message)
+        );
+        interchainAccount.proxyCalls(InterchainAccountMessage.calls(_message));
     }
 
     /**
-     * @notice Returns the address of the interchain account deployed on the current chain for a given `origin`/`sender` pair.
+     * @notice Returns the address of the interchain account deployed on the
+     * local chain.
      * @param _origin The origin domain of the interchain account.
      * @param _sender The parent account address on the origin domain.
      * @return The address of the interchain account.
@@ -154,32 +169,24 @@ contract InterchainAccountRouter is
         uint32 _origin,
         bytes32 _sender,
         address _ism
-    ) public view returns (address payable) {
-        return
-            _getInterchainAccountAddress(
-                _salt(_origin, _sender, _ism.addressToBytes32())
-            );
+    ) external view returns (address payable) {
+        return _getInterchainAccount(_salt(_origin, _sender, _ism));
     }
 
-    function getInterchainAccount(uint32 _origin, address _sender)
-        external
-        view
-        returns (address payable)
-    {
-        return getInterchainAccount(_origin, _sender.addressToBytes32());
-    }
+    // ============ Private Functions ============
 
     /**
-     * @notice Returns and deploys (if not already) the interchain account for a given `origin`/`sender` pair.
+     * @notice Returns and deploys (if not already) an interchain account
      * @param _origin The origin domain of the interchain account.
      * @param _sender The parent account address on the origin domain.
      * @return The address of the interchain account.
      */
-    function getDeployedInterchainAccount(uint32 _origin, bytes32 _sender)
-        public
-        returns (OwnableMulticall)
-    {
-        bytes32 salt = _salt(_origin, _sender);
+    function _getDeployedInterchainAccount(
+        uint32 _origin,
+        bytes32 _sender,
+        address _ism
+    ) private returns (OwnableMulticall) {
+        bytes32 salt = _salt(_origin, _sender, _ism);
         address payable interchainAccount = _getInterchainAccount(salt);
         if (!Address.isContract(interchainAccount)) {
             bytes memory bytecode = MinimalProxy.bytecode(implementation);
@@ -191,12 +198,17 @@ contract InterchainAccountRouter is
         return OwnableMulticall(interchainAccount);
     }
 
-    function getDeployedInterchainAccount(uint32 _origin, address _sender)
-        public
-        returns (OwnableMulticall)
-    {
-        return
-            getDeployedInterchainAccount(_origin, _sender.addressToBytes32());
+    function _getInterchainAccountConfig(
+        address _sender,
+        uint32 _destinationDomain
+    ) private view returns (InterchainAccountConfig storage) {
+        InterchainAccountConfig storage _userDefault = userDefaults[_sender][
+            _destinationDomain
+        ];
+        if (_userDefault.router != bytes32(0)) {
+            return _userDefault;
+        }
+        return globalDefaults[_destinationDomain];
     }
 
     /**
@@ -208,38 +220,22 @@ contract InterchainAccountRouter is
     function _salt(
         uint32 _origin,
         bytes32 _sender,
-        bytes32 _ism
-    ) internal pure returns (bytes32) {
+        address _ism
+    ) private pure returns (bytes32) {
         return bytes32(abi.encodePacked(_origin, _sender, _ism));
     }
 
     /**
-     * @notice Returns the address of the interchain account deployed on the current chain for a given salt.
-     * @param salt The salt used to deploy the interchain account.
+     * @notice Returns the address of the interchain account.
+     * @dev Can only be used to compute interchain account addresses for
+     * EVM chains.
      * @return The address of the interchain account.
      */
     function _getInterchainAccount(bytes32 salt)
-        internal
+        private
         view
         returns (address payable)
     {
         return payable(Create2.computeAddress(salt, bytecodeHash));
-    }
-
-    /**
-     * @notice Handles dispatched messages by relaying calls to the interchain account.
-     * @param _origin The origin domain of the interchain account.
-     * @param _message The ABI-encoded message containing the sender and the sequence of calls to be relayed.
-     */
-    function _handle(
-        uint32 _origin,
-        bytes32, // router sender
-        bytes calldata _message
-    ) internal override {
-        OwnableMulticall interchainAccount = getDeployedInterchainAccount(
-            _origin,
-            InterchainCallMessage.sender(_message)
-        );
-        interchainAccount.proxyCalls(InterchainCallMessage.calls(_message));
     }
 }
