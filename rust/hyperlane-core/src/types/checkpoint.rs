@@ -2,11 +2,13 @@ use async_trait::async_trait;
 use ethers::prelude::{Address, Signature};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::Update, Digest, Keccak256};
+use std::fmt::{Debug, Formatter};
 
+use crate::utils::{fmt_address_for_domain, fmt_domain};
 use crate::{utils::domain_hash, Signable, SignedType, H256};
 
 /// An Hyperlane checkpoint
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Checkpoint {
     /// The mailbox address
     pub mailbox_address: H256,
@@ -18,12 +20,15 @@ pub struct Checkpoint {
     pub index: u32,
 }
 
-impl std::fmt::Display for Checkpoint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for Checkpoint {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Checkpoint(domain: {}, mailbox: {:x}, root: {:x}, index: {})",
-            self.mailbox_domain, self.mailbox_address, self.root, self.index
+            "Checkpoint {{ mailbox_address: {}, mailbox_domain: {}, root: {:?}, index: {} }}",
+            fmt_address_for_domain(self.mailbox_domain, self.mailbox_address),
+            fmt_domain(self.mailbox_domain),
+            self.root,
+            self.index
         )
     }
 }
@@ -68,12 +73,23 @@ pub struct SignatureWithSigner {
 }
 
 /// A checkpoint and multiple signatures
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct MultisigSignedCheckpoint {
     /// The checkpoint
     pub checkpoint: Checkpoint,
     /// Signatures over the checkpoint. No ordering guarantees.
     pub signatures: Vec<SignatureWithSigner>,
+}
+
+impl Debug for MultisigSignedCheckpoint {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MultisigSignedCheckpoint {{ checkpoint: {:?}, signature_count: {} }}",
+            self.checkpoint,
+            self.signatures.len()
+        )
+    }
 }
 
 /// Error types for MultisigSignedCheckpoint

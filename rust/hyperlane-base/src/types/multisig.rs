@@ -163,10 +163,7 @@ impl MultisigCheckpointSyncer {
                     );
                 }
             } else {
-                debug!(
-                    validator = format!("{:#x}", validator),
-                    "Unable to find checkpoint syncer"
-                );
+                debug!(%validator, "Unable to find checkpoint syncer");
                 continue;
             }
         }
