@@ -5,6 +5,7 @@ use ethers::prelude::{NameOrAddress, TransactionReceipt};
 use ethers_contract::builders::ContractCall;
 use tracing::{error, info};
 
+use hyperlane_core::utils::fmt_bytes;
 use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
 
 use crate::Middleware;
@@ -15,11 +16,11 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    // "0x..."
-    let data = format!(
-        "0x{}",
-        hex::encode(tx.tx.data().map(|b| b.to_vec()).unwrap_or_default())
-    );
+    let data = tx
+        .tx
+        .data()
+        .map(|b| fmt_bytes(b))
+        .unwrap_or_else(|| "None".into());
 
     let to = tx
         .tx
@@ -27,31 +28,19 @@ where
         .cloned()
         .unwrap_or_else(|| NameOrAddress::Address(Default::default()));
 
-    info!(
-        to = ?to,
-        data = %data,
-        "Dispatching transaction"
-    );
+    info!(?to, %data, "Dispatching transaction");
     // We can set the gas higher here!
     let dispatch_fut = tx.send();
     let dispatched = dispatch_fut.await?;
 
     let tx_hash: H256 = *dispatched;
 
-    info!(
-        to = ?to,
-        data = %data,
-        tx_hash = ?tx_hash,
-        "Dispatched tx"
-    );
+    info!(?to, %data, ?tx_hash, "Dispatched tx");
 
     match tokio::time::timeout(Duration::from_secs(300), dispatched).await {
         // all good
         Ok(Ok(Some(receipt))) => {
-            info!(
-                tx_hash = ?tx_hash,
-                "confirmed transaction"
-            );
+            info!(?tx_hash, "confirmed transaction");
 
             Ok(receipt)
         }
@@ -59,20 +48,12 @@ where
         Ok(Ok(None)) => Err(ChainCommunicationError::TransactionDropped(tx_hash)),
         // Received error, pass it through
         Ok(Err(x)) => {
-            error!(
-                tx_hash = ?tx_hash,
-                error = ?x,
-                "encountered error when waiting for receipt",
-            );
+            error!(?tx_hash, error = ?x, "encountered error when waiting for receipt");
             Err(x.into())
         }
         // Timed out
         Err(x) => {
-            error!(
-                tx_hash = ?tx_hash,
-                error = ?x,
-                "waiting for receipt timed out",
-            );
+            error!(?tx_hash, error = ?x, "waiting for receipt timed out");
             Err(ChainCommunicationError::TransactionTimeout())
         }
     }
