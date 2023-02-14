@@ -90,22 +90,26 @@ metricsRegister.registerMetric(walletBalanceGauge);
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 
+// Don't send the full amount over to RC keys
+const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
+const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
+
 const desiredBalancePerChain: CompleteChainMap<string> = {
-  celo: '0.1',
+  celo: '0.3',
   alfajores: '1',
-  avalanche: '0.1',
+  avalanche: '0.3',
   fuji: '1',
-  ethereum: '0.2',
-  polygon: '1',
-  mumbai: '0.5',
-  optimism: '0.05',
-  arbitrum: '0.01',
-  bsc: '0.01',
+  ethereum: '0.4',
+  polygon: '2',
+  mumbai: '0.8',
+  optimism: '0.15',
+  arbitrum: '0.1',
+  bsc: '0.05',
   bsctestnet: '1',
   goerli: '0.5',
   moonbasealpha: '1',
-  moonbeam: '0.1',
-  optimismgoerli: '0.1',
+  moonbeam: '0.5',
+  optimismgoerli: '0.3',
   arbitrumgoerli: '0.1',
   gnosis: '0.1',
   // unused
@@ -418,10 +422,17 @@ class ContextFunder {
       desiredBalance,
       'ether',
     );
+    const adjustedDesiredBalance =
+      this.context === Contexts.ReleaseCandidate
+        ? desiredBalanceEther
+            .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
+            .div(RC_FUNDING_DISCOUNT_DENOMINATOR)
+        : desiredBalanceEther;
+
     const fundingAmount = await this.getFundingAmount(
       chainConnection,
       key.address,
-      desiredBalanceEther,
+      adjustedDesiredBalance,
     );
     const keyInfo = await getKeyInfo(key, chain, chainConnection);
     const funderAddress = await chainConnection.getAddress()!;

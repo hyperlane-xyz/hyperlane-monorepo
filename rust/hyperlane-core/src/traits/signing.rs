@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
@@ -70,7 +70,7 @@ pub trait Signable: Sized {
 }
 
 /// A signed type. Contains the original value and the signature.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SignedType<T: Signable> {
     /// The value which was signed
     #[serde(alias = "checkpoint")]
@@ -93,5 +93,15 @@ impl<T: Signable> SignedType<T> {
         Ok(self
             .signature
             .verify(self.value.eth_signed_message_hash(), signer)?)
+    }
+}
+
+impl<T: Signable + Debug> Debug for SignedType<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "SignedType {{ value: {:?}, signature: 0x{} }}",
+            self.value, self.signature
+        )
     }
 }

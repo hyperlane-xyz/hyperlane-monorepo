@@ -40,7 +40,7 @@ hyperlane:
     # Set the log formatting
     format: json
     # Set the log level
-    level: info
+    level: debug
     uri: ''
   metrics:
     port: 9090
