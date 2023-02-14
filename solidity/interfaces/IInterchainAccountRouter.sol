@@ -8,14 +8,13 @@ interface IInterchainAccountRouter {
         external
         returns (bytes32);
 
-    function dispatch(
-        uint32 _destinationDomain,
-        address target,
-        bytes calldata data
-    ) external returns (bytes32);
+    function getInterchainAccount(uint32 _originDomain, bytes32 _sender)
+        external
+        view
+        returns (address payable);
 
     function getInterchainAccount(uint32 _originDomain, address _sender)
         external
         view
-        returns (address);
+        returns (address payable);
 }

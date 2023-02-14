@@ -1,3 +1,5 @@
+import { keccak256 } from 'ethers/lib/utils';
+
 import { Ownable } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 import { utils } from '@hyperlane-xyz/utils';
@@ -9,7 +11,12 @@ import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils/objects';
 
 import { proxyAdmin, proxyImplementation, proxyViolation } from './proxy';
-import { CheckerViolation, OwnerViolation, ViolationType } from './types';
+import {
+  BytecodeMismatchViolation,
+  CheckerViolation,
+  OwnerViolation,
+  ViolationType,
+} from './types';
 
 export abstract class HyperlaneAppChecker<
   App extends HyperlaneApp<any>,
@@ -73,6 +80,36 @@ export abstract class HyperlaneAppChecker<
     if (proxyAdminAddress) {
       const admin = await proxyAdmin(provider, proxiedAddress.proxy);
       utils.assert(admin === proxyAdminAddress, 'Proxy admin mismatch');
+    }
+  }
+
+  private removeBytecodeMetadata(bytecode: string): string {
+    // https://docs.soliditylang.org/en/v0.8.17/metadata.html#encoding-of-the-metadata-hash-in-the-bytecode
+    // Remove solc metadata from bytecode
+    return bytecode.substring(0, bytecode.length - 90);
+  }
+
+  // This method checks whether the bytecode of a contract matches the expected bytecode. It forces the deployer to explicitly acknowledge a change in bytecode. The violations can be remediated by updating the expected bytecode hash.
+  async checkBytecode(
+    chain: Chain,
+    name: string,
+    address: string,
+    expectedBytecodeHash: string,
+    modifyBytecodePriorToHash: (bytecode: string) => string = (_) => _,
+  ): Promise<void> {
+    const provider = this.multiProvider.getChainProvider(chain);
+    const bytecode = await provider.getCode(address);
+    const bytecodeHash = keccak256(
+      modifyBytecodePriorToHash(this.removeBytecodeMetadata(bytecode)),
+    );
+    if (bytecodeHash !== expectedBytecodeHash) {
+      this.addViolation({
+        type: ViolationType.BytecodeMismatch,
+        chain,
+        expected: expectedBytecodeHash,
+        actual: bytecodeHash,
+        name,
+      } as BytecodeMismatchViolation);
     }
   }
 
