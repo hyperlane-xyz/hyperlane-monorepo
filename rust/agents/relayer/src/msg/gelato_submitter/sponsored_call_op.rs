@@ -128,7 +128,7 @@ impl SponsoredCallOp {
             .message_meets_gas_payment_requirement(&self.message.message, &tx_cost_estimate)
             .await?
         else {
-            info!(?gas_payment, "Gas payment requirement not met yet");
+            info!(?tx_cost_estimate, "Gas payment requirement not met yet");
             return Ok(false);
         };
 

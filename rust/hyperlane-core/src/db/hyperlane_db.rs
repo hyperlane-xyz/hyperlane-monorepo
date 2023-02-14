@@ -228,7 +228,7 @@ impl HyperlaneDB {
         let existing_payment = self.retrieve_gas_payment_for_message_id(event.message_id)?;
         let total = existing_payment + event;
 
-        info!(id=?message_id, gas_payment=?event, new_total_gas_payment=?total, "Storing gas payment");
+        info!(?event, new_total_gas_payment=?total, "Storing gas payment");
         self.store_keyed_encodable::<_, InterchainGasPaymentData>(
             GAS_PAYMENT_FOR_MESSAGE_ID,
             &total.message_id,

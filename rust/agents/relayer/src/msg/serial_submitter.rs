@@ -294,7 +294,7 @@ impl SerialSubmitter {
             .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
             .await?
         else {
-            info!(?gas_payment, ?tx_cost_estimate, "Gas payment requirement not met yet");
+            info!(?tx_cost_estimate, "Gas payment requirement not met yet");
             return Ok(false);
         };
 
