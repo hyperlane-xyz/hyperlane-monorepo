@@ -66,7 +66,7 @@ describe('InterchainAccountRouter', async () => {
       signer.address,
     );
 
-    await local.dispatch(remoteDomain, [
+    await local.dispatch(multiProvider.getDomainId(remoteChain), [
       {
         _call: { to: utils.addressToBytes32(recipient.address), data },
         value: 0,

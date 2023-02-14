@@ -233,6 +233,7 @@ export class MultiProvider {
 
     // Otherwise check the chain-to-signer map
     const signer = this.signers[chainName];
+    if (!signer) return null;
     if (signer.provider) return signer;
     // Auto-connect the signer for convenience
     const provider = this.tryGetProvider(chainName);

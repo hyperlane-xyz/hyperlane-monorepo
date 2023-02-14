@@ -91,13 +91,13 @@ export abstract class HyperlaneAppChecker<
 
   // This method checks whether the bytecode of a contract matches the expected bytecode. It forces the deployer to explicitly acknowledge a change in bytecode. The violations can be remediated by updating the expected bytecode hash.
   async checkBytecode(
-    chain: Chain,
+    chain: ChainName,
     name: string,
     address: string,
     expectedBytecodeHash: string,
     modifyBytecodePriorToHash: (bytecode: string) => string = (_) => _,
   ): Promise<void> {
-    const provider = this.multiProvider.getChainProvider(chain);
+    const provider = this.multiProvider.getProvider(chain);
     const bytecode = await provider.getCode(address);
     const bytecodeHash = keccak256(
       modifyBytecodePriorToHash(this.removeBytecodeMetadata(bytecode)),
