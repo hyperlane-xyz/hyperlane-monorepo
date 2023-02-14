@@ -6,6 +6,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // ============ Internal Imports ============
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
 import {Message} from "../libs/Message.sol";
 import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
@@ -27,7 +28,8 @@ contract MultisigIsm is IMultisigIsm, OwnableMOfNSet {
 
     // ============ Constants ============
 
-    uint8 public constant moduleType = 3;
+    uint8 public constant moduleType =
+        uint8(IInterchainSecurityModule.Types.MULTISIG);
 
     // ============ Constructor ============
 

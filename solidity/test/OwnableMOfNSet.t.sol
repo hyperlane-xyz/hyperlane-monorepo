@@ -3,8 +3,10 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import {OwnableMOfNSet} from "../contracts/libs/OwnableMOfNSet.sol";
+import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
 contract OwnableMOfNSetTest is Test {
+    using TypeCasts for address;
     event ValueAdded(
         uint32 indexed domain,
         address indexed value,
@@ -23,11 +25,6 @@ contract OwnableMOfNSetTest is Test {
     function setUp() public {
         set = new OwnableMOfNSet();
     }
-
-    // addMany
-    // setThresholds
-    // setMatches
-    // matches
 
     function testAdd(uint32 domain, address value) public {
         vm.assume(value != address(0x0));
@@ -60,6 +57,31 @@ contract OwnableMOfNSetTest is Test {
         set.transferOwnership(newOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         set.add(domain, value);
+    }
+
+    function testAddMany(uint8 numDomains, uint8 numValues) public {
+        vm.assume(numDomains < 32 && numValues < 32);
+        uint32 firstDomain = 100_000;
+        address firstValue = 0x3b2949fFFa5DC0bb41492AeBd12A89B286339858;
+        uint32[] memory domains = new uint32[](numDomains);
+        address[][] memory values = new address[][](numDomains);
+        for (uint32 i = 0; i < numDomains; i++) {
+            uint32 domain = firstDomain + i;
+            domains[i] = domain;
+            values[i] = new address[](numValues);
+            for (uint8 j = 0; j < numValues; j++) {
+                address value = address(uint160(firstValue) + j);
+                values[i][j] = value;
+                vm.expectEmit(true, true, true, true, address(set));
+                emit ValueAdded(domain, value, j + 1);
+            }
+            bytes32 commitment = keccak256(
+                abi.encodePacked(uint8(0), values[i])
+            );
+            vm.expectEmit(true, true, true, true, address(set));
+            emit CommitmentUpdated(domain, commitment);
+        }
+        set.addMany(domains, values);
     }
 
     function testRemove(uint32 domain, address value) public {
@@ -203,5 +225,26 @@ contract OwnableMOfNSetTest is Test {
         nonEmptySet[0] = value;
         assertEq(abi.encodePacked(values), abi.encodePacked(nonEmptySet));
         assertEq(threshold, 1);
+    }
+
+    function testSetMatches(
+        uint32 domain,
+        address firstValue,
+        uint8 numValues,
+        uint8 threshold
+    ) public {
+        vm.assume(0 < threshold && threshold <= numValues);
+        vm.assume(numValues < uint160(firstValue) && numValues < 32);
+        bytes memory packedValues;
+        for (uint32 i = 0; i < numValues; i++) {
+            address value = address(uint160(firstValue) - i);
+            packedValues = abi.encodePacked(
+                packedValues,
+                value.addressToBytes32()
+            );
+            set.add(domain, value);
+        }
+        set.setThreshold(domain, threshold);
+        assertTrue(set.setMatches(domain, threshold, packedValues));
     }
 }

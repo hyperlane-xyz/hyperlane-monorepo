@@ -83,7 +83,7 @@ contract OwnableMOfNSet is Ownable {
             uint256 _startLength = EnumerableMOfNSet.length(_set);
             EnumerableMOfNSet.add(_set, _values[i]);
             for (uint256 j = 0; j < _values[i].length; j += 1) {
-                emit ValueAdded(_domain, _values[i][j], _startLength + j);
+                emit ValueAdded(_domain, _values[i][j], _startLength + j + 1);
             }
             emit CommitmentUpdated(_domain, _set.commitment);
         }

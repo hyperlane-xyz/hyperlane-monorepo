@@ -21,7 +21,8 @@ contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
 
     // ============ Constants ============
 
-    uint8 public constant moduleType = 4;
+    uint8 public constant moduleType =
+        uint8(IInterchainSecurityModule.Types.AGGREGATION);
 
     // ============ Constructor ============
 

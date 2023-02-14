@@ -16,7 +16,7 @@ library AggregationIsmMetadata {
 
     /**
      * @notice Returns the ISM set size
-     * @param _metadata ABI encoded Aggregation ISM metadata.
+     * @param _metadata Encoded Aggregation ISM metadata.
      * @return The ISM set size
      */
     function count(bytes calldata _metadata) internal pure returns (uint8) {
@@ -25,7 +25,7 @@ library AggregationIsmMetadata {
 
     /**
      * @notice Returns the ISM set addresses packed as left-padded bytes32s
-     * @param _metadata ABI encoded Aggregation ISM metadata.
+     * @param _metadata Encoded Aggregation ISM metadata.
      * @return ISM set addresses packed as left-padded bytes32s
      */
     function ismAddresses(bytes calldata _metadata)
@@ -34,15 +34,14 @@ library AggregationIsmMetadata {
         returns (bytes calldata)
     {
         uint256 _end = ISM_ADDRESSES_OFFSET +
-            uint256(count(_metadata)) *
-            ISM_ADDRESS_LENGTH;
+            (uint256(count(_metadata)) * ISM_ADDRESS_LENGTH);
         return _metadata[ISM_ADDRESSES_OFFSET:_end];
     }
 
     /**
      * @notice Returns the ISM address at `_index`
      * @dev Callers must ensure `_index < count(_metadata)`
-     * @param _metadata ABI encoded Aggregation ISM metadata.
+     * @param _metadata Encoded Aggregation ISM metadata.
      * @param _index The index of the ISM address to return
      * @return The ISM address at `_index`
      */
@@ -63,7 +62,7 @@ library AggregationIsmMetadata {
      * @notice Returns whether or not metadata was provided for the ISM at
      * `_index`
      * @dev Callers must ensure `_index < count(_metadata)`
-     * @param _metadata ABI encoded Aggregation ISM metadata
+     * @param _metadata Encoded Aggregation ISM metadata
      * @param _index The index of the ISM to check for metadata for
      * @return Whether or not metadata was provided for the ISM at `_index`
      */
@@ -80,7 +79,7 @@ library AggregationIsmMetadata {
      * @notice Returns the metadata provided for the ISM at `_index`
      * @dev Callers must ensure `_index < count(_metadata)`
      * @dev Callers must ensure `hasMetadata(_metadata, _index)`
-     * @param _metadata ABI encoded Aggregation ISM metadata
+     * @param _metadata Encoded Aggregation ISM metadata
      * @param _index The index of the ISM to return metadata for
      * @return The metadata provided for the ISM at `_index`
      */
@@ -97,7 +96,7 @@ library AggregationIsmMetadata {
      * @notice Returns the offsets of the metadata provided for the ISM at
      * `_index`, or zeroes if not provided
      * @dev Callers must ensure `_index < count(_metadata)`
-     * @param _metadata ABI encoded Aggregation ISM metadata
+     * @param _metadata Encoded Aggregation ISM metadata
      * @param _index The index of the ISM to return metadata offsets for
      * @return The offsets of the metadata provided for the ISM at `_index`, or
      * zeroes if not provided
@@ -108,8 +107,7 @@ library AggregationIsmMetadata {
         returns (uint256, uint256)
     {
         uint256 _offsetsStart = ISM_ADDRESSES_OFFSET +
-            uint256(count(_metadata)) *
-            32;
+            (uint256(count(_metadata)) * 32);
         uint256 _start = _offsetsStart + (uint256(_index) * 32);
         uint256 _mid = _start + 16;
         uint256 _end = _mid + 16;
