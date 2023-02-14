@@ -113,7 +113,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     }
 
     if (configs.length > 0) {
-      await this.runIfOwner(chain, defaultIsmInterchainGasPaymaster, async () =>
+      await this.runIfOwner(chain, defaultIsmInterchainGasPaymaster, () =>
         this.multiProvider.handleTx(
           chain,
           defaultIsmInterchainGasPaymaster.setDestinationGasOverheads(
@@ -194,6 +194,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         this.logger(
           `Enroll ${chainsToEnrollValidators} validators on ${chain}`,
         );
+
         await this.multiProvider.handleTx(
           chain,
           multisigIsm.enrollValidators(

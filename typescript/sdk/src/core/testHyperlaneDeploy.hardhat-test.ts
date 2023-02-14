@@ -26,7 +26,7 @@ describe('TestCoreDeployer', async () => {
   beforeEach(async () => {
     const [signer] = await ethers.getSigners();
 
-    const multiProvider = MultiProvider.createTestMultiProvider(signer);
+    const multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const deployer = new TestCoreDeployer(multiProvider);
     testCoreApp = await deployer.deployApp();
 
@@ -34,7 +34,7 @@ describe('TestCoreDeployer', async () => {
     localMailbox = testCoreApp.getContracts(localChain).mailbox.contract;
 
     const dispatchResponse = localMailbox.dispatch(
-      localChain,
+      multiProvider.getDomainId(remoteChain),
       utils.addressToBytes32(recipient.address),
       message,
     );
@@ -46,7 +46,7 @@ describe('TestCoreDeployer', async () => {
     remoteMailbox = testCoreApp.getContracts(remoteChain).mailbox.contract;
     await expect(
       remoteMailbox.dispatch(
-        localChain,
+        multiProvider.getDomainId(localChain),
         utils.addressToBytes32(recipient.address),
         message,
       ),

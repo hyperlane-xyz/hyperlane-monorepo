@@ -17,7 +17,10 @@ export class HyperlaneApp<
     public readonly multiProvider: MultiProvider,
   ) {
     const connectedContractsMap = objMap(contractsMap, (chain, contracts) =>
-      connectContracts(contracts, multiProvider.getProvider(chain)),
+      connectContracts(
+        contracts,
+        multiProvider.tryGetSigner(chain) || multiProvider.getProvider(chain),
+      ),
     );
     super(connectedContractsMap);
   }

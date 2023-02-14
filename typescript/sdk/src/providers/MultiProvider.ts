@@ -16,7 +16,7 @@ import {
 } from '../consts/chainMetadata';
 import { CoreChainName, TestChains } from '../consts/chains';
 import { ChainMap, ChainName } from '../types';
-import { objMap, pick } from '../utils/objects';
+import { pick } from '../utils/objects';
 
 type Provider = providers.Provider;
 
@@ -225,19 +225,18 @@ export class MultiProvider {
 
     // Prefer shared signer if one has been set
     if (this.sharedSigner) {
+      if (this.sharedSigner.provider) return this.sharedSigner;
+      // Auto-connect the signer for convenience
       const provider = this.tryGetProvider(chainName);
       return provider ? this.sharedSigner.connect(provider) : this.sharedSigner;
     }
 
     // Otherwise check the chain-to-signer map
-    let signer = this.signers[chainName];
-    if (!signer) return null;
-    if (!signer.provider) {
-      // Auto-connect the signer for convenience
-      const provider = this.tryGetProvider(chainName);
-      signer = provider ? signer.connect(provider) : signer;
-    }
-    return signer;
+    const signer = this.signers[chainName];
+    if (signer.provider) return signer;
+    // Auto-connect the signer for convenience
+    const provider = this.tryGetProvider(chainName);
+    return provider ? signer.connect(provider) : signer;
   }
 
   /**
@@ -352,16 +351,11 @@ export class MultiProvider {
     const intersectionMetadata = pick(this.metadata, intersection);
     const intersectionProviders = pick(this.providers, intersection);
     const intersectionSigners = pick(this.signers, intersection);
-    const metadataWithConnection = objMap(
-      intersectionMetadata,
-      (chainName, metadata) => ({
-        ...metadata,
-        provider: intersectionProviders[chainName],
-        signer: intersectionSigners[chainName],
-      }),
-    );
+    const multiProvider = new MultiProvider(intersectionMetadata);
+    multiProvider.setProviders(intersectionProviders);
+    multiProvider.setSigners(intersectionSigners);
+    if (this.sharedSigner) multiProvider.setSharedSigner(this.sharedSigner);
 
-    const multiProvider = new MultiProvider(metadataWithConnection);
     return { intersection, multiProvider };
   }
 
@@ -385,7 +379,8 @@ export class MultiProvider {
    * @throws if chain's metadata or signer has not been set
    */
   getExplorerUrl(chainNameOrId: ChainName | number): string {
-    return this.getChainMetadata(chainNameOrId).blockExplorers[0].url;
+    const explorer = this.getChainMetadata(chainNameOrId).blockExplorers[0];
+    return explorer?.url || 'UNKNOWN_EXPLORER_URL';
   }
 
   /**
@@ -394,7 +389,9 @@ export class MultiProvider {
    */
   getExplorerApiUrl(chainNameOrId: ChainName | number): string {
     const explorer = this.getChainMetadata(chainNameOrId).blockExplorers[0];
-    return (explorer.apiUrl || explorer.url) + '/api';
+    return (
+      (explorer?.apiUrl || explorer?.url || 'UNKNOWN_EXPLORER_URL') + '/api'
+    );
   }
 
   /**
@@ -429,7 +426,7 @@ export class MultiProvider {
   getTransactionOverrides(
     chainNameOrId: ChainName | number,
   ): Partial<providers.TransactionRequest> | undefined {
-    return this.getChainMetadata(chainNameOrId)?.transactionOverrides;
+    return this.getChainMetadata(chainNameOrId)?.transactionOverrides ?? {};
   }
 
   /**
@@ -497,10 +494,24 @@ export class MultiProvider {
   /**
    * Creates a MultiProvider using the given signer for all test networks
    */
-  static createTestMultiProvider(signer: Signer): MultiProvider {
+  static createTestMultiProvider({
+    signer,
+    provider,
+  }: {
+    signer?: Signer;
+    provider?: Provider;
+  } = {}): MultiProvider {
     const chainMetadata = pick(defaultChainMetadata, TestChains);
     const mp = new MultiProvider(chainMetadata);
-    mp.setSharedSigner(signer);
+    if (signer) {
+      mp.setSharedSigner(signer);
+    }
+    const _provider = provider || signer?.provider;
+    if (_provider) {
+      const providerMap: ChainMap<Provider> = {};
+      TestChains.forEach((t) => (providerMap[t] = _provider));
+      mp.setProviders(providerMap);
+    }
     return mp;
   }
 }

@@ -30,7 +30,7 @@ describe('InterchainAccountRouter', async () => {
   before(async () => {
     [signer] = await ethers.getSigners();
 
-    multiProvider = MultiProvider.createTestMultiProvider(signer);
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
@@ -61,12 +61,13 @@ describe('InterchainAccountRouter', async () => {
       fooMessage,
     ]);
     const icaAddress = await remote.getInterchainAccount(
-      localChain,
+      multiProvider.getDomainId(localChain),
       signer.address,
     );
-    await local['dispatch(uint32,(address,bytes)[])'](remoteChain, [
-      { to: recipient.address, data },
-    ]);
+    await local['dispatch(uint32,(address,bytes)[])'](
+      multiProvider.getDomainId(remoteChain),
+      [{ to: recipient.address, data }],
+    );
     await coreApp.processMessages();
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);

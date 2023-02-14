@@ -28,7 +28,7 @@ describe('InterchainGasCalculator', async () => {
   before(async () => {
     [signer] = await ethers.getSigners();
 
-    multiProvider = MultiProvider.createTestMultiProvider(signer);
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();

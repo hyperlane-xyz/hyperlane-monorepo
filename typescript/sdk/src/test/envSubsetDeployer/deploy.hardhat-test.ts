@@ -83,7 +83,7 @@ describe('deploy app to test env subset', async () => {
 
 async function initTestEnv(environmentConfig: ChainMap<ChainMetadata>) {
   const [signer] = await ethers.getSigners();
-  const multiProvider = MultiProvider.createTestMultiProvider(signer);
+  const multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
   const coreDeployer = new TestCoreDeployer(multiProvider);
   const coreContractsMaps = await coreDeployer.deploy();

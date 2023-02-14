@@ -80,7 +80,7 @@ export abstract class HyperlaneDeployer<
 
     this.logger(`Start deploy to ${targetChains}`);
     for (const chain of targetChains) {
-      const signerUrl = this.multiProvider.getExplorerAddressUrl(chain);
+      const signerUrl = await this.multiProvider.getExplorerAddressUrl(chain);
       this.logger(`Deploying to ${chain} from ${signerUrl} ...`);
       this.deployedContracts[chain] = await this.deployContracts(
         chain,

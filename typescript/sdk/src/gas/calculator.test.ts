@@ -44,7 +44,7 @@ class TestInterchainGasCalculator extends InterchainGasCalculator {
 describe('InterchainGasCalculator', () => {
   const provider = new MockProvider();
 
-  const multiProvider = new MultiProvider();
+  const multiProvider = MultiProvider.createTestMultiProvider({ provider });
   const core: HyperlaneCore = HyperlaneCore.fromEnvironment(
     'test',
     multiProvider,

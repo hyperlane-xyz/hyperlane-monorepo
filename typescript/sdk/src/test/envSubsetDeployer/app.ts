@@ -54,10 +54,11 @@ export class EnvSubsetDeployer extends HyperlaneRouterDeployer<
       objMap(contractsMap, async (chain, contracts) => {
         const mailbox = this.configMap[chain].mailbox;
         const igp = this.configMap[chain].interchainGasPaymaster;
+        const overrides = this.multiProvider.getTransactionOverrides(chain);
         await this.multiProvider.handleTx(
           chain,
           // @ts-ignore TestRouter does implement this, though Router type does not
-          contracts.router.initialize(mailbox, igp, chainConnection.overrides),
+          contracts.router.initialize(mailbox, igp, overrides),
         );
       }),
     );
