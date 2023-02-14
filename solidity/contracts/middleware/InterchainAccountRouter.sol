@@ -3,9 +3,9 @@ pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
 import {OwnableMulticall} from "../OwnableMulticall.sol";
-import {Router} from "../Router.sol";
+import {HyperlaneConnectionClient} from "../HyperlaneConnectionClient.sol";
 import {IInterchainAccountRouter} from "../../interfaces/IInterchainAccountRouter.sol";
-import {InterchainCallMessage} from "./InterchainCallMessage.sol";
+import {InterchainAccountMessage} from "../libs/middleware/InterchainAccountMessage.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {CallLib} from "../libs/Call.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
@@ -19,22 +19,35 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title Interchain Accounts Router that relays messages via proxy contracts on other chains.
  * @dev Currently does not support Sovereign Consensus (user specified Interchain Security Modules).
  */
-contract InterchainAccountRouter is Router, IInterchainAccountRouter {
+contract InterchainAccountRouter is
+    HyperlaneConnectionClient,
+    IInterchainAccountRouter
+{
     using TypeCasts for address;
     using TypeCasts for bytes32;
+
+    struct InterchainAccountConfig {
+        bytes32 router;
+        bytes32 ism;
+    }
 
     address internal immutable implementation;
     bytes32 internal immutable bytecodeHash;
 
+    // Maps destination domain to global default configs
+    mapping(uint32 => InterchainAccountConfig) globalDefaults;
+    // Maps user address to overrides for global default configs
+    mapping(address => mapping(uint32 => InterchainAccountConfig)) userDefaults;
+
     /**
      * @notice Emitted when an interchain account is created (first time message is sent from a given `origin`/`sender` pair)
      * @param origin The domain of the chain where the message was sent from
-     * @param sender The address of the account that sent the message
+     * @param owner The address of the account that sent the message
      * @param account The address of the proxy account that was created
      */
     event InterchainAccountCreated(
         uint32 indexed origin,
-        bytes32 sender,
+        bytes32 owner,
         address account
     );
 
@@ -70,23 +83,65 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     }
 
     /**
-     * @notice Dispatches a sequence of calls to be relayed by the sender's interchain account on the destination domain.
-     * @param _destinationDomain The domain of the chain where the message will be sent to.
-     * @param calls The sequence of calls to be relayed.
+     * @notice Dispatches a sequence of remote calls to be made by a sender's
+     * interchain account on the destination domain.
+     * @dev Uses the default router and ISM addresses for the destination
+     * domain, reverting if none have been configured.
      * @dev Recommend using CallLib.build to format the interchain calls.
+     * @param _destinationDomain The domain of the chain on which the calls
+     * will be made
+     * @param _calls The sequence of calls to make.
+     * @return The Hyperlane message ID
      */
-    function dispatch(uint32 _destinationDomain, CallLib.Call[] calldata calls)
-        external
-        returns (bytes32)
-    {
+    function callRemote(
+        uint32 _destinationDomain,
+        CallLib.Call[] calldata _calls
+    ) external returns (bytes32) {
+        InterchainAccountConfig storage _config = _getInterchainAccountConfig(
+            msg.sender,
+            _destinationDomain
+        );
+        require(_config.router != bytes32(0));
         return
-            _dispatch(
+            mailbox.dispatch(
                 _destinationDomain,
-                InterchainCallMessage.format(
-                    calls,
-                    msg.sender.addressToBytes32()
+                _config.router,
+                InterchainAccountMessage.format(
+                    msg.sender.addressToBytes32(),
+                    _config.ism,
+                    _calls
                 )
             );
+    }
+
+    function callRemote(
+        uint32 _destinationDomain,
+        InterchainAccountConfig calldata _config,
+        CallLib.Call[] calldata _calls
+    ) external returns (bytes32) {
+        return
+            mailbox.dispatch(
+                _destinationDomain,
+                _config.router,
+                InterchainAccountMessage.format(
+                    msg.sender.addressToBytes32(),
+                    _config.ism,
+                    _calls
+                )
+            );
+    }
+
+    function _getInterchainAccountConfig(
+        address _sender,
+        uint32 _destinationDomain
+    ) private returns (InterchainAccountConfig storage) {
+        InterchainAccountConfig storage _userDefault = userDefaults[_sender][
+            _destinationDomain
+        ];
+        if (_userDefault.router != bytes32(0)) {
+            return _userDefault;
+        }
+        return globalDefaults[_destinationDomain];
     }
 
     /**
@@ -95,12 +150,15 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
      * @param _sender The parent account address on the origin domain.
      * @return The address of the interchain account.
      */
-    function getInterchainAccount(uint32 _origin, bytes32 _sender)
-        public
-        view
-        returns (address payable)
-    {
-        return _getInterchainAccount(_salt(_origin, _sender));
+    function getLocalInterchainAccount(
+        uint32 _origin,
+        bytes32 _sender,
+        address _ism
+    ) public view returns (address payable) {
+        return
+            _getInterchainAccountAddress(
+                _salt(_origin, _sender, _ism.addressToBytes32())
+            );
     }
 
     function getInterchainAccount(uint32 _origin, address _sender)
@@ -147,12 +205,12 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
      * @param _sender The parent account address on the origin domain.
      * @return The CREATE2 salt used for deploying the interchain account.
      */
-    function _salt(uint32 _origin, bytes32 _sender)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return bytes32(abi.encodePacked(_origin, _sender));
+    function _salt(
+        uint32 _origin,
+        bytes32 _sender,
+        bytes32 _ism
+    ) internal pure returns (bytes32) {
+        return bytes32(abi.encodePacked(_origin, _sender, _ism));
     }
 
     /**

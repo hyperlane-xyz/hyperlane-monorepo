@@ -4,17 +4,33 @@ pragma solidity >=0.6.11;
 import {CallLib} from "../contracts/libs/Call.sol";
 
 interface IInterchainAccountRouter {
-    function dispatch(uint32 _destinationDomain, CallLib.Call[] calldata calls)
-        external
-        returns (bytes32);
+    function callRemote(
+        uint32 _destinationDomain,
+        CallLib.Call[] calldata calls
+    ) external returns (bytes32);
 
-    function getInterchainAccount(uint32 _originDomain, bytes32 _sender)
-        external
-        view
-        returns (address payable);
+    function callRemote(
+        uint32 _destinationDomain,
+        bytes32 _destinationRouter,
+        bytes32 _destinationIsm,
+        CallLib.Call[] calldata calls
+    ) external returns (bytes32);
 
-    function getInterchainAccount(uint32 _originDomain, address _sender)
-        external
-        view
-        returns (address payable);
+    function getLocalInterchainAccount(
+        uint32 _origin,
+        address _sender,
+        address ism
+    ) external view returns (address payable);
+
+    function getRemoteInterchainAccount(
+        uint32 _destinationDomain,
+        address _sender
+    ) external view returns (address);
+
+    function getRemoteInterchainAccount(
+        uint32 _destinationDomain,
+        bytes32 _destinationRouter,
+        bytes32 _destinationIsm,
+        address _sender
+    ) external view returns (address);
 }
