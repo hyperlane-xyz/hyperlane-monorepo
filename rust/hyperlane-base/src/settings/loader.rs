@@ -131,10 +131,10 @@ const MISSING_ENV_CTX: &str = concat!(
 );
 
 const MISSING_NAME_CTX: &str = concat!(
-str_lits!(bp),
-"(1) the `chains` config value is set and spelled correctly ",
-"(2) all expected chains are present in the `chains` object; ", str_lits!(env), " ",
-"(3) all chains are correctly named e.g. `chains.alfajores` being misspelled may lead to `chains.alfajores.name` not being found"
+    str_lits!(bp),
+    "(1) the `chains` config value is set and spelled correctly ",
+    "(2) all expected chains are present in the `chains` object; ", str_lits!(env), " ",
+    "(3) all chains are correctly named e.g. `chains.alfajores` being misspelled may lead to `chains.alfajores.name` not being found"
 );
 
 const MISSING_DOMAIN_CTX: &str = concat!(
@@ -194,21 +194,21 @@ const MISSING_CONNECTION_CTX: &str = concat!(
 );
 
 const MISSING_TYPE_CTX: &str = concat!(
-str_lits!(bp),
-"(1) `chains.<chain_name>.connection.type` is specified for all chains, e.g. `http`, `httpFallback`, or `httpQuorum` ",
-"(2) ", str_lits!(env)
+    str_lits!(bp),
+    "(1) `chains.<chain_name>.connection.type` is specified for all chains, e.g. `http`, `httpFallback`, or `httpQuorum` ",
+    "(2) ", str_lits!(env)
 );
 
 const MISSING_URLS_CTX: &str = concat!(
-str_lits!(bp),
-"(1) `chains.<chain_name>.connection.urls` is specified for the chain ",
-"(2) `urls` is used for connection type that accept multiple like `httpQuorum` and `httpFallback` and `url` is used for connection types that only accept a single url like `http` "
+    str_lits!(bp),
+    "(1) `chains.<chain_name>.connection.urls` is specified for the chain ",
+    "(2) `urls` is used for connection type that accept multiple like `httpQuorum` and `httpFallback` and `url` is used for connection types that only accept a single url like `http` "
 );
 
 const MISSING_URL_CTX: &str = concat!(
-str_lits!(bp),
-"(1) `chains.<chain_name>.connection.url` is specified for the chain ",
-"(2) `url` is used for connection types that only accept a single url like `http` and `urls` is used for connection type that accept multiple like `httpQuorum` and `httpFallback`"
+    str_lits!(bp),
+    "(1) `chains.<chain_name>.connection.url` is specified for the chain ",
+    "(2) `url` is used for connection types that only accept a single url like `http` and `urls` is used for connection type that accept multiple like `httpQuorum` and `httpFallback`"
 );
 
 const MISSING_DB_CTX: &str = concat!(str_lits!(bp), "(1) `db` config string is specified");
