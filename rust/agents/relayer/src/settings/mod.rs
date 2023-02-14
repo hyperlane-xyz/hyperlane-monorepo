@@ -1,5 +1,6 @@
 //! Configuration
 
+use crate::settings::matching_list::MatchingList;
 use hyperlane_base::decl_settings;
 use hyperlane_core::U256;
 
@@ -30,11 +31,13 @@ pub enum GasPaymentEnforcementPolicy {
 #[serde(tag = "type", rename_all = "camelCase")]
 pub struct GasPaymentEnforcementConfig {
     /// The gas payment enforcement policy
+    #[serde(flatten)]
     pub policy: GasPaymentEnforcementPolicy,
     /// An optional whitelist, where all matching messages will be considered
     /// as if they have met the gas payment enforcement policy.
-    /// If None is provided, all messages will be considered NOT on the whitelist.
-    pub whitelist: Option<String>,
+    /// If no whitelist is provided, all messages will match this policy.
+    #[serde(default)]
+    pub whitelist: MatchingList,
 }
 
 decl_settings!(Relayer {
@@ -45,8 +48,8 @@ decl_settings!(Relayer {
     // Optional list of destination chains. If none are provided, ALL chains in chain_setup
     // will be used, excluding the origin chain.
     destinationchainnames: Option<String>,
-    /// The gas payment enforcement configuration
-    gaspaymentenforcement: Vec<GasPaymentEnforcementConfig>,
+    /// The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.
+    gaspaymentenforcement: String,
     /// This is optional. If no whitelist is provided ALL messages will be considered on the
     /// whitelist.
     whitelist: Option<String>,

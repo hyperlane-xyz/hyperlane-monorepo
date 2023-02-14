@@ -9,7 +9,9 @@ use hyperlane_core::{
     HyperlaneMessage, InterchainGasPayment, TxCostEstimate, H256, U256,
 };
 
-use crate::settings::{matching_list::MatchingList, GasPaymentEnforcementPolicy};
+use crate::settings::{
+    matching_list::MatchingList, GasPaymentEnforcementConfig, GasPaymentEnforcementPolicy,
+};
 
 use self::policies::{
     GasPaymentPolicyMeetsEstimatedCost, GasPaymentPolicyMinimum, GasPaymentPolicyNone,
@@ -42,13 +44,13 @@ pub struct GasPaymentEnforcer {
 
 impl GasPaymentEnforcer {
     pub fn new(
-        policy_configs: impl IntoIterator<Item = (GasPaymentEnforcementPolicy, MatchingList)>,
+        policy_configs: impl IntoIterator<Item = GasPaymentEnforcementConfig>,
         db: HyperlaneDB,
     ) -> Self {
         let policies = policy_configs
             .into_iter()
-            .map(|(policy, whitelist)| {
-                let p: Box<dyn GasPaymentPolicy> = match policy {
+            .map(|cfg| {
+                let p: Box<dyn GasPaymentPolicy> = match cfg.policy {
                     GasPaymentEnforcementPolicy::None => Box::new(GasPaymentPolicyNone::new()),
                     GasPaymentEnforcementPolicy::Minimum { payment } => {
                         Box::new(GasPaymentPolicyMinimum::new(payment))
@@ -60,7 +62,7 @@ impl GasPaymentEnforcer {
                         Box::new(GasPaymentPolicyOnChainFeeQuoting)
                     }
                 };
-                (p, whitelist)
+                (p, cfg.whitelist)
             })
             .collect();
 
@@ -101,7 +103,9 @@ mod test {
     use hyperlane_core::{db::HyperlaneDB, HyperlaneMessage, TxCostEstimate, H160, H256, U256};
     use hyperlane_test::test_utils;
 
-    use crate::settings::{matching_list::MatchingList, GasPaymentEnforcementPolicy};
+    use crate::settings::{
+        matching_list::MatchingList, GasPaymentEnforcementConfig, GasPaymentEnforcementPolicy,
+    };
 
     use super::GasPaymentEnforcer;
 
@@ -112,12 +116,12 @@ mod test {
 
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
-                vec![(
-                    GasPaymentEnforcementPolicy::Minimum {
+                vec![GasPaymentEnforcementConfig {
+                    policy: GasPaymentEnforcementPolicy::Minimum {
                         payment: U256::one(),
                     },
-                    MatchingList::default(),
-                )],
+                    whitelist: Default::default(),
+                }],
                 hyperlane_db,
             );
 
@@ -144,7 +148,7 @@ mod test {
         test_utils::run_test_db(|db| async move {
             let hyperlane_db = HyperlaneDB::new("mailbox", db);
 
-            let Ok(matching_list) = serde_json::from_str(r#"[{"originDomain": 234}]"#) else {
+            let Ok(whitelist) = serde_json::from_str(r#"[{"originDomain": 234}]"#) else {
                 // weird, but don't panic since then the test will pass by accident
                 eprintln!("Failed to parse matching list");
                 return
@@ -152,7 +156,10 @@ mod test {
 
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
-                vec![(GasPaymentEnforcementPolicy::None, matching_list)],
+                vec![GasPaymentEnforcementConfig {
+                    policy: GasPaymentEnforcementPolicy::None,
+                    whitelist,
+                }],
                 hyperlane_db,
             );
 
@@ -180,18 +187,18 @@ mod test {
 
             let enforcer = GasPaymentEnforcer::new(
                 vec![
-                    (
+                    GasPaymentEnforcementConfig {
                         // No payment for special cases
-                        GasPaymentEnforcementPolicy::None,
-                        matching_list,
-                    ),
-                    (
+                        policy: GasPaymentEnforcementPolicy::None,
+                        whitelist: matching_list,
+                    },
+                    GasPaymentEnforcementConfig {
                         // All other messages must pass a minimum
-                        GasPaymentEnforcementPolicy::Minimum {
+                        policy: GasPaymentEnforcementPolicy::Minimum {
                             payment: U256::one(),
                         },
-                        MatchingList::default(),
-                    ),
+                        whitelist: MatchingList::default(),
+                    },
                 ],
                 hyperlane_db,
             );
