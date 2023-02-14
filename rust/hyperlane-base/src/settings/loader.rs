@@ -94,7 +94,7 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
 
             match err_str
                 .contains("missing field")
-                .then(|| err_str.split('`').skip(1).next())
+                .then(|| err_str.split('`').nth(1))
                 .flatten()
             {
                 Some("environment") => err = err.context(MISSING_ENV_CTX),
