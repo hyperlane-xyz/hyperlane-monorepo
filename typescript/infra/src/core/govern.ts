@@ -1,9 +1,6 @@
 import { prompts } from 'prompts';
 
-import {
-  InterchainGasPaymaster,
-  InterchainGasPaymaster__factory,
-} from '@hyperlane-xyz/core';
+import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
@@ -161,36 +158,34 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
   handleProxyViolation(violation: ProxyViolation) {
     const chain = violation.chain as Chain;
     const contracts: CoreContracts = this.checker.app.contractsMap[chain];
-    let initData = '0x';
+    // '0x'-prefixed hex if set
+    let initData: string | undefined;
     switch (violation.data.name) {
       case 'InterchainGasPaymaster':
-        // Set all the gas oracles when performing the proxy upgrade
-        const remotes = this.checker.multiProvider.remoteChains(chain);
-        const configs: InterchainGasPaymaster.GasOracleConfigStruct[] =
-          remotes.map((remote) => ({
-            remoteDomain: ChainNameToDomainId[remote],
-            gasOracle: this.checker.getGasOracleAddress(chain, remote),
-          }));
-
-        initData =
-          InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
-            'setGasOracles',
-            [configs],
-          );
+        // We don't init - ideally we would call `setGasOracles`, but because
+        // that function is `onlyOwner` and the msg.sender would be the ProxyAdmin
+        // contract, this doesn't work. Instead we call `setGasOracles` afterward
+        // when handling the IgpGasOraclesViolation
+        initData = undefined;
         break;
       default:
         throw new Error(`Unsupported proxy violation ${violation.data.name}`);
     }
-    this.pushCall(chain, {
-      to: contracts.proxyAdmin.address,
-      data: contracts.proxyAdmin.interface.encodeFunctionData(
-        'upgradeAndCall',
-        [
+
+    const data = initData
+      ? contracts.proxyAdmin.interface.encodeFunctionData('upgradeAndCall', [
           violation.data.proxyAddresses.proxy,
           violation.data.proxyAddresses.implementation,
           initData,
-        ],
-      ),
+        ])
+      : contracts.proxyAdmin.interface.encodeFunctionData('upgrade', [
+          violation.data.proxyAddresses.proxy,
+          violation.data.proxyAddresses.implementation,
+        ]);
+
+    this.pushCall(chain, {
+      to: contracts.proxyAdmin.address,
+      data,
       description: `Upgrade ${violation.data.proxyAddresses.proxy} to ${violation.data.proxyAddresses.implementation}`,
     });
   }
