@@ -44,7 +44,7 @@ const ANNOUNCEMENT_KEY = 'announcement.json';
  * Extension of BaseValidator that includes AWS S3 utilities.
  */
 export class S3Validator extends BaseValidator {
-  private s3Bucket: S3Wrapper;
+  s3Bucket: S3Wrapper;
 
   constructor(
     address: string,

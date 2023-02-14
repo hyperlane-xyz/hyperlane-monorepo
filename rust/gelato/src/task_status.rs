@@ -67,7 +67,7 @@ pub struct TaskStatusApiCall {
 impl TaskStatusApiCall {
     #[instrument]
     pub async fn run(&self) -> eyre::Result<TaskStatusApiCallResult> {
-        let url = format!("{}/tasks/status/{}", RELAY_URL, self.args.task_id);
+        let url = format!("{RELAY_URL}/tasks/status/{}", self.args.task_id);
         let res = self.http.get(url).send().await?;
         let result: TaskStatusApiCallResult = parse_response(res).await?;
         Ok(result)

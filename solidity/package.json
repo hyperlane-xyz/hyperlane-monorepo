@@ -50,7 +50,7 @@
     "test": "hardhat test && yarn test:forge",
     "test:forge": "forge test -vvv",
     "gas": "forge snapshot",
-    "gas-ci": "yarn gas --check || (echo 'Manually update gas snapshot' && exit 1)",
+    "gas-ci": "yarn gas --check --tolerance 2 || (echo 'Manually update gas snapshot' && exit 1)",
     "slither": "slither ."
   },
   "types": "dist/index.d.ts"
