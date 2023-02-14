@@ -403,7 +403,7 @@ export abstract class HyperlaneDeployer<
       constructorArgs,
       deployOpts,
     );
-    // If the proxy already existed in artifacts, but the implementation did not,
+    // If the proxy already existed in artifacts but the implementation did not,
     // we only deploy the implementation and keep the proxy.
     // Changing the proxy's implementation address on-chain is left to
     // the govern / checker script

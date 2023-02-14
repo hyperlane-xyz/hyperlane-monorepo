@@ -1,4 +1,4 @@
-import { ethers } from 'hardhat';
+import { ethers } from 'ethers';
 
 import { types, utils } from '@hyperlane-xyz/utils';
 import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';

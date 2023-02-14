@@ -1,6 +1,6 @@
 import { prompts } from 'prompts';
 
-import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
+import { InterchainGasPaymaster, Ownable__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
@@ -21,6 +21,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProxyKind } from '@hyperlane-xyz/sdk/dist/proxy';
 import { types, utils } from '@hyperlane-xyz/utils';
+import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { canProposeSafeTransactions } from '../utils/safe';
 
@@ -40,6 +41,11 @@ enum SubmissionType {
 type AnnotatedCallData = types.CallData & {
   submissionType?: SubmissionType;
   description: string;
+  // When true, instead of estimating gas when inferring submission type,
+  // the submission type that is the owner of the contract is used.
+  // This is useful if a call depends upon a prior call's state change, so
+  // estimating gas will fail
+  onlyCheckOwnership?: boolean;
 };
 
 export class HyperlaneCoreGovernor<Chain extends ChainName> {
@@ -150,7 +156,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
           break;
         }
         default:
-          console.log(`Unsupported violation type ${violation.type}`);
+          throw new Error(`Unsupported violation type ${violation.type}`);
       }
     }
   }
@@ -204,13 +210,27 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     call: AnnotatedCallData,
   ): Promise<SubmissionType> {
     const connection = this.checker.multiProvider.getChainConnection(chain);
-    // 1. Check if the call will succeed with the default signer.
-    try {
-      await connection.estimateGas(call);
-      return SubmissionType.SIGNER;
-    } catch (e) {
-      console.log('got an error when estimating gas', e);
-    } // eslint-disable-line no-empty
+    const signer = this.checker.multiProvider.getChainSigner(chain);
+    const signerAddress = await signer.getAddress();
+
+    // 1. Assess whether the default signer can be used
+    // If onlyCheckOwnership is true, check if the signer is the owner of
+    // the contract.
+    let contractOwner: types.Address | undefined;
+    if (call.onlyCheckOwnership) {
+      const ownable = Ownable__factory.connect(call.to, signer);
+      contractOwner = await ownable.owner();
+
+      if (eqAddress(signerAddress, contractOwner)) {
+        return SubmissionType.SIGNER;
+      }
+    } else {
+      // Otherwise, check if the call will succeed with the default signer.
+      try {
+        await connection.estimateGas(call);
+        return SubmissionType.SIGNER;
+      } catch (_) {} // eslint-disable-line no-empty
+    }
 
     // 2. Check if the call will succeed via Gnosis Safe.
     const safeAddress = this.checker.configMap[chain!].owner;
@@ -218,9 +238,6 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     // 2a. Confirm that the signer is a Safe owner or delegate.
     // This should implicitly check whether or not the owner is a gnosis
     // safe.
-    const signer = connection.signer;
-    if (!signer) throw new Error(`no signer found`);
-    const signerAddress = await signer.getAddress();
     if (!this.canPropose[chain].has(safeAddress)) {
       this.canPropose[chain].set(
         safeAddress,
@@ -233,15 +250,26 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
       );
     }
 
-    // 2b. Check if calling from the owner will succeed.
+    // 2b. Check if calling from the owner/safeAddress will succeed.
     if (this.canPropose[chain].get(safeAddress)) {
-      try {
-        await connection.provider.estimateGas({
-          ...call,
-          from: safeAddress,
-        });
-        return SubmissionType.SAFE;
-      } catch (_) {} // eslint-disable-line no-empty
+      // If onlyCheckOwnership is true, we expect the contractOwner
+      // to have already been set, and just check that the safeAddress
+      // is the contractOwner
+      if (call.onlyCheckOwnership) {
+        if (!contractOwner) throw new Error('Expected contractOwner to be set');
+        if (eqAddress(safeAddress, contractOwner)) {
+          return SubmissionType.SAFE;
+        }
+      } else {
+        // Otherwise, check if the call will succeed with the safe address
+        try {
+          await connection.provider.estimateGas({
+            ...call,
+            from: safeAddress,
+          });
+          return SubmissionType.SAFE;
+        } catch (_) {} // eslint-disable-line no-empty
+      }
     }
 
     return SubmissionType.MANUAL;
@@ -355,6 +383,10 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
             [configs],
           ),
           description: `Setting ${descriptions.join(', ')}`,
+          // We expect this to be ran when the IGP implementation is being set
+          // in a prior call. This means that any attempts to estimate gas will
+          // be unsuccessful, so for now we settle for only checking ownership
+          onlyCheckOwnership: true,
         });
         break;
       }

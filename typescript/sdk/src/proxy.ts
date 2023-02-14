@@ -17,11 +17,13 @@ export interface ProxyAddresses<Kind extends ProxyKind> {
 export function isProxyAddresses(
   addresses: unknown,
 ): addresses is ProxyAddresses<any> {
+  // The presence of `implementation` is intentionally not checked
+  // to allow deploying new implementations by deleting the implementation
+  // from the artifacts
   return (
     addresses !== null &&
     typeof addresses === 'object' &&
     'proxy' in addresses &&
-    // 'implementation' in addresses &&
     'kind' in addresses &&
     Object.keys(ProxyKind).includes((addresses as any).kind)
   );

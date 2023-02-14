@@ -66,14 +66,6 @@ export abstract class HyperlaneAppChecker<
       dc.provider,
       proxiedAddress.proxy,
     );
-    console.log(
-      'name',
-      name,
-      'proxiedAddress',
-      proxiedAddress,
-      'implementation',
-      implementation,
-    );
     if (implementation !== proxiedAddress.implementation) {
       this.addViolation(
         proxyViolation(chain, name, proxiedAddress, implementation),

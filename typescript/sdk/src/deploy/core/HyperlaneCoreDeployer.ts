@@ -93,8 +93,9 @@ export class HyperlaneCoreDeployer<
       return igp;
     }
 
-    const chainConnection = this.multiProvider.getChainConnection(chain);
+    // Set the gas oracles
 
+    const chainConnection = this.multiProvider.getChainConnection(chain);
     const remotes = this.multiProvider.remoteChains(chain);
 
     const gasOracleConfigsToSet: InterchainGasPaymaster.GasOracleConfigStruct[] =

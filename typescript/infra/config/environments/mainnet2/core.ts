@@ -1,23 +1,15 @@
 import {
   ChainMap,
   CoreConfig,
-  CoreViolationType,
   GasOracleContractType,
 } from '@hyperlane-xyz/sdk';
 
 import { MainnetChains, chainNames } from './chains';
 
 function getGasOracles(local: MainnetChains) {
-  console.log(
-    'GasOracleContractType',
-    GasOracleContractType,
-    'CoreViolationType',
-    CoreViolationType,
-  );
   return Object.fromEntries(
     chainNames
       .filter((name) => name !== local)
-      // @ts-ignore
       .map((name) => [name, GasOracleContractType.StorageGasOracle]),
   );
 }
