@@ -44,7 +44,7 @@ export const abacus: AgentConfig<MainnetChains> = {
   connectionType: ConnectionType.HttpFallback,
   validator: {
     default: {
-      interval: 5,
+      interval: 10,
       reorgPeriod: 1,
     },
     chainOverrides: {
@@ -77,9 +77,8 @@ export const abacus: AgentConfig<MainnetChains> = {
   relayer: {
     default: {
       signedCheckpointPollingInterval: 5,
-      blacklist: [
-        ...releaseCandidateHelloworldMatchingList,
-        { destinationAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE' },
+      whitelist: [
+        { destinationAddress: '0xABaC3D6b281Bbe0Fc0F67b26247cB27994eaAcaf' },
       ],
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
