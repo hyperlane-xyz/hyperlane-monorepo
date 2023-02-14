@@ -4,7 +4,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, info, trace};
 
-use crate::db::{storage_types::InterchainGasPaymentTuple, DbError, TypedDB, DB};
+use crate::db::{storage_types::InterchainGasPaymentData, DbError, TypedDB, DB};
 use crate::{
     HyperlaneMessage, InterchainGasPayment, InterchainGasPaymentMeta, InterchainGasPaymentWithMeta,
     H256,
@@ -240,7 +240,7 @@ impl HyperlaneDB {
         let total = existing_payment + event;
 
         info!(?event, ?total, "Storing gas payment");
-        self.store_keyed_encodable::<_, InterchainGasPaymentTuple>(
+        self.store_keyed_encodable::<_, InterchainGasPaymentData>(
             GAS_PAYMENT_FOR_MESSAGE_ID,
             &total.message_id,
             &total.into(),
@@ -255,7 +255,7 @@ impl HyperlaneDB {
         message_id: H256,
     ) -> Result<InterchainGasPayment> {
         Ok(self
-            .retrieve_keyed_decodable::<_, InterchainGasPaymentTuple>(
+            .retrieve_keyed_decodable::<_, InterchainGasPaymentData>(
                 GAS_PAYMENT_FOR_MESSAGE_ID,
                 &message_id,
             )?
