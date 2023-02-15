@@ -58,8 +58,18 @@ impl GasPaymentEnforcer {
                     GasPaymentEnforcementPolicy::MeetsEstimatedCost { coingeckoapikey } => {
                         Box::new(GasPaymentPolicyMeetsEstimatedCost::new(coingeckoapikey))
                     }
-                    GasPaymentEnforcementPolicy::OnChainFeeQuoting => {
-                        Box::new(GasPaymentPolicyOnChainFeeQuoting)
+                    GasPaymentEnforcementPolicy::OnChainFeeQuoting { gasfraction } => {
+                        let frac = gasfraction.as_deref().unwrap_or("1/2").replace(' ', "");
+                        let v: Vec<&str> = frac.split('/').collect();
+                        assert_eq!(
+                            v.len(),
+                            2,
+                            r#"Could not parse gas fraction; expected "`numerator / denominator`""#
+                        );
+                        Box::new(GasPaymentPolicyOnChainFeeQuoting::new(
+                            v[0].parse::<u64>().expect("Invalid integer"),
+                            v[1].parse::<u64>().expect("Invalid integer"),
+                        ))
                     }
                 };
                 (p, cfg.whitelist)

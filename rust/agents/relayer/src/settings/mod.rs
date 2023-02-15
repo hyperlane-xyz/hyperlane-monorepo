@@ -23,7 +23,11 @@ pub enum GasPaymentEnforcementPolicy {
 
     /// The required amount of gas on the foreign chain has been paid according
     /// to on-chain fee quoting.
-    OnChainFeeQuoting,
+    OnChainFeeQuoting {
+        /// Fraction of gas which must be paid before attempting to run the transaction. Must be
+        /// written as `"numerator / denominator"` where both are integers.
+        gasfraction: Option<String>
+    },
 }
 
 /// Config for gas payment enforcement
