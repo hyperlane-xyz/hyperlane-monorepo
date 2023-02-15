@@ -73,8 +73,10 @@ impl MessageProcessor {
         loop {
             // First, see if we can find the message so we can update the gauge.
             if let Some(message) = self.db.message_by_nonce(self.message_nonce)? {
-                // Update the latest nonce gauge if the message is destined for one
-                // of the domains we service.
+                // Update the latest nonce gauges
+                self.metrics
+                    .max_last_known_message_nonce_gauge
+                    .set(message.nonce as i64);
                 if let Some(metrics) = self.metrics.get(message.destination) {
                     metrics.set(message.nonce as i64);
                 }
@@ -153,6 +155,7 @@ impl MessageProcessor {
 
 #[derive(Debug)]
 pub(crate) struct MessageProcessorMetrics {
+    max_last_known_message_nonce_gauge: IntGauge,
     last_known_message_nonce_gauges: HashMap<u32, IntGauge>,
 }
 
@@ -174,6 +177,9 @@ impl MessageProcessorMetrics {
             );
         }
         Self {
+            max_last_known_message_nonce_gauge: metrics
+                .last_known_message_nonce()
+                .with_label_values(&["processor_loop", "maximum"]),
             last_known_message_nonce_gauges: gauges,
         }
     }
