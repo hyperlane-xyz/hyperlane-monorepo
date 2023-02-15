@@ -173,6 +173,27 @@ contract InterchainAccountRouter is
         return _getInterchainAccount(_salt(_origin, _sender, _ism));
     }
 
+    function getLocalInterchainAccount(
+        uint32 _origin,
+        address _sender,
+        address _ism
+    ) external view returns (address payable) {
+        return
+            _getInterchainAccount(
+                _salt(_origin, TypeCasts.addressToBytes32(_sender), _ism)
+            );
+    }
+
+    // ONLYOWNER!
+    function setGlobalDefault(
+        uint32 _destinationDomain,
+        InterchainAccountConfig calldata _config
+    ) external {
+        // TODO: Immutable
+        // TODO: Check not zeros
+        globalDefaults[_destinationDomain] = _config;
+    }
+
     // ============ Private Functions ============
 
     /**
