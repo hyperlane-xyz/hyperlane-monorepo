@@ -44,11 +44,10 @@ impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
     ) -> Result<Option<U256>> {
         let fractional_gas_estimate =
             tx_cost_estimate.gas_limit * self.fractional_numerator / self.fractional_denominator;
-        // TODO: what happens if they get it wrong but it is _enough_ to allow it to be
-        //  attempted. We would have to pay that gas and we would keep retrying
-        //  the message.
+        // We might want to migrate later to a solution which is a little more sophisticated. See
+        // https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/1658#discussion_r1093243358
         if current_payment.gas_amount >= fractional_gas_estimate {
-            Ok(Some(current_payment.gas_amount))
+            Ok(Some(tx_cost_estimate.gas_limit))
         } else {
             Ok(None)
         }
