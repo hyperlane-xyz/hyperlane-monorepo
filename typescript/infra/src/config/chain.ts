@@ -31,20 +31,27 @@ export async function fetchProvider(
   chainName: ChainName,
   connectionType: ConnectionType = ConnectionType.Http,
 ): Promise<ethers.providers.Provider> {
-  if (
-    connectionType !== ConnectionType.Http &&
-    connectionType !== ConnectionType.HttpQuorum
-  ) {
-    throw Error(`Unsupported connectionType: ${connectionType}`);
-  }
-  const quorum = connectionType === ConnectionType.HttpQuorum;
-  const rpc = await getSecretRpcEndpoint(environment, chainName, quorum);
-  if (quorum) {
-    return new ethers.providers.FallbackProvider(
-      (rpc as string[]).map((url) => providerBuilder(url, chainName)),
-      1, // a single provider is "quorum", but failure will cause failover to the next provider
-    );
-  } else {
-    return providerBuilder(rpc, chainName);
+  const single = connectionType === ConnectionType.Http;
+  const rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
+  switch (connectionType) {
+    case ConnectionType.Http: {
+      return providerBuilder(rpcData, chainName);
+    }
+    case ConnectionType.HttpQuorum: {
+      return new ethers.providers.FallbackProvider(
+        (rpcData as string[]).map((url) =>
+          providerBuilder(url, chainName, false),
+        ), // disable retry for quorum
+      );
+    }
+    case ConnectionType.HttpFallback: {
+      return new ethers.providers.FallbackProvider(
+        (rpcData as string[]).map((url) => providerBuilder(url, chainName)),
+        1, // a single provider is "quorum", but failure will cause failover to the next provider
+      );
+    }
+    default: {
+      throw Error(`Unsupported connectionType: ${connectionType}`);
+    }
   }
 }
