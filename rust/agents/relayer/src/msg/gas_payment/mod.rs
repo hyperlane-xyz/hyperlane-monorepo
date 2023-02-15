@@ -59,8 +59,8 @@ impl GasPaymentEnforcer {
                         Box::new(GasPaymentPolicyMeetsEstimatedCost::new(coingeckoapikey))
                     }
                     GasPaymentEnforcementPolicy::OnChainFeeQuoting { gasfraction } => {
-                        let frac = gasfraction.as_deref().unwrap_or("1/2").replace(' ', "");
-                        let v: Vec<&str> = frac.split('/').collect();
+                        let gasfraction = gasfraction.replace(' ', "");
+                        let v: Vec<&str> = gasfraction.split('/').collect();
                         assert_eq!(
                             v.len(),
                             2,

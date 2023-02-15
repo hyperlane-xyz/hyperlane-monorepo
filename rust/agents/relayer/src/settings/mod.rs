@@ -24,9 +24,10 @@ pub enum GasPaymentEnforcementPolicy {
     /// The required amount of gas on the foreign chain has been paid according
     /// to on-chain fee quoting.
     OnChainFeeQuoting {
-        /// Fraction of gas which must be paid before attempting to run the transaction. Must be
-        /// written as `"numerator / denominator"` where both are integers.
-        gasfraction: Option<String>
+        /// Optional fraction of gas which must be paid before attempting to run the transaction.
+        /// Must be written as `"numerator / denominator"` where both are integers.
+        #[serde(default = "default_gasfraction")]
+        gasfraction: String
     },
 }
 
@@ -66,3 +67,7 @@ decl_settings!(Relayer {
     /// Comma separated List of domain ids to skip transaction gas for.
     skiptransactiongaslimitfor: Option<String>,
 });
+
+fn default_gasfraction() -> String {
+    "1/2".into()
+}
