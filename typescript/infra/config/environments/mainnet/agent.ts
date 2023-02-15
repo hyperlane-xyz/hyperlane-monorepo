@@ -81,28 +81,28 @@ export const abacus: AgentConfig<MainnetChains> = {
         // Allow bidirectional messaging between Polygon/Celo Toucan contracts
         {
           sourceAddress: '0xABaC3D6b281Bbe0Fc0F67b26247cB27994eaAcaf',
-          sourceDomain: 'celo',
+          sourceDomain: '1667591279', // celo
           destinationAddress: '0xABaC3D6b281Bbe0Fc0F67b26247cB27994eaAcaf',
-          destinationDomain: 'polygon',
+          destinationDomain: '1886350457', // polygon
         },
         {
           sourceAddress: '0xABaC3D6b281Bbe0Fc0F67b26247cB27994eaAcaf',
-          sourceDomain: 'polygon',
+          sourceDomain: '1886350457', // polygon
           destinationAddress: '0xABaC3D6b281Bbe0Fc0F67b26247cB27994eaAcaf',
-          destinationDomain: 'celo',
+          destinationDomain: '1667591279', // celo
         },
         // Allow bidirectional messaging between Polygon/Celo Helloworld contracts
         {
           sourceAddress: '0x37fcf9DAEFAb05939c6e299c1AB8e7430A5715c8',
-          sourceDomain: 'celo',
+          sourceDomain: '1667591279', // celo
           destinationAddress: '0xb3eCff91A3C3FB1A2F57DE2881a0Cab7b56E129b',
-          destinationDomain: 'polygon',
+          destinationDomain: '1886350457', // polygon
         },
         {
           sourceAddress: '0xb3eCff91A3C3FB1A2F57DE2881a0Cab7b56E129b',
-          sourceDomain: 'polygon',
+          sourceDomain: '1886350457', // polygon
           destinationAddress: '0x37fcf9DAEFAb05939c6e299c1AB8e7430A5715c8',
-          destinationDomain: 'celo',
+          destinationDomain: '1667591279', // celo
         },
       ],
       gasPaymentEnforcementPolicy: {
