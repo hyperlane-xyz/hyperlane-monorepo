@@ -32,12 +32,15 @@ pub struct InterchainGasPayment {
 }
 
 /// Amount of gas spent attempting to send the message.
+/// TODO: should we merge this with the gas payments?
 #[derive(Debug, Copy, Clone)]
 pub struct InterchainGasExpenditure {
     /// The id of the message
     pub message_id: H256,
-    /// Amount of destination gas spent attempting to relay the message
-    pub spent: U256,
+    /// Amount of destination tokens used attempting to relay the message
+    pub tokens_used: U256,
+    /// Amount of destination gas used attempting to relay the message
+    pub gas_used: U256,
 }
 
 impl Add for InterchainGasPayment {
@@ -66,7 +69,8 @@ impl Add for InterchainGasExpenditure {
         );
         Self {
             message_id: self.message_id,
-            spent: self.spent + rhs.spent,
+            tokens_used: self.tokens_used + rhs.tokens_used,
+            gas_used: self.gas_used + rhs.gas_used,
         }
     }
 }

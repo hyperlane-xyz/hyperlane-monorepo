@@ -27,7 +27,7 @@ pub enum GasPaymentEnforcementPolicy {
         /// Optional fraction of gas which must be paid before attempting to run the transaction.
         /// Must be written as `"numerator / denominator"` where both are integers.
         #[serde(default = "default_gasfraction")]
-        gasfraction: String
+        gasfraction: String,
     },
 }
 

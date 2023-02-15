@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use eyre::Result;
 
-use hyperlane_core::{HyperlaneMessage, InterchainGasPayment, TxCostEstimate, U256};
+use hyperlane_core::{HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
@@ -19,7 +19,7 @@ impl GasPaymentPolicyOnChainFeeQuoting {
     pub fn new(fractional_numerator: u64, fractional_denominator: u64) -> Self {
         Self {
             fractional_numerator,
-            fractional_denominator
+            fractional_denominator,
         }
     }
 }
@@ -40,13 +40,15 @@ impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
         &self,
         _message: &HyperlaneMessage,
         current_payment: &InterchainGasPayment,
+        current_expenditure: &InterchainGasExpenditure,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
         let fractional_gas_estimate =
             tx_cost_estimate.gas_limit * self.fractional_numerator / self.fractional_denominator;
+        let gas_amount = current_payment.gas_amount - current_expenditure.gas_used;
         // We might want to migrate later to a solution which is a little more sophisticated. See
         // https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/1658#discussion_r1093243358
-        if current_payment.gas_amount >= fractional_gas_estimate {
+        if gas_amount >= fractional_gas_estimate {
             Ok(Some(tx_cost_estimate.gas_limit))
         } else {
             Ok(None)

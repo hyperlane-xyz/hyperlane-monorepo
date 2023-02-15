@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use eyre::Result;
 
-use hyperlane_core::{HyperlaneMessage, InterchainGasPayment, TxCostEstimate, U256};
+use hyperlane_core::{HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
@@ -22,6 +22,7 @@ impl GasPaymentPolicy for GasPaymentPolicyMinimum {
         &self,
         _message: &HyperlaneMessage,
         current_payment: &InterchainGasPayment,
+        _current_expenditure: &InterchainGasExpenditure,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
         if current_payment.payment >= self.minimum_payment {

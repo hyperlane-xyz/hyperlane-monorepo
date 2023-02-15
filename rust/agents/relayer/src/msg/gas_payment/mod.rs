@@ -28,6 +28,7 @@ pub trait GasPaymentPolicy: Debug + Send + Sync {
         &self,
         message: &HyperlaneMessage,
         current_payment: &InterchainGasPayment,
+        current_expenditure: &InterchainGasExpenditure,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>>;
 }
@@ -89,13 +90,21 @@ impl GasPaymentEnforcer {
         message: &HyperlaneMessage,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
-        let current_payment = self.get_message_gas_payment(message.id())?;
+        let msg_id = message.id();
+        let current_payment = self.db.retrieve_gas_payment_for_message_id(msg_id)?;
+        let current_expenditure = self.db.retrieve_gas_expenditure_for_message_id(msg_id)?;
+
         for (policy, whitelist) in &self.policies {
             if !whitelist.msg_matches(message, true) {
                 continue;
             }
             return policy
-                .message_meets_gas_payment_requirement(message, &current_payment, tx_cost_estimate)
+                .message_meets_gas_payment_requirement(
+                    message,
+                    &current_payment,
+                    &current_expenditure,
+                    tx_cost_estimate,
+                )
                 .await;
         }
 
@@ -110,7 +119,8 @@ impl GasPaymentEnforcer {
         self.db.process_gas_expenditure(&GasExpenditureWithMeta {
             payment: InterchainGasExpenditure {
                 message_id: message.id(),
-                spent: outcome.gas_spent,
+                gas_used: outcome.gas_used,
+                tokens_used: outcome.gas_used * outcome.gas_price,
             },
             meta: TxMeta {
                 transaction_hash: outcome.txid,
@@ -118,10 +128,6 @@ impl GasPaymentEnforcer {
             },
         })?;
         Ok(())
-    }
-
-    fn get_message_gas_payment(&self, msg_id: H256) -> Result<InterchainGasPayment, DbError> {
-        self.db.retrieve_gas_payment_for_message_id(msg_id)
     }
 }
 

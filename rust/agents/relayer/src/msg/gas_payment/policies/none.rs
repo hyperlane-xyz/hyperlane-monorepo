@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use eyre::Result;
 
-use hyperlane_core::{HyperlaneMessage, InterchainGasPayment, TxCostEstimate, U256};
+use hyperlane_core::{HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
@@ -20,6 +20,7 @@ impl GasPaymentPolicy for GasPaymentPolicyNone {
         &self,
         _message: &HyperlaneMessage,
         _current_payment: &InterchainGasPayment,
+        _current_expenditure: &InterchainGasExpenditure,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
         Ok(Some(tx_cost_estimate.gas_limit))

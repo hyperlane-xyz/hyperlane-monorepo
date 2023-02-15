@@ -1,6 +1,9 @@
 use std::io::{Read, Write};
 
-use crate::{Decode, Encode, HyperlaneProtocolError, InterchainGasPayment, H256, U256};
+use crate::{
+    Decode, Encode, HyperlaneProtocolError, InterchainGasExpenditure, InterchainGasPayment, H256,
+    U256,
+};
 
 /// Subset of `InterchainGasPayment` excluding the message id which is stored in
 /// the key.
@@ -8,6 +11,15 @@ use crate::{Decode, Encode, HyperlaneProtocolError, InterchainGasPayment, H256, 
 pub(super) struct InterchainGasPaymentData {
     pub payment: U256,
     pub gas_amount: U256,
+}
+
+/// Subset of `InterchainGasExpenditure` excluding the message id which is
+/// stored in the key.
+/// TODO: Should we merge this with the gas payment data?
+#[derive(Debug, Copy, Clone)]
+pub(super) struct InterchainGasExpenditureData {
+    pub tokens_used: U256,
+    pub gas_used: U256,
 }
 
 impl Default for InterchainGasPaymentData {
@@ -56,6 +68,56 @@ impl Decode for InterchainGasPaymentData {
         Ok(Self {
             payment: U256::read_from(reader)?,
             gas_amount: U256::read_from(reader)?,
+        })
+    }
+}
+
+impl Default for InterchainGasExpenditureData {
+    fn default() -> Self {
+        Self {
+            tokens_used: U256::zero(),
+            gas_used: U256::zero(),
+        }
+    }
+}
+
+impl InterchainGasExpenditureData {
+    pub fn complete(self, message_id: H256) -> InterchainGasExpenditure {
+        InterchainGasExpenditure {
+            message_id,
+            tokens_used: self.tokens_used,
+            gas_used: self.gas_used,
+        }
+    }
+}
+
+impl From<InterchainGasExpenditure> for InterchainGasExpenditureData {
+    fn from(p: InterchainGasExpenditure) -> Self {
+        Self {
+            tokens_used: p.tokens_used,
+            gas_used: p.gas_used,
+        }
+    }
+}
+
+impl Encode for InterchainGasExpenditureData {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: Write,
+    {
+        Ok(self.tokens_used.write_to(writer)? + self.gas_used.write_to(writer)?)
+    }
+}
+
+impl Decode for InterchainGasExpenditureData {
+    fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
+    where
+        R: Read,
+        Self: Sized,
+    {
+        Ok(Self {
+            tokens_used: U256::read_from(reader)?,
+            gas_used: U256::read_from(reader)?,
         })
     }
 }
