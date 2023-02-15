@@ -14,7 +14,15 @@ export const abacus: HelloWorldConfig<TestnetChains> = {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
       tag: 'sha-fcc80c8',
     },
-    chainsToSkip: [],
+    // Everything but Alfajores and Mumbai
+    chainsToSkip: [
+      'fuji',
+      'bsctestnet',
+      'goerli',
+      'moonbasealpha',
+      'optimismgoerli',
+      'arbitrumgoerli',
+    ],
     runEnv: environment,
     namespace: environment,
     runConfig: {

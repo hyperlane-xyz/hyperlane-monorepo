@@ -72,8 +72,32 @@ export const abacus: AgentConfig<TestnetChains> = {
     default: {
       signedCheckpointPollingInterval: 5,
       whitelist: [
-        { destinationAddress: '0xdb45A8869f94c15954e282F28e272f5597063e9A' },
-        { destinationAddress: '0xf9a49993DF24366AB8EDf617C080ca36a4ADb86e' },
+        // Allow bidirectional messaging between Mumbai/Alfajores Toucan contracts
+        {
+          sourceAddress: '0xdb45A8869f94c15954e282F28e272f5597063e9A',
+          sourceDomain: 1000, // alfajores
+          destinationAddress: '0xf9a49993DF24366AB8EDf617C080ca36a4ADb86e',
+          destinationDomain: 80001, // mumbai
+        },
+        {
+          sourceAddress: '0xf9a49993DF24366AB8EDf617C080ca36a4ADb86e',
+          sourceDomain: 80001, // mumbai
+          destinationAddress: '0xdb45A8869f94c15954e282F28e272f5597063e9A',
+          destinationDomain: 1000, // alfajores
+        },
+        // Allow bidirectional messaging between Mumbai/Alfajores Helloworld contracts
+        {
+          sourceAddress: '0x0FD5A339466638aD2746748dCfFF65A27f605de4',
+          sourceDomain: 1000, // alfajores
+          destinationAddress: '0x636bcE43104Ef1E61e93E84F0A324d037C258308',
+          destinationDomain: 80001, // mumbai
+        },
+        {
+          sourceAddress: '0x636bcE43104Ef1E61e93E84F0A324d037C258308',
+          sourceDomain: 80001, // mumbai
+          destinationAddress: '0x0FD5A339466638aD2746748dCfFF65A27f605de4',
+          destinationDomain: 1000, // alfajores
+        },
       ],
       gasPaymentEnforcementPolicy: {
         type: GasPaymentEnforcementPolicyType.None,
