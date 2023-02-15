@@ -5,7 +5,6 @@ import { format } from 'util';
 import { HelloWorldApp } from '@hyperlane-xyz/helloworld';
 import {
   ChainName,
-  DispatchedMessage,
   HyperlaneCore,
   InterchainGasCalculator,
 } from '@hyperlane-xyz/sdk';
@@ -393,14 +392,27 @@ async function sendMessage(
     2,
   );
   messageSendSeconds.labels(metricLabels).inc((Date.now() - startTime) / 1000);
+  if (!receipt.events || receipt.events.length < 2) {
+    const msg = 'Mailbox events not found in receipt';
+    error(msg, { events: receipt.events });
+    throw new Error(msg);
+  }
+  const dispatchIdEvent = receipt.events[1];
+  if (
+    dispatchIdEvent.topics[0] !==
+    '0x788dbc1b7152732178210e7f4d9d010ef016f9eafbe66786bd7169f56e0c353a'
+  ) {
+    const msg = 'DispatchId event not found in receipt.events[1].topics[0]';
+    error(msg, { events: receipt.events });
+    throw new Error(msg);
+  }
+  const messageId = dispatchIdEvent.topics[1];
 
-  const [message] = app.core.getDispatchedMessages(receipt);
   log('Message sent', {
     origin,
     destination,
-    events: receipt.events,
-    logs: receipt.logs,
-    message,
+    transactionHash: receipt.transactionHash,
+    messageId,
   });
 
   try {
@@ -413,14 +425,14 @@ async function sendMessage(
     // If we weren't able to get the receipt for message processing,
     // try to read the state to ensure it wasn't a transient provider issue
     log('Checking if message was received despite timeout', {
-      message,
+      messageId,
     });
 
     // Try a few times to see if the message has been processed --
     // we've seen some intermittent issues when fetching state.
     // This will throw if the message is found to have not been processed.
     await utils.retryAsync(async () => {
-      if (!(await messageIsProcessed(app.core, origin, destination, message))) {
+      if (!(await messageIsProcessed(app.core, destination, messageId))) {
         throw error;
       }
     }, 3);
@@ -428,7 +440,7 @@ async function sendMessage(
     // Otherwise, the message has been processed
     log(
       'Did not receive event for message delivery even though it was delivered',
-      { origin, destination, message },
+      { origin, destination, messageId },
     );
   }
 
@@ -443,12 +455,11 @@ async function sendMessage(
 
 async function messageIsProcessed(
   core: HyperlaneCore<any>,
-  origin: ChainName,
   destination: ChainName,
-  message: DispatchedMessage,
+  messageId: string,
 ): Promise<boolean> {
   const destinationMailbox = core.getContracts(destination).mailbox.contract;
-  return destinationMailbox.delivered(message.id);
+  return destinationMailbox.delivered(messageId);
 }
 
 async function updateWalletBalanceMetricFor(
