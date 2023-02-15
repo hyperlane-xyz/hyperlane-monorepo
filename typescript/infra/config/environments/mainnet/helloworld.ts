@@ -14,7 +14,15 @@ export const abacus: HelloWorldConfig<MainnetChains> = {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
       tag: 'sha-fcc80c8',
     },
-    chainsToSkip: [],
+    // Everything but Celo and Polygon
+    chainsToSkip: [
+      'bsc',
+      'avalanche',
+      'arbitrum',
+      'optimism',
+      'ethereum',
+      'moonbeam',
+    ],
     runEnv: environment,
     namespace: environment,
     runConfig: {
