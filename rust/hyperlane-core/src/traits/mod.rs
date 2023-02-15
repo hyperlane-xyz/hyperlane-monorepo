@@ -25,8 +25,12 @@ mod validator_announce;
 pub struct TxOutcome {
     /// The txid
     pub txid: crate::H256,
+    /// Index of the log transaction's logs
+    pub log_index: u64,
     /// True if executed, false otherwise (reverted, etc.)
     pub executed: bool,
+    /// Amoutn of gas spent on this transaction.
+    pub gas_spent: crate::U256,
     // TODO: more? What can be abstracted across all chains?
 }
 
@@ -34,7 +38,9 @@ impl From<ethers::prelude::TransactionReceipt> for TxOutcome {
     fn from(t: ethers::prelude::TransactionReceipt) -> Self {
         Self {
             txid: t.transaction_hash,
+            log_index: t.transaction_index.as_u64(),
             executed: t.status.unwrap().low_u32() == 1,
+            gas_spent: t.gas_used.unwrap_or(crate::U256::zero()),
         }
     }
 }

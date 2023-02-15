@@ -6,7 +6,8 @@ use eyre::Result;
 use crate::msg::gas_payment::policies::GasPaymentPolicyOnChainFeeQuoting;
 use hyperlane_core::{
     db::{DbError, HyperlaneDB},
-    HyperlaneMessage, InterchainGasPayment, TxCostEstimate, H256, U256,
+    GasExpenditureWithMeta, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
+    TxCostEstimate, TxMeta, TxOutcome, H256, U256,
 };
 
 use crate::settings::{
@@ -99,6 +100,24 @@ impl GasPaymentEnforcer {
         }
 
         panic!("No gas payment policy matched for message; consider adding a default policy to the end of the policies array which uses a wildcard whitelist. {message:?}")
+    }
+
+    pub fn record_failed_outcome(
+        &self,
+        message: &HyperlaneMessage,
+        outcome: TxOutcome,
+    ) -> Result<()> {
+        self.db.process_gas_expenditure(&GasExpenditureWithMeta {
+            payment: InterchainGasExpenditure {
+                message_id: message.id(),
+                spent: outcome.gas_spent,
+            },
+            meta: TxMeta {
+                transaction_hash: outcome.txid,
+                log_index: outcome.log_index,
+            },
+        })?;
+        Ok(())
     }
 
     fn get_message_gas_payment(&self, msg_id: H256) -> Result<InterchainGasPayment, DbError> {

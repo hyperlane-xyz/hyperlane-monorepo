@@ -31,6 +31,15 @@ pub struct InterchainGasPayment {
     pub gas_amount: U256,
 }
 
+/// Amount of gas spent attempting to send the message.
+#[derive(Debug, Copy, Clone)]
+pub struct InterchainGasExpenditure {
+    /// The id of the message
+    pub message_id: H256,
+    /// Amount of destination gas spent attempting to relay the message
+    pub spent: U256,
+}
+
 impl Add for InterchainGasPayment {
     type Output = Self;
 
@@ -47,16 +56,31 @@ impl Add for InterchainGasPayment {
     }
 }
 
-/// Uniquely identifying metadata for an InterchainGasPayment
-#[derive(Debug)]
-pub struct InterchainGasPaymentMeta {
-    /// The transaction hash in which the GasPayment log was emitted
-    pub transaction_hash: H256,
-    /// The index of the GasPayment log within the transaction's logs
-    pub log_index: U256,
+impl Add for InterchainGasExpenditure {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        assert_eq!(
+            self.message_id, rhs.message_id,
+            "Cannot add interchain gas expenditures for different messages"
+        );
+        Self {
+            message_id: self.message_id,
+            spent: self.spent + rhs.spent,
+        }
+    }
 }
 
-impl Encode for InterchainGasPaymentMeta {
+/// Uniquely identifying metadata for a transaction
+#[derive(Debug)]
+pub struct TxMeta {
+    /// The transaction hash in which the GasPayment log was emitted
+    pub transaction_hash: H256,
+    /// The index of log within the transaction's logs
+    pub log_index: u64,
+}
+
+impl Encode for TxMeta {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: Write,
@@ -68,7 +92,7 @@ impl Encode for InterchainGasPaymentMeta {
     }
 }
 
-impl Decode for InterchainGasPaymentMeta {
+impl Decode for TxMeta {
     fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: Read,
@@ -76,7 +100,7 @@ impl Decode for InterchainGasPaymentMeta {
     {
         Ok(Self {
             transaction_hash: H256::read_from(reader)?,
-            log_index: U256::read_from(reader)?,
+            log_index: u64::read_from(reader)?,
         })
     }
 }
@@ -87,7 +111,16 @@ pub struct InterchainGasPaymentWithMeta {
     /// The InterchainGasPayment
     pub payment: InterchainGasPayment,
     /// Metadata for the payment
-    pub meta: InterchainGasPaymentMeta,
+    pub meta: TxMeta,
+}
+
+/// A gas expense from submitting a transaction.
+#[derive(Debug)]
+pub struct GasExpenditureWithMeta {
+    /// The InterchainGasExpenditure
+    pub payment: InterchainGasExpenditure,
+    /// Metadata for the expenditure
+    pub meta: TxMeta,
 }
 
 /// A cost estimate for a transaction.

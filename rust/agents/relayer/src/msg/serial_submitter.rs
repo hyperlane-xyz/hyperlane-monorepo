@@ -335,7 +335,7 @@ impl SerialSubmitter {
             }
             Ok(outcome) => {
                 info!(hash=?outcome.txid, "Transaction attempting to process transaction reverted");
-                // TODO: Do we need to account for burned gas?
+                self.gas_payment_enforcer.record_failed_outcome(&msg.message, outcome)?;
                 Ok(false)
             }
             Err(e) => Err(e.into()),

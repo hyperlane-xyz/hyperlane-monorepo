@@ -11,7 +11,7 @@ use tracing::instrument;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentMeta,
+    InterchainGasPaymasterIndexer, InterchainGasPayment, TxMeta,
     InterchainGasPaymentWithMeta, H160, H256,
 };
 
@@ -124,9 +124,9 @@ where
                     payment: log.payment,
                     gas_amount: log.gas_amount,
                 },
-                meta: InterchainGasPaymentMeta {
+                meta: TxMeta {
                     transaction_hash: log_meta.transaction_hash,
-                    log_index: log_meta.log_index,
+                    log_index: log_meta.log_index.as_u64(),
                 },
             })
             .collect())

@@ -6,8 +6,8 @@ use tracing::{debug, info, trace};
 
 use crate::db::{storage_types::InterchainGasPaymentData, DbError, TypedDB, DB};
 use crate::{
-    HyperlaneMessage, InterchainGasPayment, InterchainGasPaymentMeta, InterchainGasPaymentWithMeta,
-    H256,
+    GasExpenditureWithMeta, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
+    InterchainGasPaymentWithMeta, TxMeta, H256, U256,
 };
 
 static MESSAGE_ID: &str = "message_id_";
@@ -16,7 +16,8 @@ static LATEST_NONCE: &str = "latest_known_nonce_";
 static LATEST_NONCE_FOR_DESTINATION: &str = "latest_known_nonce_for_destination_";
 static NONCE_PROCESSED: &str = "nonce_processed_";
 static GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_for_message_id_v2_";
-static GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_";
+static GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_";
+static TX_META_PROCESSED: &str = "tx_meta_processed_";
 
 type Result<T> = std::result::Result<T, DbError>;
 
@@ -186,7 +187,7 @@ impl HyperlaneDB {
     ) -> Result<bool> {
         let meta = &gas_payment_with_meta.meta;
         // If the gas payment has already been processed, do nothing
-        if self.retrieve_gas_payment_meta_processed(meta)? {
+        if self.retrieve_tx_meta_processed(meta)? {
             trace!(
                 ?gas_payment_with_meta,
                 "Attempted to process an already-processed gas payment"
@@ -195,7 +196,7 @@ impl HyperlaneDB {
             return Ok(false);
         }
         // Set the gas payment as processed
-        self.store_gas_payment_meta_processed(meta)?;
+        self.store_tx_meta_processed(meta)?;
 
         // Update the total gas payment for the message to include the payment
         self.update_gas_payment_for_message_id(gas_payment_with_meta.payment)?;
@@ -204,22 +205,45 @@ impl HyperlaneDB {
         Ok(true)
     }
 
-    /// Record a gas payment, identified by its metadata, as processed
-    fn store_gas_payment_meta_processed(
+    /// If the provided gas expenditure, identified by its metadata, has not
+    /// been processed, processes the gas expenditure and records it as
+    /// processed. Returns whether the gas expenditure was processed for the
+    /// first time.
+    pub fn process_gas_expenditure(
         &self,
-        gas_payment_meta: &InterchainGasPaymentMeta,
-    ) -> Result<()> {
-        self.store_keyed_encodable(GAS_PAYMENT_META_PROCESSED, gas_payment_meta, &true)
+        gas_expenditure_with_meta: &GasExpenditureWithMeta,
+    ) -> Result<bool> {
+        let meta = &gas_expenditure_with_meta.meta;
+        // If the gas payment has already been processed, do nothing
+        if self.retrieve_tx_meta_processed(meta)? {
+            trace!(
+                ?gas_expenditure_with_meta,
+                "Attempted to process an already-processed gas expenditure"
+            );
+            // Return false to indicate the gas expenditure was already processed
+            return Ok(false);
+        }
+        // Set the gas expenditure as processed
+        self.store_tx_meta_processed(meta)?;
+
+        // Update the total gas expenditure for the message to include the payment
+        self.update_gas_expenditure_for_message_id(gas_expenditure_with_meta.payment)?;
+
+        // Return true to indicate the gas payment was processed for the first time
+        Ok(true)
     }
 
-    /// Get whether a gas payment, identified by its metadata, has been
+    /// Record that a transaction, identified by its metadata, has been
+    /// processed
+    fn store_tx_meta_processed(&self, meta: &TxMeta) -> Result<()> {
+        self.store_keyed_encodable(TX_META_PROCESSED, meta, &true)
+    }
+
+    /// Get whether a transaction, identified by its metadata, has been
     /// processed already
-    fn retrieve_gas_payment_meta_processed(
-        &self,
-        gas_payment_meta: &InterchainGasPaymentMeta,
-    ) -> Result<bool> {
+    fn retrieve_tx_meta_processed(&self, meta: &TxMeta) -> Result<bool> {
         Ok(self
-            .retrieve_keyed_decodable(GAS_PAYMENT_META_PROCESSED, gas_payment_meta)?
+            .retrieve_keyed_decodable(TX_META_PROCESSED, meta)?
             .unwrap_or(false))
     }
 
@@ -238,6 +262,21 @@ impl HyperlaneDB {
         Ok(())
     }
 
+    /// Update the total gas spent for a message
+    fn update_gas_expenditure_for_message_id(&self, event: InterchainGasExpenditure) -> Result<()> {
+        let existing_payment = self.retrieve_gas_expenditure_for_message_id(event.message_id)?;
+        let total = existing_payment + event;
+
+        info!(?event, new_total_gas_payment=?total, "Storing gas payment");
+        self.store_keyed_encodable::<_, U256>(
+            GAS_EXPENDITURE_FOR_MESSAGE_ID,
+            &total.message_id,
+            &total.spent,
+        )?;
+
+        Ok(())
+    }
+
     /// Retrieve the total gas payment for a message
     pub fn retrieve_gas_payment_for_message_id(
         &self,
@@ -250,5 +289,16 @@ impl HyperlaneDB {
             )?
             .unwrap_or_default()
             .complete(message_id))
+    }
+
+    /// Retrieve the total gas payment for a message
+    pub fn retrieve_gas_expenditure_for_message_id(
+        &self,
+        message_id: H256,
+    ) -> Result<InterchainGasExpenditure> {
+        let spent = self
+            .retrieve_keyed_decodable::<_, U256>(GAS_EXPENDITURE_FOR_MESSAGE_ID, &message_id)?
+            .unwrap_or(U256::zero());
+        Ok(InterchainGasExpenditure { spent, message_id })
     }
 }
