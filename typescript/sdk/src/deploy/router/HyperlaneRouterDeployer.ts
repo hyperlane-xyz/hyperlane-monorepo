@@ -60,6 +60,21 @@ export abstract class HyperlaneRouterDeployer<
             contracts.router.setInterchainGasPaymaster(interchainGasPaymaster),
           );
         }
+
+        const interchainSecurityModule =
+          this.configMap[local].interchainSecurityModule;
+        if (
+          interchainSecurityModule &&
+          (await contracts.router.interchainSecurityModule()) ===
+            ethers.constants.AddressZero
+        ) {
+          this.logger(`Set interchain security module on ${local}`);
+          await chainConnection.handleTx(
+            contracts.router.setInterchainSecurityModule(
+              interchainSecurityModule,
+            ),
+          );
+        }
       }),
     );
   }
