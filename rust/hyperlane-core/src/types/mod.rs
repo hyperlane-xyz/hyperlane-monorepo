@@ -32,7 +32,6 @@ pub struct InterchainGasPayment {
 }
 
 /// Amount of gas spent attempting to send the message.
-/// TODO: should we merge this with the gas payments?
 #[derive(Debug, Copy, Clone)]
 pub struct InterchainGasExpenditure {
     /// The id of the message

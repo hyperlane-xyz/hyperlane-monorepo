@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use eyre::Result;
 
-use hyperlane_core::{HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256};
+use hyperlane_core::{
+    HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256,
+};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
@@ -44,6 +46,11 @@ async fn test_gas_payment_policy_none() {
                     message_id: H256::zero(),
                     payment: U256::zero(),
                     gas_amount: U256::zero(),
+                },
+                &InterchainGasExpenditure {
+                    message_id: H256::zero(),
+                    tokens_used: U256::zero(),
+                    gas_used: U256::zero(),
                 },
                 &TxCostEstimate {
                     gas_limit: U256::from(100000u32),

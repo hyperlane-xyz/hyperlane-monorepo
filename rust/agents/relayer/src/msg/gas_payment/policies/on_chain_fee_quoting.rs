@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use eyre::Result;
 
-use hyperlane_core::{HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256};
+use hyperlane_core::{
+    HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256,
+};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
@@ -46,8 +48,8 @@ impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
         let fractional_gas_estimate =
             tx_cost_estimate.gas_limit * self.fractional_numerator / self.fractional_denominator;
         let gas_amount = current_payment.gas_amount - current_expenditure.gas_used;
-        // We might want to migrate later to a solution which is a little more sophisticated. See
-        // https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/1658#discussion_r1093243358
+        // We might want to migrate later to a solution which is a little more
+        // sophisticated. See https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/1658#discussion_r1093243358
         if gas_amount >= fractional_gas_estimate {
             Ok(Some(tx_cost_estimate.gas_limit))
         } else {
@@ -75,12 +77,19 @@ async fn test_gas_payment_policy_on_chain_fee_quoting() {
         gas_amount,
     };
 
+    let current_expenditure = |gas_used| InterchainGasExpenditure {
+        message_id: H256::zero(),
+        tokens_used: U256::zero(),
+        gas_used,
+    };
+
     // If the payment is less than the minimum, returns None
     assert_eq!(
         policy
             .message_meets_gas_payment_requirement(
                 &message,
                 &current_payment(min - 1),
+                &current_expenditure(U256::zero()),
                 &cost_estimate,
             )
             .await
@@ -91,7 +100,12 @@ async fn test_gas_payment_policy_on_chain_fee_quoting() {
     // If the payment is at least the minimum, returns the correct gas amount to use
     assert_eq!(
         policy
-            .message_meets_gas_payment_requirement(&message, &current_payment(min), &cost_estimate,)
+            .message_meets_gas_payment_requirement(
+                &message,
+                &current_payment(min),
+                &current_expenditure(U256::zero()),
+                &cost_estimate,
+            )
             .await
             .unwrap(),
         Some(min)
@@ -103,10 +117,25 @@ async fn test_gas_payment_policy_on_chain_fee_quoting() {
             .message_meets_gas_payment_requirement(
                 &message,
                 &current_payment(min * 2 + 300),
+                &current_expenditure(U256::zero()),
                 &cost_estimate,
             )
             .await
             .unwrap(),
         Some(min * 2 + 300)
     );
+
+    // Accounts for gas that has already been spent
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(
+                &message,
+                &current_payment(min + 300),
+                &current_expenditure(301.into()),
+                &cost_estimate
+            )
+            .await
+            .unwrap(),
+        None
+    )
 }

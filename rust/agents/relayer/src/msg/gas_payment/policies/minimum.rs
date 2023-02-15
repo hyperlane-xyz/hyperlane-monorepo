@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use eyre::Result;
 
-use hyperlane_core::{HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256};
+use hyperlane_core::{
+    HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, TxCostEstimate, U256,
+};
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
@@ -47,11 +49,18 @@ async fn test_gas_payment_policy_minimum() {
         payment: U256::from(999u32),
         gas_amount: U256::zero(),
     };
+    // expenditure should make no difference
+    let current_expenditure = InterchainGasExpenditure {
+        message_id: H256::zero(),
+        gas_used: U256::from(1000000000u32),
+        tokens_used: U256::from(1000000000u32),
+    };
     assert_eq!(
         policy
             .message_meets_gas_payment_requirement(
                 &message,
                 &current_payment,
+                &current_expenditure,
                 &TxCostEstimate {
                     gas_limit: U256::from(100000u32),
                     gas_price: U256::from(100000u32),
@@ -73,6 +82,7 @@ async fn test_gas_payment_policy_minimum() {
             .message_meets_gas_payment_requirement(
                 &message,
                 &current_payment,
+                &current_expenditure,
                 &TxCostEstimate {
                     gas_limit: U256::from(100000u32),
                     gas_price: U256::from(100001u32),

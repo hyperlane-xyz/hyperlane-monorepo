@@ -305,9 +305,19 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
         message_id: H256::zero(),
         gas_amount: U256::zero(),
     };
+    let current_expenditure = InterchainGasExpenditure {
+        message_id: H256::zero(),
+        tokens_used: U256::zero(),
+        gas_used: U256::zero(),
+    };
     assert_eq!(
         policy
-            .message_meets_gas_payment_requirement(&message, &current_payment, &tx_cost_estimate,)
+            .message_meets_gas_payment_requirement(
+                &message,
+                &current_payment,
+                &current_expenditure,
+                &tx_cost_estimate,
+            )
             .await
             .unwrap(),
         None
@@ -321,10 +331,34 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
     };
     assert_eq!(
         policy
-            .message_meets_gas_payment_requirement(&message, &current_payment, &tx_cost_estimate,)
+            .message_meets_gas_payment_requirement(
+                &message,
+                &current_payment,
+                &current_expenditure,
+                &tx_cost_estimate,
+            )
             .await
             .unwrap(),
         Some(tx_cost_estimate.gas_limit)
+    );
+
+    // but not if we have spent tokens already
+    let current_expenditure = InterchainGasExpenditure {
+        message_id: H256::zero(),
+        tokens_used: U256::from(10u32),
+        gas_used: U256::zero(),
+    };
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(
+                &message,
+                &current_payment,
+                &current_expenditure,
+                &tx_cost_estimate,
+            )
+            .await
+            .unwrap(),
+        None
     );
 }
 

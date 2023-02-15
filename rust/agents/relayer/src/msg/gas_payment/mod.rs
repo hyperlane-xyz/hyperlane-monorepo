@@ -3,13 +3,12 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use eyre::Result;
 
-use crate::msg::gas_payment::policies::GasPaymentPolicyOnChainFeeQuoting;
 use hyperlane_core::{
-    db::{DbError, HyperlaneDB},
-    GasExpenditureWithMeta, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
-    TxCostEstimate, TxMeta, TxOutcome, H256, U256,
+    db::HyperlaneDB, GasExpenditureWithMeta, HyperlaneMessage, InterchainGasExpenditure,
+    InterchainGasPayment, TxCostEstimate, TxMeta, TxOutcome, U256,
 };
 
+use crate::msg::gas_payment::policies::GasPaymentPolicyOnChainFeeQuoting;
 use crate::settings::{
     matching_list::MatchingList, GasPaymentEnforcementConfig, GasPaymentEnforcementPolicy,
 };

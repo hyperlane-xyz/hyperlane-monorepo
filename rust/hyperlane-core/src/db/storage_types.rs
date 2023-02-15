@@ -15,7 +15,6 @@ pub(super) struct InterchainGasPaymentData {
 
 /// Subset of `InterchainGasExpenditure` excluding the message id which is
 /// stored in the key.
-/// TODO: Should we merge this with the gas payment data?
 #[derive(Debug, Copy, Clone)]
 pub(super) struct InterchainGasExpenditureData {
     pub tokens_used: U256,
