@@ -106,7 +106,7 @@ contract InterchainAccountRouter is
         uint32 _destinationDomain,
         CallLib.Call[] calldata _calls
     ) external returns (bytes32) {
-        InterchainAccountConfig storage _config = _getInterchainAccountConfig(
+        InterchainAccountConfig memory _config = getInterchainAccountConfig(
             msg.sender,
             _destinationDomain
         );
@@ -158,6 +158,19 @@ contract InterchainAccountRouter is
         interchainAccount.proxyCalls(InterchainAccountMessage.calls(_message));
     }
 
+    function getLocalInterchainAccount(
+        uint32 _origin,
+        address _sender,
+        address _ism
+    ) external view returns (OwnableMulticall) {
+        return
+            getLocalInterchainAccount(
+                _origin,
+                TypeCasts.addressToBytes32(_sender),
+                _ism
+            );
+    }
+
     /**
      * @notice Returns the address of the interchain account deployed on the
      * local chain.
@@ -169,18 +182,10 @@ contract InterchainAccountRouter is
         uint32 _origin,
         bytes32 _sender,
         address _ism
-    ) external view returns (address payable) {
-        return _getInterchainAccount(_salt(_origin, _sender, _ism));
-    }
-
-    function getLocalInterchainAccount(
-        uint32 _origin,
-        address _sender,
-        address _ism
-    ) external view returns (address payable) {
+    ) public view returns (OwnableMulticall) {
         return
-            _getInterchainAccount(
-                _salt(_origin, TypeCasts.addressToBytes32(_sender), _ism)
+            OwnableMulticall(
+                _getInterchainAccount(_salt(_origin, _sender, _ism))
             );
     }
 
@@ -192,6 +197,15 @@ contract InterchainAccountRouter is
         // TODO: Immutable
         // TODO: Check not zeros
         globalDefaults[_destinationDomain] = _config;
+    }
+
+    function setUserDefault(
+        uint32 _destinationDomain,
+        InterchainAccountConfig calldata _config
+    ) external {
+        // TODO: Immutable
+        // TODO: Check not zeros
+        userDefaults[msg.sender][_destinationDomain] = _config;
     }
 
     // ============ Private Functions ============
@@ -219,10 +233,11 @@ contract InterchainAccountRouter is
         return OwnableMulticall(interchainAccount);
     }
 
-    function _getInterchainAccountConfig(
+    // TODO: Consistency, domain comes first
+    function getInterchainAccountConfig(
         address _sender,
         uint32 _destinationDomain
-    ) private view returns (InterchainAccountConfig storage) {
+    ) public view returns (InterchainAccountConfig memory) {
         InterchainAccountConfig storage _userDefault = userDefaults[_sender][
             _destinationDomain
         ];

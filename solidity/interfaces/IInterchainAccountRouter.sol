@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
+import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
 import {CallLib} from "../contracts/libs/Call.sol";
 
 interface IInterchainAccountRouter {
@@ -24,5 +25,11 @@ interface IInterchainAccountRouter {
         uint32 _origin,
         bytes32 _sender,
         address _ism
-    ) external view returns (address payable);
+    ) external view returns (OwnableMulticall);
+
+    function getLocalInterchainAccount(
+        uint32 _origin,
+        address _sender,
+        address _ism
+    ) external view returns (OwnableMulticall);
 }

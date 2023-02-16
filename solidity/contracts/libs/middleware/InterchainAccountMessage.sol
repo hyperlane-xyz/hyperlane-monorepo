@@ -22,7 +22,7 @@ library InterchainAccountMessage {
         bytes32 _ism,
         CallLib.Call[] calldata _calls
     ) internal pure returns (bytes memory) {
-        return abi.encode(_owner, _ism, _calls);
+        return abi.encodePacked(_owner, _ism, abi.encode(_calls));
     }
 
     function owner(bytes calldata _message) internal pure returns (bytes32) {
