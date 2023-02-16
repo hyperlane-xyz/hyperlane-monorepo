@@ -69,4 +69,4 @@ yarn lint
 
 ## Learn more
 
-For more information, see the [Hyperlane documentation](https://docs.hyperlane.xyz/docs/developers/getting-started).
+For more information, see the [Hyperlane documentation](https://docs.hyperlane.xyz/docs/introduction/readme).
