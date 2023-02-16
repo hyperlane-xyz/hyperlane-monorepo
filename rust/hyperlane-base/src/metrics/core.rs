@@ -276,9 +276,9 @@ impl CoreMetrics {
     ///
     /// Labels:
     /// - `phase`: The phase the nonce is being tracked at, see below.
-    /// - `origin`: Origin chain the message comes from.
+    /// - `origin`: Origin chain the message comes from. Can be "any"
     /// - `remote`: Remote chain for the message. This will skip values because
-    ///   the nonces are contiguous by origin not remote.
+    ///   the nonces are contiguous by origin not remote. Can be "any"
     ///
     /// The following phases are implemented:
     /// - `dispatch`: Highest nonce which has been indexed on the mailbox

@@ -12,7 +12,7 @@ export const hyperlane: HelloWorldConfig<TestnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'sha-6ee34e4',
+      tag: '83ec4f0-20230216-122421',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -23,7 +23,7 @@ export const hyperlane: HelloWorldConfig<TestnetChains> = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: ConnectionType.Http,
+    connectionType: ConnectionType.HttpFallback,
   },
 };
 
@@ -32,7 +32,7 @@ export const releaseCandidate: HelloWorldConfig<TestnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'sha-c7cbd2b',
+      tag: '83ec4f0-20230216-122421',
     },
     chainsToSkip: [],
     runEnv: environment,

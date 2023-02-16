@@ -2,7 +2,9 @@
 
 ## Versioning
 
-Note this is the branch for Hyperlane v2. At the moment, v2 is not deployed. If you are looking for code relating to the existing deployments of the `testnet2` or `mainnet` environments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
+Note this is the branch for Hyperlane v2.
+
+V1 has since been deprecated in favor of V2, but if you are looking for code relating to the existing V1 deployments of the `testnet2` or `mainnet` environments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
 
 ## Overview
 
