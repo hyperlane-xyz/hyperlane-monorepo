@@ -15,8 +15,10 @@ import { InterchainAccountDeployer } from '../deploy/middleware/deploy';
 import { RouterConfig } from '../deploy/router/types';
 import { getChainToOwnerMap, getTestMultiProvider } from '../deploy/utils';
 import { ChainNameToDomainId } from '../domains';
+import { InterchainAccountContracts } from '../middleware';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, TestChainNames } from '../types';
+import { objMap, promiseObjAll } from '../utils/objects';
 
 describe('InterchainAccountRouter', async () => {
   const localChain = 'test1';
@@ -25,6 +27,7 @@ describe('InterchainAccountRouter', async () => {
   const remoteDomain = ChainNameToDomainId[remoteChain];
 
   let signer: SignerWithAddress;
+  let contracts: ChainMap<TestChainNames, InterchainAccountContracts>;
   let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;
   let multiProvider: MultiProvider<TestChainNames>;
@@ -42,6 +45,9 @@ describe('InterchainAccountRouter', async () => {
     config = coreApp.extendWithConnectionClientConfig(
       getChainToOwnerMap(testChainConnectionConfigs, signer.address),
     );
+
+    config.test1.interchainSecurityModule =
+      coreApp.getContracts('test1').multisigIsm.address;
   });
 
   beforeEach(async () => {
@@ -50,10 +56,22 @@ describe('InterchainAccountRouter', async () => {
       config,
       coreApp,
     );
-    const contracts = await InterchainAccount.deploy();
+    contracts = await InterchainAccount.deploy();
 
     local = contracts[localChain].router;
     remote = contracts[remoteChain].router;
+  });
+
+  it('deploys and sets configured ISMs', async () => {
+    const deployedIsms = await promiseObjAll(
+      objMap(contracts, (_, c) => c.router.interchainSecurityModule()),
+    );
+    expect(deployedIsms).to.eql(
+      objMap(
+        config,
+        (_, c) => c.interchainSecurityModule ?? ethers.constants.AddressZero,
+      ),
+    );
   });
 
   it('forwards calls from interchain account', async () => {
