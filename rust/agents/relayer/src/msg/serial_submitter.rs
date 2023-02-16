@@ -228,17 +228,17 @@ impl SerialSubmitter {
 
         match self.process_message(&msg).await {
             Ok(true) => {
-                info!(message = %msg.message, "Message processed");
+                info!(msg=%msg.message, "Message processed");
                 self.record_message_process_success(&msg)?;
                 return Ok(());
             }
             Ok(false) => {
-                info!(message = %msg.message, "Message not processed");
+                info!(msg=%msg.message, "Message not processed");
             }
             // We expect this branch to be hit when there is unexpected behavior -
             // defined behavior like gas estimation failing will not hit this branch.
             Err(error) => {
-                error!(message = %msg.message, ?error, "Error occurred when attempting to process message");
+                error!(msg=%msg.message, ?error, "Error occurred when attempting to process message");
             }
         }
 
@@ -256,7 +256,7 @@ impl SerialSubmitter {
     /// been processed, Ok(true) is returned. If this message is unable to
     /// be processed, either due to failed gas estimation or an insufficient gas payment,
     /// Ok(false) is returned.
-    #[instrument(skip(self, msg), fields(message=?msg.message))]
+    #[instrument(skip(self, msg), fields(msg=?msg.message))]
     async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<bool> {
         // If the message has already been processed, e.g. due to another relayer having already
         // processed, then mark it as already-processed, and move on to the next tick.

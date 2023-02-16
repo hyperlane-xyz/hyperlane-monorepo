@@ -124,7 +124,7 @@ impl Mailbox for FuelMailbox {
         todo!()
     }
 
-    #[instrument(err, ret, skip(self), fields(message=%message, metadata=%fmt_bytes(metadata)))]
+    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

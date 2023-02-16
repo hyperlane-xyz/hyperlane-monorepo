@@ -206,7 +206,7 @@ impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
         let meets_requirement = current_payment.payment >= origin_token_tx_cost;
         if !meets_requirement {
             info!(
-                %message,
+                msg=%message,
                 ?tx_cost_estimate,
                 ?destination_token_tx_cost,
                 ?origin_token_tx_cost,
@@ -215,7 +215,7 @@ impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
             );
         } else {
             debug!(
-                %message,
+                msg=%message,
                 ?tx_cost_estimate,
                 ?destination_token_tx_cost,
                 ?origin_token_tx_cost,

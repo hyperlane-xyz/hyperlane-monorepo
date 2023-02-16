@@ -23,7 +23,7 @@ export const hyperlane: HelloWorldConfig<MainnetChains> = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: ConnectionType.Http,
+    connectionType: ConnectionType.HttpFallback,
     cyclesBetweenEthereumMessages: 3, // Skip 3 cycles of Ethereum, i.e. send/receive Ethereum messages every 32 hours.
   },
 };
