@@ -401,9 +401,9 @@ export class MultiProvider {
    */
   getRpcUrl(chainNameOrId: ChainName | number): string {
     const { publicRpcUrls } = this.getChainMetadata(chainNameOrId);
-    if (publicRpcUrls?.length && publicRpcUrls[0].http)
-      return publicRpcUrls[0].http;
-    else throw new Error(`No RPC URl configured for ${chainNameOrId}`);
+    if (!publicRpcUrls?.length || !publicRpcUrls[0].http)
+      throw new Error(`No RPC URl configured for ${chainNameOrId}`);
+    return publicRpcUrls[0].http;
   }
 
   /**
@@ -457,7 +457,7 @@ export class MultiProvider {
    */
   getTransactionOverrides(
     chainNameOrId: ChainName | number,
-  ): Partial<providers.TransactionRequest> | undefined {
+  ): Partial<providers.TransactionRequest> {
     return this.getChainMetadata(chainNameOrId)?.transactionOverrides ?? {};
   }
 
@@ -482,6 +482,24 @@ export class MultiProvider {
   }
 
   /**
+   * Populate a transaction's fields using signer address and overrides
+   * @throws if chain's metadata has not been set or tx fails
+   */
+  async prepareTx(
+    chainNameOrId: ChainName | number,
+    tx: PopulatedTransaction,
+    from?: string,
+  ): Promise<providers.TransactionRequest> {
+    const txFrom = from ? from : await this.getSignerAddress(chainNameOrId);
+    const overrides = this.getTransactionOverrides(chainNameOrId);
+    return {
+      ...tx,
+      from: txFrom,
+      ...overrides,
+    };
+  }
+
+  /**
    * Estimate gas for given tx
    * @throws if chain's metadata has not been set or tx fails
    */
@@ -490,17 +508,9 @@ export class MultiProvider {
     tx: PopulatedTransaction,
     from?: string,
   ): Promise<BigNumber> {
-    let txFrom = from;
-    if (!txFrom) {
-      txFrom = await this.getSignerAddress(chainNameOrId);
-    }
+    const txReq = await this.prepareTx(chainNameOrId, tx, from);
     const provider = this.getProvider(chainNameOrId);
-    const overrides = this.getTransactionOverrides(chainNameOrId);
-    return provider.estimateGas({
-      ...tx,
-      from: txFrom,
-      ...overrides,
-    });
+    return provider.estimateGas(txReq);
   }
 
   /**
@@ -511,14 +521,9 @@ export class MultiProvider {
     chainNameOrId: ChainName | number,
     tx: PopulatedTransaction,
   ): Promise<ContractReceipt> {
+    const txReq = await this.prepareTx(chainNameOrId, tx);
     const signer = this.getSigner(chainNameOrId);
-    const from = await signer.getAddress();
-    const overrides = this.getTransactionOverrides(chainNameOrId);
-    const response = await signer.sendTransaction({
-      ...tx,
-      from,
-      ...overrides,
-    });
+    const response = await signer.sendTransaction(txReq);
     this.logger(`Sent tx ${response.hash}`);
     return this.handleTx(chainNameOrId, response);
   }
@@ -526,13 +531,10 @@ export class MultiProvider {
   /**
    * Creates a MultiProvider using the given signer for all test networks
    */
-  static createTestMultiProvider({
-    signer,
-    provider,
-  }: {
-    signer?: Signer;
-    provider?: Provider;
-  } = {}): MultiProvider {
+  static createTestMultiProvider(
+    params: { signer?: Signer; provider?: Provider } = {},
+  ): MultiProvider {
+    const { signer, provider } = params;
     const chainMetadata = pick(defaultChainMetadata, TestChains);
     const mp = new MultiProvider(chainMetadata);
     if (signer) {
