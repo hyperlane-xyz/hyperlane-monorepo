@@ -359,7 +359,6 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
         const gasOraclesViolation = violation as IgpGasOraclesViolation;
 
         const configs: InterchainGasPaymaster.GasOracleConfigStruct[] = [];
-        const descriptions = [];
         for (const [remote, expected] of Object.entries(
           gasOraclesViolation.expected,
         )) {
@@ -369,10 +368,6 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
             remoteDomain: remoteId,
             gasOracle: expected,
           });
-
-          descriptions.push(
-            `gas oracle for ${remote} (domain ID ${remoteId}) to ${expected}`,
-          );
         }
 
         this.pushCall(gasOraclesViolation.chain as Chain, {
@@ -381,7 +376,14 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
             'setGasOracles',
             [configs],
           ),
-          description: `Setting ${descriptions.join(', ')}`,
+          description: `Setting ${Object.keys(gasOraclesViolation.expected)
+            .map((remoteStr) => {
+              const remote = remoteStr as ChainName;
+              const remoteId = ChainNameToDomainId[remote];
+              const expected = gasOraclesViolation.expected[remote];
+              return `gas oracle for ${remote} (domain ID ${remoteId}) to ${expected}`;
+            })
+            .join(', ')}`,
           // We expect this to be ran when the IGP implementation is being set
           // in a prior call. This means that any attempts to estimate gas will
           // be unsuccessful, so for now we settle for only checking ownership.
