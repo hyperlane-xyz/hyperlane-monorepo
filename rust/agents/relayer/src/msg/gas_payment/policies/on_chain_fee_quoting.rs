@@ -51,91 +51,123 @@ impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
         // We might want to migrate later to a solution which is a little more
         // sophisticated. See https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/1658#discussion_r1093243358
         if gas_amount >= fractional_gas_estimate {
-            Ok(Some(tx_cost_estimate.gas_limit))
+            Ok(Some(tx_cost_estimate.gas_limit.max(gas_amount)))
         } else {
             Ok(None)
         }
     }
 }
 
-#[tokio::test]
-async fn test_gas_payment_policy_on_chain_fee_quoting() {
-    use hyperlane_core::{HyperlaneMessage, H256};
+#[cfg(test)]
+mod test {
+    use hyperlane_core::H256;
 
-    let min = U256::from(1000u32);
-    let policy = GasPaymentPolicyOnChainFeeQuoting::default();
-    let message = HyperlaneMessage::default();
+    use super::*;
 
-    let cost_estimate = TxCostEstimate {
-        gas_limit: min * 2,
-        gas_price: U256::from(100001u32),
+    fn current_payment(gas_amount: impl Into<U256>) -> InterchainGasPayment {
+        InterchainGasPayment {
+            message_id: H256::zero(),
+            payment: U256::zero(),
+            gas_amount: gas_amount.into(),
+        }
+    }
+
+    fn current_expenditure(gas_used: impl Into<U256>) -> InterchainGasExpenditure {
+        InterchainGasExpenditure {
+            message_id: H256::zero(),
+            gas_used: gas_used.into(),
+            tokens_used: U256::zero(),
+        }
+    }
+
+    const MIN: U256 = U256([1000, 0, 0, 0]);
+    const COST_ESTIMATE: TxCostEstimate = TxCostEstimate {
+        gas_limit: U256([2000, 0, 0, 0]), // MIN * 2
+        gas_price: U256([100001, 0, 0, 0]),
     };
 
-    let current_payment = |gas_amount| InterchainGasPayment {
-        message_id: H256::zero(),
-        payment: U256::zero(),
-        gas_amount,
-    };
+    #[test]
+    fn ensure_little_endian() {
+        assert_eq!(MIN, U256::from(1000u32));
+    }
 
-    let current_expenditure = |gas_used| InterchainGasExpenditure {
-        message_id: H256::zero(),
-        tokens_used: U256::zero(),
-        gas_used,
-    };
+    #[tokio::test]
+    async fn test_payment_less_than_min() {
+        let policy = GasPaymentPolicyOnChainFeeQuoting::default();
+        let message = HyperlaneMessage::default();
 
-    // If the payment is less than the minimum, returns None
-    assert_eq!(
-        policy
-            .message_meets_gas_payment_requirement(
-                &message,
-                &current_payment(min - 1),
-                &current_expenditure(U256::zero()),
-                &cost_estimate,
-            )
-            .await
-            .unwrap(),
-        None
-    );
+        // If the payment is less than the minimum, returns None
+        assert_eq!(
+            policy
+                .message_meets_gas_payment_requirement(
+                    &message,
+                    &current_payment(MIN - 1),
+                    &current_expenditure(0),
+                    &COST_ESTIMATE,
+                )
+                .await
+                .unwrap(),
+            None
+        );
+    }
 
-    // If the payment is at least the minimum, returns the correct gas amount to use
-    assert_eq!(
-        policy
-            .message_meets_gas_payment_requirement(
-                &message,
-                &current_payment(min),
-                &current_expenditure(U256::zero()),
-                &cost_estimate,
-            )
-            .await
-            .unwrap(),
-        Some(min)
-    );
+    #[tokio::test]
+    async fn test_payment_at_least_min() {
+        let policy = GasPaymentPolicyOnChainFeeQuoting::default();
+        let message = HyperlaneMessage::default();
 
-    // Uses the full paid gas amount when it is sufficient
-    assert_eq!(
-        policy
-            .message_meets_gas_payment_requirement(
-                &message,
-                &current_payment(min * 2 + 300),
-                &current_expenditure(U256::zero()),
-                &cost_estimate,
-            )
-            .await
-            .unwrap(),
-        Some(min * 2 + 300)
-    );
+        // If the payment is at least the minimum, returns the correct gas amount to use
+        assert_eq!(
+            policy
+                .message_meets_gas_payment_requirement(
+                    &message,
+                    &current_payment(MIN),
+                    &current_expenditure(0),
+                    &COST_ESTIMATE,
+                )
+                .await
+                .unwrap(),
+            Some(COST_ESTIMATE.gas_limit)
+        );
+    }
 
-    // Accounts for gas that has already been spent
-    assert_eq!(
-        policy
-            .message_meets_gas_payment_requirement(
-                &message,
-                &current_payment(min + 300),
-                &current_expenditure(301.into()),
-                &cost_estimate
-            )
-            .await
-            .unwrap(),
-        None
-    )
+    #[tokio::test]
+    async fn test_uses_full_paid_amount() {
+        let policy = GasPaymentPolicyOnChainFeeQuoting::default();
+        let message = HyperlaneMessage::default();
+
+        // Uses the full paid gas amount when it is sufficient
+        assert_eq!(
+            policy
+                .message_meets_gas_payment_requirement(
+                    &message,
+                    &current_payment(MIN * 2 + 300),
+                    &current_expenditure(0),
+                    &COST_ESTIMATE,
+                )
+                .await
+                .unwrap(),
+            Some(MIN * 2 + 300)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_accounts_for_expenditure() {
+        let policy = GasPaymentPolicyOnChainFeeQuoting::default();
+        let message = HyperlaneMessage::default();
+
+        // Accounts for gas that has already been spent
+        assert_eq!(
+            policy
+                .message_meets_gas_payment_requirement(
+                    &message,
+                    &current_payment(MIN + 300),
+                    &current_expenditure(301),
+                    &COST_ESTIMATE
+                )
+                .await
+                .unwrap(),
+            None
+        )
+    }
 }
