@@ -1,5 +1,4 @@
 import { debug } from 'debug';
-import { ethers } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
 
