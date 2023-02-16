@@ -40,6 +40,10 @@ contract HypERC721Collateral is TokenRouter {
         );
     }
 
+    function balanceOf(address _account) external view returns (uint256) {
+        return IERC721(wrappedToken).balanceOf(_account);
+    }
+
     /**
      * @dev Transfers `_tokenId` of `wrappedToken` from `msg.sender` to this contract.
      * @inheritdoc TokenRouter
@@ -50,6 +54,7 @@ contract HypERC721Collateral is TokenRouter {
         override
         returns (bytes memory)
     {
+        // safeTransferFrom not used here because recipient is this contract
         wrappedToken.transferFrom(msg.sender, address(this), _tokenId);
         return bytes(""); // no metadata
     }
@@ -63,6 +68,6 @@ contract HypERC721Collateral is TokenRouter {
         uint256 _tokenId,
         bytes calldata // no metadata
     ) internal override {
-        wrappedToken.transferFrom(address(this), _recipient, _tokenId);
+        wrappedToken.safeTransferFrom(address(this), _recipient, _tokenId);
     }
 }

@@ -2,6 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
+import { BigNumberish } from 'ethers';
 import { ethers } from 'hardhat';
 
 import {
@@ -16,9 +17,9 @@ import {
 import { utils } from '@hyperlane-xyz/utils';
 
 import {
-  HypERC20CollateralConfig,
   HypERC20Config,
   SyntheticConfig,
+  TokenConfig,
   TokenType,
 } from '../src/config';
 import { HypERC20Contracts } from '../src/contracts';
@@ -29,6 +30,7 @@ import {
   ERC20__factory,
   HypERC20,
   HypERC20Collateral,
+  HypNative,
 } from '../src/types';
 
 const localChain = 'test1';
@@ -37,7 +39,6 @@ const localDomain = ChainNameToDomainId[localChain];
 const remoteDomain = ChainNameToDomainId[remoteChain];
 const totalSupply = 3000;
 const amount = 10;
-const testInterchainGasPayment = 123456789;
 
 const tokenConfig: SyntheticConfig = {
   type: TokenType.synthetic,
@@ -46,15 +47,21 @@ const tokenConfig: SyntheticConfig = {
   totalSupply,
 };
 
-for (const withCollateral of [true, false]) {
-  describe(`HypERC20${withCollateral ? 'Collateral' : ''}`, async () => {
+for (const variant of [
+  TokenType.synthetic,
+  TokenType.collateral,
+  TokenType.native,
+]) {
+  describe(`HypERC20${variant}`, async () => {
     let owner: SignerWithAddress;
     let recipient: SignerWithAddress;
     let core: TestCoreApp;
     let deployer: HypERC20Deployer<TestChainNames>;
     let contracts: Record<TestChainNames, HypERC20Contracts>;
-    let local: HypERC20 | HypERC20Collateral;
+    let localTokenConfig: TokenConfig = tokenConfig;
+    let local: HypERC20 | HypERC20Collateral | HypNative;
     let remote: HypERC20 | HypERC20Collateral;
+    let gas: BigNumber;
 
     beforeEach(async () => {
       [owner, recipient] = await ethers.getSigners();
@@ -64,36 +71,44 @@ for (const withCollateral of [true, false]) {
       const coreContractsMaps = await coreDeployer.deploy();
       core = new TestCoreApp(coreContractsMaps, multiProvider);
       const coreConfig = core.getConnectionClientConfigMap();
-      const configWithTokenInfo: ChainMap<
-        TestChainNames,
-        HypERC20Config | HypERC20CollateralConfig
-      > = objMap(coreConfig, (key) => ({
-        ...coreConfig[key],
-        ...tokenConfig,
-        owner: owner.address,
-        gas: 63264,
-      }));
 
       let erc20: ERC20 | undefined;
-      if (withCollateral) {
+      if (variant === TokenType.collateral) {
         erc20 = await new ERC20Test__factory(owner).deploy(
           tokenConfig.name,
           tokenConfig.symbol,
           tokenConfig.totalSupply,
         );
-        configWithTokenInfo.test1 = {
-          ...configWithTokenInfo.test1,
-          type: TokenType.collateral,
+        localTokenConfig = {
+          type: variant,
           token: erc20.address,
-          gas: 67615,
+        };
+      } else if (variant === TokenType.native) {
+        localTokenConfig = {
+          type: variant,
         };
       }
 
-      deployer = new HypERC20Deployer(multiProvider, configWithTokenInfo, core);
+      const config: ChainMap<TestChainNames, HypERC20Config> = objMap(
+        coreConfig,
+        (key) => ({
+          ...coreConfig[key],
+          ...(key === localChain ? localTokenConfig : tokenConfig),
+          owner: owner.address,
+        }),
+      );
+
+      deployer = new HypERC20Deployer(multiProvider, config, core);
       contracts = await deployer.deploy();
       local = contracts[localChain].router as HypERC20;
 
-      if (withCollateral) {
+      gas = await local.quoteGasPayment(remoteDomain);
+
+      if (variant === TokenType.native) {
+        gas = gas.add(amount);
+      }
+
+      if (variant === TokenType.collateral) {
         await erc20!.approve(local.address, amount);
       }
 
@@ -101,32 +116,32 @@ for (const withCollateral of [true, false]) {
     });
 
     it('should not be initializable again', async () => {
-      const initializeTx = withCollateral
-        ? (local as HypERC20Collateral).initialize(
-            ethers.constants.AddressZero,
-            ethers.constants.AddressZero,
-          )
-        : (local as HypERC20).initialize(
-            ethers.constants.AddressZero,
-            ethers.constants.AddressZero,
-            0,
-            '',
-            '',
-          );
+      const initializeTx =
+        variant === TokenType.collateral || variant === TokenType.native
+          ? (local as HypERC20Collateral).initialize(
+              ethers.constants.AddressZero,
+              ethers.constants.AddressZero,
+            )
+          : (local as HypERC20).initialize(
+              ethers.constants.AddressZero,
+              ethers.constants.AddressZero,
+              0,
+              '',
+              '',
+            );
       await expect(initializeTx).to.be.revertedWith(
         'Initializable: contract is already initialized',
       );
     });
 
-    it('should mint total supply to deployer', async () => {
-      await expectBalance(local, recipient, 0);
-      await expectBalance(local, owner, totalSupply);
-      await expectBalance(remote, recipient, 0);
-      await expectBalance(remote, owner, totalSupply);
-    });
+    if (variant === TokenType.synthetic) {
+      it('should mint total supply to deployer', async () => {
+        await expectBalance(local, recipient, 0);
+        await expectBalance(local, owner, totalSupply);
+        await expectBalance(remote, recipient, 0);
+        await expectBalance(remote, owner, totalSupply);
+      });
 
-    // do not test underlying ERC20 collateral functionality
-    if (!withCollateral) {
       it('should allow for local transfers', async () => {
         await (local as HypERC20).transfer(recipient.address, amount);
         await expectBalance(local, recipient, amount);
@@ -140,73 +155,97 @@ for (const withCollateral of [true, false]) {
       const localRaw = local.connect(ethers.provider);
       const mailboxAddress =
         core.contractsMap[localChain].mailbox.contract.address;
-      if (withCollateral) {
+      if (variant === TokenType.collateral) {
         const tokenAddress = await (local as HypERC20Collateral).wrappedToken();
         const token = ERC20__factory.connect(tokenAddress, owner);
         await token.transfer(local.address, totalSupply);
+      } else if (variant === TokenType.native) {
+        const remoteDomain = ChainNameToDomainId[remoteChain];
+        // deposit amount
+        await local.transferRemote(
+          remoteDomain,
+          utils.addressToBytes32(remote.address),
+          amount,
+          { value: gas },
+        );
       }
       const message = `${utils.addressToBytes32(
         recipient.address,
-      )}${BigNumber.from(totalSupply)
-        .toHexString()
-        .slice(2)
-        .padStart(64, '0')}`;
-      const gas = await localRaw.estimateGas.handle(
+      )}${BigNumber.from(amount).toHexString().slice(2).padStart(64, '0')}`;
+      const handleGas = await localRaw.estimateGas.handle(
         remoteDomain,
         utils.addressToBytes32(remote.address),
         message,
         { from: mailboxAddress },
       );
-      console.log(gas);
+      console.log(handleGas);
     });
 
     it('should allow for remote transfers', async () => {
-      const interchainGasPaymaster =
-        core.contractsMap[localChain].interchainGasPaymaster.contract;
-      const gas = await local.destinationGas(remoteDomain);
-      const interchainGasPayment = await interchainGasPaymaster.quoteGasPayment(
-        remoteDomain,
-        gas,
-      );
+      const localOwner = await local.balanceOf(owner.address);
+      const localRecipient = await local.balanceOf(recipient.address);
+      const remoteOwner = await remote.balanceOf(owner.address);
+      const remoteRecipient = await remote.balanceOf(recipient.address);
+
       await local.transferRemote(
         remoteDomain,
         utils.addressToBytes32(recipient.address),
         amount,
-        { value: interchainGasPayment },
+        {
+          value: gas,
+        },
       );
 
-      await expectBalance(local, recipient, 0);
-      await expectBalance(local, owner, totalSupply - amount);
-      await expectBalance(remote, recipient, 0);
-      await expectBalance(remote, owner, totalSupply);
+      let expectedLocal = localOwner.sub(amount);
+
+      await expectBalance(local, recipient, localRecipient);
+      if (variant === TokenType.native) {
+        // account for tx fees, rewards, etc.
+        expectedLocal = await local.balanceOf(owner.address);
+      }
+      await expectBalance(local, owner, expectedLocal);
+      await expectBalance(remote, recipient, remoteRecipient);
+      await expectBalance(remote, owner, remoteOwner);
 
       await core.processMessages();
 
-      await expectBalance(local, recipient, 0);
-      await expectBalance(local, owner, totalSupply - amount);
-      await expectBalance(remote, recipient, amount);
-      await expectBalance(remote, owner, totalSupply);
+      await expectBalance(local, recipient, localRecipient);
+      if (variant === TokenType.native) {
+        // account for tx fees, rewards, etc.
+        expectedLocal = await local.balanceOf(owner.address);
+      }
+      await expectBalance(local, owner, expectedLocal);
+      await expectBalance(remote, recipient, remoteRecipient.add(amount));
+      await expectBalance(remote, owner, remoteOwner);
     });
 
     it('allows interchain gas payment for remote transfers', async () => {
       const interchainGasPaymaster =
         core.contractsMap[localChain].interchainGasPaymaster.contract;
+
       await expect(
         local.transferRemote(
           remoteDomain,
           utils.addressToBytes32(recipient.address),
           amount,
-          {
-            value: testInterchainGasPayment,
-          },
+          { value: gas },
         ),
       ).to.emit(interchainGasPaymaster, 'GasPayment');
     });
 
     it('should prevent remote transfer of unowned balance', async () => {
-      const revertReason = withCollateral
-        ? 'ERC20: insufficient allowance'
-        : 'ERC20: burn amount exceeds balance';
+      const revertReason = (): string => {
+        switch (variant) {
+          case TokenType.synthetic:
+            return 'ERC20: burn amount exceeds balance';
+          case TokenType.collateral:
+            return 'ERC20: insufficient allowance';
+          case TokenType.native:
+            return 'Native: amount exceeds msg.value';
+        }
+        return '';
+      };
+      const value = variant === TokenType.native ? amount - 1 : gas;
       await expect(
         local
           .connect(recipient)
@@ -214,9 +253,9 @@ for (const withCollateral of [true, false]) {
             remoteDomain,
             utils.addressToBytes32(recipient.address),
             amount,
-            { value: await local.destinationGas(remoteDomain) },
+            { value },
           ),
-      ).to.be.revertedWith(revertReason);
+      ).to.be.revertedWith(revertReason());
     });
 
     it('should emit TransferRemote events', async () => {
@@ -225,7 +264,7 @@ for (const withCollateral of [true, false]) {
           remoteDomain,
           utils.addressToBytes32(recipient.address),
           amount,
-          { value: await local.destinationGas(remoteDomain) },
+          { value: gas },
         ),
       )
         .to.emit(local, 'SentTransferRemote')
@@ -238,19 +277,9 @@ for (const withCollateral of [true, false]) {
 }
 
 const expectBalance = async (
-  token: HypERC20 | HypERC20Collateral | ERC20,
+  token: HypERC20 | HypERC20Collateral | ERC20 | HypNative,
   signer: SignerWithAddress,
-  balance: number,
+  balance: BigNumberish,
 ) => {
-  if (Object.keys(token.interface.functions).includes('wrappedToken()')) {
-    const wrappedToken = await (token as HypERC20Collateral).wrappedToken();
-    token = ERC20__factory.connect(wrappedToken, signer);
-  }
-  return expectTokenBalance(token as HypERC20, signer, balance);
+  return expect(await token.balanceOf(signer.address)).to.eq(balance);
 };
-
-const expectTokenBalance = async (
-  token: ERC20,
-  signer: SignerWithAddress,
-  balance: number,
-) => expect(await token.balanceOf(signer.address)).to.eq(balance);
