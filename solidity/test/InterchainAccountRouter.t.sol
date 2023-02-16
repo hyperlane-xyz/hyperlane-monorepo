@@ -10,6 +10,14 @@ import {InterchainAccountRouter, IInterchainAccountRouter} from "../contracts/mi
 import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
 import {CallLib} from "../contracts/libs/Call.sol";
 
+contract Callable {
+    mapping(address => bytes32) public data;
+
+    function set(bytes32 _data) external {
+        data[msg.sender] = _data;
+    }
+}
+
 contract InterchainAccountRouterTest is Test {
     using TypeCasts for address;
 
@@ -30,7 +38,7 @@ contract InterchainAccountRouterTest is Test {
 
     OwnableMulticall ica;
 
-    OwnableMulticall ownable;
+    Callable target;
 
     function setUp() public {
         environment = new MockHyperlaneEnvironment(
@@ -67,7 +75,7 @@ contract InterchainAccountRouterTest is Test {
             address(environment.isms(destinationDomain))
         );
 
-        ownable = new OwnableMulticall();
+        target = new Callable();
     }
 
     function assertEq(
@@ -99,13 +107,13 @@ contract InterchainAccountRouterTest is Test {
         assertEq(actualConfig, expectedConfig);
     }
 
-    /*
     function testSetGlobalDefaultsImmutable(
         bytes32 routerA,
         bytes32 ismA,
         bytes32 routerB,
         bytes32 ismB
     ) public {
+        vm.assume(routerA != bytes32(0) && routerB != bytes32(0));
         originRouter.setGlobalDefault(
             destinationDomain,
             IInterchainAccountRouter.InterchainAccountConfig({
@@ -113,7 +121,7 @@ contract InterchainAccountRouterTest is Test {
                 ism: ismA
             })
         );
-        vm.expectRevert(bytes("cannot overwrite global default"));
+        vm.expectRevert(bytes("global configs are immutable once set"));
         originRouter.setGlobalDefault(
             destinationDomain,
             IInterchainAccountRouter.InterchainAccountConfig({
@@ -128,6 +136,7 @@ contract InterchainAccountRouterTest is Test {
         bytes32 router,
         bytes32 ism
     ) public {
+        vm.assume(newOwner != address(0) && newOwner != originRouter.owner());
         originRouter.transferOwnership(newOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         originRouter.setGlobalDefault(
@@ -138,7 +147,6 @@ contract InterchainAccountRouterTest is Test {
             })
         );
     }
-    */
 
     function testSetUserDefaults(
         bytes32 globalRouter,
@@ -166,11 +174,11 @@ contract InterchainAccountRouterTest is Test {
         assertEq(actualConfig, expectedConfig);
     }
 
-    function callRemoteTransferOwner(address newOwner) private {
-        vm.assume(newOwner != address(0x0));
+    function callRemoteSetter(bytes32 data) private {
+        vm.assume(data != bytes32(0));
         CallLib.Call memory call = CallLib.Call(
-            TypeCasts.addressToBytes32(address(ownable)),
-            abi.encodeCall(ownable.transferOwnership, (newOwner)),
+            TypeCasts.addressToBytes32(address(target)),
+            abi.encodeCall(target.set, (data)),
             0
         );
         CallLib.Call[] memory calls = new CallLib.Call[](1);
@@ -178,15 +186,9 @@ contract InterchainAccountRouterTest is Test {
         originRouter.callRemote(destinationDomain, calls);
     }
 
-    function testCallRemote(address newOwner) private {
-        callRemoteTransferOwner(newOwner);
-        vm.expectRevert(bytes("Ownable: caller is not the owner"));
-        environment.processNextPendingMessage();
-
-        ownable.transferOwnership(address(ica));
-
-        callRemoteTransferOwner(newOwner);
-
+    function testCallRemote(bytes32 data) private {
+        assertEq(target.data(address(this)), bytes32(0));
+        callRemoteSetter(data);
         vm.expectEmit(true, false, false, true, address(destinationRouter));
         emit InterchainAccountCreated(
             originDomain,
@@ -194,27 +196,26 @@ contract InterchainAccountRouterTest is Test {
             address(ica)
         );
         environment.processNextPendingMessage();
-
-        assertEq(ownable.owner(), newOwner);
+        assertEq(target.data(address(ica)), data);
     }
 
     /*
-    function testCallRemoteWithConfig(address newOwner) public {
-        testCallRemote(newOwner);
+    function testCallRemoteWithConfig(bytes32 value) public {
+        testCallRemote(value);
     }
     */
 
-    function testCallRemoteWithGlobalDefault(address newOwner) public {
+    function testCallRemoteWithGlobalDefault(bytes32 value) public {
         originRouter.setGlobalDefault(destinationDomain, userConfig);
-        testCallRemote(newOwner);
+        testCallRemote(value);
     }
 
-    function testCallRemoteWithUserDefault(address newOwner) public {
+    function testCallRemoteWithUserDefault(bytes32 value) public {
         originRouter.setUserDefault(destinationDomain, userConfig);
-        testCallRemote(newOwner);
+        testCallRemote(value);
     }
 
-    function testGetLocalInterchainAccount(address newOwner) public {
+    function testGetLocalInterchainAccount(bytes32 value) public {
         OwnableMulticall destinationIca = destinationRouter
             .getLocalInterchainAccount(
                 originDomain,
@@ -234,15 +235,14 @@ contract InterchainAccountRouterTest is Test {
 
         assertEq(address(destinationIca).code.length, 0);
 
-        ownable.transferOwnership(address(ica));
         originRouter.setUserDefault(destinationDomain, userConfig);
-        callRemoteTransferOwner(newOwner);
+        callRemoteSetter(value);
         environment.processNextPendingMessage();
 
         assert(address(destinationIca).code.length != 0);
     }
 
-    function testReceiveValue(uint256 value) public {
+    function testReceiveValue(uint256 value, bytes32 data) public {
         vm.assume(value > 0 && value <= address(this).balance);
 
         // receive value before deployed
@@ -250,9 +250,8 @@ contract InterchainAccountRouterTest is Test {
         payable(address(ica)).transfer(value / 2);
 
         // Deploy
-        ownable.transferOwnership(address(ica));
         originRouter.setUserDefault(destinationDomain, userConfig);
-        callRemoteTransferOwner(address(this));
+        callRemoteSetter(data);
         environment.processNextPendingMessage();
 
         // receive value after deployed

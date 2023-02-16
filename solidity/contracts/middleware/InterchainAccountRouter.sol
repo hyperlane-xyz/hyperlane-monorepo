@@ -187,7 +187,10 @@ contract InterchainAccountRouter is
         InterchainAccountConfig calldata _config
     ) external onlyOwner {
         require(_config.router != bytes32(0), "invalid router");
-        require(_isEmpty(globalDefaults[_destination]), "immutable");
+        require(
+            _isEmpty(globalDefaults[_destination]),
+            "global configs are immutable once set"
+        );
         globalDefaults[_destination] = _config;
     }
 
