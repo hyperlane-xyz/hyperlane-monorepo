@@ -80,8 +80,8 @@ contract InterchainAccountRouterTest is Test {
     function testSetGlobalDefaults(bytes32 router, bytes32 ism) public {
         IInterchainAccountRouter.InterchainAccountConfig
             memory actualConfig = originRouter.getInterchainAccountConfig(
-                address(this),
-                destinationDomain
+                destinationDomain,
+                address(this)
             );
         IInterchainAccountRouter.InterchainAccountConfig
             memory expectedConfig = IInterchainAccountRouter
@@ -93,8 +93,8 @@ contract InterchainAccountRouterTest is Test {
         });
         originRouter.setGlobalDefault(destinationDomain, expectedConfig);
         actualConfig = originRouter.getInterchainAccountConfig(
-            address(this),
-            destinationDomain
+            destinationDomain,
+            address(this)
         );
         assertEq(actualConfig, expectedConfig);
     }
@@ -160,8 +160,8 @@ contract InterchainAccountRouterTest is Test {
         originRouter.setUserDefault(destinationDomain, expectedConfig);
         IInterchainAccountRouter.InterchainAccountConfig
             memory actualConfig = originRouter.getInterchainAccountConfig(
-                address(this),
-                destinationDomain
+                destinationDomain,
+                address(this)
             );
         assertEq(actualConfig, expectedConfig);
     }

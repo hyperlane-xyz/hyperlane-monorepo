@@ -25,6 +25,14 @@ library InterchainAccountMessage {
         return abi.encodePacked(_owner, _ism, abi.encode(_calls));
     }
 
+    function format(
+        address _owner,
+        bytes32 _ism,
+        CallLib.Call[] calldata _calls
+    ) internal pure returns (bytes memory) {
+        return format(TypeCasts.addressToBytes32(_owner), _ism, _calls);
+    }
+
     function owner(bytes calldata _message) internal pure returns (bytes32) {
         return bytes32(_message[OWNER_OFFSET:ISM_OFFSET]);
     }

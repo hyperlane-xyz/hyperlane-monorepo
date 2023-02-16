@@ -43,7 +43,7 @@ contract InterchainAccountRouter is
     // ============ Events ============
 
     /**
-     * @notice Emitted when an interchain account is created (first time message is sent from a given `origin`/`sender` pair)
+     * @notice Emitted when an interchain account is created (first time message is sent from a given `origin`/`owner` pair)
      * @param origin The domain of the chain where the message was sent from
      * @param owner The address of the account that sent the message
      * @param account The address of the proxy account that was created
@@ -92,58 +92,50 @@ contract InterchainAccountRouter is
     // ============ External Functions ============
 
     /**
-     * @notice Dispatches a sequence of remote calls to be made by a sender's
+     * @notice Dispatches a sequence of remote calls to be made by a owner's
      * interchain account on the destination domain.
      * @dev Uses the default router and ISM addresses for the destination
      * domain, reverting if none have been configured.
      * @dev Recommend using CallLib.build to format the interchain calls.
-     * @param _destinationDomain The domain of the chain on which the calls
+     * @param _destination The domain of the chain on which the calls
      * will be made
      * @param _calls The sequence of calls to make.
      * @return The Hyperlane message ID
      */
-    function callRemote(
-        uint32 _destinationDomain,
-        CallLib.Call[] calldata _calls
-    ) external returns (bytes32) {
+    function callRemote(uint32 _destination, CallLib.Call[] calldata _calls)
+        external
+        returns (bytes32)
+    {
         InterchainAccountConfig memory _config = getInterchainAccountConfig(
-            msg.sender,
-            _destinationDomain
+            _destination,
+            msg.sender
         );
-        require(_config.router != bytes32(0));
+        require(!_isEmpty(_config), "no default config");
         return
             mailbox.dispatch(
-                _destinationDomain,
+                _destination,
                 _config.router,
-                InterchainAccountMessage.format(
-                    msg.sender.addressToBytes32(),
-                    _config.ism,
-                    _calls
-                )
+                InterchainAccountMessage.format(msg.sender, _config.ism, _calls)
             );
     }
 
     function callRemote(
-        uint32 _destinationDomain,
+        uint32 _destination,
         InterchainAccountConfig calldata _config,
         CallLib.Call[] calldata _calls
     ) external returns (bytes32) {
         return
             mailbox.dispatch(
-                _destinationDomain,
+                _destination,
                 _config.router,
-                InterchainAccountMessage.format(
-                    msg.sender.addressToBytes32(),
-                    _config.ism,
-                    _calls
-                )
+                InterchainAccountMessage.format(msg.sender, _config.ism, _calls)
             );
     }
 
     /**
      * @notice Handles dispatched messages by relaying calls to the interchain account.
      * @param _origin The origin domain of the interchain account.
-     * @param _message The ABI-encoded message containing the sender and the sequence of calls to be relayed.
+     * @param _message The ABI-encoded message containing the owner and the sequence of calls to be relayed.
      */
     function handle(
         uint32 _origin,
@@ -160,13 +152,13 @@ contract InterchainAccountRouter is
 
     function getLocalInterchainAccount(
         uint32 _origin,
-        address _sender,
+        address _owner,
         address _ism
     ) external view returns (OwnableMulticall) {
         return
             getLocalInterchainAccount(
                 _origin,
-                TypeCasts.addressToBytes32(_sender),
+                TypeCasts.addressToBytes32(_owner),
                 _ism
             );
     }
@@ -175,37 +167,36 @@ contract InterchainAccountRouter is
      * @notice Returns the address of the interchain account deployed on the
      * local chain.
      * @param _origin The origin domain of the interchain account.
-     * @param _sender The parent account address on the origin domain.
+     * @param _owner The parent account address on the origin domain.
      * @return The address of the interchain account.
      */
     function getLocalInterchainAccount(
         uint32 _origin,
-        bytes32 _sender,
+        bytes32 _owner,
         address _ism
     ) public view returns (OwnableMulticall) {
         return
             OwnableMulticall(
-                _getInterchainAccount(_salt(_origin, _sender, _ism))
+                _getInterchainAccount(_salt(_origin, _owner, _ism))
             );
     }
 
     // ONLYOWNER!
     function setGlobalDefault(
-        uint32 _destinationDomain,
+        uint32 _destination,
         InterchainAccountConfig calldata _config
-    ) external {
-        // TODO: Immutable
-        // TODO: Check not zeros
-        globalDefaults[_destinationDomain] = _config;
+    ) external onlyOwner {
+        require(_config.router != bytes32(0), "invalid router");
+        require(_isEmpty(globalDefaults[_destination]), "immutable");
+        globalDefaults[_destination] = _config;
     }
 
     function setUserDefault(
-        uint32 _destinationDomain,
+        uint32 _destination,
         InterchainAccountConfig calldata _config
     ) external {
-        // TODO: Immutable
-        // TODO: Check not zeros
-        userDefaults[msg.sender][_destinationDomain] = _config;
+        require(!_isEmpty(_config), "invalid router");
+        userDefaults[msg.sender][_destination] = _config;
     }
 
     // ============ Private Functions ============
@@ -213,20 +204,20 @@ contract InterchainAccountRouter is
     /**
      * @notice Returns and deploys (if not already) an interchain account
      * @param _origin The origin domain of the interchain account.
-     * @param _sender The parent account address on the origin domain.
+     * @param _owner The parent account address on the origin domain.
      * @return The address of the interchain account.
      */
     function _getDeployedInterchainAccount(
         uint32 _origin,
-        bytes32 _sender,
+        bytes32 _owner,
         address _ism
     ) private returns (OwnableMulticall) {
-        bytes32 salt = _salt(_origin, _sender, _ism);
+        bytes32 salt = _salt(_origin, _owner, _ism);
         address payable interchainAccount = _getInterchainAccount(salt);
         if (!Address.isContract(interchainAccount)) {
             bytes memory bytecode = MinimalProxy.bytecode(implementation);
             interchainAccount = payable(Create2.deploy(0, salt, bytecode));
-            emit InterchainAccountCreated(_origin, _sender, interchainAccount);
+            emit InterchainAccountCreated(_origin, _owner, interchainAccount);
             // transfers ownership to this contract
             OwnableMulticall(interchainAccount).initialize();
         }
@@ -234,31 +225,40 @@ contract InterchainAccountRouter is
     }
 
     // TODO: Consistency, domain comes first
-    function getInterchainAccountConfig(
-        address _sender,
-        uint32 _destinationDomain
-    ) public view returns (InterchainAccountConfig memory) {
-        InterchainAccountConfig storage _userDefault = userDefaults[_sender][
-            _destinationDomain
+    function getInterchainAccountConfig(uint32 _destination, address _owner)
+        public
+        view
+        returns (InterchainAccountConfig memory)
+    {
+        InterchainAccountConfig storage _userDefault = userDefaults[_owner][
+            _destination
         ];
-        if (_userDefault.router != bytes32(0)) {
-            return _userDefault;
-        }
-        return globalDefaults[_destinationDomain];
+        return
+            _isEmpty(_userDefault)
+                ? globalDefaults[_destination]
+                : _userDefault;
+    }
+
+    function _isEmpty(InterchainAccountConfig memory _config)
+        private
+        pure
+        returns (bool)
+    {
+        return _config.router == bytes32(0);
     }
 
     /**
-     * @notice Returns the salt used to deploy the interchain account for a given `origin`/`sender` pair.
+     * @notice Returns the salt used to deploy the interchain account for a given `origin`/`owner` pair.
      * @param _origin The origin domain of the interchain account.
-     * @param _sender The parent account address on the origin domain.
+     * @param _owner The parent account address on the origin domain.
      * @return The CREATE2 salt used for deploying the interchain account.
      */
     function _salt(
         uint32 _origin,
-        bytes32 _sender,
+        bytes32 _owner,
         address _ism
     ) private pure returns (bytes32) {
-        return bytes32(abi.encodePacked(_origin, _sender, _ism));
+        return bytes32(abi.encodePacked(_origin, _owner, _ism));
     }
 
     /**
