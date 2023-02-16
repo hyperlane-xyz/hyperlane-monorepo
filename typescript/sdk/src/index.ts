@@ -124,6 +124,7 @@ export {
   RouterContracts,
   RouterFactories,
 } from './router';
+export { getTestOwnerConfig } from './test/testUtils';
 export {
   ChainMap,
   ChainName,
