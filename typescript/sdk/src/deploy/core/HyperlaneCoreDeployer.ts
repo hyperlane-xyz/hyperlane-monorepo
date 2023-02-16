@@ -171,9 +171,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     await super.runIfOwner(chain, multisigIsm, async () => {
       // TODO: Remove extraneous validators
-      const remoteDomains = remotes.map((chain) =>
-        this.multiProvider.getDomainId(chain),
-      );
+      const remoteDomains = this.multiProvider.getDomainIds(remotes);
       const actualValidators = await Promise.all(
         remoteDomains.map((id) => multisigIsm.validators(id)),
       );

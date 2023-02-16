@@ -48,7 +48,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     const envChains = Object.keys(envConfig) as IntersectionChain[];
 
     const { intersection, multiProvider: intersectionProvider } =
-      multiProvider.intersect(envChains);
+      multiProvider.intersect(envChains, true);
 
     const intersectionConfig = pick(envConfig, intersection);
     const contractsMap = buildContracts(

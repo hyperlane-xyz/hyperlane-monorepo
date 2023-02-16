@@ -13,7 +13,7 @@ export function chainMetadataToWagmiChain(metadata: ChainMetadata): WagmiChain {
       public: { http: [metadata.publicRpcUrls[0].http] },
       default: { http: [metadata.publicRpcUrls[0].http] },
     },
-    blockExplorers: metadata.blockExplorers.length
+    blockExplorers: metadata.blockExplorers?.length
       ? {
           default: {
             name: metadata.blockExplorers[0].name,

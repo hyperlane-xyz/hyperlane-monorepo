@@ -39,13 +39,13 @@ export interface ChainMetadata {
     pagination?: RpcPagination;
   }>;
   /** Collection of block explorers */
-  blockExplorers: Array<{
+  blockExplorers?: Array<{
     name: string;
     url: string;
     family?: ExplorerFamily;
     apiUrl?: string;
   }>;
-  blocks: {
+  blocks?: {
     /** Number of blocks to wait before considering a transaction confirmed */
     confirmations: number;
     //  TODO consider merging with confirmations, requires agent code changes */

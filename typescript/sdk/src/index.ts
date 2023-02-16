@@ -92,7 +92,6 @@ export {
   VerificationInput,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
-export { ChainNameToDomainId, DomainIdToChainName } from './domains';
 export {
   Annotated,
   getEvents,

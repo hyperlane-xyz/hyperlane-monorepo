@@ -80,7 +80,7 @@ export class MultiProvider {
   /**
    * Get the names for all chains known to this MultiProvider
    */
-  getChainNames(): string[] {
+  getKnownChainNames(): string[] {
     return Object.keys(this.metadata);
   }
 
@@ -102,7 +102,7 @@ export class MultiProvider {
   /**
    * Get the ids for all chains known to this MultiProvider
    */
-  getChainIds(): number[] {
+  getKnownChainIds(): number[] {
     return Object.values(this.metadata).map((c) => c.chainId);
   }
 
@@ -124,10 +124,18 @@ export class MultiProvider {
   }
 
   /**
+   * Get the domain ids for a list of chain names or chain ids
+   * @throws if any chain's metadata has not been set
+   */
+  getDomainIds(chainNamesOrIds: Array<ChainName | number>): number[] {
+    return chainNamesOrIds.map((c) => this.getDomainId(c));
+  }
+
+  /**
    * Get the ids for all chains known to this MultiProvider
    */
-  getDomainIds(): number[] {
-    return this.getChainNames().map(this.getDomainId);
+  getKnownDomainIds(): number[] {
+    return this.getKnownChainNames().map(this.getDomainId);
   }
 
   /**
@@ -173,11 +181,13 @@ export class MultiProvider {
         'http://localhost:8545',
         31337,
       );
-    } else if (publicRpcUrls.length) {
+    } else if (publicRpcUrls.length && publicRpcUrls[0].http) {
       this.providers[name] = new providers.JsonRpcProvider(
         publicRpcUrls[0].http,
         id,
       );
+    } else {
+      return null;
     }
 
     return this.providers[name];
@@ -294,8 +304,26 @@ export class MultiProvider {
   }
 
   /**
+   * Gets the Signer if it's been set, otherwise the provider
+   */
+  tryGetSignerOrProvider(
+    chainNameOrId: ChainName | number,
+  ): Signer | Provider | null {
+    return (
+      this.tryGetSigner(chainNameOrId) || this.tryGetProvider(chainNameOrId)
+    );
+  }
+
+  /**
+   * Gets the Signer if it's been set, otherwise the provider
+   * @throws if chain metadata has not been set
+   */
+  getSignerOrProvider(chainNameOrId: ChainName | number): Signer | Provider {
+    return this.tryGetSigner(chainNameOrId) || this.getProvider(chainNameOrId);
+  }
+
+  /**
    * Gets the shared Ethers Signers used for all chains
-   * @throws if shared signer has not been set
    */
   tryGetSharedSigner(): Signer | null {
     return this.sharedSigner;
@@ -314,7 +342,7 @@ export class MultiProvider {
    * Sets Ethers Signers to be used for all chains
    * Any subsequent calls to getSigner will return given signer
    */
-  setSharedSigner(sharedSigner: Signer): Signer {
+  setSharedSigner(sharedSigner: Signer | null): Signer | null {
     this.sharedSigner = sharedSigner;
     return sharedSigner;
   }
@@ -330,7 +358,7 @@ export class MultiProvider {
     intersection: ChainName[];
     multiProvider: MultiProvider;
   } {
-    const ownChains = this.getChainNames();
+    const ownChains = this.getKnownChainNames();
     const intersection: ChainName[] = [];
 
     for (const chain of chains) {
@@ -364,40 +392,43 @@ export class MultiProvider {
    * Get chain names excluding given chain name
    */
   getRemoteChains(name: ChainName): ChainName[] {
-    return this.getChainNames().filter((n) => n !== name);
+    return this.getKnownChainNames().filter((n) => n !== name);
   }
 
   /**
    * Get an RPC URL for given chain
-   * @throws if chain's metadata or signer has not been set
+   * @throws if chain's metadata has not been set
    */
   getRpcUrl(chainNameOrId: ChainName | number): string {
-    return this.getChainMetadata(chainNameOrId).publicRpcUrls[0].http;
+    const { publicRpcUrls } = this.getChainMetadata(chainNameOrId);
+    if (publicRpcUrls?.length && publicRpcUrls[0].http)
+      return publicRpcUrls[0].http;
+    else throw new Error(`No RPC URl configured for ${chainNameOrId}`);
   }
 
   /**
    * Get a block explorer URL for given chain
-   * @throws if chain's metadata or signer has not been set
+   * @throws if chain's metadata has not been set
    */
   getExplorerUrl(chainNameOrId: ChainName | number): string {
-    const explorer = this.getChainMetadata(chainNameOrId).blockExplorers[0];
-    return explorer?.url || 'UNKNOWN_EXPLORER_URL';
+    const explorers = this.getChainMetadata(chainNameOrId).blockExplorers;
+    if (!explorers?.length) return 'UNKNOWN_EXPLORER_URL';
+    else return explorers[0].url;
   }
 
   /**
    * Get a block explorer API URL for given chain
-   * @throws if chain's metadata or signer has not been set
+   * @throws if chain's metadata has not been set
    */
   getExplorerApiUrl(chainNameOrId: ChainName | number): string {
-    const explorer = this.getChainMetadata(chainNameOrId).blockExplorers[0];
-    return (
-      (explorer?.apiUrl || explorer?.url || 'UNKNOWN_EXPLORER_URL') + '/api'
-    );
+    const explorers = this.getChainMetadata(chainNameOrId).blockExplorers;
+    if (!explorers?.length) return 'UNKNOWN_EXPLORER_API_URL';
+    else return (explorers[0].apiUrl || explorers[0].url) + '/api';
   }
 
   /**
    * Get a block explorer URL for given chain's tx
-   * @throws if chain's metadata or signer has not been set
+   * @throws if chain's metadata has not been set
    */
   getExplorerTxUrl(
     chainNameOrId: ChainName | number,
@@ -408,7 +439,7 @@ export class MultiProvider {
 
   /**
    * Get a block explorer URL for given chain's address
-   * @throws if chain's metadata or signer has not been set
+   * @throws if chain's metadata has not been set
    */
   async getExplorerAddressUrl(
     chainNameOrId: ChainName | number,
@@ -439,7 +470,7 @@ export class MultiProvider {
     tx: ContractTransaction | Promise<ContractTransaction>,
   ): Promise<ContractReceipt> {
     const confirmations =
-      this.getChainMetadata(chainNameOrId).blocks.confirmations;
+      this.getChainMetadata(chainNameOrId).blocks?.confirmations || 1;
     const response = await tx;
     this.logger(
       `Pending ${this.getExplorerTxUrl(
