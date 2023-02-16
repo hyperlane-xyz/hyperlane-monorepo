@@ -1,3 +1,4 @@
+import { Provider } from '@ethersproject/providers';
 import { prompts } from 'prompts';
 
 import { InterchainGasPaymaster, Ownable__factory } from '@hyperlane-xyz/core';
@@ -218,19 +219,31 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
       return ownable.owner();
     };
 
-    // 1. Assess whether the default signer can be used
-    // If onlyCheckOwnership is true, check if the signer is the owner of
-    // the contract.
-    if (call.onlyCheckOwnership) {
-      if (eqAddress(signerAddress, await getContractOwner())) {
-        return SubmissionType.SIGNER;
+    const canUseSubmissionType = async (
+      provider: Provider,
+      submitterAddress: types.Address,
+    ): Promise<boolean> => {
+      // If onlyCheckOwnership is true, just check if the contract's owner
+      // is the submitter address.
+      if (call.onlyCheckOwnership) {
+        if (eqAddress(submitterAddress, await getContractOwner())) {
+          return true;
+        }
+      } else {
+        // Otherwise, check if the call will succeed with the submitter's address.
+        try {
+          await provider.estimateGas({
+            ...call,
+            from: submitterAddress,
+          });
+          return true;
+        } catch (_) {} // eslint-disable-line no-empty
       }
-    } else {
-      // Otherwise, check if the call will succeed with the default signer.
-      try {
-        await connection.estimateGas(call);
-        return SubmissionType.SIGNER;
-      } catch (_) {} // eslint-disable-line no-empty
+      return false;
+    };
+
+    if (await canUseSubmissionType(connection.provider, signerAddress)) {
+      return SubmissionType.SIGNER;
     }
 
     // 2. Check if the call will succeed via Gnosis Safe.
@@ -252,23 +265,11 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     }
 
     // 2b. Check if calling from the owner/safeAddress will succeed.
-    if (this.canPropose[chain].get(safeAddress)) {
-      // If onlyCheckOwnership is true, just check that the safeAddress
-      // is the contract owner
-      if (call.onlyCheckOwnership) {
-        if (eqAddress(safeAddress, await getContractOwner())) {
-          return SubmissionType.SAFE;
-        }
-      } else {
-        // Otherwise, check if the call will succeed with the safe address
-        try {
-          await connection.provider.estimateGas({
-            ...call,
-            from: safeAddress,
-          });
-          return SubmissionType.SAFE;
-        } catch (_) {} // eslint-disable-line no-empty
-      }
+    if (
+      this.canPropose[chain].get(safeAddress) &&
+      (await canUseSubmissionType(connection.provider, safeAddress))
+    ) {
+      return SubmissionType.SAFE;
     }
 
     return SubmissionType.MANUAL;
