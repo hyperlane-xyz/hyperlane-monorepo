@@ -170,4 +170,24 @@ mod test {
             None
         )
     }
+
+    #[tokio::test]
+    async fn test_accounts_for_expenditure_when_giving_full_amount() {
+        let policy = GasPaymentPolicyOnChainFeeQuoting::default();
+        let message = HyperlaneMessage::default();
+
+        // Accounts for gas that has already been spent
+        assert_eq!(
+            policy
+                .message_meets_gas_payment_requirement(
+                    &message,
+                    &current_payment(MIN * 2 + 300),
+                    &current_expenditure(50),
+                    &COST_ESTIMATE
+                )
+                .await
+                .unwrap(),
+            Some(MIN * 2 + 250)
+        )
+    }
 }
