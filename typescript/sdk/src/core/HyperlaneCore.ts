@@ -82,7 +82,6 @@ export class HyperlaneCore<
       // TODO allow these to be more easily changed
       interchainGasPaymaster:
         contracts.defaultIsmInterchainGasPaymaster.address,
-      interchainSecurityModule: contracts.multisigIsm.address,
     };
   }
 
