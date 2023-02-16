@@ -174,7 +174,7 @@ contract InterchainAccountRouterTest is Test {
         assertEq(actualConfig, expectedConfig);
     }
 
-    function callRemoteSetter(bytes32 data) private {
+    function getCalls(bytes32 data) private returns (CallLib.Call[] memory) {
         vm.assume(data != bytes32(0));
         CallLib.Call memory call = CallLib.Call(
             TypeCasts.addressToBytes32(address(target)),
@@ -183,12 +183,11 @@ contract InterchainAccountRouterTest is Test {
         );
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
-        originRouter.callRemote(destinationDomain, calls);
+        return calls;
     }
 
-    function testCallRemote(bytes32 data) private {
+    function assertRemoteCall(bytes32 data) private {
         assertEq(target.data(address(this)), bytes32(0));
-        callRemoteSetter(data);
         vm.expectEmit(true, false, false, true, address(destinationRouter));
         emit InterchainAccountCreated(
             originDomain,
@@ -199,23 +198,24 @@ contract InterchainAccountRouterTest is Test {
         assertEq(target.data(address(ica)), data);
     }
 
-    /*
-    function testCallRemoteWithConfig(bytes32 value) public {
-        testCallRemote(value);
+    function testCallRemoteWithConfig(bytes32 data) public {
+        originRouter.callRemote(destinationDomain, userConfig, getCalls(data));
+        assertRemoteCall(data);
     }
-    */
 
-    function testCallRemoteWithGlobalDefault(bytes32 value) public {
+    function testCallRemoteWithGlobalDefault(bytes32 data) public {
         originRouter.setGlobalDefault(destinationDomain, userConfig);
-        testCallRemote(value);
+        originRouter.callRemote(destinationDomain, getCalls(data));
+        assertRemoteCall(data);
     }
 
-    function testCallRemoteWithUserDefault(bytes32 value) public {
+    function testCallRemoteWithUserDefault(bytes32 data) public {
         originRouter.setUserDefault(destinationDomain, userConfig);
-        testCallRemote(value);
+        originRouter.callRemote(destinationDomain, getCalls(data));
+        assertRemoteCall(data);
     }
 
-    function testGetLocalInterchainAccount(bytes32 value) public {
+    function testGetLocalInterchainAccount(bytes32 data) public {
         OwnableMulticall destinationIca = destinationRouter
             .getLocalInterchainAccount(
                 originDomain,
@@ -235,9 +235,8 @@ contract InterchainAccountRouterTest is Test {
 
         assertEq(address(destinationIca).code.length, 0);
 
-        originRouter.setUserDefault(destinationDomain, userConfig);
-        callRemoteSetter(value);
-        environment.processNextPendingMessage();
+        originRouter.callRemote(destinationDomain, userConfig, getCalls(data));
+        assertRemoteCall(data);
 
         assert(address(destinationIca).code.length != 0);
     }
@@ -250,9 +249,8 @@ contract InterchainAccountRouterTest is Test {
         payable(address(ica)).transfer(value / 2);
 
         // Deploy
-        originRouter.setUserDefault(destinationDomain, userConfig);
-        callRemoteSetter(data);
-        environment.processNextPendingMessage();
+        originRouter.callRemote(destinationDomain, userConfig, getCalls(data));
+        assertRemoteCall(data);
 
         // receive value after deployed
         destinationRouter.getLocalInterchainAccount(
@@ -277,8 +275,7 @@ contract InterchainAccountRouterTest is Test {
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
 
-        originRouter.setUserDefault(destinationDomain, userConfig);
-        originRouter.callRemote(destinationDomain, calls);
+        originRouter.callRemote(destinationDomain, userConfig, calls);
         vm.expectCall(address(this), value, data);
         environment.processNextPendingMessage();
     }
