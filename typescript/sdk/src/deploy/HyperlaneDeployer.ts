@@ -75,8 +75,10 @@ export abstract class HyperlaneDeployer<
       this.deployedContracts[chain] = connectContracts(contracts, signer);
     });
     const configChains = Object.keys(this.configMap);
-    const targetChains =
-      this.multiProvider.intersect(configChains).intersection;
+    const targetChains = this.multiProvider.intersect(
+      configChains,
+      true,
+    ).intersection;
 
     this.logger(`Start deploy to ${targetChains}`);
     for (const chain of targetChains) {

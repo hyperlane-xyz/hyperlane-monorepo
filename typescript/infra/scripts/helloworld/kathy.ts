@@ -108,6 +108,7 @@ function getKathyArgs() {
     .choices('connection-type', [
       ConnectionType.Http,
       ConnectionType.HttpQuorum,
+      ConnectionType.HttpFallback,
     ])
     .demandOption('connection-type');
 

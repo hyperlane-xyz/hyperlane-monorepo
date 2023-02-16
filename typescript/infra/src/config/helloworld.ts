@@ -28,8 +28,8 @@ export interface HelloWorldKathyConfig<Chain extends ChainName> {
   /** How long kathy should wait before giving up on waiting for the message to be received (milliseconds). */
   messageReceiptTimeout: number;
 
-  // Whether to use a single HTTP provider or a quorum of HTTP providers
-  connectionType: ConnectionType.Http | ConnectionType.HttpQuorum;
+  // Which type of provider to use
+  connectionType: Exclude<ConnectionType, ConnectionType.Ws>;
   // How many cycles to skip between a cycles that send messages to/from Ethereum. Defaults to 0.
   cyclesBetweenEthereumMessages?: number;
 }

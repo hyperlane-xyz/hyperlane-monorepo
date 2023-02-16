@@ -2,7 +2,10 @@ import CoinGecko from 'coingecko-api';
 
 import { warn } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata, chainMetadata } from '../consts/chainMetadata';
+import {
+  ChainMetadata,
+  chainMetadata as defaultChainMetadata,
+} from '../consts/chainMetadata';
 import { CoreChainName, Mainnets } from '../consts/chains';
 import { ChainMap, ChainName } from '../types';
 
@@ -74,11 +77,11 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   constructor(
     coinGecko: CoinGeckoInterface,
     expirySeconds?: number,
-    metadata = chainMetadata,
+    chainMetadata = defaultChainMetadata,
   ) {
     this.coinGecko = coinGecko;
     this.cache = new TokenPriceCache(expirySeconds);
-    this.metadata = metadata;
+    this.metadata = chainMetadata;
   }
 
   async getTokenPrice(chain: ChainName): Promise<number> {

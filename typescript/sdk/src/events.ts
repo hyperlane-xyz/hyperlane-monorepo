@@ -5,7 +5,6 @@ import type {
   TypedEventFilter,
 } from '@hyperlane-xyz/core/dist/common';
 
-// import { chainMetadata } from './consts/chainMetadata';
 import { MultiProvider } from './providers/MultiProvider';
 import { ChainName } from './types';
 
