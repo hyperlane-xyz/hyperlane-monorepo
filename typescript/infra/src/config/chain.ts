@@ -1,3 +1,4 @@
+import { FallbackProviderConfig } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 
 import { StaticCeloJsonRpcProvider } from '@hyperlane-xyz/celo-ethers-provider';
@@ -46,7 +47,18 @@ export async function fetchProvider(
     }
     case ConnectionType.HttpFallback: {
       return new ethers.providers.FallbackProvider(
-        (rpcData as string[]).map((url) => providerBuilder(url, chainName)),
+        (rpcData as string[]).map((url, index) => {
+          const fallbackProviderConfig: FallbackProviderConfig = {
+            provider: providerBuilder(url, chainName),
+            // Priority is used by the FallbackProvider to determine
+            // how to order providers using ascending ordering.
+            // When not specified, all providers have the same priority
+            // and are ordered randomly for each RPC.
+            priority: index,
+          };
+          console.log('fallbackProviderConfig', fallbackProviderConfig);
+          return fallbackProviderConfig;
+        }),
         1, // a single provider is "quorum", but failure will cause failover to the next provider
       );
     }
