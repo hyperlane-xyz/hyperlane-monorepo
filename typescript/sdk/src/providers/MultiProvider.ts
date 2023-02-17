@@ -408,7 +408,7 @@ export class MultiProvider {
    */
   getExplorerTxUrl(
     chainNameOrId: ChainName | number,
-    response: providers.TransactionResponse,
+    response: { hash: string },
   ): string {
     return `${this.getExplorerUrl(chainNameOrId)}/tx/${response.hash}`;
   }
@@ -502,6 +502,17 @@ export class MultiProvider {
     const response = await signer.sendTransaction(txReq);
     this.logger(`Sent tx ${response.hash}`);
     return this.handleTx(chainNameOrId, response);
+  }
+
+  /**
+   * Run given function on all known chains
+   */
+  mapKnownChains<Output>(fn: (n: ChainName) => Output): ChainMap<Output> {
+    const result: ChainMap<Output> = {};
+    for (const chain of this.getKnownChainNames()) {
+      result[chain] = fn(chain);
+    }
+    return result;
   }
 
   /**
