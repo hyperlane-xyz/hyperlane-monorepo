@@ -53,8 +53,7 @@ export class TestCoreApp extends HyperlaneCore {
       if (destination === this.multiProvider.getDomainId(origin)) {
         throw new Error('Dispatched message to local domain');
       }
-      const destinationChain =
-        this.multiProvider.domainIdToChainName(destination);
+      const destinationChain = this.multiProvider.getChainName(destination);
       const inbox = this.getContracts(destinationChain).mailbox.contract;
       const id = utils.messageId(dispatch.args.message);
       const delivered = await inbox.delivered(id);

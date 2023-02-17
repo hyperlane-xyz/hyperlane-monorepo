@@ -34,7 +34,7 @@ export abstract class GasRouterDeployer<
     for (const [chain, contracts] of Object.entries<Contracts>(contractsMap)) {
       const remoteDomains = await contracts.router.domains();
       const remoteChains = remoteDomains.map((domain) =>
-        this.multiProvider.domainIdToChainName(domain),
+        this.multiProvider.getChainName(domain),
       );
       const currentConfigs = await Promise.all(
         remoteDomains.map((domain) => contracts.router.destinationGas(domain)),

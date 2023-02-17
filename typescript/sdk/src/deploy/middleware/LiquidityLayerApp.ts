@@ -111,9 +111,7 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
     const event = matchingLogs.find((_) => _!.name === 'BridgedToken')!;
     const portalSequence = event.args.portalSequence.toNumber();
     const nonce = event.args.nonce.toNumber();
-    const destination = this.multiProvider.domainIdToChainName(
-      event.args.destination,
-    );
+    const destination = this.multiProvider.getChainName(event.args.destination);
 
     return [{ origin: chain, nonce, portalSequence, destination }];
   }

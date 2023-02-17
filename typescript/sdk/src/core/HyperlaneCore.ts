@@ -34,18 +34,16 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     super(contractsMap, multiProvider);
   }
 
-  static fromEnvironment<
-    Env extends CoreEnvironment,
-    Chain extends ChainName = ChainName,
-  >(env: Env, multiProvider: MultiProvider): HyperlaneCore {
+  static fromEnvironment<Env extends CoreEnvironment>(
+    env: Env,
+    multiProvider: MultiProvider,
+  ): HyperlaneCore {
     const envConfig = environments[env];
     if (!envConfig) {
       throw new Error(`No default env config found for ${env}`);
     }
 
-    type EnvChain = keyof typeof envConfig;
-    type IntersectionChain = EnvChain & Chain;
-    const envChains = Object.keys(envConfig) as IntersectionChain[];
+    const envChains = Object.keys(envConfig);
 
     const { intersection, multiProvider: intersectionProvider } =
       multiProvider.intersect(envChains, true);
@@ -59,7 +57,6 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     return new HyperlaneCore(contractsMap, intersectionProvider);
   }
 
-  // override type to be derived from chain key
   getContracts(chain: ChainName): CoreContracts {
     return super.getContracts(chain);
   }
@@ -68,7 +65,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     const contracts = this.getContracts(chain);
     return {
       mailbox: contracts.mailbox.address,
-      // TODO allow this to be more easily changed
+      // TODO allow these to be more easily changed
       interchainGasPaymaster:
         contracts.defaultIsmInterchainGasPaymaster.address,
     };
@@ -96,7 +93,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     destinationChain: ChainName;
     mailbox: Mailbox;
   } {
-    const destinationChain = this.multiProvider.domainIdToChainName(
+    const destinationChain = this.multiProvider.getChainName(
       message.parsed.destination,
     );
     const mailbox = this.getContracts(destinationChain).mailbox.contract;
