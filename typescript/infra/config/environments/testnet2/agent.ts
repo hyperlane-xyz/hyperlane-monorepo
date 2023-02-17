@@ -75,15 +75,15 @@ export const abacus: AgentConfig<TestnetChains> = {
         // Allow bidirectional messaging between Mumbai/Alfajores Toucan contracts
         {
           sourceAddress: '0xdb45A8869f94c15954e282F28e272f5597063e9A',
-          sourceDomain: 1000, // alfajores
+          sourceDomain: 80001, // mumbai
           destinationAddress: '0xf9a49993DF24366AB8EDf617C080ca36a4ADb86e',
-          destinationDomain: 80001, // mumbai
+          destinationDomain: 1000, // alfajores
         },
         {
           sourceAddress: '0xf9a49993DF24366AB8EDf617C080ca36a4ADb86e',
-          sourceDomain: 80001, // mumbai
+          sourceDomain: 1000, // alfajores
           destinationAddress: '0xdb45A8869f94c15954e282F28e272f5597063e9A',
-          destinationDomain: 1000, // alfajores
+          destinationDomain: 80001, // mumbai
         },
         // Allow bidirectional messaging between Mumbai/Alfajores Helloworld contracts
         {
