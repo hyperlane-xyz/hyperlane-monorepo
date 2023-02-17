@@ -63,7 +63,6 @@ export class LiquidityLayerDeployer<
   constructor(
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, LiquidityLayerConfig>,
-    protected create2salt = 'liquiditylayer',
   ) {
     super(multiProvider, configMap, liquidityLayerFactories);
   }

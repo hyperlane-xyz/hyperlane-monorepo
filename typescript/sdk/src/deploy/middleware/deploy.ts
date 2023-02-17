@@ -27,6 +27,15 @@ export abstract class MiddlewareRouterDeployer<
   MiddlewareRouterContracts,
   MiddlewareFactories
 > {
+  constructor(
+    multiProvider: MultiProvider<Chain>,
+    configMap: ChainMap<Chain, MiddlewareRouterConfig>,
+    factories: MiddlewareFactories,
+    protected create2salt = 'middlewarerouter',
+  ) {
+    super(multiProvider, configMap, factories);
+  }
+
   constructorArgs(
     _: MiddlewareRouterConfig,
   ): Parameters<MiddlewareFactories['router']['deploy']> {
@@ -59,7 +68,7 @@ export abstract class MiddlewareRouterDeployer<
       proxyAdmin,
       this.initializeArgs(config),
       {
-        create2Salt: 'middlewarerouter',
+        create2Salt: this.create2salt,
       },
     );
     const chainConnection = this.multiProvider.getChainConnection(chain);
