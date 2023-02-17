@@ -47,11 +47,7 @@ describe('InterchainQueryRouter', async () => {
   });
 
   beforeEach(async () => {
-    const InterchainQuery = new InterchainQueryDeployer(
-      multiProvider,
-      config,
-      coreApp,
-    );
+    const InterchainQuery = new InterchainQueryDeployer(multiProvider, config);
 
     const contracts = await InterchainQuery.deploy();
 

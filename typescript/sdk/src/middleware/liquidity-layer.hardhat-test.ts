@@ -114,11 +114,7 @@ describe('LiquidityLayerRouter', async () => {
   });
 
   beforeEach(async () => {
-    const LiquidityLayer = new LiquidityLayerDeployer(
-      multiProvider,
-      config,
-      coreApp,
-    );
+    const LiquidityLayer = new LiquidityLayerDeployer(multiProvider, config);
     const contracts = await LiquidityLayer.deploy();
 
     liquidityLayerApp = new LiquidityLayerApp(contracts, multiProvider, config);

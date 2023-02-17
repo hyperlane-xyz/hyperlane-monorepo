@@ -11,7 +11,7 @@ import {
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 
-import { RouterContracts, RouterFactories } from './router';
+import { ProxiedRouterContracts, RouterFactories } from './router';
 
 export type InterchainAccountFactories =
   RouterFactories<InterchainAccountRouter>;
@@ -21,7 +21,7 @@ export const interchainAccountFactories: InterchainAccountFactories = {
 };
 
 export type InterchainAccountContracts =
-  RouterContracts<InterchainAccountRouter>;
+  ProxiedRouterContracts<InterchainAccountRouter>;
 
 export type InterchainQueryFactories = RouterFactories<InterchainQueryRouter>;
 
@@ -29,7 +29,8 @@ export const interchainQueryFactories: InterchainQueryFactories = {
   router: new InterchainQueryRouter__factory(),
 };
 
-export type InterchainQueryContracts = RouterContracts<InterchainQueryRouter>;
+export type InterchainQueryContracts =
+  ProxiedRouterContracts<InterchainQueryRouter>;
 
 export type LiquidityLayerFactories = RouterFactories<LiquidityLayerRouter> & {
   circleBridgeAdapter: CircleBridgeAdapter__factory;
@@ -42,7 +43,8 @@ export const liquidityLayerFactories: LiquidityLayerFactories = {
   portalAdapter: new PortalAdapter__factory(),
 };
 
-export type LiquidityLayerContracts = RouterContracts<LiquidityLayerRouter> & {
-  circleBridgeAdapter?: CircleBridgeAdapter;
-  portalAdapter?: PortalAdapter;
-};
+export type LiquidityLayerContracts =
+  ProxiedRouterContracts<LiquidityLayerRouter> & {
+    circleBridgeAdapter?: CircleBridgeAdapter;
+    portalAdapter?: PortalAdapter;
+  };

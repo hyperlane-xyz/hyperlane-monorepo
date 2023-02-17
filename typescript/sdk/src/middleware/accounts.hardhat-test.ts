@@ -54,7 +54,6 @@ describe('InterchainAccountRouter', async () => {
     const InterchainAccount = new InterchainAccountDeployer(
       multiProvider,
       config,
-      coreApp,
     );
     contracts = await InterchainAccount.deploy();
 
