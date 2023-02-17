@@ -5,17 +5,13 @@ import { ConnectionType } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 
 import { agents } from './agent';
-import {
-  MainnetChains,
-  environment as environmentName,
-  mainnetConfigs,
-} from './chains';
+import { environment as environmentName, mainnetConfigs } from './chains';
 import { core } from './core';
 import { keyFunderConfig } from './funding';
 import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
 
-export const environment: CoreEnvironmentConfig<MainnetChains> = {
+export const environment: CoreEnvironmentConfig = {
   environment: environmentName,
   transactionConfigs: mainnetConfigs,
   getMultiProvider: (

@@ -1,11 +1,9 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
-
 import { AgentConfig, CoreEnvironmentConfig } from '../config';
 import { KeyFunderConfig } from '../config/funding';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
-export async function runKeyFunderHelmCommand<Chain extends ChainName>(
+export async function runKeyFunderHelmCommand(
   helmCommand: HelmCommand,
   agentConfig: AgentConfig<Chain>,
   keyFunderConfig: KeyFunderConfig,
@@ -36,7 +34,7 @@ export async function runKeyFunderHelmCommand<Chain extends ChainName>(
   );
 }
 
-function getKeyFunderHelmValues<Chain extends ChainName>(
+function getKeyFunderHelmValues(
   agentConfig: AgentConfig<Chain>,
   keyFunderConfig: KeyFunderConfig,
 ) {

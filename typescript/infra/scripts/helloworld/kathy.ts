@@ -152,7 +152,7 @@ async function main(): Promise<boolean> {
   );
   const gasCalculator = InterchainGasCalculator.fromEnvironment(
     deployEnvToSdkEnv[environment],
-    app.multiProvider as any,
+    app.multiProvider,
   );
   const appChains = app.chains();
 
@@ -355,10 +355,10 @@ async function main(): Promise<boolean> {
 }
 
 async function sendMessage(
-  app: HelloWorldApp<any>,
+  app: HelloWorldApp,
   origin: ChainName,
   destination: ChainName,
-  gasCalc: InterchainGasCalculator<any>,
+  gasCalc: InterchainGasCalculator,
   messageSendTimeout: number,
   messageReceiptTimeout: number,
 ) {
@@ -442,7 +442,7 @@ async function sendMessage(
 }
 
 async function messageIsProcessed(
-  core: HyperlaneCore<any>,
+  core: HyperlaneCore,
   origin: ChainName,
   destination: ChainName,
   message: DispatchedMessage,
@@ -452,7 +452,7 @@ async function messageIsProcessed(
 }
 
 async function updateWalletBalanceMetricFor(
-  app: HelloWorldApp<any>,
+  app: HelloWorldApp,
   chain: ChainName,
 ): Promise<void> {
   const provider = app.multiProvider.getChainConnection(chain).provider;

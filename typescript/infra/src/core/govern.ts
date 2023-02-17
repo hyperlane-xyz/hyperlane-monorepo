@@ -39,7 +39,7 @@ type AnnotatedCallData = types.CallData & {
   description: string;
 };
 
-export class HyperlaneCoreGovernor<Chain extends ChainName> {
+export class HyperlaneCoreGovernor {
   readonly checker: HyperlaneCoreChecker<Chain>;
   private calls: ChainMap<Chain, AnnotatedCallData[]>;
   private canPropose: ChainMap<Chain, Map<string, boolean>>;

@@ -1,6 +1,6 @@
 import {
+  ChainMap,
   CompilerOptions,
-  CompleteChainMap,
   ContractVerifier,
 } from '@hyperlane-xyz/sdk';
 
@@ -54,7 +54,7 @@ async function main() {
   await execCmd(`solc-select use ${matches[1]}`);
   await execCmd(`solc ${sourcePath}`);
 
-  const apiKeys: CompleteChainMap<string> = await fetchGCPSecret(
+  const apiKeys: ChainMap<string> = await fetchGCPSecret(
     'explorer-api-keys',
     true,
   );

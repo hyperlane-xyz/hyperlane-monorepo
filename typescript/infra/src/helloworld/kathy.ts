@@ -1,5 +1,3 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
-
 import { Contexts } from '../../config/contexts';
 import { AgentAwsUser } from '../agents/aws';
 import { KEY_ROLE_ENUM } from '../agents/roles';
@@ -11,7 +9,7 @@ import {
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
-export async function runHelloworldKathyHelmCommand<Chain extends ChainName>(
+export async function runHelloworldKathyHelmCommand(
   helmCommand: HelmCommand,
   agentConfig: AgentConfig<Chain>,
   kathyConfig: HelloWorldKathyConfig<Chain>,
@@ -50,7 +48,7 @@ function getHelmReleaseName(context: Contexts): string {
   }`;
 }
 
-function getHelloworldKathyHelmValues<Chain extends ChainName>(
+function getHelloworldKathyHelmValues(
   agentConfig: AgentConfig<Chain>,
   kathyConfig: HelloWorldKathyConfig<Chain>,
 ) {

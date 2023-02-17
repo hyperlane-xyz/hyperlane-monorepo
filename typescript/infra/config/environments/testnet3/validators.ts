@@ -1,4 +1,4 @@
-import { ChainName, chainMetadata } from '@hyperlane-xyz/sdk';
+import { chainMetadata } from '@hyperlane-xyz/sdk';
 
 import {
   ChainValidatorConfigs,
@@ -9,10 +9,8 @@ import { TestnetChains, environment } from './chains';
 
 const s3BucketRegion = 'us-east-1';
 
-const s3BucketName = <Chain extends ChainName>(
-  chainName: Chain,
-  index: number,
-) => `hyperlane-${environment}-${chainName}-validator-${index}`;
+const s3BucketName = (chainName: Chain, index: number) =>
+  `hyperlane-${environment}-${chainName}-validator-${index}`;
 
 export const validators: ChainValidatorConfigs<TestnetChains> = {
   alfajores: {

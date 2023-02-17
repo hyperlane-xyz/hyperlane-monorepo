@@ -1,5 +1,3 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
-
 import { Contexts } from '../../config/contexts';
 import { AgentConfig } from '../config';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
@@ -15,7 +13,7 @@ interface KeyAsAddress {
   address: string;
 }
 
-export function getCloudAgentKey<Chain extends ChainName>(
+export function getCloudAgentKey(
   agentConfig: AgentConfig<Chain>,
   role: KEY_ROLE_ENUM,
   chainName?: Chain,
@@ -110,7 +108,7 @@ export async function createAgentKeysIfNotExists(
   );
 }
 
-export async function rotateKey<Chain extends ChainName>(
+export async function rotateKey(
   agentConfig: AgentConfig<Chain>,
   role: KEY_ROLE_ENUM,
   chainName: Chain,
@@ -150,7 +148,7 @@ async function persistAddresses(
 }
 
 // This function returns all keys for a given outbox chain in a dictionary where the key is the identifier
-export async function fetchKeysForChain<Chain extends ChainName>(
+export async function fetchKeysForChain(
   agentConfig: AgentConfig<Chain>,
   chainName: Chain,
 ): Promise<Record<string, CloudAgentKey>> {

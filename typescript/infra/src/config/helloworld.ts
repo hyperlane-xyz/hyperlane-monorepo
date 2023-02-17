@@ -9,11 +9,11 @@ export enum HelloWorldKathyRunMode {
   Service,
 }
 
-export interface HelloWorldKathyConfig<Chain extends ChainName> {
+export interface HelloWorldKathyConfig {
   docker: DockerConfig;
   runEnv: string;
   namespace: string;
-  chainsToSkip: Chain[];
+  chainsToSkip: ChainName[];
   runConfig:
     | {
         mode: HelloWorldKathyRunMode.CycleOnce;
@@ -34,7 +34,7 @@ export interface HelloWorldKathyConfig<Chain extends ChainName> {
   cyclesBetweenEthereumMessages?: number;
 }
 
-export interface HelloWorldConfig<Chain extends ChainName> {
-  addresses: ChainMap<Chain, { router: string }>;
-  kathy: HelloWorldKathyConfig<Chain>;
+export interface HelloWorldConfig {
+  addresses: ChainMap<{ router: string }>;
+  kathy: HelloWorldKathyConfig;
 }

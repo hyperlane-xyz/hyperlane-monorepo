@@ -1,5 +1,3 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
-
 import { AgentConfig } from '../config';
 import { ConnectionType } from '../config/agent';
 import {
@@ -11,7 +9,7 @@ import { execCmd } from '../utils/utils';
 
 const helmChartPath = '../../rust/helm/hyperlane-agent/';
 
-export async function runScraperHelmCommand<Chain extends ChainName>(
+export async function runScraperHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig<Chain>,
 ) {
@@ -51,9 +49,7 @@ export async function runScraperHelmCommand<Chain extends ChainName>(
   );
 }
 
-async function scraperHelmValues<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
-) {
+async function scraperHelmValues(agentConfig: AgentConfig<Chain>) {
   // By default, if a context only enables a subset of chains, the
   // connection url (or urls, when HttpQuorum is used) are not fetched
   // from GCP secret manager. For Http/Ws, the `url` param is expected,

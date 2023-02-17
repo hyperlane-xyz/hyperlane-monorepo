@@ -5,11 +5,11 @@ import { MultiProvider } from '@hyperlane-xyz/sdk';
 import { CoreEnvironmentConfig } from '../../../src/config';
 
 import { agents } from './agent';
-import { TestChains, testConfigs } from './chains';
+import { testConfigs } from './chains';
 import { core } from './core';
 import { infra } from './infra';
 
-export const environment: CoreEnvironmentConfig<TestChains> = {
+export const environment: CoreEnvironmentConfig = {
   environment: 'test',
   transactionConfigs: testConfigs,
   agents,
@@ -21,5 +21,6 @@ export const environment: CoreEnvironmentConfig<TestChains> = {
     const provider = mp.getProvider('test1') as JsonRpcProvider;
     const signer = provider.getSigner(0);
     mp.setSharedSigner(signer);
+    return mp;
   },
 };
