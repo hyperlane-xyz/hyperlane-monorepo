@@ -27,7 +27,7 @@ export const abacus: HelloWorldConfig<MainnetChains> = {
     namespace: environment,
     runConfig: {
       mode: HelloWorldKathyRunMode.Service,
-      fullCycleTime: 1000 * 60 * 60 * 48, // every 48 hours
+      fullCycleTime: 1000 * 60 * 60 * 2, // every 2 hours
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
