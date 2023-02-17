@@ -101,9 +101,7 @@ export abstract class HyperlaneRouterDeployer<
       }
 
       await super.runIfOwner(chain, contracts.router, async () => {
-        const chains = domains.map((id) =>
-          this.multiProvider.domainIdToChainName(id),
-        );
+        const chains = domains.map((id) => this.multiProvider.getChainName(id));
         this.logger(
           `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
         );

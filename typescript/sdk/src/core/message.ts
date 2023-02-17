@@ -22,8 +22,8 @@ export const resolveChains = (
   multiProvider: MultiProvider,
 ): { origin: ChainName; destination: ChainName } => {
   return {
-    origin: multiProvider.domainIdToChainName(message.origin),
-    destination: multiProvider.domainIdToChainName(message.destination),
+    origin: multiProvider.getChainName(message.origin),
+    destination: multiProvider.getChainName(message.destination),
   };
 };
 
@@ -98,7 +98,7 @@ export class HyperlaneMessage {
   ): HyperlaneMessage[] {
     const messages: HyperlaneMessage[] = [];
     const outbox = new Mailbox__factory().interface;
-    const chain = multiProvider.resolveDomainOrName(nameOrDomain);
+    const chain = multiProvider.getChainName(nameOrDomain);
     const provider = multiProvider.getProvider(chain);
 
     for (const log of receipt.logs) {
@@ -172,7 +172,7 @@ export class HyperlaneMessage {
     nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<HyperlaneMessage[]> {
-    const chain = multiProvider.resolveDomainOrName(nameOrDomain);
+    const chain = multiProvider.getChainName(nameOrDomain);
     const provider = multiProvider.getProvider(chain);
     const receipt = await provider.getTransactionReceipt(transactionHash);
     if (!receipt) {
@@ -202,7 +202,7 @@ export class HyperlaneMessage {
     nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<HyperlaneMessage> {
-    const chain = multiProvider.resolveDomainOrName(nameOrDomain);
+    const chain = multiProvider.getChainName(nameOrDomain);
     const provider = multiProvider.getProvider(chain);
     const receipt = await provider.getTransactionReceipt(transactionHash);
     if (!receipt) {
@@ -306,7 +306,7 @@ export class HyperlaneMessage {
   }
 
   get originName(): ChainName {
-    return this.multiProvider.domainIdToChainName(this.origin);
+    return this.multiProvider.getChainName(this.origin);
   }
 
   /**
@@ -324,7 +324,7 @@ export class HyperlaneMessage {
   }
 
   get destinationName(): ChainName {
-    return this.multiProvider.domainIdToChainName(this.destination);
+    return this.multiProvider.getChainName(this.destination);
   }
 
   /**

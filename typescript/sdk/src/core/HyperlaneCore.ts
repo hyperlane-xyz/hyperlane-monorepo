@@ -93,7 +93,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     destinationChain: ChainName;
     mailbox: Mailbox;
   } {
-    const destinationChain = this.multiProvider.domainIdToChainName(
+    const destinationChain = this.multiProvider.getChainName(
       message.parsed.destination,
     );
     const mailbox = this.getContracts(destinationChain).mailbox.contract;

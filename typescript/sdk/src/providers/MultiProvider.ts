@@ -21,11 +21,11 @@ import { pick } from '../utils/objects';
 type Provider = providers.Provider;
 
 export class MultiProvider {
+  private readonly logger: Debugger = debug('hyperlane:MultiProvider');
   public readonly metadata: ChainMap<ChainMetadata> = {};
   private readonly providers: ChainMap<Provider> = {};
-  private readonly signers: ChainMap<Signer> = {};
-  private readonly logger: Debugger = debug('hyperlane:MultiProvider');
-  private sharedSigner: Signer | null = null; // A single signer to be used for all chains
+  private signers: ChainMap<Signer> = {};
+  private useSharedSigner = false; // A single signer to be used for all chains
 
   /**
    * Create a new MultiProvider with the given chainMetadata,
@@ -33,26 +33,46 @@ export class MultiProvider {
    */
   constructor(chainMetadata: ChainMap<ChainMetadata> = defaultChainMetadata) {
     this.metadata = chainMetadata;
+    // Ensure no two chains have overlapping names/domainIds/chainIds
+    const chainNames = new Set<string>();
+    const chainIds = new Set<number>();
+    const domainIds = new Set<number>();
+    for (const chain of Object.values(chainMetadata)) {
+      const { name, chainId, domainId } = chain;
+      if (chainNames.has(name))
+        throw new Error(`Duplicate chain name: ${name}`);
+      if (chainIds.has(chainId))
+        throw new Error(`Duplicate chain id: ${chainId}`);
+      if (domainIds.has(chainId))
+        throw new Error(`Overlapping chain/domain id: ${chainId}`);
+      if (domainId && domainIds.has(domainId))
+        throw new Error(`Duplicate domain id: ${domainId}`);
+      if (domainId && chainIds.has(domainId))
+        throw new Error(`Overlapping chain/domain id: ${domainId}`);
+      chainNames.add(name);
+      chainIds.add(chainId);
+      if (domainId) domainIds.add(domainId);
+    }
   }
 
   /**
-   * Get the metadata for a given chain name or chain id
+   * Get the metadata for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
   tryGetChainMetadata(chainNameOrId: ChainName | number): ChainMetadata | null {
     let chainMetadata: ChainMetadata | undefined;
     if (typeof chainNameOrId === 'string') {
       chainMetadata = this.metadata[chainNameOrId];
-    } else {
+    } else if (typeof chainNameOrId === 'number') {
       chainMetadata = Object.values(this.metadata).find(
-        (m) => m.chainId === chainNameOrId,
+        (m) => m.chainId === chainNameOrId || m.domainId === chainNameOrId,
       );
     }
     return chainMetadata || null;
   }
 
   /**
-   * Get the metadata for a given chain name or chain id
+   * Get the metadata for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
   getChainMetadata(chainNameOrId: ChainName | number): ChainMetadata {
@@ -63,14 +83,14 @@ export class MultiProvider {
   }
 
   /**
-   * Get the name for a given chain name or chain id
+   * Get the name for a given chain name, chain id, or domain id
    */
   tryGetChainName(chainNameOrId: ChainName | number): string | null {
     return this.tryGetChainMetadata(chainNameOrId)?.name ?? null;
   }
 
   /**
-   * Get the name for a given chain name or chain id
+   * Get the name for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
   getChainName(chainNameOrId: ChainName | number): string {
@@ -85,14 +105,14 @@ export class MultiProvider {
   }
 
   /**
-   * Get the id for a given chain name or chain id
+   * Get the id for a given chain name, chain id, or domain id
    */
   tryGetChainId(chainNameOrId: ChainName | number): number | null {
     return this.tryGetChainMetadata(chainNameOrId)?.chainId ?? null;
   }
 
   /**
-   * Get the id for a given chain name or chain id
+   * Get the id for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
   getChainId(chainNameOrId: ChainName | number): number {
@@ -107,7 +127,7 @@ export class MultiProvider {
   }
 
   /**
-   * Get the domain id for a given chain name or chain id
+   * Get the domain id for a given chain name, chain id, or domain id
    */
   tryGetDomainId(chainNameOrId: ChainName | number): number | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
@@ -115,7 +135,7 @@ export class MultiProvider {
   }
 
   /**
-   * Get the domain id for a given chain name or chain id
+   * Get the domain id for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
   getDomainId(chainNameOrId: ChainName | number): number {
@@ -124,7 +144,7 @@ export class MultiProvider {
   }
 
   /**
-   * Get the domain ids for a list of chain names or chain ids
+   * Get the domain ids for a list of chain names, chain ids, or domain ids
    * @throws if any chain's metadata has not been set
    */
   getDomainIds(chainNamesOrIds: Array<ChainName | number>): number[] {
@@ -139,35 +159,7 @@ export class MultiProvider {
   }
 
   /**
-   * Get the chain name for a given domain id
-   */
-  domainIdToChainName(domainId: number): string {
-    const metadataList = Object.values(this.metadata);
-    const metadata =
-      metadataList.find((c) => c.domainId === domainId) ||
-      metadataList.find((c) => c.chainId === domainId);
-    if (!metadata) throw new Error(`No chain found for domain id ${domainId}`);
-    return metadata.name;
-  }
-
-  /**
-   * Get the chain id for a given domain id
-   */
-  domainIdToChainId(domainId: number): number {
-    const chainName = this.domainIdToChainName(domainId);
-    return this.getChainId(chainName);
-  }
-
-  /**
-   * Returns name for given domain id or name
-   */
-  resolveDomainOrName(domainIdOrName: ChainName | number): ChainName {
-    if (typeof domainIdOrName === 'string') return domainIdOrName;
-    else return this.domainIdToChainName(domainIdOrName);
-  }
-
-  /**
-   * Get an Ethers provider for a given chain name or chain id
+   * Get an Ethers provider for a given chain name, chain id, or domain id
    */
   tryGetProvider(chainNameOrId: ChainName | number): Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
@@ -194,7 +186,7 @@ export class MultiProvider {
   }
 
   /**
-   * Get an Ethers provider for a given chain name or chain id
+   * Get an Ethers provider for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
   getProvider(chainNameOrId: ChainName | number): Provider {
@@ -205,7 +197,7 @@ export class MultiProvider {
   }
 
   /**
-   * Sets an Ethers provider for a given chain name or chain id
+   * Sets an Ethers provider for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
   setProvider(chainNameOrId: ChainName | number, provider: Provider): Provider {
@@ -226,20 +218,12 @@ export class MultiProvider {
   }
 
   /**
-   * Get an Ethers signer for a given chain name or chain id
+   * Get an Ethers signer for a given chain name, chain id, or domain id
    * If signer is not yet connected, it will be connected
    */
   tryGetSigner(chainNameOrId: ChainName | number): Signer | null {
     const chainName = this.tryGetChainName(chainNameOrId);
     if (!chainName) return null;
-
-    // Prefer shared signer if one has been set
-    if (this.sharedSigner) {
-      if (this.sharedSigner.provider) return this.sharedSigner;
-      // Auto-connect the signer for convenience
-      const provider = this.tryGetProvider(chainName);
-      return provider ? this.sharedSigner.connect(provider) : this.sharedSigner;
-    }
 
     // Otherwise check the chain-to-signer map
     const signer = this.signers[chainName];
@@ -251,7 +235,7 @@ export class MultiProvider {
   }
 
   /**
-   * Get an Ethers signer for a given chain name or chain id
+   * Get an Ethers signer for a given chain name, chain id, or domain id
    * If signer is not yet connected, it will be connected
    * @throws if chain's metadata or signer has not been set
    */
@@ -262,7 +246,7 @@ export class MultiProvider {
   }
 
   /**
-   * Get an Ethers signer for a given chain name or chain id
+   * Get an Ethers signer for a given chain name, chain id, or domain id
    * @throws if chain's metadata or signer has not been set
    */
   async getSignerAddress(
@@ -274,11 +258,11 @@ export class MultiProvider {
   }
 
   /**
-   * Sets an Ethers Signer for a given chain name or chain id
+   * Sets an Ethers Signer for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set or shared signer has already been set
    */
   setSigner(chainNameOrId: ChainName | number, signer: Signer): Signer {
-    if (this.sharedSigner) {
+    if (this.useSharedSigner) {
       throw new Error('MultiProvider already set to use a shared signer');
     }
     const chainName = this.getChainName(chainNameOrId);
@@ -294,7 +278,7 @@ export class MultiProvider {
    * @throws if chain's metadata has not been set or shared signer has already been set
    */
   setSigners(signers: ChainMap<Signer>): void {
-    if (this.sharedSigner) {
+    if (this.useSharedSigner) {
       throw new Error('MultiProvider already set to use a shared signer');
     }
     for (const chain of Object.keys(signers)) {
@@ -323,27 +307,20 @@ export class MultiProvider {
   }
 
   /**
-   * Gets the shared Ethers Signers used for all chains
-   */
-  tryGetSharedSigner(): Signer | null {
-    return this.sharedSigner;
-  }
-
-  /**
-   * Gets the shared Ethers Signers used for all chains
-   * @throws if shared signer has not been set
-   */
-  getSharedSigner(): Signer {
-    if (this.sharedSigner) return this.sharedSigner;
-    else throw new Error('Shared signer has not been set');
-  }
-
-  /**
    * Sets Ethers Signers to be used for all chains
    * Any subsequent calls to getSigner will return given signer
+   * Setting sharedSigner to null clears all signers
    */
   setSharedSigner(sharedSigner: Signer | null): Signer | null {
-    this.sharedSigner = sharedSigner;
+    if (!sharedSigner) {
+      this.useSharedSigner = false;
+      this.signers = {};
+      return null;
+    }
+    this.useSharedSigner = true;
+    for (const chain of this.getKnownChainNames()) {
+      this.signers[chain] = sharedSigner;
+    }
     return sharedSigner;
   }
 
@@ -383,7 +360,6 @@ export class MultiProvider {
     const multiProvider = new MultiProvider(intersectionMetadata);
     multiProvider.setProviders(intersectionProviders);
     multiProvider.setSigners(intersectionSigners);
-    if (this.sharedSigner) multiProvider.setSharedSigner(this.sharedSigner);
 
     return { intersection, multiProvider };
   }
