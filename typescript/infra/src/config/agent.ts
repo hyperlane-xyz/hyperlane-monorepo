@@ -18,7 +18,7 @@ interface ChainOverridableConfig<T> {
   chainOverrides?: ChainMap<Partial<T>>;
 }
 
-// Returns the default config with any overriden values specified for the provided chain.
+// Returns the default config with any overridden values specified for the provided chain.
 export function getChainOverriddenConfig<T>(
   overridableConfig: ChainOverridableConfig<T>,
   chain: ChainName,

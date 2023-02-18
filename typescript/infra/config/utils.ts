@@ -1,4 +1,4 @@
-import { ChainMap, ChainName, chainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainMap, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../src/config';
 import { MatchingList } from '../src/config/agent';
@@ -15,7 +15,7 @@ export const MATCHING_LIST_ALL_WILDCARDS = [
 ];
 
 export function helloworldMatchingList(
-  helloWorldConfigs: Partial<Record<Contexts, HelloWorldConfig<ChainName>>>,
+  helloWorldConfigs: Partial<Record<Contexts, HelloWorldConfig>>,
   context: Contexts,
 ) {
   const helloWorldConfig = helloWorldConfigs[context];

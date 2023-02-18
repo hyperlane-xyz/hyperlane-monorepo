@@ -50,7 +50,10 @@ async function main() {
   let existingVerificationInputs = {};
   try {
     const addresses = readJSON(dir, 'addresses.json');
-    previousContracts = buildContracts(addresses, helloWorldFactories);
+    previousContracts = buildContracts(
+      addresses,
+      helloWorldFactories,
+    ) as ChainMap<HelloWorldContracts>;
     existingVerificationInputs = readJSON(dir, 'verification.json');
   } catch (e) {
     console.info(`Could not load previous deployment, file may not exist`);

@@ -1,5 +1,9 @@
 import { Create2Factory, Create2Factory__factory } from '@hyperlane-xyz/core';
-import { HyperlaneDeployer, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  HyperlaneDeployer,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { CREATE2FACTORY_ADDRESS } from '@hyperlane-xyz/sdk/dist/deploy/HyperlaneDeployer';
 
 export const factories = {
@@ -26,12 +30,10 @@ export class Create2FactoryDeployer extends HyperlaneDeployer<
       factories,
     );
   }
-  async deployContracts(chain: Chain) {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const signer = this.multiProvider.getChainSigner(chain);
-    if (
-      (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) === '0x'
-    ) {
+  async deployContracts(chain: ChainName) {
+    const provider = this.multiProvider.getProvider(chain);
+    const signer = this.multiProvider.getSigner(chain);
+    if ((await provider.getCode(CREATE2FACTORY_ADDRESS)) === '0x') {
       const tx = await signer.signTransaction({
         data: CREATE2FACTORYBYTECODE,
         chainId: 0,
@@ -41,9 +43,7 @@ export class Create2FactoryDeployer extends HyperlaneDeployer<
         nonce: 0,
       });
 
-      await chainConnection.handleTx(
-        chainConnection.provider.sendTransaction(tx),
-      );
+      await this.multiProvider.handleTx(chain, provider.sendTransaction(tx));
     }
 
     const Create2Factory = Create2Factory__factory.connect(

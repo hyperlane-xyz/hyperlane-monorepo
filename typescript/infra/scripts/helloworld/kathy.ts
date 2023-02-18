@@ -455,7 +455,7 @@ async function updateWalletBalanceMetricFor(
   app: HelloWorldApp,
   chain: ChainName,
 ): Promise<void> {
-  const provider = app.multiProvider.getChainConnection(chain).provider;
+  const provider = app.multiProvider.getProvider(chain);
   const signerAddress = await app
     .getContracts(chain)
     .router.signer.getAddress();

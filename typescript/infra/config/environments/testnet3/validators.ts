@@ -1,21 +1,21 @@
-import { chainMetadata } from '@hyperlane-xyz/sdk';
+import { CoreChainName, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import {
   ChainValidatorConfigs,
   CheckpointSyncerType,
 } from '../../../src/config/agent';
 
-import { TestnetChains, environment } from './chains';
+import { environment } from './chains';
 
 const s3BucketRegion = 'us-east-1';
 
-const s3BucketName = (chainName: Chain, index: number) =>
+const s3BucketName = (chainName: CoreChainName, index: number) =>
   `hyperlane-${environment}-${chainName}-validator-${index}`;
 
-export const validators: ChainValidatorConfigs<TestnetChains> = {
+export const validators: ChainValidatorConfigs = {
   alfajores: {
     interval: 5,
-    reorgPeriod: chainMetadata.alfajores.blocks.reorgPeriod,
+    reorgPeriod: chainMetadata.alfajores.blocks!.reorgPeriod!,
     validators: [
       {
         address: '0xe6072396568e73ce6803b12b7e04164e839f1e54',
@@ -48,7 +48,7 @@ export const validators: ChainValidatorConfigs<TestnetChains> = {
   },
   fuji: {
     interval: 5,
-    reorgPeriod: chainMetadata.fuji.blocks.reorgPeriod,
+    reorgPeriod: chainMetadata.fuji.blocks!.reorgPeriod!,
     validators: [
       {
         address: '0x9fa19ead5ec76e437948b35e227511b106293c40',
@@ -81,7 +81,7 @@ export const validators: ChainValidatorConfigs<TestnetChains> = {
   },
   mumbai: {
     interval: 5,
-    reorgPeriod: chainMetadata.mumbai.blocks.reorgPeriod,
+    reorgPeriod: chainMetadata.mumbai.blocks!.reorgPeriod!,
     validators: [
       {
         address: '0x0a664ea799447da6b15645cf8b9e82072a68343f',
@@ -114,7 +114,7 @@ export const validators: ChainValidatorConfigs<TestnetChains> = {
   },
   bsctestnet: {
     interval: 5,
-    reorgPeriod: chainMetadata.bsctestnet.blocks.reorgPeriod,
+    reorgPeriod: chainMetadata.bsctestnet.blocks!.reorgPeriod!,
     validators: [
       {
         address: '0x23338c8714976dd4a57eaeff17cbd26d7e275c08',
@@ -147,7 +147,7 @@ export const validators: ChainValidatorConfigs<TestnetChains> = {
   },
   goerli: {
     interval: 5,
-    reorgPeriod: chainMetadata.goerli.blocks.reorgPeriod,
+    reorgPeriod: chainMetadata.goerli.blocks!.reorgPeriod!,
     validators: [
       {
         address: '0xf43fbd072fd38e1121d4b3b0b8a35116bbb01ea9',
@@ -180,7 +180,7 @@ export const validators: ChainValidatorConfigs<TestnetChains> = {
   },
   moonbasealpha: {
     interval: 5,
-    reorgPeriod: chainMetadata.moonbasealpha.blocks.reorgPeriod,
+    reorgPeriod: chainMetadata.moonbasealpha.blocks!.reorgPeriod!,
     validators: [
       {
         address: '0x890c2aeac157c3f067f3e42b8afc797939c59a32',
@@ -213,7 +213,7 @@ export const validators: ChainValidatorConfigs<TestnetChains> = {
   },
   optimismgoerli: {
     interval: 5,
-    reorgPeriod: chainMetadata.optimismgoerli.blocks.reorgPeriod,
+    reorgPeriod: chainMetadata.optimismgoerli.blocks!.reorgPeriod!,
     validators: [
       {
         address: '0xbb8d77eefbecc55db6e5a19b0fc3dc290776f189',
@@ -246,7 +246,7 @@ export const validators: ChainValidatorConfigs<TestnetChains> = {
   },
   arbitrumgoerli: {
     interval: 5,
-    reorgPeriod: chainMetadata.arbitrumgoerli.blocks.reorgPeriod,
+    reorgPeriod: chainMetadata.arbitrumgoerli.blocks!.reorgPeriod!,
     validators: [
       {
         address: '0xce798fa21e323f6b24d9838a10ffecdefdfc4f30',

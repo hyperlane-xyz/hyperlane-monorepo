@@ -9,7 +9,7 @@ import {
 import { Contexts } from '../../contexts';
 import { helloworldMatchingList, routerMatchingList } from '../../utils';
 
-import { MainnetChains, chainNames, environment } from './chains';
+import { chainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
 import interchainQueryRouters from './middleware/queries/addresses.json';
 import { validators } from './validators';
@@ -23,7 +23,7 @@ const interchainQueriesMatchingList = routerMatchingList(
   interchainQueryRouters,
 );
 
-export const hyperlane: AgentConfig<MainnetChains> = {
+export const hyperlane: AgentConfig = {
   environment,
   namespace: environment,
   runEnv: environment,
@@ -67,7 +67,7 @@ export const hyperlane: AgentConfig<MainnetChains> = {
   rolesWithKeys: ALL_KEY_ROLES,
 };
 
-export const releaseCandidate: AgentConfig<MainnetChains> = {
+export const releaseCandidate: AgentConfig = {
   environment,
   namespace: environment,
   runEnv: environment,

@@ -5,7 +5,7 @@ import { execCmd } from '../utils/utils';
 
 export async function runKeyFunderHelmCommand(
   helmCommand: HelmCommand,
-  agentConfig: AgentConfig<Chain>,
+  agentConfig: AgentConfig,
   keyFunderConfig: KeyFunderConfig,
 ) {
   const values = getKeyFunderHelmValues(agentConfig, keyFunderConfig);
@@ -35,7 +35,7 @@ export async function runKeyFunderHelmCommand(
 }
 
 function getKeyFunderHelmValues(
-  agentConfig: AgentConfig<Chain>,
+  agentConfig: AgentConfig,
   keyFunderConfig: KeyFunderConfig,
 ) {
   const values = {
@@ -62,7 +62,7 @@ function getKeyFunderHelmValues(
 }
 
 export function getKeyFunderConfig(
-  coreConfig: CoreEnvironmentConfig<any>,
+  coreConfig: CoreEnvironmentConfig,
 ): KeyFunderConfig {
   const keyFunderConfig = coreConfig.keyFunderConfig;
   if (!keyFunderConfig) {

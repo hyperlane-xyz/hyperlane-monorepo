@@ -1,16 +1,18 @@
+import { CoreChainName } from '@hyperlane-xyz/sdk';
+
 import {
   ChainValidatorConfigs,
   CheckpointSyncerType,
 } from '../../../src/config/agent';
 
-import { MainnetChains, environment } from './chains';
+import { environment } from './chains';
 
 const s3BucketRegion = 'us-east-1';
 
-const s3BucketName = (chainName: Chain, index: number) =>
+const s3BucketName = (chainName: CoreChainName, index: number) =>
   `hyperlane-${environment}-${chainName}-validator-${index}`;
 
-export const validators: ChainValidatorConfigs<MainnetChains> = {
+export const validators: ChainValidatorConfigs = {
   celo: {
     interval: 5,
     reorgPeriod: 0,

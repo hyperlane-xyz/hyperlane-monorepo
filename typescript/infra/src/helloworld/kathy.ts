@@ -11,12 +11,12 @@ import { execCmd } from '../utils/utils';
 
 export async function runHelloworldKathyHelmCommand(
   helmCommand: HelmCommand,
-  agentConfig: AgentConfig<Chain>,
-  kathyConfig: HelloWorldKathyConfig<Chain>,
+  agentConfig: AgentConfig,
+  kathyConfig: HelloWorldKathyConfig,
 ) {
   // If using AWS keys, ensure the Kathy user and key has been created
   if (agentConfig.aws) {
-    const awsUser = new AgentAwsUser<Chain>(
+    const awsUser = new AgentAwsUser(
       agentConfig.environment,
       agentConfig.context,
       KEY_ROLE_ENUM.Kathy,
@@ -49,8 +49,8 @@ function getHelmReleaseName(context: Contexts): string {
 }
 
 function getHelloworldKathyHelmValues(
-  agentConfig: AgentConfig<Chain>,
-  kathyConfig: HelloWorldKathyConfig<Chain>,
+  agentConfig: AgentConfig,
+  kathyConfig: HelloWorldKathyConfig,
 ) {
   const cycleOnce =
     kathyConfig.runConfig.mode === HelloWorldKathyRunMode.CycleOnce;

@@ -11,7 +11,7 @@ const helmChartPath = '../../rust/helm/hyperlane-agent/';
 
 export async function runScraperHelmCommand(
   action: HelmCommand,
-  agentConfig: AgentConfig<Chain>,
+  agentConfig: AgentConfig,
 ) {
   const values = await scraperHelmValues(agentConfig);
 
@@ -49,7 +49,7 @@ export async function runScraperHelmCommand(
   );
 }
 
-async function scraperHelmValues(agentConfig: AgentConfig<Chain>) {
+async function scraperHelmValues(agentConfig: AgentConfig) {
   // By default, if a context only enables a subset of chains, the
   // connection url (or urls, when HttpQuorum is used) are not fetched
   // from GCP secret manager. For Http/Ws, the `url` param is expected,
