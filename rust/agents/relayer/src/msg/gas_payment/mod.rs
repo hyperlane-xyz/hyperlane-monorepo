@@ -6,7 +6,7 @@ use tracing::{error, trace};
 
 use hyperlane_core::{
     db::HyperlaneDB, GasExpenditureWithMeta, HyperlaneMessage, InterchainGasExpenditure,
-    InterchainGasPayment, InterchainGasPaymentMeta, TxCostEstimate, TxOutcome, U256,
+    InterchainGasPayment, TxCostEstimate, TxOutcome, U256,
 };
 
 use crate::msg::gas_payment::policies::GasPaymentPolicyOnChainFeeQuoting;
@@ -135,9 +135,7 @@ impl GasPaymentEnforcer {
                 gas_used: outcome.gas_used,
                 tokens_used: outcome.gas_used * outcome.gas_price,
             },
-            meta: InterchainGasPaymentMeta {
-                transaction_hash: outcome.txid,
-            },
+            transaction_hash: outcome.txid,
         })?;
         Ok(())
     }
