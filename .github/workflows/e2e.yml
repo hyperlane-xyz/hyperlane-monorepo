@@ -29,6 +29,9 @@ jobs:
       - name: remove submodule locks
         run: git submodule foreach rm yarn.lock
 
+      - name: node version
+        run: node --version
+
       - name: setup rust
         uses: actions-rs/toolchain@v1
         with:
