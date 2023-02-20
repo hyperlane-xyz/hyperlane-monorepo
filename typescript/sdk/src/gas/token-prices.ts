@@ -75,6 +75,11 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     this.cache = new TokenPriceCache(expirySeconds);
   }
 
+  static new(expirySeconds?: number): CoinGeckoTokenPriceGetter {
+    const coinGecko = new CoinGecko();
+    return new CoinGeckoTokenPriceGetter(coinGecko, expirySeconds);
+  }
+
   async getTokenPrice(chain: ChainName): Promise<number> {
     const [price] = await this.getTokenPrices([chain]);
     return price;
@@ -85,6 +90,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     quote: ChainName,
   ): Promise<number> {
     const [basePrice, quotePrice] = await this.getTokenPrices([base, quote]);
+    console.log(`base ${base} ${basePrice} quote ${quote} ${quotePrice}`);
     return basePrice / quotePrice;
   }
 

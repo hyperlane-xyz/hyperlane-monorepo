@@ -1,9 +1,6 @@
-import { ethers } from 'ethers';
-
 import {
   ChainName,
   ChainNameToDomainId,
-  DomainIdToChainName,
   HyperlaneCore,
 } from '@hyperlane-xyz/sdk';
 
@@ -11,6 +8,12 @@ import { RemoteGasData, StorageGasOracleConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { RemoteGasDataConfig } from '../../src/config/gas-oracle';
 import { getArgs, getCoreEnvironmentConfig, getEnvironment } from '../utils';
+
+import {
+  eqRemoteGasData,
+  prettyRemoteGasData,
+  prettyRemoteGasDataConfig,
+} from './utils';
 
 /**
  * Updates the currently stored gas data on the StorageGasOracle contract
@@ -102,28 +105,6 @@ async function setStorageGasOracleValues(
       );
     }
   }
-}
-
-function prettyRemoteGasDataConfig(config: RemoteGasDataConfig) {
-  return `\tRemote: ${config.remoteDomain} (${
-    DomainIdToChainName[config.remoteDomain]
-  })\n${prettyRemoteGasData(config)}`;
-}
-
-function prettyRemoteGasData(data: RemoteGasData) {
-  return `\tToken exchange rate: ${data.tokenExchangeRate.toString()} (${ethers.utils.formatUnits(
-    data.tokenExchangeRate,
-    10,
-  )})\n\tGas price: ${data.gasPrice.toString()} (${ethers.utils.formatUnits(
-    data.gasPrice,
-    'gwei',
-  )} gwei)`;
-}
-
-function eqRemoteGasData(a: RemoteGasData, b: RemoteGasData): boolean {
-  return (
-    a.tokenExchangeRate.eq(b.tokenExchangeRate) && a.gasPrice.eq(b.gasPrice)
-  );
 }
 
 main().catch((err) => console.error('Error', err));
