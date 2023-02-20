@@ -10,6 +10,7 @@ import {
   CoreViolationType,
   EnrolledValidatorsViolation,
   HyperlaneCoreChecker,
+  IgpBeneficiaryViolation,
   IgpGasOraclesViolation,
   IgpViolation,
   IgpViolationType,
@@ -356,6 +357,18 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
 
   handleIgpViolation(violation: IgpViolation) {
     switch (violation.subType) {
+      case IgpViolationType.Beneficiary: {
+        const beneficiaryViolation = violation as IgpBeneficiaryViolation;
+        this.pushCall(beneficiaryViolation.chain as Chain, {
+          to: beneficiaryViolation.contract.address,
+          data: beneficiaryViolation.contract.interface.encodeFunctionData(
+            'setBeneficiary',
+            [beneficiaryViolation.expected],
+          ),
+          description: `Set IGP beneficiary to ${beneficiaryViolation.expected}`,
+        });
+        break;
+      }
       case IgpViolationType.GasOracles: {
         const gasOraclesViolation = violation as IgpGasOraclesViolation;
 

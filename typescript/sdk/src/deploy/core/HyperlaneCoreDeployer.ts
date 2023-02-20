@@ -74,12 +74,13 @@ export class HyperlaneCoreDeployer<
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
+    const beneficiary = this.configMap[chain].igp.beneficiary;
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
-      [],
+      [beneficiary],
       proxyAdmin,
-      [],
+      [beneficiary],
       deployOpts,
     );
 

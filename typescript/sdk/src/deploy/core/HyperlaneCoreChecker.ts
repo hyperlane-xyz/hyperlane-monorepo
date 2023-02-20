@@ -14,6 +14,7 @@ import {
   CoreViolationType,
   EnrolledValidatorsViolation,
   GasOracleContractType,
+  IgpBeneficiaryViolation,
   IgpGasOraclesViolation,
   IgpViolationType,
   MailboxViolation,
@@ -305,6 +306,21 @@ export class HyperlaneCoreChecker<
     // Add the violation only if it's been populated with gas oracle inconsistencies
     if (Object.keys(gasOraclesViolation.actual).length > 0) {
       this.addViolation(gasOraclesViolation);
+    }
+
+    // Check beneficiary
+    const actualBeneficiary = await igp.beneficiary();
+    const expectedBeneficiary = this.configMap[local].igp.beneficiary;
+    if (!utils.eqAddress(actualBeneficiary, expectedBeneficiary)) {
+      const violation: IgpBeneficiaryViolation = {
+        type: CoreViolationType.InterchainGasPaymaster,
+        subType: IgpViolationType.Beneficiary,
+        contract: igp,
+        chain: local,
+        actual: actualBeneficiary,
+        expected: expectedBeneficiary,
+      };
+      this.addViolation(violation);
     }
   }
 

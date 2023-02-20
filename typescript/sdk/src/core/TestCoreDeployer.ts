@@ -29,6 +29,7 @@ const testConfig: CoreConfig = {
     threshold: 1,
   },
   igp: {
+    beneficiary: nonZeroAddress,
     gasOracles: {
       test1: GasOracleContractType.StorageGasOracle,
       test2: GasOracleContractType.StorageGasOracle,
@@ -94,11 +95,16 @@ export class TestCoreDeployer<
       deployOpts,
     );
 
+    // To set as the beneficiary
+    const deployer = await this.multiProvider
+      .getChainSigner(chain)
+      .getAddress();
+
     const contract = await this.deployProxy(
       chain,
       implementation,
       proxyAdmin,
-      [],
+      [deployer],
       deployOpts,
     );
     return contract as ProxiedContract<

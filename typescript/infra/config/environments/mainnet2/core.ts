@@ -14,6 +14,8 @@ function getGasOracles(local: MainnetChains) {
   );
 }
 
+const KEY_FUNDER_ADDRESS = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+
 export const core: ChainMap<MainnetChains, CoreConfig> = {
   celo: {
     owner: '0x1DE69322B55AC7E0999F8e7738a1428C8b130E4d',
@@ -29,6 +31,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
       gasOracles: getGasOracles('celo'),
     },
   },
@@ -46,6 +49,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
       gasOracles: getGasOracles('ethereum'),
     },
   },
@@ -63,6 +67,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
       gasOracles: getGasOracles('avalanche'),
     },
   },
@@ -80,6 +85,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
       gasOracles: getGasOracles('polygon'),
     },
   },
@@ -97,6 +103,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
       gasOracles: getGasOracles('bsc'),
     },
   },
@@ -114,6 +121,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
       gasOracles: getGasOracles('arbitrum'),
     },
   },
@@ -131,6 +139,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
       gasOracles: getGasOracles('optimism'),
     },
   },
@@ -146,6 +155,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
       gasOracles: getGasOracles('moonbeam'),
     },
   },
@@ -160,6 +170,7 @@ export const core: ChainMap<MainnetChains, CoreConfig> = {
       ],
     },
     igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
       gasOracles: getGasOracles('gnosis'),
     },
   },
