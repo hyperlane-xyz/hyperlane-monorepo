@@ -67,6 +67,7 @@ export type GasPaymentEnforcementConfig = GasPaymentEnforcementPolicy & {
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcementConfig[];
+  coingeckoApiKey?: string;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
   transactionGasLimit?: bigint;
@@ -403,6 +404,9 @@ export class ChainAgentConfig<Chain extends ChainName> {
       originChainName: this.chainName,
       gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
+    if (baseConfig.coingeckoApiKey) {
+      relayerConfig.coingeckoApiKey = baseConfig.coingeckoApiKey;
+    }
     if (baseConfig.whitelist) {
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
     }

@@ -16,11 +16,7 @@ pub enum GasPaymentEnforcementPolicy {
     Minimum {
         payment: U256,
     },
-
-    MeetsEstimatedCost {
-        coingeckoapikey: Option<String>,
-    },
-
+    MeetsEstimatedCost,
     /// The required amount of gas on the foreign chain has been paid according
     /// to on-chain fee quoting.
     OnChainFeeQuoting {
@@ -55,6 +51,8 @@ decl_settings!(Relayer {
     destinationchainnames: Option<String>,
     /// The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.
     gaspaymentenforcement: String,
+    /// API key to be used for the `MeetsEstimatedCost` enforcement policy.
+    coingeckoapikey: Option<String>,
     /// This is optional. If no whitelist is provided ALL messages will be considered on the
     /// whitelist.
     whitelist: Option<String>,

@@ -128,6 +128,7 @@ impl BaseAgent for Relayer {
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
             gas_enforcement_policies,
             mailboxes.get(&origin_chain).unwrap().db().clone(),
+            &settings.coingeckoapikey,
         ));
 
         Ok(Self {
