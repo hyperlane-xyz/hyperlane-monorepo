@@ -30,7 +30,9 @@ jobs:
         run: git submodule foreach rm yarn.lock
 
       - name: node version
-        run: node --version
+        run: |
+          node --version
+          nvm ls
 
       - name: setup rust
         uses: actions-rs/toolchain@v1
