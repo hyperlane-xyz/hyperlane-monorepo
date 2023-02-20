@@ -46,8 +46,10 @@ impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
         let fractional_gas_estimate =
-            tx_cost_estimate.gas_limit * self.fractional_numerator / self.fractional_denominator;
-        let gas_amount = current_payment.gas_amount - current_expenditure.gas_used;
+            (tx_cost_estimate.gas_limit * self.fractional_numerator) / self.fractional_denominator;
+        let gas_amount = current_payment
+            .gas_amount
+            .saturating_sub(current_expenditure.gas_used);
         // We might want to migrate later to a solution which is a little more
         // sophisticated. See https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/1658#discussion_r1093243358
         if gas_amount >= fractional_gas_estimate {

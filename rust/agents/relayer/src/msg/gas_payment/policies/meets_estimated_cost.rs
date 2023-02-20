@@ -192,7 +192,7 @@ impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
         // Estimated cost of the process tx, quoted in destination native tokens
-        let destination_token_tx_cost = tx_cost_estimate.gas_limit * tx_cost_estimate.gas_price
+        let destination_token_tx_cost = (tx_cost_estimate.gas_limit * tx_cost_estimate.gas_price)
             + current_expenditure.tokens_used;
         // Convert the destination token tx cost into origin tokens
         let origin_token_tx_cost = self
