@@ -30,40 +30,35 @@ pub enum CheckpointSyncerConf {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseStorageLocationError;
 
-
 impl FromStr for CheckpointSyncerConf {
     type Err = ParseStorageLocationError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let split: Vec<&str> = s.split("://").collect();
-        if split.len() != 2 {
-            return Err(ParseStorageLocationError)
-        }
-        let prefix = split.get(0);
-        let suffix = split.get(1).expect("no suffix");
-        
+        let [prefix, suffix]: [&str; 2] = s
+            .split("://")
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|_| ParseStorageLocationError)?;
+
         match prefix {
-            Some(&"s3") => {
-                let pieces: Vec<&str> = suffix.split('/').collect();
-                if pieces.len() == 2 {
-                    Ok(CheckpointSyncerConf::S3 {
-                        bucket: pieces[0].into(),
-                        region: pieces[1].into()
-                    })
-                } else {
-                    return Err(ParseStorageLocationError)
-                }
+            "s3" => {
+                let [bucket, region]: [&str; 2] = suffix
+                    .split('/')
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .map_err(|_| ParseStorageLocationError)?;
+                Ok(CheckpointSyncerConf::S3 {
+                    bucket: bucket.into(),
+                    region: region.into(),
+                })
             }
-            Some(&"file") => {
-                Ok(CheckpointSyncerConf::LocalStorage { path: (*suffix).into() })
-            }
-            _ => {
-                return Err(ParseStorageLocationError)
-            }
+            "file" => Ok(CheckpointSyncerConf::LocalStorage {
+                path: suffix.into(),
+            }),
+            _ => Err(ParseStorageLocationError),
         }
     }
 }
-
 
 impl CheckpointSyncerConf {
     /// Turn conf info a Checkpoint Syncer
@@ -71,16 +66,14 @@ impl CheckpointSyncerConf {
         &self,
         latest_index_gauge: Option<IntGauge>,
     ) -> Result<Box<dyn CheckpointSyncer>, Report> {
-        match self {
+        Ok(match self {
             CheckpointSyncerConf::LocalStorage { path } => {
-                Ok(Box::new(LocalStorage::new(path, latest_index_gauge)))
+                Box::new(LocalStorage::new(path, latest_index_gauge))
             }
-            CheckpointSyncerConf::S3 { bucket, region } => Ok(Box::new(S3Storage::new(
-                bucket,
-                region.parse()?,
-                latest_index_gauge,
-            ))),
-        }
+            CheckpointSyncerConf::S3 { bucket, region } => {
+                Box::new(S3Storage::new(bucket, region.parse()?, latest_index_gauge))
+            }
+        })
     }
 }
 
@@ -104,7 +97,7 @@ impl MultisigCheckpointSyncerConf {
             let gauge =
                 validator_checkpoint_index.with_label_values(&[origin, &key.to_lowercase()]);
             if let Ok(conf) = value.build(Some(gauge)) {
-                checkpoint_syncers.insert(Address::from_str(key)?, conf.into()); 
+                checkpoint_syncers.insert(Address::from_str(key)?, conf.into());
             } else {
                 continue;
             }
