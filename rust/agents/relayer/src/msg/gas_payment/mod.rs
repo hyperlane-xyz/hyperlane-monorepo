@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use eyre::Result;
-use tracing::error;
+use tracing::{error, trace};
 
 use hyperlane_core::{
     db::HyperlaneDB, GasExpenditureWithMeta, HyperlaneMessage, InterchainGasExpenditure,
@@ -93,11 +93,23 @@ impl GasPaymentEnforcer {
         let msg_id = message.id();
         let current_payment = self.db.retrieve_gas_payment_for_message_id(msg_id)?;
         let current_expenditure = self.db.retrieve_gas_expenditure_for_message_id(msg_id)?;
-
         for (policy, whitelist) in &self.policies {
             if !whitelist.msg_matches(message, true) {
+                trace!(
+                    msg=%message,
+                    ?policy,
+                    ?whitelist,
+                    "Message did not match whitelist for policy"
+                );
                 continue;
             }
+
+            trace!(
+                msg=%message,
+                ?policy,
+                ?whitelist,
+                "Message matched whitelist for policy"
+            );
             return policy
                 .message_meets_gas_payment_requirement(
                     message,
@@ -109,7 +121,8 @@ impl GasPaymentEnforcer {
         }
 
         error!(
-            msg=?message,
+            msg=%message,
+            policies=?self.policies,
             "No gas payment policy matched for message; consider adding a default policy to the end of the policies array which uses a wildcard whitelist."
         );
         Ok(None)
