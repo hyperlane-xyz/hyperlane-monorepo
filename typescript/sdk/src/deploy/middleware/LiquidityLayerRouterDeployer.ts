@@ -63,8 +63,9 @@ export class LiquidityLayerDeployer<
   constructor(
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, LiquidityLayerConfig>,
+    create2salt = 'liquiditylayerrouter',
   ) {
-    super(multiProvider, configMap, liquidityLayerFactories);
+    super(multiProvider, configMap, liquidityLayerFactories, create2salt);
   }
 
   async enrollRemoteRouters(

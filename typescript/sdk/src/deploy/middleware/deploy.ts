@@ -60,6 +60,7 @@ export abstract class MiddlewareRouterDeployer<
       new ProxyAdmin__factory(),
       'proxyAdmin',
       [],
+      { create2Salt: this.create2salt },
     );
     const proxiedRouter = await this.deployProxiedContract(
       chain,
@@ -94,8 +95,9 @@ export class InterchainAccountDeployer<
   constructor(
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, InterchainAccountConfig>,
+    create2salt = 'accountsrouter',
   ) {
-    super(multiProvider, configMap, interchainAccountFactories);
+    super(multiProvider, configMap, interchainAccountFactories, create2salt);
   }
 }
 
@@ -112,7 +114,8 @@ export class InterchainQueryDeployer<
   constructor(
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, InterchainQueryConfig>,
+    create2salt = 'queryrouter',
   ) {
-    super(multiProvider, configMap, interchainQueryFactories);
+    super(multiProvider, configMap, interchainQueryFactories, create2salt);
   }
 }
