@@ -38,11 +38,11 @@ pub struct GasPaymentEnforcementConfig {
     /// The gas payment enforcement policy
     #[serde(flatten)]
     pub policy: GasPaymentEnforcementPolicy,
-    /// An optional whitelist, where all matching messages will be considered
+    /// An optional matching list, where all matching messages will be considered
     /// as if they have met the gas payment enforcement policy.
-    /// If no whitelist is provided, all messages will match this policy.
+    /// If no matching list is provided, all messages will match this policy.
     #[serde(default)]
-    pub whitelist: MatchingList,
+    pub matching_list: MatchingList,
 }
 
 decl_settings!(Relayer {

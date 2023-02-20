@@ -74,7 +74,7 @@ impl GasPaymentEnforcer {
                         ))
                     }
                 };
-                (p, cfg.whitelist)
+                (p, cfg.matching_list)
             })
             .collect();
 
@@ -168,7 +168,7 @@ mod test {
                     policy: GasPaymentEnforcementPolicy::Minimum {
                         payment: U256::one(),
                     },
-                    whitelist: Default::default(),
+                    matching_list: Default::default(),
                 }],
                 hyperlane_db,
             );
@@ -190,39 +190,35 @@ mod test {
     }
 
     #[tokio::test]
-    #[should_panic]
-    async fn test_no_whitelist_match() {
+    async fn test_no_match() {
         #[allow(unused_must_use)]
         test_utils::run_test_db(|db| async move {
             let hyperlane_db = HyperlaneDB::new("mailbox", db);
-
-            let Ok(whitelist) = serde_json::from_str(r#"[{"originDomain": 234}]"#) else {
-                // weird, but don't panic since then the test will pass by accident
-                eprintln!("Failed to parse matching list");
-                return
-            };
-
+            let matching_list = serde_json::from_str(r#"[{"originDomain": 234}]"#).unwrap();
             let enforcer = GasPaymentEnforcer::new(
                 // Require a payment
                 vec![GasPaymentEnforcementConfig {
                     policy: GasPaymentEnforcementPolicy::None,
-                    whitelist,
+                    matching_list,
                 }],
                 hyperlane_db,
             );
 
-            enforcer
-                .message_meets_gas_payment_requirement(
-                    &HyperlaneMessage::default(),
-                    &TxCostEstimate::default(),
-                )
-                .await;
+            assert!(matches!(
+                enforcer
+                    .message_meets_gas_payment_requirement(
+                        &HyperlaneMessage::default(),
+                        &TxCostEstimate::default(),
+                    )
+                    .await,
+                Ok(None)
+            ));
         })
         .await;
     }
 
     #[tokio::test]
-    async fn test_non_empty_whitelist() {
+    async fn test_non_empty_matching_list() {
         test_utils::run_test_db(|db| async move {
             let hyperlane_db = HyperlaneDB::new("mailbox", db);
 
@@ -238,14 +234,14 @@ mod test {
                     GasPaymentEnforcementConfig {
                         // No payment for special cases
                         policy: GasPaymentEnforcementPolicy::None,
-                        whitelist: matching_list,
+                        matching_list,
                     },
                     GasPaymentEnforcementConfig {
                         // All other messages must pass a minimum
                         policy: GasPaymentEnforcementPolicy::Minimum {
                             payment: U256::one(),
                         },
-                        whitelist: MatchingList::default(),
+                        matching_list: MatchingList::default(),
                     },
                 ],
                 hyperlane_db,
