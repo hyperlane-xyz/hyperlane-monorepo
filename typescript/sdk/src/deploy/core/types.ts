@@ -1,8 +1,20 @@
-import { Mailbox, MultisigIsm } from '@hyperlane-xyz/core';
+import {
+  InterchainGasPaymaster,
+  Mailbox,
+  MultisigIsm,
+} from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import { ChainName } from '../../types';
+import { ChainName, PartialChainMap } from '../../types';
 import type { CheckerViolation } from '../types';
+
+export enum GasOracleContractType {
+  StorageGasOracle = 'StorageGasOracle',
+}
+
+export type InterchainGasPaymasterConfig = {
+  gasOracles: PartialChainMap<GasOracleContractType>;
+};
 
 export type MultisigIsmConfig = {
   validators: Array<types.Address>;
@@ -12,6 +24,7 @@ export type MultisigIsmConfig = {
 export type CoreConfig = {
   multisigIsm: MultisigIsmConfig;
   owner: types.Address;
+  igp: InterchainGasPaymasterConfig;
   remove?: boolean;
 };
 
@@ -20,6 +33,7 @@ export enum CoreViolationType {
   Mailbox = 'Mailbox',
   ConnectionManager = 'ConnectionManager',
   ValidatorAnnounce = 'ValidatorAnnounce',
+  InterchainGasPaymaster = 'InterchainGasPaymaster',
 }
 
 export enum MultisigIsmViolationType {
@@ -29,6 +43,10 @@ export enum MultisigIsmViolationType {
 
 export enum MailboxViolationType {
   DefaultIsm = 'DefaultIsm',
+}
+
+export enum IgpViolationType {
+  GasOracles = 'GasOracles',
 }
 
 export interface MailboxViolation extends CheckerViolation {
@@ -67,4 +85,16 @@ export interface ValidatorAnnounceViolation extends CheckerViolation {
   validator: types.Address;
   actual: boolean;
   expected: boolean;
+}
+
+export interface IgpViolation extends CheckerViolation {
+  type: CoreViolationType.InterchainGasPaymaster;
+  contract: InterchainGasPaymaster;
+  subType: IgpViolationType;
+}
+
+export interface IgpGasOraclesViolation extends IgpViolation {
+  subType: IgpViolationType.GasOracles;
+  actual: PartialChainMap<types.Address>;
+  expected: PartialChainMap<types.Address>;
 }

@@ -8,26 +8,32 @@ import {
   TestIsm__factory,
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
 
 import { DeployOptions } from '../deploy/HyperlaneDeployer';
 import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
-import { CoreConfig } from '../deploy/core/types';
+import { CoreConfig, GasOracleContractType } from '../deploy/core/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 import { ChainMap, TestChainNames } from '../types';
 
 import { TestCoreApp } from './TestCoreApp';
-import { coreFactories } from './contracts';
+import { GasOracleContracts, coreFactories } from './contracts';
 
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ISM
-const testMultisigIsmConfig: CoreConfig = {
+const testConfig: CoreConfig = {
   owner: nonZeroAddress,
   multisigIsm: {
     validators: [nonZeroAddress],
     threshold: 1,
+  },
+  igp: {
+    gasOracles: {
+      test1: GasOracleContractType.StorageGasOracle,
+      test2: GasOracleContractType.StorageGasOracle,
+      test3: GasOracleContractType.StorageGasOracle,
+    },
   },
 };
 
@@ -49,9 +55,9 @@ export class TestCoreDeployer<
     const configs =
       configMap ??
       ({
-        test1: testMultisigIsmConfig,
-        test2: testMultisigIsmConfig,
-        test3: testMultisigIsmConfig,
+        test1: testConfig,
+        test2: testConfig,
+        test3: testConfig,
       } as ChainMap<TestChain, CoreConfig>); // cast so param can be optional
 
     super(multiProvider, configs, testCoreFactories);
@@ -75,7 +81,7 @@ export class TestCoreDeployer<
   async deployInterchainGasPaymaster<LocalChain extends TestChain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
-    _storageGasOracleAddress: types.Address,
+    _gasOracleContracts: GasOracleContracts,
     deployOpts?: DeployOptions,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>

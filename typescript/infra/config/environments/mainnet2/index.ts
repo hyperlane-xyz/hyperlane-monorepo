@@ -12,6 +12,7 @@ import {
 } from './chains';
 import { core } from './core';
 import { keyFunderConfig } from './funding';
+import { storageGasOracleConfig } from './gas-oracle';
 import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
 
@@ -36,4 +37,5 @@ export const environment: CoreEnvironmentConfig<MainnetChains> = {
   infra: infrastructure,
   helloWorld,
   keyFunderConfig,
+  storageGasOracleConfig,
 };

@@ -1,6 +1,18 @@
-import { ChainMap, CoreConfig } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  CoreConfig,
+  GasOracleContractType,
+} from '@hyperlane-xyz/sdk';
 
-import { TestnetChains } from './chains';
+import { TestnetChains, chainNames } from './chains';
+
+function getGasOracles(local: TestnetChains) {
+  return Object.fromEntries(
+    chainNames
+      .filter((name) => name !== local)
+      .map((name) => [name, GasOracleContractType.StorageGasOracle]),
+  );
+}
 
 export const core: ChainMap<TestnetChains, CoreConfig> = {
   alfajores: {
@@ -13,6 +25,9 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
         '0x15f77400845eb1c971ad08de050861d5508cad6c',
       ],
     },
+    igp: {
+      gasOracles: getGasOracles('alfajores'),
+    },
   },
   fuji: {
     owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
@@ -23,6 +38,9 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
         '0x227e7d6507762ece0c94678f8c103eff9d682476',
         '0x2379e43740e4aa4fde48cf4f00a3106df1d8420d',
       ],
+    },
+    igp: {
+      gasOracles: getGasOracles('fuji'),
     },
   },
   mumbai: {
@@ -35,6 +53,9 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
         '0x51f70c047cd73bc7873273707501568857a619c4',
       ],
     },
+    igp: {
+      gasOracles: getGasOracles('mumbai'),
+    },
   },
   bsctestnet: {
     owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
@@ -45,6 +66,9 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
         '0x85a618d7450ebc37e0d682371f08dac94eec7a76',
         '0x95b76562e4ba1791a27ba4236801271c9115b141',
       ],
+    },
+    igp: {
+      gasOracles: getGasOracles('bsctestnet'),
     },
   },
   goerli: {
@@ -57,6 +81,9 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
         '0x0bba4043ff242f8bf3f39bafa8930a84d644d947',
       ],
     },
+    igp: {
+      gasOracles: getGasOracles('goerli'),
+    },
   },
   moonbasealpha: {
     owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
@@ -67,6 +94,9 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
         '0x1b06d6fe69b972ed7420c83599d5a5c0fc185904',
         '0xe70b85206a968a99a597581f0fa09c99e7681093',
       ],
+    },
+    igp: {
+      gasOracles: getGasOracles('moonbasealpha'),
     },
   },
   optimismgoerli: {
@@ -79,6 +109,9 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
         '0x11ddb46c6b653e0cdd7ad5bee32ae316e18f8453',
       ],
     },
+    igp: {
+      gasOracles: getGasOracles('optimismgoerli'),
+    },
   },
   arbitrumgoerli: {
     owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
@@ -89,6 +122,9 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
         '0xa792d39dca4426927e0f00c1618d61c9cb41779d',
         '0xdf181fcc11dfac5d01467e4547101a856dd5aa04',
       ],
+    },
+    igp: {
+      gasOracles: getGasOracles('arbitrumgoerli'),
     },
   },
 };

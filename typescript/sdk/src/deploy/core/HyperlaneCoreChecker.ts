@@ -1,6 +1,7 @@
+import { ethers } from 'ethers';
 import { defaultAbiCoder } from 'ethers/lib/utils';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
@@ -12,6 +13,9 @@ import {
   CoreConfig,
   CoreViolationType,
   EnrolledValidatorsViolation,
+  GasOracleContractType,
+  IgpGasOraclesViolation,
+  IgpViolationType,
   MailboxViolation,
   MailboxViolationType,
   MultisigIsmViolationType,
@@ -47,6 +51,7 @@ export class HyperlaneCoreChecker<
     await this.checkMultisigIsm(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
+    await this.checkInterchainGasPaymaster(chain);
   }
 
   async checkDomainOwnership(chain: Chain): Promise<void> {
@@ -169,12 +174,6 @@ export class HyperlaneCoreChecker<
       contracts.interchainGasPaymaster.addresses,
       contracts.proxyAdmin.address,
     );
-    await this.checkProxiedContract(
-      chain,
-      'DefaultIsmInterchainGasPaymaster',
-      contracts.interchainGasPaymaster.addresses,
-      contracts.proxyAdmin.address,
-    );
   }
 
   async checkValidatorAnnounce(chain: Chain): Promise<void> {
@@ -253,6 +252,76 @@ export class HyperlaneCoreChecker<
         expected: expectedThreshold,
       };
       this.addViolation(violation);
+    }
+  }
+
+  async checkInterchainGasPaymaster(local: Chain): Promise<void> {
+    const coreContracts = this.app.getContracts(local);
+    const igp = coreContracts.interchainGasPaymaster.contract;
+
+    // Construct the violation, updating the actual & expected
+    // objects as violations are found.
+    // A single violation is used so that only a single `setGasOracles`
+    // call is generated to set multiple gas oracles.
+    const gasOraclesViolation: IgpGasOraclesViolation = {
+      type: CoreViolationType.InterchainGasPaymaster,
+      subType: IgpViolationType.GasOracles,
+      contract: igp,
+      chain: local,
+      actual: {},
+      expected: {},
+    };
+
+    // The `gasOracles` mapping was added in a new implementation of the IGP.
+    // If calling this reverts, we are still using an old implementation that
+    // must be upgraded, so we just consider the mapping as unset and default
+    // to address(0) for all gas oracles.
+    // Note that it's important that `checkProxiedContracts` is called before
+    // `checkInterchainGasPaymaster` - this way, the govern script will first
+    // change the IGP proxy to use the correct new implementation, and the
+    // IgpGasOraclesViolation will be able to be correctly handled.
+    const getCurrentGasOracle = async (
+      remoteId: number,
+    ): Promise<types.Address> => {
+      try {
+        return await igp.gasOracles(remoteId);
+      } catch (_) {
+        return ethers.constants.AddressZero;
+      }
+    };
+
+    const remotes = this.multiProvider.remoteChains(local);
+    for (const remote of remotes) {
+      const remoteId = ChainNameToDomainId[remote];
+      const actualGasOracle = await getCurrentGasOracle(remoteId);
+      const expectedGasOracle = this.getGasOracleAddress(local, remote);
+
+      if (!utils.eqAddress(actualGasOracle, expectedGasOracle)) {
+        const remoteChain = remote as ChainName;
+        gasOraclesViolation.actual[remoteChain] = actualGasOracle;
+        gasOraclesViolation.expected[remoteChain] = expectedGasOracle;
+      }
+    }
+    // Add the violation only if it's been populated with gas oracle inconsistencies
+    if (Object.keys(gasOraclesViolation.actual).length > 0) {
+      this.addViolation(gasOraclesViolation);
+    }
+  }
+
+  getGasOracleAddress(local: Chain, remote: Chain): types.Address {
+    const config = this.configMap[local];
+    const gasOracleType = config.igp.gasOracles[remote];
+    if (!gasOracleType) {
+      throw Error(
+        `Expected gas oracle type for local ${local} and remote ${remote}`,
+      );
+    }
+    const coreContracts = this.app.getContracts(local);
+    switch (gasOracleType) {
+      case GasOracleContractType.StorageGasOracle:
+        return coreContracts.storageGasOracle.address;
+      default:
+        throw Error(`Unsupported gas oracle type ${gasOracleType}`);
     }
   }
 }
