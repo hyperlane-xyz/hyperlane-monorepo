@@ -317,29 +317,31 @@ impl SerialSubmitter {
 
         // We use the estimated gas limit from the prior call to `process_estimate_costs` to
         // avoid a second gas estimation.
-        let process_result = self
+        let outcome = self
             .mailbox
             .process(&msg.message, &metadata, Some(gas_limit))
-            .await;
-        match process_result {
-            // TODO(trevor): Instead of immediately marking as processed, move to a verification
-            // queue, which will wait for finality and indexing by the mailbox indexer and then mark
-            // as processed (or eventually retry if no confirmation is ever seen).
+            .await?;
 
-            // Only mark the message as processed if the transaction didn't revert.
-            Ok(outcome) if outcome.executed => {
-                info!(hash=?outcome.txid,
-                wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
-                "Message successfully processed by transaction");
-                Ok(true)
-            }
-            Ok(outcome) => {
-                info!(hash=?outcome.txid, "Transaction attempting to process transaction reverted");
-                self.gas_payment_enforcer
-                    .record_failed_outcome(&msg.message, outcome)?;
-                Ok(false)
-            }
-            Err(e) => Err(e.into()),
+        // TODO(trevor): Instead of immediately marking as processed, move to a verification
+        //  queue, which will wait for finality and indexing by the mailbox indexer and then mark
+        //  as processed (or eventually retry if no confirmation is ever seen).
+
+        self.gas_payment_enforcer
+            .record_tx_outcome(&msg.message, outcome)?;
+        if outcome.executed {
+            info!(
+                hash=?outcome.txid,
+                wq_sz=?self.wait_queue.len(),
+                rq_sz=?self.run_queue.len(),
+                "Message successfully processed by transaction"
+            );
+            Ok(true)
+        } else {
+            info!(
+                hash=?outcome.txid,
+                "Transaction attempting to process transaction reverted"
+            );
+            Ok(false)
         }
     }
 

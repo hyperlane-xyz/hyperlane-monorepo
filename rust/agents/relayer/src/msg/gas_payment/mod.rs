@@ -115,11 +115,7 @@ impl GasPaymentEnforcer {
         Ok(None)
     }
 
-    pub fn record_failed_outcome(
-        &self,
-        message: &HyperlaneMessage,
-        outcome: TxOutcome,
-    ) -> Result<()> {
+    pub fn record_tx_outcome(&self, message: &HyperlaneMessage, outcome: TxOutcome) -> Result<()> {
         self.db.process_gas_expenditure(&GasExpenditureWithMeta {
             payment: InterchainGasExpenditure {
                 message_id: message.id(),
