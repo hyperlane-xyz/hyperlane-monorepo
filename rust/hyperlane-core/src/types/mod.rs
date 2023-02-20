@@ -115,7 +115,7 @@ pub struct InterchainGasPaymentWithMeta {
 #[derive(Debug)]
 pub struct GasExpenditureWithMeta {
     /// The InterchainGasExpenditure
-    pub payment: InterchainGasExpenditure,
+    pub expenditure: InterchainGasExpenditure,
     /// Metadata for the expenditure
     pub meta: InterchainGasPaymentMeta,
 }

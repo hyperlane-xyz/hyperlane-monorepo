@@ -212,7 +212,7 @@ impl HyperlaneDB {
         gas_expenditure_with_meta: &GasExpenditureWithMeta,
     ) -> Result<()> {
         // Update the total gas expenditure for the message to include the payment
-        self.update_gas_expenditure_for_message_id(gas_expenditure_with_meta.payment)
+        self.update_gas_expenditure_for_message_id(gas_expenditure_with_meta.expenditure)
     }
 
     /// Record a gas payment, identified by its metadata, as processed

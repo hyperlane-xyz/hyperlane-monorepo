@@ -130,7 +130,7 @@ impl GasPaymentEnforcer {
 
     pub fn record_tx_outcome(&self, message: &HyperlaneMessage, outcome: TxOutcome) -> Result<()> {
         self.db.process_gas_expenditure(&GasExpenditureWithMeta {
-            payment: InterchainGasExpenditure {
+            expenditure: InterchainGasExpenditure {
                 message_id: message.id(),
                 gas_used: outcome.gas_used,
                 tokens_used: outcome.gas_used * outcome.gas_price,
