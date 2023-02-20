@@ -137,7 +137,6 @@ impl GasPaymentEnforcer {
             },
             meta: InterchainGasPaymentMeta {
                 transaction_hash: outcome.txid,
-                log_index: outcome.log_index,
             },
         })?;
         Ok(())

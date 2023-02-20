@@ -126,7 +126,6 @@ where
                 },
                 meta: InterchainGasPaymentMeta {
                     transaction_hash: log_meta.transaction_hash,
-                    log_index: log_meta.log_index.as_u64(),
                 },
             })
             .collect())
