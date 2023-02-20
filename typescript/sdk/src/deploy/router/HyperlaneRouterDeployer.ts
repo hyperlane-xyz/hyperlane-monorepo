@@ -1,5 +1,4 @@
 import { debug } from 'debug';
-import { ethers } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
 
@@ -39,25 +38,28 @@ export abstract class HyperlaneRouterDeployer<
         const chainConnection = this.multiProvider.getChainConnection(local);
         // set mailbox if not already set (and configured)
         const mailbox = this.configMap[local].mailbox;
-        if (
-          mailbox &&
-          (await contracts.router.mailbox()) === ethers.constants.AddressZero
-        ) {
+        if (mailbox !== (await contracts.router.mailbox())) {
           this.logger(`Set mailbox on ${local}`);
           await chainConnection.handleTx(contracts.router.setMailbox(mailbox));
         }
 
         // set interchain gas paymaster if not already set (and configured)
-        const interchainGasPaymaster =
-          this.configMap[local].interchainGasPaymaster;
-        if (
-          interchainGasPaymaster &&
-          (await contracts.router.interchainGasPaymaster()) ===
-            ethers.constants.AddressZero
-        ) {
+        const igp = this.configMap[local].interchainGasPaymaster;
+        if (igp !== (await contracts.router.interchainGasPaymaster())) {
           this.logger(`Set interchain gas paymaster on ${local}`);
           await chainConnection.handleTx(
-            contracts.router.setInterchainGasPaymaster(interchainGasPaymaster),
+            contracts.router.setInterchainGasPaymaster(igp),
+          );
+        }
+
+        const ism = this.configMap[local].interchainSecurityModule;
+        if (
+          ism &&
+          ism !== (await contracts.router.interchainSecurityModule())
+        ) {
+          this.logger(`Set interchain security module on ${local}`);
+          await chainConnection.handleTx(
+            contracts.router.setInterchainSecurityModule(ism),
           );
         }
       }),
