@@ -7,9 +7,10 @@ use fuels::prelude::{Bech32ContractId, WalletUnlocked};
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
+    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer, TxCostEstimate, TxOutcome, H256,
+    U256,
 };
 
 use crate::{
@@ -123,7 +124,7 @@ impl Mailbox for FuelMailbox {
         todo!()
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

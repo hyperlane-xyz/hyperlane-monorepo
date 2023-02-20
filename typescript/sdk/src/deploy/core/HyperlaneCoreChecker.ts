@@ -1,3 +1,6 @@
+import { ethers } from 'ethers';
+import { defaultAbiCoder } from 'ethers/lib/utils';
+
 import { types, utils } from '@hyperlane-xyz/utils';
 import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
 
@@ -12,7 +15,7 @@ import {
   EnrolledValidatorsViolation,
   GasOracleContractType,
   IgpBeneficiaryViolation,
-  IgpGasOracleViolation,
+  IgpGasOraclesViolation,
   IgpViolationType,
   MailboxViolation,
   MailboxViolationType,
@@ -21,6 +24,18 @@ import {
   ValidatorAnnounceViolation,
 } from './types';
 
+const MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH =
+  '0x29b7294ab3ad2e8587e5cce0e2289ce65e12a2ea2f1e7ab34a05e7737616f457';
+const TRANSPARENT_PROXY_BYTECODE_HASH =
+  '0x4dde3d0906b6492bf1d4947f667afe8d53c8899f1d8788cabafd082938dceb2d';
+const MULTISIG_ISM_BYTECODE_HASH =
+  '0x5565704ffa5b10fdf37d57abfddcf137101d5fb418ded21fa6c5f90262c57dc2';
+const PROXY_ADMIN_BYTECODE_HASH =
+  '0x7c378e9d49408861ca754fe684b9f7d1ea525bddf095ee0463902df701453ba0';
+const INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH =
+  '0xcee48ab556ae2ff12b6458fa92e5e31f4a07f7852a0ed06e43a7f06f3c4c6d76';
+const OVERHEAD_IGP_BYTECODE_HASH =
+  '0x3cfed1f24f1e9b28a76d5a8c61696a04f7bc474404b823a2fcc210ea52346252';
 export class HyperlaneCoreChecker<
   Chain extends ChainName,
 > extends HyperlaneAppChecker<Chain, HyperlaneCore<Chain>, CoreConfig> {
@@ -35,6 +50,7 @@ export class HyperlaneCoreChecker<
     await this.checkProxiedContracts(chain);
     await this.checkMailbox(chain);
     await this.checkMultisigIsm(chain);
+    await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
     await this.checkInterchainGasPaymaster(chain);
   }
@@ -73,6 +89,78 @@ export class HyperlaneCoreChecker<
     }
   }
 
+  async checkBytecodes(chain: Chain): Promise<void> {
+    const contracts = this.app.getContracts(chain);
+    const mailbox = contracts.mailbox.contract;
+    const localDomain = await mailbox.localDomain();
+
+    await this.checkBytecode(
+      chain,
+      'Mailbox implementation',
+      contracts.mailbox.addresses.implementation,
+      MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
+      (_) =>
+        // This is obviously super janky but basically we are searching
+        //  for the ocurrences of localDomain in the bytecode and remove
+        //  that to compare, but some coincidental ocurrences of
+        // localDomain in the bytecode should be not be removed which
+        // are just done via an offset guard
+        _.replaceAll(
+          defaultAbiCoder.encode(['uint32'], [localDomain]).slice(2),
+          (match, offset) => (offset > 8000 ? match : ''),
+        ),
+    );
+
+    await this.checkBytecode(
+      chain,
+      'Mailbox proxy',
+      contracts.mailbox.address,
+      TRANSPARENT_PROXY_BYTECODE_HASH,
+    );
+    await this.checkBytecode(
+      chain,
+      'InterchainGasPaymaster proxy',
+      contracts.interchainGasPaymaster.address,
+      TRANSPARENT_PROXY_BYTECODE_HASH,
+    );
+    await this.checkBytecode(
+      chain,
+      'ProxyAdmin',
+      contracts.proxyAdmin.address,
+      PROXY_ADMIN_BYTECODE_HASH,
+    );
+    await this.checkBytecode(
+      chain,
+      'MultisigIsm implementation',
+      contracts.multisigIsm.address,
+      MULTISIG_ISM_BYTECODE_HASH,
+    );
+    await this.checkBytecode(
+      chain,
+      'InterchainGasPaymaster implementation',
+      contracts.interchainGasPaymaster.addresses.implementation,
+      INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+    );
+
+    await this.checkBytecode(
+      chain,
+      'OverheadIGP',
+      contracts.defaultIsmInterchainGasPaymaster.address,
+      OVERHEAD_IGP_BYTECODE_HASH,
+      (_) =>
+        // Remove the address of the wrapped ISM from the bytecode
+        _.replaceAll(
+          defaultAbiCoder
+            .encode(
+              ['address'],
+              [contracts.interchainGasPaymaster.addresses.proxy],
+            )
+            .slice(2),
+          '',
+        ),
+    );
+  }
+
   async checkProxiedContracts(chain: Chain): Promise<void> {
     const contracts = this.app.getContracts(chain);
     await this.checkProxiedContract(
@@ -84,12 +172,6 @@ export class HyperlaneCoreChecker<
     await this.checkProxiedContract(
       chain,
       'InterchainGasPaymaster',
-      contracts.interchainGasPaymaster.addresses,
-      contracts.proxyAdmin.address,
-    );
-    await this.checkProxiedContract(
-      chain,
-      'DefaultIsmInterchainGasPaymaster',
       contracts.interchainGasPaymaster.addresses,
       contracts.proxyAdmin.address,
     );
@@ -178,25 +260,52 @@ export class HyperlaneCoreChecker<
     const coreContracts = this.app.getContracts(local);
     const igp = coreContracts.interchainGasPaymaster.contract;
 
-    // Check gas oracles
+    // Construct the violation, updating the actual & expected
+    // objects as violations are found.
+    // A single violation is used so that only a single `setGasOracles`
+    // call is generated to set multiple gas oracles.
+    const gasOraclesViolation: IgpGasOraclesViolation = {
+      type: CoreViolationType.InterchainGasPaymaster,
+      subType: IgpViolationType.GasOracles,
+      contract: igp,
+      chain: local,
+      actual: {},
+      expected: {},
+    };
+
+    // The `gasOracles` mapping was added in a new implementation of the IGP.
+    // If calling this reverts, we are still using an old implementation that
+    // must be upgraded, so we just consider the mapping as unset and default
+    // to address(0) for all gas oracles.
+    // Note that it's important that `checkProxiedContracts` is called before
+    // `checkInterchainGasPaymaster` - this way, the govern script will first
+    // change the IGP proxy to use the correct new implementation, and the
+    // IgpGasOraclesViolation will be able to be correctly handled.
+    const getCurrentGasOracle = async (
+      remoteId: number,
+    ): Promise<types.Address> => {
+      try {
+        return await igp.gasOracles(remoteId);
+      } catch (_) {
+        return ethers.constants.AddressZero;
+      }
+    };
+
     const remotes = this.multiProvider.remoteChains(local);
     for (const remote of remotes) {
       const remoteId = ChainNameToDomainId[remote];
-      const actualGasOracle = await igp.gasOracles(remoteId);
+      const actualGasOracle = await getCurrentGasOracle(remoteId);
       const expectedGasOracle = this.getGasOracleAddress(local, remote);
 
       if (!utils.eqAddress(actualGasOracle, expectedGasOracle)) {
-        const violation: IgpGasOracleViolation = {
-          type: CoreViolationType.InterchainGasPaymaster,
-          subType: IgpViolationType.GasOracle,
-          contract: igp,
-          chain: local,
-          remote,
-          actual: actualGasOracle,
-          expected: expectedGasOracle,
-        };
-        this.addViolation(violation);
+        const remoteChain = remote as ChainName;
+        gasOraclesViolation.actual[remoteChain] = actualGasOracle;
+        gasOraclesViolation.expected[remoteChain] = expectedGasOracle;
       }
+    }
+    // Add the violation only if it's been populated with gas oracle inconsistencies
+    if (Object.keys(gasOraclesViolation.actual).length > 0) {
+      this.addViolation(gasOraclesViolation);
     }
 
     // Check beneficiary
@@ -215,7 +324,7 @@ export class HyperlaneCoreChecker<
     }
   }
 
-  private getGasOracleAddress(local: Chain, remote: Chain): types.Address {
+  getGasOracleAddress(local: Chain, remote: Chain): types.Address {
     const config = this.configMap[local];
     const gasOracleType = config.igp.gasOracles[remote];
     if (!gasOracleType) {

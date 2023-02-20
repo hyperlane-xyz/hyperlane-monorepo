@@ -66,11 +66,6 @@ export class HyperlaneCoreDeployer<
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
-  // TODO(trevor): will refactor all this gas oracle logic
-  // in a subsequent PR - getting a version working was necessary
-  // to satisfy e2e tests, which requires being able to call the
-  // IGP without it reverting (& therefore requiring gas oracles being set
-  // for the remote domains)
   async deployInterchainGasPaymaster<LocalChain extends Chain>(
     chain: LocalChain,
     proxyAdmin: ProxyAdmin,
@@ -89,11 +84,24 @@ export class HyperlaneCoreDeployer<
       deployOpts,
     );
 
-    const chainConnection = this.multiProvider.getChainConnection(chain);
+    try {
+      await igp.contract.gasOracles(0);
+    } catch (_) {
+      // If there's an error, we're still using the old
+      // IGP implementation, and we should leave the setting of
+      // gas oracles for the contract upgrade done by the
+      // govern / checker scripts
+      return igp;
+    }
 
+    // Set the gas oracles
+
+    const chainConnection = this.multiProvider.getChainConnection(chain);
     const remotes = this.multiProvider.remoteChains(chain);
 
-    // Set gas oracles for all remotes if they're not already set
+    const gasOracleConfigsToSet: InterchainGasPaymaster.GasOracleConfigStruct[] =
+      [];
+
     for (const remote of remotes) {
       const remoteId = ChainNameToDomainId[remote];
       const currentGasOracle = await igp.contract.gasOracles(remoteId);
@@ -103,12 +111,19 @@ export class HyperlaneCoreDeployer<
         gasOracleContracts,
       );
       if (!utils.eqAddress(currentGasOracle, desiredGasOracle)) {
-        await this.runIfOwner(chain, igp.contract, async () =>
-          chainConnection.handleTx(
-            igp.contract.setGasOracle(remoteId, desiredGasOracle),
-          ),
-        );
+        gasOracleConfigsToSet.push({
+          remoteDomain: remoteId,
+          gasOracle: desiredGasOracle,
+        });
       }
+    }
+
+    if (gasOracleConfigsToSet.length > 0) {
+      await this.runIfOwner(chain, igp.contract, async () =>
+        chainConnection.handleTx(
+          igp.contract.setGasOracles(gasOracleConfigsToSet),
+        ),
+      );
     }
 
     return igp;
@@ -208,16 +223,7 @@ export class HyperlaneCoreDeployer<
     chain: LocalChain,
     deployOpts?: DeployOptions,
   ): Promise<StorageGasOracle> {
-    // Intentionally do not transfer ownership, we keep the ownership
-    // as the deployer key for now so we can easily set the on-chain remote gas data.
-    const contract = await this.deployContract(
-      chain,
-      'storageGasOracle',
-      [],
-      deployOpts,
-    );
-
-    return contract;
+    return this.deployContract(chain, 'storageGasOracle', [], deployOpts);
   }
 
   async deployMailbox<LocalChain extends Chain>(

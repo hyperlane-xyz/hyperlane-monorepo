@@ -12,10 +12,10 @@ use ethers_contract::builders::ContractCall;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError,
-    HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer, RawHyperlaneMessage,
-    TxCostEstimate, TxOutcome, H256, U256,
+    utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
+    HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProtocolError, HyperlaneProvider, Indexer, LogMeta, Mailbox, MailboxIndexer,
+    RawHyperlaneMessage, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
@@ -288,7 +288,7 @@ where
             .into())
     }
 
-    #[instrument(err, ret, skip(self))]
+    #[instrument(err, ret, skip(self), fields(metadata=%fmt_bytes(metadata)))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -302,7 +302,7 @@ where
         Ok(receipt.into())
     }
 
-    #[instrument(err, ret, skip(self), fields(metadata=format!("{:x?}", metadata)))]
+    #[instrument(err, ret, skip(self), fields(msg=%message, metadata=%fmt_bytes(metadata)))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,

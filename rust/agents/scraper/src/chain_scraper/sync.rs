@@ -202,7 +202,7 @@ impl Syncer {
             .map(|(message_id, meta)| Delivery { message_id, meta })
             .collect_vec();
 
-        info!(
+        debug!(
             from,
             to,
             message_count = sorted_messages.len(),

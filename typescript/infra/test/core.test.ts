@@ -100,6 +100,36 @@ describe('core', async () => {
     });
   });
 
+  describe('proxy upgrades', async () => {
+    beforeEach(async () => {
+      deployer = new HyperlaneCoreInfraDeployer(
+        multiProvider,
+        coreConfig,
+        environment,
+      );
+      await deployer.deploy();
+    });
+
+    it('deploys a new implementation if it has been removed from the artifacts', async () => {
+      // Copy the old addresses
+      const oldAddresses = {
+        ...deployer.deployedContracts.test2!.interchainGasPaymaster!.addresses,
+      };
+      // @ts-ignore
+      delete deployer.deployedContracts.test2!.interchainGasPaymaster!.addresses
+        .implementation;
+      const result = await deployer.deploy();
+      const newAddresses = result.test2.interchainGasPaymaster.addresses;
+      // New implementation
+      expect(newAddresses.implementation).to.not.be.undefined;
+      expect(newAddresses.implementation).to.not.equal(
+        oldAddresses.implementation,
+      );
+      // Same proxy
+      expect(newAddresses.proxy).to.equal(oldAddresses.proxy);
+    });
+  });
+
   it('checks', async () => {
     const joinedConfig = objMap(coreConfig, (chain, config) => ({
       ...config,

@@ -47,8 +47,8 @@ export enum MailboxViolationType {
 }
 
 export enum IgpViolationType {
-  GasOracle = 'GasOracle',
   Beneficiary = 'Beneficiary',
+  GasOracles = 'GasOracles',
 }
 
 export interface MailboxViolation extends CheckerViolation {
@@ -95,15 +95,14 @@ export interface IgpViolation extends CheckerViolation {
   subType: IgpViolationType;
 }
 
-export interface IgpGasOracleViolation extends IgpViolation {
-  subType: IgpViolationType.GasOracle;
-  remote: ChainName;
-  actual: types.Address;
-  expected: types.Address;
-}
-
 export interface IgpBeneficiaryViolation extends IgpViolation {
   subType: IgpViolationType.Beneficiary;
   actual: types.Address;
   expected: types.Address;
+}
+
+export interface IgpGasOraclesViolation extends IgpViolation {
+  subType: IgpViolationType.GasOracles;
+  actual: PartialChainMap<types.Address>;
+  expected: PartialChainMap<types.Address>;
 }

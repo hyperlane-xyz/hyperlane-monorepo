@@ -79,7 +79,7 @@ export class HyperlaneCore<
     const contracts = this.getContracts(chain);
     return {
       mailbox: contracts.mailbox.address,
-      // TODO allow this to be more easily changed
+      // TODO allow these to be more easily changed
       interchainGasPaymaster:
         contracts.defaultIsmInterchainGasPaymaster.address,
     };

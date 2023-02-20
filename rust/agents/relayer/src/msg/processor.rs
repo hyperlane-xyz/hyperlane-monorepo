@@ -73,8 +73,10 @@ impl MessageProcessor {
         loop {
             // First, see if we can find the message so we can update the gauge.
             if let Some(message) = self.db.message_by_nonce(self.message_nonce)? {
-                // Update the latest nonce gauge if the message is destined for one
-                // of the domains we service.
+                // Update the latest nonce gauges
+                self.metrics
+                    .max_last_known_message_nonce_gauge
+                    .set(message.nonce as i64);
                 if let Some(metrics) = self.metrics.get(message.destination) {
                     metrics.set(message.nonce as i64);
                 }
@@ -88,13 +90,13 @@ impl MessageProcessor {
                     return Ok(Some(message));
                 } else {
                     debug!(
-                    msg_nonce=?self.message_nonce,
+                    nonce=?self.message_nonce,
                     "Message already marked as processed in DB");
                     self.message_nonce += 1;
                 }
             } else {
                 debug!(
-                msg_nonce=?self.message_nonce,
+                nonce=?self.message_nonce,
                 "No message found in DB for nonce");
                 return Ok(None);
             }
@@ -105,40 +107,26 @@ impl MessageProcessor {
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
         // Scan until we find next nonce without delivery confirmation.
-        if let Some(message) = self.try_get_unprocessed_message()? {
-            debug!(msg=?message, "Working on message");
+        if let Some(msg) = self.try_get_unprocessed_message()? {
+            debug!(?msg, "Processor working on message");
 
             // Skip if not whitelisted.
-            if !self.whitelist.msg_matches(&message, true) {
-                debug!(
-                    msg_id=?message.id(),
-                    msg_destination=message.destination,
-                    msg_nonce=message.nonce,
-                    whitelist=?self.whitelist,
-                    "Message not whitelisted, skipping");
+            if !self.whitelist.msg_matches(&msg, true) {
+                debug!(?msg, whitelist=?self.whitelist, "Message not whitelisted, skipping");
                 self.message_nonce += 1;
                 return Ok(());
             }
 
             // Skip if the message is blacklisted
-            if self.blacklist.msg_matches(&message, false) {
-                debug!(
-                    msg_id=?message.id(),
-                    msg_destination=message.destination,
-                    msg_nonce=message.nonce,
-                    blacklist=?self.blacklist,
-                    "Message blacklisted, skipping");
+            if self.blacklist.msg_matches(&msg, false) {
+                debug!(?msg, blacklist=?self.blacklist, "Message blacklisted, skipping");
                 self.message_nonce += 1;
                 return Ok(());
             }
 
             // Skip if the message is intended for a destination we do not service
-            if self.send_channels.get(&message.destination).is_none() {
-                debug!(
-                    msg_id=?message.id(),
-                    msg_destination=message.destination,
-                    msg_nonce=message.nonce,
-                    "Message destined for unknown domain, skipping");
+            if self.send_channels.get(&msg.destination).is_none() {
+                debug!(?msg, "Message destined for unknown domain, skipping");
                 self.message_nonce += 1;
                 return Ok(());
             }
@@ -147,19 +135,15 @@ impl MessageProcessor {
             self.prover_sync
                 .write()
                 .await
-                .update_to_index(message.nonce)
+                .update_to_index(msg.nonce)
                 .await?;
 
-            debug!(
-                msg_id=?message.id(),
-                msg_nonce=message.nonce,
-                "Sending message to submitter"
-            );
+            debug!(%msg, "Sending message to submitter");
 
             // Finally, build the submit arg and dispatch it to the submitter.
-            let submit_args = SubmitMessageArgs::new(message.clone());
+            let submit_args = SubmitMessageArgs::new(msg.clone());
             // Guaranteed to exist as we return early above if it does not.
-            let send_channel = self.send_channels.get(&message.destination).unwrap();
+            let send_channel = self.send_channels.get(&msg.destination).unwrap();
             send_channel.send(submit_args)?;
             self.message_nonce += 1;
         } else {
@@ -171,6 +155,7 @@ impl MessageProcessor {
 
 #[derive(Debug)]
 pub(crate) struct MessageProcessorMetrics {
+    max_last_known_message_nonce_gauge: IntGauge,
     last_known_message_nonce_gauges: HashMap<u32, IntGauge>,
 }
 
@@ -192,6 +177,9 @@ impl MessageProcessorMetrics {
             );
         }
         Self {
+            max_last_known_message_nonce_gauge: metrics
+                .last_known_message_nonce()
+                .with_label_values(&["processor_loop", "any", "any"]),
             last_known_message_nonce_gauges: gauges,
         }
     }

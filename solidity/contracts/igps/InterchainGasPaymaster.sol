@@ -17,8 +17,12 @@ contract InterchainGasPaymaster is
     IGasOracle,
     OwnableUpgradeable
 {
+    // ============ Constants ============
+
     /// @notice The scale of gas oracle token exchange rates.
     uint256 internal constant TOKEN_EXCHANGE_RATE_SCALE = 1e10;
+
+    // ============ Public Storage ============
 
     /// @notice Keyed by remote domain, the gas oracle to use for the domain.
     mapping(uint32 => IGasOracle) public gasOracles;
@@ -40,6 +44,11 @@ contract InterchainGasPaymaster is
      * @param beneficiary The new beneficiary.
      */
     event BeneficiarySet(address beneficiary);
+
+    struct GasOracleConfig {
+        uint32 remoteDomain;
+        address gasOracle;
+    }
 
     // ============ Constructor ============
 
@@ -98,16 +107,17 @@ contract InterchainGasPaymaster is
     }
 
     /**
-     * @notice Sets the gas oracle for a remote domain.
-     * @param _remoteDomain The remote domain.
-     * @param _gasOracle The gas oracle.
+     * @notice Sets the gas oracles for remote domains specified in the config array.
+     * @param _configs An array of configs including the remote domain and gas oracles to set.
      */
-    function setGasOracle(uint32 _remoteDomain, address _gasOracle)
+    function setGasOracles(GasOracleConfig[] calldata _configs)
         external
         onlyOwner
     {
-        gasOracles[_remoteDomain] = IGasOracle(_gasOracle);
-        emit GasOracleSet(_remoteDomain, _gasOracle);
+        uint256 _len = _configs.length;
+        for (uint256 i = 0; i < _len; i++) {
+            _setGasOracle(_configs[i].remoteDomain, _configs[i].gasOracle);
+        }
     }
 
     /**
@@ -176,5 +186,15 @@ contract InterchainGasPaymaster is
     function _setBeneficiary(address _beneficiary) internal {
         beneficiary = _beneficiary;
         emit BeneficiarySet(_beneficiary);
+    }
+
+    /**
+     * @notice Sets the gas oracle for a remote domain.
+     * @param _remoteDomain The remote domain.
+     * @param _gasOracle The gas oracle.
+     */
+    function _setGasOracle(uint32 _remoteDomain, address _gasOracle) internal {
+        gasOracles[_remoteDomain] = IGasOracle(_gasOracle);
+        emit GasOracleSet(_remoteDomain, _gasOracle);
     }
 }

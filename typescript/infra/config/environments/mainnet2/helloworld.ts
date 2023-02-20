@@ -12,7 +12,7 @@ export const hyperlane: HelloWorldConfig<MainnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '76d8c5e-20230208-232847',
+      tag: '83ec4f0-20230216-122421',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -23,7 +23,7 @@ export const hyperlane: HelloWorldConfig<MainnetChains> = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: ConnectionType.Http,
+    connectionType: ConnectionType.HttpFallback,
     cyclesBetweenEthereumMessages: 3, // Skip 3 cycles of Ethereum, i.e. send/receive Ethereum messages every 32 hours.
   },
 };
@@ -33,7 +33,7 @@ export const releaseCandidate: HelloWorldConfig<MainnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: 'sha-c7cbd2b',
+      tag: '83ec4f0-20230216-122421',
     },
     chainsToSkip: [],
     runEnv: environment,
