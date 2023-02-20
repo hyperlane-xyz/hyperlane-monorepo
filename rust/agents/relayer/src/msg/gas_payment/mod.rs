@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use eyre::Result;
+use tracing::error;
 
 use hyperlane_core::{
     db::HyperlaneDB, GasExpenditureWithMeta, HyperlaneMessage, InterchainGasExpenditure,
@@ -107,7 +108,11 @@ impl GasPaymentEnforcer {
                 .await;
         }
 
-        panic!("No gas payment policy matched for message; consider adding a default policy to the end of the policies array which uses a wildcard whitelist. {message:?}")
+        error!(
+            msg=?message,
+            "No gas payment policy matched for message; consider adding a default policy to the end of the policies array which uses a wildcard whitelist."
+        );
+        Ok(None)
     }
 
     pub fn record_failed_outcome(
