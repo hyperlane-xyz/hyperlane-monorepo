@@ -24,11 +24,11 @@ export const hyperlane: AgentConfig<TestChains> = {
   validators,
   relayer: {
     default: {
-      gasPaymentEnforcement: {
-        policy: {
+      gasPaymentEnforcement: [
+        {
           type: GasPaymentEnforcementPolicyType.None,
         },
-      },
+      ],
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,

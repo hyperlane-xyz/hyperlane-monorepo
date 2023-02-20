@@ -60,14 +60,13 @@ export type GasPaymentEnforcementPolicy =
       type: GasPaymentEnforcementPolicyType.MeetsEstimatedCost;
     };
 
-export interface GasPaymentEnforcementConfig {
-  policy: GasPaymentEnforcementPolicy;
-  whitelist?: MatchingList;
-}
+export type GasPaymentEnforcementConfig = GasPaymentEnforcementPolicy & {
+  matchingList?: MatchingList;
+};
 
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
-  gasPaymentEnforcement: GasPaymentEnforcementConfig;
+  gasPaymentEnforcement: GasPaymentEnforcementConfig[];
   whitelist?: MatchingList;
   blacklist?: MatchingList;
   transactionGasLimit?: bigint;
@@ -80,11 +79,6 @@ type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
   BaseRelayerConfig
 >;
 
-interface SerializableGasPaymentEnforcementConfig
-  extends Omit<GasPaymentEnforcementConfig, 'whitelist'> {
-  whitelist?: string;
-}
-
 // Full relayer agent config for a single chain
 interface RelayerConfig
   extends Omit<
@@ -96,7 +90,7 @@ interface RelayerConfig
     | 'gasPaymentEnforcement'
   > {
   originChainName: ChainName;
-  gasPaymentEnforcement: SerializableGasPaymentEnforcementConfig;
+  gasPaymentEnforcement: string;
   whitelist?: string;
   blacklist?: string;
   transactionGasLimit?: string;
@@ -407,12 +401,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
     const relayerConfig: RelayerConfig = {
       originChainName: this.chainName,
-      gasPaymentEnforcement: {
-        ...baseConfig.gasPaymentEnforcement,
-        whitelist: baseConfig.gasPaymentEnforcement.whitelist
-          ? JSON.stringify(baseConfig.gasPaymentEnforcement.whitelist)
-          : undefined,
-      },
+      gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
     if (baseConfig.whitelist) {
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
@@ -458,10 +447,15 @@ export class ChainAgentConfig<Chain extends ChainName> {
   }
 
   async ensureCoingeckoApiKeySecretExistsIfRequired() {
+    const baseConfig = getChainOverriddenConfig(
+      this.agentConfig.relayer!,
+      this.chainName,
+    );
     // The CoinGecko API Key is only needed when using the "MeetsEstimatedCost" policy.
     if (
-      this.relayerConfig?.gasPaymentEnforcement.policy.type !==
-      GasPaymentEnforcementPolicyType.MeetsEstimatedCost
+      baseConfig.gasPaymentEnforcement.every(
+        (p) => p.type != GasPaymentEnforcementPolicyType.MeetsEstimatedCost,
+      )
     ) {
       return;
     }
