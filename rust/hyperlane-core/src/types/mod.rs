@@ -74,16 +74,16 @@ impl Add for InterchainGasExpenditure {
     }
 }
 
-/// Uniquely identifying metadata for a transaction
+/// Uniquely identifying metadata for an InterchainGasPayment
 #[derive(Debug)]
-pub struct TxMeta {
+pub struct InterchainGasPaymentMeta {
     /// The transaction hash in which the GasPayment log was emitted
     pub transaction_hash: H256,
     /// The index of log within the transaction's logs
     pub log_index: u64,
 }
 
-impl Encode for TxMeta {
+impl Encode for InterchainGasPaymentMeta {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: Write,
@@ -95,7 +95,7 @@ impl Encode for TxMeta {
     }
 }
 
-impl Decode for TxMeta {
+impl Decode for InterchainGasPaymentMeta {
     fn read_from<R>(reader: &mut R) -> Result<Self, HyperlaneProtocolError>
     where
         R: Read,
@@ -114,7 +114,7 @@ pub struct InterchainGasPaymentWithMeta {
     /// The InterchainGasPayment
     pub payment: InterchainGasPayment,
     /// Metadata for the payment
-    pub meta: TxMeta,
+    pub meta: InterchainGasPaymentMeta,
 }
 
 /// A gas expense from submitting a transaction.
@@ -123,7 +123,7 @@ pub struct GasExpenditureWithMeta {
     /// The InterchainGasExpenditure
     pub payment: InterchainGasExpenditure,
     /// Metadata for the expenditure
-    pub meta: TxMeta,
+    pub meta: InterchainGasPaymentMeta,
 }
 
 /// A cost estimate for a transaction.

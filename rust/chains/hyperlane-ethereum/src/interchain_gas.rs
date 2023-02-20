@@ -11,8 +11,8 @@ use tracing::instrument;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexer, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentWithMeta, TxMeta,
-    H160, H256,
+    InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentMeta,
+    InterchainGasPaymentWithMeta, H160, H256,
 };
 
 use crate::contracts::interchain_gas_paymaster::{
@@ -124,7 +124,7 @@ where
                     payment: log.payment,
                     gas_amount: log.gas_amount,
                 },
-                meta: TxMeta {
+                meta: InterchainGasPaymentMeta {
                     transaction_hash: log_meta.transaction_hash,
                     log_index: log_meta.log_index.as_u64(),
                 },
