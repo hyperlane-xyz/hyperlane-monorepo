@@ -128,7 +128,7 @@ impl BaseAgent for Relayer {
         let destinations = self
             .mailboxes
             .keys()
-            .filter(|c| **c != self.origin_chain)
+            // .filter(|c| **c != self.origin_chain) // FIXME uncoment after done testing
             .collect::<Vec<&HyperlaneDomain>>();
 
         for chain in &destinations {
