@@ -90,7 +90,6 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     quote: ChainName,
   ): Promise<number> {
     const [basePrice, quotePrice] = await this.getTokenPrices([base, quote]);
-    console.log(`base ${base} ${basePrice} quote ${quote} ${quotePrice}`);
     return basePrice / quotePrice;
   }
 
