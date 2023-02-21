@@ -69,7 +69,7 @@ impl HyperlaneDB {
         // If this message is not building off the latest nonce, log it.
         if let Some(nonce) = self.retrieve_latest_nonce()? {
             if nonce != message.nonce - 1 {
-                debug!(%message, "Attempted to store message not building off latest nonce")
+                debug!(msg=%message, "Attempted to store message not building off latest nonce")
             }
         }
 
@@ -84,7 +84,7 @@ impl HyperlaneDB {
     pub fn store_message(&self, message: &HyperlaneMessage) -> Result<()> {
         let id = message.id();
 
-        info!(?message, "Storing new message in db",);
+        info!(msg=?message, "Storing new message in db",);
         self.store_message_id(message.nonce, message.destination, id)?;
         self.store_keyed_encodable(MESSAGE, &id, message)?;
         Ok(())
