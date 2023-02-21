@@ -1,8 +1,8 @@
 use opentelemetry::{
-    sdk::trace::{IdGenerator, Tracer},
+    sdk::trace::{RandomIdGenerator, Tracer},
     trace::TraceError,
 };
-use opentelemetry_jaeger::PipelineBuilder;
+use opentelemetry_jaeger::{config::collector::CollectorPipeline, new_collector_pipeline};
 use tracing::Subscriber;
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::registry::LookupSpan;
@@ -30,18 +30,18 @@ pub struct JaegerConfig {
 }
 
 impl JaegerConfig {
-    fn builder(self: &JaegerConfig) -> PipelineBuilder {
-        let builder = PipelineBuilder::default()
+    fn builder(self: &JaegerConfig) -> CollectorPipeline {
+        let builder = new_collector_pipeline()
             .with_service_name(&self.name)
-            .with_collector_endpoint(&self.collector.uri)
+            .with_endpoint(&self.collector.uri)
             .with_trace_config(
-                opentelemetry::sdk::trace::config().with_id_generator(IdGenerator::default()),
+                opentelemetry::sdk::trace::config().with_id_generator(RandomIdGenerator::default()),
             );
 
         if let Some(ref auth) = self.collector.auth {
             builder
-                .with_collector_username(&auth.username)
-                .with_collector_password(&auth.password)
+                .with_username(&auth.username)
+                .with_password(&auth.password)
         } else {
             builder
         }
