@@ -1,6 +1,7 @@
 use std::collections::{hash_map::Entry, HashMap};
 use std::sync::Arc;
 
+use derive_new::new;
 use ethers::prelude::Address;
 use eyre::Result;
 use tracing::{debug, instrument};
@@ -10,18 +11,13 @@ use hyperlane_core::{MultisigSignedCheckpoint, SignedCheckpointWithSigner, H160,
 use crate::CheckpointSyncer;
 
 /// Fetches signed checkpoints from multiple validators to create MultisigSignedCheckpoints
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, new)]
 pub struct MultisigCheckpointSyncer {
     /// The checkpoint syncer for each valid validator signer address
     checkpoint_syncers: HashMap<Address, Arc<dyn CheckpointSyncer>>,
 }
 
 impl MultisigCheckpointSyncer {
-    /// Constructor
-    pub fn new(checkpoint_syncers: HashMap<Address, Arc<dyn CheckpointSyncer>>) -> Self {
-        MultisigCheckpointSyncer { checkpoint_syncers }
-    }
-
     /// Attempts to get the latest checkpoint with a quorum of signatures among validators.
     ///
     /// First iterates through the `latest_index` of each validator's checkpoint syncer,

@@ -3,6 +3,7 @@ use std::num::NonZeroU64;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use derive_new::new;
 use futures_util::future::select_all;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
@@ -18,7 +19,7 @@ use crate::chains::IndexSettings;
 use crate::{ContractSync, ContractSyncMetrics};
 
 /// Caching Mailbox type
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct CachingMailbox {
     mailbox: Arc<dyn Mailbox>,
     db: HyperlaneDB,
@@ -32,19 +33,6 @@ impl std::fmt::Display for CachingMailbox {
 }
 
 impl CachingMailbox {
-    /// Instantiate new CachingMailbox
-    pub fn new(
-        mailbox: Arc<dyn Mailbox>,
-        db: HyperlaneDB,
-        indexer: Arc<dyn MailboxIndexer>,
-    ) -> Self {
-        Self {
-            mailbox,
-            db,
-            indexer,
-        }
-    }
-
     /// Return handle on mailbox object
     pub fn mailbox(&self) -> &Arc<dyn Mailbox> {
         &self.mailbox

@@ -9,17 +9,6 @@ pub struct PrefixIterator<'a, V> {
     _phantom: PhantomData<*const V>,
 }
 
-impl<'a, V> PrefixIterator<'a, V> {
-    /// Return new prefix iterator
-    pub fn new(iter: DBIterator<'a>, prefix: &'a [u8]) -> Self {
-        Self {
-            iter,
-            prefix,
-            _phantom: PhantomData,
-        }
-    }
-}
-
 impl<'a, V> Iterator for PrefixIterator<'a, V>
 where
     V: Encode + Decode,
