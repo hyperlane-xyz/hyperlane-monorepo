@@ -309,7 +309,19 @@ export class HyperlaneCoreChecker<
     }
 
     // Check beneficiary
-    const actualBeneficiary = await igp.beneficiary();
+    // Try/catch to accommodate the possibility that the IGP's implementation
+    // hasn't been set yet, so the beneficiary function doesn't exist.
+    // In this case, act like the beneficiary is address zero, and rely
+    // upon the IGP proxy setting the implementation correctly before
+    // the beneficiary violation is handled.
+    const getCurrentBeneficiary = async () => {
+      try {
+        return await igp.beneficiary();
+      } catch (_) {
+        return ethers.constants.AddressZero;
+      }
+    };
+    const actualBeneficiary = await getCurrentBeneficiary();
     const expectedBeneficiary = this.configMap[local].igp.beneficiary;
     if (!utils.eqAddress(actualBeneficiary, expectedBeneficiary)) {
       const violation: IgpBeneficiaryViolation = {

@@ -95,7 +95,7 @@ async function setStorageGasOracleValues(
 
   if (configsToSet.length > 0) {
     console.log(`Updating ${configsToSet.length} configs on local ${local}:`);
-    console.log(configsToSet.map(prettyRemoteGasDataConfig).join('\n\t'));
+    console.log(configsToSet.map(prettyRemoteGasDataConfig).join('\n\t--\n'));
 
     if (dryRun) {
       console.log('Running in dry run mode, not sending tx');

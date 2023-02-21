@@ -157,6 +157,10 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
           this.handleIgpViolation(violation as IgpViolation);
           break;
         }
+        case ViolationType.BytecodeMismatch:
+        case CoreViolationType.ValidatorAnnounce:
+          console.log(`Unsupported violation type ${violation.type}, skipping`);
+          break;
         default:
           throw new Error(`Unsupported violation type ${violation.type}`);
       }
@@ -366,6 +370,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
             [beneficiaryViolation.expected],
           ),
           description: `Set IGP beneficiary to ${beneficiaryViolation.expected}`,
+          onlyCheckOwnership: true,
         });
         break;
       }
