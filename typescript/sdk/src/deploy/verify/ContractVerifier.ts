@@ -53,7 +53,10 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
   async verifyChain(chain: Chain, inputs: VerificationInput): Promise<void> {
     this.logger(`Verifying ${chain}...`);
-    for (const input of inputs) {
+    // TODO remove -- this is just so we don't try to verify all the other contracts,
+    // which takes time
+    const newinputs = inputs.slice(-2);
+    for (const input of newinputs) {
       await this.verifyContract(chain, input);
     }
   }
