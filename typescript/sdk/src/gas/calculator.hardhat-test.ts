@@ -17,7 +17,6 @@ describe('InterchainGasCalculator', async () => {
   const localChain = 'test1';
   const remoteChain = 'test2';
 
-  const expectedDefaultQuote = BigNumber.from('0');
   const testGasAmount = BigNumber.from('100000');
 
   let signer: SignerWithAddress;
@@ -46,7 +45,8 @@ describe('InterchainGasCalculator', async () => {
         testGasAmount,
       );
 
-      expect(quote).to.equal(expectedDefaultQuote);
+      // (100,000 gas amount + 151,966 overhead) * 10 gas price
+      expect(quote).to.equal(BigNumber.from('2519660'));
     });
   });
 
@@ -58,7 +58,8 @@ describe('InterchainGasCalculator', async () => {
         testGasAmount,
       );
 
-      expect(quote).to.equal(expectedDefaultQuote);
+      // 100,000 gas amount * 10 gas price
+      expect(quote).to.equal(BigNumber.from('1000000'));
     });
   });
 
@@ -71,7 +72,8 @@ describe('InterchainGasCalculator', async () => {
         igp,
       );
 
-      expect(quote).to.equal(expectedDefaultQuote);
+      // 100,000 gas amount * 10 gas price
+      expect(quote).to.equal(BigNumber.from('1000000'));
     });
   });
 });
