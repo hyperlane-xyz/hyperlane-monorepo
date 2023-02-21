@@ -70,8 +70,8 @@ contract InterchainGasPaymaster is
      * Callers should be aware that this may present reentrancy issues.
      * @param _messageId The ID of the message to pay for.
      * @param _destinationDomain The domain of the message's destination chain.
-     * @param _gasAmount The amount of destination gas to pay for. Currently unused.
-     * @param _refundAddress The address to refund any overpayment to. Currently unused.
+     * @param _gasAmount The amount of destination gas to pay for.
+     * @param _refundAddress The address to refund any overpayment to.
      */
     function payForGas(
         bytes32 _messageId,
@@ -133,7 +133,7 @@ contract InterchainGasPaymaster is
     /**
      * @notice Quotes the amount of native tokens to pay for interchain gas.
      * @param _destinationDomain The domain of the message's destination chain.
-     * @param _gasAmount The amount of destination gas to pay for. Currently unused.
+     * @param _gasAmount The amount of destination gas to pay for.
      * @return The amount of native tokens required to pay for interchain gas.
      */
     function quoteGasPayment(uint32 _destinationDomain, uint256 _gasAmount)
