@@ -11,6 +11,10 @@ contract TestIsm {
     bytes public requiredMetadata;
 
     constructor(bytes memory _requiredMetadata) {
+        setRequiredMetadata(_requiredMetadata);
+    }
+
+    function setRequiredMetadata(bytes memory _requiredMetadata) public {
         requiredMetadata = _requiredMetadata;
     }
 
@@ -106,6 +110,30 @@ contract AggregationIsmTest is Test {
         vm.assume(0 < m && m <= n && n < 10);
         vm.assume(messageSuffix.length < 100);
         deployIsms(domain, m, n, seed);
+
+        bytes memory metadata = getMetadata(domain, m, n, seed);
+        bytes memory message = abi.encodePacked(
+            messagePrefix,
+            domain,
+            messageSuffix
+        );
+        assertTrue(ism.verify(metadata, message));
+    }
+
+    function testVerifyNoMetadataRequired(
+        uint32 domain,
+        uint8 m,
+        uint8 n,
+        uint8 i,
+        bytes5 messagePrefix,
+        bytes calldata messageSuffix,
+        bytes32 seed
+    ) public {
+        vm.assume(0 < m && m <= n && n < 10 && i < n);
+        vm.assume(messageSuffix.length < 100);
+        deployIsms(domain, m, n, seed);
+        bytes memory noMetadata;
+        TestIsm(ism.values(domain)[i]).setRequiredMetadata(noMetadata);
 
         bytes memory metadata = getMetadata(domain, m, n, seed);
         bytes memory message = abi.encodePacked(
