@@ -1,6 +1,6 @@
 //! Test client for Hyperlane Sealevel Mailbox contract.
 
-#![deny(warnings)]
+// #![deny(warnings)] // FIXME
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
@@ -35,15 +35,16 @@ const MAX_HEAP_FRAME_BYTES: u32 = 256 * 1024;
 // FIXME can we import from libs?
 lazy_static::lazy_static! {
     static ref MAILBOX_PROG_ID: Pubkey = Pubkey::from_str(
-        "8oQPEeV1Uhmt4VNAdEojJewGnAuEi4pxBinbRvtKmiwJ"
+        "8TibDpWMQfTjG6JxvF85pxJXxwqXZUCuUx3Q1vwojvRh"
     ).unwrap();
     static ref DEFAULT_ISM_PROG_ID: Pubkey = Pubkey::from_str(
-        "YpYBDE5EsueaooNiYjgQ5PWcX9EB7kBpo3uufdDeLi7"
+        "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq"
     ).unwrap();
     static ref RECIPIENT_ECHO_PROG_ID: Pubkey = Pubkey::from_str(
-        "CFpo3LDZm2nPujHLoHNxtmY6WZwjKSVY78aMBYf9hLZE"
+        "AziCxohg8Tw46EsZGUCvxsVbqFmJVnSWuEqoTKaAfNiC"
     ).unwrap();
 }
+const ECLIPSE_DOMAIN: u32 = 13375;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -72,7 +73,7 @@ enum MailboxCmd {
 struct Init {
     #[arg(long, short, default_value_t = *MAILBOX_PROG_ID)]
     program_id: Pubkey,
-    #[arg(long, short, default_value_t = u32::MAX)]
+    #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     local_domain: u32,
 }
 
@@ -80,32 +81,32 @@ struct Init {
 struct Query {
     #[arg(long, short, default_value_t = *MAILBOX_PROG_ID)]
     program_id: Pubkey,
-    #[arg(long, short, default_value_t = u32::MAX)]
+    #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     local_domain: u32,
 }
 
 #[derive(Args)]
 struct Outbox {
-    #[arg(long, short, default_value_t = u32::MAX)]
+    #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     local_domain: u32,
-    #[arg(long, short, default_value_t = u32::MAX)]
+    #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     destination: u32,
     #[arg(long, short, default_value_t = *RECIPIENT_ECHO_PROG_ID)]
     recipient: Pubkey,
-    // #[arg(long, short, default_value = "Hello, World!")]
-    // message: String,
+    #[arg(long, short, default_value = "Hello, World!")]
+    message: String,
     #[arg(long, short, default_value_t = *MAILBOX_PROG_ID)]
     program_id: Pubkey,
 
-    #[arg(long, short, default_value_t = MAX_MESSAGE_BODY_BYTES)]
-    message_len: usize,
+    // #[arg(long, short, default_value_t = MAX_MESSAGE_BODY_BYTES)]
+    // message_len: usize,
 }
 
 #[derive(Args)]
 struct Inbox {
-    #[arg(long, short, default_value_t = u32::MAX)]
+    #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     local_domain: u32,
-    #[arg(long, short, default_value_t = u32::MAX)]
+    #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     origin: u32,
     #[arg(long, short, default_value_t = *RECIPIENT_ECHO_PROG_ID)]
     recipient: Pubkey,
@@ -277,6 +278,8 @@ fn main() {
             let accounts = client
                 .get_multiple_accounts(&[auth_account, inbox_account, outbox_account])
                 .unwrap();
+            println!("domain={}", query.local_domain);
+            println!("mailbox={}", query.program_id);
             println!("--------------------------------");
             println!("Authority: {}, bump={}", auth_account, auth_bump);
             if let Some(info) = &accounts[0] {
@@ -323,7 +326,8 @@ fn main() {
                 local_domain: outbox.local_domain,
                 destination_domain: outbox.destination,
                 recipient: H256(outbox.recipient.to_bytes()),
-                message_body: std::iter::repeat(0x41).take(outbox.message_len).collect(),
+                message_body: outbox.message.into(),
+                // message_body: std::iter::repeat(0x41).take(outbox.message_len).collect(),
             });
             let outbox_instruction = Instruction {
                 program_id: outbox.program_id,
@@ -370,7 +374,7 @@ fn main() {
                 nonce: inbox.nonce,
                 origin: inbox.origin,
                 sender: H256::repeat_byte(123),
-                destination: u32::MAX,
+                destination: inbox.local_domain,
                 recipient: H256::from(inbox.recipient.to_bytes()),
                 body: inbox.message.bytes().collect(),
             };

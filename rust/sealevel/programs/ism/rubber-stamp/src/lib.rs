@@ -17,12 +17,14 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-solana_program::declare_id!("YpYBDE5EsueaooNiYjgQ5PWcX9EB7kBpo3uufdDeLi7");
+solana_program::declare_id!("6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq");
+// solana_program::declare_id!("YpYBDE5EsueaooNiYjgQ5PWcX9EB7kBpo3uufdDeLi7");
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
-const AUTHORITY: &str = "7E7dbtWMktZB7rSkBecaayfhTaaavBKqKCjNzvspwycH";
+const AUTHORITY: &str = "AAeNV1XBq4Wbf4FtpbN6PaTpDEo5umQiSLwFAVR5NW2E";
+// const AUTHORITY: &str = "7E7dbtWMktZB7rSkBecaayfhTaaavBKqKCjNzvspwycH";
 
 pub fn process_instruction(
     _program_id: &Pubkey,
