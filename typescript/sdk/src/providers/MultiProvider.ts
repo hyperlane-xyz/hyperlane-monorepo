@@ -20,18 +20,25 @@ import { pick } from '../utils/objects';
 
 type Provider = providers.Provider;
 
+interface MultiProviderOptions {
+  loggerName?: string;
+}
+
 export class MultiProvider {
-  private readonly logger: Debugger = debug('hyperlane:MultiProvider');
   public readonly metadata: ChainMap<ChainMetadata> = {};
   private readonly providers: ChainMap<Provider> = {};
   private signers: ChainMap<Signer> = {};
   private useSharedSigner = false; // A single signer to be used for all chains
+  private readonly logger: Debugger;
 
   /**
    * Create a new MultiProvider with the given chainMetadata,
    * or the SDK's default metadata if not provided
    */
-  constructor(chainMetadata: ChainMap<ChainMetadata> = defaultChainMetadata) {
+  constructor(
+    chainMetadata: ChainMap<ChainMetadata> = defaultChainMetadata,
+    options: MultiProviderOptions = {},
+  ) {
     this.metadata = chainMetadata;
     // Ensure no two chains have overlapping names/domainIds/chainIds
     const chainNames = new Set<string>();
@@ -53,6 +60,8 @@ export class MultiProvider {
       chainIds.add(chainId);
       if (domainId) domainIds.add(domainId);
     }
+
+    this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
   }
 
   /**
