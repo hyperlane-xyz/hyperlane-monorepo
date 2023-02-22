@@ -4,20 +4,11 @@ import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 import { TestSendReceiver__factory } from '@hyperlane-xyz/core';
-import {
-  ChainName,
-  ChainNameToDomainId,
-  HyperlaneCore,
-  getTestMultiProvider,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
 
-import { getCoreEnvironmentConfig } from './scripts/utils';
 import { sleep } from './src/utils/utils';
 
-const chainSummary = async <Chain extends ChainName>(
-  core: HyperlaneCore<Chain>,
-  chain: Chain,
-) => {
+const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
   const coreContracts = core.getContracts(chain);
   const mailbox = coreContracts.mailbox.contract;
   const dispatched = await mailbox.count();
@@ -50,12 +41,8 @@ task('kathy', 'Dispatches random hyperlane messages')
       const timeout = Number.parseInt(taskArgs.timeout);
       const environment = 'test';
       const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
-      const config = getCoreEnvironmentConfig(environment);
       const [signer] = await hre.ethers.getSigners();
-      const multiProvider = getTestMultiProvider(
-        signer,
-        config.transactionConfigs,
-      );
+      const multiProvider = MultiProvider.createTestMultiProvider({ signer });
       const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
 
       const randomElement = <T>(list: T[]) =>
@@ -72,7 +59,7 @@ task('kathy', 'Dispatches random hyperlane messages')
       while (run_forever || rounds-- > 0) {
         const local = core.chains()[0];
         const remote: ChainName = randomElement(core.remoteChains(local));
-        const remoteId = ChainNameToDomainId[remote];
+        const remoteId = multiProvider.getDomainId(remote);
         const coreContracts = core.getContracts(local);
         const mailbox = coreContracts.mailbox.contract;
         const paymaster = coreContracts.interchainGasPaymaster;

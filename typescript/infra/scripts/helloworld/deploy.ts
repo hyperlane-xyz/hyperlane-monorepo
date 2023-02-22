@@ -37,7 +37,7 @@ async function main() {
   const configMap = await getConfiguration(environment, multiProvider);
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
-    multiProvider as any,
+    multiProvider,
   );
   const deployer = new HelloWorldDeployer(multiProvider, configMap, core);
   const dir = path.join(
@@ -46,11 +46,14 @@ async function main() {
     context,
   );
 
-  let previousContracts: ChainMap<any, HelloWorldContracts> = {};
+  let previousContracts: ChainMap<HelloWorldContracts> = {};
   let existingVerificationInputs = {};
   try {
     const addresses = readJSON(dir, 'addresses.json');
-    previousContracts = buildContracts(addresses, helloWorldFactories) as any;
+    previousContracts = buildContracts(
+      addresses,
+      helloWorldFactories,
+    ) as ChainMap<HelloWorldContracts>;
     existingVerificationInputs = readJSON(dir, 'verification.json');
   } catch (e) {
     console.info(`Could not load previous deployment, file may not exist`);
@@ -66,7 +69,6 @@ async function main() {
   writeJSON(
     dir,
     'addresses.json',
-    // @ts-ignore
     serializeContracts(deployer.deployedContracts),
   );
   writeJSON(

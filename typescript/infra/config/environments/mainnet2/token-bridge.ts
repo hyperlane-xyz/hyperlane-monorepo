@@ -7,15 +7,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 const circleDomainMapping = [
-  { hyperlaneDomain: chainMetadata[Chains.goerli].id, circleDomain: 0 },
-  { hyperlaneDomain: chainMetadata[Chains.fuji].id, circleDomain: 1 },
+  { hyperlaneDomain: chainMetadata[Chains.goerli].chainId, circleDomain: 0 },
+  { hyperlaneDomain: chainMetadata[Chains.fuji].chainId, circleDomain: 1 },
 ];
 
 // Circle deployed contracts
-export const circleBridgeAdapterConfig: ChainMap<
-  any,
-  CircleBridgeAdapterConfig
-> = {
+export const circleBridgeAdapterConfig: ChainMap<CircleBridgeAdapterConfig> = {
   [Chains.goerli]: {
     type: BridgeAdapterType.Circle,
     tokenMessengerAddress: '0xdabec94b97f7b5fca28f050cc8eeac2dc9920476',
