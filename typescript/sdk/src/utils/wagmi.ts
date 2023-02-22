@@ -1,7 +1,6 @@
 import type { Chain as WagmiChain } from '@wagmi/chains';
 
 import { ChainMetadata, etherToken } from '../consts/chainMetadata';
-import { CoreChainName, Testnets } from '../consts/chains';
 
 export function chainMetadataToWagmiChain(metadata: ChainMetadata): WagmiChain {
   return {
@@ -21,6 +20,6 @@ export function chainMetadataToWagmiChain(metadata: ChainMetadata): WagmiChain {
           },
         }
       : undefined,
-    testnet: Testnets.includes(metadata.name as CoreChainName),
+    testnet: !!metadata.isTestnet,
   };
 }

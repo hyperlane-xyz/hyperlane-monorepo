@@ -43,12 +43,6 @@ export {
   DispatchedMessage,
   HyperlaneCore,
 } from './core/HyperlaneCore';
-export {
-  HyperlaneMessage,
-  HyperlaneStatus,
-  MessageStatus,
-  resolveChains,
-} from './core/message';
 export { TestCoreApp, TestCoreContracts } from './core/TestCoreApp';
 export { TestCoreDeployer } from './core/TestCoreDeployer';
 export { HyperlaneCoreChecker } from './deploy/core/HyperlaneCoreChecker';

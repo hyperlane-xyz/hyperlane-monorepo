@@ -59,6 +59,8 @@ export interface ChainMetadata {
   gasCurrencyCoinGeckoId?: string;
   /** URL of the gnosis safe transaction service */
   gnosisSafeTransactionServiceUrl?: string;
+  /** Is chain a testnet or a mainnet */
+  isTestnet?: boolean;
 }
 
 export interface RpcPagination {
@@ -116,6 +118,7 @@ export const alfajores: ChainMetadata = {
     reorgPeriod: 0,
     estimateBlockTime: 5,
   },
+  isTestnet: true,
 };
 
 export const arbitrum: ChainMetadata = {
@@ -162,6 +165,7 @@ export const arbitrumgoerli: ChainMetadata = {
     reorgPeriod: 1,
     estimateBlockTime: 3,
   },
+  isTestnet: true,
 };
 
 export const avalanche: ChainMetadata = {
@@ -242,6 +246,7 @@ export const bsctestnet: ChainMetadata = {
     reorgPeriod: 9,
     estimateBlockTime: 3,
   },
+  isTestnet: true,
 };
 
 export const celo: ChainMetadata = {
@@ -318,6 +323,7 @@ export const fuji: ChainMetadata = {
     reorgPeriod: 3,
     estimateBlockTime: 2,
   },
+  isTestnet: true,
 };
 
 export const goerli: ChainMetadata = {
@@ -343,6 +349,7 @@ export const goerli: ChainMetadata = {
     reorgPeriod: 2,
     estimateBlockTime: 13,
   },
+  isTestnet: true,
 };
 
 export const moonbasealpha: ChainMetadata = {
@@ -369,6 +376,7 @@ export const moonbasealpha: ChainMetadata = {
     reorgPeriod: 1,
     estimateBlockTime: 12,
   },
+  isTestnet: true,
 };
 
 export const moonbeam: ChainMetadata = {
@@ -429,6 +437,7 @@ export const mumbai: ChainMetadata = {
     reorgPeriod: 32,
     estimateBlockTime: 5,
   },
+  isTestnet: true,
 };
 
 export const optimism: ChainMetadata = {
@@ -475,6 +484,7 @@ export const optimismgoerli: ChainMetadata = {
     reorgPeriod: 1,
     estimateBlockTime: 3,
   },
+  isTestnet: true,
 };
 
 export const polygon: ChainMetadata = {
@@ -554,6 +564,7 @@ export const test1: ChainMetadata = {
     reorgPeriod: 0,
     estimateBlockTime: 3,
   },
+  isTestnet: true,
 };
 
 export const test2: ChainMetadata = {
@@ -568,6 +579,7 @@ export const test2: ChainMetadata = {
     reorgPeriod: 1,
     estimateBlockTime: 3,
   },
+  isTestnet: true,
 };
 
 export const test3: ChainMetadata = {
@@ -582,6 +594,7 @@ export const test3: ChainMetadata = {
     reorgPeriod: 2,
     estimateBlockTime: 3,
   },
+  isTestnet: true,
 };
 
 /**
