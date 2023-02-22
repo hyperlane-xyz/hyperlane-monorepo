@@ -5,12 +5,10 @@ import {
   CheckpointSyncerType,
 } from '../../../src/config/agent';
 
-import { TestChains } from './chains';
-
 const localStoragePath = (chainName: ChainName) =>
   `/tmp/hyperlane-test-${chainName}-validator`;
 
-export const validators: ChainValidatorConfigs<TestChains> = {
+export const validators: ChainValidatorConfigs = {
   test1: {
     interval: 5,
     reorgPeriod: 0,

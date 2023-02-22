@@ -17,22 +17,19 @@ type Contracts = {
   TestQuerySender: TestQuerySender;
 };
 
-export class TestQuerySenderDeployer<
-  Chain extends ChainName,
-> extends HyperlaneDeployer<
-  Chain,
+export class TestQuerySenderDeployer extends HyperlaneDeployer<
   TestQuerySenderConfig,
   Contracts,
   typeof factories
 > {
   constructor(
-    multiProvider: MultiProvider<Chain>,
-    queryRouters: ChainMap<Chain, TestQuerySenderConfig>,
-    protected core: HyperlaneCore<Chain>,
+    multiProvider: MultiProvider,
+    queryRouters: ChainMap<TestQuerySenderConfig>,
+    protected core: HyperlaneCore,
   ) {
     super(multiProvider, queryRouters, factories);
   }
-  async deployContracts(chain: Chain, config: TestQuerySenderConfig) {
+  async deployContracts(chain: ChainName, config: TestQuerySenderConfig) {
     const initCalldata =
       TestQuerySender__factory.createInterface().encodeFunctionData(
         'initialize',

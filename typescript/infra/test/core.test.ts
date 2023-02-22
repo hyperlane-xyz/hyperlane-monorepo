@@ -10,32 +10,30 @@ import {
   HyperlaneCore,
   HyperlaneCoreChecker,
   MultiProvider,
-  getTestMultiProvider,
   objMap,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 
 import { environment as testConfig } from '../config/environments/test';
-import { TestChains } from '../config/environments/test/chains';
 import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
 import { writeJSON } from '../src/utils/utils';
 
 describe('core', async () => {
   const environment = 'test';
 
-  let multiProvider: MultiProvider<TestChains>;
-  let deployer: HyperlaneCoreInfraDeployer<TestChains>;
-  let core: HyperlaneCore<TestChains>;
-  let contracts: CoreContractsMap<TestChains>;
-  let coreConfig: ChainMap<TestChains, CoreConfig>;
+  let multiProvider: MultiProvider;
+  let deployer: HyperlaneCoreInfraDeployer;
+  let core: HyperlaneCore;
+  let contracts: CoreContractsMap;
+  let coreConfig: ChainMap<CoreConfig>;
 
-  let owners: ChainMap<TestChains, string>;
+  let owners: ChainMap<string>;
   beforeEach(async () => {
     const [signer, owner] = await ethers.getSigners();
     // This is kind of awkward and really these tests shouldn't live here
-    multiProvider = getTestMultiProvider(signer, testConfig.transactionConfigs);
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
     coreConfig = testConfig.core;
-    owners = objMap(testConfig.transactionConfigs, () => owner.address);
+    owners = objMap(testConfig.chainMetadataConfigs, () => owner.address);
   });
 
   it('deploys', async () => {
@@ -91,7 +89,9 @@ describe('core', async () => {
     it('can be resumed from partial contracts', async () => {
       sinon.restore(); // restore normal deployer behavior
 
+      //@ts-ignore operand not optional, ignore for this test
       delete deployer.deployedContracts.test2!.multisigIsm;
+      //@ts-ignore operand not optional, ignore for this test
       delete deployer.deployedContracts.test2!.mailbox;
 
       const result = await deployer.deploy();
