@@ -11,24 +11,23 @@ import { HyperlaneAppChecker } from '../HyperlaneAppChecker';
 import { RouterConfig } from './types';
 
 export class HyperlaneRouterChecker<
-  Chain extends ChainName,
-  App extends HyperlaneApp<Contracts, Chain>,
+  App extends HyperlaneApp<Contracts>,
   Config extends RouterConfig,
   Contracts extends RouterContracts,
-> extends HyperlaneAppChecker<Chain, App, Config> {
-  checkOwnership(chain: Chain): Promise<void> {
+> extends HyperlaneAppChecker<App, Config> {
+  checkOwnership(chain: ChainName): Promise<void> {
     const owner = this.configMap[chain].owner;
     const ownables = this.ownables(chain);
     return super.checkOwnership(chain, owner, ownables);
   }
 
-  async checkChain(chain: Chain): Promise<void> {
+  async checkChain(chain: ChainName): Promise<void> {
     await this.checkHyperlaneConnectionClient(chain);
     await this.checkEnrolledRouters(chain);
     await this.checkOwnership(chain);
   }
 
-  async checkHyperlaneConnectionClient(chain: Chain): Promise<void> {
+  async checkHyperlaneConnectionClient(chain: ChainName): Promise<void> {
     const router = this.app.getContracts(chain).router;
     const mailbox = await router.mailbox();
     const igp = await router.interchainGasPaymaster();
@@ -48,20 +47,20 @@ export class HyperlaneRouterChecker<
     );
   }
 
-  async checkEnrolledRouters(chain: Chain): Promise<void> {
+  async checkEnrolledRouters(chain: ChainName): Promise<void> {
     const router = this.app.getContracts(chain).router;
 
     await Promise.all(
       this.app.remoteChains(chain).map(async (remoteChain) => {
         const remoteRouter = this.app.getContracts(remoteChain).router;
-        const remoteChainId = this.multiProvider.getChainId(remoteChain);
-        const address = await router.routers(remoteChainId);
+        const remoteDomainId = this.multiProvider.getDomainId(remoteChain);
+        const address = await router.routers(remoteDomainId);
         utils.assert(address === utils.addressToBytes32(remoteRouter.address));
       }),
     );
   }
 
-  ownables(chain: Chain): Ownable[] {
+  ownables(chain: ChainName): Ownable[] {
     return [this.app.getContracts(chain).router];
   }
 }
