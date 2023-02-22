@@ -205,7 +205,7 @@ where
         } else {
             tx.estimate_gas().await?.saturating_add(U256::from(100000))
         };
-        if let Ok((a, b)) = self.provider.estimate_eip1559_fees(None).await {
+        if let Ok((max_fee, max_priority_fee)) = self.provider.estimate_eip1559_fees(None).await {
             info!(?a, ?b, "Chain supports EIP 1559 fees");
             // Is EIP 1559 chain
             let mut request = Eip1559TransactionRequest::new();
@@ -221,8 +221,8 @@ where
             if let Some(value) = tx.tx.value() {
                 request = request.value(*value);
             }
-            request = request.max_fee_per_gas(a);
-            request = request.max_priority_fee_per_gas(b);
+            request = request.max_fee_per_gas(max_fee);
+            request = request.max_priority_fee_per_gas(max_priority_fee);
             let mut eip_1559_tx = tx.clone();
             eip_1559_tx.tx =
                 ethers::types::transaction::eip2718::TypedTransaction::Eip1559(request.clone());
