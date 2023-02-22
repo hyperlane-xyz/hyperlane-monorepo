@@ -4,11 +4,7 @@ import { readFileSync } from 'fs';
 import * as path from 'path';
 import yargs from 'yargs';
 
-import {
-  AllChains,
-  ChainNameToDomainId,
-  HyperlaneCore,
-} from '@hyperlane-xyz/sdk';
+import { AllChains, ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 
 import { S3Validator } from '../src/agents/aws/validator';
 import { CheckpointSyncerType } from '../src/config/agent';
@@ -54,13 +50,13 @@ async function main() {
   // environments union doesn't work well with typescript
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
-    multiProvider as any,
+    multiProvider,
   );
 
   const announcements = [];
-  const chains = [];
+  const chains: ChainName[] = [];
   if (location) {
-    chains.push(chain);
+    chains.push(chain!);
     if (location.startsWith('s3://')) {
       const validator = await S3Validator.fromStorageLocation(location);
       announcements.push(await validator.getAnnouncement());
@@ -89,9 +85,8 @@ async function main() {
               validatorBaseConfig.checkpointSyncer.type ==
               CheckpointSyncerType.S3
             ) {
-              // @ts-ignore
               const contracts = core.getContracts(chain);
-              const localDomain = ChainNameToDomainId[chain];
+              const localDomain = multiProvider.getDomainId(chain);
               const validator = new S3Validator(
                 validatorBaseConfig.address,
                 localDomain,
@@ -111,7 +106,6 @@ async function main() {
   for (let i = 0; i < announcements.length; i++) {
     const announcement = announcements[i];
     const chain = chains[i];
-    // @ts-ignore why?
     const contracts = core.getContracts(chain);
     const validatorAnnounce = contracts.validatorAnnounce;
     const address = announcement.value.validator;
@@ -123,12 +117,11 @@ async function main() {
     if (!announced) {
       const signature = ethers.utils.joinSignature(announcement.signature);
       console.log(`Announcing ${address} checkpoints at ${location}`);
-      const chainConnection = multiProvider.tryGetChainConnection(chain);
       await validatorAnnounce.announce(
         address,
         location,
         signature,
-        chainConnection?.overrides,
+        multiProvider.getTransactionOverrides(chain),
       );
     } else {
       console.log(`Already announced ${address} checkpoints at ${location}`);

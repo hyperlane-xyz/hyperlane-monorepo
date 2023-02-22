@@ -1,13 +1,11 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
-
 import { AgentConfig, CoreEnvironmentConfig } from '../config';
 import { KeyFunderConfig } from '../config/funding';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
-export async function runKeyFunderHelmCommand<Chain extends ChainName>(
+export async function runKeyFunderHelmCommand(
   helmCommand: HelmCommand,
-  agentConfig: AgentConfig<Chain>,
+  agentConfig: AgentConfig,
   keyFunderConfig: KeyFunderConfig,
 ) {
   const values = getKeyFunderHelmValues(agentConfig, keyFunderConfig);
@@ -36,8 +34,8 @@ export async function runKeyFunderHelmCommand<Chain extends ChainName>(
   );
 }
 
-function getKeyFunderHelmValues<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
+function getKeyFunderHelmValues(
+  agentConfig: AgentConfig,
   keyFunderConfig: KeyFunderConfig,
 ) {
   const values = {
@@ -64,7 +62,7 @@ function getKeyFunderHelmValues<Chain extends ChainName>(
 }
 
 export function getKeyFunderConfig(
-  coreConfig: CoreEnvironmentConfig<any>,
+  coreConfig: CoreEnvironmentConfig,
 ): KeyFunderConfig {
   const keyFunderConfig = coreConfig.keyFunderConfig;
   if (!keyFunderConfig) {

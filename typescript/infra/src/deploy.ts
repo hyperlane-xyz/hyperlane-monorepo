@@ -12,9 +12,9 @@ import { readJSON, writeJSON } from './utils/utils';
 export async function deployWithArtifacts<T extends HyperlaneFactories>(
   dir: string,
   factories: T,
-  deployer: HyperlaneDeployer<any, any, any, T>,
+  deployer: HyperlaneDeployer<any, any, T>,
 ) {
-  let contracts: ChainMap<any, HyperlaneContracts> = {};
+  let contracts: ChainMap<HyperlaneContracts> = {};
   try {
     const addresses = readJSON(dir, 'addresses.json');
     contracts = buildContracts(addresses, factories) as any;

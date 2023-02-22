@@ -1,20 +1,20 @@
-import { chainConnectionConfigs } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainMetadata, chainMetadata } from '@hyperlane-xyz/sdk';
 
-export const testnetConfigs = {
-  alfajores: chainConnectionConfigs.alfajores,
-  fuji: chainConnectionConfigs.fuji,
+export const testnetConfigs: ChainMap<ChainMetadata> = {
+  alfajores: chainMetadata.alfajores,
+  fuji: chainMetadata.fuji,
   mumbai: {
-    ...chainConnectionConfigs.mumbai,
-    overrides: {
+    ...chainMetadata.mumbai,
+    transactionOverrides: {
       maxFeePerGas: 70 * 10 ** 9, // 70 gwei
       maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
     },
   },
-  bsctestnet: chainConnectionConfigs.bsctestnet,
-  goerli: chainConnectionConfigs.goerli,
-  moonbasealpha: chainConnectionConfigs.moonbasealpha,
-  optimismgoerli: chainConnectionConfigs.optimismgoerli,
-  arbitrumgoerli: chainConnectionConfigs.arbitrumgoerli,
+  bsctestnet: chainMetadata.bsctestnet,
+  goerli: chainMetadata.goerli,
+  moonbasealpha: chainMetadata.moonbasealpha,
+  optimismgoerli: chainMetadata.optimismgoerli,
+  arbitrumgoerli: chainMetadata.arbitrumgoerli,
 };
 
 export type TestnetChains = keyof typeof testnetConfigs;

@@ -3,14 +3,13 @@ import EthersAdapter from '@safe-global/safe-ethers-lib';
 import SafeServiceClient from '@safe-global/safe-service-client';
 import { ethers } from 'ethers';
 
-import { ChainConnection, ChainName, chainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainName, MultiProvider, chainMetadata } from '@hyperlane-xyz/sdk';
 
 export function getSafeService(
   chain: ChainName,
-  connection: ChainConnection,
+  multiProvider: MultiProvider,
 ): SafeServiceClient {
-  const signer = connection.signer;
-  if (!signer) throw new Error(`no signer found for ${chain}`);
+  const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
   const txServiceUrl = chainMetadata[chain].gnosisSafeTransactionServiceUrl;
   if (!txServiceUrl)
@@ -19,11 +18,11 @@ export function getSafeService(
 }
 
 export function getSafe(
-  connection: ChainConnection,
+  chain: ChainName,
+  multiProvider: MultiProvider,
   safeAddress: string,
 ): Promise<Safe> {
-  const signer = connection.signer;
-  if (!signer) throw new Error(`no signer found`);
+  const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
   return Safe.create({
     ethAdapter,
@@ -42,11 +41,11 @@ export async function getSafeDelegates(
 export async function canProposeSafeTransactions(
   proposer: string,
   chain: ChainName,
-  connection: ChainConnection,
+  multiProvider: MultiProvider,
   safeAddress: string,
 ): Promise<boolean> {
-  const safeService = getSafeService(chain, connection);
-  const safe = await getSafe(connection, safeAddress);
+  const safeService = getSafeService(chain, multiProvider);
+  const safe = await getSafe(chain, multiProvider, safeAddress);
   const delegates = await getSafeDelegates(safeService, safeAddress);
   const owners = await safe.getOwners();
   return delegates.includes(proposer) || owners.includes(proposer);
