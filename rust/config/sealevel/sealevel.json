@@ -1,0 +1,27 @@
+{
+  "environment": "sealevel",
+  "chains": {
+    "sealeveltest1": {
+      "name": "SealevelTest1",
+      "domain": "13375",
+      "addresses": {
+        "mailbox": "8TibDpWMQfTjG6JxvF85pxJXxwqXZUCuUx3Q1vwojvRh",
+        "interchainGasPaymaster": "FixmeFixmeFixmeFixmeFixmeFixmeFixmeFixmeFixm"
+      },
+      "signer": null,
+      "protocol": "sealevel",
+      "finalityBlocks": "0",
+      "connection": {
+        "type": "http",
+        "url": "http://127.0.0.1:8899"
+      },
+      "index": {
+        "from": "1"
+      }
+    }
+  },
+  "tracing": {
+    "level": "info",
+    "fmt": "pretty"
+  }
+}
