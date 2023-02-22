@@ -52,21 +52,21 @@ const gasPrices: ChainMap<MainnetChains, BigNumber> = {
 // tokens are what matters. These generally have high beta
 const tokenUsdPrices: ChainMap<MainnetChains, BigNumber> = {
   // https://www.coingecko.com/en/coins/bnb
-  bsc: ethers.utils.parseUnits('310.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  bsc: ethers.utils.parseUnits('307.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/avalanche
-  avalanche: ethers.utils.parseUnits('18.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  avalanche: ethers.utils.parseUnits('20.46', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/polygon
-  polygon: ethers.utils.parseUnits('1.28', TOKEN_EXCHANGE_RATE_DECIMALS),
+  polygon: ethers.utils.parseUnits('1.35', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/celo
-  celo: ethers.utils.parseUnits('0.72', TOKEN_EXCHANGE_RATE_DECIMALS),
+  celo: ethers.utils.parseUnits('0.79', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  arbitrum: ethers.utils.parseUnits('1550.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  arbitrum: ethers.utils.parseUnits('1639.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  optimism: ethers.utils.parseUnits('1550.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  optimism: ethers.utils.parseUnits('1639.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  ethereum: ethers.utils.parseUnits('1550.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  ethereum: ethers.utils.parseUnits('1639.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/moonbeam
-  moonbeam: ethers.utils.parseUnits('0.45', TOKEN_EXCHANGE_RATE_DECIMALS),
+  moonbeam: ethers.utils.parseUnits('0.48', TOKEN_EXCHANGE_RATE_DECIMALS),
   // xDAI
   gnosis: ethers.utils.parseUnits('1.00', TOKEN_EXCHANGE_RATE_DECIMALS),
 };
