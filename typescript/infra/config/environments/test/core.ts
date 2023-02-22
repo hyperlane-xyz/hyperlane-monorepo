@@ -1,8 +1,6 @@
 import { ChainMap, CoreConfig } from '@hyperlane-xyz/sdk';
 
-import { TestChains } from './chains';
-
-export const core: ChainMap<TestChains, CoreConfig> = {
+export const core: ChainMap<CoreConfig> = {
   // Owner is hardhat account 0
   // Validators are hardhat accounts 1-3
   test1: {

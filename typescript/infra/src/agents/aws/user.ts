@@ -21,7 +21,7 @@ import { KEY_ROLE_ENUM } from '../roles';
 
 import { AgentAwsKey } from './key';
 
-export class AgentAwsUser<Chain extends ChainName> {
+export class AgentAwsUser {
   private adminIamClient: IAMClient;
 
   private _arn: string | undefined;
@@ -31,7 +31,7 @@ export class AgentAwsUser<Chain extends ChainName> {
     public readonly context: Contexts,
     public readonly role: KEY_ROLE_ENUM,
     public readonly region: string,
-    public readonly chainName?: Chain,
+    public readonly chainName?: ChainName,
   ) {
     this.adminIamClient = new IAMClient({ region });
   }
@@ -106,11 +106,11 @@ export class AgentAwsUser<Chain extends ChainName> {
     );
   }
 
-  key(agentConfig: AgentConfig<any>): AgentAwsKey {
+  key(agentConfig: AgentConfig): AgentAwsKey {
     return new AgentAwsKey(agentConfig, this.role, this.chainName);
   }
 
-  async createKeyIfNotExists(agentConfig: AgentConfig<Chain>) {
+  async createKeyIfNotExists(agentConfig: AgentConfig) {
     const key = this.key(agentConfig);
     await key.createIfNotExists();
     await key.putKeyPolicy(this.arn);

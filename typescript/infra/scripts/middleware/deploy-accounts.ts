@@ -24,7 +24,7 @@ async function main() {
   const multiProvider = await coreConfig.getMultiProvider();
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
-    multiProvider as any,
+    multiProvider,
   );
 
   const dir = path.join(
