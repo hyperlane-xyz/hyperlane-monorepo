@@ -4,14 +4,11 @@ import { ethers } from 'hardhat';
 
 import {
   ChainMap,
-  ChainNameToDomainId,
+  Chains,
   MultiProvider,
-  TestChainNames,
   TestCoreApp,
   TestCoreDeployer,
-  getChainToOwnerMap,
-  getTestMultiProvider,
-  testChainConnectionConfigs,
+  getTestOwnerConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../deploy/config';
@@ -23,29 +20,31 @@ import {
 } from '../types';
 
 describe('HelloWorld', async () => {
-  const localChain = 'test1';
-  const remoteChain = 'test2';
-  const localDomain = ChainNameToDomainId[localChain];
-  const remoteDomain = ChainNameToDomainId[remoteChain];
+  const localChain = Chains.test1;
+  const remoteChain = Chains.test2;
+  let localDomain: number;
+  let remoteDomain: number;
 
   let signer: SignerWithAddress;
   let local: HelloWorld;
   let remote: HelloWorld;
   let localIgp: IInterchainGasPaymaster;
-  let multiProvider: MultiProvider<TestChainNames>;
+  let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let config: ChainMap<TestChainNames, HelloWorldConfig>;
+  let config: ChainMap<HelloWorldConfig>;
 
   before(async () => {
     [signer] = await ethers.getSigners();
 
-    multiProvider = getTestMultiProvider(signer);
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    localDomain = multiProvider.getDomainId(localChain);
+    remoteDomain = multiProvider.getDomainId(remoteChain);
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
     config = coreApp.extendWithConnectionClientConfig(
-      getChainToOwnerMap(testChainConnectionConfigs, signer.address),
+      getTestOwnerConfig(signer.address),
     );
   });
 
@@ -57,7 +56,7 @@ describe('HelloWorld', async () => {
     remote = contracts[remoteChain].router;
     localIgp = IInterchainGasPaymaster__factory.connect(
       config[localChain].interchainGasPaymaster,
-      multiProvider.getChainProvider(localChain),
+      multiProvider.getProvider(localChain),
     );
 
     // The all counts start empty

@@ -4,12 +4,9 @@ import { ethers } from 'hardhat';
 import {
   ChainMap,
   MultiProvider,
-  TestChainNames,
   TestCoreApp,
   TestCoreDeployer,
-  getChainToOwnerMap,
-  getTestMultiProvider,
-  testChainConnectionConfigs,
+  getTestOwnerConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldApp } from '../app/app';
@@ -19,22 +16,22 @@ import { HelloWorldConfig } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
 
 describe('deploy', async () => {
-  let multiProvider: MultiProvider<TestChainNames>;
+  let multiProvider: MultiProvider;
   let core: TestCoreApp;
-  let config: ChainMap<TestChainNames, HelloWorldConfig>;
-  let deployer: HelloWorldDeployer<TestChainNames>;
-  let contracts: Record<TestChainNames, HelloWorldContracts>;
-  let app: HelloWorldApp<TestChainNames>;
+  let config: ChainMap<HelloWorldConfig>;
+  let deployer: HelloWorldDeployer;
+  let contracts: ChainMap<HelloWorldContracts>;
+  let app: HelloWorldApp;
 
   before(async () => {
     const [signer] = await ethers.getSigners();
-    multiProvider = getTestMultiProvider(signer);
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     core = new TestCoreApp(coreContractsMaps, multiProvider);
     config = core.extendWithConnectionClientConfig(
-      getChainToOwnerMap(testChainConnectionConfigs, signer.address),
+      getTestOwnerConfig(signer.address),
     );
     deployer = new HelloWorldDeployer(multiProvider, config, core);
   });

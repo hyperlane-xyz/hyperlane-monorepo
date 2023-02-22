@@ -4,7 +4,6 @@ import {
   HyperlaneCore,
   MultiProvider,
   getChainToOwnerMap,
-  objMap,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 
@@ -16,11 +15,8 @@ async function main() {
   const signer = new Wallet('SET KEY HERE OR CREATE YOUR OWN SIGNER');
 
   console.info('Preparing utilities');
-  const chainProviders = objMap(prodConfigs, (_, config) => ({
-    ...config,
-    signer: signer.connect(config.provider),
-  }));
-  const multiProvider = new MultiProvider(chainProviders);
+  const multiProvider = new MultiProvider(prodConfigs);
+  multiProvider.setSharedSigner(signer);
 
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
   const config = core.extendWithConnectionClientConfig(

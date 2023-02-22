@@ -1350,23 +1350,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/celo-ethers-provider@npm:^0.1.1":
-  version: 0.1.1
-  resolution: "@hyperlane-xyz/celo-ethers-provider@npm:0.1.1"
-  peerDependencies:
-    ethers: ^5
-  checksum: 5ea495505b3e4338ec6c419f69b66af2d35b86e7cdab9bc7ee65ba4a233729b2143b0a72cc637f8e8795ecacc18eeda5ac803e8b3de9a63e7ceb5dc14014b3d4
-  languageName: node
-  linkType: hard
-
-"@hyperlane-xyz/core@npm:1.1.3":
-  version: 1.1.3
-  resolution: "@hyperlane-xyz/core@npm:1.1.3"
+"@hyperlane-xyz/core@npm:1.2.0":
+  version: 1.2.0
+  resolution: "@hyperlane-xyz/core@npm:1.2.0"
   dependencies:
-    "@hyperlane-xyz/utils": 1.1.3
+    "@hyperlane-xyz/utils": 1.2.0
     "@openzeppelin/contracts": ^4.8.0
     "@openzeppelin/contracts-upgradeable": ^4.8.0
-  checksum: 6872fcdac9add5ac55aad891a7c9fbd7709e30ad06ca6d063bf8b4752533d143cd8418c78218df4073a98b06e8ec4fc8b185444ac62e558498da09ef47efbe19
+  checksum: be76b1dd90f8bf8b9f2c53a60f7a56ed6eead6e9a1336879795677fddb75e6fd1d092e6c24af0a7e972b35cfff3eb9056229c5df7a852bfbff9e84e6a8fcb9bc
   languageName: node
   linkType: hard
 
@@ -1374,7 +1365,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:."
   dependencies:
-    "@hyperlane-xyz/sdk": ^1.1.3
+    "@hyperlane-xyz/sdk": 1.2.0
     "@nomiclabs/hardhat-ethers": ^2.2.1
     "@nomiclabs/hardhat-waffle": ^2.0.3
     "@openzeppelin/contracts-upgradeable": ^4.8.0
@@ -1402,28 +1393,27 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/sdk@npm:^1.1.3":
-  version: 1.1.3
-  resolution: "@hyperlane-xyz/sdk@npm:1.1.3"
+"@hyperlane-xyz/sdk@npm:1.2.0":
+  version: 1.2.0
+  resolution: "@hyperlane-xyz/sdk@npm:1.2.0"
   dependencies:
-    "@hyperlane-xyz/celo-ethers-provider": ^0.1.1
-    "@hyperlane-xyz/core": 1.1.3
-    "@hyperlane-xyz/utils": 1.1.3
-    "@wagmi/chains": ^0.1.3
+    "@hyperlane-xyz/core": 1.2.0
+    "@hyperlane-xyz/utils": 1.2.0
+    "@wagmi/chains": ^0.2.6
     coingecko-api: ^1.0.10
     cross-fetch: ^3.1.5
     debug: ^4.3.4
     ethers: ^5.7.2
-  checksum: 20dabd0acc33d737c80af432605608e6cea1aaf6fa6db9839687a5427324e0044dcdf29b0f26bc2ba732eb6faf44f3c1ca226a3387c9e608ab1f25c6ec24332d
+  checksum: 16d0eeb2f48c656106f4e2fa9101b1ae1382cb04c31571fcc41f167c84bc5d9343d769fd1ce9fd27e7e9b41bc60b3ab4a72742664f129947932e6ef147d6ce72
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/utils@npm:1.1.3":
-  version: 1.1.3
-  resolution: "@hyperlane-xyz/utils@npm:1.1.3"
+"@hyperlane-xyz/utils@npm:1.2.0":
+  version: 1.2.0
+  resolution: "@hyperlane-xyz/utils@npm:1.2.0"
   dependencies:
     ethers: ^5.7.2
-  checksum: afe6847b0810b85ba1ddbe5c0e28718d86e1890220edf7ab3b629e1a8820c93405ec7265da6ce1b16d32b31947f8b4b912b7756cfd4f14f674f4dc48c4042f09
+  checksum: 320e59e36a9349a8fa57c3bbc85faadbe5b591cd345165e9571511a51a38bcb07dd85026fdaf997db7bcaf1eeae8cc1c12962cf3154c2efcb570cd7df5b9bb7c
   languageName: node
   linkType: hard
 
@@ -2296,10 +2286,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@wagmi/chains@npm:^0.1.3":
-  version: 0.1.5
-  resolution: "@wagmi/chains@npm:0.1.5"
-  checksum: 17577eaecb94450b9cbc9c16fa7c95416a79437cebbcd4cf16515098d9bb562d227c55922f5fddd493de4747f4131977c0eeb82197beafce700af42c16740ec1
+"@wagmi/chains@npm:^0.2.6":
+  version: 0.2.8
+  resolution: "@wagmi/chains@npm:0.2.8"
+  peerDependencies:
+    typescript: ">=4.9.4"
+  peerDependenciesMeta:
+    typescript:
+      optional: true
+  checksum: f68b16fa0620fe4162ad3412735a5c239f59c9a7b15e900a217ff7403d74c8a262fdcd77ab0b37cbc747e78c2c197272d9340d9ef091525d5e335e91905d3def
   languageName: node
   linkType: hard
 

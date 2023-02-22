@@ -1,11 +1,9 @@
 import {
   ChainMap,
-  ChainName,
   HyperlaneCore,
   MultiProvider,
   buildContracts,
   getChainToOwnerMap,
-  objMap,
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldApp } from '../app/app';
@@ -21,18 +19,12 @@ const ownerAddress = '0x123...';
 
 async function check() {
   console.info('Preparing utilities');
-  const chainProviders = objMap(prodConfigs, (_, config) => ({
-    id: config.id,
-    provider: config.provider,
-    confirmations: config.confirmations,
-    overrides: config.overrides,
-  }));
-  const multiProvider = new MultiProvider(chainProviders);
+  const multiProvider = new MultiProvider(prodConfigs);
 
   const contractsMap = buildContracts(
     deploymentAddresses,
     helloWorldFactories,
-  ) as ChainMap<ChainName, HelloWorldContracts>;
+  ) as ChainMap<HelloWorldContracts>;
 
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
   const app = new HelloWorldApp(core, contractsMap, multiProvider);

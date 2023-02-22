@@ -3,12 +3,10 @@ import { BigNumber, ethers } from 'ethers';
 import {
   ChainMap,
   ChainName,
-  ChainNameToDomainId,
   HyperlaneApp,
   HyperlaneCore,
   InterchainGasCalculator,
   MultiProvider,
-  Remotes,
 } from '@hyperlane-xyz/sdk';
 import { debug } from '@hyperlane-xyz/utils';
 
@@ -19,37 +17,36 @@ type Counts = {
   received: number;
 };
 
-export class HelloWorldApp<
-  Chain extends ChainName = ChainName,
-> extends HyperlaneApp<HelloWorldContracts, Chain> {
+export class HelloWorldApp extends HyperlaneApp<HelloWorldContracts> {
   constructor(
-    public readonly core: HyperlaneCore<Chain>,
-    contractsMap: ChainMap<Chain, HelloWorldContracts>,
-    multiProvider: MultiProvider<Chain>,
+    public readonly core: HyperlaneCore,
+    contractsMap: ChainMap<HelloWorldContracts>,
+    multiProvider: MultiProvider,
   ) {
     super(contractsMap, multiProvider);
   }
 
-  async sendHelloWorld<From extends Chain>(
-    from: From,
-    to: Remotes<Chain, From>,
+  async sendHelloWorld(
+    from: ChainName,
+    to: ChainName,
     message: string,
     value: BigNumber,
   ): Promise<ethers.ContractReceipt> {
     const sender = this.getContracts(from).router;
-    const toDomain = ChainNameToDomainId[to];
-    const chainConnection = this.multiProvider.getChainConnection(from);
+    const toDomain = this.multiProvider.getDomainId(to);
+    const { blocks, transactionOverrides } =
+      this.multiProvider.getChainMetadata(from);
 
     // apply gas buffer due to https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/634
     const estimated = await sender.estimateGas.sendHelloWorld(
       toDomain,
       message,
-      { ...chainConnection.overrides, value },
+      { ...transactionOverrides, value },
     );
     const gasLimit = estimated.mul(12).div(10);
 
     const tx = await sender.sendHelloWorld(toDomain, message, {
-      ...chainConnection.overrides,
+      ...transactionOverrides,
       gasLimit,
       value,
     });
@@ -59,13 +56,10 @@ export class HelloWorldApp<
       message,
       tx,
     });
-    return tx.wait(chainConnection.confirmations);
+    return tx.wait(blocks?.confirmations || 1);
   }
 
-  async quoteGasPayment<To extends Chain>(
-    from: Exclude<Chain, To>,
-    to: To,
-  ): Promise<BigNumber> {
+  async quoteGasPayment(from: ChainName, to: ChainName): Promise<BigNumber> {
     const sender = this.getContracts(from).router;
 
     const handleGasAmount = await sender.HANDLE_GAS_AMOUNT();
@@ -92,22 +86,19 @@ export class HelloWorldApp<
     return this.core.waitForMessageProcessed(receipt);
   }
 
-  async channelStats<From extends Chain>(
-    from: From,
-    to: Remotes<Chain, From>,
-  ): Promise<Counts> {
+  async channelStats(from: ChainName, to: ChainName): Promise<Counts> {
     const sent = await this.getContracts(from).router.sentTo(
-      ChainNameToDomainId[to],
+      this.multiProvider.getDomainId(to),
     );
     const received = await this.getContracts(to).router.receivedFrom(
-      ChainNameToDomainId[from],
+      this.multiProvider.getDomainId(from),
     );
 
     return { sent: sent.toNumber(), received: received.toNumber() };
   }
 
-  async stats(): Promise<Record<Chain, Record<Chain, Counts>>> {
-    const entries: Array<[Chain, Record<Chain, Counts>]> = await Promise.all(
+  async stats(): Promise<ChainMap<ChainMap<Counts>>> {
+    const entries: Array<[ChainName, ChainMap<Counts>]> = await Promise.all(
       this.chains().map(async (source) => {
         const destinationEntries = await Promise.all(
           this.remoteChains(source).map(async (destination) => [
@@ -115,12 +106,9 @@ export class HelloWorldApp<
             await this.channelStats(source, destination),
           ]),
         );
-        return [
-          source,
-          Object.fromEntries(destinationEntries) as Record<Chain, Counts>,
-        ];
+        return [source, Object.fromEntries(destinationEntries)];
       }),
     );
-    return Object.fromEntries(entries) as Record<Chain, Record<Chain, Counts>>;
+    return Object.fromEntries(entries);
   }
 }
