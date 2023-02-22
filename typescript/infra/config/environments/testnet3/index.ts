@@ -14,7 +14,7 @@ import { liquidityLayerRelayerConfig } from './middleware';
 
 export const environment: CoreEnvironmentConfig = {
   environment: environmentName,
-  transactionConfigs: testnetConfigs,
+  chainMetadataConfigs: testnetConfigs,
   getMultiProvider: (
     context: Contexts = Contexts.Hyperlane,
     role: KEY_ROLE_ENUM = KEY_ROLE_ENUM.Deployer,

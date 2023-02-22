@@ -33,7 +33,7 @@ describe('core', async () => {
     // This is kind of awkward and really these tests shouldn't live here
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     coreConfig = testConfig.core;
-    owners = objMap(testConfig.transactionConfigs, () => owner.address);
+    owners = objMap(testConfig.chainMetadataConfigs, () => owner.address);
   });
 
   it('deploys', async () => {

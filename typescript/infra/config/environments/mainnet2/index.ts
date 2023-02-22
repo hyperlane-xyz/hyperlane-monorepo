@@ -13,7 +13,7 @@ import { infrastructure } from './infrastructure';
 
 export const environment: CoreEnvironmentConfig = {
   environment: environmentName,
-  transactionConfigs: mainnetConfigs,
+  chainMetadataConfigs: mainnetConfigs,
   getMultiProvider: (
     context: Contexts = Contexts.Hyperlane,
     role: KEY_ROLE_ENUM = KEY_ROLE_ENUM.Deployer,

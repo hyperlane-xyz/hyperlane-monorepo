@@ -26,7 +26,7 @@ export type EnvironmentChain<E extends DeployEnvironment> = Extract<
 
 export type CoreEnvironmentConfig = {
   environment: DeployEnvironment;
-  transactionConfigs: ChainMap<ChainMetadata>;
+  chainMetadataConfigs: ChainMap<ChainMetadata>;
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, AgentConfig>>;
   core: ChainMap<CoreConfig>;

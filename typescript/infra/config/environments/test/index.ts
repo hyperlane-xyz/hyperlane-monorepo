@@ -11,7 +11,7 @@ import { infra } from './infra';
 
 export const environment: CoreEnvironmentConfig = {
   environment: 'test',
-  transactionConfigs: testConfigs,
+  chainMetadataConfigs: testConfigs,
   agents,
   core,
   infra,
