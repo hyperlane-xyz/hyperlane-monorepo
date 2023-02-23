@@ -8,42 +8,39 @@ import {
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { testChainConnectionConfigs } from '../consts/chainConnectionConfigs';
+import { Chains } from '../consts/chains';
 import { TestCoreApp } from '../core/TestCoreApp';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
 import { InterchainAccountDeployer } from '../deploy/middleware/deploy';
 import { RouterConfig } from '../deploy/router/types';
-import { getChainToOwnerMap, getTestMultiProvider } from '../deploy/utils';
-import { ChainNameToDomainId } from '../domains';
 import { InterchainAccountContracts } from '../middleware';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, TestChainNames } from '../types';
+import { getTestOwnerConfig } from '../test/testUtils';
+import { ChainMap } from '../types';
 import { objMap, promiseObjAll } from '../utils/objects';
 
 describe('InterchainAccountRouter', async () => {
-  const localChain = 'test1';
-  const remoteChain = 'test2';
-  const localDomain = ChainNameToDomainId[localChain];
-  const remoteDomain = ChainNameToDomainId[remoteChain];
+  const localChain = Chains.test1;
+  const remoteChain = Chains.test2;
 
   let signer: SignerWithAddress;
-  let contracts: ChainMap<TestChainNames, InterchainAccountContracts>;
+  let contracts: ChainMap<InterchainAccountContracts>;
   let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;
-  let multiProvider: MultiProvider<TestChainNames>;
+  let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let config: ChainMap<TestChainNames, RouterConfig>;
+  let config: ChainMap<RouterConfig>;
 
   before(async () => {
     [signer] = await ethers.getSigners();
 
-    multiProvider = getTestMultiProvider(signer);
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
     config = coreApp.extendWithConnectionClientConfig(
-      getChainToOwnerMap(testChainConnectionConfigs, signer.address),
+      getTestOwnerConfig(signer.address),
     );
 
     config.test1.interchainSecurityModule =
@@ -82,11 +79,11 @@ describe('InterchainAccountRouter', async () => {
       fooMessage,
     ]);
     const icaAddress = await remote['getInterchainAccount(uint32,address)'](
-      localDomain,
+      multiProvider.getDomainId(localChain),
       signer.address,
     );
 
-    await local.dispatch(remoteDomain, [
+    await local.dispatch(multiProvider.getDomainId(remoteChain), [
       {
         _call: { to: utils.addressToBytes32(recipient.address), data },
         value: 0,

@@ -20,17 +20,19 @@ type Contracts = {
   TestTokenRecipient: TestTokenRecipient;
 };
 
-export class TestRecipientDeployer<
-  Chain extends ChainName,
-> extends HyperlaneDeployer<Chain, any, Contracts, typeof factories> {
-  constructor(multiProvider: MultiProvider<Chain>) {
+export class TestRecipientDeployer extends HyperlaneDeployer<
+  any,
+  Contracts,
+  typeof factories
+> {
+  constructor(multiProvider: MultiProvider) {
     super(
       multiProvider,
-      multiProvider.map(() => ({})),
+      multiProvider.mapKnownChains(() => ({})),
       factories,
     );
   }
-  async deployContracts(chain: Chain) {
+  async deployContracts(chain: ChainName) {
     const TestRecipient = await this.deployContract(
       chain,
       'TestRecipient',

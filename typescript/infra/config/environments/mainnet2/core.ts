@@ -1,8 +1,6 @@
 import { ChainMap, CoreConfig } from '@hyperlane-xyz/sdk';
 
-import { MainnetChains } from './chains';
-
-export const core: ChainMap<MainnetChains, CoreConfig> = {
+export const core: ChainMap<CoreConfig> = {
   celo: {
     owner: '0x1DE69322B55AC7E0999F8e7738a1428C8b130E4d',
     multisigIsm: {

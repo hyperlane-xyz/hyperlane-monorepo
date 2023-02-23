@@ -10,10 +10,9 @@ async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
-  // environments union doesn't work well with typescript
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
-    multiProvider as any,
+    multiProvider,
   );
 
   const validators = Object.entries(config.core).flatMap(([chain, set]) =>
@@ -24,7 +23,6 @@ async function main() {
     4,
     validators,
     async ({ chain, validator }) => {
-      // @ts-ignore Not sure why I need to do this..
       const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
       const storageLocations =
         await validatorAnnounce.getAnnouncedStorageLocations([validator]);

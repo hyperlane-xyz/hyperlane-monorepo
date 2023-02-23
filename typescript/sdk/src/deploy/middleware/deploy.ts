@@ -17,19 +17,17 @@ import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
 import { RouterConfig } from '../router/types';
 
 export abstract class MiddlewareRouterDeployer<
-  Chain extends ChainName,
   MiddlewareRouterConfig extends RouterConfig,
   MiddlewareRouterContracts extends ProxiedRouterContracts,
   MiddlewareFactories extends RouterFactories,
 > extends HyperlaneRouterDeployer<
-  Chain,
   MiddlewareRouterConfig,
   MiddlewareRouterContracts,
   MiddlewareFactories
 > {
   constructor(
-    multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, MiddlewareRouterConfig>,
+    multiProvider: MultiProvider,
+    configMap: ChainMap<MiddlewareRouterConfig>,
     factories: MiddlewareFactories,
     protected create2salt = 'middlewarerouter',
   ) {
@@ -52,7 +50,7 @@ export abstract class MiddlewareRouterDeployer<
   }
 
   async deployContracts(
-    chain: Chain,
+    chain: ChainName,
     config: MiddlewareRouterConfig,
   ): Promise<MiddlewareRouterContracts> {
     const proxyAdmin = await this.deployContractFromFactory(
@@ -72,8 +70,10 @@ export abstract class MiddlewareRouterDeployer<
         create2Salt: this.create2salt,
       },
     );
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    await chainConnection.handleTx(proxyAdmin.transferOwnership(config.owner));
+    await this.multiProvider.handleTx(
+      chain,
+      proxyAdmin.transferOwnership(config.owner),
+    );
     return {
       proxyAdmin,
       proxiedRouter,
@@ -84,17 +84,14 @@ export abstract class MiddlewareRouterDeployer<
 
 type InterchainAccountConfig = RouterConfig;
 
-export class InterchainAccountDeployer<
-  Chain extends ChainName,
-> extends MiddlewareRouterDeployer<
-  Chain,
-  RouterConfig,
+export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
+  InterchainAccountConfig,
   InterchainAccountContracts,
   InterchainAccountFactories
 > {
   constructor(
-    multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, InterchainAccountConfig>,
+    multiProvider: MultiProvider,
+    configMap: ChainMap<InterchainAccountConfig>,
     create2salt = 'accountsrouter',
   ) {
     super(multiProvider, configMap, interchainAccountFactories, create2salt);
@@ -103,17 +100,14 @@ export class InterchainAccountDeployer<
 
 type InterchainQueryConfig = RouterConfig;
 
-export class InterchainQueryDeployer<
-  Chain extends ChainName,
-> extends MiddlewareRouterDeployer<
-  Chain,
-  RouterConfig,
+export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
+  InterchainQueryConfig,
   InterchainQueryContracts,
   InterchainQueryFactories
 > {
   constructor(
-    multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, InterchainQueryConfig>,
+    multiProvider: MultiProvider,
+    configMap: ChainMap<InterchainQueryConfig>,
     create2salt = 'queryrouter',
   ) {
     super(multiProvider, configMap, interchainQueryFactories, create2salt);

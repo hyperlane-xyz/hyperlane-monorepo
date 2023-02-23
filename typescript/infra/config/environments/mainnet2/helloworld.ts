@@ -3,11 +3,11 @@ import { ConnectionType } from '../../../src/config/agent';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
 import { Contexts } from '../../contexts';
 
-import { MainnetChains, environment } from './chains';
+import { environment } from './chains';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
 
-export const hyperlane: HelloWorldConfig<MainnetChains> = {
+export const hyperlane: HelloWorldConfig = {
   addresses: hyperlaneAddresses,
   kathy: {
     docker: {
@@ -28,7 +28,7 @@ export const hyperlane: HelloWorldConfig<MainnetChains> = {
   },
 };
 
-export const releaseCandidate: HelloWorldConfig<MainnetChains> = {
+export const releaseCandidate: HelloWorldConfig = {
   addresses: rcAddresses,
   kathy: {
     docker: {
@@ -47,9 +47,7 @@ export const releaseCandidate: HelloWorldConfig<MainnetChains> = {
   },
 };
 
-export const helloWorld: Partial<
-  Record<Contexts, HelloWorldConfig<MainnetChains>>
-> = {
+export const helloWorld: Partial<Record<Contexts, HelloWorldConfig>> = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
 };

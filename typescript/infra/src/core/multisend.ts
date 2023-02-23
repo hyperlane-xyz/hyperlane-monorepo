@@ -1,4 +1,4 @@
-import { ChainConnection, ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
 import { getSafe, getSafeService } from '../utils/safe';
@@ -8,16 +8,19 @@ export abstract class MultiSend {
 }
 
 export class SignerMultiSend extends MultiSend {
-  readonly connection: ChainConnection;
-
-  constructor(connection: ChainConnection) {
+  constructor(
+    public readonly multiProvider: MultiProvider,
+    public readonly chain: ChainName,
+  ) {
     super();
-    this.connection = connection;
   }
 
   async sendTransactions(calls: types.CallData[]) {
     for (const call of calls) {
-      const receipt = await this.connection.sendTransaction(call);
+      const receipt = await this.multiProvider.sendTransaction(
+        this.chain,
+        call,
+      );
       console.log(`confirmed tx ${receipt.transactionHash}`);
     }
   }
@@ -38,23 +41,20 @@ export class ManualMultiSend extends MultiSend {
 }
 
 export class SafeMultiSend extends MultiSend {
-  readonly connection: ChainConnection;
-  readonly chain: ChainName;
-  readonly safeAddress: string;
-
   constructor(
-    connection: ChainConnection,
-    chain: ChainName,
-    safeAddress: string,
+    public readonly multiProvider: MultiProvider,
+    public readonly chain: ChainName,
+    public readonly safeAddress: string,
   ) {
     super();
-    this.connection = connection;
-    this.chain = chain;
-    this.safeAddress = safeAddress;
   }
 
   async sendTransactions(calls: types.CallData[]) {
-    const safeSdk = await getSafe(this.connection, this.safeAddress);
+    const safeSdk = await getSafe(
+      this.chain,
+      this.multiProvider,
+      this.safeAddress,
+    );
     const safeTransactionData = calls.map((call) => {
       return { to: call.to, data: call.data.toString(), value: '0' };
     });
@@ -64,13 +64,13 @@ export class SafeMultiSend extends MultiSend {
     const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
     const senderSignature = await safeSdk.signTransactionHash(safeTxHash);
 
-    const safeService = getSafeService(this.chain, this.connection);
-    if (!this.connection.signer) throw new Error('missing signer');
+    const safeService = getSafeService(this.chain, this.multiProvider);
+    const senderAddress = await this.multiProvider.getSignerAddress(this.chain);
     await safeService.proposeTransaction({
       safeAddress: this.safeAddress,
       safeTransactionData: safeTransaction.data,
       safeTxHash,
-      senderAddress: await this.connection.signer.getAddress()!,
+      senderAddress,
       senderSignature: senderSignature.data,
     });
   }
