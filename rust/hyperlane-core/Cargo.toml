@@ -21,7 +21,7 @@ tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-futures = "0.2"
 serde = {version = "1.0", features = ["derive"]}
 serde_json = {version = "1.0"}
-rocksdb = "0.18"
+rocksdb = "0.20"
 bytes = { version = "1", features = ["serde"]}
 num = {version="0", features=["serde"]}
 num-traits = "0.2"

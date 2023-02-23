@@ -17,9 +17,13 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let prefix = self.prefix;
-        self.iter
-            .find(|(k, _)| k.strip_prefix(prefix).is_some())
-            .map(|(_, v)| v.to_vec())
-            .map(|v| V::read_from(&mut v.as_slice()).expect("!corrupt"))
+        self.iter.find_map(|r| {
+            let (k, v) = r.expect("Database error when iterating prefixed keys");
+            if k.strip_prefix(prefix).is_some() {
+                Some(V::read_from(&mut &v[..]).expect("!corrupt"))
+            } else {
+                None
+            }
+        })
     }
 }
