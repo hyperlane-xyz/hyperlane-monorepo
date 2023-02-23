@@ -1,6 +1,6 @@
 import { types } from '@hyperlane-xyz/utils';
 
-import { LooseChainMap } from '../../types';
+import { ChainMap } from '../../types';
 import { objMap } from '../../utils/objects';
 
 import mainnet from './mainnet.json';
@@ -9,7 +9,7 @@ import testnet from './testnet.json';
 
 export const environments = { test, testnet, mainnet };
 
-type HyperlaneCoreAddressMap = LooseChainMap<{
+type HyperlaneCoreAddressMap = ChainMap<{
   mailbox: types.Address;
   multisigIsm: types.Address;
   interchainGasPaymaster: types.Address;

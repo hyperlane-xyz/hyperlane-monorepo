@@ -5,7 +5,7 @@ import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 
-import { AllChains, ChainName } from '@hyperlane-xyz/sdk';
+import { AllChains, ChainName, CoreChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
@@ -187,7 +187,7 @@ export function assertRole(roleStr: string) {
 
 export function assertChain(chainStr: string) {
   const chain = chainStr as ChainName;
-  if (!AllChains.includes(chain)) {
+  if (!AllChains.includes(chain as CoreChainName)) {
     throw Error(`Invalid chain ${chain}`);
   }
   return chain;

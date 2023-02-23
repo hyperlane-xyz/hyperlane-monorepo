@@ -16,7 +16,7 @@ async function deploy() {
 
   await assertCorrectKubeContext(config);
 
-  const allChains = Object.keys(config.transactionConfigs);
+  const allChains = Object.keys(config.chainMetadataConfigs);
   await Promise.all(
     allChains
       .filter((_) => !agentConfig.contextChainNames.includes(_))

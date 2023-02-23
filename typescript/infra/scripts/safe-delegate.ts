@@ -33,9 +33,8 @@ async function delegate() {
   const { chain, delegate, safe, action } = await getArgs();
 
   const multiProvider = await config.getMultiProvider();
-  const connection = multiProvider.getChainConnection(chain);
 
-  const safeService = getSafeService(chain, connection);
+  const safeService = getSafeService(chain, multiProvider);
   const delegates = await getSafeDelegates(safeService, safe);
 
   console.log('Connecting to ledger, ensure plugged in and unlocked...');

@@ -2,24 +2,22 @@ import { debug } from 'debug';
 
 import { GasRouter } from '@hyperlane-xyz/core';
 
-import { DomainIdToChainName } from '../../domains';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterContracts, RouterFactories } from '../../router';
-import { ChainMap, ChainName } from '../../types';
+import { ChainMap } from '../../types';
 import { DeployerOptions } from '../HyperlaneDeployer';
 
 import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
 import { GasRouterConfig } from './types';
 
 export abstract class GasRouterDeployer<
-  Chain extends ChainName,
   Config extends GasRouterConfig,
   Contracts extends RouterContracts<GasRouter>,
   Factories extends RouterFactories<GasRouter>,
-> extends HyperlaneRouterDeployer<Chain, Config, Contracts, Factories> {
+> extends HyperlaneRouterDeployer<Config, Contracts, Factories> {
   constructor(
-    multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, Config>,
+    multiProvider: MultiProvider,
+    configMap: ChainMap<Config>,
     factories: Factories,
     options?: DeployerOptions,
   ) {
@@ -29,18 +27,14 @@ export abstract class GasRouterDeployer<
     });
   }
 
-  async enrollRemoteRouters(
-    contractsMap: ChainMap<Chain, Contracts>,
-  ): Promise<void> {
+  async enrollRemoteRouters(contractsMap: ChainMap<Contracts>): Promise<void> {
     await super.enrollRemoteRouters(contractsMap);
 
     this.logger(`Setting enrolled router destination gas...`);
     for (const [chain, contracts] of Object.entries<Contracts>(contractsMap)) {
-      const local = chain as Chain;
-
       const remoteDomains = await contracts.router.domains();
-      const remoteChains = remoteDomains.map(
-        (domain) => DomainIdToChainName[domain] as Chain,
+      const remoteChains = remoteDomains.map((domain) =>
+        this.multiProvider.getChainName(domain),
       );
       const currentConfigs = await Promise.all(
         remoteDomains.map((domain) => contracts.router.destinationGas(domain)),
@@ -55,9 +49,9 @@ export abstract class GasRouterDeployer<
         continue;
       }
 
-      this.logger(`Set destination gas on ${local} for ${remoteChains}`);
-      const chainConnection = this.multiProvider.getChainConnection(local);
-      await chainConnection.handleTx(
+      this.logger(`Set destination gas on ${chain} for ${remoteChains}`);
+      await this.multiProvider.handleTx(
+        chain,
         contracts.router.setDestinationGas(remoteConfigs),
       );
     }

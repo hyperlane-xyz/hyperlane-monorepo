@@ -9,7 +9,7 @@ import {
 import { Contexts } from '../../contexts';
 import { helloworldMatchingList, routerMatchingList } from '../../utils';
 
-import { MainnetChains, chainNames, environment } from './chains';
+import { chainNames, environment } from './chains';
 import { helloWorld } from './helloworld';
 import interchainQueryRouters from './middleware/queries/addresses.json';
 import { validators } from './validators';
@@ -23,14 +23,14 @@ const interchainQueriesMatchingList = routerMatchingList(
   interchainQueryRouters,
 );
 
-export const hyperlane: AgentConfig<MainnetChains> = {
+export const hyperlane: AgentConfig = {
   environment,
   namespace: environment,
   runEnv: environment,
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '207563b-20230215-165009',
+    tag: '69c49a3-20230220-224405',
   },
   aws: {
     region: 'us-east-1',
@@ -70,14 +70,14 @@ export const hyperlane: AgentConfig<MainnetChains> = {
   rolesWithKeys: ALL_KEY_ROLES,
 };
 
-export const releaseCandidate: AgentConfig<MainnetChains> = {
+export const releaseCandidate: AgentConfig = {
   environment,
   namespace: environment,
   runEnv: environment,
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '207563b-20230215-165009',
+    tag: '69c49a3-20230220-224405',
   },
   aws: {
     region: 'us-east-1',
@@ -104,7 +104,7 @@ export const releaseCandidate: AgentConfig<MainnetChains> = {
       transactionGasLimit: BigInt(750000),
       // Skipping arbitrum because the gas price estimates are inclusive of L1
       // fees which leads to wildly off predictions.
-      skipTransactionGasLimitFor: [chainMetadata.arbitrum.id],
+      skipTransactionGasLimitFor: [chainMetadata.arbitrum.chainId],
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer, KEY_ROLE_ENUM.Kathy],

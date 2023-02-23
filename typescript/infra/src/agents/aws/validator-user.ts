@@ -14,15 +14,13 @@ import { KEY_ROLE_ENUM } from '../roles';
 import { AgentAwsKey } from './key';
 import { AgentAwsUser } from './user';
 
-export class ValidatorAgentAwsUser<
-  Chain extends ChainName,
-> extends AgentAwsUser<Chain> {
+export class ValidatorAgentAwsUser extends AgentAwsUser {
   private adminS3Client: S3Client;
 
   constructor(
     environment: string,
     context: Contexts,
-    public readonly chainName: Chain,
+    public readonly chainName: ChainName,
     public readonly index: number,
     region: string,
     public readonly bucket: string,
@@ -85,7 +83,7 @@ export class ValidatorAgentAwsUser<
     await this.adminS3Client.send(cmd);
   }
 
-  key(agentConfig: AgentConfig<Chain>): AgentAwsKey {
+  key(agentConfig: AgentConfig): AgentAwsKey {
     return new AgentAwsKey(agentConfig, this.role, this.chainName, this.index);
   }
 

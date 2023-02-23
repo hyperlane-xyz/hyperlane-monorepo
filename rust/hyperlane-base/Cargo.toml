@@ -20,7 +20,7 @@ color-eyre = { version = "0.6", optional = true }
 tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", features = ["json"] }
-rocksdb = "0.18"
+rocksdb = "0.20"
 mockall = "0.11"
 
 backtrace = { version = "0.3", optional = true }
@@ -39,13 +39,13 @@ prometheus = "0.13"
 warp = "0.3"
 
 # these versions are important!
-tracing-opentelemetry = "0.17"
-opentelemetry = { version = "0.17", features = ["rt-tokio"] }
-opentelemetry-jaeger = { version = "0.16", features = [
+tracing-opentelemetry = "0.18"
+opentelemetry = { version = "0.18", features = ["rt-tokio", "trace"] }
+opentelemetry-jaeger = { version = "0.17", features = [
     "reqwest_collector_client",
     "rt-tokio"
 ] }
-opentelemetry-zipkin = { version = "0.15", default-features = false, features = [
+opentelemetry-zipkin = { version = "0.16", default-features = false, features = [
     "reqwest-client",
 ] }
 

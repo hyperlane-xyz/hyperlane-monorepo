@@ -25,9 +25,9 @@ import { KEY_ROLE_ENUM } from './roles';
 
 const helmChartPath = '../../rust/helm/hyperlane-agent/';
 
-async function helmValuesForChain<Chain extends ChainName>(
-  chainName: Chain,
-  agentConfig: AgentConfig<Chain>,
+async function helmValuesForChain(
+  chainName: ChainName,
+  agentConfig: AgentConfig,
 ) {
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
   const gelatoApiKeyRequired =
@@ -94,10 +94,10 @@ async function helmValuesForChain<Chain extends ChainName>(
   };
 }
 
-export async function getAgentEnvVars<Chain extends ChainName>(
-  outboxChainName: Chain,
+export async function getAgentEnvVars(
+  outboxChainName: ChainName,
   role: KEY_ROLE_ENUM,
-  agentConfig: AgentConfig<Chain>,
+  agentConfig: AgentConfig,
   index?: number,
 ) {
   const chainNames = agentConfig.contextChainNames;
@@ -165,7 +165,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   } else {
     // AWS keys
 
-    let user: AgentAwsUser<Chain>;
+    let user: AgentAwsUser;
 
     if (role === KEY_ROLE_ENUM.Validator && agentConfig.validators) {
       const checkpointSyncer =
@@ -271,9 +271,7 @@ function configEnvVars(
   return envVars;
 }
 
-export async function getSecretAwsCredentials<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
-) {
+export async function getSecretAwsCredentials(agentConfig: AgentConfig) {
   return {
     accessKeyId: await fetchGCPSecret(
       `${agentConfig.runEnv}-aws-access-key-id`,
@@ -312,10 +310,7 @@ export async function getSecretDeployerKey(
   return key.privateKey;
 }
 
-async function getSecretRpcEndpoints<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
-  quorum = false,
-) {
+async function getSecretRpcEndpoints(agentConfig: AgentConfig, quorum = false) {
   const environment = agentConfig.runEnv;
   return Object.fromEntries(
     agentConfig.contextChainNames.map((chainName) => [
@@ -325,9 +320,9 @@ async function getSecretRpcEndpoints<Chain extends ChainName>(
   );
 }
 
-export async function doesAgentReleaseExist<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
-  outboxChainName: Chain,
+export async function doesAgentReleaseExist(
+  agentConfig: AgentConfig,
+  outboxChainName: ChainName,
 ) {
   try {
     await execCmd(
@@ -345,10 +340,10 @@ export async function doesAgentReleaseExist<Chain extends ChainName>(
   }
 }
 
-export async function runAgentHelmCommand<Chain extends ChainName>(
+export async function runAgentHelmCommand(
   action: HelmCommand,
-  agentConfig: AgentConfig<Chain>,
-  outboxChainName: Chain,
+  agentConfig: AgentConfig,
+  outboxChainName: ChainName,
 ) {
   if (action === HelmCommand.Remove) {
     return execCmd(
@@ -408,9 +403,9 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
   return;
 }
 
-function getHelmReleaseName<Chain extends ChainName>(
-  outboxChainName: Chain,
-  agentConfig: AgentConfig<Chain>,
+function getHelmReleaseName(
+  outboxChainName: ChainName,
+  agentConfig: AgentConfig,
 ): string {
   // For backward compatibility reasons, don't include the context
   // in the name of the helm release if the context is the default "hyperlane"
