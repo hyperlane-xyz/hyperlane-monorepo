@@ -4,8 +4,8 @@ import yargs from 'yargs';
 import {
   AllChains,
   ChainMap,
+  ChainMetadata,
   ChainName,
-  IChainConnection,
   MultiProvider,
   objMap,
   promiseObjAll,
@@ -55,7 +55,7 @@ export function assertEnvironment(env: string): DeployEnvironment {
 
 export function getCoreEnvironmentConfig<Env extends DeployEnvironment>(
   env: Env,
-): CoreEnvironmentConfig<any> {
+): CoreEnvironmentConfig {
   return environments[env];
 }
 
@@ -74,8 +74,8 @@ export async function getContext(defaultContext?: string): Promise<Contexts> {
 }
 
 // Gets the agent config for the context that has been specified via yargs.
-export async function getContextAgentConfig<Chain extends ChainName>(
-  coreEnvironmentConfig?: CoreEnvironmentConfig<Chain>,
+export async function getContextAgentConfig(
+  coreEnvironmentConfig?: CoreEnvironmentConfig,
   defaultContext?: string,
 ) {
   return getAgentConfig(
@@ -85,9 +85,9 @@ export async function getContextAgentConfig<Chain extends ChainName>(
 }
 
 // Gets the agent config of a specific context.
-export async function getAgentConfig<Chain extends ChainName>(
+export async function getAgentConfig(
   context: Contexts,
-  coreEnvironmentConfig?: CoreEnvironmentConfig<Chain>,
+  coreEnvironmentConfig?: CoreEnvironmentConfig,
 ) {
   const coreConfig = coreEnvironmentConfig
     ? coreEnvironmentConfig
@@ -103,10 +103,10 @@ export async function getAgentConfig<Chain extends ChainName>(
   return agentConfig;
 }
 
-async function getKeyForRole<Chain extends ChainName>(
+async function getKeyForRole(
   environment: DeployEnvironment,
   context: Contexts,
-  chain: Chain,
+  chain: ChainName,
   role: KEY_ROLE_ENUM,
   index?: number,
 ): Promise<CloudAgentKey> {
@@ -115,14 +115,14 @@ async function getKeyForRole<Chain extends ChainName>(
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
 
-export async function getMultiProviderForRole<Chain extends ChainName>(
-  txConfigs: ChainMap<Chain, IChainConnection>,
+export async function getMultiProviderForRole(
+  txConfigs: ChainMap<ChainMetadata>,
   environment: DeployEnvironment,
   context: Contexts,
   role: KEY_ROLE_ENUM,
   index?: number,
   connectionType?: ConnectionType,
-): Promise<MultiProvider<Chain>> {
+): Promise<MultiProvider> {
   const connections = await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {
       const provider = await fetchProvider(environment, chain, connectionType);
@@ -135,7 +135,7 @@ export async function getMultiProviderForRole<Chain extends ChainName>(
       };
     }),
   );
-  return new MultiProvider<Chain>(connections);
+  return new MultiProvider(connections);
 }
 
 export function getCoreContractsSdkFilepath() {
@@ -173,8 +173,8 @@ export function getKeyRoleAndChainArgs() {
     .number('i');
 }
 
-export async function assertCorrectKubeContext<Chain extends ChainName>(
-  coreConfig: CoreEnvironmentConfig<Chain>,
+export async function assertCorrectKubeContext(
+  coreConfig: CoreEnvironmentConfig,
 ) {
   const currentKubeContext = await getCurrentKubernetesContext();
   if (

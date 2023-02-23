@@ -18,7 +18,7 @@ import {
 
 async function main() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment) as any;
+  const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const deployer = new HyperlaneCoreInfraDeployer(
     multiProvider,

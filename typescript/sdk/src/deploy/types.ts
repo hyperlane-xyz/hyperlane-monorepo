@@ -1,8 +1,8 @@
-import { Contract } from 'ethers';
+import type { Contract } from 'ethers';
 
-import { Ownable } from '@hyperlane-xyz/core';
+import type { Ownable } from '@hyperlane-xyz/core';
 
-import type { ChainMap, ChainName, IChainConnection } from '../types';
+import type { ChainName } from '../types';
 
 export interface CheckerViolation {
   chain: ChainName;
@@ -11,11 +11,6 @@ export interface CheckerViolation {
   actual: any;
   contract?: Contract;
 }
-
-export type EnvironmentConfig<Chain extends ChainName> = ChainMap<
-  Chain,
-  IChainConnection
->;
 
 export enum ViolationType {
   Owner = 'Owner',

@@ -2,7 +2,6 @@ import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
-import { chainMetadata } from '../consts/chainMetadata';
 import { Chains } from '../consts/chains';
 import { HyperlaneCore } from '../core/HyperlaneCore';
 import { CoreContracts } from '../core/contracts';
@@ -17,48 +16,36 @@ const SUGGESTED_GAS_PRICE = 10;
 const INBOX_PROCESS_OVERHEAD_GAS = 100_000;
 
 // Exposes protected methods so they can be stubbed.
-class TestInterchainGasCalculator<
-  Chain extends ChainName,
-> extends InterchainGasCalculator<Chain> {
-  estimateGasForProcess<Destination extends Chain>(
-    origin: Exclude<Chain, Destination>,
-    destination: Destination,
+class TestInterchainGasCalculator extends InterchainGasCalculator {
+  estimateGasForProcess(
+    origin: ChainName,
+    destination: ChainName,
   ): Promise<BigNumber> {
     return super.estimateGasForProcess(origin, destination);
   }
-  estimateGasForHandle<LocalChain extends Chain>(
-    message: ParsedMessage<Chain, LocalChain>,
-  ): Promise<BigNumber> {
+  estimateGasForHandle(message: ParsedMessage): Promise<BigNumber> {
     return super.estimateGasForHandle(message);
   }
   convertBetweenTokens(
-    fromChain: Chain,
-    toChain: Chain,
+    fromChain: ChainName,
+    toChain: ChainName,
     fromAmount: BigNumber,
   ): Promise<BigNumber> {
     return super.convertBetweenTokens(fromChain, toChain, fromAmount);
   }
-  tokenDecimals(chain: Chain): number {
+  tokenDecimals(chain: ChainName): number {
     return super.tokenDecimals(chain);
   }
-  getGasPrice(chain: Chain): Promise<BigNumber> {
+  getGasPrice(chain: ChainName): Promise<BigNumber> {
     return super.getGasPrice(chain);
   }
 }
 
 describe('InterchainGasCalculator', () => {
   const provider = new MockProvider();
-  // TODO: fix types to not require the <any> here.
-  // This is because InterchainGasCalculator isn't very strongly typed,
-  // which is because ParsedMessage isn't very strongly typed. This results
-  // in InterchainGasCalculator expecting a multiprovider with providers for
-  // every chain.
-  const multiProvider = new MultiProvider({
-    test1: { id: chainMetadata.test1.id, provider },
-    test2: { id: chainMetadata.test2.id, provider },
-    test3: { id: chainMetadata.test3.id, provider },
-  });
-  const core: HyperlaneCore<TestChainNames> = HyperlaneCore.fromEnvironment(
+
+  const multiProvider = MultiProvider.createTestMultiProvider({ provider });
+  const core: HyperlaneCore = HyperlaneCore.fromEnvironment(
     'test',
     multiProvider,
   );
@@ -66,7 +53,7 @@ describe('InterchainGasCalculator', () => {
   const destination = Chains.test2;
 
   let tokenPriceGetter: MockTokenPriceGetter;
-  let calculator: TestInterchainGasCalculator<TestChainNames>;
+  let calculator: TestInterchainGasCalculator;
 
   beforeEach(() => {
     tokenPriceGetter = new MockTokenPriceGetter();
@@ -200,14 +187,12 @@ describe('InterchainGasCalculator', () => {
     });
 
     it('considers when the origin token decimals < the destination token decimals', async () => {
-      sinon
-        .stub(calculator, 'tokenDecimals')
-        .callsFake((chain: TestChainNames) => {
-          if (chain === origin) {
-            return 16;
-          }
-          return 18;
-        });
+      sinon.stub(calculator, 'tokenDecimals').callsFake((chain: ChainName) => {
+        if (chain === origin) {
+          return 16;
+        }
+        return 18;
+      });
 
       const originWei = await calculator.convertBetweenTokens(
         destination,

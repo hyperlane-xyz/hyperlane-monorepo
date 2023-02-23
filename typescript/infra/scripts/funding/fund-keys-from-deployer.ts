@@ -5,11 +5,9 @@ import { format } from 'util';
 
 import {
   AllChains,
-  ChainConnection,
   ChainName,
-  ChainNameToDomainId,
   Chains,
-  CompleteChainMap,
+  CoreChainName,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { ChainMap } from '@hyperlane-xyz/sdk/dist/types';
@@ -51,7 +49,7 @@ const L2Chains: ChainName[] = [
   Chains.arbitrumgoerli,
 ];
 
-const L2ToL1: ChainMap<L2Chain, ChainName> = {
+const L2ToL1: ChainMap<ChainName> = {
   optimismgoerli: 'goerli',
   arbitrumgoerli: 'goerli',
   optimism: 'ethereum',
@@ -94,7 +92,7 @@ const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 
-const desiredBalancePerChain: CompleteChainMap<string> = {
+const desiredBalancePerChain: ChainMap<string> = {
   celo: '0.3',
   alfajores: '1',
   avalanche: '0.3',
@@ -211,7 +209,7 @@ class ContextFunder {
   public readonly chains: ChainName[];
 
   constructor(
-    public readonly multiProvider: MultiProvider<any>,
+    public readonly multiProvider: MultiProvider,
     public readonly keys: BaseCloudAgentKey[],
     public readonly context: Contexts,
     public readonly rolesToFund: KEY_ROLE_ENUM[],
@@ -224,7 +222,7 @@ class ContextFunder {
   }
 
   static fromSerializedAddressFile(
-    multiProvider: MultiProvider<any>,
+    multiProvider: MultiProvider,
     path: string,
     contextsAndRolesToFund: ContextAndRolesMap,
   ) {
@@ -240,7 +238,7 @@ class ContextFunder {
         // references newer chains.
         return (
           parsed.chainName === undefined ||
-          AllChains.includes(parsed.chainName as ChainName)
+          AllChains.includes(parsed.chainName as CoreChainName)
         );
       })
       .map((idAndAddress: any) =>
@@ -281,7 +279,7 @@ class ContextFunder {
   // which require credentials to fetch. If you want to avoid requiring credentials, use
   // fromSerializedAddressFile instead.
   static async fromContext(
-    multiProvider: MultiProvider<any>,
+    multiProvider: MultiProvider,
     context: Contexts,
     rolesToFund: KEY_ROLE_ENUM[],
   ) {
@@ -322,7 +320,7 @@ class ContextFunder {
     const entries = AllChains.map((c) => {
       return [c, []];
     });
-    const chainKeys: CompleteChainMap<BaseCloudAgentKey[]> =
+    const chainKeys: ChainMap<BaseCloudAgentKey[]> =
       Object.fromEntries(entries);
     for (const role of this.rolesToFund) {
       const keys = this.getKeysWithRole(role);
@@ -348,8 +346,8 @@ class ContextFunder {
     key: BaseCloudAgentKey,
     chain: ChainName,
   ): Promise<boolean> {
-    const chainConnection = this.multiProvider.tryGetChainConnection(chain);
-    if (!chainConnection) {
+    const provider = this.multiProvider.tryGetProvider(chain);
+    if (!provider) {
       error('Cannot get chain connection', {
         chain,
       });
@@ -361,24 +359,27 @@ class ContextFunder {
     let failureOccurred = false;
 
     try {
-      await this.fundKeyIfRequired(chainConnection, chain, key, desiredBalance);
+      await this.fundKeyIfRequired(chain, key, desiredBalance);
     } catch (err) {
       error('Error funding key', {
-        key: await getKeyInfo(key, chain, chainConnection),
+        key: await getKeyInfo(
+          key,
+          chain,
+          this.multiProvider.getProvider(chain),
+        ),
         context: this.context,
         error: err,
       });
       failureOccurred = true;
     }
-    await this.updateWalletBalanceGauge(chainConnection, chain);
+    await this.updateWalletBalanceGauge(chain);
 
     return failureOccurred;
   }
 
   private async bridgeIfL2(chain: ChainName) {
     if (L2Chains.includes(chain)) {
-      const chainConnection = this.multiProvider.tryGetChainConnection(chain)!;
-      const funderAddress = await chainConnection.getAddress()!;
+      const funderAddress = await this.multiProvider.getSignerAddress(chain)!;
       const desiredBalanceEther = ethers.utils.parseUnits(
         desiredBalancePerChain[chain],
         'ether',
@@ -387,7 +388,7 @@ class ContextFunder {
       // By bridging the funder with 10x the desired balance we save
       // on L1 gas.
       const bridgeAmount = await this.getFundingAmount(
-        chainConnection,
+        chain,
         funderAddress,
         desiredBalanceEther.mul(10),
       );
@@ -398,11 +399,13 @@ class ContextFunder {
   }
 
   private async getFundingAmount(
-    chainConnection: ChainConnection,
+    chain: ChainName,
     address: string,
     desiredBalance: BigNumber,
   ): Promise<BigNumber> {
-    const currentBalance = await chainConnection.provider.getBalance(address);
+    const currentBalance = await this.multiProvider
+      .getProvider(chain)
+      .getBalance(address);
     const delta = desiredBalance.sub(currentBalance);
     const minDelta = desiredBalance
       .mul(MIN_DELTA_NUMERATOR)
@@ -413,7 +416,6 @@ class ContextFunder {
   // Tops up the key's balance to the desired balance if the current balance
   // is lower than the desired balance by the min delta
   private async fundKeyIfRequired(
-    chainConnection: ChainConnection,
     chain: ChainName,
     key: BaseCloudAgentKey,
     desiredBalance: string,
@@ -430,12 +432,16 @@ class ContextFunder {
         : desiredBalanceEther;
 
     const fundingAmount = await this.getFundingAmount(
-      chainConnection,
+      chain,
       key.address,
       adjustedDesiredBalance,
     );
-    const keyInfo = await getKeyInfo(key, chain, chainConnection);
-    const funderAddress = await chainConnection.getAddress()!;
+    const keyInfo = await getKeyInfo(
+      key,
+      chain,
+      this.multiProvider.getProvider(chain),
+    );
+    const funderAddress = await this.multiProvider.getSignerAddress(chain);
 
     if (fundingAmount.eq(0)) {
       log('Skipping funding for key', {
@@ -452,28 +458,28 @@ class ContextFunder {
         funder: {
           address: funderAddress,
           balance: ethers.utils.formatEther(
-            await chainConnection.signer!.getBalance(),
+            await this.multiProvider.getSigner(chain).getBalance(),
           ),
         },
         context: this.context,
       });
     }
 
-    const tx = await chainConnection.signer!.sendTransaction({
+    const tx = await this.multiProvider.sendTransaction(chain, {
       to: key.address,
       value: fundingAmount,
-      ...chainConnection.overrides,
     });
     log('Sent transaction', {
       key: keyInfo,
-      txUrl: chainConnection.getTxUrl(tx),
+      txUrl: this.multiProvider.getExplorerTxUrl(chain, {
+        hash: tx.transactionHash,
+      }),
       context: this.context,
       chain,
     });
-    const receipt = await tx.wait(chainConnection.confirmations);
     log('Got transaction receipt', {
       key: keyInfo,
-      receipt,
+      tx,
       context: this.context,
       chain,
     });
@@ -481,20 +487,18 @@ class ContextFunder {
 
   private async bridgeToL2(l2Chain: L2Chain, to: string, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
-    const l1ChainConnection = await this.multiProvider.tryGetChainConnection(
-      l1Chain,
-    )!;
-    const l2ChainConnection = await this.multiProvider.tryGetChainConnection(
-      l2Chain,
-    )!;
     log('Bridging ETH to L2', {
       amount: ethers.utils.formatEther(amount),
       l1Funder: await getAddressInfo(
-        await l1ChainConnection.getAddress()!,
+        await this.multiProvider.getSignerAddress(l1Chain),
         l1Chain,
-        l1ChainConnection,
+        this.multiProvider.getProvider(l1Chain),
       ),
-      l2Funder: await getAddressInfo(to, l2Chain, l2ChainConnection),
+      l2Funder: await getAddressInfo(
+        to,
+        l2Chain,
+        this.multiProvider.getProvider(l2Chain),
+      ),
     });
     let tx;
     if (l2Chain.includes('optimism')) {
@@ -504,9 +508,7 @@ class ContextFunder {
     } else {
       throw new Error(`${l2Chain} is not an L2`);
     }
-    await this.multiProvider
-      .tryGetChainConnection(L2ToL1[l2Chain])!
-      .handleTx(tx);
+    await this.multiProvider.handleTx(l1Chain, tx);
   }
 
   private async bridgeToOptimism(
@@ -515,40 +517,33 @@ class ContextFunder {
     to: string,
   ) {
     const l1Chain = L2ToL1[l2Chain];
-    const l1ChainConnection =
-      this.multiProvider.tryGetChainConnection(l1Chain)!;
-    const l2ChainConnection =
-      this.multiProvider.tryGetChainConnection(l2Chain)!;
     const crossChainMessenger = new CrossChainMessenger({
-      l1ChainId: ChainNameToDomainId[l1Chain],
-      l2ChainId: ChainNameToDomainId[l2Chain],
-      l1SignerOrProvider: l1ChainConnection.signer!,
-      l2SignerOrProvider: l2ChainConnection.provider,
+      l1ChainId: this.multiProvider.getDomainId(l1Chain),
+      l2ChainId: this.multiProvider.getDomainId(l2Chain),
+      l1SignerOrProvider: this.multiProvider.getSignerOrProvider(l1Chain),
+      l2SignerOrProvider: this.multiProvider.getSignerOrProvider(l2Chain),
     });
     return crossChainMessenger.depositETH(amount, {
       recipient: to,
-      overrides: l1ChainConnection.overrides,
+      overrides: this.multiProvider.getTransactionOverrides(l1Chain),
     });
   }
 
   private async bridgeToArbitrum(l2Chain: L2Chain, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
-    const l1ChainConnection =
-      this.multiProvider.tryGetChainConnection(l1Chain)!;
-    const l2Network = await getL2Network(ChainNameToDomainId[l2Chain]);
+    const l2Network = await getL2Network(
+      this.multiProvider.getDomainId(l2Chain),
+    );
     const ethBridger = new EthBridger(l2Network);
     return ethBridger.deposit({
       amount,
-      l1Signer: l1ChainConnection.signer!,
-      overrides: l1ChainConnection.overrides,
+      l1Signer: this.multiProvider.getSigner(l1Chain),
+      overrides: this.multiProvider.getTransactionOverrides(l1Chain),
     });
   }
 
-  private async updateWalletBalanceGauge(
-    chainConnection: ChainConnection,
-    chain: ChainName,
-  ) {
-    const funderAddress = await chainConnection.getAddress();
+  private async updateWalletBalanceGauge(chain: ChainName) {
+    const funderAddress = await this.multiProvider.getSignerAddress(chain);
     walletBalanceGauge
       .labels({
         chain,
@@ -560,7 +555,9 @@ class ContextFunder {
       })
       .set(
         parseFloat(
-          ethers.utils.formatEther(await chainConnection.signer!.getBalance()),
+          ethers.utils.formatEther(
+            await this.multiProvider.getSigner(chain).getBalance(),
+          ),
         ),
       );
   }
@@ -573,13 +570,11 @@ class ContextFunder {
 async function getAddressInfo(
   address: string,
   chain: ChainName,
-  chainConnection: ChainConnection,
+  provider: ethers.providers.Provider,
 ) {
   return {
     chain,
-    balance: ethers.utils.formatEther(
-      await chainConnection.provider.getBalance(address),
-    ),
+    balance: ethers.utils.formatEther(await provider.getBalance(address)),
     address,
   };
 }
@@ -587,10 +582,10 @@ async function getAddressInfo(
 async function getKeyInfo(
   key: BaseCloudAgentKey,
   chain: ChainName,
-  chainConnection: ChainConnection,
+  provider: ethers.providers.Provider,
 ) {
   return {
-    ...(await getAddressInfo(key.address, chain, chainConnection)),
+    ...(await getAddressInfo(key.address, chain, provider)),
     context: key.context,
     originChain: key.chainName,
     role: key.role,

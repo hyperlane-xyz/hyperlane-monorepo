@@ -63,7 +63,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
     core_settings.tracing.start_tracing(&metrics)?;
     let agent = A::from_settings(settings, metrics.clone()).await?;
-    let _ = metrics.run_http_server();
+    metrics.run_http_server();
 
     agent.run().await.await?
 }
