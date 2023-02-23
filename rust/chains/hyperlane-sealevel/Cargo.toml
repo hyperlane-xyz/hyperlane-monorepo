@@ -13,6 +13,40 @@ anyhow = "1.0"
 tracing-futures = "0.2"
 tracing = "0.1"
 
-# FIXME remove
-# [build-dependencies]
-# abigen = { path = "../../utils/abigen", features = ["fuels"] }
+# # FIXME fixed deps for real?!?!?!?!
+# solana-sdk = "=1.14.13"
+# solana-program = "=1.14.13"
+# solana-client = "=1.14.13"
+
+# FIXME sealevel mailbox contract copypasta deps
+borsh = "0.9"
+
+# FIXME solana copypasta deps
+bincode = "1.3.3"
+blake3 = { version = "1.3.1", features = ["digest", "traits-preview"] }
+bs58 = "0.4.0"
+base64 = "0.13.0"
+ed25519-dalek = { version = "=1.0.1", git = "https://github.com/Eclipse-Laboratories-Inc/ed25519-dalek", branch = "steven/fix-deps" }
+generic-array = { version = "0.14.5", default-features = false, features = ["serde", "more_lengths"]}
+Inflector = "0.11.4"
+jsonrpc-core = "18.0.0"
+lazy_static = "1.4.0"
+log = "0.4.17"
+semver = "1.0.10"
+serde_bytes = "0.11"
+serde_derive = "1.0"
+serde_json = "1.0"
+sha2 = "0.10.0"
+tokio = { version = "1", features = ["full"] }
+zstd = "0.10.2+zstd.1.5.2"
+# tokio-stream = "0.1.9"
+# tokio-tungstenite = { version = "0.17.1", features = ["rustls-tls-webpki-roots"] }
+[dependencies.curve25519-dalek]
+version = "3.2.1"
+features = ["serde"]
+git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek"
+branch = "steven/fix-deps"
+[dependencies.reqwest]
+version = "0.11.11"
+default-features = false
+features = ["blocking", "brotli", "deflate", "gzip", "rustls-tls", "json"]
