@@ -7,7 +7,7 @@ export enum TokenType {
   syntheticUri = 'syntheticUri',
   collateral = 'collateral',
   collateralUri = 'collateralUri',
-  native = 'native'
+  native = 'native',
 }
 
 export type SyntheticConfig = {
@@ -29,22 +29,34 @@ export type TokenConfig = SyntheticConfig | CollateralConfig | NativeConfig;
 export const isCollateralConfig = (
   config: TokenConfig,
 ): config is CollateralConfig =>
-  (config.type === TokenType.collateral ||
-    config.type === TokenType.collateralUri);
+  config.type === TokenType.collateral ||
+  config.type === TokenType.collateralUri;
 
 export const isSyntheticConfig = (
   config: TokenConfig,
-): config is SyntheticConfig => config.type === TokenType.synthetic || config.type === TokenType.syntheticUri;
+): config is SyntheticConfig =>
+  config.type === TokenType.synthetic || config.type === TokenType.syntheticUri;
 
-export const isNativeConfig = (config: TokenConfig): config is NativeConfig => config.type === TokenType.native;
+export const isNativeConfig = (config: TokenConfig): config is NativeConfig =>
+  config.type === TokenType.native;
 
 export const isUriConfig = (config: TokenConfig) =>
   config.type === TokenType.syntheticUri ||
   config.type === TokenType.collateralUri;
 
-export type HypERC20Config = Partial<GasRouterConfig> & RouterConfig & TokenConfig;
-export type HypERC20CollateralConfig = Partial<GasRouterConfig> & RouterConfig & CollateralConfig;
-export type HypNativeConfig = Partial<GasRouterConfig> & RouterConfig & NativeConfig;
+export type HypERC20Config = Partial<GasRouterConfig> &
+  RouterConfig &
+  TokenConfig;
+export type HypERC20CollateralConfig = Partial<GasRouterConfig> &
+  RouterConfig &
+  CollateralConfig;
+export type HypNativeConfig = Partial<GasRouterConfig> &
+  RouterConfig &
+  NativeConfig;
 
-export type HypERC721Config = Partial<GasRouterConfig> & RouterConfig & TokenConfig;
-export type HypERC721CollateralConfig = Partial<GasRouterConfig> & RouterConfig & CollateralConfig;
+export type HypERC721Config = Partial<GasRouterConfig> &
+  RouterConfig &
+  TokenConfig;
+export type HypERC721CollateralConfig = Partial<GasRouterConfig> &
+  RouterConfig &
+  CollateralConfig;

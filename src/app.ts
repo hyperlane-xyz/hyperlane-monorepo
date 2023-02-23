@@ -1,10 +1,6 @@
 import { BigNumberish } from 'ethers';
 
-import {
-  ChainName,
-  GasRouterApp,
-  RouterContracts,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, GasRouterApp, RouterContracts } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
 import { HypERC20Contracts, HypERC721Contracts } from './contracts';
@@ -12,40 +8,42 @@ import { TokenRouter } from './types';
 
 class HyperlaneTokenApp<
   Contracts extends RouterContracts<TokenRouter>,
-  Chain extends ChainName,
-> extends GasRouterApp<Contracts, Chain> {
-  async transfer<Origin extends Chain>(
-    origin: Origin,
-    destination: Exclude<Chain, Origin>,
+> extends GasRouterApp<Contracts> {
+  async transfer(
+    origin: ChainName,
+    destination: ChainName,
     recipient: types.Address,
     amountOrId: BigNumberish,
   ) {
     const originRouter = this.getContracts(origin).router;
-    const destinationChainConnection = this.multiProvider.getChainConnection(destination);
-    const destinationNetwork = await destinationChainConnection.provider.getNetwork();
-    const gasPayment = await originRouter.quoteGasPayment(destinationNetwork.chainId);
-    const chainConnection = this.multiProvider.getChainConnection(origin);
-    return chainConnection.handleTx(
-      originRouter.transferRemote(destinationNetwork.chainId, recipient, amountOrId, {
-        value: gasPayment,
-      }),
+    const destProvider = this.multiProvider.getProvider(destination);
+    const destinationNetwork = await destProvider.getNetwork();
+    const gasPayment = await originRouter.quoteGasPayment(
+      destinationNetwork.chainId,
+    );
+    return this.multiProvider.handleTx(
+      origin,
+      originRouter.transferRemote(
+        destinationNetwork.chainId,
+        recipient,
+        amountOrId,
+        {
+          value: gasPayment,
+        },
+      ),
     );
   }
 }
 
-export class HypERC20App<Chain extends ChainName> extends HyperlaneTokenApp<
-  HypERC20Contracts,
-  Chain
-> {
-  async transfer<Origin extends Chain>(
-    origin: Origin,
-    destination: Exclude<Chain, Origin>,
+export class HypERC20App extends HyperlaneTokenApp<HypERC20Contracts> {
+  async transfer(
+    origin: ChainName,
+    destination: ChainName,
     recipient: types.Address,
     amount: BigNumberish,
   ) {
     const originRouter = this.getContracts(origin).router;
-    const chainConnection = this.multiProvider.getChainConnection(origin);
-    const signerAddress = await chainConnection.signer!.getAddress();
+    const signerAddress = await this.multiProvider.getSignerAddress(origin);
     const balance = await originRouter.balanceOf(signerAddress);
     if (balance.lt(amount))
       console.warn(
@@ -55,22 +53,20 @@ export class HypERC20App<Chain extends ChainName> extends HyperlaneTokenApp<
   }
 }
 
-export class HypERC721App<Chain extends ChainName> extends HyperlaneTokenApp<
-  HypERC721Contracts,
-  Chain
-> {
-  async transfer<Origin extends Chain>(
-    origin: Origin,
-    destination: Exclude<Chain, Origin>,
+export class HypERC721App extends HyperlaneTokenApp<HypERC721Contracts> {
+  async transfer(
+    origin: ChainName,
+    destination: ChainName,
     recipient: types.Address,
     tokenId: BigNumberish,
   ) {
     const originRouter = this.getContracts(origin).router;
-    const chainConnection = this.multiProvider.getChainConnection(origin);
-    const signerAddress = await chainConnection.signer!.getAddress();
+    const signerAddress = await this.multiProvider.getSignerAddress(origin);
     const owner = await originRouter.ownerOf(tokenId);
     if (signerAddress != owner)
-      console.warn(`Signer ${signerAddress} not owner of token ${tokenId} on ${origin}`);
+      console.warn(
+        `Signer ${signerAddress} not owner of token ${tokenId} on ${origin}`,
+      );
     return super.transfer(origin, destination, recipient, tokenId);
   }
 }

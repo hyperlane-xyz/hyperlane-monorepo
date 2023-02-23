@@ -6,11 +6,10 @@ import { ethers } from 'hardhat';
 
 import {
   ChainMap,
-  ChainNameToDomainId,
-  TestChainNames,
+  Chains,
+  MultiProvider,
   TestCoreApp,
   TestCoreDeployer,
-  getTestMultiProvider,
   objMap,
 } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
@@ -33,10 +32,10 @@ import {
   HypERC721URIStorage,
 } from '../src/types';
 
-const localChain = 'test1';
-const remoteChain = 'test2';
-const localDomain = ChainNameToDomainId[localChain];
-const remoteDomain = ChainNameToDomainId[remoteChain];
+const localChain = Chains.test1;
+const remoteChain = Chains.test2;
+let localDomain: number;
+let remoteDomain: number;
 const totalSupply = 50;
 const tokenId = 10;
 const tokenId2 = 20;
@@ -72,22 +71,25 @@ for (const withCollateral of [true, false]) {
       let owner: SignerWithAddress;
       let recipient: SignerWithAddress;
       let core: TestCoreApp;
-      let deployer: HypERC721Deployer<TestChainNames>;
-      let contracts: Record<TestChainNames, HypERC721Contracts>;
+      let deployer: HypERC721Deployer;
+      let contracts: ChainMap<HypERC721Contracts>;
       let local: HypERC721 | HypERC721Collateral | HypERC721URICollateral;
       let remote: HypERC721 | HypERC721Collateral | HypERC721URIStorage;
       let gas: BigNumberish;
 
       beforeEach(async () => {
         [owner, recipient] = await ethers.getSigners();
-        const multiProvider = getTestMultiProvider(owner);
+        const multiProvider = MultiProvider.createTestMultiProvider({
+          signer: owner,
+        });
+        localDomain = multiProvider.getDomainId(localChain);
+        remoteDomain = multiProvider.getDomainId(remoteChain);
 
         const coreDeployer = new TestCoreDeployer(multiProvider);
         const coreContractsMaps = await coreDeployer.deploy();
         core = new TestCoreApp(coreContractsMaps, multiProvider);
         const coreConfig = core.getConnectionClientConfigMap();
         const configWithTokenInfo: ChainMap<
-          TestChainNames,
           HypERC721Config | HypERC721CollateralConfig
         > = objMap(coreConfig, (key) => ({
           ...coreConfig[key],

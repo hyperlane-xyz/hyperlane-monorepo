@@ -1,17 +1,15 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
-import { BigNumberish } from 'ethers';
+import { BigNumber, BigNumberish } from 'ethers';
 import { ethers } from 'hardhat';
 
 import {
   ChainMap,
-  ChainNameToDomainId,
-  TestChainNames,
+  Chains,
+  MultiProvider,
   TestCoreApp,
   TestCoreDeployer,
-  getTestMultiProvider,
   objMap,
 } from '@hyperlane-xyz/sdk';
 import { utils } from '@hyperlane-xyz/utils';
@@ -33,10 +31,10 @@ import {
   HypNative,
 } from '../src/types';
 
-const localChain = 'test1';
-const remoteChain = 'test2';
-const localDomain = ChainNameToDomainId[localChain];
-const remoteDomain = ChainNameToDomainId[remoteChain];
+const localChain = Chains.test1;
+const remoteChain = Chains.test2;
+let localDomain: number;
+let remoteDomain: number;
 const totalSupply = 3000;
 const amount = 10;
 
@@ -56,8 +54,8 @@ for (const variant of [
     let owner: SignerWithAddress;
     let recipient: SignerWithAddress;
     let core: TestCoreApp;
-    let deployer: HypERC20Deployer<TestChainNames>;
-    let contracts: Record<TestChainNames, HypERC20Contracts>;
+    let deployer: HypERC20Deployer;
+    let contracts: ChainMap<HypERC20Contracts>;
     let localTokenConfig: TokenConfig = tokenConfig;
     let local: HypERC20 | HypERC20Collateral | HypNative;
     let remote: HypERC20 | HypERC20Collateral;
@@ -65,7 +63,11 @@ for (const variant of [
 
     beforeEach(async () => {
       [owner, recipient] = await ethers.getSigners();
-      const multiProvider = getTestMultiProvider(owner);
+      const multiProvider = MultiProvider.createTestMultiProvider({
+        signer: owner,
+      });
+      localDomain = multiProvider.getDomainId(localChain);
+      remoteDomain = multiProvider.getDomainId(remoteChain);
 
       const coreDeployer = new TestCoreDeployer(multiProvider);
       const coreContractsMaps = await coreDeployer.deploy();
@@ -89,14 +91,11 @@ for (const variant of [
         };
       }
 
-      const config: ChainMap<TestChainNames, HypERC20Config> = objMap(
-        coreConfig,
-        (key) => ({
-          ...coreConfig[key],
-          ...(key === localChain ? localTokenConfig : tokenConfig),
-          owner: owner.address,
-        }),
-      );
+      const config: ChainMap<HypERC20Config> = objMap(coreConfig, (key) => ({
+        ...coreConfig[key],
+        ...(key === localChain ? localTokenConfig : tokenConfig),
+        owner: owner.address,
+      }));
 
       deployer = new HypERC20Deployer(multiProvider, config, core);
       contracts = await deployer.deploy();
@@ -160,7 +159,7 @@ for (const variant of [
         const token = ERC20__factory.connect(tokenAddress, owner);
         await token.transfer(local.address, totalSupply);
       } else if (variant === TokenType.native) {
-        const remoteDomain = ChainNameToDomainId[remoteChain];
+        const remoteDomain = core.multiProvider.getDomainId(remoteChain);
         // deposit amount
         await local.transferRemote(
           remoteDomain,
