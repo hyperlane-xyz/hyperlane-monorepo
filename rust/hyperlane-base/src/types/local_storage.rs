@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use derive_new::new;
 use eyre::{Context, Result};
 use prometheus::IntGauge;
 
@@ -6,7 +7,7 @@ use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
 
 use crate::traits::CheckpointSyncer;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 /// Type for reading/write to LocalStorage
 pub struct LocalStorage {
     /// base path
@@ -15,13 +16,6 @@ pub struct LocalStorage {
 }
 
 impl LocalStorage {
-    /// Constructor
-    pub fn new(path: &str, latest_index: Option<IntGauge>) -> Self {
-        LocalStorage {
-            path: path.to_owned(),
-            latest_index,
-        }
-    }
     fn checkpoint_file_path(&self, index: u32) -> String {
         format!("{}/{index}.json", self.path)
     }

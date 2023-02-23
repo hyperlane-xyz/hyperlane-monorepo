@@ -26,6 +26,7 @@ bytes = { version = "1", features = ["serde"]}
 num = {version="0", features=["serde"]}
 num-traits = "0.2"
 num-derive = "0.3"
+derive-new = "0.5"
 strum = "0.24"
 strum_macros = "0.24"
 
