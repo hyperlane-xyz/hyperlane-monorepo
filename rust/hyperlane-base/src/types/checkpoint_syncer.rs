@@ -68,11 +68,13 @@ impl CheckpointSyncerConf {
     ) -> Result<Box<dyn CheckpointSyncer>, Report> {
         Ok(match self {
             CheckpointSyncerConf::LocalStorage { path } => {
-                Box::new(LocalStorage::new(path, latest_index_gauge))
+                Box::new(LocalStorage::new(path.clone(), latest_index_gauge))
             }
-            CheckpointSyncerConf::S3 { bucket, region } => {
-                Box::new(S3Storage::new(bucket, region.parse()?, latest_index_gauge))
-            }
+            CheckpointSyncerConf::S3 { bucket, region } => Box::new(S3Storage::new(
+                bucket.clone(),
+                region.parse()?,
+                latest_index_gauge,
+            )),
         })
     }
 }

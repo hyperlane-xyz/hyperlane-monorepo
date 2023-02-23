@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::str::FromStr;
 use std::sync::Arc;
 
+use derive_new::new;
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument};
 
@@ -12,16 +14,15 @@ use hyperlane_base::{
 use hyperlane_core::{
     HyperlaneChain, HyperlaneMessage, Mailbox, MultisigIsm, ValidatorAnnounce, H160, H256,
 };
-use std::str::FromStr;
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
-#[derive(Clone)]
+#[derive(Clone, new)]
 pub struct MetadataBuilder {
-    metrics: Arc<CoreMetrics>,
     chain_setup: ChainSetup,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
+    metrics: Arc<CoreMetrics>,
 }
 
 impl Debug for MetadataBuilder {
@@ -35,20 +36,6 @@ impl Debug for MetadataBuilder {
 }
 
 impl MetadataBuilder {
-    pub fn new(
-        chain_setup: ChainSetup,
-        prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-        validator_announce: Arc<dyn ValidatorAnnounce>,
-        metrics: Arc<CoreMetrics>,
-    ) -> Self {
-        MetadataBuilder {
-            metrics,
-            chain_setup,
-            prover_sync,
-            validator_announce,
-        }
-    }
-
     #[instrument(err, skip(mailbox))]
     pub async fn fetch_metadata(
         &self,

@@ -43,7 +43,7 @@ impl GasPaymentEnforcer {
         db: HyperlaneDB,
     ) -> Self {
         let policy: Box<dyn GasPaymentPolicy> = match policy_config {
-            GasPaymentEnforcementPolicy::None => Box::new(GasPaymentPolicyNone::new()),
+            GasPaymentEnforcementPolicy::None => Box::new(GasPaymentPolicyNone),
             GasPaymentEnforcementPolicy::Minimum { payment } => {
                 Box::new(GasPaymentPolicyMinimum::new(payment))
             }

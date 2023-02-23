@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use derive_new::new;
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{
@@ -15,38 +16,19 @@ use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::Mat
 
 use super::SubmitMessageArgs;
 
-#[derive(Debug)]
+#[derive(Debug, new)]
 pub(crate) struct MessageProcessor {
     db: HyperlaneDB,
     whitelist: Arc<MatchingList>,
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-    message_nonce: u32,
     send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>>,
+    #[new(default)]
+    message_nonce: u32,
 }
 
 impl MessageProcessor {
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
-        db: HyperlaneDB,
-        whitelist: Arc<MatchingList>,
-        blacklist: Arc<MatchingList>,
-        metrics: MessageProcessorMetrics,
-        prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-        send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>>,
-    ) -> Self {
-        Self {
-            db,
-            whitelist,
-            blacklist,
-            metrics,
-            prover_sync,
-            send_channels,
-            message_nonce: 0,
-        }
-    }
-
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
