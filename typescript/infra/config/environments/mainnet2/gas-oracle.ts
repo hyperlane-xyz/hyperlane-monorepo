@@ -17,12 +17,12 @@ const TOKEN_EXCHANGE_RATE_MULTIPLIER = ethers.utils.parseUnits(
 );
 
 // Taken by looking at each network's gas history and overestimating
-// Last updated Feb 10, 2023
+// Last updated Feb 23, 2023
 const gasPrices: ChainMap<MainnetChains, BigNumber> = {
   // https://dune.com/hicrypto/BNBChain-Gas
   bsc: ethers.utils.parseUnits('10', 'gwei'),
   // https://snowtrace.io/chart/gasprice
-  avalanche: ethers.utils.parseUnits('40', 'gwei'),
+  avalanche: ethers.utils.parseUnits('45', 'gwei'),
   // https://dune.com/sealaunch/Polygon-Gas-Prices
   polygon: ethers.utils.parseUnits('200', 'gwei'),
   // https://explorer.bitquery.io/celo_rc1/gas
@@ -47,26 +47,26 @@ const gasPrices: ChainMap<MainnetChains, BigNumber> = {
   gnosis: ethers.utils.parseUnits('2', 'gwei'),
 };
 
-// Accurate from coingecko as of Feb 10, 2023.
+// Accurate from coingecko as of Feb 23, 2023.
 // These aren't overestimates because the exchange rates between
 // tokens are what matters. These generally have high beta
 const tokenUsdPrices: ChainMap<MainnetChains, BigNumber> = {
   // https://www.coingecko.com/en/coins/bnb
-  bsc: ethers.utils.parseUnits('307.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  bsc: ethers.utils.parseUnits('309.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/avalanche
-  avalanche: ethers.utils.parseUnits('20.46', TOKEN_EXCHANGE_RATE_DECIMALS),
+  avalanche: ethers.utils.parseUnits('19.99', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/polygon
-  polygon: ethers.utils.parseUnits('1.35', TOKEN_EXCHANGE_RATE_DECIMALS),
+  polygon: ethers.utils.parseUnits('1.37', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/celo
-  celo: ethers.utils.parseUnits('0.79', TOKEN_EXCHANGE_RATE_DECIMALS),
+  celo: ethers.utils.parseUnits('0.81', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  arbitrum: ethers.utils.parseUnits('1639.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  arbitrum: ethers.utils.parseUnits('1657.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  optimism: ethers.utils.parseUnits('1639.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  optimism: ethers.utils.parseUnits('1657.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/ethereum
-  ethereum: ethers.utils.parseUnits('1639.00', TOKEN_EXCHANGE_RATE_DECIMALS),
+  ethereum: ethers.utils.parseUnits('1657.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/moonbeam
-  moonbeam: ethers.utils.parseUnits('0.48', TOKEN_EXCHANGE_RATE_DECIMALS),
+  moonbeam: ethers.utils.parseUnits('0.49', TOKEN_EXCHANGE_RATE_DECIMALS),
   // xDAI
   gnosis: ethers.utils.parseUnits('1.00', TOKEN_EXCHANGE_RATE_DECIMALS),
 };
