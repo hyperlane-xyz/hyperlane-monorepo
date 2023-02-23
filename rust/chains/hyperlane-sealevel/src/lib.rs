@@ -11,7 +11,6 @@ pub use multisig_ism::*;
 pub use provider::*;
 pub use trait_builder::*;
 
-// mod contracts; // FIXME
 /// Copy pasted code from solana as a stop-gap solution until dependency conflicts are resolved.
 pub mod solana;
 use solana::nonblocking_rpc_client::RpcClient;

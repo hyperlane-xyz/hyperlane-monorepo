@@ -1,10 +1,9 @@
-// use fuels::client::FuelClient;
-// use fuels::prelude::Provider;
-pub struct SealevelClient; // FIXME
-pub struct Provider; // FIXME
+// FIXME is this really needed?
+pub struct SealevelClient;
+pub struct Provider;
 impl Provider {
     fn new(_client: SealevelClient) -> Self {
-        unimplemented!()
+        todo!() // FIXME
     }
 }
 
@@ -14,7 +13,7 @@ use hyperlane_core::{ChainCommunicationError, ChainResult};
 #[derive(Debug, serde::Deserialize, Clone)]
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
-    url: String,
+    pub url: String,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -27,9 +26,9 @@ impl From<SealevelNewConnectionError> for ChainCommunicationError {
     }
 }
 
-fn make_client(conf: &ConnectionConf) -> ChainResult<SealevelClient> {
+fn make_client(_conf: &ConnectionConf) -> ChainResult<SealevelClient> {
     // SealevelClient::new(&conf.url).map_err(|e| SealevelNewConnectionError(e).into())
-    todo!()
+    todo!() // FIXME
 }
 
 /// Create a new fuel provider and connection

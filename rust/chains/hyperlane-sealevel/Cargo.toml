@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# fuels = "0.33" FIXME remove
 hyperlane-core = { path = "../../hyperlane-core" }
 async-trait = { version = "0.1", default-features = false }
 thiserror = "1.0"

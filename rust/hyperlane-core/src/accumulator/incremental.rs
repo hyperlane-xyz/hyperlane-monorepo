@@ -1,10 +1,12 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
 use crate::accumulator::{
     hash_concat,
     merkle::{merkle_root_from_branch, Proof},
     H256, TREE_DEPTH, ZERO_HASHES,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, Copy)]
 /// An incremental merkle tree, modeled on the eth2 deposit contract
 pub struct IncrementalMerkle {
     branch: [H256; TREE_DEPTH],

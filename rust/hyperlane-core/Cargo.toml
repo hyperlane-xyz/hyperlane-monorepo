@@ -12,6 +12,9 @@ version.workspace = true
 [dependencies]
 async-trait.workspace = true
 auto_impl = "1.0"
+borsh = "0.9"
+bs58 = "0.4.0"
+config.workspace = true
 bytes = { version = "1", features = ["serde"] }
 convert_case = "0.6"
 derive-new.workspace = true
@@ -31,8 +34,8 @@ strum.workspace = true
 thiserror.workspace = true
 
 # version determined by ethers-rs
-primitive-types = "*"
 lazy_static = "*"
+primitive-types = { version = "*", features = ["impl-borsh", "impl-serde"] }
 
 [dev-dependencies]
 config.workspace = true

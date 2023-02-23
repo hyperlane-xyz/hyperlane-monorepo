@@ -370,8 +370,12 @@ impl ChainConf {
                 )
                 .await
             }
+
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator));
+                Ok(indexer as Box<dyn MailboxIndexer>)
+            }
         }
         .context(ctx)
     }
@@ -395,8 +399,13 @@ impl ChainConf {
                 )
                 .await
             }
+
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let paymaster =
+                    Box::new(h_sealevel::SealevelInterchainGasPaymaster::new(conf, locator));
+                Ok(paymaster as Box<dyn InterchainGasPaymaster>)
+            }
         }
         .context(ctx)
     }
@@ -424,7 +433,11 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let indexer =
+                    Box::new(h_sealevel::SealevelInterchainGasPaymasterIndexer::new(conf, locator));
+                Ok(indexer as Box<dyn InterchainGasPaymasterIndexer>)
+            }
         }
         .context(ctx)
     }
@@ -490,7 +503,10 @@ impl ChainConf {
             }
 
             ChainConnectionConf::Fuel(_) => todo!(),
-            ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(conf, locator));
+                Ok(ism as Box<dyn MultisigIsm>)
+            },
         }
         .context(ctx)
     }

@@ -3099,6 +3099,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "impl-borsh"
+version = "0.1.0"
+source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
+dependencies = [
+ "borsh",
+]
+
+[[package]]
 name = "impl-codec"
 version = "0.6.0"
 source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
@@ -4260,6 +4268,7 @@ version = "0.12.1"
 source = "git+ssh://git@github.com/Eclipse-Laboratories-Inc/parity-common?branch=steven/primitive-types-impl-borsh-uint-version-fix#05ef0bec2de0fed8c5306dcb4fa28e81efde0638"
 dependencies = [
  "fixed-hash",
+ "impl-borsh",
  "impl-codec",
  "impl-rlp",
  "impl-serde",
