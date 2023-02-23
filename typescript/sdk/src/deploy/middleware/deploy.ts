@@ -23,12 +23,10 @@ import { RouterConfig } from '../router/types';
 export type InterchainAccountConfig = RouterConfig;
 
 export abstract class MiddlewareRouterDeployer<
-  Chain extends ChainName,
   MiddlewareRouterConfig extends RouterConfig,
   MiddlewareRouterContracts extends RouterContracts,
   MiddlewareFactories extends RouterFactories,
 > extends HyperlaneRouterDeployer<
-  Chain,
   MiddlewareRouterConfig,
   MiddlewareRouterContracts,
   MiddlewareFactories
@@ -46,18 +44,15 @@ export abstract class MiddlewareRouterDeployer<
   }
 }
 
-export class InterchainAccountDeployer<
-  Chain extends ChainName,
-> extends MiddlewareRouterDeployer<
-  Chain,
+export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   InterchainAccountConfig,
   InterchainAccountContracts,
   InterchainAccountFactories
 > {
   constructor(
-    multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, InterchainAccountConfig>,
-    protected core: HyperlaneCore<Chain>,
+    multiProvider: MultiProvider,
+    configMap: ChainMap<InterchainAccountConfig>,
+    protected core: HyperlaneCore,
     protected create2salt = 'asdasdsd',
   ) {
     super(multiProvider, configMap, interchainAccountFactories, {});
@@ -66,7 +61,7 @@ export class InterchainAccountDeployer<
   // Custom contract deployment logic can go here
   // If no custom logic is needed, call deployContract for the router
   async deployContracts(
-    chain: Chain,
+    chain: ChainName,
     config: InterchainAccountConfig,
   ): Promise<InterchainAccountContracts> {
     const initCalldata = this.getInitArgs(
@@ -85,18 +80,15 @@ export class InterchainAccountDeployer<
 
 export type InterchainQueryConfig = RouterConfig;
 
-export class InterchainQueryDeployer<
-  Chain extends ChainName,
-> extends MiddlewareRouterDeployer<
-  Chain,
+export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
   InterchainQueryConfig,
   InterchainQueryContracts,
   InterchainQueryFactories
 > {
   constructor(
-    multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, InterchainQueryConfig>,
-    protected core: HyperlaneCore<Chain>,
+    multiProvider: MultiProvider,
+    configMap: ChainMap<InterchainQueryConfig>,
+    protected core: HyperlaneCore,
     // TODO replace salt with 'hyperlane' before next redeploy
     protected create2salt = 'asdasdsd',
   ) {
@@ -106,7 +98,7 @@ export class InterchainQueryDeployer<
   // Custom contract deployment logic can go here
   // If no custom logic is needed, call deployContract for the router
   async deployContracts(
-    chain: Chain,
+    chain: ChainName,
     config: InterchainQueryConfig,
   ): Promise<InterchainQueryContracts> {
     const initCalldata = this.getInitArgs(

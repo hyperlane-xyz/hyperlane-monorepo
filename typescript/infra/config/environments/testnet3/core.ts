@@ -1,8 +1,6 @@
 import { ChainMap, CoreConfig } from '@hyperlane-xyz/sdk';
 
-import { TestnetChains } from './chains';
-
-export const core: ChainMap<TestnetChains, CoreConfig> = {
+export const core: ChainMap<CoreConfig> = {
   alfajores: {
     owner: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
     multisigIsm: {

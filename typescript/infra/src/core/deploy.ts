@@ -24,22 +24,20 @@ import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';
 import { ConnectionType } from '../config/agent';
 import { writeJSON } from '../utils/utils';
 
-export class HyperlaneCoreInfraDeployer<
-  Chain extends ChainName,
-> extends HyperlaneCoreDeployer<Chain> {
+export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   environment: DeployEnvironment;
 
   constructor(
-    multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, CoreConfig>,
+    multiProvider: MultiProvider,
+    configMap: ChainMap<CoreConfig>,
     environment: DeployEnvironment,
   ) {
     super(multiProvider, configMap);
     this.environment = environment;
   }
 
-  async deployInterchainGasPaymaster<LocalChain extends Chain>(
-    chain: LocalChain,
+  async deployInterchainGasPaymaster(
+    chain: ChainName,
     proxyAdmin: ProxyAdmin,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
@@ -53,8 +51,8 @@ export class HyperlaneCoreInfraDeployer<
     return super.deployInterchainGasPaymaster(chain, proxyAdmin, deployOpts);
   }
 
-  async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(
-    chain: LocalChain,
+  async deployDefaultIsmInterchainGasPaymaster(
+    chain: ChainName,
     interchainGasPaymasterAddress: types.Address,
   ): Promise<OverheadIgp> {
     const deployOpts = {
@@ -70,8 +68,8 @@ export class HyperlaneCoreInfraDeployer<
     );
   }
 
-  async deployMailbox<LocalChain extends Chain>(
-    chain: LocalChain,
+  async deployMailbox(
+    chain: ChainName,
     defaultIsmAddress: types.Address,
     proxyAdmin: ProxyAdmin,
   ): Promise<ProxiedContract<Mailbox, TransparentProxyAddresses>> {
@@ -89,8 +87,8 @@ export class HyperlaneCoreInfraDeployer<
     );
   }
 
-  async deployValidatorAnnounce<LocalChain extends Chain>(
-    chain: LocalChain,
+  async deployValidatorAnnounce(
+    chain: ChainName,
     mailboxAddress: types.Address,
   ): Promise<ValidatorAnnounce> {
     const deployOpts = {
@@ -103,7 +101,7 @@ export class HyperlaneCoreInfraDeployer<
   }
 
   writeRustConfigs(directory: string) {
-    const rustConfig: RustConfig<Chain> = {
+    const rustConfig: RustConfig = {
       environment: this.environment,
       chains: {},
       db: 'db_path',
@@ -127,7 +125,7 @@ export class HyperlaneCoreInfraDeployer<
 
       const chainConfig: RustChainSetup = {
         name: chain,
-        domain: metadata.id.toString(),
+        domain: metadata.chainId.toString(),
         addresses: {
           mailbox: contracts.mailbox.contract.address,
           interchainGasPaymaster: contracts.interchainGasPaymaster.address,
@@ -135,7 +133,7 @@ export class HyperlaneCoreInfraDeployer<
         },
         signer: null,
         protocol: 'ethereum',
-        finalityBlocks: metadata.blocks.reorgPeriod.toString(),
+        finalityBlocks: metadata.blocks!.reorgPeriod!.toString(),
         connection: {
           type: ConnectionType.Http,
           url: '',

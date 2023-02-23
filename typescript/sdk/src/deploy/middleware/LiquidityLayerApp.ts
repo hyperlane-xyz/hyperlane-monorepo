@@ -11,7 +11,6 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
 import { Chains } from '../../consts/chains';
-import { ChainNameToDomainId, DomainIdToChainName } from '../../domains';
 import { LiquidityLayerContracts } from '../../middleware';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
@@ -38,9 +37,9 @@ const PortalBridgedTokenTopic = PortalAdapterInterface.getEventTopic(
   PortalAdapterInterface.getEvent('BridgedToken'),
 );
 
-interface CircleBridgeMessage<Chain> {
-  chain: Chain;
-  remoteChain: Chain;
+interface CircleBridgeMessage {
+  chain: ChainName;
+  remoteChain: ChainName;
   txHash: string;
   message: string;
   nonce: number;
@@ -48,58 +47,56 @@ interface CircleBridgeMessage<Chain> {
   nonceHash: string;
 }
 
-interface PortalBridgeMessage<Chain> {
-  origin: Chain;
+interface PortalBridgeMessage {
+  origin: ChainName;
   nonce: number;
   portalSequence: number;
-  destination: Chain;
+  destination: ChainName;
 }
 
-export class LiquidityLayerApp<
-  Chain extends ChainName = ChainName,
-> extends HyperlaneApp<LiquidityLayerContracts, Chain> {
+export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
   constructor(
-    public readonly contractsMap: ChainMap<Chain, LiquidityLayerContracts>,
-    public readonly multiProvider: MultiProvider<Chain>,
-    public readonly config: ChainMap<Chain, BridgeAdapterConfig>,
+    public readonly contractsMap: ChainMap<LiquidityLayerContracts>,
+    public readonly multiProvider: MultiProvider,
+    public readonly config: ChainMap<BridgeAdapterConfig>,
   ) {
     super(contractsMap, multiProvider);
   }
 
-  async fetchCircleMessageTransactions(chain: Chain): Promise<string[]> {
-    const cc = this.multiProvider.getChainConnection(chain);
+  async fetchCircleMessageTransactions(chain: ChainName): Promise<string[]> {
     const params = new URLSearchParams({
       module: 'logs',
       action: 'getLogs',
       address: this.getContracts(chain).circleBridgeAdapter!.address,
       topic0: BridgedTokenTopic,
     });
-    const req = await fetch(`${cc.getApiUrl()}?${params}`);
+    const url = `${this.multiProvider.getExplorerApiUrl(chain)}?${params}`;
+    const req = await fetch(url);
     const response = await req.json();
 
     return response.result.map((_: any) => _.transactionHash).flat();
   }
 
-  async fetchPortalBridgeTransactions(chain: Chain): Promise<string[]> {
-    const cc = this.multiProvider.getChainConnection(chain);
+  async fetchPortalBridgeTransactions(chain: ChainName): Promise<string[]> {
     const params = new URLSearchParams({
       module: 'logs',
       action: 'getLogs',
       address: this.getContracts(chain).portalAdapter!.address,
       topic0: PortalBridgedTokenTopic,
     });
-    const req = await fetch(`${cc.getApiUrl()}?${params}`);
+    const url = `${this.multiProvider.getExplorerApiUrl(chain)}?${params}`;
+    const req = await fetch(url);
     const response = await req.json();
 
     return response.result.map((_: any) => _.transactionHash).flat();
   }
 
   async parsePortalMessages(
-    chain: Chain,
+    chain: ChainName,
     txHash: string,
-  ): Promise<PortalBridgeMessage<Chain>[]> {
-    const connection = this.multiProvider.getChainConnection(chain);
-    const receipt = await connection.provider.getTransactionReceipt(txHash);
+  ): Promise<PortalBridgeMessage[]> {
+    const provider = this.multiProvider.getProvider(chain);
+    const receipt = await provider.getTransactionReceipt(txHash);
     const matchingLogs = receipt.logs
       .map((_) => {
         try {
@@ -114,18 +111,17 @@ export class LiquidityLayerApp<
     const event = matchingLogs.find((_) => _!.name === 'BridgedToken')!;
     const portalSequence = event.args.portalSequence.toNumber();
     const nonce = event.args.nonce.toNumber();
-    const destination = DomainIdToChainName[event.args.destination];
+    const destination = this.multiProvider.getChainName(event.args.destination);
 
-    return [
-      { origin: chain, nonce, portalSequence, destination },
-    ] as PortalBridgeMessage<Chain>[];
+    return [{ origin: chain, nonce, portalSequence, destination }];
   }
+
   async parseCircleMessages(
-    chain: Chain,
+    chain: ChainName,
     txHash: string,
-  ): Promise<CircleBridgeMessage<Chain>[]> {
-    const connection = this.multiProvider.getChainConnection(chain);
-    const receipt = await connection.provider.getTransactionReceipt(txHash);
+  ): Promise<CircleBridgeMessage[]> {
+    const provider = this.multiProvider.getProvider(chain);
+    const receipt = await provider.getTransactionReceipt(txHash);
     const matchingLogs = receipt.logs
       .map((_) => {
         try {
@@ -147,12 +143,11 @@ export class LiquidityLayerApp<
       .nonce;
     const remoteChain = chain === Chains.fuji ? Chains.goerli : Chains.fuji;
     const domain = this.config[chain].circle!.circleDomainMapping.find(
-      (_) => _.hyperlaneDomain === ChainNameToDomainId[chain],
+      (_) => _.hyperlaneDomain === this.multiProvider.getDomainId(chain),
     )!.circleDomain;
     return [
       {
         chain,
-        // @ts-ignore
         remoteChain,
         txHash,
         message,
@@ -167,13 +162,13 @@ export class LiquidityLayerApp<
   }
 
   async attemptPortalTransferCompletion(
-    message: PortalBridgeMessage<Chain>,
+    message: PortalBridgeMessage,
   ): Promise<void> {
     const destinationPortalAdapter = this.getContracts(message.destination)
       .portalAdapter!;
 
     const transferId = await destinationPortalAdapter.transferId(
-      ChainNameToDomainId[message.origin],
+      this.multiProvider.getDomainId(message.origin),
       message.nonce,
     );
 
@@ -190,7 +185,8 @@ export class LiquidityLayerApp<
     const wormholeOriginDomain = this.config[
       message.destination
     ].portal!.wormholeDomainMapping.find(
-      (_) => _.hyperlaneDomain === ChainNameToDomainId[message.origin],
+      (_) =>
+        _.hyperlaneDomain === this.multiProvider.getDomainId(message.origin),
     )?.wormholeDomain;
     const emitter = utils.strip0x(
       utils.addressToBytes32(
@@ -207,27 +203,24 @@ export class LiquidityLayerApp<
       return;
     }
 
-    const connection = this.multiProvider.getChainConnection(
-      message.destination,
-    );
     console.debug(
       `Complete portal transfer for nonce ${message.nonce} on ${message.destination}`,
     );
-    await connection.handleTx(
+    await this.multiProvider.handleTx(
+      message.destination,
       destinationPortalAdapter.completeTransfer(
         utils.ensure0x(Buffer.from(vaa.vaaBytes, 'base64').toString('hex')),
       ),
     );
   }
+
   async attemptCircleAttestationSubmission(
-    message: CircleBridgeMessage<Chain>,
+    message: CircleBridgeMessage,
   ): Promise<void> {
-    const connection = this.multiProvider.getChainConnection(
-      message.remoteChain,
-    );
+    const signer = this.multiProvider.getSigner(message.remoteChain);
     const transmitter = ICircleMessageTransmitter__factory.connect(
       this.config[message.remoteChain].circle!.messageTransmitterAddress,
-      connection.signer!,
+      signer,
     );
 
     const alreadyProcessed = await transmitter.usedNonces(message.nonceHash);
@@ -256,7 +249,12 @@ export class LiquidityLayerApp<
       attestations.attestation,
     );
 
-    console.log(`Submitted attestations in ${await connection.getTxUrl(tx)}`);
-    await connection.handleTx(tx);
+    console.log(
+      `Submitted attestations in ${this.multiProvider.getExplorerTxUrl(
+        message.remoteChain,
+        tx,
+      )}`,
+    );
+    await this.multiProvider.handleTx(message.remoteChain, tx);
   }
 }
