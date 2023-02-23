@@ -23,9 +23,14 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProxyKind } from '@hyperlane-xyz/sdk/dist/proxy';
 import { types, utils } from '@hyperlane-xyz/utils';
-import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
+import {
+  bytes32ToAddress,
+  eqAddress,
+} from '@hyperlane-xyz/utils/dist/src/utils';
 
+import { getCoreVerificationDirectory } from '../../scripts/utils';
 import { canProposeSafeTransactions } from '../utils/safe';
+import { readJSON } from '../utils/utils';
 
 import {
   ManualMultiSend,
@@ -49,6 +54,9 @@ type AnnotatedCallData = types.CallData & {
   // estimating gas will fail
   onlyCheckOwnership?: boolean;
 };
+
+const PROXY_ADMIN_STORAGE_KEY =
+  '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103';
 
 export class HyperlaneCoreGovernor<Chain extends ChainName> {
   readonly checker: HyperlaneCoreChecker<Chain>;
@@ -88,7 +96,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
         console.log(
           `> ${calls.length} calls will be submitted via ${submissionType}`,
         );
-        calls.map((c) => console.log(`> > ${c.description}`));
+        calls.map((c) => console.log(`> > ${c.description} (data: ${c.data})`));
         const response = prompts.confirm({
           type: 'confirm',
           name: 'value',
@@ -173,16 +181,22 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     const chain = violation.chain as Chain;
     const contracts: CoreContracts = this.checker.app.contractsMap[chain];
     // '0x'-prefixed hex if set
-    let initData: string | undefined;
+    // let initData: string | undefined;
+    console.log(
+      '\n\n\n\n\n\n------\nhandling proxy violation for chain',
+      chain,
+    );
     switch (violation.data.name) {
       case 'InterchainGasPaymaster':
         // We don't init - ideally we would call `setGasOracles`, but because
         // that function is `onlyOwner` and the msg.sender would be the ProxyAdmin
         // contract, this doesn't work. Instead we call `setGasOracles` afterward
         // when handling the IgpGasOraclesViolation
-        initData = undefined;
+        // initData = undefined;
+        const igp = contracts.interchainGasPaymaster;
+        const canonicalProxyAdmin = contracts.proxyAdmin;
         const ownable = Ownable__factory.connect(
-          contracts.interchainGasPaymaster.address,
+          igp.address,
           this.checker.multiProvider.getChainProvider(chain),
         );
         const actualOwner = await ownable.owner();
@@ -191,14 +205,123 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
           console.warn(
             `Found InterchainGasPaymaster proxy violation where the owner is incorrect. Actual: ${actualOwner}, expected: ${expectedOwner}`,
           );
-          if (eqAddress(actualOwner, contracts.proxyAdmin.address)) {
+
+          const provider = this.checker.multiProvider.getChainProvider(chain);
+          const verificationDir = getCoreVerificationDirectory('mainnet2');
+          const verificationFile = 'verification.json';
+          const verification = readJSON(verificationDir, verificationFile);
+          const igpAdmin = bytes32ToAddress(
+            await provider.getStorageAt(igp.address, PROXY_ADMIN_STORAGE_KEY),
+          );
+          const deployerOwnedProxyAdmin: string | undefined = verification[
+            chain
+          ]?.find((v: any) => v.name === 'DeployerOwnedProxyAdmin')?.address;
+
+          if (
+            deployerOwnedProxyAdmin !== undefined &&
+            eqAddress(actualOwner, deployerOwnedProxyAdmin)
+          ) {
             console.log(
-              `Incorrectly set IGP owner is the proxy admin. Changing this when upgrading and calling.`,
+              'Incorrectly set IGP owner is the deployer owned proxy admin',
+              deployerOwnedProxyAdmin,
             );
-            initData = ownable.interface.encodeFunctionData(
-              'transferOwnership',
-              [expectedOwner],
+            // Confirm that the IGP's admin is correctly set to the canonical proxy admin
+            if (!eqAddress(igpAdmin, canonicalProxyAdmin.address)) {
+              throw Error(
+                `IGP admin ${igpAdmin} !== canonical proxy admin ${canonicalProxyAdmin.address}`,
+              );
+            }
+            // We want to first transfer ownership of the deployer owned proxy admin
+            // to the owner multisig
+            const ownerOfDeployerOwnedProxyAdmin =
+              await Ownable__factory.connect(
+                deployerOwnedProxyAdmin,
+                provider,
+              ).owner();
+            const deployer = await this.checker.multiProvider
+              .getChainSigner(chain)
+              .getAddress();
+            if (!eqAddress(ownerOfDeployerOwnedProxyAdmin, deployer)) {
+              throw Error(
+                `ownerOfDeployerOwnedProxyAdmin ${ownerOfDeployerOwnedProxyAdmin} !== deployer ${deployer}`,
+              );
+            }
+            // Transfer ownership of the deployer owned proxy admin to the owner
+            // This should be done by the deployer / signer
+            this.pushCall(chain, {
+              to: deployerOwnedProxyAdmin,
+              data: ownable.interface.encodeFunctionData('transferOwnership', [
+                expectedOwner,
+              ]),
+              description: `Transferring ownership of deployerOwnedProxyAdmin ${deployerOwnedProxyAdmin} from deployer ${deployer} to expectedOwner ${expectedOwner}`,
+              submissionType: SubmissionType.SIGNER,
+            });
+
+            // Now change IGP's proxy admin away from canonicalProxyAdmin to deployerOwnedProxyAdmin
+            this.pushCall(chain, {
+              to: canonicalProxyAdmin.address,
+              data: canonicalProxyAdmin.interface.encodeFunctionData(
+                'changeProxyAdmin',
+                [igp.address, deployerOwnedProxyAdmin],
+              ),
+              description: `Changing proxy admin for IGP ${igp.address} from canonicalProxyAdmin ${canonicalProxyAdmin.address} to deployerOwnedProxyAdmin ${deployerOwnedProxyAdmin}`,
+              submissionType: SubmissionType.SAFE,
+            });
+
+            // Now make the upgradeAndCall using the deployerOwnedProxyAdmin to change to the new implementation
+            // and to transfer ownership to the expectedOwner
+            const upgradeAndCallData =
+              contracts.proxyAdmin.interface.encodeFunctionData(
+                'upgradeAndCall',
+                [
+                  violation.data.proxyAddresses.proxy,
+                  violation.data.proxyAddresses.implementation,
+                  ownable.interface.encodeFunctionData('transferOwnership', [
+                    expectedOwner,
+                  ]),
+                ],
+              );
+            this.pushCall(chain, {
+              to: deployerOwnedProxyAdmin,
+              data: upgradeAndCallData,
+              description: `Upgrading ${violation.data.proxyAddresses.proxy} to ${violation.data.proxyAddresses.implementation}, also transferring ownership. Full data: ${upgradeAndCallData}`,
+              submissionType: SubmissionType.SAFE,
+            });
+
+            // And finally change proxy admin away from deployerOwnedProxyAdmin back to the canonicalProxyAdmin
+            this.pushCall(chain, {
+              to: deployerOwnedProxyAdmin,
+              data: canonicalProxyAdmin.interface.encodeFunctionData(
+                'changeProxyAdmin',
+                [igp.address, canonicalProxyAdmin.address],
+              ),
+              description: `Changing proxy admin for IGP ${igp.address} from deployerOwnedProxyAdmin ${deployerOwnedProxyAdmin} to canonicalProxyAdmin ${canonicalProxyAdmin.address}`,
+              submissionType: SubmissionType.SAFE,
+            });
+          } else if (eqAddress(actualOwner, canonicalProxyAdmin.address)) {
+            // For the gnosis case, where the owner is actually the canonical proxy admin
+            console.log(
+              `actualOwner ${actualOwner} == canonicalProxyAdmin ${canonicalProxyAdmin.address}, will upgrade and transfer ownership`,
             );
+            const upgradeAndCallData =
+              contracts.proxyAdmin.interface.encodeFunctionData(
+                'upgradeAndCall',
+                [
+                  violation.data.proxyAddresses.proxy,
+                  violation.data.proxyAddresses.implementation,
+                  ownable.interface.encodeFunctionData('transferOwnership', [
+                    expectedOwner,
+                  ]),
+                ],
+              );
+            this.pushCall(chain, {
+              to: contracts.proxyAdmin.address,
+              data: upgradeAndCallData,
+              description: `Upgrade ${violation.data.proxyAddresses.proxy} to ${violation.data.proxyAddresses.implementation}, data: ${upgradeAndCallData}`,
+              submissionType: SubmissionType.SAFE,
+            });
+          } else {
+            throw Error('Unhandled case where the owner is wrong');
           }
         }
         break;
@@ -206,29 +329,38 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
         throw new Error(`Unsupported proxy violation ${violation.data.name}`);
     }
 
-    const data = initData
-      ? contracts.proxyAdmin.interface.encodeFunctionData('upgradeAndCall', [
-          violation.data.proxyAddresses.proxy,
-          violation.data.proxyAddresses.implementation,
-          initData,
-        ])
-      : contracts.proxyAdmin.interface.encodeFunctionData('upgrade', [
-          violation.data.proxyAddresses.proxy,
-          violation.data.proxyAddresses.implementation,
-        ]);
+    // const data = initData
+    //   ? contracts.proxyAdmin.interface.encodeFunctionData('upgradeAndCall', [
+    //       violation.data.proxyAddresses.proxy,
+    //       violation.data.proxyAddresses.implementation,
+    //       initData,
+    //     ])
+    //   : contracts.proxyAdmin.interface.encodeFunctionData('upgrade', [
+    //       violation.data.proxyAddresses.proxy,
+    //       violation.data.proxyAddresses.implementation,
+    //     ]);
 
-    this.pushCall(chain, {
-      to: contracts.proxyAdmin.address,
-      data,
-      description: `Upgrade ${violation.data.proxyAddresses.proxy} to ${violation.data.proxyAddresses.implementation}, data: ${data}`,
-    });
+    // this.pushCall(chain, {
+    //   to: contracts.proxyAdmin.address,
+    //   data,
+    //   description: `Upgrade ${violation.data.proxyAddresses.proxy} to ${violation.data.proxyAddresses.implementation}, data: ${data}`,
+    // });
   }
 
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls) as Chain[]) {
       for (const call of this.calls[chain]) {
-        const submissionType = await this.inferCallSubmissionType(chain, call);
-        call.submissionType = submissionType;
+        console.log('Inferring submission type for chain', chain, 'call', call);
+        if (call.submissionType == undefined) {
+          console.log('Submission type undefined, inferring...');
+          const submissionType = await this.inferCallSubmissionType(
+            chain,
+            call,
+          );
+          call.submissionType = submissionType;
+        } else {
+          console.log('Submission type defined');
+        }
       }
     }
   }
@@ -282,9 +414,11 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
       return false;
     };
 
-    if (await canUseSubmissionType(connection.provider, signerAddress)) {
-      return SubmissionType.SIGNER;
-    }
+    // Skipping for Mainnet -  we want to use safe
+
+    // if (await canUseSubmissionType(connection.provider, signerAddress)) {
+    //   return SubmissionType.SIGNER;
+    // }
 
     // 2. Check if the call will succeed via Gnosis Safe.
     const safeAddress = this.checker.configMap[chain!].owner;
