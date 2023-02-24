@@ -6,11 +6,11 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use derive_builder::Builder;
+use derive_new::new;
 use ethers::prelude::JsonRpcClient;
 use maplit::hashmap;
 use prometheus::{CounterVec, IntCounterVec};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 
 pub use crate::ChainInfo;
 
@@ -95,25 +95,11 @@ impl PrometheusJsonRpcClientConfig {
 /// metrics. To make this as flexible as possible, the metric vecs need to be
 /// created and named externally, they should follow the naming convention here
 /// and must include the described labels.
+#[derive(new)]
 pub struct PrometheusJsonRpcClient<C> {
     inner: C,
     metrics: JsonRpcClientMetrics,
     config: PrometheusJsonRpcClientConfig,
-}
-
-impl<C> PrometheusJsonRpcClient<C> {
-    /// Wrap a JsonRpcClient with metrics.
-    pub fn new(
-        client: C,
-        metrics: JsonRpcClientMetrics,
-        config: PrometheusJsonRpcClientConfig,
-    ) -> Self {
-        Self {
-            inner: client,
-            metrics,
-            config,
-        }
-    }
 }
 
 impl<C> Debug for PrometheusJsonRpcClient<C>

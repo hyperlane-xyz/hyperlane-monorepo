@@ -1,11 +1,12 @@
-//! This is a port of the backtrace print.rs code which generates one-line backtraces. A lot of
-//! simplifications were made for our specific use case.
+//! This is a port of the backtrace print.rs code which generates one-line
+//! backtraces. A lot of simplifications were made for our specific use case.
 
 use std::ffi::c_void;
 use std::fmt::{Display, Formatter};
 use std::{env, fmt};
 
 use backtrace::{Backtrace, BacktraceFrame, BacktraceSymbol, BytesOrWideString, SymbolName};
+use derive_new::new;
 
 /// Format a backtrace onto a single line.
 /// Largely stolen from backtrace's Debug implementation.
@@ -46,41 +47,26 @@ pub fn fmt_backtrace(
 /// This type can be used to print a backtrace regardless of where the backtrace
 /// itself comes from. If you have a `Backtrace` type then its `Debug`
 /// implementation already uses this printing format.
+///
+/// The `format` will control the style in which the backtrace is
+/// printed, and the `print_path` will be used to print the
+/// `BytesOrWideString` instances of filenames. This type itself doesn't do
+/// any printing of filenames, but this callback is required to do so.
+#[derive(new)]
 struct BacktraceFmt<'a, 'b> {
-    fmt: &'a mut fmt::Formatter<'b>,
+    fmt: &'a mut Formatter<'b>,
+    #[new(default)]
     frame_index: usize,
-    print_path:
-        &'a mut (dyn FnMut(&mut fmt::Formatter<'_>, BytesOrWideString<'_>) -> fmt::Result + 'b),
     line_separator: &'static str,
+    print_path: &'a mut (dyn FnMut(&mut Formatter<'_>, BytesOrWideString<'_>) -> fmt::Result + 'b),
 }
 
 impl<'a, 'b> BacktraceFmt<'a, 'b> {
-    /// Create a new `BacktraceFmt` which will write output to the provided
-    /// `fmt`.
-    ///
-    /// The `format` argument will control the style in which the backtrace is
-    /// printed, and the `print_path` argument will be used to print the
-    /// `BytesOrWideString` instances of filenames. This type itself doesn't do
-    /// any printing of filenames, but this callback is required to do so.
-    fn new(
-        fmt: &'a mut fmt::Formatter<'b>,
-        line_separator: &'static str,
-        print_path: &'a mut (dyn FnMut(&mut fmt::Formatter<'_>, BytesOrWideString<'_>) -> fmt::Result
-                     + 'b),
-    ) -> Self {
-        BacktraceFmt {
-            fmt,
-            frame_index: 0,
-            line_separator,
-            print_path,
-        }
-    }
-
     /// Adds a frame to the backtrace output.
     ///
-    /// This commit returns an RAII instance of a `BacktraceFrameFmt` which can be used
-    /// to actually print a frame, and on destruction it will increment the
-    /// frame counter.
+    /// This commit returns an RAII instance of a `BacktraceFrameFmt` which can
+    /// be used to actually print a frame, and on destruction it will
+    /// increment the frame counter.
     fn frame(&mut self) -> BacktraceFrameFmt<'_, 'a, 'b> {
         BacktraceFrameFmt {
             fmt: self,

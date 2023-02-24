@@ -1,9 +1,9 @@
 use std::{fmt, time::Duration};
 
 use async_trait::async_trait;
+use derive_new::new;
 use eyre::{bail, Result};
 use futures_util::TryStreamExt;
-use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
 use once_cell::sync::OnceCell;
 use prometheus::IntGauge;
 use rusoto_core::{
@@ -13,6 +13,8 @@ use rusoto_core::{
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 use tokio::time::timeout;
 
+use hyperlane_core::{SignedAnnouncement, SignedCheckpoint};
+
 use crate::CheckpointSyncer;
 
 /// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
@@ -20,7 +22,7 @@ use crate::CheckpointSyncer;
 /// See https://github.com/rusoto/rusoto/issues/1795.
 const S3_REQUEST_TIMEOUT_SECONDS: u64 = 30;
 
-#[derive(Clone)]
+#[derive(Clone, new)]
 /// Type for reading/writing to S3
 pub struct S3Storage {
     /// The name of the bucket.
@@ -28,8 +30,10 @@ pub struct S3Storage {
     /// The region of the bucket.
     region: Region,
     /// A client with AWS credentials.
+    #[new(default)]
     authenticated_client: OnceCell<S3Client>,
     /// A client without credentials for anonymous requests.
+    #[new(default)]
     anonymous_client: OnceCell<S3Client>,
     /// The latest seen signed checkpoint index.
     latest_index: Option<IntGauge>,
@@ -45,17 +49,6 @@ impl fmt::Debug for S3Storage {
 }
 
 impl S3Storage {
-    /// constructor
-    pub fn new(bucket: &str, region: Region, latest_index: Option<IntGauge>) -> Self {
-        Self {
-            bucket: bucket.to_owned(),
-            region,
-            authenticated_client: OnceCell::new(),
-            anonymous_client: OnceCell::new(),
-            latest_index,
-        }
-    }
-
     async fn write_to_bucket(&self, key: String, body: &str) -> Result<()> {
         let req = PutObjectRequest {
             key,
