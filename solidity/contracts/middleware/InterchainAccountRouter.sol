@@ -4,11 +4,12 @@ pragma solidity ^0.8.13;
 // ============ Internal Imports ============
 import {OwnableMulticall} from "../OwnableMulticall.sol";
 import {HyperlaneConnectionClient} from "../HyperlaneConnectionClient.sol";
-import {IInterchainAccountRouter} from "../../interfaces/IInterchainAccountRouter.sol";
+import {IInterchainAccountRouter} from "../../interfaces/middleware/IInterchainAccountRouter.sol";
 import {InterchainAccountMessage} from "../libs/middleware/InterchainAccountMessage.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {CallLib} from "../libs/Call.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
+import {OverridableDomainMap} from "../libs/OverridableDomainMap.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -34,11 +35,8 @@ contract InterchainAccountRouter is
     bytes32 internal immutable bytecodeHash;
 
     // ============ Public Storage ============
-
-    // Maps destination domain to global default configs
-    mapping(uint32 => InterchainAccountConfig) globalDefaults;
-    // Maps user address to overrides for global default configs
-    mapping(address => mapping(uint32 => InterchainAccountConfig)) userDefaults;
+    OverridableDomainMap.Bytes32DomainMap routers;
+    OverridableDomainMap.Bytes32DomainMap isms;
 
     // ============ Events ============
 
@@ -90,6 +88,37 @@ contract InterchainAccountRouter is
     }
 
     // ============ External Functions ============
+    function setConfigDefault(
+        uint32 _destination,
+        InterchainAccountConfig calldata _config
+    ) external onlyOwner {
+        require(_config.router != bytes32(0), "invalid config");
+        require(
+            OverridableDomainMap.getDefault(routers, _destination) ==
+                bytes32(0),
+            "config defaults are immutable once set"
+        );
+        OverridableDomainMap.setDefault(routers, _destination, _config.router);
+        OverridableDomainMap.setDefault(isms, _destination, _config.ism);
+    }
+
+    function setConfigOverride(
+        uint32 _destination,
+        InterchainAccountConfig calldata _config
+    ) external {
+        OverridableDomainMap.setOverride(
+            routers,
+            msg.sender,
+            _destination,
+            _config.router
+        );
+        OverridableDomainMap.setOverride(
+            isms,
+            msg.sender,
+            _destination,
+            _config.ism
+        );
+    }
 
     /**
      * @notice Dispatches a sequence of remote calls to be made by a owner's
@@ -110,7 +139,10 @@ contract InterchainAccountRouter is
             _destination,
             msg.sender
         );
-        require(!_isEmpty(_config), "no default config");
+        require(
+            _config.router != bytes32(0),
+            "no config specified for destination"
+        );
         return
             mailbox.dispatch(
                 _destination,
@@ -181,27 +213,6 @@ contract InterchainAccountRouter is
             );
     }
 
-    // ONLYOWNER!
-    function setGlobalDefault(
-        uint32 _destination,
-        InterchainAccountConfig calldata _config
-    ) external onlyOwner {
-        require(_config.router != bytes32(0), "invalid router");
-        require(
-            _isEmpty(globalDefaults[_destination]),
-            "global configs are immutable once set"
-        );
-        globalDefaults[_destination] = _config;
-    }
-
-    function setUserDefault(
-        uint32 _destination,
-        InterchainAccountConfig calldata _config
-    ) external {
-        require(!_isEmpty(_config), "invalid router");
-        userDefaults[msg.sender][_destination] = _config;
-    }
-
     // ============ Private Functions ============
 
     /**
@@ -227,27 +238,18 @@ contract InterchainAccountRouter is
         return OwnableMulticall(interchainAccount);
     }
 
-    // TODO: Consistency, domain comes first
     function getInterchainAccountConfig(uint32 _destination, address _owner)
         public
         view
         returns (InterchainAccountConfig memory)
     {
-        InterchainAccountConfig storage _userDefault = userDefaults[_owner][
+        bytes32 _router = OverridableDomainMap.get(
+            routers,
+            _owner,
             _destination
-        ];
-        return
-            _isEmpty(_userDefault)
-                ? globalDefaults[_destination]
-                : _userDefault;
-    }
-
-    function _isEmpty(InterchainAccountConfig memory _config)
-        private
-        pure
-        returns (bool)
-    {
-        return _config.router == bytes32(0);
+        );
+        bytes32 _ism = OverridableDomainMap.get(isms, _owner, _destination);
+        return InterchainAccountConfig(_router, _ism);
     }
 
     /**

@@ -99,7 +99,7 @@ contract InterchainAccountRouterTest is Test {
             router: router,
             ism: ism
         });
-        originRouter.setGlobalDefault(destinationDomain, expectedConfig);
+        originRouter.setConfigDefault(destinationDomain, expectedConfig);
         actualConfig = originRouter.getInterchainAccountConfig(
             destinationDomain,
             address(this)
@@ -114,15 +114,15 @@ contract InterchainAccountRouterTest is Test {
         bytes32 ismB
     ) public {
         vm.assume(routerA != bytes32(0) && routerB != bytes32(0));
-        originRouter.setGlobalDefault(
+        originRouter.setConfigDefault(
             destinationDomain,
             IInterchainAccountRouter.InterchainAccountConfig({
                 router: routerA,
                 ism: ismA
             })
         );
-        vm.expectRevert(bytes("global configs are immutable once set"));
-        originRouter.setGlobalDefault(
+        vm.expectRevert(bytes("config defaults are immutable once set"));
+        originRouter.setConfigDefault(
             destinationDomain,
             IInterchainAccountRouter.InterchainAccountConfig({
                 router: routerB,
@@ -139,7 +139,7 @@ contract InterchainAccountRouterTest is Test {
         vm.assume(newOwner != address(0) && newOwner != originRouter.owner());
         originRouter.transferOwnership(newOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
-        originRouter.setGlobalDefault(
+        originRouter.setConfigDefault(
             destinationDomain,
             IInterchainAccountRouter.InterchainAccountConfig({
                 router: router,
@@ -155,7 +155,7 @@ contract InterchainAccountRouterTest is Test {
         bytes32 userIsm
     ) public {
         // Set global defaults to ensure overridden by user defaults
-        originRouter.setGlobalDefault(
+        originRouter.setConfigDefault(
             destinationDomain,
             IInterchainAccountRouter.InterchainAccountConfig({
                 router: globalRouter,
@@ -165,7 +165,7 @@ contract InterchainAccountRouterTest is Test {
         IInterchainAccountRouter.InterchainAccountConfig
             memory expectedConfig = IInterchainAccountRouter
                 .InterchainAccountConfig({router: userRouter, ism: userIsm});
-        originRouter.setUserDefault(destinationDomain, expectedConfig);
+        originRouter.setConfigOverride(destinationDomain, expectedConfig);
         IInterchainAccountRouter.InterchainAccountConfig
             memory actualConfig = originRouter.getInterchainAccountConfig(
                 destinationDomain,
@@ -204,13 +204,13 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testCallRemoteWithGlobalDefault(bytes32 data) public {
-        originRouter.setGlobalDefault(destinationDomain, userConfig);
+        originRouter.setConfigDefault(destinationDomain, userConfig);
         originRouter.callRemote(destinationDomain, getCalls(data));
         assertRemoteCall(data);
     }
 
     function testCallRemoteWithUserDefault(bytes32 data) public {
-        originRouter.setUserDefault(destinationDomain, userConfig);
+        originRouter.setConfigOverride(destinationDomain, userConfig);
         originRouter.callRemote(destinationDomain, getCalls(data));
         assertRemoteCall(data);
     }

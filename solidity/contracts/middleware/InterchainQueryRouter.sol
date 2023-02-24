@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 // ============ Internal Imports ============
 import {CallLib} from "../libs/Call.sol";
 import {Router} from "../Router.sol";
-import {IInterchainQueryRouter} from "../../interfaces/IInterchainQueryRouter.sol";
+import {IInterchainQueryRouter} from "../../interfaces/middleware/IInterchainQueryRouter.sol";
 import {InterchainCallMessage} from "./InterchainCallMessage.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
