@@ -64,7 +64,7 @@ const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 
 const desiredBalancePerChain: CompleteChainMap<string> = {
-  celo: '0.1',
+  celo: '1',
   alfajores: '1',
   avalanche: '0.1',
   fuji: '1',
