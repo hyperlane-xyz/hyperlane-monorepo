@@ -84,16 +84,6 @@ export class HyperlaneCoreDeployer<
       deployOpts,
     );
 
-    try {
-      await igp.contract.gasOracles(0);
-    } catch (_) {
-      // If there's an error, we're still using the old
-      // IGP implementation, and we should leave the setting of
-      // gas oracles for the contract upgrade done by the
-      // govern / checker scripts
-      return igp;
-    }
-
     // Set the gas oracles
 
     const chainConnection = this.multiProvider.getChainConnection(chain);
@@ -127,28 +117,6 @@ export class HyperlaneCoreDeployer<
     }
 
     return igp;
-  }
-
-  private getGasOracleAddress<LocalChain extends Chain>(
-    local: LocalChain,
-    remote: Remotes<Chain, LocalChain>,
-    gasOracleContracts: GasOracleContracts,
-  ): types.Address {
-    const localConfig = this.configMap[local];
-    const gasOracleType = localConfig.igp.gasOracles[remote];
-    if (!gasOracleType) {
-      throw Error(
-        `Expected gas oracle type for local ${local} and remote ${remote}`,
-      );
-    }
-    switch (gasOracleType) {
-      case GasOracleContractType.StorageGasOracle: {
-        return gasOracleContracts.storageGasOracle.address;
-      }
-      default: {
-        throw Error(`Unsupported gas oracle type ${gasOracleType}`);
-      }
-    }
   }
 
   async deployDefaultIsmInterchainGasPaymaster<LocalChain extends Chain>(
@@ -405,5 +373,27 @@ export class HyperlaneCoreDeployer<
     }
 
     return receipts.filter((x) => x !== undefined) as ethers.ContractReceipt[];
+  }
+
+  private getGasOracleAddress<LocalChain extends Chain>(
+    local: LocalChain,
+    remote: Remotes<Chain, LocalChain>,
+    gasOracleContracts: GasOracleContracts,
+  ): types.Address {
+    const localConfig = this.configMap[local];
+    const gasOracleType = localConfig.igp.gasOracles[remote];
+    if (!gasOracleType) {
+      throw Error(
+        `Expected gas oracle type for local ${local} and remote ${remote}`,
+      );
+    }
+    switch (gasOracleType) {
+      case GasOracleContractType.StorageGasOracle: {
+        return gasOracleContracts.storageGasOracle.address;
+      }
+      default: {
+        throw Error(`Unsupported gas oracle type ${gasOracleType}`);
+      }
+    }
   }
 }

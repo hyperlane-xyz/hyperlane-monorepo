@@ -23,11 +23,7 @@ async function check() {
     config.core,
   );
   await coreChecker.check();
-  coreChecker.expectViolations({
-    Transparent: 9,
-    InterchainGasPaymaster: 18,
-    BytecodeMismatch: 9,
-  });
+  coreChecker.expectViolations({ Transparent: 1 });
 
   const governor = new HyperlaneCoreGovernor(coreChecker);
   await governor.govern();
