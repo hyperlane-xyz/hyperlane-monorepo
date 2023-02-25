@@ -16,6 +16,9 @@ import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
 import { prettyTokenExchangeRate } from './utils';
 
+// Compares the token exchange rate between chains according to the config
+// to the exchange rates using current Coingecko prices. The config exchange
+// rates apply the 30% spread / fee, so we expect config prices to be ~30% higher.
 async function main() {
   const tokenPriceGetter = CoinGeckoTokenPriceGetter.new();
 

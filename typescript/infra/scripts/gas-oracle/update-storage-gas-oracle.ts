@@ -16,6 +16,7 @@ import {
 } from './utils';
 
 /**
+ * Idempotent. Use `--dry-run` to not send any transactions.
  * Updates the currently stored gas data on the StorageGasOracle contract
  * if the configured data differs from the on-chain data.
  * Expects the deployer key to be the owner of the StorageGasOracle contract.

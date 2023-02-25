@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { defaultAbiCoder } from 'ethers/lib/utils';
 
 import { types, utils } from '@hyperlane-xyz/utils';
@@ -273,28 +272,10 @@ export class HyperlaneCoreChecker<
       expected: {},
     };
 
-    // The `gasOracles` mapping was added in a new implementation of the IGP.
-    // If calling this reverts, we are still using an old implementation that
-    // must be upgraded, so we just consider the mapping as unset and default
-    // to address(0) for all gas oracles.
-    // Note that it's important that `checkProxiedContracts` is called before
-    // `checkInterchainGasPaymaster` - this way, the govern script will first
-    // change the IGP proxy to use the correct new implementation, and the
-    // IgpGasOraclesViolation will be able to be correctly handled.
-    const getCurrentGasOracle = async (
-      remoteId: number,
-    ): Promise<types.Address> => {
-      try {
-        return await igp.gasOracles(remoteId);
-      } catch (_) {
-        return ethers.constants.AddressZero;
-      }
-    };
-
     const remotes = this.multiProvider.remoteChains(local);
     for (const remote of remotes) {
       const remoteId = ChainNameToDomainId[remote];
-      const actualGasOracle = await getCurrentGasOracle(remoteId);
+      const actualGasOracle = await igp.gasOracles(remoteId);
       const expectedGasOracle = this.getGasOracleAddress(local, remote);
 
       if (!utils.eqAddress(actualGasOracle, expectedGasOracle)) {
@@ -308,20 +289,7 @@ export class HyperlaneCoreChecker<
       this.addViolation(gasOraclesViolation);
     }
 
-    // Check beneficiary
-    // Try/catch to accommodate the possibility that the IGP's implementation
-    // hasn't been set yet, so the beneficiary function doesn't exist.
-    // In this case, act like the beneficiary is address zero, and rely
-    // upon the IGP proxy setting the implementation correctly before
-    // the beneficiary violation is handled.
-    const getCurrentBeneficiary = async () => {
-      try {
-        return await igp.beneficiary();
-      } catch (_) {
-        return ethers.constants.AddressZero;
-      }
-    };
-    const actualBeneficiary = await getCurrentBeneficiary();
+    const actualBeneficiary = await igp.beneficiary();
     const expectedBeneficiary = this.configMap[local].igp.beneficiary;
     if (!utils.eqAddress(actualBeneficiary, expectedBeneficiary)) {
       const violation: IgpBeneficiaryViolation = {

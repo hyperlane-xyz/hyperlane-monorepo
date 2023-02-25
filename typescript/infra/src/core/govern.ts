@@ -82,7 +82,9 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
         console.log(
           `> ${calls.length} calls will be submitted via ${submissionType}`,
         );
-        calls.map((c) => console.log(`> > ${c.description} (data: ${c.data})`));
+        calls.map((c) =>
+          console.log(`> > ${c.description} (to: ${c.to} data: ${c.data})`),
+        );
         const response = prompts.confirm({
           type: 'confirm',
           name: 'value',
@@ -192,17 +194,8 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls) as Chain[]) {
       for (const call of this.calls[chain]) {
-        console.log('Inferring submission type for chain', chain, 'call', call);
-        if (call.submissionType == undefined) {
-          console.log('Submission type undefined, inferring...');
-          const submissionType = await this.inferCallSubmissionType(
-            chain,
-            call,
-          );
-          call.submissionType = submissionType;
-        } else {
-          console.log('Submission type defined');
-        }
+        const submissionType = await this.inferCallSubmissionType(chain, call);
+        call.submissionType = submissionType;
       }
     }
   }
