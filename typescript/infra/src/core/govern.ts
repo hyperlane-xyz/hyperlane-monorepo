@@ -201,8 +201,7 @@ export class HyperlaneCoreGovernor {
     call: AnnotatedCallData,
   ): Promise<SubmissionType> {
     const multiProvider = this.checker.multiProvider;
-    // const connection = this.checker.multiProvider.getChainConnection(chain);
-    const signer = this.checker.multiProvider.getSigner(chain);
+    const signer = multiProvider.getSigner(chain);
     const signerAddress = await signer.getAddress();
 
     const canUseSubmissionType = async (
