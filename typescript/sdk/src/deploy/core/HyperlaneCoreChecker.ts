@@ -1,10 +1,8 @@
-import { defaultAbiCoder } from 'ethers/lib/utils';
+import { utils as ethersUtils } from 'ethers';
 
 import { types, utils } from '@hyperlane-xyz/utils';
-import { eqAddress } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
-import { ChainNameToDomainId } from '../../domains';
 import { ChainName } from '../../types';
 import { HyperlaneAppChecker } from '../HyperlaneAppChecker';
 
@@ -35,10 +33,12 @@ const INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH =
   '0xcee48ab556ae2ff12b6458fa92e5e31f4a07f7852a0ed06e43a7f06f3c4c6d76';
 const OVERHEAD_IGP_BYTECODE_HASH =
   '0x3cfed1f24f1e9b28a76d5a8c61696a04f7bc474404b823a2fcc210ea52346252';
-export class HyperlaneCoreChecker<
-  Chain extends ChainName,
-> extends HyperlaneAppChecker<Chain, HyperlaneCore<Chain>, CoreConfig> {
-  async checkChain(chain: Chain): Promise<void> {
+
+export class HyperlaneCoreChecker extends HyperlaneAppChecker<
+  HyperlaneCore,
+  CoreConfig
+> {
+  async checkChain(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
     // skip chains that are configured to be removed
     if (config.remove) {
@@ -54,7 +54,7 @@ export class HyperlaneCoreChecker<
     await this.checkInterchainGasPaymaster(chain);
   }
 
-  async checkDomainOwnership(chain: Chain): Promise<void> {
+  async checkDomainOwnership(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
     if (config.owner) {
       const contracts = this.app.getContracts(chain);
@@ -67,11 +67,11 @@ export class HyperlaneCoreChecker<
     }
   }
 
-  async checkMailbox(chain: Chain): Promise<void> {
+  async checkMailbox(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
     const mailbox = contracts.mailbox.contract;
     const localDomain = await mailbox.localDomain();
-    utils.assert(localDomain === ChainNameToDomainId[chain]);
+    utils.assert(localDomain === this.multiProvider.getDomainId(chain));
 
     const actualIsm = await mailbox.defaultIsm();
     const expectedIsm = contracts.multisigIsm.address;
@@ -88,7 +88,7 @@ export class HyperlaneCoreChecker<
     }
   }
 
-  async checkBytecodes(chain: Chain): Promise<void> {
+  async checkBytecodes(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
     const mailbox = contracts.mailbox.contract;
     const localDomain = await mailbox.localDomain();
@@ -105,7 +105,9 @@ export class HyperlaneCoreChecker<
         // localDomain in the bytecode should be not be removed which
         // are just done via an offset guard
         _.replaceAll(
-          defaultAbiCoder.encode(['uint32'], [localDomain]).slice(2),
+          ethersUtils.defaultAbiCoder
+            .encode(['uint32'], [localDomain])
+            .slice(2),
           (match, offset) => (offset > 8000 ? match : ''),
         ),
     );
@@ -149,7 +151,7 @@ export class HyperlaneCoreChecker<
       (_) =>
         // Remove the address of the wrapped ISM from the bytecode
         _.replaceAll(
-          defaultAbiCoder
+          ethersUtils.defaultAbiCoder
             .encode(
               ['address'],
               [contracts.interchainGasPaymaster.addresses.proxy],
@@ -160,7 +162,7 @@ export class HyperlaneCoreChecker<
     );
   }
 
-  async checkProxiedContracts(chain: Chain): Promise<void> {
+  async checkProxiedContracts(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
     await this.checkProxiedContract(
       chain,
@@ -176,14 +178,14 @@ export class HyperlaneCoreChecker<
     );
   }
 
-  async checkValidatorAnnounce(chain: Chain): Promise<void> {
+  async checkValidatorAnnounce(chain: ChainName): Promise<void> {
     const expectedValidators = this.configMap[chain].multisigIsm.validators;
     const validatorAnnounce = this.app.getContracts(chain).validatorAnnounce;
     const announcedValidators =
       await validatorAnnounce.getAnnouncedValidators();
     expectedValidators.map((validator) => {
       const matches = announcedValidators.filter((x) =>
-        eqAddress(x, validator),
+        utils.eqAddress(x, validator),
       );
       if (matches.length == 0) {
         const violation: ValidatorAnnounceViolation = {
@@ -198,7 +200,7 @@ export class HyperlaneCoreChecker<
     });
   }
 
-  async checkMultisigIsm(local: Chain): Promise<void> {
+  async checkMultisigIsm(local: ChainName): Promise<void> {
     await Promise.all(
       this.app
         .remoteChains(local)
@@ -206,12 +208,15 @@ export class HyperlaneCoreChecker<
     );
   }
 
-  async checkMultisigIsmForRemote(local: Chain, remote: Chain): Promise<void> {
+  async checkMultisigIsmForRemote(
+    local: ChainName,
+    remote: ChainName,
+  ): Promise<void> {
     const coreContracts = this.app.getContracts(local);
     const multisigIsm = coreContracts.multisigIsm;
     const config = this.configMap[remote];
 
-    const remoteDomain = ChainNameToDomainId[remote];
+    const remoteDomain = this.multiProvider.getDomainId(remote);
     const multisigIsmConfig = config.multisigIsm;
     const expectedValidators = multisigIsmConfig.validators;
     const actualValidators = await multisigIsm.validators(remoteDomain);
@@ -255,7 +260,7 @@ export class HyperlaneCoreChecker<
     }
   }
 
-  async checkInterchainGasPaymaster(local: Chain): Promise<void> {
+  async checkInterchainGasPaymaster(local: ChainName): Promise<void> {
     const coreContracts = this.app.getContracts(local);
     const igp = coreContracts.interchainGasPaymaster.contract;
 
@@ -272,9 +277,9 @@ export class HyperlaneCoreChecker<
       expected: {},
     };
 
-    const remotes = this.multiProvider.remoteChains(local);
+    const remotes = this.multiProvider.getRemoteChains(local);
     for (const remote of remotes) {
-      const remoteId = ChainNameToDomainId[remote];
+      const remoteId = this.multiProvider.getDomainId(remote);
       const actualGasOracle = await igp.gasOracles(remoteId);
       const expectedGasOracle = this.getGasOracleAddress(local, remote);
 
@@ -304,7 +309,7 @@ export class HyperlaneCoreChecker<
     }
   }
 
-  getGasOracleAddress(local: Chain, remote: Chain): types.Address {
+  getGasOracleAddress(local: ChainName, remote: ChainName): types.Address {
     const config = this.configMap[local];
     const gasOracleType = config.igp.gasOracles[remote];
     if (!gasOracleType) {

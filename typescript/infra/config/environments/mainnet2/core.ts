@@ -16,7 +16,7 @@ function getGasOracles(local: MainnetChains) {
 
 const KEY_FUNDER_ADDRESS = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
-export const core: ChainMap<MainnetChains, CoreConfig> = {
+export const core: ChainMap<CoreConfig> = {
   celo: {
     owner: '0x1DE69322B55AC7E0999F8e7738a1428C8b130E4d',
     multisigIsm: {

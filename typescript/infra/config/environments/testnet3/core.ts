@@ -16,7 +16,7 @@ function getGasOracles(local: TestnetChains) {
 
 const DEPLOYER_ADDRESS = '0xfaD1C94469700833717Fa8a3017278BC1cA8031C';
 
-export const core: ChainMap<TestnetChains, CoreConfig> = {
+export const core: ChainMap<CoreConfig> = {
   alfajores: {
     owner: DEPLOYER_ADDRESS,
     multisigIsm: {

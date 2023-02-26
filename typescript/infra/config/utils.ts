@@ -1,4 +1,4 @@
-import { ChainMap, ChainName, chainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainMap, chainMetadata } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldConfig } from '../src/config';
 import { MatchingList } from '../src/config/agent';
@@ -14,8 +14,8 @@ export const MATCHING_LIST_ALL_WILDCARDS = [
   },
 ];
 
-export function helloworldMatchingList<Chain extends ChainName>(
-  helloWorldConfigs: Partial<Record<Contexts, HelloWorldConfig<Chain>>>,
+export function helloworldMatchingList(
+  helloWorldConfigs: Partial<Record<Contexts, HelloWorldConfig>>,
   context: Contexts,
 ) {
   const helloWorldConfig = helloWorldConfigs[context];
@@ -25,10 +25,8 @@ export function helloworldMatchingList<Chain extends ChainName>(
   return routerMatchingList(helloWorldConfig.addresses);
 }
 
-export function routerMatchingList<Chain extends ChainName>(
-  routers: ChainMap<Chain, { router: string }>,
-) {
-  const chains = Object.keys(routers) as Chain[];
+export function routerMatchingList(routers: ChainMap<{ router: string }>) {
+  const chains = Object.keys(routers);
 
   const matchingList: MatchingList = [];
 
@@ -39,9 +37,9 @@ export function routerMatchingList<Chain extends ChainName>(
       }
 
       matchingList.push({
-        originDomain: chainMetadata[source].id,
+        originDomain: chainMetadata[source].chainId,
         senderAddress: routers[source].router,
-        destinationDomain: chainMetadata[destination].id,
+        destinationDomain: chainMetadata[destination].chainId,
         recipientAddress: routers[destination].router,
       });
     }

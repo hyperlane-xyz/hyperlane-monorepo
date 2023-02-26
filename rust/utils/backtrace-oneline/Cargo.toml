@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 backtrace = "0.3"
+derive-new = "0.5"

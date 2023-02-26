@@ -1,6 +1,8 @@
 use std::cmp::Ordering;
 use std::time::Instant;
 
+use derive_new::new;
+
 use hyperlane_core::HyperlaneMessage;
 
 pub mod gas_payment;
@@ -28,21 +30,13 @@ pub mod serial_submitter;
 ///   - FallbackProviderSubmitter (Serialized, but if some RPC provider sucks,
 ///   switch everyone to new one)
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, new)]
 pub struct SubmitMessageArgs {
     pub message: HyperlaneMessage,
+    #[new(default)]
     num_retries: u32,
+    #[new(value = "Instant::now()")]
     last_attempted_at: Instant,
-}
-
-impl SubmitMessageArgs {
-    pub fn new(message: HyperlaneMessage) -> Self {
-        SubmitMessageArgs {
-            message,
-            num_retries: 0,
-            last_attempted_at: Instant::now(),
-        }
-    }
 }
 
 // The run_queue implementation is a max-heap.  We want the next op to

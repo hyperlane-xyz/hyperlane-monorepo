@@ -2,14 +2,11 @@ import {
   CircleBridgeAdapter,
   CircleBridgeAdapter__factory,
   LiquidityLayerRouter,
-  LiquidityLayerRouter__factory,
   PortalAdapter,
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneCore } from '../../core/HyperlaneCore';
-import { ChainNameToDomainId } from '../../domains';
 import {
   LiquidityLayerContracts,
   LiquidityLayerFactories,
@@ -54,25 +51,21 @@ export type BridgeAdapterConfig = {
 
 export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
 
-export class LiquidityLayerDeployer<
-  Chain extends ChainName,
-> extends MiddlewareRouterDeployer<
-  Chain,
+export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
   LiquidityLayerConfig,
   LiquidityLayerContracts,
   LiquidityLayerFactories
 > {
   constructor(
-    multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, LiquidityLayerConfig>,
-    protected core: HyperlaneCore<Chain>,
-    protected create2salt = 'LiquidityLayerDeployerSalt',
+    multiProvider: MultiProvider,
+    configMap: ChainMap<LiquidityLayerConfig>,
+    create2salt = 'LiquidityLayerDeployerSalt',
   ) {
-    super(multiProvider, configMap, liquidityLayerFactories, {});
+    super(multiProvider, configMap, liquidityLayerFactories, create2salt);
   }
 
   async enrollRemoteRouters(
-    contractsMap: ChainMap<Chain, LiquidityLayerContracts>,
+    contractsMap: ChainMap<LiquidityLayerContracts>,
   ): Promise<void> {
     this.logger(`Enroll LiquidityLayerRouters with each other`);
     await super.enrollRemoteRouters(contractsMap);
@@ -101,17 +94,10 @@ export class LiquidityLayerDeployer<
   // Custom contract deployment logic can go here
   // If no custom logic is needed, call deployContract for the router
   async deployContracts(
-    chain: Chain,
+    chain: ChainName,
     config: LiquidityLayerConfig,
   ): Promise<LiquidityLayerContracts> {
-    const initCalldata = this.getInitArgs(
-      config,
-      LiquidityLayerRouter__factory.createInterface(),
-    );
-    const router = await this.deployContract(chain, 'router', [], {
-      create2Salt: this.create2salt,
-      initCalldata,
-    });
+    const routerContracts = await super.deployContracts(chain, config);
 
     const bridgeAdapters: Partial<LiquidityLayerContracts> = {};
 
@@ -120,7 +106,7 @@ export class LiquidityLayerDeployer<
         chain,
         config.circle,
         config.owner,
-        router,
+        routerContracts.router,
       );
     }
     if (config.portal) {
@@ -128,29 +114,27 @@ export class LiquidityLayerDeployer<
         chain,
         config.portal,
         config.owner,
-        router,
+        routerContracts.router,
       );
     }
 
     return {
+      ...routerContracts,
       ...bridgeAdapters,
-      router,
-    };
+    } as any;
   }
 
   async deployPortalAdapter(
-    chain: Chain,
+    chain: ChainName,
     adapterConfig: PortalAdapterConfig,
     owner: string,
     router: LiquidityLayerRouter,
   ): Promise<PortalAdapter> {
-    const cc = this.multiProvider.getChainConnection(chain);
-
     const initCalldata =
       PortalAdapter__factory.createInterface().encodeFunctionData(
         'initialize',
         [
-          ChainNameToDomainId[chain],
+          this.multiProvider.getDomainId(chain),
           owner,
           adapterConfig.portalBridgeAddress,
           router.address,
@@ -177,7 +161,8 @@ export class LiquidityLayerDeployer<
       this.logger(
         `Set wormhole domain ${wormholeDomain} for hyperlane domain ${hyperlaneDomain}`,
       );
-      await cc.handleTx(
+      await this.multiProvider.handleTx(
+        chain,
         portalAdapter.addDomain(hyperlaneDomain, wormholeDomain),
       );
     }
@@ -189,7 +174,8 @@ export class LiquidityLayerDeployer<
       )
     ) {
       this.logger('Set Portal as LiquidityLayerAdapter on Router');
-      await cc.handleTx(
+      await this.multiProvider.handleTx(
+        chain,
         router.setLiquidityLayerAdapter(
           adapterConfig.type,
           portalAdapter.address,
@@ -201,12 +187,11 @@ export class LiquidityLayerDeployer<
   }
 
   async deployCircleBridgeAdapter(
-    chain: Chain,
+    chain: ChainName,
     adapterConfig: CircleBridgeAdapterConfig,
     owner: string,
     router: LiquidityLayerRouter,
   ): Promise<CircleBridgeAdapter> {
-    const cc = this.multiProvider.getChainConnection(chain);
     const initCalldata =
       CircleBridgeAdapter__factory.createInterface().encodeFunctionData(
         'initialize',
@@ -234,7 +219,8 @@ export class LiquidityLayerDeployer<
       )
     ) {
       this.logger(`Set USDC token contract`);
-      await cc.handleTx(
+      await this.multiProvider.handleTx(
+        chain,
         circleBridgeAdapter.addToken(adapterConfig.usdcAddress, 'USDC'),
       );
     }
@@ -252,7 +238,8 @@ export class LiquidityLayerDeployer<
       this.logger(
         `Set circle domain ${circleDomain} for hyperlane domain ${hyperlaneDomain}`,
       );
-      await cc.handleTx(
+      await this.multiProvider.handleTx(
+        chain,
         circleBridgeAdapter.addDomain(hyperlaneDomain, circleDomain),
       );
     }
@@ -264,7 +251,8 @@ export class LiquidityLayerDeployer<
       )
     ) {
       this.logger('Set Circle as LiquidityLayerAdapter on Router');
-      await cc.handleTx(
+      await this.multiProvider.handleTx(
+        chain,
         router.setLiquidityLayerAdapter(
           adapterConfig.type,
           circleBridgeAdapter.address,

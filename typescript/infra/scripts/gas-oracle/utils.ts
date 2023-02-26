@@ -1,14 +1,17 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { DomainIdToChainName } from '@hyperlane-xyz/sdk';
+import { MultiProvider } from '@hyperlane-xyz/sdk';
 
 import { RemoteGasData } from '../../src/config';
 import { RemoteGasDataConfig } from '../../src/config/gas-oracle';
 
-export function prettyRemoteGasDataConfig(config: RemoteGasDataConfig) {
-  return `\tRemote: ${config.remoteDomain} (${
-    DomainIdToChainName[config.remoteDomain]
-  })\n${prettyRemoteGasData(config)}`;
+export function prettyRemoteGasDataConfig(
+  multiProvider: MultiProvider,
+  config: RemoteGasDataConfig,
+) {
+  return `\tRemote: ${config.remoteDomain} (${multiProvider.getChainName(
+    config.remoteDomain,
+  )})\n${prettyRemoteGasData(config)}`;
 }
 
 export function prettyRemoteGasData(data: RemoteGasData) {

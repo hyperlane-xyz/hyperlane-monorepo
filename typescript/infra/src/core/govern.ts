@@ -1,11 +1,9 @@
-import { Provider } from '@ethersproject/providers';
 import { prompts } from 'prompts';
 
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
-  ChainNameToDomainId,
   CoreContracts,
   CoreViolationType,
   EnrolledValidatorsViolation,
@@ -44,12 +42,12 @@ type AnnotatedCallData = types.CallData & {
   description: string;
 };
 
-export class HyperlaneCoreGovernor<Chain extends ChainName> {
-  readonly checker: HyperlaneCoreChecker<Chain>;
-  private calls: ChainMap<Chain, AnnotatedCallData[]>;
-  private canPropose: ChainMap<Chain, Map<string, boolean>>;
+export class HyperlaneCoreGovernor {
+  readonly checker: HyperlaneCoreChecker;
+  private calls: ChainMap<AnnotatedCallData[]>;
+  private canPropose: ChainMap<Map<string, boolean>>;
 
-  constructor(checker: HyperlaneCoreChecker<Chain>) {
+  constructor(checker: HyperlaneCoreChecker) {
     this.checker = checker;
     this.calls = objMap(this.checker.app.contractsMap, () => []);
     this.canPropose = objMap(this.checker.app.contractsMap, () => new Map());
@@ -64,12 +62,12 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
 
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
-    for (const chain of Object.keys(this.calls) as Chain[]) {
+    for (const chain of Object.keys(this.calls)) {
       await this.sendCalls(chain);
     }
   }
 
-  protected async sendCalls(chain: Chain) {
+  protected async sendCalls(chain: ChainName) {
     const calls = this.calls[chain];
     console.log(`\nFound ${calls.length} transactions for ${chain}`);
     const filterCalls = (submissionType: SubmissionType) =>
@@ -116,21 +114,19 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
       }
     };
 
-    const connection = this.checker.multiProvider.getChainConnection(chain);
-
     await sendCallsForType(
       SubmissionType.SIGNER,
-      new SignerMultiSend(connection),
+      new SignerMultiSend(this.checker.multiProvider, chain),
     );
     const owner = this.checker.configMap[chain!].owner!;
     await sendCallsForType(
       SubmissionType.SAFE,
-      new SafeMultiSend(connection, chain, owner),
+      new SafeMultiSend(this.checker.multiProvider, chain, owner),
     );
     await sendCallsForType(SubmissionType.MANUAL, new ManualMultiSend(chain));
   }
 
-  protected pushCall(chain: Chain, call: AnnotatedCallData) {
+  protected pushCall(chain: ChainName, call: AnnotatedCallData) {
     this.calls[chain].push(call);
   }
 
@@ -160,8 +156,8 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
   }
 
   async handleProxyViolation(violation: ProxyViolation) {
-    const chain = violation.chain as Chain;
-    const contracts: CoreContracts = this.checker.app.contractsMap[chain];
+    const contracts: CoreContracts =
+      this.checker.app.contractsMap[violation.chain];
     // '0x'-prefixed hex if set
     let initData: string | undefined = undefined;
     switch (violation.data.name) {
@@ -184,7 +180,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
           violation.data.proxyAddresses.implementation,
         ]);
 
-    this.pushCall(chain, {
+    this.pushCall(violation.chain, {
       to: contracts.proxyAdmin.address,
       data,
       description: `Upgrade proxy ${violation.data.proxyAddresses.proxy} to implementation ${violation.data.proxyAddresses.implementation}`,
@@ -192,7 +188,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
   }
 
   protected async inferCallSubmissionTypes() {
-    for (const chain of Object.keys(this.calls) as Chain[]) {
+    for (const chain of Object.keys(this.calls)) {
       for (const call of this.calls[chain]) {
         const submissionType = await this.inferCallSubmissionType(chain, call);
         call.submissionType = submissionType;
@@ -201,19 +197,19 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
   }
 
   protected async inferCallSubmissionType(
-    chain: Chain,
+    chain: ChainName,
     call: AnnotatedCallData,
   ): Promise<SubmissionType> {
-    const connection = this.checker.multiProvider.getChainConnection(chain);
-    const signer = this.checker.multiProvider.getChainSigner(chain);
+    const multiProvider = this.checker.multiProvider;
+    // const connection = this.checker.multiProvider.getChainConnection(chain);
+    const signer = this.checker.multiProvider.getSigner(chain);
     const signerAddress = await signer.getAddress();
 
     const canUseSubmissionType = async (
-      provider: Provider,
       submitterAddress: types.Address,
     ): Promise<boolean> => {
       try {
-        await provider.estimateGas({
+        await multiProvider.estimateGas(chain, {
           ...call,
           from: submitterAddress,
         });
@@ -222,7 +218,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
       return false;
     };
 
-    if (await canUseSubmissionType(connection.provider, signerAddress)) {
+    if (await canUseSubmissionType(signerAddress)) {
       return SubmissionType.SIGNER;
     }
 
@@ -238,7 +234,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
         await canProposeSafeTransactions(
           signerAddress,
           chain,
-          connection,
+          multiProvider,
           safeAddress,
         ),
       );
@@ -247,7 +243,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     // 2b. Check if calling from the owner/safeAddress will succeed.
     if (
       this.canPropose[chain].get(safeAddress) &&
-      (await canUseSubmissionType(connection.provider, safeAddress))
+      (await canUseSubmissionType(safeAddress))
     ) {
       return SubmissionType.SAFE;
     }
@@ -266,21 +262,21 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     // add expected - actual elements
     utils
       .difference(reconcile.expected, reconcile.actual)
-      .forEach((elem) =>
-        this.pushCall(reconcile.chain as Chain, reconcile.add(elem)),
-      );
+      .forEach((elem) => this.pushCall(reconcile.chain, reconcile.add(elem)));
 
     // remote actual - expected elements
     utils
       .difference(reconcile.actual, reconcile.expected)
       .forEach((elem) =>
-        this.pushCall(reconcile.chain as Chain, reconcile.remove(elem)),
+        this.pushCall(reconcile.chain, reconcile.remove(elem)),
       );
   }
 
   handleMultisigIsmViolation(violation: MultisigIsmViolation) {
     const multisigIsm = violation.contract;
-    const remoteDomainId = ChainNameToDomainId[violation.remote];
+    const remoteDomainId = this.checker.multiProvider.getDomainId(
+      violation.remote,
+    );
     switch (violation.subType) {
       case MultisigIsmViolationType.EnrolledValidators: {
         const baseDescription = `as ${violation.remote} validator on ${violation.chain}`;
@@ -306,7 +302,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
         break;
       }
       case MultisigIsmViolationType.Threshold: {
-        this.pushCall(violation.chain as Chain, {
+        this.pushCall(violation.chain, {
           to: multisigIsm.address,
           data: multisigIsm.interface.encodeFunctionData('setThreshold', [
             remoteDomainId,
@@ -324,7 +320,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
   }
 
   handleOwnerViolation(violation: OwnerViolation) {
-    this.pushCall(violation.chain as Chain, {
+    this.pushCall(violation.chain, {
       to: violation.contract.address,
       data: violation.contract.interface.encodeFunctionData(
         'transferOwnership',
@@ -338,7 +334,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
     switch (violation.subType) {
       case IgpViolationType.Beneficiary: {
         const beneficiaryViolation = violation as IgpBeneficiaryViolation;
-        this.pushCall(beneficiaryViolation.chain as Chain, {
+        this.pushCall(beneficiaryViolation.chain, {
           to: beneficiaryViolation.contract.address,
           data: beneficiaryViolation.contract.interface.encodeFunctionData(
             'setBeneficiary',
@@ -355,7 +351,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
         for (const [remote, expected] of Object.entries(
           gasOraclesViolation.expected,
         )) {
-          const remoteId = ChainNameToDomainId[remote];
+          const remoteId = this.checker.multiProvider.getDomainId(remote);
 
           configs.push({
             remoteDomain: remoteId,
@@ -363,7 +359,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
           });
         }
 
-        this.pushCall(gasOraclesViolation.chain as Chain, {
+        this.pushCall(gasOraclesViolation.chain, {
           to: gasOraclesViolation.contract.address,
           data: gasOraclesViolation.contract.interface.encodeFunctionData(
             'setGasOracles',
@@ -372,7 +368,7 @@ export class HyperlaneCoreGovernor<Chain extends ChainName> {
           description: `Setting ${Object.keys(gasOraclesViolation.expected)
             .map((remoteStr) => {
               const remote = remoteStr as ChainName;
-              const remoteId = ChainNameToDomainId[remote];
+              const remoteId = this.checker.multiProvider.getDomainId(remote);
               const expected = gasOraclesViolation.expected[remote];
               return `gas oracle for ${remote} (domain ID ${remoteId}) to ${expected}`;
             })

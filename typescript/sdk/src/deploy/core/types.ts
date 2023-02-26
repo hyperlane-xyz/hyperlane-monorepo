@@ -5,7 +5,7 @@ import {
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import { ChainName, PartialChainMap } from '../../types';
+import { ChainMap, ChainName } from '../../types';
 import type { CheckerViolation } from '../types';
 
 export enum GasOracleContractType {
@@ -14,7 +14,7 @@ export enum GasOracleContractType {
 
 export type InterchainGasPaymasterConfig = {
   beneficiary: types.Address;
-  gasOracles: PartialChainMap<GasOracleContractType>;
+  gasOracles: ChainMap<GasOracleContractType>;
 };
 
 export type MultisigIsmConfig = {
@@ -103,6 +103,6 @@ export interface IgpBeneficiaryViolation extends IgpViolation {
 
 export interface IgpGasOraclesViolation extends IgpViolation {
   subType: IgpViolationType.GasOracles;
-  actual: PartialChainMap<types.Address>;
-  expected: PartialChainMap<types.Address>;
+  actual: ChainMap<types.Address>;
+  expected: ChainMap<types.Address>;
 }

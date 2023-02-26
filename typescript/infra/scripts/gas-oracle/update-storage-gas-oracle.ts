@@ -1,8 +1,4 @@
-import {
-  ChainName,
-  ChainNameToDomainId,
-  HyperlaneCore,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 
 import { RemoteGasData, StorageGasOracleConfig } from '../../src/config';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
@@ -53,21 +49,19 @@ async function main() {
 }
 
 async function setStorageGasOracleValues(
-  core: HyperlaneCore<any>,
-  localStorageGasOracleConfig: StorageGasOracleConfig<any>,
+  core: HyperlaneCore,
+  localStorageGasOracleConfig: StorageGasOracleConfig,
   local: ChainName,
   dryRun: boolean,
 ) {
   console.log(`Setting remote gas data on local chain ${local}...`);
   const storageGasOracle = core.getContracts(local).storageGasOracle;
 
-  const chainConnection = core.multiProvider.getChainConnection(local);
-
   const configsToSet: RemoteGasDataConfig[] = [];
 
   for (const remote in localStorageGasOracleConfig) {
     const desiredGasData = localStorageGasOracleConfig[remote]!;
-    const remoteId = ChainNameToDomainId[remote];
+    const remoteId = core.multiProvider.getDomainId(remote);
 
     const existingGasData: RemoteGasData = await storageGasOracle.remoteGasData(
       remoteId,
@@ -96,12 +90,17 @@ async function setStorageGasOracleValues(
 
   if (configsToSet.length > 0) {
     console.log(`Updating ${configsToSet.length} configs on local ${local}:`);
-    console.log(configsToSet.map(prettyRemoteGasDataConfig).join('\n\t--\n'));
+    console.log(
+      configsToSet
+        .map((config) => prettyRemoteGasDataConfig(core.multiProvider, config))
+        .join('\n\t--\n'),
+    );
 
     if (dryRun) {
       console.log('Running in dry run mode, not sending tx');
     } else {
-      await chainConnection.handleTx(
+      await core.multiProvider.handleTx(
+        local,
         storageGasOracle.setRemoteGasDataConfigs(configsToSet),
       );
     }

@@ -16,7 +16,7 @@ function getGasOracles(local: TestChains) {
 
 const OWNER_ADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 
-export const core: ChainMap<TestChains, CoreConfig> = {
+export const core: ChainMap<CoreConfig> = {
   // Owner is hardhat account 0
   // Validators are hardhat accounts 1-3
   test1: {

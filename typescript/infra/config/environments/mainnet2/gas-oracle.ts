@@ -1,6 +1,6 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { ChainMap, Remotes } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import {
   AllStorageGasOracleConfigs,
@@ -8,7 +8,7 @@ import {
 } from '../../../src/config';
 import { TOKEN_EXCHANGE_RATE_DECIMALS } from '../../../src/config/gas-oracle';
 
-import { MainnetChains, chainNames } from './chains';
+import { chainNames } from './chains';
 
 // Overcharge by 30% to account for market making risk
 const TOKEN_EXCHANGE_RATE_MULTIPLIER = ethers.utils.parseUnits(
@@ -18,7 +18,7 @@ const TOKEN_EXCHANGE_RATE_MULTIPLIER = ethers.utils.parseUnits(
 
 // Taken by looking at each network's gas history and overestimating
 // Last updated Feb 23, 2023
-const gasPrices: ChainMap<MainnetChains, BigNumber> = {
+const gasPrices: ChainMap<BigNumber> = {
   // https://dune.com/hicrypto/BNBChain-Gas
   bsc: ethers.utils.parseUnits('10', 'gwei'),
   // https://snowtrace.io/chart/gasprice
@@ -50,7 +50,7 @@ const gasPrices: ChainMap<MainnetChains, BigNumber> = {
 // Accurate from coingecko as of Feb 23, 2023.
 // These aren't overestimates because the exchange rates between
 // tokens are what matters. These generally have high beta
-const tokenUsdPrices: ChainMap<MainnetChains, BigNumber> = {
+const tokenUsdPrices: ChainMap<BigNumber> = {
   // https://www.coingecko.com/en/coins/bnb
   bsc: ethers.utils.parseUnits('309.00', TOKEN_EXCHANGE_RATE_DECIMALS),
   // https://www.coingecko.com/en/coins/avalanche
@@ -72,10 +72,7 @@ const tokenUsdPrices: ChainMap<MainnetChains, BigNumber> = {
 };
 
 // Gets the exchange rate of the remote quoted in local tokens
-function getTokenExchangeRate<LocalChain extends MainnetChains>(
-  local: LocalChain,
-  remote: Remotes<MainnetChains, LocalChain>,
-): BigNumber {
+function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
   const localValue = tokenUsdPrices[local];
   const remoteValue = tokenUsdPrices[remote];
 
@@ -83,5 +80,5 @@ function getTokenExchangeRate<LocalChain extends MainnetChains>(
   return remoteValue.mul(TOKEN_EXCHANGE_RATE_MULTIPLIER).div(localValue);
 }
 
-export const storageGasOracleConfig: AllStorageGasOracleConfigs<MainnetChains> =
+export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(chainNames, gasPrices, getTokenExchangeRate);

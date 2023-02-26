@@ -14,7 +14,7 @@ import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
 import { CoreConfig, GasOracleContractType } from '../deploy/core/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
-import { ChainMap, TestChainNames } from '../types';
+import { ChainMap, ChainName } from '../types';
 
 import { TestCoreApp } from './TestCoreApp';
 import { GasOracleContracts, coreFactories } from './contracts';
@@ -45,29 +45,23 @@ const testCoreFactories = {
   testInterchainGasPaymaster: new TestInterchainGasPaymaster__factory(),
 };
 
-export class TestCoreDeployer<
-  TestChain extends TestChainNames = TestChainNames,
-> extends HyperlaneCoreDeployer<TestChain> {
+export class TestCoreDeployer extends HyperlaneCoreDeployer {
   constructor(
-    public readonly multiProvider: MultiProvider<TestChain>,
-    configMap?: ChainMap<TestChain, CoreConfig>,
+    public readonly multiProvider: MultiProvider,
+    configMap?: ChainMap<CoreConfig>,
   ) {
     // Note that the multisig module configs are unused.
-    const configs =
-      configMap ??
-      ({
-        test1: testConfig,
-        test2: testConfig,
-        test3: testConfig,
-      } as ChainMap<TestChain, CoreConfig>); // cast so param can be optional
+    const configs = configMap ?? {
+      test1: testConfig,
+      test2: testConfig,
+      test3: testConfig,
+    };
 
     super(multiProvider, configs, testCoreFactories);
   }
 
   // deploy a test ISM in place of a multisig ISM
-  async deployMultisigIsm<LocalChain extends TestChain>(
-    chain: LocalChain,
-  ): Promise<MultisigIsm> {
+  async deployMultisigIsm(chain: ChainName): Promise<MultisigIsm> {
     const testIsm = await this.deployContractFromFactory(
       chain,
       testCoreFactories.testIsm,
@@ -79,8 +73,8 @@ export class TestCoreDeployer<
   }
 
   // deploy a test IGP instead
-  async deployInterchainGasPaymaster<LocalChain extends TestChain>(
-    chain: LocalChain,
+  async deployInterchainGasPaymaster(
+    chain: ChainName,
     proxyAdmin: ProxyAdmin,
     _gasOracleContracts: GasOracleContracts,
     deployOpts?: DeployOptions,
@@ -96,9 +90,7 @@ export class TestCoreDeployer<
     );
 
     // To set as the beneficiary
-    const deployer = await this.multiProvider
-      .getChainSigner(chain)
-      .getAddress();
+    const deployer = await this.multiProvider.getSigner(chain).getAddress();
 
     const contract = await this.deployProxy(
       chain,
@@ -118,7 +110,7 @@ export class TestCoreDeployer<
     return [];
   }
 
-  async deployApp(): Promise<TestCoreApp<TestChain>> {
+  async deployApp(): Promise<TestCoreApp> {
     return new TestCoreApp(await this.deploy(), this.multiProvider);
   }
 }

@@ -44,7 +44,7 @@ async function main() {
 
 async function compare(
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
-  localStorageGasOracleConfig: StorageGasOracleConfig<any>,
+  localStorageGasOracleConfig: StorageGasOracleConfig,
   local: ChainName,
 ) {
   for (const remoteStr in localStorageGasOracleConfig) {

@@ -1,6 +1,6 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { ChainMap, Remotes } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import {
   AllStorageGasOracleConfigs,
@@ -17,7 +17,7 @@ const TOKEN_EXCHANGE_RATE_MULTIPLIER = ethers.utils.parseUnits(
 );
 
 // Taken by looking at each testnet and overestimating gas prices
-const gasPrices: ChainMap<TestnetChains, BigNumber> = {
+const gasPrices: ChainMap<BigNumber> = {
   alfajores: ethers.utils.parseUnits('10', 'gwei'),
   fuji: ethers.utils.parseUnits('30', 'gwei'),
   mumbai: ethers.utils.parseUnits('45', 'gwei'),
@@ -44,7 +44,7 @@ const RARITY_APPROXIMATE_VALUE: Record<Rarity, BigNumber> = {
   [Rarity.Mythic]: ethers.utils.parseUnits('5', TOKEN_EXCHANGE_RATE_DECIMALS),
 };
 
-const chainTokenRarity: ChainMap<TestnetChains, Rarity> = {
+const chainTokenRarity: ChainMap<Rarity> = {
   alfajores: Rarity.Common,
   fuji: Rarity.Rare,
   mumbai: Rarity.Rare,
@@ -62,10 +62,7 @@ function getApproximateValue(chain: TestnetChains): BigNumber {
 }
 
 // Gets the exchange rate of the remote quoted in local tokens
-function getTokenExchangeRate<LocalChain extends TestnetChains>(
-  local: LocalChain,
-  remote: Remotes<TestnetChains, LocalChain>,
-): BigNumber {
+function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
   const localValue = getApproximateValue(local);
   const remoteValue = getApproximateValue(remote);
 
@@ -73,5 +70,5 @@ function getTokenExchangeRate<LocalChain extends TestnetChains>(
   return remoteValue.mul(TOKEN_EXCHANGE_RATE_MULTIPLIER).div(localValue);
 }
 
-export const storageGasOracleConfig: AllStorageGasOracleConfigs<TestnetChains> =
+export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(chainNames, gasPrices, getTokenExchangeRate);

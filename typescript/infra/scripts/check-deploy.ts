@@ -12,9 +12,9 @@ async function check() {
   // environments union doesn't work well with typescript
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
-    multiProvider as any,
+    multiProvider,
   );
-  const coreChecker = new HyperlaneCoreChecker<any>(
+  const coreChecker = new HyperlaneCoreChecker(
     multiProvider,
     core,
     config.core,

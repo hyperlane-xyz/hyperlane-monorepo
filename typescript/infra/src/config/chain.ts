@@ -1,7 +1,6 @@
 import { FallbackProviderConfig } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 
-import { StaticCeloJsonRpcProvider } from '@hyperlane-xyz/celo-ethers-provider';
 import { ChainName, RetryJsonRpcProvider } from '@hyperlane-xyz/sdk';
 
 import { getSecretRpcEndpoint } from '../agents';
@@ -9,15 +8,7 @@ import { getSecretRpcEndpoint } from '../agents';
 import { ConnectionType } from './agent';
 import { DeployEnvironment } from './environment';
 
-const CELO_CHAIN_NAMES = new Set(['alfajores', 'baklava', 'celo']);
-
-const providerBuilder = (url: string, chainName: ChainName, retry = true) => {
-  // TODO: get StaticCeloJsonRpcProvider to be compatible with the RetryJsonRpcProvider.
-  // For now, the two are incompatible, so even if retrying is requested for a Celo chain,
-  // we don't use a RetryJsonRpcProvider.
-  if (CELO_CHAIN_NAMES.has(chainName)) {
-    return new StaticCeloJsonRpcProvider(url);
-  }
+const providerBuilder = (url: string, retry = true) => {
   const baseProvider = new ethers.providers.JsonRpcProvider(url);
   return retry
     ? new RetryJsonRpcProvider(baseProvider, {
@@ -36,20 +27,18 @@ export async function fetchProvider(
   const rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
   switch (connectionType) {
     case ConnectionType.Http: {
-      return providerBuilder(rpcData, chainName);
+      return providerBuilder(rpcData);
     }
     case ConnectionType.HttpQuorum: {
       return new ethers.providers.FallbackProvider(
-        (rpcData as string[]).map((url) =>
-          providerBuilder(url, chainName, false),
-        ), // disable retry for quorum
+        (rpcData as string[]).map((url) => providerBuilder(url, false)), // disable retry for quorum
       );
     }
     case ConnectionType.HttpFallback: {
       return new ethers.providers.FallbackProvider(
         (rpcData as string[]).map((url, index) => {
           const fallbackProviderConfig: FallbackProviderConfig = {
-            provider: providerBuilder(url, chainName),
+            provider: providerBuilder(url),
             // Priority is used by the FallbackProvider to determine
             // how to order providers using ascending ordering.
             // When not specified, all providers have the same priority
