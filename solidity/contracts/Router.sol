@@ -8,10 +8,6 @@ import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IMailbox} from "../interfaces/IMailbox.sol";
 import {EnumerableMapExtended} from "./libs/EnumerableMapExtended.sol";
 
-// IRouter - interface that lets you map domain -> address
-// Router - abstract contract that implements IRouter
-// StrictConnectionClientRouter - abstract contract that implements
-
 abstract contract Router is HyperlaneConnectionClient, IMessageRecipient {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
 

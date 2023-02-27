@@ -188,7 +188,7 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testCallRemoteWithOverrides(bytes32 data) public {
-        originRouter.callRemoteWithOVerrides(
+        originRouter.callRemoteWithOverrides(
             destination,
             routerOverride,
             ismOverride,
