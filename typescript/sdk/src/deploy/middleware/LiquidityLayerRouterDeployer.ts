@@ -2,13 +2,11 @@ import {
   CircleBridgeAdapter,
   CircleBridgeAdapter__factory,
   LiquidityLayerRouter,
-  LiquidityLayerRouter__factory,
   PortalAdapter,
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneCore } from '../../core/HyperlaneCore';
 import {
   LiquidityLayerContracts,
   LiquidityLayerFactories,
@@ -17,8 +15,9 @@ import {
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
 import { objFilter, objMap } from '../../utils/objects';
-import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
 import { RouterConfig } from '../router/types';
+
+import { MiddlewareRouterDeployer } from './deploy';
 
 export enum BridgeAdapterType {
   Circle = 'Circle',
@@ -52,7 +51,7 @@ export type BridgeAdapterConfig = {
 
 export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
 
-export class LiquidityLayerDeployer extends HyperlaneRouterDeployer<
+export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
   LiquidityLayerConfig,
   LiquidityLayerContracts,
   LiquidityLayerFactories
@@ -60,10 +59,9 @@ export class LiquidityLayerDeployer extends HyperlaneRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<LiquidityLayerConfig>,
-    protected core: HyperlaneCore,
-    protected create2salt = 'LiquidityLayerDeployerSalt',
+    create2salt = 'LiquidityLayerDeployerSalt',
   ) {
-    super(multiProvider, configMap, liquidityLayerFactories, {});
+    super(multiProvider, configMap, liquidityLayerFactories, create2salt);
   }
 
   async enrollRemoteRouters(
@@ -99,14 +97,7 @@ export class LiquidityLayerDeployer extends HyperlaneRouterDeployer<
     chain: ChainName,
     config: LiquidityLayerConfig,
   ): Promise<LiquidityLayerContracts> {
-    const initCalldata = HyperlaneRouterDeployer.getInitArgs(
-      config,
-      LiquidityLayerRouter__factory.createInterface(),
-    );
-    const router = await this.deployContract(chain, 'router', [], {
-      create2Salt: this.create2salt,
-      initCalldata,
-    });
+    const routerContracts = await super.deployContracts(chain, config);
 
     const bridgeAdapters: Partial<LiquidityLayerContracts> = {};
 
@@ -115,7 +106,7 @@ export class LiquidityLayerDeployer extends HyperlaneRouterDeployer<
         chain,
         config.circle,
         config.owner,
-        router,
+        routerContracts.router,
       );
     }
     if (config.portal) {
@@ -123,14 +114,14 @@ export class LiquidityLayerDeployer extends HyperlaneRouterDeployer<
         chain,
         config.portal,
         config.owner,
-        router,
+        routerContracts.router,
       );
     }
 
     return {
+      ...routerContracts,
       ...bridgeAdapters,
-      router,
-    };
+    } as any;
   }
 
   async deployPortalAdapter(

@@ -1,12 +1,10 @@
 import path from 'path';
 
 import {
-  HyperlaneCore,
   InterchainAccountDeployer,
   interchainAccountFactories,
 } from '@hyperlane-xyz/sdk';
 
-import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { deployWithArtifacts } from '../../src/deploy';
 import { getConfiguration } from '../helloworld/utils';
 import { mergeWithSdkContractAddressArtifacts } from '../merge-sdk-contract-addresses';
@@ -22,11 +20,6 @@ async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider();
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
-
   const dir = path.join(
     getEnvironmentDirectory(environment),
     'middleware/accounts',
@@ -38,7 +31,6 @@ async function main() {
   const deployer = new InterchainAccountDeployer(
     multiProvider,
     configMap,
-    core,
     'icav3',
   );
 

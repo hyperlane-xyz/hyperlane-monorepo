@@ -1,14 +1,9 @@
 import { debug } from 'debug';
-import { ethers } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../providers/MultiProvider';
-import {
-  ConnectionClientConfig,
-  RouterContracts,
-  RouterFactories,
-} from '../../router';
+import { RouterContracts, RouterFactories } from '../../router';
 import { ChainMap } from '../../types';
 import { objMap, promiseObjAll } from '../../utils/objects';
 import { DeployerOptions, HyperlaneDeployer } from '../HyperlaneDeployer';
@@ -30,17 +25,6 @@ export abstract class HyperlaneRouterDeployer<
       logger: debug('hyperlane:RouterDeployer'),
       ...options,
     });
-  }
-  static getInitArgs(
-    config: ConnectionClientConfig,
-    routerInterface: ethers.utils.Interface,
-  ): string {
-    return routerInterface.encodeFunctionData('initialize', [
-      config.mailbox,
-      config.interchainGasPaymaster,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
-      config.owner,
-    ]);
   }
 
   async initConnectionClient(contractsMap: ChainMap<Contracts>): Promise<void> {
