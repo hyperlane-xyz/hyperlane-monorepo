@@ -23,115 +23,92 @@ contract InterchainAccountRouterTest is Test {
 
     event InterchainAccountCreated(
         uint32 indexed origin,
-        bytes32 sender,
+        bytes32 indexed owner,
+        address ism,
         address account
     );
 
+    struct Bytes32Pair {
+        bytes32 a;
+        bytes32 b;
+    }
+
     MockHyperlaneEnvironment environment;
 
-    uint32 originDomain = 1;
-    uint32 destinationDomain = 2;
+    uint32 origin = 1;
+    uint32 destination = 2;
 
     InterchainAccountRouter originRouter;
     InterchainAccountRouter destinationRouter;
-    IInterchainAccountRouter.InterchainAccountConfig userConfig;
+    bytes32 ismOverride;
+    bytes32 routerOverride;
 
     OwnableMulticall ica;
 
     Callable target;
 
     function setUp() public {
-        environment = new MockHyperlaneEnvironment(
-            originDomain,
-            destinationDomain
-        );
+        environment = new MockHyperlaneEnvironment(origin, destination);
 
         originRouter = new InterchainAccountRouter();
         destinationRouter = new InterchainAccountRouter();
 
         address owner = address(this);
         originRouter.initialize(
-            address(environment.mailboxes(originDomain)),
-            address(environment.igps(originDomain)),
-            address(environment.isms(originDomain)),
+            address(environment.mailboxes(origin)),
+            address(environment.igps(destination)),
+            address(environment.isms(origin)),
             owner
         );
         destinationRouter.initialize(
-            address(environment.mailboxes(destinationDomain)),
-            address(environment.igps(destinationDomain)),
-            address(environment.isms(destinationDomain)),
+            address(environment.mailboxes(destination)),
+            address(environment.igps(destination)),
+            address(environment.isms(destination)),
             owner
         );
 
-        userConfig = IInterchainAccountRouter.InterchainAccountConfig({
-            router: TypeCasts.addressToBytes32(address(destinationRouter)),
-            ism: TypeCasts.addressToBytes32(
-                address(environment.isms(destinationDomain))
-            )
-        });
+        routerOverride = TypeCasts.addressToBytes32(address(destinationRouter));
+        ismOverride = TypeCasts.addressToBytes32(
+            address(environment.isms(destination))
+        );
         ica = destinationRouter.getLocalInterchainAccount(
-            originDomain,
+            origin,
             address(this),
-            address(environment.isms(destinationDomain))
+            address(environment.isms(destination))
         );
 
         target = new Callable();
     }
 
-    function assertEq(
-        IInterchainAccountRouter.InterchainAccountConfig memory a,
-        IInterchainAccountRouter.InterchainAccountConfig memory b
-    ) private {
-        assertEq(abi.encode(a), abi.encode(b));
-    }
-
-    function testSetGlobalDefaults(bytes32 router, bytes32 ism) public {
-        IInterchainAccountRouter.InterchainAccountConfig
-            memory actualConfig = originRouter.getInterchainAccountConfig(
-                destinationDomain,
-                address(this)
-            );
-        IInterchainAccountRouter.InterchainAccountConfig
-            memory expectedConfig = IInterchainAccountRouter
-                .InterchainAccountConfig({router: bytes32(0), ism: bytes32(0)});
-        assertEq(actualConfig, expectedConfig);
-        expectedConfig = IInterchainAccountRouter.InterchainAccountConfig({
-            router: router,
-            ism: ism
-        });
-        originRouter.setConfigDefault(destinationDomain, expectedConfig);
-        actualConfig = originRouter.getInterchainAccountConfig(
-            destinationDomain,
+    function testEnrollRemoteRouterAndIsm(bytes32 router, bytes32 ism) public {
+        (bytes32 actualRouter, bytes32 actualIsm) = originRouter
+            .getRemoteRouterAndIsm(destination, address(this));
+        assertEq(actualRouter, bytes32(0));
+        assertEq(actualIsm, bytes32(0));
+        originRouter.enrollRemoteRouterAndIsm(destination, router, ism);
+        (actualRouter, actualIsm) = originRouter.getRemoteRouterAndIsm(
+            destination,
             address(this)
         );
-        assertEq(actualConfig, expectedConfig);
+        assertEq(actualRouter, router);
+        assertEq(actualIsm, ism);
     }
 
-    function testSetGlobalDefaultsImmutable(
+    function testEnrollRemoteRouterAndIsmImmutable(
         bytes32 routerA,
         bytes32 ismA,
         bytes32 routerB,
         bytes32 ismB
     ) public {
         vm.assume(routerA != bytes32(0) && routerB != bytes32(0));
-        originRouter.setConfigDefault(
-            destinationDomain,
-            IInterchainAccountRouter.InterchainAccountConfig({
-                router: routerA,
-                ism: ismA
-            })
+        originRouter.enrollRemoteRouterAndIsm(destination, routerA, ismA);
+        vm.expectRevert(
+            bytes("router and ISM defaults are immutable once set")
         );
-        vm.expectRevert(bytes("config defaults are immutable once set"));
-        originRouter.setConfigDefault(
-            destinationDomain,
-            IInterchainAccountRouter.InterchainAccountConfig({
-                router: routerB,
-                ism: ismB
-            })
-        );
+        originRouter.enrollRemoteRouterAndIsm(destination, routerB, ismB);
     }
 
-    function testSetGlobalDefaultsNonOwner(
+    function testEnrollRemoteRouterAndIsmNonOwner(
         address newOwner,
         bytes32 router,
         bytes32 ism
@@ -139,39 +116,25 @@ contract InterchainAccountRouterTest is Test {
         vm.assume(newOwner != address(0) && newOwner != originRouter.owner());
         originRouter.transferOwnership(newOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
-        originRouter.setConfigDefault(
-            destinationDomain,
-            IInterchainAccountRouter.InterchainAccountConfig({
-                router: router,
-                ism: ism
-            })
-        );
+        originRouter.enrollRemoteRouterAndIsm(destination, router, ism);
     }
 
-    function testSetUserDefaults(
-        bytes32 globalRouter,
-        bytes32 globalIsm,
-        bytes32 userRouter,
-        bytes32 userIsm
+    function testOverrideRemoteRouterAndIsm(
+        bytes32 routerA,
+        bytes32 ismA,
+        bytes32 routerB,
+        bytes32 ismB
     ) public {
-        // Set global defaults to ensure overridden by user defaults
-        originRouter.setConfigDefault(
-            destinationDomain,
-            IInterchainAccountRouter.InterchainAccountConfig({
-                router: globalRouter,
-                ism: globalIsm
-            })
+        vm.assume(routerA != bytes32(0) && routerB != bytes32(0));
+        // Set defaults to ensure overridden by user
+        originRouter.enrollRemoteRouterAndIsm(destination, routerA, ismA);
+        originRouter.overrideRemoteRouterAndIsm(destination, routerB, ismB);
+        (bytes32 router, bytes32 ism) = originRouter.getRemoteRouterAndIsm(
+            destination,
+            address(this)
         );
-        IInterchainAccountRouter.InterchainAccountConfig
-            memory expectedConfig = IInterchainAccountRouter
-                .InterchainAccountConfig({router: userRouter, ism: userIsm});
-        originRouter.setConfigOverride(destinationDomain, expectedConfig);
-        IInterchainAccountRouter.InterchainAccountConfig
-            memory actualConfig = originRouter.getInterchainAccountConfig(
-                destinationDomain,
-                address(this)
-            );
-        assertEq(actualConfig, expectedConfig);
+        assertEq(router, routerB);
+        assertEq(ism, ismB);
     }
 
     function getCalls(bytes32 data) private returns (CallLib.Call[] memory) {
@@ -186,57 +149,81 @@ contract InterchainAccountRouterTest is Test {
         return calls;
     }
 
-    function assertRemoteCall(bytes32 data) private {
+    function assertRemoteCallReceived(bytes32 data) private {
         assertEq(target.data(address(this)), bytes32(0));
-        vm.expectEmit(true, false, false, true, address(destinationRouter));
+        vm.expectEmit(true, true, false, true, address(destinationRouter));
         emit InterchainAccountCreated(
-            originDomain,
+            origin,
             address(this).addressToBytes32(),
+            TypeCasts.bytes32ToAddress(ismOverride),
             address(ica)
         );
         environment.processNextPendingMessage();
         assertEq(target.data(address(ica)), data);
     }
 
-    function testCallRemoteWithConfig(bytes32 data) public {
-        originRouter.callRemote(destinationDomain, userConfig, getCalls(data));
-        assertRemoteCall(data);
+    function testCallRemoteWithDefault(bytes32 data) public {
+        originRouter.overrideRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+        originRouter.callRemote(destination, getCalls(data));
+        assertRemoteCallReceived(data);
     }
 
-    function testCallRemoteWithGlobalDefault(bytes32 data) public {
-        originRouter.setConfigDefault(destinationDomain, userConfig);
-        originRouter.callRemote(destinationDomain, getCalls(data));
-        assertRemoteCall(data);
+    function testOverrideAndCallRemote(bytes32 data) public {
+        originRouter.overrideRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+        originRouter.callRemote(destination, getCalls(data));
+        assertRemoteCallReceived(data);
     }
 
-    function testCallRemoteWithUserDefault(bytes32 data) public {
-        originRouter.setConfigOverride(destinationDomain, userConfig);
-        originRouter.callRemote(destinationDomain, getCalls(data));
-        assertRemoteCall(data);
+    function testCallRemoteWithoutDefaults(bytes32 data) public {
+        vm.expectRevert(bytes("no router specified for destination"));
+        originRouter.callRemote(destination, getCalls(data));
+    }
+
+    function testCallRemoteWithOverrides(bytes32 data) public {
+        originRouter.callRemoteWithOVerrides(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data)
+        );
+        assertRemoteCallReceived(data);
     }
 
     function testGetLocalInterchainAccount(bytes32 data) public {
         OwnableMulticall destinationIca = destinationRouter
             .getLocalInterchainAccount(
-                originDomain,
+                origin,
                 address(this),
-                address(environment.isms(destinationDomain))
+                address(environment.isms(destination))
             );
         assertEq(
             address(destinationIca),
             address(
                 destinationRouter.getLocalInterchainAccount(
-                    originDomain,
+                    origin,
                     TypeCasts.addressToBytes32(address(this)),
-                    address(environment.isms(destinationDomain))
+                    address(environment.isms(destination))
                 )
             )
         );
 
         assertEq(address(destinationIca).code.length, 0);
 
-        originRouter.callRemote(destinationDomain, userConfig, getCalls(data));
-        assertRemoteCall(data);
+        originRouter.callRemoteWithOverrides(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data)
+        );
+        assertRemoteCallReceived(data);
 
         assert(address(destinationIca).code.length != 0);
     }
@@ -249,14 +236,19 @@ contract InterchainAccountRouterTest is Test {
         payable(address(ica)).transfer(value / 2);
 
         // Deploy
-        originRouter.callRemote(destinationDomain, userConfig, getCalls(data));
-        assertRemoteCall(data);
+        originRouter.callRemoteWithOverrides(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data)
+        );
+        assertRemoteCallReceived(data);
 
         // receive value after deployed
         destinationRouter.getLocalInterchainAccount(
-            originDomain,
+            origin,
             address(this),
-            address(environment.isms(originDomain))
+            address(environment.isms(origin))
         );
 
         assert(address(ica).code.length > 0);
@@ -275,7 +267,12 @@ contract InterchainAccountRouterTest is Test {
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
 
-        originRouter.callRemote(destinationDomain, userConfig, calls);
+        originRouter.callRemoteWithOverrides(
+            destination,
+            routerOverride,
+            ismOverride,
+            calls
+        );
         vm.expectCall(address(this), value, data);
         environment.processNextPendingMessage();
     }

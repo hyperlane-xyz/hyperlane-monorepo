@@ -9,12 +9,19 @@ library OverridableEnumerableMap {
         mapping(address => EnumerableMapExtended.UintToBytes32Map) _overrides;
     }
 
-    function defaultKeys(UintToBytes32OverridableMap storage map)
+    function keysDefault(UintToBytes32OverridableMap storage map)
         internal
         view
         returns (bytes32[] storage)
     {
         return EnumerableMapExtended.keys(map._defaults);
+    }
+
+    function containsDefault(
+        UintToBytes32OverridableMap storage map,
+        uint256 _key
+    ) internal view returns (bool) {
+        return EnumerableMapExtended.contains(map._defaults, _key);
     }
 
     function setDefault(
@@ -47,13 +54,14 @@ library OverridableEnumerableMap {
         address _address,
         uint256 _key
     ) internal view returns (bytes32) {
-        bytes32 _override = EnumerableMapExtended.get(
-            map._overrides[_address],
-            _key
-        );
-        if (_override != bytes32(0)) {
-            return _override;
+        EnumerableMapExtended.UintToBytes32Map storage _overrides = map
+            ._overrides[_address];
+        if (EnumerableMapExtended.contains(_overrides, _key)) {
+            return EnumerableMapExtended.get(_overrides, _key);
         }
-        return getDefault(map, _key);
+        if (EnumerableMapExtended.contains(map._defaults, _key)) {
+            return EnumerableMapExtended.get(map._defaults, _key);
+        }
+        return bytes32(0);
     }
 }
