@@ -1,12 +1,19 @@
 import type { BigNumber, ethers } from 'ethers';
 
-import { GasRouter, Router } from '@hyperlane-xyz/core';
+import {
+  GasRouter,
+  IHyperlaneConnectionClient,
+  IRouter,
+  Ownable,
+} from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from './HyperlaneApp';
 import { HyperlaneContracts, HyperlaneFactories } from './contracts';
 import { ChainMap, ChainName } from './types';
 import { objMap, promiseObjAll } from './utils/objects';
+
+export type Router = IRouter & IHyperlaneConnectionClient & Ownable;
 
 export type RouterContracts<RouterContract extends Router = Router> =
   HyperlaneContracts & {
@@ -27,9 +34,8 @@ export type ConnectionClientConfig = {
   mailbox: types.Address;
   interchainGasPaymaster: types.Address;
   interchainSecurityModule?: types.Address;
+  owner?: types.Address;
 };
-
-export { Router } from '@hyperlane-xyz/core';
 
 export class RouterApp<
   Contracts extends RouterContracts,

@@ -15,7 +15,7 @@ interface IInterchainAccountRouter {
         CallLib.Call[] calldata calls
     ) external returns (bytes32);
 
-    function callRemote(
+    function callRemotee(
         uint32 _destinationDomain,
         InterchainAccountConfig calldata _config,
         CallLib.Call[] calldata calls

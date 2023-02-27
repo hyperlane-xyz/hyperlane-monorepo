@@ -17,9 +17,8 @@ import {
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
 import { objFilter, objMap } from '../../utils/objects';
+import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
 import { RouterConfig } from '../router/types';
-
-import { MiddlewareRouterDeployer } from './deploy';
 
 export enum BridgeAdapterType {
   Circle = 'Circle',
@@ -53,7 +52,7 @@ export type BridgeAdapterConfig = {
 
 export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
 
-export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
+export class LiquidityLayerDeployer extends HyperlaneRouterDeployer<
   LiquidityLayerConfig,
   LiquidityLayerContracts,
   LiquidityLayerFactories
@@ -100,7 +99,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     chain: ChainName,
     config: LiquidityLayerConfig,
   ): Promise<LiquidityLayerContracts> {
-    const initCalldata = this.getInitArgs(
+    const initCalldata = HyperlaneRouterDeployer.getInitArgs(
       config,
       LiquidityLayerRouter__factory.createInterface(),
     );

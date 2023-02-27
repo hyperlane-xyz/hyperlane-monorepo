@@ -4,12 +4,13 @@ pragma solidity ^0.8.13;
 // ============ Internal Imports ============
 import {OwnableMulticall} from "../OwnableMulticall.sol";
 import {HyperlaneConnectionClient} from "../HyperlaneConnectionClient.sol";
+import {IRouter} from "../../interfaces/IRouter.sol";
 import {IInterchainAccountRouter} from "../../interfaces/middleware/IInterchainAccountRouter.sol";
 import {InterchainAccountMessage} from "../libs/middleware/InterchainAccountMessage.sol";
 import {MinimalProxy} from "../libs/MinimalProxy.sol";
 import {CallLib} from "../libs/Call.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {OverridableDomainMap} from "../libs/OverridableDomainMap.sol";
+import {OverridableEnumerableMap} from "../libs/OverridableEnumerableMap.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -22,6 +23,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  */
 contract InterchainAccountRouter is
     HyperlaneConnectionClient,
+    IRouter,
     IInterchainAccountRouter
 {
     // ============ Libraries ============
@@ -35,8 +37,8 @@ contract InterchainAccountRouter is
     bytes32 internal immutable bytecodeHash;
 
     // ============ Public Storage ============
-    OverridableDomainMap.Bytes32DomainMap routers;
-    OverridableDomainMap.Bytes32DomainMap isms;
+    OverridableEnumerableMap.UintToBytes32OverridableMap private routersMap;
+    OverridableEnumerableMap.UintToBytes32OverridableMap private ismsMap;
 
     // ============ Events ============
 
@@ -88,36 +90,76 @@ contract InterchainAccountRouter is
     }
 
     // ============ External Functions ============
-    function setConfigDefault(
-        uint32 _destination,
-        InterchainAccountConfig calldata _config
+    function enrollRemoteRouter(uint32 _destination, bytes32 _router)
+        public
+        onlyOwner
+    {
+        enrollRemoteConfig(
+            _destination,
+            InterchainAccountConfig(_router, bytes32(0))
+        );
+    }
+
+    function enrollRemoteRouters(
+        uint32[] calldata _domains,
+        bytes32[] calldata _routers
     ) external onlyOwner {
+        require(_domains.length == _routers.length, "!length");
+        for (uint256 i = 0; i < _domains.length; i += 1) {
+            enrollRemoteRouter(_domains[i], _routers[i]);
+        }
+    }
+
+    function enrollRemoteConfig(
+        uint32 _destination,
+        InterchainAccountConfig memory _config
+    ) public onlyOwner {
         require(_config.router != bytes32(0), "invalid config");
         require(
-            OverridableDomainMap.getDefault(routers, _destination) ==
+            OverridableEnumerableMap.getDefault(routersMap, _destination) ==
                 bytes32(0),
             "config defaults are immutable once set"
         );
-        OverridableDomainMap.setDefault(routers, _destination, _config.router);
-        OverridableDomainMap.setDefault(isms, _destination, _config.ism);
+        OverridableEnumerableMap.setDefault(
+            routersMap,
+            _destination,
+            _config.router
+        );
+        OverridableEnumerableMap.setDefault(ismsMap, _destination, _config.ism);
     }
 
-    function setConfigOverride(
+    function overrideRemoteConfig(
         uint32 _destination,
         InterchainAccountConfig calldata _config
     ) external {
-        OverridableDomainMap.setOverride(
-            routers,
+        OverridableEnumerableMap.setOverride(
+            routersMap,
             msg.sender,
             _destination,
             _config.router
         );
-        OverridableDomainMap.setOverride(
-            isms,
+        OverridableEnumerableMap.setOverride(
+            ismsMap,
             msg.sender,
             _destination,
             _config.ism
         );
+    }
+
+    function domains() external view returns (uint32[] memory) {
+        bytes32[] storage rawKeys = OverridableEnumerableMap.defaultKeys(
+            routersMap
+        );
+        uint32[] memory keys = new uint32[](rawKeys.length);
+        for (uint256 i = 0; i < rawKeys.length; i++) {
+            keys[i] = uint32(uint256(rawKeys[i]));
+        }
+        return keys;
+    }
+
+    function routers(uint32 _domain) external view returns (bytes32) {
+        return
+            OverridableEnumerableMap.getDefault(routersMap, uint256(_domain));
     }
 
     /**
@@ -151,7 +193,7 @@ contract InterchainAccountRouter is
             );
     }
 
-    function callRemote(
+    function callRemotee(
         uint32 _destination,
         InterchainAccountConfig calldata _config,
         CallLib.Call[] calldata _calls
@@ -243,12 +285,16 @@ contract InterchainAccountRouter is
         view
         returns (InterchainAccountConfig memory)
     {
-        bytes32 _router = OverridableDomainMap.get(
-            routers,
+        bytes32 _router = OverridableEnumerableMap.get(
+            routersMap,
             _owner,
             _destination
         );
-        bytes32 _ism = OverridableDomainMap.get(isms, _owner, _destination);
+        bytes32 _ism = OverridableEnumerableMap.get(
+            ismsMap,
+            _owner,
+            _destination
+        );
         return InterchainAccountConfig(_router, _ism);
     }
 

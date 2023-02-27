@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import {
   InterchainAccountRouter__factory,
   InterchainQueryRouter__factory,
@@ -15,36 +13,14 @@ import {
   interchainQueryFactories,
 } from '../../middleware';
 import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterContracts, RouterFactories } from '../../router';
 import { ChainMap, ChainName } from '../../types';
+import { HyperlaneDeployer } from '../HyperlaneDeployer';
 import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
 import { RouterConfig } from '../router/types';
 
 export type InterchainAccountConfig = RouterConfig;
 
-export abstract class MiddlewareRouterDeployer<
-  MiddlewareRouterConfig extends RouterConfig,
-  MiddlewareRouterContracts extends RouterContracts,
-  MiddlewareFactories extends RouterFactories,
-> extends HyperlaneRouterDeployer<
-  MiddlewareRouterConfig,
-  MiddlewareRouterContracts,
-  MiddlewareFactories
-> {
-  getInitArgs(
-    config: MiddlewareRouterConfig,
-    routerInterface: ethers.utils.Interface,
-  ): string {
-    return routerInterface.encodeFunctionData('initialize', [
-      config.mailbox,
-      config.interchainGasPaymaster,
-      config.interchainSecurityModule ?? ethers.constants.AddressZero,
-      config.owner,
-    ]);
-  }
-}
-
-export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
+export class InterchainAccountDeployer extends HyperlaneDeployer<
   InterchainAccountConfig,
   InterchainAccountContracts,
   InterchainAccountFactories
@@ -64,7 +40,7 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     chain: ChainName,
     config: InterchainAccountConfig,
   ): Promise<InterchainAccountContracts> {
-    const initCalldata = this.getInitArgs(
+    const initCalldata = HyperlaneRouterDeployer.getInitArgs(
       config,
       InterchainAccountRouter__factory.createInterface(),
     );
@@ -80,7 +56,7 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
 
 export type InterchainQueryConfig = RouterConfig;
 
-export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
+export class InterchainQueryDeployer extends HyperlaneRouterDeployer<
   InterchainQueryConfig,
   InterchainQueryContracts,
   InterchainQueryFactories
@@ -101,7 +77,7 @@ export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
     chain: ChainName,
     config: InterchainQueryConfig,
   ): Promise<InterchainQueryContracts> {
-    const initCalldata = this.getInitArgs(
+    const initCalldata = HyperlaneRouterDeployer.getInitArgs(
       config,
       InterchainQueryRouter__factory.createInterface(),
     );
