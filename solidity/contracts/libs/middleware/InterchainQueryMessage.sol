@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {CallLib} from "../Call.sol";
 
 /**
- * Format of metadata:
+ * Format of message:
  * [   0: 32] Sender address
  * [  32: 64] Message type (left padded with zeroes)
  * [  64:???] Encoded call array
@@ -19,10 +19,20 @@ library InterchainQueryMessage {
         RESPONSE
     }
 
+    /**
+     * @notice Parses and returns the query sender from the provided message
+     * @param _message The interchain query message
+     * @return The query sender as bytes32
+     */
     function sender(bytes calldata _message) internal pure returns (bytes32) {
         return bytes32(_message[SENDER_OFFSET:TYPE_OFFSET]);
     }
 
+    /**
+     * @notice Parses and returns the message type from the provided message
+     * @param _message The interchain query message
+     * @return The message type (query or response)
+     */
     function messageType(bytes calldata _message)
         internal
         pure
@@ -32,13 +42,26 @@ library InterchainQueryMessage {
         return MessageType(uint8(bytes1(_message[CALLS_OFFSET - 1])));
     }
 
+    /**
+     * @notice Returns formatted InterchainQueryMessage, type == QUERY
+     * @param _sender The query sender as bytes32
+     * @param _calls The sequence of queries to make, with the corresponding
+     * response callbacks
+     * @return Formatted message body
+     */
     function format(
-        CallLib.StaticCallWithCallback[] calldata _calls,
-        bytes32 _sender
+        bytes32 _sender,
+        CallLib.StaticCallWithCallback[] calldata _calls
     ) internal pure returns (bytes memory) {
         return abi.encode(_sender, MessageType.QUERY, _calls);
     }
 
+    /**
+     * @notice Parses and returns the calls and callbacks from the message
+     * @param _message The interchain query message, type == QUERY
+     * @return _calls The sequence of queries to make with the corresponding
+     * response callbacks
+     */
     function callsWithCallbacks(bytes calldata _message)
         internal
         pure
@@ -51,7 +74,13 @@ library InterchainQueryMessage {
         );
     }
 
-    function format(bytes[] memory _calls, bytes32 _sender)
+    /**
+     * @notice Returns formatted InterchainQueryMessage, type == RESPONSE
+     * @param _sender The query sender as bytes32
+     * @param _calls The sequence of callbacks to make
+     * @return Formatted message body
+     */
+    function format(bytes32 _sender, bytes[] memory _calls)
         internal
         pure
         returns (bytes memory)
@@ -59,6 +88,11 @@ library InterchainQueryMessage {
         return abi.encode(_sender, MessageType.RESPONSE, _calls);
     }
 
+    /**
+     * @notice Parses and returns the callbacks from the message
+     * @param _message The interchain query message, type == RESPONSE
+     * @return _calls The sequence of callbacks to make
+     */
     function rawCalls(bytes calldata _message)
         internal
         pure
