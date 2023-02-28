@@ -24,6 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
 
       - name: setup rust
         uses: actions-rs/toolchain@v1
@@ -34,8 +37,8 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v1-rust"
-          shared-key: "e2e"
+          prefix-key: 'v1-rust'
+          shared-key: 'e2e'
           workspaces: |
             ./rust
       - name: node module cache
