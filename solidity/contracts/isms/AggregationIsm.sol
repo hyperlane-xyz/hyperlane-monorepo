@@ -31,6 +31,37 @@ contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
 
     // ============ Public Functions ============
 
+    function verify2(bytes calldata _metadata, bytes calldata _message)
+        public
+        returns (bool)
+    {
+        (address[] memory _isms, uint8 _threshold) = ismsAndThreshold(_message);
+        uint256 _count = _isms.length;
+        uint256 _verified = 0;
+        for (uint8 i = 0; i < _count; i++) {
+            if (!AggregationIsmMetadata.hasMetadata(_metadata, i)) continue;
+            IInterchainSecurityModule _ism = IInterchainSecurityModule(
+                _isms[i]
+            );
+            require(
+                _ism == AggregationIsmMetadata.ismAt(_metadata, i),
+                "ISM mismatch with provided metadata"
+            );
+            require(
+                _ism.verify(
+                    AggregationIsmMetadata.metadataAt(_metadata, i),
+                    _message
+                ),
+                "!verify"
+            );
+            _verified += 1;
+            if (_verified == _threshold) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * @notice Requires that m-of-n ISMs verify the provided interchain message.
      * @param _metadata ABI encoded module metadata (see AggregationIsmMetadata.sol)
@@ -82,7 +113,7 @@ contract AggregationIsm is IAggregationIsm, OwnableMOfNSet {
      * @return threshold The number of ISMs needed to verify
      */
     function ismsAndThreshold(bytes calldata _message)
-        external
+        public
         view
         returns (address[] memory, uint8)
     {

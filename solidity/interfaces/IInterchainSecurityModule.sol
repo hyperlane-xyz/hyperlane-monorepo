@@ -5,7 +5,7 @@ interface IInterchainSecurityModule {
     enum Types {
         UNUSED_0,
         UNUSED_1,
-        UNUSED_2,
+        ROUTING,
         MULTISIG,
         AGGREGATION
     }

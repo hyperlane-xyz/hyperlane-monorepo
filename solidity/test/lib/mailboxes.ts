@@ -3,7 +3,12 @@ import { ethers } from 'ethers';
 
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
-import { MultisigIsm, TestMailbox } from '../../types';
+import {
+  MultisigIsm,
+  SingleMultisigIsm,
+  StaticMultisigIsm,
+  TestMailbox,
+} from '../../types';
 import { DispatchEvent } from '../../types/contracts/Mailbox';
 
 export type MessageAndProof = {
@@ -77,6 +82,80 @@ export async function signCheckpoint(
   );
 }
 
+export async function dispatchMessageAndReturnStaticMetadata(
+  mailbox: TestMailbox,
+  multisigIsm: StaticMultisigIsm,
+  destination: number,
+  recipient: string,
+  messageStr: string,
+  orderedValidators: Validator[],
+  utf8 = true,
+): Promise<MessageAndMetadata> {
+  // Checkpoint indices are 0 indexed, so we pull the count before
+  // we dispatch the message.
+  const index = await mailbox.count();
+  const proofAndMessage = await dispatchMessageAndReturnProof(
+    mailbox,
+    destination,
+    recipient,
+    messageStr,
+    utf8,
+  );
+  const root = await mailbox.root();
+  const signatures = await signCheckpoint(
+    root,
+    index,
+    mailbox.address,
+    orderedValidators,
+  );
+  const metadata = utils.formatStaticMultisigIsmMetadata({
+    checkpointRoot: root,
+    checkpointIndex: index,
+    originMailbox: mailbox.address,
+    proof: proofAndMessage.proof.branch,
+    signatures,
+    validators: await multisigIsm.validators(),
+  });
+  return { metadata, message: proofAndMessage.message };
+}
+
+export async function dispatchMessageAndReturnSingleMetadata(
+  mailbox: TestMailbox,
+  multisigIsm: SingleMultisigIsm,
+  destination: number,
+  recipient: string,
+  messageStr: string,
+  orderedValidators: Validator[],
+  utf8 = true,
+): Promise<MessageAndMetadata> {
+  // Checkpoint indices are 0 indexed, so we pull the count before
+  // we dispatch the message.
+  const index = await mailbox.count();
+  const proofAndMessage = await dispatchMessageAndReturnProof(
+    mailbox,
+    destination,
+    recipient,
+    messageStr,
+    utf8,
+  );
+  const root = await mailbox.root();
+  const signatures = await signCheckpoint(
+    root,
+    index,
+    mailbox.address,
+    orderedValidators,
+  );
+  const metadata = utils.formatMultisigIsmMetadata({
+    checkpointRoot: root,
+    checkpointIndex: index,
+    originMailbox: mailbox.address,
+    proof: proofAndMessage.proof.branch,
+    signatures,
+    validators: await multisigIsm.validators(),
+  });
+  return { metadata, message: proofAndMessage.message };
+}
+
 export async function dispatchMessageAndReturnMetadata(
   mailbox: TestMailbox,
   multisigIsm: MultisigIsm,
@@ -84,7 +163,6 @@ export async function dispatchMessageAndReturnMetadata(
   recipient: string,
   messageStr: string,
   orderedValidators: Validator[],
-  threshold?: number,
   utf8 = true,
 ): Promise<MessageAndMetadata> {
   // Checkpoint indices are 0 indexed, so we pull the count before

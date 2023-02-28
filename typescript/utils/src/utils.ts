@@ -97,6 +97,21 @@ export const parseMultisigIsmMetadata = (
   };
 };
 
+export const formatStaticMultisigIsmMetadata = (
+  metadata: ParsedMultisigIsmMetadata,
+): string => {
+  return ethers.utils.solidityPack(
+    ['bytes32', 'uint32', 'bytes32', 'bytes32[32]', 'bytes'],
+    [
+      metadata.checkpointRoot,
+      metadata.checkpointIndex,
+      addressToBytes32(metadata.originMailbox),
+      metadata.proof,
+      ethers.utils.hexConcat(metadata.signatures),
+    ],
+  );
+};
+
 export const formatMultisigIsmMetadata = (
   metadata: ParsedMultisigIsmMetadata,
 ): string => {

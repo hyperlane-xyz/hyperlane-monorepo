@@ -16,7 +16,6 @@ import {
 import {
   dispatchMessage,
   dispatchMessageAndReturnMetadata,
-  getCommitment,
   signCheckpoint,
 } from '../lib/mailboxes';
 
@@ -30,12 +29,11 @@ describe('MultisigIsm', async () => {
   let multisigIsm: TestMultisigIsm,
     mailbox: TestMailbox,
     signer: SignerWithAddress,
-    nonOwner: SignerWithAddress,
     validators: Validator[];
 
   before(async () => {
     const signers = await ethers.getSigners();
-    [signer, nonOwner] = signers;
+    [signer] = signers;
     const mailboxFactory = new TestMailbox__factory(signer);
     mailbox = await mailboxFactory.deploy(ORIGIN_DOMAIN);
     validators = await Promise.all(
@@ -223,12 +221,13 @@ describe('MultisigIsm', async () => {
     ) {
       for (let threshold = 1; threshold <= numValidators; threshold++) {
         it(`instrument mailbox.process gas costs with ${threshold} of ${numValidators} multisig`, async () => {
-          const adjustedValidators = validators.slice(0, numValidators);
+          const enrolledValidators = validators.slice(0, numValidators);
           // Must be done sequentially so gas estimation is correct
           // and so that signatures are produced in the same order.
-          for (const v of adjustedValidators) {
+          for (const v of enrolledValidators) {
             await multisigIsm.add(ORIGIN_DOMAIN, v.address);
           }
+          const signingValidators = enrolledValidators.slice(0, threshold);
 
           await multisigIsm.setThreshold(ORIGIN_DOMAIN, threshold);
 
@@ -242,8 +241,7 @@ describe('MultisigIsm', async () => {
             DESTINATION_DOMAIN,
             recipient,
             maxBody,
-            adjustedValidators,
-            threshold,
+            signingValidators,
             false,
           ));
 
