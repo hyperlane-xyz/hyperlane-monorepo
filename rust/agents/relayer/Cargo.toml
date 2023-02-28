@@ -7,6 +7,7 @@ edition = "2021"
 tokio = { version = "1", features = ["rt", "macros"] }
 coingecko = { git = "https://github.com/hyperlane-xyz/coingecko-rs", tag = "2022-09-14-02" }
 config = "~0.13.3"
+derive-new = "0.5"
 serde = {version = "1.0", features = ["derive"]}
 serde_json = { version = "1.0", default-features = false }
 ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01" }

@@ -43,7 +43,7 @@ export class AgentAwsKey extends CloudAgentKey {
   public remoteKey: RemoteKey = { fetched: false };
 
   constructor(
-    agentConfig: AgentConfig<any>,
+    agentConfig: AgentConfig,
     role: KEY_ROLE_ENUM,
     chainName?: ChainName,
     index?: number,

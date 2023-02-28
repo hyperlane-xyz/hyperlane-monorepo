@@ -1,12 +1,13 @@
 use crate::db::{DbError, DB};
 use crate::{Decode, Encode};
+use derive_new::new;
 
 type Result<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific type/entity.
 ///
 /// Key structure: ```<type_prefix>_<additional_prefix(es)>_<key>```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct TypedDB {
     entity: String,
     db: DB,
@@ -19,11 +20,6 @@ impl AsRef<DB> for TypedDB {
 }
 
 impl TypedDB {
-    /// Instantiate new `TypedDB`
-    pub fn new(entity: String, db: DB) -> Self {
-        Self { entity, db }
-    }
-
     fn full_prefix(&self, prefix: impl AsRef<[u8]>) -> Vec<u8> {
         let mut full_prefix = vec![];
         full_prefix.extend(self.entity.as_ref() as &[u8]);

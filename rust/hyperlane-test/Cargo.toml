@@ -13,7 +13,7 @@ futures-util = "0.3"
 eyre = "0.6"
 mockall = "0.11"
 rand = "0.8.3"
-rocksdb = "0.18"
+rocksdb = "0.20"
 tempfile = "3.3"
 
 hyperlane-core = { path = "../hyperlane-core" }

@@ -5,14 +5,14 @@ import { HyperlaneCore, objMap, promiseObjAll } from '@hyperlane-xyz/sdk';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { getEnvironment, getEnvironmentConfig } from '../utils';
 
-// Some arbitrary treshold for now
+// Some arbitrary threshold for now
 const RECLAIM_BALANCE_THRESHOLD = BigNumber.from(10).pow(17);
 
 async function main() {
   const environment = await getEnvironment();
   const coreConfig = await getEnvironmentConfig();
   const multiProvider = await coreConfig.getMultiProvider();
-  const core: HyperlaneCore<any> = HyperlaneCore.fromEnvironment(
+  const core: HyperlaneCore = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
     multiProvider,
   );
@@ -22,8 +22,8 @@ async function main() {
   );
 
   const balances = await promiseObjAll(
-    multiProvider.map((chain, chainConnection) => {
-      const provider = chainConnection.provider;
+    multiProvider.mapKnownChains((chain) => {
+      const provider = multiProvider.getProvider(chain);
       const paymasterAddress = paymasters[chain].address;
       return provider.getBalance(paymasterAddress);
     }),
@@ -39,8 +39,7 @@ async function main() {
         return 'N/A';
       }
       const tx = await paymaster.contract.claim();
-      const chainConnection = multiProvider.getChainConnection(chain);
-      return chainConnection.getTxUrl(tx);
+      return multiProvider.getExplorerTxUrl(chain, tx);
     }),
   );
 
