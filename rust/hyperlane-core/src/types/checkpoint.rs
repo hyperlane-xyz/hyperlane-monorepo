@@ -125,7 +125,7 @@ impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
         let signatures = signed_checkpoints
             .iter()
             .map(|c| SignatureWithSigner {
-                signature: c.signed_checkpoint.signature.signature,
+                signature: c.signed_checkpoint.signature,
                 signer: c.signer,
             })
             .collect();

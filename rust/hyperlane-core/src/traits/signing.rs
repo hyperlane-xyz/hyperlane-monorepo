@@ -4,7 +4,10 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use ethers::prelude::{Address, Signature};
 use ethers::utils::hash_message;
-use serde::{Deserialize, Serialize, ser::{SerializeStruct, Serializer}};
+use serde::{
+    ser::{SerializeStruct, Serializer},
+    Deserialize, Serialize,
+};
 
 use crate::utils::fmt_bytes;
 use crate::{HyperlaneProtocolError, H160, H256};
@@ -48,14 +51,13 @@ impl<S: HyperlaneSigner> HyperlaneSignerExt for S {
     ) -> Result<SignedType<T>, HyperlaneSignerError> {
         let signing_hash = value.signing_hash();
         let signature = self.sign_hash(&signing_hash).await?;
-        Ok(SignedType { value, signature: SignatureExt{signature} })
+        Ok(SignedType { value, signature })
     }
 
     fn verify<T: Signable>(&self, signed: &SignedType<T>) -> Result<(), HyperlaneProtocolError> {
         signed.verify(self.eth_address())
     }
 }
-
 
 /// A type that can be signed. The signature will be of a hash of select
 /// contents defined by `signing_hash`.
@@ -71,36 +73,27 @@ pub trait Signable: Sized {
     }
 }
 
-/// A signature type with the Serialize trait overridden
-#[derive(Clone, Eq, PartialEq, Deserialize)]
-pub struct SignatureExt {
-    /// An ECDSA signature
-    pub signature: Signature,
-}
-
 /// A signed type. Contains the original value and the signature.
-#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Deserialize)]
 pub struct SignedType<T: Signable> {
     /// The value which was signed
     #[serde(alias = "checkpoint")]
     #[serde(alias = "announcement")]
     pub value: T,
     /// The signature for the value
-    pub signature: SignatureExt,
+    pub signature: Signature,
 }
 
-// Ugh, this breaks deser...
-impl Serialize for SignatureExt {
+impl<T: Signable + Serialize> Serialize for SignedType<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let mut state = serializer.serialize_struct("SignatureExt", 4)?;
-        state.serialize_field("r", &self.signature.r)?;
-        state.serialize_field("s", &self.signature.s)?;
-        state.serialize_field("v", &self.signature.v)?;
+        let mut state = serializer.serialize_struct("SignedType", 3)?;
+        state.serialize_field("value", &self.value)?;
+        state.serialize_field("signature", &self.signature)?;
         let sig = <[u8; 65]>::from(self.signature);
-        state.serialize_field("sig", &fmt_bytes(&sig))?;
+        state.serialize_field("serialized_signature", &fmt_bytes(&sig))?;
         state.end()
     }
 }
@@ -110,14 +103,14 @@ impl<T: Signable> SignedType<T> {
     pub fn recover(&self) -> Result<Address, HyperlaneProtocolError> {
         Ok(self
             .signature
-            .signature.recover(self.value.eth_signed_message_hash())?)
+            .recover(self.value.eth_signed_message_hash())?)
     }
 
     /// Check whether a message was signed by a specific address
     pub fn verify(&self, signer: Address) -> Result<(), HyperlaneProtocolError> {
         Ok(self
             .signature
-            .signature.verify(self.value.eth_signed_message_hash(), signer)?)
+            .verify(self.value.eth_signed_message_hash(), signer)?)
     }
 }
 
@@ -126,7 +119,7 @@ impl<T: Signable + Debug> Debug for SignedType<T> {
         write!(
             f,
             "SignedType {{ value: {:?}, signature: 0x{} }}",
-            self.value, self.signature.signature
+            self.value, self.signature
         )
     }
 }
