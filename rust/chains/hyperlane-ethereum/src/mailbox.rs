@@ -10,7 +10,7 @@ use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers::types::Eip1559TransactionRequest;
 use ethers_contract::builders::ContractCall;
-use tracing::{info, instrument};
+use tracing::{instrument};
 
 use hyperlane_core::{
     utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
