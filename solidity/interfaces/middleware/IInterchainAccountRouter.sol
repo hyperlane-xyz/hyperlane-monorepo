@@ -19,12 +19,14 @@ interface IInterchainAccountRouter {
 
     function getLocalInterchainAccount(
         uint32 _origin,
+        bytes32 _router,
         bytes32 _sender,
         address _ism
     ) external view returns (OwnableMulticall);
 
     function getLocalInterchainAccount(
         uint32 _origin,
+        address _router,
         address _sender,
         address _ism
     ) external view returns (OwnableMulticall);

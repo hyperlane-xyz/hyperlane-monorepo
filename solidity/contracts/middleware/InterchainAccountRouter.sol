@@ -215,18 +215,20 @@ contract InterchainAccountRouter is
     }
 
     /**
-     * @notice Handles dispatched messages by relaying calls to the interchain account.
-     * @param _origin The origin domain of the interchain account.
+     * @notice Handles dispatched messages by relaying calls to the interchain account
+     * @param _origin The origin domain of the interchain account
+     * @param _sender The sender of the interchain message
      * @param _message The InterchainAccountMessage containing the account
-     * owner, ISM, and sequence of calls to be relayed.
+     * owner, ISM, and sequence of calls to be relayed
      */
     function handle(
         uint32 _origin,
-        bytes32, // router sender
+        bytes32 _sender,
         bytes calldata _message
     ) external onlyMailbox {
         OwnableMulticall interchainAccount = _getDeployedInterchainAccount(
             _origin,
+            _sender,
             InterchainAccountMessage.owner(_message),
             InterchainAccountMessage.ismAddress(_message)
         );
@@ -238,16 +240,25 @@ contract InterchainAccountRouter is
      * @dev This interchain account is not guaranteed to have been deployed
      * @param _origin The remote origin domain of the interchain account
      * @param _owner The remote owner of the interchain account
+     * @param _router The remote origin InterchainAccountRouter
      * @param _ism The local address of the ISM
      * @return The local address of the interchain account
      */
     function getLocalInterchainAccount(
         uint32 _origin,
+        address _router,
         address _owner,
         address _ism
     ) external view returns (OwnableMulticall) {
+        bytes32 _routerAsBytes32 = TypeCasts.addressToBytes32(_router);
         bytes32 _ownerAsBytes32 = TypeCasts.addressToBytes32(_owner);
-        return getLocalInterchainAccount(_origin, _ownerAsBytes32, _ism);
+        return
+            getLocalInterchainAccount(
+                _origin,
+                _routerAsBytes32,
+                _ownerAsBytes32,
+                _ism
+            );
     }
 
     /**
@@ -373,18 +384,20 @@ contract InterchainAccountRouter is
      * @notice Returns the local address of an interchain account
      * @dev This interchain account is not guaranteed to have been deployed
      * @param _origin The remote origin domain of the interchain account
+     * @param _router The remote origin InterchainAccountRouter
      * @param _owner The remote owner of the interchain account
      * @param _ism The local address of the ISM
      * @return The local address of the interchain account
      */
     function getLocalInterchainAccount(
         uint32 _origin,
+        bytes32 _router,
         bytes32 _owner,
         address _ism
     ) public view returns (OwnableMulticall) {
         return
             OwnableMulticall(
-                _getInterchainAccount(_salt(_origin, _owner, _ism))
+                _getInterchainAccount(_salt(_origin, _router, _owner, _ism))
             );
     }
 
@@ -393,15 +406,18 @@ contract InterchainAccountRouter is
     /**
      * @notice Returns and deploys (if not already) an interchain account
      * @param _origin The remote origin domain of the interchain account
+     * @param _router The remote origin InterchainAccountRouter
      * @param _owner The remote owner of the interchain account
+     * @param _ism The local address of the ISM
      * @return The address of the interchain account
      */
     function _getDeployedInterchainAccount(
         uint32 _origin,
+        bytes32 _router,
         bytes32 _owner,
         address _ism
     ) private returns (OwnableMulticall) {
-        bytes32 salt = _salt(_origin, _owner, _ism);
+        bytes32 salt = _salt(_origin, _router, _owner, _ism);
         address payable _account = _getInterchainAccount(salt);
         if (!Address.isContract(_account)) {
             bytes memory bytecode = MinimalProxy.bytecode(implementation);
@@ -416,16 +432,18 @@ contract InterchainAccountRouter is
     /**
      * @notice Returns the salt used to deploy an interchain account
      * @param _origin The remote origin domain of the interchain account
+     * @param _router The remote origin InterchainAccountRouter
      * @param _owner The remote owner of the interchain account
      * @param _ism The local address of the ISM
      * @return The CREATE2 salt used for deploying the interchain account
      */
     function _salt(
         uint32 _origin,
+        bytes32 _router,
         bytes32 _owner,
         address _ism
     ) private pure returns (bytes32) {
-        return bytes32(abi.encodePacked(_origin, _owner, _ism));
+        return bytes32(abi.encodePacked(_origin, _router, _owner, _ism));
     }
 
     /**
