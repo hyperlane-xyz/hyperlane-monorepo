@@ -80,6 +80,29 @@ contract InterchainAccountRouterTest is Test {
         target = new Callable();
     }
 
+    function testEnrollRemoteRouters(
+        uint8 count,
+        uint32 domain,
+        bytes32 router
+    ) public {
+        vm.assume(count < uint256(router) && count < domain);
+        uint32[] memory domains = new uint32[](count);
+        bytes32[] memory routers = new bytes32[](count);
+        for (uint8 i = 0; i < count; i++) {
+            domains[i] = domain - i;
+            routers[i] = bytes32(uint256(router) - i);
+        }
+        originRouter.enrollRemoteRouters(domains, routers);
+        for (uint256 i = 0; i < count; i++) {
+            (bytes32 actualRouter, bytes32 actualIsm) = originRouter
+                .getRemoteRouterAndIsm(domains[i], address(this));
+            assertEq(originRouter.routers(domains[i]), routers[i]);
+            assertEq(actualRouter, routers[i]);
+            assertEq(actualIsm, bytes32(0));
+        }
+        assertEq(abi.encode(originRouter.domains()), abi.encode(domains));
+    }
+
     function testEnrollRemoteRouterAndIsm(bytes32 router, bytes32 ism) public {
         (bytes32 actualRouter, bytes32 actualIsm) = originRouter
             .getRemoteRouterAndIsm(destination, address(this));

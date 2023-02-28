@@ -5,7 +5,7 @@ pragma solidity ^0.8.13;
 import {CallLib} from "../libs/Call.sol";
 import {Router} from "../Router.sol";
 import {IInterchainQueryRouter} from "../../interfaces/middleware/IInterchainQueryRouter.sol";
-import {InterchainCallMessage} from "./InterchainCallMessage.sol";
+import {InterchainQueryMessage} from "../libs/middleware/InterchainQueryMessage.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
 // ============ External Imports ============
@@ -81,7 +81,7 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         emit QueryDispatched(_destinationDomain, msg.sender);
         messageId = _dispatch(
             _destinationDomain,
-            InterchainCallMessage.format(calls, msg.sender.addressToBytes32())
+            InterchainQueryMessage.format(calls, msg.sender.addressToBytes32())
         );
     }
 
@@ -95,23 +95,24 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        InterchainCallMessage.CallType calltype = InterchainCallMessage
-            .calltype(_message);
-        bytes32 sender = InterchainCallMessage.sender(_message);
-        if (
-            calltype == InterchainCallMessage.CallType.STATIC_CALL_WITH_CALLBACK
-        ) {
+        InterchainQueryMessage.MessageType messageType = InterchainQueryMessage
+            .messageType(_message);
+        bytes32 sender = InterchainQueryMessage.sender(_message);
+        if (messageType == InterchainQueryMessage.MessageType.QUERY) {
             CallLib.StaticCallWithCallback[]
-                memory callsWithCallback = InterchainCallMessage
+                memory callsWithCallback = InterchainQueryMessage
                     .callsWithCallbacks(_message);
             bytes[] memory callbacks = CallLib.multistaticcall(
                 callsWithCallback
             );
             emit QueryExecuted(_origin, sender);
-            _dispatch(_origin, InterchainCallMessage.format(callbacks, sender));
-        } else if (calltype == InterchainCallMessage.CallType.RAW_CALLDATA) {
+            _dispatch(
+                _origin,
+                InterchainQueryMessage.format(callbacks, sender)
+            );
+        } else if (messageType == InterchainQueryMessage.MessageType.RESPONSE) {
             address senderAddress = sender.bytes32ToAddress();
-            bytes[] memory rawCalls = InterchainCallMessage.rawCalls(_message);
+            bytes[] memory rawCalls = InterchainQueryMessage.rawCalls(_message);
             CallLib.multicallto(senderAddress, rawCalls);
             //
             emit QueryResolved(_origin, senderAddress);
