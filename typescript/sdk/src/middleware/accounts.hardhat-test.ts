@@ -79,9 +79,10 @@ describe('InterchainAccountRouter', async () => {
       fooMessage,
     ]);
     const icaAddress = await remote[
-      'getLocalInterchainAccount(uint32,address,address)'
+      'getLocalInterchainAccount(uint32,address,address,address)'
     ](
       multiProvider.getDomainId(localChain),
+      local.address,
       signer.address,
       ethers.constants.AddressZero,
     );
