@@ -2,13 +2,11 @@ import {
   CircleBridgeAdapter,
   CircleBridgeAdapter__factory,
   LiquidityLayerRouter,
-  LiquidityLayerRouter__factory,
   PortalAdapter,
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneCore } from '../../core/HyperlaneCore';
 import {
   LiquidityLayerContracts,
   LiquidityLayerFactories,
@@ -61,10 +59,9 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<LiquidityLayerConfig>,
-    protected core: HyperlaneCore,
-    protected create2salt = 'LiquidityLayerDeployerSalt',
+    create2salt = 'LiquidityLayerDeployerSalt',
   ) {
-    super(multiProvider, configMap, liquidityLayerFactories, {});
+    super(multiProvider, configMap, liquidityLayerFactories, create2salt);
   }
 
   async enrollRemoteRouters(
@@ -100,14 +97,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
     chain: ChainName,
     config: LiquidityLayerConfig,
   ): Promise<LiquidityLayerContracts> {
-    const initCalldata = this.getInitArgs(
-      config,
-      LiquidityLayerRouter__factory.createInterface(),
-    );
-    const router = await this.deployContract(chain, 'router', [], {
-      create2Salt: this.create2salt,
-      initCalldata,
-    });
+    const routerContracts = await super.deployContracts(chain, config);
 
     const bridgeAdapters: Partial<LiquidityLayerContracts> = {};
 
@@ -116,7 +106,7 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
         chain,
         config.circle,
         config.owner,
-        router,
+        routerContracts.router,
       );
     }
     if (config.portal) {
@@ -124,14 +114,14 @@ export class LiquidityLayerDeployer extends MiddlewareRouterDeployer<
         chain,
         config.portal,
         config.owner,
-        router,
+        routerContracts.router,
       );
     }
 
     return {
+      ...routerContracts,
       ...bridgeAdapters,
-      router,
-    };
+    } as any;
   }
 
   async deployPortalAdapter(

@@ -1,11 +1,7 @@
 import { ethers } from 'ethers';
 
-import {
-  InterchainAccountRouter__factory,
-  InterchainQueryRouter__factory,
-} from '@hyperlane-xyz/core';
+import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 
-import { HyperlaneCore } from '../../core/HyperlaneCore';
 import {
   InterchainAccountContracts,
   InterchainAccountFactories,
@@ -15,34 +11,78 @@ import {
   interchainQueryFactories,
 } from '../../middleware';
 import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterContracts, RouterFactories } from '../../router';
+import { ProxiedRouterContracts, RouterFactories } from '../../router';
 import { ChainMap, ChainName } from '../../types';
 import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
 import { RouterConfig } from '../router/types';
 
-export type InterchainAccountConfig = RouterConfig;
-
 export abstract class MiddlewareRouterDeployer<
   MiddlewareRouterConfig extends RouterConfig,
-  MiddlewareRouterContracts extends RouterContracts,
+  MiddlewareRouterContracts extends ProxiedRouterContracts,
   MiddlewareFactories extends RouterFactories,
 > extends HyperlaneRouterDeployer<
   MiddlewareRouterConfig,
   MiddlewareRouterContracts,
   MiddlewareFactories
 > {
-  getInitArgs(
-    config: MiddlewareRouterConfig,
-    routerInterface: ethers.utils.Interface,
-  ): string {
-    return routerInterface.encodeFunctionData('initialize', [
+  constructor(
+    multiProvider: MultiProvider,
+    configMap: ChainMap<MiddlewareRouterConfig>,
+    factories: MiddlewareFactories,
+    protected create2salt = 'middlewarerouter',
+  ) {
+    super(multiProvider, configMap, factories);
+  }
+
+  constructorArgs(
+    _: MiddlewareRouterConfig,
+  ): Parameters<MiddlewareFactories['router']['deploy']> {
+    return [] as any;
+  }
+
+  initializeArgs(config: MiddlewareRouterConfig): any {
+    return [
       config.mailbox,
       config.interchainGasPaymaster,
       config.interchainSecurityModule ?? ethers.constants.AddressZero,
       config.owner,
-    ]);
+    ];
+  }
+
+  async deployContracts(
+    chain: ChainName,
+    config: MiddlewareRouterConfig,
+  ): Promise<MiddlewareRouterContracts> {
+    const proxyAdmin = await this.deployContractFromFactory(
+      chain,
+      new ProxyAdmin__factory(),
+      'proxyAdmin',
+      [],
+      { create2Salt: this.create2salt },
+    );
+    const proxiedRouter = await this.deployProxiedContract(
+      chain,
+      'router',
+      this.constructorArgs(config),
+      proxyAdmin,
+      this.initializeArgs(config),
+      {
+        create2Salt: this.create2salt,
+      },
+    );
+    await this.multiProvider.handleTx(
+      chain,
+      proxyAdmin.transferOwnership(config.owner),
+    );
+    return {
+      proxyAdmin,
+      proxiedRouter,
+      router: proxiedRouter.contract, // for backwards compatibility
+    } as any;
   }
 }
+
+type InterchainAccountConfig = RouterConfig;
 
 export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   InterchainAccountConfig,
@@ -52,33 +92,13 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<InterchainAccountConfig>,
-    protected core: HyperlaneCore,
-    protected create2salt = 'asdasdsd',
+    create2salt = 'accountsrouter',
   ) {
-    super(multiProvider, configMap, interchainAccountFactories, {});
-  }
-
-  // Custom contract deployment logic can go here
-  // If no custom logic is needed, call deployContract for the router
-  async deployContracts(
-    chain: ChainName,
-    config: InterchainAccountConfig,
-  ): Promise<InterchainAccountContracts> {
-    const initCalldata = this.getInitArgs(
-      config,
-      InterchainAccountRouter__factory.createInterface(),
-    );
-    const router = await this.deployContract(chain, 'router', [], {
-      create2Salt: this.create2salt + 'router',
-      initCalldata,
-    });
-    return {
-      router,
-    };
+    super(multiProvider, configMap, interchainAccountFactories, create2salt);
   }
 }
 
-export type InterchainQueryConfig = RouterConfig;
+type InterchainQueryConfig = RouterConfig;
 
 export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
   InterchainQueryConfig,
@@ -88,29 +108,8 @@ export class InterchainQueryDeployer extends MiddlewareRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     configMap: ChainMap<InterchainQueryConfig>,
-    protected core: HyperlaneCore,
-    // TODO replace salt with 'hyperlane' before next redeploy
-    protected create2salt = 'asdasdsd',
+    create2salt = 'queryrouter',
   ) {
-    super(multiProvider, configMap, interchainQueryFactories, {});
-  }
-
-  // Custom contract deployment logic can go here
-  // If no custom logic is needed, call deployContract for the router
-  async deployContracts(
-    chain: ChainName,
-    config: InterchainQueryConfig,
-  ): Promise<InterchainQueryContracts> {
-    const initCalldata = this.getInitArgs(
-      config,
-      InterchainQueryRouter__factory.createInterface(),
-    );
-    const router = await this.deployContract(chain, 'router', [], {
-      create2Salt: this.create2salt + 'router',
-      initCalldata,
-    });
-    return {
-      router,
-    };
+    super(multiProvider, configMap, interchainQueryFactories, create2salt);
   }
 }
