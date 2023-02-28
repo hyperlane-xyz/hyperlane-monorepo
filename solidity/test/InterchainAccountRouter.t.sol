@@ -105,6 +105,7 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testEnrollRemoteRouterAndIsm(bytes32 router, bytes32 ism) public {
+        vm.assume(router != bytes32(0));
         (bytes32 actualRouter, bytes32 actualIsm) = originRouter
             .getRemoteRouterAndIsm(destination, address(this));
         assertEq(actualRouter, bytes32(0));
