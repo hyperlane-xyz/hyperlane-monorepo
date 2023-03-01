@@ -5,7 +5,7 @@ use hyperlane_core::H256;
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 /// Hyperlane mailbox protocol version.
-pub const VERSION: u8 = 2;
+pub const VERSION: u8 = 0;
 
 /// Maximum bytes per message = 2 KiB (somewhat arbitrarily set to begin).
 pub const MAX_MESSAGE_BODY_BYTES: usize = 2 * 2_usize.pow(10);
