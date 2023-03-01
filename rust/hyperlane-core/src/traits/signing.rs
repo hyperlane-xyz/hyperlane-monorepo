@@ -92,7 +92,7 @@ impl<T: Signable + Serialize> Serialize for SignedType<T> {
         let mut state = serializer.serialize_struct("SignedType", 3)?;
         state.serialize_field("value", &self.value)?;
         state.serialize_field("signature", &self.signature)?;
-        let sig = <[u8; 65]>::from(self.signature);
+        let sig: [u8; 65] = self.signature.into();
         state.serialize_field("serialized_signature", &fmt_bytes(&sig))?;
         state.end()
     }
