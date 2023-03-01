@@ -7,7 +7,6 @@ use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, 
 use solana_program::{
     account_info::AccountInfo,
     program_error::ProgramError,
-    // Note: Not convinced program_pack::{IsInitialized, Pack} add value here.
     pubkey::Pubkey,
 };
 

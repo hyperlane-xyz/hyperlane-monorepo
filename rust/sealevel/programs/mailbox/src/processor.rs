@@ -77,10 +77,10 @@ pub fn process_instruction(
         }
         MailboxIxn::OutboxGetRoot(query) => outbox_get_root(program_id, accounts, query),
     }
-    // .map_err(|err| {
-    //     err.print::<crate::error::Error>();
-    //     err
-    // })
+    .map_err(|err| {
+        msg!("{}", err);
+        err
+    })
 }
 
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {

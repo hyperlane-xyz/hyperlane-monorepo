@@ -2,9 +2,6 @@
 
 use solana_program::program_error::ProgramError;
 
-// Note: Not convinced that
-// solana_program::{decode_error::DecodeError, program_error::PrintProgramError} really add any
-// value here.
 #[derive(Copy, Clone, Debug, Eq, thiserror::Error, num_derive::FromPrimitive, PartialEq)]
 #[repr(u32)]
 pub enum Error {

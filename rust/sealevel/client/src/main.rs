@@ -1,6 +1,5 @@
 //! Test client for Hyperlane Sealevel Mailbox contract.
 
-// #![deny(warnings)] // FIXME
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
