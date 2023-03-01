@@ -17,14 +17,13 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-solana_program::declare_id!("6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq");
-// solana_program::declare_id!("YpYBDE5EsueaooNiYjgQ5PWcX9EB7kBpo3uufdDeLi7");
+// FIXME Read these in at compile time? And don't use harcoded test keys.
+solana_program::declare_id!("F6dVnLFioQ8hKszqPsmjWPwHn2dJfebgMfztWrzL548V");
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
-const AUTHORITY: &str = "AAeNV1XBq4Wbf4FtpbN6PaTpDEo5umQiSLwFAVR5NW2E";
-// const AUTHORITY: &str = "7E7dbtWMktZB7rSkBecaayfhTaaavBKqKCjNzvspwycH";
+const AUTHORITY: &str = "G9CdDjMs6dEd3Tv5eG2ZXo8iKksLRcbHTxpS41sEmX1g";
 
 pub fn process_instruction(
     _program_id: &Pubkey,

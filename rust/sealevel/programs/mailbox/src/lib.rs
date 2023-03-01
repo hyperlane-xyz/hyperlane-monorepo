@@ -10,11 +10,10 @@ pub mod processor;
 
 pub use hyperlane_core;
 
-// FIXME Read these in at compile time?
-solana_program::declare_id!("8TibDpWMQfTjG6JxvF85pxJXxwqXZUCuUx3Q1vwojvRh");
-// solana_program::declare_id!("8oQPEeV1Uhmt4VNAdEojJewGnAuEi4pxBinbRvtKmiwJ");
+// FIXME Read these in at compile time? And don't use harcoded test keys.
+solana_program::declare_id!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1");
 
 // FIXME set a sane default
-pub(crate) static DEFAULT_ISM: &str = "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq";
+pub(crate) static DEFAULT_ISM: &str = "F6dVnLFioQ8hKszqPsmjWPwHn2dJfebgMfztWrzL548V";
 
 pub(crate) static DEFAULT_ISM_ACCOUNTS: &[&str] = &[];
