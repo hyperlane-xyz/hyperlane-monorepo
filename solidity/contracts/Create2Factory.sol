@@ -26,10 +26,10 @@ contract Create2Factory {
      * - `bytecode` must not be empty.
      * - `salt` must have not been used for `bytecode` already by the same `msg.sender`.
      */
-    function deploy(bytes memory bytecode, bytes32 salt)
-        external
-        returns (address deployedAddress_)
-    {
+    function deploy(
+        bytes memory bytecode,
+        bytes32 salt
+    ) external returns (address deployedAddress_) {
         deployedAddress_ = _deploy(
             bytecode,
             keccak256(abi.encode(msg.sender, salt))
@@ -75,26 +75,23 @@ contract Create2Factory {
         bytes32 salt
     ) external view returns (address deployedAddress_) {
         bytes32 newSalt = keccak256(abi.encode(sender, salt));
-        deployedAddress_ = address(
-            uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            hex"ff",
-                            address(this),
-                            newSalt,
-                            keccak256(bytecode) // init code hash
-                        )
-                    )
-                )
-            )
-        );
+        bytes32 bytecodeHash = bytes32(keccak256(bytecode));
+        /// @solidity memory-safe-assembly
+        assembly {
+            let ptr := mload(0x40) //Get free memory pointer
+            mstore(add(ptr, 0x40), bytecodeHash)
+            mstore(add(ptr, 0x20), salt)
+            mstore(ptr, sender) // Right-aligned with 12 preceding garbage bytes
+            let start := add(ptr, 0x0b) // The hashed data starts at the final garbage byte which we will set to 0xff
+            mstore8(start, 0xff)
+            deployedAddress_ := keccak256(start, 85)
+        }
     }
 
-    function _deploy(bytes memory bytecode, bytes32 salt)
-        internal
-        returns (address deployedAddress_)
-    {
+    function _deploy(
+        bytes memory bytecode,
+        bytes32 salt
+    ) internal returns (address deployedAddress_) {
         if (bytecode.length == 0) revert EmptyBytecode();
 
         // solhint-disable-next-line no-inline-assembly
