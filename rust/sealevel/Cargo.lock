@@ -1470,7 +1470,9 @@ version = "0.1.0"
 dependencies = [
  "borsh",
  "clap 4.0.26",
+ "hyperlane-sealevel-ism-rubber-stamp",
  "hyperlane-sealevel-mailbox",
+ "hyperlane-sealevel-recipient-echo",
  "lazy_static",
  "pretty_env_logger",
  "solana-clap-utils",

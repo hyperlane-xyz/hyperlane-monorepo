@@ -3,10 +3,10 @@
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
-use std::str::FromStr as _;
-
 use clap::{Args, Parser, Subcommand};
+use hyperlane_sealevel_ism_rubber_stamp::ID as DEFAULT_ISM_PROG_ID;
 use hyperlane_sealevel_mailbox::{
+    ID as MAILBOX_PROG_ID,
     hyperlane_core::{message::HyperlaneMessage, types::H256, Encode},
     accounts::{InboxAccount, OutboxAccount},
     instruction::{
@@ -15,6 +15,7 @@ use hyperlane_sealevel_mailbox::{
     },
     mailbox_authority_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds
 };
+use hyperlane_sealevel_recipient_echo::ID as RECIPIENT_ECHO_PROG_ID;
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
 use solana_client::rpc_client::RpcClient;
@@ -32,19 +33,7 @@ const DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT: u32 = 200_000;
 const MAX_COMPUTE_UNIT_LIMIT: u32 = 1_400_000;
 const MAX_HEAP_FRAME_BYTES: u32 = 256 * 1024;
 
-// FIXME can we import from libs?
-lazy_static::lazy_static! {
-    static ref MAILBOX_PROG_ID: Pubkey = Pubkey::from_str(
-        "8TibDpWMQfTjG6JxvF85pxJXxwqXZUCuUx3Q1vwojvRh"
-    ).unwrap();
-    static ref DEFAULT_ISM_PROG_ID: Pubkey = Pubkey::from_str(
-        "6TCwgXydobJUEqabm7e6SL4FMdiFDvp1pmYoL6xXmRJq"
-    ).unwrap();
-    static ref RECIPIENT_ECHO_PROG_ID: Pubkey = Pubkey::from_str(
-        "AziCxohg8Tw46EsZGUCvxsVbqFmJVnSWuEqoTKaAfNiC"
-    ).unwrap();
-}
-const ECLIPSE_DOMAIN: u32 = 13375;
+const ECLIPSE_DOMAIN: u32 = 13375; // TODO import from hyperlane
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -71,7 +60,7 @@ enum MailboxCmd {
 
 #[derive(Args)]
 struct Init {
-    #[arg(long, short, default_value_t = *MAILBOX_PROG_ID)]
+    #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
     #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     local_domain: u32,
@@ -79,7 +68,7 @@ struct Init {
 
 #[derive(Args)]
 struct Query {
-    #[arg(long, short, default_value_t = *MAILBOX_PROG_ID)]
+    #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
     #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     local_domain: u32,
@@ -91,11 +80,11 @@ struct Outbox {
     local_domain: u32,
     #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     destination: u32,
-    #[arg(long, short, default_value_t = *RECIPIENT_ECHO_PROG_ID)]
+    #[arg(long, short, default_value_t = RECIPIENT_ECHO_PROG_ID)]
     recipient: Pubkey,
     #[arg(long, short, default_value = "Hello, World!")]
     message: String,
-    #[arg(long, short, default_value_t = *MAILBOX_PROG_ID)]
+    #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
 
     // #[arg(long, short, default_value_t = MAX_MESSAGE_BODY_BYTES)]
@@ -108,15 +97,15 @@ struct Inbox {
     local_domain: u32,
     #[arg(long, short, default_value_t = ECLIPSE_DOMAIN)]
     origin: u32,
-    #[arg(long, short, default_value_t = *RECIPIENT_ECHO_PROG_ID)]
+    #[arg(long, short, default_value_t = RECIPIENT_ECHO_PROG_ID)]
     recipient: Pubkey,
     #[arg(long, short, default_value = "Hello, World!")]
     message: String,
     #[arg(long, short, default_value_t = 1)]
     nonce: u32,
-    #[arg(long, short, default_value_t = *MAILBOX_PROG_ID)]
+    #[arg(long, short, default_value_t = MAILBOX_PROG_ID)]
     program_id: Pubkey,
-    #[arg(long, default_value_t = *DEFAULT_ISM_PROG_ID)]
+    #[arg(long, default_value_t = DEFAULT_ISM_PROG_ID)]
     ism: Pubkey,
 }
 
