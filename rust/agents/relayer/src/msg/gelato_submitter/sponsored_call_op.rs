@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use derive_new::new;
 use eyre::Result;
 use tokio::{
     sync::mpsc::UnboundedSender,
@@ -44,7 +45,7 @@ pub struct SponsoredCallOpArgs {
     pub message_processed_sender: UnboundedSender<SubmitMessageArgs>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct SponsoredCallOp(SponsoredCallOpArgs);
 
 impl Deref for SponsoredCallOp {
@@ -62,10 +63,6 @@ impl DerefMut for SponsoredCallOp {
 }
 
 impl SponsoredCallOp {
-    pub fn new(args: SponsoredCallOpArgs) -> Self {
-        Self(args)
-    }
-
     #[instrument(skip(self), fields(msg=?self.message.message))]
     pub async fn run(&mut self) {
         loop {

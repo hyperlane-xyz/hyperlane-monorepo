@@ -1,20 +1,18 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use derive_new::new;
 use eyre::Result;
 use futures_util::future::select_all;
 use tokio::task::JoinHandle;
-use tracing::instrument::Instrumented;
-use tracing::{info_span, Instrument};
+use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use hyperlane_core::db::HyperlaneDB;
-use hyperlane_core::{InterchainGasPaymaster, InterchainGasPaymasterIndexer};
+use hyperlane_core::{db::HyperlaneDB, InterchainGasPaymaster, InterchainGasPaymasterIndexer};
 
-use crate::chains::IndexSettings;
-use crate::{ContractSync, ContractSyncMetrics};
+use crate::{chains::IndexSettings, ContractSync, ContractSyncMetrics};
 
 /// Caching InterchainGasPaymaster type
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct CachingInterchainGasPaymaster {
     paymaster: Arc<dyn InterchainGasPaymaster>,
     db: HyperlaneDB,
@@ -28,19 +26,6 @@ impl std::fmt::Display for CachingInterchainGasPaymaster {
 }
 
 impl CachingInterchainGasPaymaster {
-    /// Instantiate new CachingInterchainGasPaymaster
-    pub fn new(
-        paymaster: Arc<dyn InterchainGasPaymaster>,
-        db: HyperlaneDB,
-        indexer: Arc<dyn InterchainGasPaymasterIndexer>,
-    ) -> Self {
-        Self {
-            paymaster,
-            db,
-            indexer,
-        }
-    }
-
     /// Return handle on paymaster object
     pub fn paymaster(&self) -> &Arc<dyn InterchainGasPaymaster> {
         &self.paymaster

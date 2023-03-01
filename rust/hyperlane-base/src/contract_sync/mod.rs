@@ -1,9 +1,10 @@
 // TODO: Reapply tip buffer
 // TODO: Reapply metrics
 
+use derive_new::new;
+
 pub use cursor::*;
-use hyperlane_core::db::HyperlaneDB;
-use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::{db::HyperlaneDB, HyperlaneDomain};
 pub use interchain_gas::*;
 pub use mailbox::*;
 pub use metrics::ContractSyncMetrics;
@@ -22,30 +23,11 @@ mod schema;
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
 /// `indexer` and fills the agent's db with this data. A CachingMailbox
 /// will use a contract sync to spawn syncing tasks to keep the db up-to-date.
-#[derive(Debug)]
+#[derive(Debug, new)]
 pub struct ContractSync<I> {
     domain: HyperlaneDomain,
     db: HyperlaneDB,
     indexer: I,
     index_settings: IndexSettings,
     metrics: ContractSyncMetrics,
-}
-
-impl<I> ContractSync<I> {
-    /// Instantiate new ContractSync
-    pub fn new(
-        domain: HyperlaneDomain,
-        db: HyperlaneDB,
-        indexer: I,
-        index_settings: IndexSettings,
-        metrics: ContractSyncMetrics,
-    ) -> Self {
-        Self {
-            domain,
-            db,
-            indexer,
-            index_settings,
-            metrics,
-        }
-    }
 }

@@ -1,16 +1,23 @@
 import type { BigNumber, ethers } from 'ethers';
 
-import { GasRouter, Router } from '@hyperlane-xyz/core';
+import { GasRouter, ProxyAdmin, Router } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from './HyperlaneApp';
 import { HyperlaneContracts, HyperlaneFactories } from './contracts';
+import { ProxiedContract, TransparentProxyAddresses } from './proxy';
 import { ChainMap, ChainName } from './types';
 import { objMap, promiseObjAll } from './utils/objects';
 
 export type RouterContracts<RouterContract extends Router = Router> =
   HyperlaneContracts & {
     router: RouterContract;
+  };
+
+export type ProxiedRouterContracts<RouterContract extends Router = Router> =
+  RouterContracts<RouterContract> & {
+    proxyAdmin: ProxyAdmin;
+    proxiedRouter: ProxiedContract<RouterContract, TransparentProxyAddresses>;
   };
 
 type RouterFactory<RouterContract extends Router = Router> =
