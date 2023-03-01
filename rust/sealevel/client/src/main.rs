@@ -12,8 +12,9 @@ use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
     instruction::{
         InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction, OutboxDispatch,
-        MAX_MESSAGE_BODY_BYTES, VERSION,
+        VERSION,
     },
+    mailbox_authority_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds
 };
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
@@ -178,33 +179,15 @@ fn main() {
     match cli.cmd {
         MailboxCmd::Init(init) => {
             let (auth_account, auth_bump) = Pubkey::find_program_address(
-                &[
-                    b"hyperlane",
-                    b"-",
-                    &init.local_domain.to_le_bytes(),
-                    b"-",
-                    b"authority",
-                ],
+                mailbox_authority_pda_seeds!(init.local_domain),
                 &init.program_id,
             );
             let (inbox_account, inbox_bump) = Pubkey::find_program_address(
-                &[
-                    b"hyperlane",
-                    b"-",
-                    &init.local_domain.to_le_bytes(),
-                    b"-",
-                    b"inbox",
-                ],
+                mailbox_inbox_pda_seeds!(init.local_domain),
                 &init.program_id,
             );
             let (outbox_account, outbox_bump) = Pubkey::find_program_address(
-                &[
-                    b"hyperlane",
-                    b"-",
-                    &init.local_domain.to_le_bytes(),
-                    b"-",
-                    b"outbox",
-                ],
+                mailbox_outbox_pda_seeds!(init.local_domain),
                 &init.program_id,
             );
 
@@ -245,33 +228,15 @@ fn main() {
         }
         MailboxCmd::Query(query) => {
             let (auth_account, auth_bump) = Pubkey::find_program_address(
-                &[
-                    b"hyperlane",
-                    b"-",
-                    &query.local_domain.to_le_bytes(),
-                    b"-",
-                    b"authority",
-                ],
+                mailbox_authority_pda_seeds!(query.local_domain),
                 &query.program_id,
             );
             let (inbox_account, inbox_bump) = Pubkey::find_program_address(
-                &[
-                    b"hyperlane",
-                    b"-",
-                    &query.local_domain.to_le_bytes(),
-                    b"-",
-                    b"inbox",
-                ],
+                mailbox_inbox_pda_seeds!(query.local_domain),
                 &query.program_id,
             );
             let (outbox_account, outbox_bump) = Pubkey::find_program_address(
-                &[
-                    b"hyperlane",
-                    b"-",
-                    &query.local_domain.to_le_bytes(),
-                    b"-",
-                    b"outbox",
-                ],
+                mailbox_outbox_pda_seeds!(query.local_domain),
                 &query.program_id,
             );
 
@@ -312,13 +277,7 @@ fn main() {
         }
         MailboxCmd::Send(outbox) => {
             let (outbox_account, _outbox_bump) = Pubkey::find_program_address(
-                &[
-                    b"hyperlane",
-                    b"-",
-                    &outbox.local_domain.to_le_bytes(),
-                    b"-",
-                    b"outbox",
-                ],
+                mailbox_outbox_pda_seeds!(outbox.local_domain),
                 &outbox.program_id,
             );
             let ixn = MailboxInstruction::OutboxDispatch(OutboxDispatch {
@@ -350,23 +309,11 @@ fn main() {
         }
         MailboxCmd::Receive(inbox) => {
             let (inbox_account, _inbox_bump) = Pubkey::find_program_address(
-                &[
-                    b"hyperlane",
-                    b"-",
-                    &inbox.local_domain.to_le_bytes(),
-                    b"-",
-                    b"inbox",
-                ],
+                mailbox_inbox_pda_seeds!(inbox.local_domain),
                 &inbox.program_id,
             );
             let (auth_account, _auth_bump) = Pubkey::find_program_address(
-                &[
-                    b"hyperlane",
-                    b"-",
-                    &inbox.local_domain.to_le_bytes(),
-                    b"-",
-                    b"authority",
-                ],
+                mailbox_authority_pda_seeds!(inbox.local_domain),
                 &inbox.program_id,
             );
             let hyperlane_message = HyperlaneMessage {

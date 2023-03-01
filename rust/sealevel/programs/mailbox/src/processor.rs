@@ -28,6 +28,39 @@ use crate::{
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+#[macro_export]
+macro_rules! mailbox_authority_pda_seeds {
+    ($local_domain:expr) => {{
+        &[b"hyperlane", b"-", &$local_domain.to_le_bytes(), b"-", b"authority"]
+    }};
+
+    ($local_domain:expr, $bump_seed:expr) => {{
+        &[b"hyperlane", b"-", &$local_domain.to_le_bytes(), b"-", b"authority", &[$bump_seed]]
+    }};
+}
+
+#[macro_export]
+macro_rules! mailbox_inbox_pda_seeds {
+    ($local_domain:expr) => {{
+        &[b"hyperlane", b"-", &$local_domain.to_le_bytes(), b"-", b"inbox"]
+    }};
+
+    ($local_domain:expr, $bump_seed:expr) => {{
+        &[b"hyperlane", b"-", &$local_domain.to_le_bytes(), b"-", b"inbox", &[$bump_seed]]
+    }};
+}
+
+#[macro_export]
+macro_rules! mailbox_outbox_pda_seeds {
+    ($local_domain:expr) => {{
+        &[b"hyperlane", b"-", &$local_domain.to_le_bytes(), b"-", b"outbox"]
+    }};
+
+    ($local_domain:expr, $bump_seed:expr) => {{
+        &[b"hyperlane", b"-", &$local_domain.to_le_bytes(), b"-", b"outbox", &[$bump_seed]]
+    }};
+}
+
 pub fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -64,13 +97,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 
     let auth_account = next_account_info(accounts_iter)?;
     let (auth_key, auth_bump) = Pubkey::find_program_address(
-        &[
-            b"hyperlane",
-            b"-",
-            &init.local_domain.to_le_bytes(),
-            b"-",
-            b"authority",
-        ],
+        mailbox_authority_pda_seeds!(init.local_domain),
         program_id,
     );
     if &auth_key != auth_account.key {
@@ -89,25 +116,12 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
             payer_account.clone(),
             auth_account.clone(),
         ],
-        &[&[
-            b"hyperlane",
-            b"-",
-            &init.local_domain.to_le_bytes(),
-            b"-",
-            b"authority",
-            &[auth_bump],
-        ]],
+        &[mailbox_authority_pda_seeds!(init.local_domain, auth_bump)],
     )?;
 
     let inbox_account = next_account_info(accounts_iter)?;
     let (inbox_key, inbox_bump) = Pubkey::find_program_address(
-        &[
-            b"hyperlane",
-            b"-",
-            &init.local_domain.to_le_bytes(),
-            b"-",
-            b"inbox",
-        ],
+        mailbox_inbox_pda_seeds!(init.local_domain),
         program_id,
     );
     if &inbox_key != inbox_account.key {
@@ -126,25 +140,12 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
             payer_account.clone(),
             inbox_account.clone(),
         ],
-        &[&[
-            b"hyperlane",
-            b"-",
-            &init.local_domain.to_le_bytes(),
-            b"-",
-            b"inbox",
-            &[inbox_bump],
-        ]],
+        &[mailbox_inbox_pda_seeds!(init.local_domain, inbox_bump)],
     )?;
 
     let outbox_account = next_account_info(accounts_iter)?;
     let (outbox_key, outbox_bump) = Pubkey::find_program_address(
-        &[
-            b"hyperlane",
-            b"-",
-            &init.local_domain.to_le_bytes(),
-            b"-",
-            b"outbox",
-        ],
+        mailbox_outbox_pda_seeds!(init.local_domain),
         program_id,
     );
     if &outbox_key != outbox_account.key {
@@ -163,14 +164,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
             payer_account.clone(),
             outbox_account.clone(),
         ],
-        &[&[
-            b"hyperlane",
-            b"-",
-            &init.local_domain.to_le_bytes(),
-            b"-",
-            b"outbox",
-            &[outbox_bump],
-        ]],
+        &[mailbox_outbox_pda_seeds!(init.local_domain, outbox_bump)],
     )?;
 
     let inbox = Inbox {
@@ -212,14 +206,7 @@ fn inbox_process(
     let inbox_account = next_account_info(accounts_iter)?;
     let mut inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_inbox_key = Pubkey::create_program_address(
-        &[
-            b"hyperlane",
-            b"-",
-            &local_domain.to_le_bytes(),
-            b"-",
-            b"inbox",
-            &[inbox.inbox_bump_seed],
-        ],
+        mailbox_inbox_pda_seeds!(local_domain, inbox.inbox_bump_seed),
         program_id,
     )?;
     if inbox_account.key != &expected_inbox_key {
@@ -231,14 +218,7 @@ fn inbox_process(
 
     let auth_account = next_account_info(accounts_iter)?;
     let expected_auth_key = Pubkey::create_program_address(
-        &[
-            b"hyperlane",
-            b"-",
-            &local_domain.to_le_bytes(),
-            b"-",
-            b"authority",
-            &[inbox.auth_bump_seed],
-        ],
+        mailbox_authority_pda_seeds!(local_domain, inbox.auth_bump_seed),
         program_id,
     )?;
     if auth_account.key != &expected_auth_key {
@@ -320,14 +300,10 @@ fn inbox_process(
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
     }
-    let auth_seeds: &[&[u8]] = &[
-        b"hyperlane",
-        b"-",
-        &inbox.local_domain.to_le_bytes(),
-        b"-",
-        b"authority",
-        &[inbox.auth_bump_seed],
-    ];
+    let auth_seeds: &[&[u8]] = mailbox_authority_pda_seeds!(
+        inbox.local_domain,
+        inbox.auth_bump_seed
+    );
     invoke_signed(&verify, &ism_accounts, &[auth_seeds])?;
     invoke_signed(&recieve, &recp_accounts, &[auth_seeds])?;
     msg!("Hyperlane inbox: {:?}", id);
@@ -346,14 +322,7 @@ fn inbox_set_default_ism(
     let inbox_account = next_account_info(accounts_iter)?;
     let mut inbox = InboxAccount::fetch(&mut &inbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_inbox_key = Pubkey::create_program_address(
-        &[
-            b"hyperlane",
-            b"-",
-            &ism.local_domain.to_le_bytes(),
-            b"-",
-            b"inbox",
-            &[inbox.inbox_bump_seed],
-        ],
+        mailbox_inbox_pda_seeds!(ism.local_domain, inbox.inbox_bump_seed),
         program_id,
     )?;
     if inbox_account.key != &expected_inbox_key {
@@ -384,14 +353,7 @@ fn outbox_dispatch(
     let outbox_account = next_account_info(accounts_iter)?;
     let mut outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_outbox_key = Pubkey::create_program_address(
-        &[
-            b"hyperlane",
-            b"-",
-            &dispatch.local_domain.to_le_bytes(),
-            b"-",
-            b"outbox",
-            &[outbox.outbox_bump_seed],
-        ],
+        mailbox_outbox_pda_seeds!(dispatch.local_domain, outbox.outbox_bump_seed),
         program_id,
     )?;
     if outbox_account.key != &expected_outbox_key {
@@ -451,14 +413,7 @@ fn outbox_get_count(
     let outbox_account = next_account_info(accounts_iter)?;
     let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_outbox_key = Pubkey::create_program_address(
-        &[
-            b"hyperlane",
-            b"-",
-            &query.local_domain.to_le_bytes(),
-            b"-",
-            b"outbox",
-            &[outbox.outbox_bump_seed],
-        ],
+        mailbox_outbox_pda_seeds!(query.local_domain, outbox.outbox_bump_seed),
         program_id,
     )?;
     if outbox_account.key != &expected_outbox_key {
@@ -491,14 +446,7 @@ fn outbox_get_latest_checkpoint(
     let outbox_account = next_account_info(accounts_iter)?;
     let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_outbox_key = Pubkey::create_program_address(
-        &[
-            b"hyperlane",
-            b"-",
-            &query.local_domain.to_le_bytes(),
-            b"-",
-            b"outbox",
-            &[outbox.outbox_bump_seed],
-        ],
+        mailbox_outbox_pda_seeds!(query.local_domain, outbox.outbox_bump_seed),
         program_id,
     )?;
     if outbox_account.key != &expected_outbox_key {
@@ -536,14 +484,7 @@ fn outbox_get_root(
     let outbox_account = next_account_info(accounts_iter)?;
     let outbox = OutboxAccount::fetch(&mut &outbox_account.data.borrow_mut()[..])?.into_inner();
     let expected_outbox_key = Pubkey::create_program_address(
-        &[
-            b"hyperlane",
-            b"-",
-            &query.local_domain.to_le_bytes(),
-            b"-",
-            b"outbox",
-            &[outbox.outbox_bump_seed],
-        ],
+        mailbox_outbox_pda_seeds!(query.local_domain, outbox.outbox_bump_seed),
         program_id,
     )?;
     if outbox_account.key != &expected_outbox_key {
@@ -621,13 +562,7 @@ mod test {
         let mailbox_program_id = Pubkey::new_unique();
 
         let (auth_account_key, auth_bump_seed) = Pubkey::find_program_address(
-            &[
-                b"hyperlane",
-                b"-",
-                &local_domain.to_le_bytes(),
-                b"-",
-                b"authority",
-            ],
+            mailbox_authority_pda_seeds!(local_domain),
             &mailbox_program_id,
         );
         let mut auth_account_lamports = 0;
@@ -652,13 +587,7 @@ mod test {
         );
 
         let (inbox_account_key, inbox_bump_seed) = Pubkey::find_program_address(
-            &[
-                b"hyperlane",
-                b"-",
-                &local_domain.to_le_bytes(),
-                b"-",
-                b"inbox",
-            ],
+            mailbox_inbox_pda_seeds!(local_domain),
             &mailbox_program_id,
         );
         let mut inbox_account_lamports = 0;
@@ -785,13 +714,7 @@ mod test {
         let mailbox_program_id = Pubkey::new_unique();
 
         let (outbox_account_key, outbox_bump_seed) = Pubkey::find_program_address(
-            &[
-                b"hyperlane",
-                b"-",
-                &local_domain.to_le_bytes(),
-                b"-",
-                b"outbox",
-            ],
+            mailbox_outbox_pda_seeds!(local_domain),
             &mailbox_program_id,
         );
         let mut outbox_account_lamports = 0;
