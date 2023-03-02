@@ -9,20 +9,22 @@ use serde::Deserialize;
 
 /// Load a settings object from the config locations.
 ///
-/// Read settings from the config files and/or env
-/// The config will be located at `config/default` unless specified
-/// otherwise
+/// Read settings from the config files and/or env.
 ///
 /// Configs are loaded in the following precedence order:
 ///
 /// 1. The file specified by the `RUN_ENV` and `BASE_CONFIG`
 ///    env vars. `RUN_ENV/BASE_CONFIG`
-/// 2. The file specified by the `RUN_ENV` env var and the
-///    agent's name. `RUN_ENV/<agent_prefix>-partial.json`
-/// 3. Configuration env vars with the prefix `HYP_BASE` intended
-///    to be shared by multiple agents in the same environment
+/// 2. The order of configs in `CONFIG_FILES` with each sequential one
+///    overwriting previous ones as appropriate.
+/// 3. Configuration env vars with the prefix `HYP_BASE` intended to be shared
+///    by multiple agents in the same environment
 /// 4. Configuration env vars with the prefix `HYP_<agent_prefix>`
 ///    intended to be used by a specific agent.
+///
+/// If `BASE_CONFIG` is not specified, it will load all configs in the
+/// `RUN_ENV`. If `RUN_ENV` is _also_ not specified it will load all configs in
+/// all envs.
 ///
 /// Specify a configuration directory with the `RUN_ENV` env
 /// variable. Specify a configuration file with the `BASE_CONFIG`
