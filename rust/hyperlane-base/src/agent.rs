@@ -1,3 +1,4 @@
+use std::env;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -52,7 +53,11 @@ pub trait BaseAgent: Send + Sync + Debug {
 /// lifecycle. This assumes only a single agent is being run. This will
 /// initialize the metrics server and tracing as well.
 pub async fn agent_main<A: BaseAgent>() -> Result<()> {
-    if std::env::var("ONELINE_ERRORS").map(|v| v.to_lowercase()).as_deref() == Ok("true") {
+    if env::var("ONELINE_BACKTRACES")
+        .map(|v| v.to_lowercase())
+        .as_deref()
+        == Ok("true")
+    {
         #[cfg(feature = "oneline-errors")]
         crate::oneline_eyre::install()?;
         #[cfg(not(feature = "oneline-errors"))]
