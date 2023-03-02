@@ -4,8 +4,12 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use ethers::prelude::{Address, Signature};
 use ethers::utils::hash_message;
-use serde::{Deserialize, Serialize};
+use serde::{
+    ser::{SerializeStruct, Serializer},
+    Deserialize, Serialize,
+};
 
+use crate::utils::fmt_bytes;
 use crate::{HyperlaneProtocolError, H160, H256};
 
 /// An error incurred by a signer
@@ -70,7 +74,7 @@ pub trait Signable: Sized {
 }
 
 /// A signed type. Contains the original value and the signature.
-#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Deserialize)]
 pub struct SignedType<T: Signable> {
     /// The value which was signed
     #[serde(alias = "checkpoint")]
@@ -78,6 +82,20 @@ pub struct SignedType<T: Signable> {
     pub value: T,
     /// The signature for the value
     pub signature: Signature,
+}
+
+impl<T: Signable + Serialize> Serialize for SignedType<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("SignedType", 3)?;
+        state.serialize_field("value", &self.value)?;
+        state.serialize_field("signature", &self.signature)?;
+        let sig: [u8; 65] = self.signature.into();
+        state.serialize_field("serialized_signature", &fmt_bytes(&sig))?;
+        state.end()
+    }
 }
 
 impl<T: Signable> SignedType<T> {
