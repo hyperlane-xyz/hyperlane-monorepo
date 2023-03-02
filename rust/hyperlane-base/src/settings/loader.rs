@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
+use std::path::PathBuf;
 
 use config::{Config, Environment, File};
 use eyre::{Context, Result};
@@ -44,16 +45,57 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
     let builder = Config::builder();
 
     // Load the base config file the old way
-    let builder = match (env::var("RUN_ENV").ok(), env::var("BASE_CONFIG").ok()) {
-        (Some(env), Some(fname)) => {
-            builder.add_source(File::with_name(&format!("./config/{}/{}", env, fname)))
+    let builder = match (env::var("RUN_ENV"), env::var("BASE_CONFIG")) {
+        (Ok(env), Ok(fname)) => {
+            builder.add_source(File::with_name(&format!("./config/{env}/{fname}")))
         }
-        _ => builder,
+        (Ok(env), _) => {
+            let mut builder = builder;
+            for entry in PathBuf::from(format!("./config/{env}"))
+                .read_dir()
+                .expect("Failed to open directory for env")
+                .map(Result::unwrap)
+            {
+                let fname = entry.file_name();
+                let ext = fname.to_str().unwrap().split('.').last().unwrap_or("");
+                if ext == "json" {
+                    eprintln!("Adding source: {:?}", entry.path());
+                    builder = builder.add_source(File::from(entry.path()));
+                }
+            }
+            builder
+        }
+        _ => {
+            let mut builder = builder;
+            for env_entry in PathBuf::from("./config")
+                .read_dir()
+                .expect("Failed to open config directory")
+                .map(Result::unwrap)
+            {
+                if !env_entry.file_type().unwrap().is_dir() {
+                    continue;
+                }
+
+                for entry in env_entry
+                    .path()
+                    .read_dir()
+                    .expect("Failed to open directory for env")
+                    .map(Result::unwrap)
+                {
+                    let fname = entry.file_name();
+                    let ext = fname.to_str().unwrap().split('.').last().unwrap_or("");
+                    if ext == "json" {
+                        eprintln!("Adding source: {:?}", entry.path());
+                        builder = builder.add_source(File::from(entry.path()));
+                    }
+                }
+            }
+            builder
+        }
     };
 
     // Load a set of config files
     let config_file_paths: Vec<String> = env::var("CONFIG_FILES")
-        .ok()
         .map(|s| s.split(',').map(|s| s.to_string()).collect())
         .unwrap_or_default();
 
