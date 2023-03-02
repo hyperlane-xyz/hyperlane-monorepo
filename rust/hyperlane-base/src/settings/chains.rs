@@ -8,17 +8,16 @@ use ethers_prometheus::middleware::{
     ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo,
 };
 use hyperlane_core::{
-    ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneProvider,
-    HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer, Mailbox,
-    MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
+    utils::StrOrInt, ContractLocator, HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol,
+    HyperlaneProvider, HyperlaneSigner, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
+    Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
 };
 use hyperlane_fuel::{self as h_fuel, prelude::*};
 
-use crate::settings::signers::BuildableWithSignerConf;
-use crate::{CoreMetrics, SignerConf};
+use crate::{settings::signers::BuildableWithSignerConf, CoreMetrics, SignerConf};
 
 /// A connection to _some_ blockchain.
 ///
@@ -84,10 +83,10 @@ pub struct CoreContractAddresses {
 #[serde(rename_all = "camelCase")]
 pub struct IndexSettings {
     /// The height at which to start indexing the Outbox contract
-    pub from: Option<String>,
+    pub from: Option<StrOrInt>,
     /// The number of blocks to query at once at which to start indexing the
     /// Mailbox contract
-    pub chunk: Option<String>,
+    pub chunk: Option<StrOrInt>,
 }
 
 impl IndexSettings {
@@ -95,7 +94,7 @@ impl IndexSettings {
     pub fn from(&self) -> u32 {
         self.from
             .as_ref()
-            .and_then(|s| s.parse::<u32>().ok())
+            .and_then(|s| s.try_into().ok())
             .unwrap_or_default()
     }
 
@@ -103,20 +102,20 @@ impl IndexSettings {
     pub fn chunk_size(&self) -> u32 {
         self.chunk
             .as_ref()
-            .and_then(|s| s.parse::<u32>().ok())
+            .and_then(|s| s.try_into().ok())
             .unwrap_or(1999)
     }
 }
 
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
 /// deployed) and details for connecting to the chain API.
-#[derive(Clone, Debug, Deserialize, Default)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainSetup {
     /// Chain name
     pub name: String,
     /// Chain domain identifier
-    pub domain: String,
+    pub domain: StrOrInt,
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
     /// Number of blocks until finality
@@ -313,8 +312,12 @@ impl ChainSetup {
 
     /// Get the domain for this chain setup
     pub fn domain(&self) -> Result<HyperlaneDomain> {
-        HyperlaneDomain::from_config_strs(&self.domain, &self.name, self.chain.protocol())
-            .map_err(|e| eyre!("{e}"))
+        HyperlaneDomain::from_config(
+            (&self.domain).try_into().context("Invalid domain id")?,
+            &self.name,
+            self.chain.protocol(),
+        )
+        .map_err(|e| eyre!("{e}"))
     }
 
     /// Get the number of blocks until finality
