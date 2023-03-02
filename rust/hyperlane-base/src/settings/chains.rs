@@ -119,7 +119,7 @@ pub struct ChainSetup {
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
     /// Number of blocks until finality
-    pub finality_blocks: String,
+    pub finality_blocks: StrOrInt,
     /// Addresses of contracts on the chain
     pub addresses: CoreContractAddresses,
     /// The chain connection details
@@ -322,8 +322,8 @@ impl ChainSetup {
 
     /// Get the number of blocks until finality
     fn finality_blocks(&self) -> u32 {
-        self.finality_blocks
-            .parse::<u32>()
+        (&self.finality_blocks)
+            .try_into()
             .expect("could not parse finality_blocks")
     }
 
