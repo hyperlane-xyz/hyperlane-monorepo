@@ -111,6 +111,7 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
                 Some("urls") => err = err.context(MISSING_URLS_CTX),
                 Some("url") => err = err.context(MISSING_URL_CTX),
                 Some("db") => err = err.context(MISSING_DB_CTX),
+                Some("v") => err = err.context(MISSING_DESTINATION_CHAIN_NAMES_CTX),
                 _ => {}
             }
 
@@ -119,7 +120,8 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
     }
 }
 
-/// Some constant strings that we want to compose. `concat!` requires literals so this provides them.
+/// Some constant strings that we want to compose. `concat!` requires literals
+/// so this provides them.
 macro_rules! str_lits {
     (bp) => { "Debugging tips, please ensure: " };
     (env) => { "an env such as `HYP_BASE_CHAINS_ALFAJORES_CONNECTION_TYPE` means the full `chains.alfajores` object must be valid" };
@@ -213,3 +215,8 @@ const MISSING_URL_CTX: &str = concat!(
 );
 
 const MISSING_DB_CTX: &str = concat!(str_lits!(bp), "(1) `db` config string is specified");
+
+const MISSING_DESTINATION_CHAIN_NAMES_CTX: &str = concat!(
+    str_lits!(bp),
+    "(1) `destinationchainnames` is specified as a comma separated list of chains the relayer should deliver messages to"
+);
