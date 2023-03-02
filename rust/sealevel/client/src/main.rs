@@ -279,7 +279,10 @@ fn main() {
             let outbox_instruction = Instruction {
                 program_id: outbox.program_id,
                 data: ixn.into_instruction_data().unwrap(),
-                accounts: vec![AccountMeta::new(outbox_account, false)],
+                accounts: vec![
+                    AccountMeta::new(outbox_account, false),
+                    AccountMeta::new_readonly(payer.pubkey(), true)
+                ],
             };
             instructions.push(outbox_instruction);
             let recent_blockhash = client.get_latest_blockhash().unwrap();

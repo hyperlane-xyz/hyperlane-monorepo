@@ -42,6 +42,7 @@ pub struct Init {
 
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct OutboxDispatch {
+    // The sender may not necessarily be the transaction payer so specify separately.
     pub sender: Pubkey,
     pub local_domain: u32,
     pub destination_domain: u32,

@@ -362,6 +362,13 @@ fn outbox_dispatch(
     if outbox_account.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
+    let sender = next_account_info(accounts_iter)?;
+    if dispatch.sender != *sender.key {
+        return Err(ProgramError::InvalidArgument);
+    }
+    if !sender.is_signer || sender.executable {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
