@@ -60,13 +60,14 @@ async function main() {
     existingVerificationInputs = readJSON(verificationDir, verificationFile);
   } catch (err) {
     /* ignore error */
-  } finally {
-    writeJSON(
-      getCoreVerificationDirectory(environment),
-      'verification.json',
-      deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
-    );
   }
+
+  writeJSON(
+    getCoreVerificationDirectory(environment),
+    'verification.json',
+    deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
+  );
+
   deployer.writeRustConfigs(getCoreRustDirectory(environment));
 }
 
