@@ -47,14 +47,14 @@ export const hyperlane: AgentConfig = {
       blacklist: [
         ...releaseCandidateHelloworldMatchingList,
         {
-          originDomain: '137',
+          originDomain: 137,
           recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
         },
       ],
       gasPaymentEnforcement: {
         policy: {
           type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: 1,
+          payment: BigInt(1),
         },
         // To continue relaying interchain query callbacks, we whitelist
         // all messages between interchain query routers.
@@ -91,7 +91,7 @@ export const releaseCandidate: AgentConfig = {
       gasPaymentEnforcement: {
         policy: {
           type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: 1,
+          payment: BigInt(1),
         },
         whitelist: interchainQueriesMatchingList,
       },

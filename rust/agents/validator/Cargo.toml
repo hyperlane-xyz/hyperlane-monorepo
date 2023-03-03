@@ -27,5 +27,6 @@ tokio-test = "0.4"
 hyperlane-test = { path = "../../hyperlane-test" }
 
 [features]
-default = ["hyperlane-base/color-eyre"]
+default = ["color-eyre", "oneline-errors"]
 oneline-errors = ["hyperlane-base/oneline-errors"]
+color-eyre = ["hyperlane-base/color-eyre"]
