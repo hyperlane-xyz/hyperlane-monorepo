@@ -118,7 +118,20 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
                 .source(Some(filtered_env)),
         )
         .build()?;
-    let formatted_config = format!("{:#?}", config_deserializer).replace('\n', "\\n");
+
+    let formatted_config = {
+        let f = format!("{:#?}", config_deserializer);
+        if env::var("ONELINE_BACKTRACES")
+            .map(|v| v.to_lowercase())
+            .as_deref()
+            == Ok("true")
+        {
+            f.replace('\n', "\\n")
+        } else {
+            f
+        }
+    };
+
     match Config::try_deserialize(config_deserializer) {
         Ok(cfg) => Ok(cfg),
         Err(err) => {
