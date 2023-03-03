@@ -112,7 +112,6 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
             program_id,
         ),
         &[
-            system_program.clone(),
             payer_account.clone(),
             auth_account.clone(),
         ],
@@ -136,7 +135,6 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
             program_id,
         ),
         &[
-            system_program.clone(),
             payer_account.clone(),
             inbox_account.clone(),
         ],
@@ -160,7 +158,6 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
             program_id,
         ),
         &[
-            system_program.clone(),
             payer_account.clone(),
             outbox_account.clone(),
         ],
