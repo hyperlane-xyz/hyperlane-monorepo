@@ -155,7 +155,19 @@ export function getCoreVerificationDirectory(environment: DeployEnvironment) {
 }
 
 export function getCoreRustDirectory(environment: DeployEnvironment) {
-  return path.join('../../', 'rust', 'config', environment);
+  let envstr;
+  switch (environment) {
+    case 'test':
+      envstr = 'test';
+      break;
+    case 'mainnet2':
+      envstr = 'mainnet';
+      break;
+    case 'testnet3':
+      envstr = 'testnet';
+      break;
+  }
+  return path.join('../../', 'rust', 'config', envstr);
 }
 
 export function getKeyRoleAndChainArgs() {
