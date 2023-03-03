@@ -24,6 +24,7 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
         })
         .collect();
 
+    let mut base_config_sources = vec![];
     let mut builder = Config::builder();
     for env_entry in PathBuf::from("./config")
         .read_dir()
@@ -43,6 +44,7 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
             let fname = entry.file_name();
             let ext = fname.to_str().unwrap().split('.').last().unwrap_or("");
             if ext == "json" {
+                base_config_sources.push(format!("{:?}", entry.path()));
                 builder = builder.add_source(File::from(entry.path()));
             }
         }
@@ -95,6 +97,10 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
             } else {
                 Err(err.into())
             };
+
+            for cfg_path in base_config_sources.iter().chain(config_file_paths.iter()) {
+                err = err.with_context(|| format!("Config loaded: {cfg_path}"));
+            }
 
             println!(
                 "Error during deserialization, showing the config for debugging: {}",
