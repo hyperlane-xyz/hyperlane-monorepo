@@ -8,27 +8,7 @@ use eyre::{Context, Result};
 use serde::Deserialize;
 
 /// Load a settings object from the config locations.
-///
-/// Read settings from the config files and/or env.
-///
-/// Configs are loaded in the following precedence order:
-///
-/// 1. The file specified by the `RUN_ENV` and `BASE_CONFIG`
-///    env vars. `RUN_ENV/BASE_CONFIG`
-/// 2. The order of configs in `CONFIG_FILES` with each sequential one
-///    overwriting previous ones as appropriate.
-/// 3. Configuration env vars with the prefix `HYP_BASE` intended to be shared
-///    by multiple agents in the same environment
-/// 4. Configuration env vars with the prefix `HYP_<agent_prefix>`
-///    intended to be used by a specific agent.
-///
-/// If `BASE_CONFIG` is not specified, it will load all configs in the
-/// `RUN_ENV`. If `RUN_ENV` is _also_ not specified it will load all configs in
-/// all envs.
-///
-/// Specify a configuration directory with the `RUN_ENV` env
-/// variable. Specify a configuration file with the `BASE_CONFIG`
-/// env variable.
+/// Further documentation can be found in the `settings` module.
 pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
     agent_prefix: &str,
     ignore_prefixes: &[S],
@@ -44,57 +24,30 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
         })
         .collect();
 
-    let builder = Config::builder();
+    let mut builder = Config::builder();
+    for env_entry in PathBuf::from("./config")
+        .read_dir()
+        .expect("Failed to open config directory")
+        .map(Result::unwrap)
+    {
+        if !env_entry.file_type().unwrap().is_dir() {
+            continue;
+        }
 
-    // Load the base config file the old way
-    let builder = match (env::var("RUN_ENV"), env::var("BASE_CONFIG")) {
-        (Ok(env), Ok(fname)) => {
-            builder.add_source(File::with_name(&format!("./config/{env}/{fname}")))
-        }
-        (Ok(env), _) => {
-            let mut builder = builder;
-            for entry in PathBuf::from(format!("./config/{env}"))
-                .read_dir()
-                .expect("Failed to open directory for env")
-                .map(Result::unwrap)
-            {
-                let fname = entry.file_name();
-                let ext = fname.to_str().unwrap().split('.').last().unwrap_or("");
-                if ext == "json" {
-                    eprintln!("Adding source: {:?}", entry.path());
-                    builder = builder.add_source(File::from(entry.path()));
-                }
+        for entry in env_entry
+            .path()
+            .read_dir()
+            .expect("Failed to open directory for env")
+            .map(Result::unwrap)
+        {
+            let fname = entry.file_name();
+            let ext = fname.to_str().unwrap().split('.').last().unwrap_or("");
+            if ext == "json" {
+                eprintln!("Adding source: {:?}", entry.path());
+                builder = builder.add_source(File::from(entry.path()));
             }
-            builder
         }
-        _ => {
-            let mut builder = builder;
-            for env_entry in PathBuf::from("./config")
-                .read_dir()
-                .expect("Failed to open config directory")
-                .map(Result::unwrap)
-            {
-                if !env_entry.file_type().unwrap().is_dir() {
-                    continue;
-                }
-
-                for entry in env_entry
-                    .path()
-                    .read_dir()
-                    .expect("Failed to open directory for env")
-                    .map(Result::unwrap)
-                {
-                    let fname = entry.file_name();
-                    let ext = fname.to_str().unwrap().split('.').last().unwrap_or("");
-                    if ext == "json" {
-                        eprintln!("Adding source: {:?}", entry.path());
-                        builder = builder.add_source(File::from(entry.path()));
-                    }
-                }
-            }
-            builder
-        }
-    };
+    }
 
     // Load a set of config files
     let config_file_paths: Vec<String> = env::var("CONFIG_FILES")

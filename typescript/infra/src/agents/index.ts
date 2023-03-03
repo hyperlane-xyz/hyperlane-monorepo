@@ -65,7 +65,6 @@ async function helmValuesForChain(
     hyperlane: {
       runEnv: agentConfig.runEnv,
       context: agentConfig.context,
-      baseConfig: `${agentConfig.runEnv}_config.json`,
       aws: !!agentConfig.aws,
       gelatoApiKeyRequired,
       chains: agentConfig.environmentChainNames.map((envChainName) => ({
@@ -117,8 +116,6 @@ export async function getAgentEnvVars(
   });
 
   // Base vars from config map
-  envVars.push(`BASE_CONFIG=${valueDict.hyperlane.baseConfig}`);
-  envVars.push(`RUN_ENV=${agentConfig.runEnv}`);
   envVars.push(`HYP_BASE_METRICS=9090`);
   envVars.push(`HYP_BASE_TRACING_LEVEL=info`);
   envVars.push(

@@ -79,7 +79,6 @@ async function scraperHelmValues(agentConfig: AgentConfig) {
     hyperlane: {
       runEnv: agentConfig.environment,
       context: agentConfig.context,
-      baseConfig: `${agentConfig.runEnv}_config.json`,
       aws: false,
       gelatoApiKeyRequired: false,
       chains: agentConfig.environmentChainNames.map((name) => ({

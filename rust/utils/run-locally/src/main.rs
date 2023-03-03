@@ -142,7 +142,6 @@ fn main() -> ExitCode {
     };
 
     let relayer_env = hashmap! {
-        "RUN_ENV" => "test",
         "HYP_BASE_CHAINS_TEST1_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         "HYP_BASE_CHAINS_TEST1_CONNECTION_TYPE" => "httpFallback",
         "HYP_BASE_CHAINS_TEST2_CONNECTION_URLS" => "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
