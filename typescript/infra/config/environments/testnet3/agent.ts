@@ -51,7 +51,7 @@ export const hyperlane: AgentConfig = {
       gasPaymentEnforcement: {
         policy: {
           type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: 1,
+          payment: BigInt(1),
         },
         // To continue relaying interchain query callbacks, we whitelist
         // all messages between interchain query routers.
@@ -88,7 +88,7 @@ export const releaseCandidate: AgentConfig = {
       gasPaymentEnforcement: {
         policy: {
           type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: 1, // require 1 wei
+          payment: BigInt(1), // require 1 wei
         },
         whitelist: interchainQueriesMatchingList,
       },
