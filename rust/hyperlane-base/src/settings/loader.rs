@@ -43,7 +43,6 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
             let fname = entry.file_name();
             let ext = fname.to_str().unwrap().split('.').last().unwrap_or("");
             if ext == "json" {
-                eprintln!("Adding source: {:?}", entry.path());
                 builder = builder.add_source(File::from(entry.path()));
             }
         }
