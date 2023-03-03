@@ -47,8 +47,14 @@ impl BaseAgent for Validator {
             .build::<hyperlane_ethereum::Signers>()
             .await
             .map(|validator| Arc::new(validator) as Arc<dyn HyperlaneSigner>)?;
-        let reorg_period = settings.reorgperiod.parse().expect("invalid uint");
-        let interval = Duration::from_secs(settings.interval.parse().expect("invalid uint"));
+        let reorg_period = (&settings.reorgperiod)
+            .try_into()
+            .expect("invalid reorg period");
+        let interval = Duration::from_secs(
+            (&settings.interval)
+                .try_into()
+                .expect("invalid validator interval"),
+        );
         let core = settings.build_hyperlane_core(metrics.clone());
         let checkpoint_syncer = settings.checkpointsyncer.build(None)?.into();
 

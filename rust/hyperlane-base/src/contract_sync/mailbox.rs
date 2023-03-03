@@ -410,8 +410,8 @@ mod test {
                 hyperlane_db.clone(),
                 indexer,
                 IndexSettings {
-                    from: Some("0".to_string()),
-                    chunk: Some("19".to_string()),
+                    from: Some(0.into()),
+                    chunk: Some(19.into()),
                 },
                 sync_metrics,
             );
