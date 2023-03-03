@@ -58,6 +58,8 @@ async function main() {
   let existingVerificationInputs = [];
   try {
     existingVerificationInputs = readJSON(verificationDir, verificationFile);
+  } catch (err) {
+    /* ignore error */
   } finally {
     writeJSON(
       getCoreVerificationDirectory(environment),
