@@ -59,7 +59,7 @@ for (const variant of [
     let localTokenConfig: TokenConfig = tokenConfig;
     let local: HypERC20 | HypERC20Collateral | HypNative;
     let remote: HypERC20 | HypERC20Collateral;
-    let gas: BigNumber;
+    let interchainGasPayment: BigNumber;
 
     beforeEach(async () => {
       [owner, recipient] = await ethers.getSigners();
@@ -101,10 +101,10 @@ for (const variant of [
       contracts = await deployer.deploy();
       local = contracts[localChain].router as HypERC20;
 
-      gas = await local.quoteGasPayment(remoteDomain);
+      interchainGasPayment = await local.quoteGasPayment(remoteDomain);
 
       if (variant === TokenType.native) {
-        gas = gas.add(amount);
+        interchainGasPayment = interchainGasPayment.add(amount);
       }
 
       if (variant === TokenType.collateral) {
@@ -165,7 +165,7 @@ for (const variant of [
           remoteDomain,
           utils.addressToBytes32(remote.address),
           amount,
-          { value: gas },
+          { value: interchainGasPayment },
         );
       }
       const message = `${utils.addressToBytes32(
@@ -191,7 +191,7 @@ for (const variant of [
         utils.addressToBytes32(recipient.address),
         amount,
         {
-          value: gas,
+          value: interchainGasPayment,
         },
       );
 
@@ -227,7 +227,7 @@ for (const variant of [
           remoteDomain,
           utils.addressToBytes32(recipient.address),
           amount,
-          { value: gas },
+          { value: interchainGasPayment },
         ),
       ).to.emit(interchainGasPaymaster, 'GasPayment');
     });
@@ -244,7 +244,8 @@ for (const variant of [
         }
         return '';
       };
-      const value = variant === TokenType.native ? amount - 1 : gas;
+      const value =
+        variant === TokenType.native ? amount - 1 : interchainGasPayment;
       await expect(
         local
           .connect(recipient)
@@ -263,7 +264,7 @@ for (const variant of [
           remoteDomain,
           utils.addressToBytes32(recipient.address),
           amount,
-          { value: gas },
+          { value: interchainGasPayment },
         ),
       )
         .to.emit(local, 'SentTransferRemote')

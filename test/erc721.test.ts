@@ -75,7 +75,7 @@ for (const withCollateral of [true, false]) {
       let contracts: ChainMap<HypERC721Contracts>;
       let local: HypERC721 | HypERC721Collateral | HypERC721URICollateral;
       let remote: HypERC721 | HypERC721Collateral | HypERC721URIStorage;
-      let gas: BigNumberish;
+      let interchainGasPayment: BigNumberish;
 
       beforeEach(async () => {
         [owner, recipient] = await ethers.getSigners();
@@ -125,7 +125,7 @@ for (const withCollateral of [true, false]) {
           await erc721!.approve(local.address, tokenId3);
           await erc721!.approve(local.address, tokenId4);
         }
-        gas = await local.destinationGas(remoteDomain);
+        interchainGasPayment = await local.quoteGasPayment(remoteDomain);
 
         remote = contracts[remoteChain].router;
       });
@@ -186,7 +186,7 @@ for (const withCollateral of [true, false]) {
             remoteDomain,
             utils.addressToBytes32(recipient.address),
             invalidTokenId,
-            { value: gas },
+            { value: interchainGasPayment },
           ),
         ).to.be.revertedWith('ERC721: invalid token ID');
       });
@@ -196,7 +196,7 @@ for (const withCollateral of [true, false]) {
           remoteDomain,
           utils.addressToBytes32(recipient.address),
           tokenId2,
-          { value: gas },
+          { value: interchainGasPayment },
         );
 
         await expectBalance(local, recipient, 0);
@@ -221,7 +221,7 @@ for (const withCollateral of [true, false]) {
             remoteDomain,
             utils.addressToBytes32(recipient.address),
             tokenId2,
-            { value: gas },
+            { value: interchainGasPayment },
           );
 
           await expect(remoteUri.tokenURI(tokenId2)).to.be.revertedWith('');
@@ -245,7 +245,7 @@ for (const withCollateral of [true, false]) {
               remoteDomain,
               utils.addressToBytes32(recipient.address),
               tokenId2,
-              { value: gas },
+              { value: interchainGasPayment },
             ),
         ).to.be.revertedWith(revertReason);
       });
@@ -293,7 +293,7 @@ for (const withCollateral of [true, false]) {
             utils.addressToBytes32(recipient.address),
             tokenId3,
             {
-              value: gas,
+              value: interchainGasPayment,
             },
           ),
         ).to.emit(interchainGasPaymaster, 'GasPayment');
@@ -305,7 +305,7 @@ for (const withCollateral of [true, false]) {
             remoteDomain,
             utils.addressToBytes32(recipient.address),
             tokenId4,
-            { value: gas },
+            { value: interchainGasPayment },
           ),
         )
           .to.emit(local, 'SentTransferRemote')
