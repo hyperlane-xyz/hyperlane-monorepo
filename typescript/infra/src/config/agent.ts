@@ -1,3 +1,5 @@
+import { BigNumberish } from 'ethers';
+
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
@@ -54,7 +56,7 @@ export type GasPaymentEnforcementPolicy =
     }
   | {
       type: GasPaymentEnforcementPolicyType.Minimum;
-      payment: bigint;
+      payment: BigNumberish;
     }
   | {
       type: GasPaymentEnforcementPolicyType.MeetsEstimatedCost;
@@ -70,7 +72,7 @@ interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcementConfig;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
-  transactionGasLimit?: bigint;
+  transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: number[];
 }
 
