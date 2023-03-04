@@ -29,13 +29,17 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
     // ============ Constructor ============
 
     constructor() {
-        initialize(); // allows contract to be used without proxying
+        initialize(msg.sender); // allows contract to be used without proxying
     }
 
     // ============ External Functions ============
 
-    function initialize() public initializer {
+    /**
+     * @param _owner The owner of the contract.
+     */
+    function initialize(address _owner) public initializer {
         __Ownable_init();
+        _transferOwnership(_owner);
     }
 
     /**

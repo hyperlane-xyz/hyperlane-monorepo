@@ -63,12 +63,13 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
+    const owner = this.configMap[chain].owner;
     return this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
       [],
       proxyAdmin,
-      [],
+      [owner],
       deployOpts,
     );
   }
