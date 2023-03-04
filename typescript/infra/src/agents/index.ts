@@ -351,7 +351,6 @@ export async function runAgentHelmCommand(
         outboxChainName,
         agentConfig,
       )} --namespace ${agentConfig.namespace}`,
-
       {},
       false,
       true,

@@ -69,6 +69,6 @@ export const TestChains: Array<CoreChainName> = [
 
 export const AllChains: Array<CoreChainName> = [
   ...Mainnets,
-  ...TestChains,
+  ...Testnets,
   ...TestChains,
 ];
