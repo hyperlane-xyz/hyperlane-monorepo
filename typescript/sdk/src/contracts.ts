@@ -65,7 +65,7 @@ export function buildContracts(
   return objMap(addressOrObject, (key, address: any) => {
     if (isProxyAddresses(address)) {
       const contract = getFactory(key, factories).attach(address.proxy);
-      return new ProxiedContract(contract, address);
+      return ProxiedContract.fromContract(contract, address);
     } else if (typeof address === 'string') {
       return getFactory(key, factories).attach(address);
     } else {

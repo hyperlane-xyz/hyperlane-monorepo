@@ -18,7 +18,8 @@ export {
 } from './consts/chains';
 export {
   environments as coreEnvironments,
-  hyperlaneCoreAddresses,
+  hyperlaneContractAddresses,
+  HyperlaneContractAddresses,
 } from './consts/environments';
 export {
   buildContracts,
@@ -30,6 +31,7 @@ export {
 } from './contracts';
 export {
   ConnectionClientContracts,
+  CoreContractAddresses,
   CoreContracts,
   coreFactories,
 } from './core/contracts';
@@ -51,6 +53,7 @@ export {
   CoreConfig,
   CoreViolationType,
   EnrolledValidatorsViolation,
+  MultisigIsmConfig,
   MultisigIsmViolation,
   MultisigIsmViolationType,
 } from './deploy/core/types';

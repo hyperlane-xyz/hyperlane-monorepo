@@ -27,8 +27,10 @@ const PROXY_ADMIN_BYTECODE_HASH =
   '0x7c378e9d49408861ca754fe684b9f7d1ea525bddf095ee0463902df701453ba0';
 const INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH =
   '0xcee48ab556ae2ff12b6458fa92e5e31f4a07f7852a0ed06e43a7f06f3c4c6d76';
+/*
 const OVERHEAD_IGP_BYTECODE_HASH =
   '0x3cfed1f24f1e9b28a76d5a8c61696a04f7bc474404b823a2fcc210ea52346252';
+*/
 
 export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   HyperlaneCore,
@@ -138,6 +140,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
     );
 
+    /*
     await this.checkBytecode(
       chain,
       'OverheadIGP',
@@ -155,6 +158,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
           '',
         ),
     );
+    */
   }
 
   async checkProxiedContracts(chain: ChainName): Promise<void> {
@@ -180,11 +184,17 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   }
 
   async checkValidatorAnnounce(chain: ChainName): Promise<void> {
-    const expectedValidators = this.configMap[chain].multisigIsm.validators;
+    const expectedValidators = new Set<string>();
+    Object.keys(this.configMap).map((c) => {
+      this.configMap[c].multisigIsm[chain].validators.forEach(
+        expectedValidators.add,
+        expectedValidators,
+      );
+    });
     const validatorAnnounce = this.app.getContracts(chain).validatorAnnounce;
     const announcedValidators =
       await validatorAnnounce.getAnnouncedValidators();
-    expectedValidators.map((validator) => {
+    [...expectedValidators].map((validator) => {
       const matches = announcedValidators.filter((x) =>
         utils.eqAddress(x, validator),
       );
@@ -215,10 +225,10 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   ): Promise<void> {
     const coreContracts = this.app.getContracts(local);
     const multisigIsm = coreContracts.multisigIsm;
-    const config = this.configMap[remote];
+    const config = this.configMap[local];
 
     const remoteDomain = this.multiProvider.getDomainId(remote);
-    const multisigIsmConfig = config.multisigIsm;
+    const multisigIsmConfig = config.multisigIsm[remote];
     const expectedValidators = multisigIsmConfig.validators;
     const actualValidators = await multisigIsm.validators(remoteDomain);
 

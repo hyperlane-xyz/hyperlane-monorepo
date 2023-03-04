@@ -1,4 +1,4 @@
-import { Contract } from 'ethers';
+import { Contract, ContractInterface } from 'ethers';
 
 import type { types } from '@hyperlane-xyz/utils';
 
@@ -9,7 +9,7 @@ export enum ProxyKind {
 }
 
 export interface ProxyAddresses<Kind extends ProxyKind> {
-  kind: Kind;
+  kind: Kind | string;
   proxy: types.Address;
   implementation: types.Address;
 }
@@ -32,16 +32,35 @@ export type TransparentProxyAddresses = ProxyAddresses<ProxyKind.Transparent>;
 export class ProxiedContract<
   C extends Contract,
   A extends ProxyAddresses<any>,
-> {
-  constructor(public readonly contract: C, public readonly addresses: A) {}
+> extends Contract {
+  static fromContract<C extends Contract, A extends ProxyAddresses<any>>(
+    contract: C,
+    addresses: A,
+  ): ProxiedContract<C, A> {
+    const signerOrProvider =
+      contract.signer == null ? contract.provider : contract.signer;
+    return new ProxiedContract(
+      contract.address,
+      contract.interface,
+      signerOrProvider,
+      addresses,
+    );
+  }
 
-  get address(): string {
-    return this.contract.address;
+  constructor(
+    addressOrName: string,
+    contractInterface: ContractInterface,
+    signerOrProvider: Connection,
+    public readonly addresses: A,
+  ) {
+    super(addressOrName, contractInterface, signerOrProvider);
   }
 
   connect(connection: Connection): ProxiedContract<C, A> {
     return new ProxiedContract(
-      this.contract.connect(connection) as C,
+      this.address,
+      this.interface,
+      connection,
       this.addresses,
     );
   }

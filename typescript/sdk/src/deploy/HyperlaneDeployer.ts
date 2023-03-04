@@ -12,6 +12,7 @@ import {
 import { types } from '@hyperlane-xyz/utils';
 
 import {
+  HyperlaneAddresses,
   HyperlaneContract,
   HyperlaneContracts,
   HyperlaneFactories,
@@ -324,7 +325,7 @@ export abstract class HyperlaneDeployer<
       );
     }
 
-    return new ProxiedContract<C, TransparentProxyAddresses>(
+    return ProxiedContract.fromContract<C, TransparentProxyAddresses>(
       implementation.attach(proxy.address) as C,
       {
         kind: ProxyKind.Transparent,
@@ -428,5 +429,9 @@ export abstract class HyperlaneDeployer<
       ret[chain] = [...existingInputs, ...newInputs];
     }
     return ret;
+  }
+
+  serializeContracts(): HyperlaneAddresses {
+    return serializeContracts(this.deployedContracts);
   }
 }

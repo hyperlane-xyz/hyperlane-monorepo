@@ -39,12 +39,23 @@ export class MultiProvider {
     chainMetadata: ChainMap<ChainMetadata> = defaultChainMetadata,
     options: MultiProviderOptions = {},
   ) {
-    this.metadata = chainMetadata;
+    for (const chain of Object.values(chainMetadata)) {
+      this.addChain(chain);
+    }
+    this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
+  }
+
+  addChain(metadata: ChainMetadata) {
+    if (this.getKnownChainNames().includes(metadata.name)) {
+      throw new Error(`Duplicate chain name: ${name}`);
+    }
+    this.metadata[metadata.name] = metadata;
+    // TODO: This is O(n^2)
     // Ensure no two chains have overlapping names/domainIds/chainIds
     const chainNames = new Set<string>();
     const chainIds = new Set<number>();
     const domainIds = new Set<number>();
-    for (const chain of Object.values(chainMetadata)) {
+    for (const chain of Object.values(this.metadata)) {
       const { name, chainId, domainId } = chain;
       if (chainNames.has(name))
         throw new Error(`Duplicate chain name: ${name}`);
@@ -60,8 +71,12 @@ export class MultiProvider {
       chainIds.add(chainId);
       if (domainId) domainIds.add(domainId);
     }
+  }
 
-    this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
+  addChains(metadata: ChainMap<ChainMetadata>) {
+    for (const chain of Object.keys(metadata)) {
+      this.addChain(metadata[chain]);
+    }
   }
 
   /**

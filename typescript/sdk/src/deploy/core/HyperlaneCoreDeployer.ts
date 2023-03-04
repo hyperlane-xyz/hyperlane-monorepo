@@ -4,16 +4,19 @@ import { ethers } from 'ethers';
 import {
   InterchainGasPaymaster,
   Mailbox,
-  MultisigIsm,
-  OverheadIgp,
-  Ownable,
-  Ownable__factory,
+  MultisigIsm, //OverheadIgp,
+  Ownable, // Ownable__factory,
   ProxyAdmin,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import multisigIsmVerifyCosts from '../../consts/multisigIsmVerifyCosts.json';
+import {
+  AgentChainSetup,
+  AgentConfig,
+  AgentConnectionType,
+} from '../../agents/types';
+//import multisigIsmVerifyCosts from '../../consts/multisigIsmVerifyCosts.json';
 import { CoreContracts, coreFactories } from '../../core/contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../../proxy';
@@ -29,7 +32,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   typeof coreFactories
 > {
   startingBlockNumbers: ChainMap<number | undefined>;
-  gasOverhead: ChainMap<OverheadIgp.DomainConfigStruct>;
+  // gasOverhead: ChainMap<OverheadIgp.DomainConfigStruct>;
 
   constructor(
     multiProvider: MultiProvider,
@@ -39,6 +42,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     super(multiProvider, configMap, factoriesOverride, {
       logger: debug('hyperlane:CoreDeployer'),
     });
+    /*
     this.gasOverhead = objMap(configMap, (chain, config) => {
       const { validators, threshold } = config.multisigIsm;
       const verifyCost =
@@ -53,6 +57,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         gasOverhead: verifyCost,
       };
     });
+    */
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
@@ -73,6 +78,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     );
   }
 
+  /*
   async deployDefaultIsmInterchainGasPaymaster(
     chain: ChainName,
     interchainGasPaymasterAddress: types.Address,
@@ -126,6 +132,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     return defaultIsmInterchainGasPaymaster;
   }
+  */
 
   async deployMailbox(
     chain: ChainName,
@@ -163,10 +170,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
   async deployMultisigIsm(chain: ChainName): Promise<MultisigIsm> {
     const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
-    const configChains = Object.keys(this.configMap);
-    const remotes = this.multiProvider
-      .intersect(configChains, false)
-      .multiProvider.getRemoteChains(chain);
+    const remotes = Object.keys(this.configMap[chain].multisigIsm);
     const overrides = this.multiProvider.getTransactionOverrides(chain);
 
     await super.runIfOwner(chain, multisigIsm, async () => {
@@ -176,7 +180,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         remoteDomains.map((id) => multisigIsm.validators(id)),
       );
       const expectedValidators = remotes.map(
-        (chain) => this.configMap[chain].multisigIsm.validators,
+        (remote) => this.configMap[chain].multisigIsm[remote].validators,
       );
       const validatorsToEnroll = expectedValidators.map((validators, i) =>
         validators.filter(
@@ -209,7 +213,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         remoteDomains.map((id) => multisigIsm.threshold(id)),
       );
       const expectedThresholds = remotes.map(
-        (chain) => this.configMap[chain].multisigIsm.threshold,
+        (remote) => this.configMap[chain].multisigIsm[remote].threshold,
       );
       const chainsToSetThreshold = remotes.filter(
         (_, i) => actualThresholds[i] !== expectedThresholds[i],
@@ -223,7 +227,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
           multisigIsm.setThresholds(
             chainsToSetThreshold.map((c) => this.multiProvider.getDomainId(c)),
             chainsToSetThreshold.map(
-              (c) => this.configMap[c].multisigIsm.threshold,
+              (remote) => this.configMap[chain].multisigIsm[remote].threshold,
             ),
             overrides,
           ),
@@ -253,11 +257,13 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       chain,
       proxyAdmin,
     );
+    /*
     const defaultIsmInterchainGasPaymaster =
       await this.deployDefaultIsmInterchainGasPaymaster(
         chain,
         interchainGasPaymaster.address,
       );
+      */
     const mailbox = await this.deployMailbox(
       chain,
       multisigIsm.address,
@@ -271,7 +277,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const ownables: Ownable[] = [
       multisigIsm,
       proxyAdmin,
-      defaultIsmInterchainGasPaymaster,
+      //defaultIsmInterchainGasPaymaster,
     ];
     await this.transferOwnershipOfContracts(chain, ownables);
 
@@ -280,7 +286,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       proxyAdmin,
       mailbox,
       interchainGasPaymaster,
-      defaultIsmInterchainGasPaymaster,
+      //defaultIsmInterchainGasPaymaster,
       multisigIsm,
     };
   }
@@ -308,5 +314,47 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     }
 
     return receipts.filter((x) => x !== undefined) as ethers.ContractReceipt[];
+  }
+
+  agentConfig(): AgentConfig {
+    const agentConfig: AgentConfig = {
+      chains: {},
+      db: 'db_path',
+      tracing: {
+        level: 'debug',
+        fmt: 'json',
+      },
+    };
+    objMap(this.deployedContracts, (chain, contracts) => {
+      const metadata = this.multiProvider.getChainMetadata(chain);
+
+      const chainConfig: AgentChainSetup = {
+        name: chain,
+        domain: metadata.chainId,
+        addresses: {
+          mailbox: contracts.mailbox.contract.address,
+          interchainGasPaymaster: contracts.interchainGasPaymaster.address,
+          validatorAnnounce: contracts.validatorAnnounce.address,
+        },
+        signer: null,
+        protocol: 'ethereum',
+        finalityBlocks:
+          !!metadata.blocks && !!metadata.blocks.reorgPeriod
+            ? metadata.blocks.reorgPeriod
+            : 1,
+        connection: {
+          type: AgentConnectionType.Http,
+          url: '',
+        },
+      };
+
+      const startingBlockNumber = this.startingBlockNumbers[chain];
+      if (startingBlockNumber) {
+        chainConfig.index = { from: startingBlockNumber };
+      }
+
+      agentConfig.chains[chain] = chainConfig;
+    });
+    return agentConfig;
   }
 }

@@ -17,11 +17,13 @@ import { coreFactories } from './contracts';
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ISM
-const testMultisigIsmConfig: CoreConfig = {
+const testCoreConfig: CoreConfig = {
   owner: nonZeroAddress,
   multisigIsm: {
-    validators: [nonZeroAddress],
-    threshold: 1,
+    test3: {
+      validators: [nonZeroAddress],
+      threshold: 1,
+    },
   },
 };
 
@@ -38,9 +40,9 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
   ) {
     // Note that the multisig module configs are unused.
     const configs = configMap ?? {
-      test1: testMultisigIsmConfig,
-      test2: testMultisigIsmConfig,
-      test3: testMultisigIsmConfig,
+      test1: testCoreConfig,
+      test2: testCoreConfig,
+      test3: testCoreConfig,
     };
 
     super(multiProvider, configs, testCoreFactories);

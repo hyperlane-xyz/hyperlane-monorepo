@@ -136,7 +136,8 @@ export class InterchainGasCalculator {
     gasAmount: BigNumber,
   ): Promise<BigNumber> {
     const igpAddress =
-      this.core.getContracts(origin).defaultIsmInterchainGasPaymaster;
+      //  this.core.getContracts(origin).defaultIsmInterchainGasPaymaster;
+      this.core.getContracts(origin).interchainGasPaymaster;
     return this.quoteGasPaymentForIGP(
       origin,
       destination,

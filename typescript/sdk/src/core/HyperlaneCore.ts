@@ -11,7 +11,11 @@ import { ConnectionClientConfig } from '../router';
 import { ChainMap, ChainName } from '../types';
 import { objMap, pick } from '../utils/objects';
 
-import { CoreContracts, coreFactories } from './contracts';
+import {
+  CoreContractAddresses,
+  CoreContracts,
+  coreFactories,
+} from './contracts';
 
 export type CoreEnvironment = keyof typeof environments;
 export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
@@ -34,6 +38,22 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     super(contractsMap, multiProvider);
   }
 
+  static fromAddresses(
+    addressesMap: ChainMap<CoreContractAddresses>,
+    multiProvider: MultiProvider,
+  ): HyperlaneCore {
+    const { intersection, multiProvider: intersectionProvider } =
+      multiProvider.intersect(Object.keys(addressesMap), true);
+
+    const intersectionConfig = pick(addressesMap, intersection);
+    const contractsMap = buildContracts(
+      intersectionConfig,
+      coreFactories,
+    ) as CoreContractsMap;
+
+    return new HyperlaneCore(contractsMap, intersectionProvider);
+  }
+
   static fromEnvironment<Env extends CoreEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
@@ -42,19 +62,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     if (!envConfig) {
       throw new Error(`No default env config found for ${env}`);
     }
-
-    const envChains = Object.keys(envConfig);
-
-    const { intersection, multiProvider: intersectionProvider } =
-      multiProvider.intersect(envChains, true);
-
-    const intersectionConfig = pick(envConfig, intersection);
-    const contractsMap = buildContracts(
-      intersectionConfig,
-      coreFactories,
-    ) as CoreContractsMap;
-
-    return new HyperlaneCore(contractsMap, intersectionProvider);
+    return HyperlaneCore.fromAddresses(envConfig, multiProvider);
   }
 
   getContracts(chain: ChainName): CoreContracts {
@@ -67,7 +75,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
       mailbox: contracts.mailbox.address,
       // TODO allow these to be more easily changed
       interchainGasPaymaster:
-        contracts.defaultIsmInterchainGasPaymaster.address,
+        //contracts.defaultIsmInterchainGasPaymaster.address,
+        contracts.interchainGasPaymaster.address,
     };
   }
 
@@ -135,21 +144,24 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
 
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
     const mailbox = Mailbox__factory.createInterface();
-    const dispatchLogs = sourceTx.logs
-      .map((log) => {
-        try {
-          return mailbox.parseLog(log);
-        } catch (e) {
-          return undefined;
-        }
-      })
-      .filter(
-        (log): log is ethers.utils.LogDescription =>
-          !!log && log.name === 'Dispatch',
-      );
+    const filterLogs = (eventName: string) => {
+      return sourceTx.logs
+        .map((log) => {
+          try {
+            return mailbox.parseLog(log);
+          } catch (e) {
+            return undefined;
+          }
+        })
+        .filter(
+          (log): log is ethers.utils.LogDescription =>
+            !!log && log.name === eventName,
+        );
+    };
+    const dispatchLogs = filterLogs('Dispatch');
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
-      const id = log.args['messageId'];
+      const id = utils.messageId(message);
       const parsed = utils.parseMessage(message);
       return { id, message, parsed };
     });
