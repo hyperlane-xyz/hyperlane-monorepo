@@ -57,6 +57,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         contracts.proxyAdmin,
         contracts.mailbox.contract,
         contracts.multisigIsm,
+        contracts.interchainGasPaymaster.contract,
+        contracts.defaultIsmInterchainGasPaymaster,
       ];
       return this.checkOwnership(chain, config.owner, ownables);
     }
@@ -168,12 +170,6 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     await this.checkProxiedContract(
       chain,
       'InterchainGasPaymaster',
-      contracts.interchainGasPaymaster.addresses,
-      contracts.proxyAdmin.address,
-    );
-    await this.checkProxiedContract(
-      chain,
-      'DefaultIsmInterchainGasPaymaster',
       contracts.interchainGasPaymaster.addresses,
       contracts.proxyAdmin.address,
     );
