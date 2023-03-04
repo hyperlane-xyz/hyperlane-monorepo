@@ -1,3 +1,5 @@
+import { BigNumberish } from 'ethers';
+
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
@@ -36,9 +38,9 @@ export function getChainOverriddenConfig<T>(
 export type MatchingList = MatchingListElement[];
 
 interface MatchingListElement {
-  originDomain?: '*' | string | string[] | number | number[];
+  originDomain?: '*' | number | number[];
   senderAddress?: '*' | string | string[];
-  destinationDomain?: '*' | string | string[] | number | number[];
+  destinationDomain?: '*' | number | number[];
   recipientAddress?: '*' | string | string[];
 }
 
@@ -54,7 +56,7 @@ export type GasPaymentEnforcementPolicy =
     }
   | {
       type: GasPaymentEnforcementPolicyType.Minimum;
-      payment: string | number;
+      payment: BigNumberish;
     }
   | {
       type: GasPaymentEnforcementPolicyType.MeetsEstimatedCost;
@@ -70,7 +72,7 @@ interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcementConfig;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
-  transactionGasLimit?: bigint;
+  transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: number[];
 }
 
@@ -252,13 +254,13 @@ export type RustCoreAddresses = {
 
 export type RustChainSetup = {
   name: ChainName;
-  domain: string;
+  domain: number;
   signer?: RustSigner | null;
-  finalityBlocks: string;
+  finalityBlocks: number;
   addresses: RustCoreAddresses;
   protocol: 'ethereum' | 'fuel';
   connection: RustConnection;
-  index?: { from: string };
+  index?: { from: number };
 };
 
 export type RustConfig = {
