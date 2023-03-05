@@ -155,30 +155,13 @@ export class HyperlaneCoreGovernor {
     }
   }
 
-  async handleProxyViolation(violation: ProxyViolation) {
+  handleProxyViolation(violation: ProxyViolation) {
     const contracts: CoreContracts =
       this.checker.app.contractsMap[violation.chain];
-    // '0x'-prefixed hex if set
-    let initData: string | undefined = undefined;
-    switch (violation.data.name) {
-      case 'InterchainGasPaymaster':
-        // No init data
-        initData = undefined;
-        break;
-      default:
-        throw new Error(`Unsupported proxy violation ${violation.data.name}`);
-    }
-
-    const data = initData
-      ? contracts.proxyAdmin.interface.encodeFunctionData('upgradeAndCall', [
-          violation.data.proxyAddresses.proxy,
-          violation.data.proxyAddresses.implementation,
-          initData,
-        ])
-      : contracts.proxyAdmin.interface.encodeFunctionData('upgrade', [
-          violation.data.proxyAddresses.proxy,
-          violation.data.proxyAddresses.implementation,
-        ]);
+    const data = contracts.proxyAdmin.interface.encodeFunctionData('upgrade', [
+      violation.data.proxyAddresses.proxy,
+      violation.data.proxyAddresses.implementation,
+    ]);
 
     this.pushCall(violation.chain, {
       to: contracts.proxyAdmin.address,

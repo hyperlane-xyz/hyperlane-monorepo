@@ -84,7 +84,9 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     this.metadata = chainMetadata;
   }
 
-  static new(expirySeconds?: number): CoinGeckoTokenPriceGetter {
+  static withDefaultCoinGecko(
+    expirySeconds?: number,
+  ): CoinGeckoTokenPriceGetter {
     const coinGecko = new CoinGecko();
     return new CoinGeckoTokenPriceGetter(coinGecko, expirySeconds);
   }

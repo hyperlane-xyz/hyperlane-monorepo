@@ -20,7 +20,7 @@ import { prettyTokenExchangeRate } from './utils';
 // to the exchange rates using current Coingecko prices. The config exchange
 // rates apply the 30% spread / fee, so we expect config prices to be ~30% higher.
 async function main() {
-  const tokenPriceGetter = CoinGeckoTokenPriceGetter.new();
+  const tokenPriceGetter = CoinGeckoTokenPriceGetter.withDefaultCoinGecko();
 
   const environment = await getEnvironment();
   const coreEnvConfig = getCoreEnvironmentConfig(environment);
@@ -57,13 +57,7 @@ async function compare(
       TOKEN_EXCHANGE_RATE_DECIMALS,
     );
 
-    const configIsGreater = configGasData.tokenExchangeRate.gt(
-      currentTokenExchangeRate,
-    );
-
-    const diff = configIsGreater
-      ? configGasData.tokenExchangeRate.sub(currentTokenExchangeRate)
-      : currentTokenExchangeRate.sub(configGasData.tokenExchangeRate);
+    const diff = configGasData.tokenExchangeRate.sub(currentTokenExchangeRate);
     const percentDiff = diff
       .mul(TOKEN_EXCHANGE_RATE_SCALE)
       .div(currentTokenExchangeRate)
@@ -84,7 +78,7 @@ async function compare(
       `Config tokenExchangeRate is ${ethers.utils.formatUnits(
         percentDiff,
         TOKEN_EXCHANGE_RATE_DECIMALS,
-      )}% ${configIsGreater ? 'GREATER' : 'LESS'} than the current value`,
+      )}% different from the current value`,
     );
     console.log('------');
   }

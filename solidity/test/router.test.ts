@@ -46,7 +46,9 @@ describe('Router', async () => {
   beforeEach(async () => {
     const mailboxFactory = new TestMailbox__factory(signer);
     mailbox = await mailboxFactory.deploy(origin);
-    igp = await new TestInterchainGasPaymaster__factory(signer).deploy();
+    igp = await new TestInterchainGasPaymaster__factory(signer).deploy(
+      signer.address,
+    );
     router = await new TestRouter__factory(signer).deploy();
   });
 

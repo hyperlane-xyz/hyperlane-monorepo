@@ -1,23 +1,19 @@
 import { ethers } from 'ethers';
 
 import {
-  InterchainGasPaymaster,
   MultisigIsm,
-  ProxyAdmin,
   TestInterchainGasPaymaster__factory,
   TestIsm__factory,
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
 
-import { DeployOptions } from '../deploy/HyperlaneDeployer';
 import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
 import { CoreConfig, GasOracleContractType } from '../deploy/core/types';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
 
 import { TestCoreApp } from './TestCoreApp';
-import { GasOracleContracts, coreFactories } from './contracts';
+import { coreFactories } from './contracts';
 
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
@@ -42,7 +38,7 @@ const testCoreFactories = {
   ...coreFactories,
   mailbox: new TestMailbox__factory(),
   testIsm: new TestIsm__factory(),
-  testInterchainGasPaymaster: new TestInterchainGasPaymaster__factory(),
+  interchainGasPaymaster: new TestInterchainGasPaymaster__factory(),
 };
 
 export class TestCoreDeployer extends HyperlaneCoreDeployer {
@@ -70,39 +66,6 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
     );
     await testIsm.setAccept(true);
     return testIsm as unknown as MultisigIsm;
-  }
-
-  // deploy a test IGP instead
-  async deployInterchainGasPaymaster(
-    chain: ChainName,
-    proxyAdmin: ProxyAdmin,
-    _gasOracleContracts: GasOracleContracts,
-    deployOpts?: DeployOptions,
-  ): Promise<
-    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
-  > {
-    const implementation = await this.deployContractFromFactory(
-      chain,
-      testCoreFactories.testInterchainGasPaymaster,
-      'testInterchainGasPaymaster',
-      [],
-      deployOpts,
-    );
-
-    // To set as the beneficiary
-    const deployer = await this.multiProvider.getSigner(chain).getAddress();
-
-    const contract = await this.deployProxy(
-      chain,
-      implementation,
-      proxyAdmin,
-      [deployer],
-      deployOpts,
-    );
-    return contract as ProxiedContract<
-      InterchainGasPaymaster,
-      TransparentProxyAddresses
-    >;
   }
 
   // TestIsm is not ownable, so we skip ownership transfer

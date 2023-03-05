@@ -7,7 +7,8 @@ import {InterchainGasPaymaster} from "../igps/InterchainGasPaymaster.sol";
 contract TestInterchainGasPaymaster is InterchainGasPaymaster {
     uint256 public constant gasPrice = 10;
 
-    constructor() InterchainGasPaymaster(msg.sender) {}
+    // Ensure the same constructor interface as the inherited InterchainGasPaymaster
+    constructor(address _beneficiary) InterchainGasPaymaster(_beneficiary) {}
 
     function quoteGasPayment(uint32, uint256 gasAmount)
         public
