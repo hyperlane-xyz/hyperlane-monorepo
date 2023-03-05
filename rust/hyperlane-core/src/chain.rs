@@ -284,20 +284,6 @@ impl HyperlaneDomain {
         }
     }
 
-    pub fn from_config_strs(
-        domain_id: &str,
-        name: &str,
-        protocol: HyperlaneDomainProtocol,
-    ) -> Result<Self, &'static str> {
-        HyperlaneDomain::from_config(
-            domain_id
-                .parse::<u32>()
-                .map_err(|_| "Domain id is an invalid uint")?,
-            name,
-            protocol,
-        )
-    }
-
     /// The chain name
     pub fn name(&self) -> &str {
         match self {
@@ -425,7 +411,7 @@ mod tests {
             .flat_map(|x: &Settings| {
                 x.chains.iter().map(|(_, v)| ChainCoordinate {
                     name: v.name.clone(),
-                    domain: v.domain.parse().unwrap(),
+                    domain: (&v.domain).try_into().expect("Invalid domain id"),
                 })
             })
             .collect()

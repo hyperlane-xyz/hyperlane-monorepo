@@ -44,10 +44,7 @@ export const hyperlane: AgentConfig = {
   validators,
   relayer: {
     default: {
-      blacklist: [
-        ...releaseCandidateHelloworldMatchingList,
-        { recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE' },
-      ],
+      blacklist: releaseCandidateHelloworldMatchingList,
       gasPaymentEnforcement: [
         {
           type: GasPaymentEnforcementPolicyType.None,
@@ -98,7 +95,7 @@ export const releaseCandidate: AgentConfig = {
           payment: 1, // require 1 wei
         },
       ],
-      transactionGasLimit: BigInt(750000),
+      transactionGasLimit: 750000,
       // Skipping arbitrum because the gas price estimates are inclusive of L1
       // fees which leads to wildly off predictions.
       skipTransactionGasLimitFor: [chainMetadata.arbitrumgoerli.chainId],

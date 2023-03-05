@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use derive_new::new;
 use eyre::Result;
 
 use hyperlane_core::{
@@ -7,15 +8,9 @@ use hyperlane_core::{
 
 use crate::msg::gas_payment::GasPaymentPolicy;
 
-#[derive(Debug)]
+#[derive(Debug, new)]
 pub struct GasPaymentPolicyMinimum {
     minimum_payment: U256,
-}
-
-impl GasPaymentPolicyMinimum {
-    pub fn new(minimum_payment: U256) -> Self {
-        Self { minimum_payment }
-    }
 }
 
 #[async_trait]
