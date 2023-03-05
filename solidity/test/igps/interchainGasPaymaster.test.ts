@@ -30,7 +30,7 @@ describe('InterchainGasPaymaster', async () => {
 
   describe('#initialize', () => {
     it('should not be callable twice', async () => {
-      await expect(paymaster.initialize()).to.be.reverted;
+      await expect(paymaster.initialize(OWNER)).to.be.reverted;
     });
   });
 
