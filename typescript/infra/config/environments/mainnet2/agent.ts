@@ -47,7 +47,7 @@ export const hyperlane: AgentConfig = {
       blacklist: [
         ...releaseCandidateHelloworldMatchingList,
         {
-          originDomain: '137',
+          originDomain: 137,
           recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
         },
       ],
@@ -95,7 +95,7 @@ export const releaseCandidate: AgentConfig = {
         },
         whitelist: interchainQueriesMatchingList,
       },
-      transactionGasLimit: BigInt(750000),
+      transactionGasLimit: 750000,
       // Skipping arbitrum because the gas price estimates are inclusive of L1
       // fees which leads to wildly off predictions.
       skipTransactionGasLimitFor: [chainMetadata.arbitrum.chainId],

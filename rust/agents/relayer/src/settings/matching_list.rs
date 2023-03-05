@@ -1,12 +1,11 @@
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
-use std::num::ParseIntError;
 
 use serde::de::{Error, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use hyperlane_core::{HyperlaneMessage, H160, H256};
+use hyperlane_core::{utils::StrOrInt, HyperlaneMessage, H160, H256};
 
 /// Defines a set of patterns for determining if a message should or should not
 /// be relayed. This is useful for determine if a message matches a given set or
@@ -53,24 +52,6 @@ impl<T: Debug> Display for Filter<T> {
                 }
                 write!(f, "]")
             }
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum StrOrInt<'a> {
-    Str(&'a str),
-    Int(u32),
-}
-
-impl TryFrom<StrOrInt<'_>> for u32 {
-    type Error = ParseIntError;
-
-    fn try_from(v: StrOrInt) -> Result<Self, Self::Error> {
-        match v {
-            StrOrInt::Str(s) => s.parse(),
-            StrOrInt::Int(i) => Ok(i),
         }
     }
 }

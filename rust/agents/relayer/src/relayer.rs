@@ -66,16 +66,12 @@ impl BaseAgent for Relayer {
         let core = settings.build_hyperlane_core(metrics.clone());
         let db = DB::from_path(&settings.db)?;
 
-        let chain_names: Vec<_> = if let Some(ref remotes) = settings.destinationchainnames {
-            // Use defined remote chains + the origin chain
-            remotes
-                .split(',')
-                .chain([settings.originchainname.as_str()])
-                .collect()
-        } else {
-            // If not provided, default to using every chain listed in self.chains.
-            settings.chains.keys().map(String::as_str).collect()
-        };
+        // Use defined remote chains + the origin chain
+        let chain_names: Vec<_> = settings
+            .destinationchainnames
+            .split(',')
+            .chain([settings.originchainname.as_str()])
+            .collect();
 
         let mailboxes = settings
             .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())

@@ -132,7 +132,7 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
 
       const chainConfig: RustChainSetup = {
         name: chain,
-        domain: metadata.chainId.toString(),
+        domain: metadata.chainId,
         addresses: {
           mailbox: contracts.mailbox.contract.address,
           interchainGasPaymaster: contracts.interchainGasPaymaster.address,
@@ -140,7 +140,7 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
         },
         signer: null,
         protocol: 'ethereum',
-        finalityBlocks: metadata.blocks!.reorgPeriod!.toString(),
+        finalityBlocks: metadata.blocks!.reorgPeriod!,
         connection: {
           type: ConnectionType.Http,
           url: '',
@@ -148,10 +148,10 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
       };
 
       const startingBlockNumber = this.startingBlockNumbers[chain];
-
       if (startingBlockNumber) {
-        chainConfig.index = { from: startingBlockNumber.toString() };
+        chainConfig.index = { from: startingBlockNumber };
       }
+
       rustConfig.chains[chain] = chainConfig;
     });
     writeJSON(directory, `${this.environment}_config.json`, rustConfig);

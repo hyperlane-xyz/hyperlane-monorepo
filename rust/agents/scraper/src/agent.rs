@@ -62,7 +62,9 @@ impl BaseAgent for Scraper {
                     contract_sync_metrics.clone(),
                 )
                 .await?;
-                let domain = chain_setup.domain.parse().expect("invalid uint");
+                let domain = (&chain_setup.domain)
+                    .try_into()
+                    .context("Invalid domain id")?;
                 scrapers.insert(domain, scraper);
             }
         }
