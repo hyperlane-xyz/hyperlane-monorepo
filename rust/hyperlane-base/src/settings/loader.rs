@@ -26,6 +26,8 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
 
     let mut base_config_sources = vec![];
     let mut builder = Config::builder();
+
+    // Always load the default config files (`rust/config/*.json`)
     for entry in PathBuf::from("./config")
         .read_dir()
         .expect("Failed to open config directory")
@@ -43,7 +45,7 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
         }
     }
 
-    // Load a set of config files
+    // Load a set of additional user specified config files
     let config_file_paths: Vec<String> = env::var("CONFIG_FILES")
         .map(|s| s.split(',').map(|s| s.to_string()).collect())
         .unwrap_or_default();
