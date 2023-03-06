@@ -13,15 +13,15 @@ contract GasRouterTest is Test {
     uint32 originDomain = 1;
     uint32 remoteDomain = 2;
 
-    uint256 gasPrice = 1; // from IGP.quoteGasPayment
+    uint256 gasPrice; // The gas price used in IGP.quoteGasPayment
 
     TestGasRouter originRouter;
     TestGasRouter remoteRouter;
 
     function setUp() public {
         environment = new MockHyperlaneEnvironment(originDomain, remoteDomain);
-        environment.igps(originDomain).setGasPrice(gasPrice);
-        environment.igps(remoteDomain).setGasPrice(gasPrice);
+        // Same for origin and remote
+        gasPrice = environment.igps(originDomain).gasPrice();
 
         originRouter = new TestGasRouter();
         remoteRouter = new TestGasRouter();

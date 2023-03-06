@@ -27,8 +27,8 @@ contract MockHyperlaneEnvironment {
         originMailbox.addRemoteMailbox(_destinationDomain, destinationMailbox);
         destinationMailbox.addRemoteMailbox(_originDomain, originMailbox);
 
-        igps[originDomain] = new TestInterchainGasPaymaster();
-        igps[destinationDomain] = new TestInterchainGasPaymaster();
+        igps[originDomain] = new TestInterchainGasPaymaster(address(this));
+        igps[destinationDomain] = new TestInterchainGasPaymaster(address(this));
 
         isms[originDomain] = new TestIsm();
         isms[destinationDomain] = new TestIsm();
