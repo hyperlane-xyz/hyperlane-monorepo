@@ -23,13 +23,8 @@ import { types } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';
 import { ConnectionType } from '../config/agent';
+import { deployEnvToSdkEnv } from '../config/environment';
 import { writeJSON } from '../utils/utils';
-
-const ENV_NAME_MAP: Record<DeployEnvironment, string> = {
-  mainnet2: 'mainnet',
-  test: 'test',
-  testnet3: 'testnet',
-};
 
 export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   environment: DeployEnvironment;
@@ -161,7 +156,7 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
     });
     writeJSON(
       directory,
-      `${ENV_NAME_MAP[this.environment]}_config.json`,
+      `${deployEnvToSdkEnv[this.environment]}_config.json`,
       rustConfig,
     );
   }
