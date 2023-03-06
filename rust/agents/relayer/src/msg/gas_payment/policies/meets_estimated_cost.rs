@@ -192,7 +192,8 @@ impl GasPaymentPolicy for GasPaymentPolicyMeetsEstimatedCost {
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
         // Estimated cost of the process tx, quoted in destination native tokens
-        let destination_token_tx_cost = (tx_cost_estimate.gas_limit * tx_cost_estimate.gas_price)
+        let destination_token_tx_cost = (tx_cost_estimate.enforceable_gas_limit()
+            * tx_cost_estimate.gas_price)
             + current_expenditure.tokens_used;
         // Convert the destination token tx cost into origin tokens
         let origin_token_tx_cost = self
@@ -293,6 +294,7 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
         gas_limit: U256::from(1000000u32),
         // 15 gwei
         gas_price: ethers::utils::parse_units("15", "gwei").unwrap().into(),
+        l2_gas_limit: None,
     };
 
     // Expected polygon fee: 1M * 15 gwei = 0.015 MATIC
@@ -305,7 +307,7 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
         message_id: H256::zero(),
         gas_amount: U256::zero(),
     };
-    let current_expenditure = InterchainGasExpenditure {
+    let zero_current_expenditure = InterchainGasExpenditure {
         message_id: H256::zero(),
         tokens_used: U256::zero(),
         gas_used: U256::zero(),
@@ -315,7 +317,7 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
             .message_meets_gas_payment_requirement(
                 &message,
                 &current_payment,
-                &current_expenditure,
+                &zero_current_expenditure,
                 &tx_cost_estimate,
             )
             .await
@@ -334,7 +336,7 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
             .message_meets_gas_payment_requirement(
                 &message,
                 &current_payment,
-                &current_expenditure,
+                &zero_current_expenditure,
                 &tx_cost_estimate,
             )
             .await
@@ -359,6 +361,47 @@ async fn test_gas_payment_policy_meets_estimated_cost() {
             .await
             .unwrap(),
         None
+    );
+
+    // If the l2_gas_limit isn't None, we use the L2 gas limit for the gas enforcement,
+    // but return the full Some(gas_limit)
+    let l2_tx_cost_estimate = TxCostEstimate {
+        // 10M gas
+        gas_limit: 10000000u32.into(),
+        // 15 gwei
+        gas_price: tx_cost_estimate.gas_price,
+        // 100k gas
+        l2_gas_limit: Some(100000u32.into()),
+    };
+    // First check that if the l2_gas_limit were None, we'd get None back because the
+    // gas_limit is too high
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(
+                &message,
+                &current_payment,
+                &zero_current_expenditure,
+                &TxCostEstimate {
+                    l2_gas_limit: None,
+                    ..l2_tx_cost_estimate
+                },
+            )
+            .await
+            .unwrap(),
+        None,
+    );
+    // And now confirm that with the l2_gas_limit as Some(100k), we get Some(gas_limit)
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(
+                &message,
+                &current_payment,
+                &zero_current_expenditure,
+                &l2_tx_cost_estimate,
+            )
+            .await
+            .unwrap(),
+        Some(l2_tx_cost_estimate.gas_limit)
     );
 }
 

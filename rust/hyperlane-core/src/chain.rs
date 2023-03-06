@@ -126,6 +126,17 @@ pub enum HyperlaneDomain {
     },
 }
 
+impl HyperlaneDomain {
+    pub fn is_arbitrum_nitro(&self) -> bool {
+        match self {
+            HyperlaneDomain::Known(
+                KnownHyperlaneDomain::Arbitrum | KnownHyperlaneDomain::ArbitrumGoerli,
+            ) => true,
+            _ => false,
+        }
+    }
+}
+
 /// Types of Hyperlane domains.
 #[derive(
     FromPrimitive, EnumString, IntoStaticStr, strum::Display, Copy, Clone, Eq, PartialEq, Debug,
