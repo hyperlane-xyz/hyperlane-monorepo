@@ -75,8 +75,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
       mailbox: contracts.mailbox.address,
       // TODO allow these to be more easily changed
       interchainGasPaymaster:
-        //contracts.defaultIsmInterchainGasPaymaster.address,
-        contracts.interchainGasPaymaster.address,
+        contracts.defaultIsmInterchainGasPaymaster.address,
     };
   }
 

@@ -4,8 +4,10 @@ import { ethers } from 'ethers';
 import {
   InterchainGasPaymaster,
   Mailbox,
-  MultisigIsm, //OverheadIgp,
-  Ownable, // Ownable__factory,
+  MultisigIsm,
+  OverheadIgp,
+  Ownable,
+  Ownable__factory,
   ProxyAdmin,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
@@ -16,7 +18,7 @@ import {
   AgentConfig,
   AgentConnectionType,
 } from '../../agents/types';
-//import multisigIsmVerifyCosts from '../../consts/multisigIsmVerifyCosts.json';
+import multisigIsmVerifyCosts from '../../consts/multisigIsmVerifyCosts.json';
 import { CoreContracts, coreFactories } from '../../core/contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../../proxy';
@@ -32,7 +34,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   typeof coreFactories
 > {
   startingBlockNumbers: ChainMap<number | undefined>;
-  // gasOverhead: ChainMap<OverheadIgp.DomainConfigStruct>;
 
   constructor(
     multiProvider: MultiProvider,
@@ -42,22 +43,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     super(multiProvider, configMap, factoriesOverride, {
       logger: debug('hyperlane:CoreDeployer'),
     });
-    /*
-    this.gasOverhead = objMap(configMap, (chain, config) => {
-      const { validators, threshold } = config.multisigIsm;
-      const verifyCost =
-        // @ts-ignore
-        multisigIsmVerifyCosts[`${validators.length}`][`${threshold}`];
-      if (!verifyCost)
-        throw new Error(
-          `Unknown verification cost for ${threshold} of ${validators.length}`,
-        );
-      return {
-        domain: multiProvider.getDomainId(chain),
-        gasOverhead: verifyCost,
-      };
-    });
-    */
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
@@ -78,7 +63,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     );
   }
 
-  /*
   async deployDefaultIsmInterchainGasPaymaster(
     chain: ChainName,
     interchainGasPaymasterAddress: types.Address,
@@ -105,16 +89,35 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       .intersect(configChains, false)
       .multiProvider.getRemoteChains(chain);
 
+    // Maps remote origin chain name -> MultisigIsm verification gas cost
+    const gasOverhead: ChainMap<number> = objMap(
+      this.configMap[chain].multisigIsm,
+      (chain, config) => {
+        const { validators, threshold } = config;
+        const verifyCost =
+          // @ts-ignore
+          multisigIsmVerifyCosts[`${validators.length}`][`${threshold}`];
+        if (!verifyCost)
+          throw new Error(
+            `Unknown verification cost for ${threshold} of ${validators.length}`,
+          );
+        return verifyCost;
+      },
+    );
     // Only set gas overhead configs if they differ from what's on chain
     const configs: OverheadIgp.DomainConfigStruct[] = [];
     for (const remote of remotes) {
-      const gasOverhead = this.gasOverhead[remote];
-      const existingOverhead =
+      const remoteDomain = this.multiProvider.getDomainId(remote);
+      const actualOverhead =
         await defaultIsmInterchainGasPaymaster.destinationGasOverhead(
-          gasOverhead.domain,
+          remoteDomain,
         );
-      if (!existingOverhead.eq(gasOverhead.gasOverhead)) {
-        configs.push(gasOverhead);
+      const expectedOverhead = gasOverhead[remote];
+      if (!actualOverhead.eq(expectedOverhead)) {
+        configs.push({
+          domain: remoteDomain,
+          gasOverhead: expectedOverhead,
+        });
       }
     }
 
@@ -132,7 +135,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     return defaultIsmInterchainGasPaymaster;
   }
-  */
 
   async deployMailbox(
     chain: ChainName,
@@ -257,13 +259,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       chain,
       proxyAdmin,
     );
-    /*
     const defaultIsmInterchainGasPaymaster =
       await this.deployDefaultIsmInterchainGasPaymaster(
         chain,
         interchainGasPaymaster.address,
       );
-      */
     const mailbox = await this.deployMailbox(
       chain,
       multisigIsm.address,
@@ -277,7 +277,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const ownables: Ownable[] = [
       multisigIsm,
       proxyAdmin,
-      //defaultIsmInterchainGasPaymaster,
+      defaultIsmInterchainGasPaymaster,
     ];
     await this.transferOwnershipOfContracts(chain, ownables);
 
@@ -286,7 +286,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       proxyAdmin,
       mailbox,
       interchainGasPaymaster,
-      //defaultIsmInterchainGasPaymaster,
+      defaultIsmInterchainGasPaymaster,
       multisigIsm,
     };
   }

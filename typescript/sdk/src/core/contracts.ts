@@ -7,7 +7,8 @@ import {
   Mailbox,
   Mailbox__factory,
   MultisigIsm,
-  MultisigIsm__factory, //OverheadIgp,
+  MultisigIsm__factory,
+  OverheadIgp,
   OverheadIgp__factory,
   ProxyAdmin,
   ProxyAdmin__factory,
@@ -24,7 +25,7 @@ export type ConnectionClientContracts = {
     InterchainGasPaymaster,
     TransparentProxyAddresses
   >;
-  //defaultIsmInterchainGasPaymaster: OverheadIgp;
+  defaultIsmInterchainGasPaymaster: OverheadIgp;
 };
 
 export type CoreContracts = ConnectionClientContracts & {
@@ -40,6 +41,7 @@ export type CoreContractAddresses = {
   interchainGasPaymaster: types.Address | TransparentProxyAddresses;
   validatorAnnounce: types.Address;
   proxyAdmin: types.Address;
+  defaultIsmInterchainGasPaymaster: types.Address;
 };
 
 export const coreFactories = {

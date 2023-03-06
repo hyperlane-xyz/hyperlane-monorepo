@@ -27,6 +27,12 @@ export function isProxyAddresses(
   );
 }
 
+export function flattenProxyAddresses(
+  addresses?: types.Address | ProxyAddresses<any>,
+): undefined | types.Address {
+  return isProxyAddresses(addresses) ? addresses.proxy : addresses;
+}
+
 export type TransparentProxyAddresses = ProxyAddresses<ProxyKind.Transparent>;
 
 export class ProxiedContract<
