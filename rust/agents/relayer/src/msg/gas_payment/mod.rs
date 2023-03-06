@@ -54,7 +54,7 @@ impl GasPaymentEnforcer {
             .into_iter()
             .map(|cfg| {
                 let p: Box<dyn GasPaymentPolicy> = match cfg.policy {
-                    GasPaymentEnforcementPolicy::None => Box::new(GasPaymentPolicyNone::new()),
+                    GasPaymentEnforcementPolicy::None => Box::new(GasPaymentPolicyNone),
                     GasPaymentEnforcementPolicy::Minimum { payment } => {
                         Box::new(GasPaymentPolicyMinimum::new(payment))
                     }

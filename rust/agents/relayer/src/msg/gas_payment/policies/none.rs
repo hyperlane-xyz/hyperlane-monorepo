@@ -8,13 +8,7 @@ use hyperlane_core::{
 use crate::msg::gas_payment::GasPaymentPolicy;
 
 #[derive(Debug)]
-pub struct GasPaymentPolicyNone {}
-
-impl GasPaymentPolicyNone {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+pub struct GasPaymentPolicyNone;
 
 #[async_trait]
 impl GasPaymentPolicy for GasPaymentPolicyNone {
@@ -33,7 +27,7 @@ impl GasPaymentPolicy for GasPaymentPolicyNone {
 async fn test_gas_payment_policy_none() {
     use hyperlane_core::{HyperlaneMessage, H256, U256};
 
-    let policy = GasPaymentPolicyNone::new();
+    let policy = GasPaymentPolicyNone;
 
     let message = HyperlaneMessage::default();
 

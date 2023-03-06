@@ -46,9 +46,8 @@ decl_settings!(Relayer {
     db: String,
     // The name of the origin chain
     originchainname: String,
-    // Optional list of destination chains. If none are provided, ALL chains in chain_setup
-    // will be used, excluding the origin chain.
-    destinationchainnames: Option<String>,
+    // Comma separated list of destination chains.
+    destinationchainnames: String,
     /// The gas payment enforcement configuration as JSON. Expects an ordered array of `GasPaymentEnforcementConfig`.
     gaspaymentenforcement: String,
     /// API key to be used for the `MeetsEstimatedCost` enforcement policy.
