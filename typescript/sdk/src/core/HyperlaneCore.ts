@@ -135,22 +135,33 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
 
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
     const mailbox = Mailbox__factory.createInterface();
-    const dispatchLogs = sourceTx.logs
-      .map((log) => {
-        try {
-          return mailbox.parseLog(log);
-        } catch (e) {
-          return undefined;
-        }
-      })
-      .filter(
-        (log): log is ethers.utils.LogDescription =>
-          !!log && log.name === 'Dispatch',
-      );
-    return dispatchLogs.map((log) => {
+    const parsedLogs = sourceTx.logs.map((log) => {
+      try {
+        return mailbox.parseLog(log);
+      } catch (e) {
+        // Probably not a mailbox log, ignore
+        return undefined;
+      }
+    });
+
+    const dispatchLogs = parsedLogs.filter(
+      (log): log is ethers.utils.LogDescription =>
+        !!log && log.name === 'Dispatch',
+    );
+    const dispatchIdLogs = parsedLogs.filter(
+      (log): log is ethers.utils.LogDescription =>
+        !!log && log.name === 'DispatchId',
+    );
+
+    if (dispatchLogs.length !== dispatchIdLogs.length) {
+      throw new Error('Dispatch and DispatchIds log length should match');
+    }
+
+    return dispatchLogs.map((log, i) => {
       const message = log.args['message'];
-      const id = log.args['messageId'];
       const parsed = utils.parseMessage(message);
+      const idLog = dispatchIdLogs[i];
+      const id = idLog.args['messageId'];
       return { id, message, parsed };
     });
   }

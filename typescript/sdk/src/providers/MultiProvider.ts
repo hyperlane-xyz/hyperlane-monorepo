@@ -13,6 +13,7 @@ import { types } from '@hyperlane-xyz/utils';
 import {
   ChainMetadata,
   chainMetadata as defaultChainMetadata,
+  isValidChainMetadata,
 } from '../consts/chainMetadata';
 import { CoreChainName, TestChains } from '../consts/chains';
 import { ChainMap, ChainName } from '../types';
@@ -39,6 +40,11 @@ export class MultiProvider {
     chainMetadata: ChainMap<ChainMetadata> = defaultChainMetadata,
     options: MultiProviderOptions = {},
   ) {
+    Object.values(chainMetadata).forEach((cm) => {
+      if (!isValidChainMetadata(cm))
+        throw new Error(`Invalid chain metadata for ${cm.chainId}`);
+    });
+
     this.metadata = chainMetadata;
     // Ensure no two chains have overlapping names/domainIds/chainIds
     const chainNames = new Set<string>();
@@ -381,7 +387,7 @@ export class MultiProvider {
   }
 
   /**
-   * Get an RPC URL for given chain
+   * Get an RPC URL for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
   getRpcUrl(chainNameOrId: ChainName | number): string {
@@ -392,28 +398,61 @@ export class MultiProvider {
   }
 
   /**
-   * Get a block explorer URL for given chain
-   * @throws if chain's metadata has not been set
+   * Get a block explorer URL for a given chain name, chain id, or domain id
    */
-  getExplorerUrl(chainNameOrId: ChainName | number): string {
-    const explorers = this.getChainMetadata(chainNameOrId).blockExplorers;
-    if (!explorers?.length) return 'UNKNOWN_EXPLORER_URL';
-    else return explorers[0].url;
+  tryGetExplorerUrl(chainNameOrId: ChainName | number): string | null {
+    const explorers = this.tryGetChainMetadata(chainNameOrId)?.blockExplorers;
+    if (!explorers?.length) return null;
+    return explorers[0].url;
   }
 
   /**
-   * Get a block explorer API URL for given chain
-   * @throws if chain's metadata has not been set
+   * Get a block explorer URL for a given chain name, chain id, or domain id
+   * @throws if chain's metadata or block explorer data has no been set
+   */
+  getExplorerUrl(chainNameOrId: ChainName | number): string {
+    const url = this.tryGetExplorerUrl(chainNameOrId);
+    if (!url) throw new Error(`No explorer url set for ${chainNameOrId}`);
+    return url;
+  }
+
+  /**
+   * Get a block explorer's API URL for a given chain name, chain id, or domain id
+   */
+  tryGetExplorerApiUrl(chainNameOrId: ChainName | number): string | null {
+    const explorers = this.tryGetChainMetadata(chainNameOrId)?.blockExplorers;
+    if (!explorers?.length || !explorers[0].apiUrl) return null;
+    const { apiUrl, apiKey } = explorers[0];
+    if (!apiKey) return apiUrl;
+    const url = new URL(apiUrl);
+    url.searchParams.set('apikey', apiKey);
+    return url.toString();
+  }
+
+  /**
+   * Get a block explorer API URL for a given chain name, chain id, or domain id
+   * @throws if chain's metadata or block explorer data has no been set
    */
   getExplorerApiUrl(chainNameOrId: ChainName | number): string {
-    const explorers = this.getChainMetadata(chainNameOrId).blockExplorers;
-    if (!explorers?.length) return 'UNKNOWN_EXPLORER_API_URL';
-    else return (explorers[0].apiUrl || explorers[0].url) + '/api';
+    const url = this.tryGetExplorerApiUrl(chainNameOrId);
+    if (!url) throw new Error(`No explorer api url set for ${chainNameOrId}`);
+    return url;
   }
 
   /**
    * Get a block explorer URL for given chain's tx
-   * @throws if chain's metadata has not been set
+   */
+  tryGetExplorerTxUrl(
+    chainNameOrId: ChainName | number,
+    response: { hash: string },
+  ): string | null {
+    const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
+    return baseUrl ? `${baseUrl}/tx/${response.hash}` : null;
+  }
+
+  /**
+   * Get a block explorer URL for given chain's tx
+   * @throws if chain's metadata or block explorer data has no been set
    */
   getExplorerTxUrl(
     chainNameOrId: ChainName | number,
@@ -424,20 +463,34 @@ export class MultiProvider {
 
   /**
    * Get a block explorer URL for given chain's address
-   * @throws if chain's metadata has not been set
+   */
+  async tryGetExplorerAddressUrl(
+    chainNameOrId: ChainName | number,
+    _address?: string,
+  ): Promise<string | null> {
+    const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
+    const signer = this.tryGetSigner(chainNameOrId);
+    if (!baseUrl || !signer) return null;
+    const address = _address ?? (await signer.getAddress());
+    return `${baseUrl}/${address}`;
+  }
+
+  /**
+   * Get a block explorer URL for given chain's address
+   * @throws if chain's metadata, signer, or block explorer data has no been set
    */
   async getExplorerAddressUrl(
     chainNameOrId: ChainName | number,
     address?: string,
   ): Promise<string> {
-    const base = `${this.getExplorerUrl(chainNameOrId)}/address`;
-    if (address) return `${base}/${address}`;
-    const signerAddress = await this.getSignerAddress(chainNameOrId);
-    return `${base}/${signerAddress}`;
+    const url = await this.tryGetExplorerAddressUrl(chainNameOrId, address);
+    if (!url)
+      throw new Error(`Missing data for address url for ${chainNameOrId}`);
+    return url;
   }
 
   /**
-   * Get a block explorer URL for given chain's address
+   * Get the transaction overrides for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
   getTransactionOverrides(
