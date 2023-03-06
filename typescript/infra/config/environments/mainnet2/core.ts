@@ -1,4 +1,20 @@
-import { ChainMap, CoreConfig } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  CoreConfig,
+  GasOracleContractType,
+} from '@hyperlane-xyz/sdk';
+
+import { MainnetChains, chainNames } from './chains';
+
+function getGasOracles(local: MainnetChains) {
+  return Object.fromEntries(
+    chainNames
+      .filter((name) => name !== local)
+      .map((name) => [name, GasOracleContractType.StorageGasOracle]),
+  );
+}
+
+const KEY_FUNDER_ADDRESS = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
 export const core: ChainMap<CoreConfig> = {
   celo: {
@@ -14,6 +30,10 @@ export const core: ChainMap<CoreConfig> = {
         '0xc0085e1a49bcc69e534272adb82c74c0e007e1ca', // zkv
       ],
     },
+    igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
+      gasOracles: getGasOracles('celo'),
+    },
   },
   ethereum: {
     owner: '0x12C5AB61Fe17dF9c65739DBa73dF294708f78d23',
@@ -27,6 +47,10 @@ export const core: ChainMap<CoreConfig> = {
         '0x600c90404d5c9df885404d2cc5350c9b314ea3a2', // staked
         '0x892DC66F5B2f8C438E03f6323394e34A9C24F2D6', // zkv
       ],
+    },
+    igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
+      gasOracles: getGasOracles('ethereum'),
     },
   },
   avalanche: {
@@ -42,6 +66,10 @@ export const core: ChainMap<CoreConfig> = {
         '0x1418126f944a44dad9edbab32294a8c890e7a9e3', // zkv
       ],
     },
+    igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
+      gasOracles: getGasOracles('avalanche'),
+    },
   },
   polygon: {
     owner: '0x0D195469f76146F6ae3De8fc887e0f0DFBA691e7',
@@ -55,6 +83,10 @@ export const core: ChainMap<CoreConfig> = {
         '0x5ae9b0f833dfe09ef455562a1f603f1634504dd6', // staked
         '0x6a163d312f7352a95c9b81dca15078d5bf77a442', // zkv
       ],
+    },
+    igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
+      gasOracles: getGasOracles('polygon'),
     },
   },
   bsc: {
@@ -70,6 +102,10 @@ export const core: ChainMap<CoreConfig> = {
         '0x034c4924c30ec4aa1b7f3ad58548988f0971e1bf', // zkv
       ],
     },
+    igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
+      gasOracles: getGasOracles('bsc'),
+    },
   },
   arbitrum: {
     owner: '0xbA47E1b575980B7D1b1508cc48bE1Df4EE508111',
@@ -83,6 +119,10 @@ export const core: ChainMap<CoreConfig> = {
         '0x505dff4e0827aa5065f5e001db888e0569d46490', // staked
         '0x25c6779d4610f940bf2488732e10bcffb9d36f81', // ZKV
       ],
+    },
+    igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
+      gasOracles: getGasOracles('arbitrum'),
     },
   },
   optimism: {
@@ -98,6 +138,10 @@ export const core: ChainMap<CoreConfig> = {
         '0xfa174eb2b4921bb652bc1ada3e8b00e7e280bf3c', // ZKV
       ],
     },
+    igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
+      gasOracles: getGasOracles('optimism'),
+    },
   },
   moonbeam: {
     owner: '0xF0cb1f968Df01fc789762fddBfA704AE0F952197',
@@ -110,6 +154,10 @@ export const core: ChainMap<CoreConfig> = {
         '0x26725501597d47352a23cd26f122709f69ad53bc', // staked
       ],
     },
+    igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
+      gasOracles: getGasOracles('moonbeam'),
+    },
   },
   gnosis: {
     owner: '0x36b0AA0e7d04e7b825D7E409FEa3c9A3d57E4C22',
@@ -120,6 +168,10 @@ export const core: ChainMap<CoreConfig> = {
         '0x829d6ec129bc7187fb1ed161adcf7939fe0c515f',
         '0x00009f8935e94bfe52ab3441df3526ab7cc38db1',
       ],
+    },
+    igp: {
+      beneficiary: KEY_FUNDER_ADDRESS,
+      gasOracles: getGasOracles('gnosis'),
     },
   },
 };

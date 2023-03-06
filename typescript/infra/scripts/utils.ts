@@ -123,19 +123,17 @@ export async function getMultiProviderForRole(
   index?: number,
   connectionType?: ConnectionType,
 ): Promise<MultiProvider> {
-  const connections = await promiseObjAll(
+  const multiProvider = new MultiProvider(txConfigs);
+  await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {
       const provider = await fetchProvider(environment, chain, connectionType);
       const key = await getKeyForRole(environment, context, chain, role, index);
       const signer = await key.getSigner(provider);
-      return {
-        ...config,
-        provider,
-        signer,
-      };
+      multiProvider.setProvider(chain, provider);
+      multiProvider.setSigner(chain, signer);
     }),
   );
-  return new MultiProvider(connections);
+  return multiProvider;
 }
 
 export function getCoreContractsSdkFilepath() {

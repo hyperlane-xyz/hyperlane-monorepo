@@ -8,6 +8,7 @@ import { agents } from './agent';
 import { environment as environmentName, mainnetConfigs } from './chains';
 import { core } from './core';
 import { keyFunderConfig } from './funding';
+import { storageGasOracleConfig } from './gas-oracle';
 import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
 
@@ -32,4 +33,5 @@ export const environment: CoreEnvironmentConfig = {
   infra: infrastructure,
   helloWorld,
   keyFunderConfig,
+  storageGasOracleConfig,
 };

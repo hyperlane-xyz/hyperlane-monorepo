@@ -13,6 +13,7 @@ import { KEY_ROLE_ENUM } from '../agents/roles';
 
 import { AgentConfig, ConnectionType } from './agent';
 import { KeyFunderConfig } from './funding';
+import { AllStorageGasOracleConfigs } from './gas-oracle';
 import { HelloWorldConfig } from './helloworld';
 import { InfrastructureConfig } from './infrastructure';
 import { LiquidityLayerRelayerConfig } from './middleware';
@@ -39,6 +40,7 @@ export type CoreEnvironmentConfig = {
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig;
   liquidityLayerRelayerConfig?: LiquidityLayerRelayerConfig;
+  storageGasOracleConfig?: AllStorageGasOracleConfigs;
 };
 
 export const deployEnvToSdkEnv: Record<DeployEnvironment, CoreEnvironment> = {
