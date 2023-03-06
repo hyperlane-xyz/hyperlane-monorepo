@@ -45,7 +45,7 @@ export class MultiProvider {
     this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
   }
 
-  addChain(metadata: ChainMetadata) {
+  addChain(metadata: ChainMetadata): void {
     if (this.getKnownChainNames().includes(metadata.name)) {
       throw new Error(`Duplicate chain name: ${name}`);
     }
@@ -73,7 +73,7 @@ export class MultiProvider {
     }
   }
 
-  addChains(metadata: ChainMap<ChainMetadata>) {
+  addChains(metadata: ChainMap<ChainMetadata>): void {
     for (const chain of Object.keys(metadata)) {
       this.addChain(metadata[chain]);
     }
