@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use derive_new::new;
 use tokio::sync::RwLock;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, trace};
 
 use hyperlane_base::{
     CachingMailbox, ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics,
@@ -22,6 +22,7 @@ pub struct MetadataBuilder {
     chain_setup: ChainSetup,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
+    allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
 }
 
@@ -127,6 +128,18 @@ impl MetadataBuilder {
         for (i, validator_storage_locations) in storage_locations.iter().enumerate() {
             for storage_location in validator_storage_locations.iter().rev() {
                 if let Ok(conf) = CheckpointSyncerConf::from_str(storage_location) {
+                    // If this is a LocalStorage based checkpoint syncer and it's not
+                    // allowed, ignore it
+                    if let CheckpointSyncerConf::LocalStorage { path: _ } = &conf {
+                        if !self.allow_local_checkpoint_syncers {
+                            trace!(
+                                conf=?conf,
+                                "Ignoring disallowed LocalStorage based checkpoint syncer"
+                            );
+                            continue;
+                        }
+                    }
+
                     if let Ok(checkpoint_syncer) = conf.build(None) {
                         checkpoint_syncers
                             .insert(H160::from(validators[i]), checkpoint_syncer.into());
