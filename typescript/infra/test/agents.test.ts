@@ -18,7 +18,7 @@ describe('ReadOnlyCloudAgentKey', () => {
         aws: {
           region: 'us-east-1',
         },
-        environment,
+        runEnv: environment,
         context,
       };
 
