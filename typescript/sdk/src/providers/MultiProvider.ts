@@ -510,11 +510,11 @@ export class MultiProvider {
     const confirmations =
       this.getChainMetadata(chainNameOrId).blocks?.confirmations || 1;
     const response = await tx;
+    const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
     this.logger(
-      `Pending ${this.getExplorerTxUrl(
-        chainNameOrId,
-        response,
-      )} (waiting ${confirmations} blocks for confirmation)`,
+      `Pending ${
+        txUrl || 'transaction'
+      } (waiting ${confirmations} blocks for confirmation)`,
     );
     return response.wait(confirmations);
   }
