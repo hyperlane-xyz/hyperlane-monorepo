@@ -22,18 +22,6 @@ export abstract class BaseAgentKey {
   abstract get address(): string;
 }
 
-// A read-only representation of a key.
-export class ReadOnlyAgentKey extends BaseAgentKey {
-  constructor(
-    public environment: DeployEnvironment,
-    public readonly role: KEY_ROLE_ENUM,
-    public readonly address: string,
-    public readonly chainName?: ChainName,
-  ) {
-    super(environment, role, chainName);
-  }
-}
-
 // Base class to represent cloud-hosted keys used to run Hyperlane agents.
 export abstract class BaseCloudAgentKey extends BaseAgentKey {
   abstract get context(): Contexts;
