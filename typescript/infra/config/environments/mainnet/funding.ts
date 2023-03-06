@@ -8,7 +8,7 @@ import { environment } from './chains';
 export const keyFunderConfig: KeyFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'sha-d92ea51',
+    tag: 'sha-1d3995f',
   },
   cronSchedule: '45 * * * *', // Every hour at the 45 minute mark
   namespace: environment,
