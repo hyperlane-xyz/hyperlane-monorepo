@@ -25,6 +25,12 @@ import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';
 import { ConnectionType } from '../config/agent';
 import { writeJSON } from '../utils/utils';
 
+const ENV_NAME_MAP: Record<DeployEnvironment, string> = {
+  mainnet2: 'mainnet',
+  test: 'test',
+  testnet3: 'testnet',
+};
+
 export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   environment: DeployEnvironment;
 
@@ -153,6 +159,10 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
 
       rustConfig.chains[chain] = chainConfig;
     });
-    writeJSON(directory, `${this.environment}_config.json`, rustConfig);
+    writeJSON(
+      directory,
+      `${ENV_NAME_MAP[this.environment]}_config.json`,
+      rustConfig,
+    );
   }
 }
