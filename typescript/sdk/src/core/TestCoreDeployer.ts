@@ -2,12 +2,13 @@ import { ethers } from 'ethers';
 
 import {
   MultisigIsm,
+  TestInterchainGasPaymaster__factory,
   TestIsm__factory,
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
 
 import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
-import { CoreConfig } from '../deploy/core/types';
+import { CoreConfig, GasOracleContractType } from '../deploy/core/types';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
@@ -25,12 +26,21 @@ const testCoreConfig: CoreConfig = {
       threshold: 1,
     },
   },
+  igp: {
+    beneficiary: nonZeroAddress,
+    gasOracles: {
+      test1: GasOracleContractType.StorageGasOracle,
+      test2: GasOracleContractType.StorageGasOracle,
+      test3: GasOracleContractType.StorageGasOracle,
+    },
+  },
 };
 
 const testCoreFactories = {
   ...coreFactories,
   mailbox: new TestMailbox__factory(),
   testIsm: new TestIsm__factory(),
+  interchainGasPaymaster: new TestInterchainGasPaymaster__factory(),
 };
 
 export class TestCoreDeployer extends HyperlaneCoreDeployer {

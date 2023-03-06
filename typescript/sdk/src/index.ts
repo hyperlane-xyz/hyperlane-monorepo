@@ -34,6 +34,7 @@ export {
   CoreContractAddresses,
   CoreContracts,
   coreFactories,
+  GasOracleContracts,
 } from './core/contracts';
 export {
   AnnotatedDispatch,
@@ -54,8 +55,13 @@ export {
   CoreViolationType,
   EnrolledValidatorsViolation,
   MultisigIsmConfig,
+  GasOracleContractType,
   MultisigIsmViolation,
   MultisigIsmViolationType,
+  IgpBeneficiaryViolation,
+  IgpGasOraclesViolation,
+  IgpViolation,
+  IgpViolationType,
 } from './deploy/core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';

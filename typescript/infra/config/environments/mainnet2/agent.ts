@@ -54,7 +54,7 @@ export const hyperlane: AgentConfig = {
       gasPaymentEnforcement: {
         policy: {
           type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: BigInt(1),
+          payment: 1,
         },
         // To continue relaying interchain query callbacks, we whitelist
         // all messages between interchain query routers.
@@ -91,11 +91,11 @@ export const releaseCandidate: AgentConfig = {
       gasPaymentEnforcement: {
         policy: {
           type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: BigInt(1),
+          payment: 1,
         },
         whitelist: interchainQueriesMatchingList,
       },
-      transactionGasLimit: BigInt(750000),
+      transactionGasLimit: 750000,
       // Skipping arbitrum because the gas price estimates are inclusive of L1
       // fees which leads to wildly off predictions.
       skipTransactionGasLimitFor: [chainMetadata.arbitrum.chainId],

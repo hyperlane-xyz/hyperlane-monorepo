@@ -1,9 +1,20 @@
 import {
   ChainMap,
   CoreConfig,
+  GasOracleContractType,
   MultisigIsmConfig,
   objMap,
 } from '@hyperlane-xyz/sdk';
+
+import { TestChains, chainNames } from './chains';
+
+function getGasOracles(local: TestChains) {
+  return Object.fromEntries(
+    chainNames
+      .filter((name) => name !== local)
+      .map((name) => [name, GasOracleContractType.StorageGasOracle]),
+  );
+}
 
 // Owner is hardhat account 0
 export const owner = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
@@ -30,5 +41,9 @@ export const core: ChainMap<CoreConfig> = objMap(multisigIsmConfig, (chain) => {
     multisigIsm: Object.fromEntries(
       Object.entries(multisigIsmConfig).filter(([key]) => key !== chain),
     ),
+    igp: {
+      beneficiary: owner,
+      gasOracles: getGasOracles(chain),
+    },
   };
 });

@@ -1,6 +1,6 @@
 import { prompts } from 'prompts';
 
-import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
+import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
@@ -8,6 +8,10 @@ import {
   CoreViolationType,
   EnrolledValidatorsViolation,
   HyperlaneCoreChecker,
+  IgpBeneficiaryViolation,
+  IgpGasOraclesViolation,
+  IgpViolation,
+  IgpViolationType,
   MultisigIsmViolation,
   MultisigIsmViolationType,
   OwnerViolation,
@@ -76,7 +80,9 @@ export class HyperlaneCoreGovernor {
         console.log(
           `> ${calls.length} calls will be submitted via ${submissionType}`,
         );
-        calls.map((c) => console.log(`> > ${c.description}`));
+        calls.map((c) =>
+          console.log(`> > ${c.description} (to: ${c.to} data: ${c.data})`),
+        );
         const response = prompts.confirm({
           type: 'confirm',
           name: 'value',
@@ -136,7 +142,11 @@ export class HyperlaneCoreGovernor {
           break;
         }
         case ProxyKind.Transparent: {
-          this.handleProxyViolation(violation as ProxyViolation);
+          await this.handleProxyViolation(violation as ProxyViolation);
+          break;
+        }
+        case CoreViolationType.InterchainGasPaymaster: {
+          this.handleIgpViolation(violation as IgpViolation);
           break;
         }
         default:
@@ -148,28 +158,15 @@ export class HyperlaneCoreGovernor {
   handleProxyViolation(violation: ProxyViolation) {
     const contracts: CoreContracts =
       this.checker.app.contractsMap[violation.chain];
-    let initData = '0x';
-    switch (violation.data.name) {
-      case 'InterchainGasPaymaster':
-        initData =
-          InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
-            'initialize',
-          );
-        break;
-      default:
-        throw new Error(`Unsupported proxy violation ${violation.data.name}`);
-    }
+    const data = contracts.proxyAdmin.interface.encodeFunctionData('upgrade', [
+      violation.data.proxyAddresses.proxy,
+      violation.data.proxyAddresses.implementation,
+    ]);
+
     this.pushCall(violation.chain, {
       to: contracts.proxyAdmin.address,
-      data: contracts.proxyAdmin.interface.encodeFunctionData(
-        'upgradeAndCall',
-        [
-          violation.data.proxyAddresses.proxy,
-          violation.data.proxyAddresses.implementation,
-          initData,
-        ],
-      ),
-      description: `Upgrade ${violation.data.proxyAddresses.proxy} to ${violation.data.proxyAddresses.implementation}`,
+      data,
+      description: `Upgrade proxy ${violation.data.proxyAddresses.proxy} to implementation ${violation.data.proxyAddresses.implementation}`,
     });
   }
 
@@ -187,11 +184,25 @@ export class HyperlaneCoreGovernor {
     call: AnnotatedCallData,
   ): Promise<SubmissionType> {
     const multiProvider = this.checker.multiProvider;
-    // 1. Check if the call will succeed with the default signer.
-    try {
-      await multiProvider.estimateGas(chain, call);
+    const signer = multiProvider.getSigner(chain);
+    const signerAddress = await signer.getAddress();
+
+    const canUseSubmissionType = async (
+      submitterAddress: types.Address,
+    ): Promise<boolean> => {
+      try {
+        await multiProvider.estimateGas(chain, {
+          ...call,
+          from: submitterAddress,
+        });
+        return true;
+      } catch (e) {} // eslint-disable-line no-empty
+      return false;
+    };
+
+    if (await canUseSubmissionType(signerAddress)) {
       return SubmissionType.SIGNER;
-    } catch (_) {} // eslint-disable-line no-empty
+    }
 
     // 2. Check if the call will succeed via Gnosis Safe.
     const safeAddress = this.checker.configMap[chain!].owner;
@@ -199,9 +210,6 @@ export class HyperlaneCoreGovernor {
     // 2a. Confirm that the signer is a Safe owner or delegate.
     // This should implicitly check whether or not the owner is a gnosis
     // safe.
-    const signer = multiProvider.getSigner(chain);
-    if (!signer) throw new Error(`no signer found`);
-    const signerAddress = await signer.getAddress();
     if (!this.canPropose[chain].has(safeAddress)) {
       this.canPropose[chain].set(
         safeAddress,
@@ -214,15 +222,12 @@ export class HyperlaneCoreGovernor {
       );
     }
 
-    // 2b. Check if calling from the owner will succeed.
-    if (this.canPropose[chain].get(safeAddress)) {
-      try {
-        await multiProvider.getProvider(chain).estimateGas({
-          ...call,
-          from: safeAddress,
-        });
-        return SubmissionType.SAFE;
-      } catch (_) {} // eslint-disable-line no-empty
+    // 2b. Check if calling from the owner/safeAddress will succeed.
+    if (
+      this.canPropose[chain].get(safeAddress) &&
+      (await canUseSubmissionType(safeAddress))
+    ) {
+      return SubmissionType.SAFE;
     }
 
     return SubmissionType.MANUAL;
@@ -305,5 +310,56 @@ export class HyperlaneCoreGovernor {
       ),
       description: `Transfer ownership of ${violation.contract.address} to ${violation.expected}`,
     });
+  }
+
+  handleIgpViolation(violation: IgpViolation) {
+    switch (violation.subType) {
+      case IgpViolationType.Beneficiary: {
+        const beneficiaryViolation = violation as IgpBeneficiaryViolation;
+        this.pushCall(beneficiaryViolation.chain, {
+          to: beneficiaryViolation.contract.address,
+          data: beneficiaryViolation.contract.interface.encodeFunctionData(
+            'setBeneficiary',
+            [beneficiaryViolation.expected],
+          ),
+          description: `Set IGP beneficiary to ${beneficiaryViolation.expected}`,
+        });
+        break;
+      }
+      case IgpViolationType.GasOracles: {
+        const gasOraclesViolation = violation as IgpGasOraclesViolation;
+
+        const configs: InterchainGasPaymaster.GasOracleConfigStruct[] = [];
+        for (const [remote, expected] of Object.entries(
+          gasOraclesViolation.expected,
+        )) {
+          const remoteId = this.checker.multiProvider.getDomainId(remote);
+
+          configs.push({
+            remoteDomain: remoteId,
+            gasOracle: expected,
+          });
+        }
+
+        this.pushCall(gasOraclesViolation.chain, {
+          to: gasOraclesViolation.contract.address,
+          data: gasOraclesViolation.contract.interface.encodeFunctionData(
+            'setGasOracles',
+            [configs],
+          ),
+          description: `Setting ${Object.keys(gasOraclesViolation.expected)
+            .map((remoteStr) => {
+              const remote = remoteStr as ChainName;
+              const remoteId = this.checker.multiProvider.getDomainId(remote);
+              const expected = gasOraclesViolation.expected[remote];
+              return `gas oracle for ${remote} (domain ID ${remoteId}) to ${expected}`;
+            })
+            .join(', ')}`,
+        });
+        break;
+      }
+      default:
+        throw new Error(`Unsupported IgpViolationType: ${violation.subType}`);
+    }
   }
 }

@@ -1,9 +1,22 @@
 import {
   ChainMap,
   CoreConfig,
+  GasOracleContractType,
   MultisigIsmConfig,
   objMap,
 } from '@hyperlane-xyz/sdk';
+
+import { TestnetChains, chainNames } from './chains';
+
+function getGasOracles(local: TestnetChains) {
+  return Object.fromEntries(
+    chainNames
+      .filter((name) => name !== local)
+      .map((name) => [name, GasOracleContractType.StorageGasOracle]),
+  );
+}
+
+const DEPLOYER_ADDRESS = '0xfaD1C94469700833717Fa8a3017278BC1cA8031C';
 
 export const owner = '0xfaD1C94469700833717Fa8a3017278BC1cA8031C';
 export const multisigIsmConfig: ChainMap<MultisigIsmConfig> = {
@@ -79,5 +92,9 @@ export const core: ChainMap<CoreConfig> = objMap(multisigIsmConfig, (chain) => {
     multisigIsm: Object.fromEntries(
       Object.entries(multisigIsmConfig).filter(([key]) => key !== chain),
     ),
+    igp: {
+      beneficiary: DEPLOYER_ADDRESS,
+      gasOracles: getGasOracles(chain),
+    },
   };
 });
