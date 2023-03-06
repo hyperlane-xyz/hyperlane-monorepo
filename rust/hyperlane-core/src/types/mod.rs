@@ -117,15 +117,6 @@ pub struct InterchainGasPaymentWithMeta {
     pub meta: InterchainGasPaymentMeta,
 }
 
-/// A gas expense from submitting a transaction.
-#[derive(Debug)]
-pub struct GasExpenditureWithMeta {
-    /// The InterchainGasExpenditure
-    pub expenditure: InterchainGasExpenditure,
-    /// Hash of the transaction which spent the funds
-    pub transaction_hash: H256,
-}
-
 /// A cost estimate for a transaction.
 #[derive(Clone, Debug, Default)]
 pub struct TxCostEstimate {

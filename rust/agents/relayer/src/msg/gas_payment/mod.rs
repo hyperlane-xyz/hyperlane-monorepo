@@ -5,8 +5,8 @@ use eyre::Result;
 use tracing::{error, trace};
 
 use hyperlane_core::{
-    db::HyperlaneDB, GasExpenditureWithMeta, HyperlaneMessage, InterchainGasExpenditure,
-    InterchainGasPayment, TxCostEstimate, TxOutcome, U256,
+    db::HyperlaneDB, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
+    TxCostEstimate, TxOutcome, U256,
 };
 
 use crate::msg::gas_payment::policies::GasPaymentPolicyOnChainFeeQuoting;
@@ -130,13 +130,10 @@ impl GasPaymentEnforcer {
     }
 
     pub fn record_tx_outcome(&self, message: &HyperlaneMessage, outcome: TxOutcome) -> Result<()> {
-        self.db.process_gas_expenditure(&GasExpenditureWithMeta {
-            expenditure: InterchainGasExpenditure {
-                message_id: message.id(),
-                gas_used: outcome.gas_used,
-                tokens_used: outcome.gas_used * outcome.gas_price,
-            },
-            transaction_hash: outcome.txid,
+        self.db.process_gas_expenditure(InterchainGasExpenditure {
+            message_id: message.id(),
+            gas_used: outcome.gas_used,
+            tokens_used: outcome.gas_used * outcome.gas_price,
         })?;
         Ok(())
     }

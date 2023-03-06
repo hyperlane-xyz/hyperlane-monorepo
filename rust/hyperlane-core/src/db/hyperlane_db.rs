@@ -7,8 +7,8 @@ use tracing::{debug, info, trace};
 use crate::db::storage_types::InterchainGasExpenditureData;
 use crate::db::{storage_types::InterchainGasPaymentData, DbError, TypedDB, DB};
 use crate::{
-    GasExpenditureWithMeta, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, InterchainGasPaymentWithMeta, H256, U256,
+    HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta,
+    InterchainGasPaymentWithMeta, H256, U256,
 };
 
 const MESSAGE_ID: &str = "message_id_";
@@ -207,12 +207,9 @@ impl HyperlaneDB {
     }
 
     /// Processes the gas expenditure and store the total expenditure for the message.
-    pub fn process_gas_expenditure(
-        &self,
-        gas_expenditure_with_meta: &GasExpenditureWithMeta,
-    ) -> Result<()> {
+    pub fn process_gas_expenditure(&self, expenditure: InterchainGasExpenditure) -> Result<()> {
         // Update the total gas expenditure for the message to include the payment
-        self.update_gas_expenditure_for_message_id(gas_expenditure_with_meta.expenditure)
+        self.update_gas_expenditure_for_message_id(expenditure)
     }
 
     /// Record a gas payment, identified by its metadata, as processed
