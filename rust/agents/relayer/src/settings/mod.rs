@@ -34,9 +34,8 @@ pub struct GasPaymentEnforcementConfig {
     /// The gas payment enforcement policy
     #[serde(flatten)]
     pub policy: GasPaymentEnforcementPolicy,
-    /// An optional matching list, where all matching messages will be considered
-    /// as if they have met the gas payment enforcement policy.
-    /// If no matching list is provided, all messages will match this policy.
+    /// An optional matching list, any message that matches will use this policy. By default all
+    /// messages will match.
     #[serde(default)]
     pub matching_list: MatchingList,
 }
