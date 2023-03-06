@@ -1,11 +1,11 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
-import { AgentConfig } from '../config';
+import { AgentConfig, DeployEnvironment } from '../config';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd } from '../utils/utils';
 
-import { AgentAwsKey } from './aws/key';
+import { AgentAwsKey } from './aws';
 import { AgentGCPKey } from './gcp';
 import { CloudAgentKey } from './keys';
 import { KEY_ROLE_ENUM } from './roles';
@@ -30,7 +30,7 @@ export function getCloudAgentKey(
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
     return new AgentGCPKey(
-      agentConfig.environment,
+      agentConfig.runEnv,
       agentConfig.context,
       role,
       chainName,
@@ -86,7 +86,7 @@ export async function deleteAgentKeys(agentConfig: AgentConfig) {
   await Promise.all(keys.map((key) => key.delete()));
   await execCmd(
     `gcloud secrets delete ${addressesIdentifier(
-      agentConfig.environment,
+      agentConfig.runEnv,
       agentConfig.context,
     )} --quiet`,
   );
@@ -102,7 +102,7 @@ export async function createAgentKeysIfNotExists(agentConfig: AgentConfig) {
   );
 
   await persistAddresses(
-    agentConfig.environment,
+    agentConfig.runEnv,
     agentConfig.context,
     keys.map((key) => key.serializeAsAddress()),
   );
@@ -117,7 +117,7 @@ export async function rotateKey(
   await key.update();
   const keyIdentifier = key.identifier;
   const addresses = await fetchGCPKeyAddresses(
-    agentConfig.environment,
+    agentConfig.runEnv,
     agentConfig.context,
   );
   const filteredAddresses = addresses.filter((_) => {
@@ -126,14 +126,14 @@ export async function rotateKey(
 
   filteredAddresses.push(key.serializeAsAddress());
   await persistAddresses(
-    agentConfig.environment,
+    agentConfig.runEnv,
     agentConfig.context,
     filteredAddresses,
   );
 }
 
 async function persistAddresses(
-  environment: string,
+  environment: DeployEnvironment,
   context: Contexts,
   keys: KeyAsAddress[],
 ) {
@@ -168,13 +168,19 @@ export async function fetchKeysForChain(
   return Object.fromEntries(keys);
 }
 
-async function fetchGCPKeyAddresses(environment: string, context: Contexts) {
+async function fetchGCPKeyAddresses(
+  environment: DeployEnvironment,
+  context: Contexts,
+) {
   const addresses = await fetchGCPSecret(
     addressesIdentifier(environment, context),
   );
   return addresses as KeyAsAddress[];
 }
 
-function addressesIdentifier(environment: string, context: Contexts) {
+function addressesIdentifier(
+  environment: DeployEnvironment,
+  context: Contexts,
+) {
   return `${context}-${environment}-key-addresses`;
 }

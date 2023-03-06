@@ -18,7 +18,7 @@ import { execCmd } from '../utils/utils';
 
 import { keyIdentifier } from './agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
-import { AgentAwsKey } from './aws/key';
+import { AgentAwsKey } from './aws';
 import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
 import { KEY_ROLE_ENUM } from './roles';
@@ -119,7 +119,7 @@ export async function getAgentEnvVars(
   envVars.push(`HYP_BASE_METRICS=9090`);
   envVars.push(`HYP_BASE_TRACING_LEVEL=info`);
   envVars.push(
-    `HYP_BASE_DB=/tmp/${agentConfig.environment}-${role}-${outboxChainName}${
+    `HYP_BASE_DB=/tmp/${agentConfig.runEnv}-${role}-${outboxChainName}${
       role === KEY_ROLE_ENUM.Validator ? `-${index}` : ''
     }-db`,
   );
@@ -132,7 +132,7 @@ export async function getAgentEnvVars(
     )) as Record<string, AgentGCPKey>;
 
     const keyId = keyIdentifier(
-      agentConfig.environment,
+      agentConfig.runEnv,
       agentConfig.context,
       role,
       outboxChainName,
@@ -174,7 +174,7 @@ export async function getAgentEnvVars(
         );
       }
       user = new ValidatorAgentAwsUser(
-        agentConfig.environment,
+        agentConfig.runEnv,
         agentConfig.context,
         outboxChainName,
         index!,
@@ -183,7 +183,7 @@ export async function getAgentEnvVars(
       );
     } else {
       user = new AgentAwsUser(
-        agentConfig.environment,
+        agentConfig.runEnv,
         agentConfig.context,
         role,
         agentConfig.aws!.region,

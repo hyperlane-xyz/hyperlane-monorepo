@@ -109,7 +109,6 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
 
   writeRustConfigs(directory: string) {
     const rustConfig: RustConfig = {
-      environment: this.environment,
       chains: {},
       db: 'db_path',
       tracing: {

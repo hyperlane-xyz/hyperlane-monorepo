@@ -3,6 +3,8 @@ import { ethers } from 'ethers';
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
+import { environments } from '../../config/environments';
+import { DeployEnvironment } from '../config';
 import { assertChain, assertContext, assertRole } from '../utils/utils';
 
 import { parseKeyIdentifier } from './agent';
@@ -11,7 +13,7 @@ import { KEY_ROLE_ENUM } from './roles';
 // Base class to represent keys used to run Hyperlane agents.
 export abstract class BaseAgentKey {
   constructor(
-    public readonly environment: string,
+    public readonly environment: DeployEnvironment,
     public readonly role: KEY_ROLE_ENUM,
     public readonly chainName?: ChainName,
     public readonly readonly = true,
@@ -23,7 +25,7 @@ export abstract class BaseAgentKey {
 // A read-only representation of a key.
 export class ReadOnlyAgentKey extends BaseAgentKey {
   constructor(
-    public environment: string,
+    public environment: DeployEnvironment,
     public readonly role: KEY_ROLE_ENUM,
     public readonly address: string,
     public readonly chainName?: ChainName,
@@ -35,6 +37,7 @@ export class ReadOnlyAgentKey extends BaseAgentKey {
 // Base class to represent cloud-hosted keys used to run Hyperlane agents.
 export abstract class BaseCloudAgentKey extends BaseAgentKey {
   abstract get context(): Contexts;
+
   abstract get identifier(): string;
 }
 
@@ -42,7 +45,7 @@ export abstract class BaseCloudAgentKey extends BaseAgentKey {
 // process has the credentials.
 export abstract class CloudAgentKey extends BaseCloudAgentKey {
   constructor(
-    public readonly environment: string,
+    public readonly environment: DeployEnvironment,
     public readonly context: Contexts,
     public readonly role: KEY_ROLE_ENUM,
     public readonly chainName?: ChainName,
@@ -54,7 +57,9 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
   abstract fetch(): Promise<void>;
 
   abstract createIfNotExists(): Promise<void>;
+
   abstract delete(): Promise<void>;
+
   // Returns new address
   abstract update(): Promise<string>;
 
@@ -73,7 +78,7 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
 // A read-only representation of a key managed internally.
 export class ReadOnlyCloudAgentKey extends BaseCloudAgentKey {
   constructor(
-    public readonly environment: string,
+    public readonly environment: DeployEnvironment,
     public readonly context: Contexts,
     public readonly role: KEY_ROLE_ENUM,
     public readonly identifier: string,
@@ -103,9 +108,13 @@ export class ReadOnlyCloudAgentKey extends BaseCloudAgentKey {
   ): ReadOnlyCloudAgentKey {
     const { environment, context, role, chainName, index } =
       parseKeyIdentifier(identifier);
+    console.assert(
+      environment in environments,
+      `Invalid environment parsed: ${environment}`,
+    );
 
     return new ReadOnlyCloudAgentKey(
-      environment,
+      environment as DeployEnvironment,
       assertContext(context),
       assertRole(role),
       identifier,

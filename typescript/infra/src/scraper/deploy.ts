@@ -77,7 +77,7 @@ async function scraperHelmValues(agentConfig: AgentConfig) {
       tag: agentConfig.docker.tag,
     },
     hyperlane: {
-      runEnv: agentConfig.environment,
+      runEnv: agentConfig.runEnv,
       context: agentConfig.context,
       aws: false,
       gelatoApiKeyRequired: false,
