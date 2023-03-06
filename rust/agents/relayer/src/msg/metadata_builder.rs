@@ -130,14 +130,14 @@ impl MetadataBuilder {
                 if let Ok(conf) = CheckpointSyncerConf::from_str(storage_location) {
                     // If this is a LocalStorage based checkpoint syncer and it's not
                     // allowed, ignore it
-                    if let CheckpointSyncerConf::LocalStorage { path: _ } = &conf {
-                        if !self.allow_local_checkpoint_syncers {
-                            trace!(
-                                conf=?conf,
-                                "Ignoring disallowed LocalStorage based checkpoint syncer"
-                            );
-                            continue;
-                        }
+                    if matches!(conf, CheckpointSyncerConf::LocalStorage { .. })
+                        && !self.allow_local_checkpoint_syncers
+                    {
+                        trace!(
+                            ?conf,
+                            "Ignoring disallowed LocalStorage based checkpoint syncer"
+                        );
+                        continue;
                     }
 
                     if let Ok(checkpoint_syncer) = conf.build(None) {
