@@ -26,27 +26,20 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
 
     let mut base_config_sources = vec![];
     let mut builder = Config::builder();
-    for env_entry in PathBuf::from("./config")
+    for entry in PathBuf::from("./config")
         .read_dir()
         .expect("Failed to open config directory")
         .map(Result::unwrap)
     {
-        if !env_entry.file_type().unwrap().is_dir() {
+        if !entry.file_type().unwrap().is_file() {
             continue;
         }
 
-        for entry in env_entry
-            .path()
-            .read_dir()
-            .expect("Failed to open directory for env")
-            .map(Result::unwrap)
-        {
-            let fname = entry.file_name();
-            let ext = fname.to_str().unwrap().split('.').last().unwrap_or("");
-            if ext == "json" {
-                base_config_sources.push(format!("{:?}", entry.path()));
-                builder = builder.add_source(File::from(entry.path()));
-            }
+        let fname = entry.file_name();
+        let ext = fname.to_str().unwrap().split('.').last().unwrap_or("");
+        if ext == "json" {
+            base_config_sources.push(format!("{:?}", entry.path()));
+            builder = builder.add_source(File::from(entry.path()));
         }
     }
 

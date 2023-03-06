@@ -68,7 +68,7 @@ async function main() {
     deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
   );
 
-  deployer.writeRustConfigs(getCoreRustDirectory(environment));
+  deployer.writeRustConfigs(getCoreRustDirectory());
 }
 
 main().then(console.log).catch(console.error);
