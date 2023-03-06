@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
-import { environments } from '../../config/environments';
 import { DeployEnvironment } from '../config';
 import { assertChain, assertContext, assertRole } from '../utils/utils';
 
@@ -96,10 +95,11 @@ export class ReadOnlyCloudAgentKey extends BaseCloudAgentKey {
   ): ReadOnlyCloudAgentKey {
     const { environment, context, role, chainName, index } =
       parseKeyIdentifier(identifier);
-    console.assert(
-      environment in environments,
-      `Invalid environment parsed: ${environment}`,
-    );
+    // apparently importing `environments` config breaks everything
+    // console.assert(
+    //   environment in environments,
+    //   `Invalid environment parsed: ${environment}`,
+    // );
 
     return new ReadOnlyCloudAgentKey(
       environment as DeployEnvironment,
