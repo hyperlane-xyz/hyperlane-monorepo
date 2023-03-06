@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
+import {IGasOracle} from "../../interfaces/IGasOracle.sol";
 import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -11,35 +12,63 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  * @notice Manages payments on a source chain to cover gas costs of relaying
  * messages to destination chains.
  */
-contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
+contract InterchainGasPaymaster is
+    IInterchainGasPaymaster,
+    IGasOracle,
+    OwnableUpgradeable
+{
+    // ============ Constants ============
+
+    /// @notice The scale of gas oracle token exchange rates.
+    uint256 internal constant TOKEN_EXCHANGE_RATE_SCALE = 1e10;
+
+    // ============ Public Storage ============
+
+    /// @notice Keyed by remote domain, the gas oracle to use for the domain.
+    mapping(uint32 => IGasOracle) public gasOracles;
+
+    /// @notice The benficiary that can receive native tokens paid into this contract.
+    address public beneficiary;
+
     // ============ Events ============
 
     /**
-     * @notice Emitted when a payment is made for a message's gas costs.
-     * @param messageId The ID of the message to pay for.
-     * @param gasAmount The amount of destination gas paid for.
-     * @param payment The amount of native tokens paid.
+     * @notice Emitted when the gas oracle for a remote domain is set.
+     * @param remoteDomain The remote domain.
+     * @param gasOracle The gas oracle.
      */
-    event GasPayment(
-        bytes32 indexed messageId,
-        uint256 gasAmount,
-        uint256 payment
-    );
+    event GasOracleSet(uint32 indexed remoteDomain, address gasOracle);
+
+    /**
+     * @notice Emitted when the beneficiary is set.
+     * @param beneficiary The new beneficiary.
+     */
+    event BeneficiarySet(address beneficiary);
+
+    struct GasOracleConfig {
+        uint32 remoteDomain;
+        address gasOracle;
+    }
 
     // ============ Constructor ============
 
-    constructor() {
-        initialize(msg.sender); // allows contract to be used without proxying
+    constructor(address _beneficiary) {
+        initialize(msg.sender, _beneficiary); // allows contract to be used without proxying
     }
 
     // ============ External Functions ============
 
     /**
      * @param _owner The owner of the contract.
+     * @param _beneficiary The beneficiary.
      */
-    function initialize(address _owner) public initializer {
+    function initialize(address _owner, address _beneficiary)
+        public
+        initializer
+    {
         __Ownable_init();
         _transferOwnership(_owner);
+        _setBeneficiary(_beneficiary);
     }
 
     /**
@@ -49,8 +78,8 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
      * Callers should be aware that this may present reentrancy issues.
      * @param _messageId The ID of the message to pay for.
      * @param _destinationDomain The domain of the message's destination chain.
-     * @param _gasAmount The amount of destination gas to pay for. Currently unused.
-     * @param _refundAddress The address to refund any overpayment to. Currently unused.
+     * @param _gasAmount The amount of destination gas to pay for.
+     * @param _refundAddress The address to refund any overpayment to.
      */
     function payForGas(
         bytes32 _messageId,
@@ -72,13 +101,47 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
             require(_success, "Interchain gas payment refund failed");
         }
 
-        emit GasPayment(_messageId, _gasAmount, msg.value);
+        emit GasPayment(_messageId, _gasAmount, _requiredPayment);
     }
+
+    /**
+     * @notice Transfers the entire native token balance to the beneficiary.
+     * @dev The beneficiary must be able to receive native tokens.
+     */
+    function claim() external {
+        // Transfer the entire balance to the beneficiary.
+        (bool success, ) = beneficiary.call{value: address(this).balance}("");
+        require(success, "!transfer");
+    }
+
+    /**
+     * @notice Sets the gas oracles for remote domains specified in the config array.
+     * @param _configs An array of configs including the remote domain and gas oracles to set.
+     */
+    function setGasOracles(GasOracleConfig[] calldata _configs)
+        external
+        onlyOwner
+    {
+        uint256 _len = _configs.length;
+        for (uint256 i = 0; i < _len; i++) {
+            _setGasOracle(_configs[i].remoteDomain, _configs[i].gasOracle);
+        }
+    }
+
+    /**
+     * @notice Sets the beneficiary.
+     * @param _beneficiary The new beneficiary.
+     */
+    function setBeneficiary(address _beneficiary) external onlyOwner {
+        _setBeneficiary(_beneficiary);
+    }
+
+    // ============ Public Functions ============
 
     /**
      * @notice Quotes the amount of native tokens to pay for interchain gas.
      * @param _destinationDomain The domain of the message's destination chain.
-     * @param _gasAmount The amount of destination gas to pay for. Currently unused.
+     * @param _gasAmount The amount of destination gas to pay for.
      * @return The amount of native tokens required to pay for interchain gas.
      */
     function quoteGasPayment(uint32 _destinationDomain, uint256 _gasAmount)
@@ -88,21 +151,58 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
         override
         returns (uint256)
     {
-        // Silence compiler warning.
-        _destinationDomain;
-        _gasAmount;
-        // Charge a flat 1 wei fee.
-        // This is an intermediate step toward fully on-chain accurate gas payment quoting.
-        return 1;
+        // Get the gas data for the destination domain.
+        (
+            uint128 _tokenExchangeRate,
+            uint128 _gasPrice
+        ) = getExchangeRateAndGasPrice(_destinationDomain);
+
+        // The total cost quoted in destination chain's native token.
+        uint256 _destinationGasCost = _gasAmount * uint256(_gasPrice);
+
+        // Convert to the local native token.
+        return
+            (_destinationGasCost * _tokenExchangeRate) /
+            TOKEN_EXCHANGE_RATE_SCALE;
     }
 
     /**
-     * @notice Transfers the entire native token balance to the owner of the contract.
-     * @dev The owner must be able to receive native tokens.
+     * @notice Gets the token exchange rate and gas price from the configured gas oracle
+     * for a given destination domain.
+     * @param _destinationDomain The destination domain.
+     * @return tokenExchangeRate The exchange rate of the remote native token quoted in the local native token.
+     * @return gasPrice The gas price on the remote chain.
      */
-    function claim() external {
-        // Transfer the entire balance to owner.
-        (bool success, ) = owner().call{value: address(this).balance}("");
-        require(success, "!transfer");
+    function getExchangeRateAndGasPrice(uint32 _destinationDomain)
+        public
+        view
+        override
+        returns (uint128 tokenExchangeRate, uint128 gasPrice)
+    {
+        IGasOracle _gasOracle = gasOracles[_destinationDomain];
+        require(address(_gasOracle) != address(0), "!gas oracle");
+
+        return _gasOracle.getExchangeRateAndGasPrice(_destinationDomain);
+    }
+
+    // ============ Internal Functions ============
+
+    /**
+     * @notice Sets the beneficiary.
+     * @param _beneficiary The new beneficiary.
+     */
+    function _setBeneficiary(address _beneficiary) internal {
+        beneficiary = _beneficiary;
+        emit BeneficiarySet(_beneficiary);
+    }
+
+    /**
+     * @notice Sets the gas oracle for a remote domain.
+     * @param _remoteDomain The remote domain.
+     * @param _gasOracle The gas oracle.
+     */
+    function _setGasOracle(uint32 _remoteDomain, address _gasOracle) internal {
+        gasOracles[_remoteDomain] = IGasOracle(_gasOracle);
+        emit GasOracleSet(_remoteDomain, _gasOracle);
     }
 }

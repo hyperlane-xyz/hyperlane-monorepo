@@ -28,7 +28,7 @@ export function getContractVerificationInput(
   isProxy: boolean = name.endsWith('Proxy'),
 ): ContractVerificationInput {
   return {
-    name,
+    name: name.charAt(0).toUpperCase() + name.slice(1),
     address: contract.address,
     constructorArguments: getConstructorArguments(contract, bytecode),
     isProxy,

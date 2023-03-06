@@ -1,6 +1,6 @@
 import { utils as ethersUtils } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { ChainName } from '../../types';
@@ -10,6 +10,10 @@ import {
   CoreConfig,
   CoreViolationType,
   EnrolledValidatorsViolation,
+  GasOracleContractType,
+  IgpBeneficiaryViolation,
+  IgpGasOraclesViolation,
+  IgpViolationType,
   MailboxViolation,
   MailboxViolationType,
   MultisigIsmViolationType,
@@ -47,6 +51,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     await this.checkMultisigIsm(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
+    await this.checkInterchainGasPaymaster(chain);
   }
 
   async checkDomainOwnership(chain: ChainName): Promise<void> {
@@ -254,6 +259,72 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         expected: expectedThreshold,
       };
       this.addViolation(violation);
+    }
+  }
+
+  async checkInterchainGasPaymaster(local: ChainName): Promise<void> {
+    const coreContracts = this.app.getContracts(local);
+    const igp = coreContracts.interchainGasPaymaster.contract;
+
+    // Construct the violation, updating the actual & expected
+    // objects as violations are found.
+    // A single violation is used so that only a single `setGasOracles`
+    // call is generated to set multiple gas oracles.
+    const gasOraclesViolation: IgpGasOraclesViolation = {
+      type: CoreViolationType.InterchainGasPaymaster,
+      subType: IgpViolationType.GasOracles,
+      contract: igp,
+      chain: local,
+      actual: {},
+      expected: {},
+    };
+
+    const remotes = this.multiProvider.getRemoteChains(local);
+    for (const remote of remotes) {
+      const remoteId = this.multiProvider.getDomainId(remote);
+      const actualGasOracle = await igp.gasOracles(remoteId);
+      const expectedGasOracle = this.getGasOracleAddress(local, remote);
+
+      if (!utils.eqAddress(actualGasOracle, expectedGasOracle)) {
+        const remoteChain = remote as ChainName;
+        gasOraclesViolation.actual[remoteChain] = actualGasOracle;
+        gasOraclesViolation.expected[remoteChain] = expectedGasOracle;
+      }
+    }
+    // Add the violation only if it's been populated with gas oracle inconsistencies
+    if (Object.keys(gasOraclesViolation.actual).length > 0) {
+      this.addViolation(gasOraclesViolation);
+    }
+
+    const actualBeneficiary = await igp.beneficiary();
+    const expectedBeneficiary = this.configMap[local].igp.beneficiary;
+    if (!utils.eqAddress(actualBeneficiary, expectedBeneficiary)) {
+      const violation: IgpBeneficiaryViolation = {
+        type: CoreViolationType.InterchainGasPaymaster,
+        subType: IgpViolationType.Beneficiary,
+        contract: igp,
+        chain: local,
+        actual: actualBeneficiary,
+        expected: expectedBeneficiary,
+      };
+      this.addViolation(violation);
+    }
+  }
+
+  getGasOracleAddress(local: ChainName, remote: ChainName): types.Address {
+    const config = this.configMap[local];
+    const gasOracleType = config.igp.gasOracles[remote];
+    if (!gasOracleType) {
+      throw Error(
+        `Expected gas oracle type for local ${local} and remote ${remote}`,
+      );
+    }
+    const coreContracts = this.app.getContracts(local);
+    switch (gasOracleType) {
+      case GasOracleContractType.StorageGasOracle:
+        return coreContracts.storageGasOracle.address;
+      default:
+        throw Error(`Unsupported gas oracle type ${gasOracleType}`);
     }
   }
 }
