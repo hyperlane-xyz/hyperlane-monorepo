@@ -22,11 +22,8 @@ import { types } from '@hyperlane-xyz/utils';
 
 import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 
-export type GasOracleContracts = {
+export type InterchainGasPaymasterContracts = {
   storageGasOracle: StorageGasOracle;
-};
-
-export type ConnectionClientContracts = {
   interchainGasPaymaster: ProxiedContract<
     InterchainGasPaymaster,
     TransparentProxyAddresses
@@ -34,13 +31,13 @@ export type ConnectionClientContracts = {
   defaultIsmInterchainGasPaymaster: OverheadIgp;
 };
 
-export type CoreContracts = GasOracleContracts &
-  ConnectionClientContracts & {
-    mailbox: ProxiedContract<Mailbox, TransparentProxyAddresses>;
-    multisigIsm: MultisigIsm;
-    proxyAdmin: ProxyAdmin;
-    validatorAnnounce: ValidatorAnnounce;
-  };
+export type CoreContracts = {
+  mailbox: ProxiedContract<Mailbox, TransparentProxyAddresses>;
+  multisigIsm: MultisigIsm;
+  proxyAdmin: ProxyAdmin;
+  validatorAnnounce: ValidatorAnnounce;
+  igp?: InterchainGasPaymasterContracts;
+};
 
 export type CoreContractAddresses = {
   mailbox: types.Address | TransparentProxyAddresses;

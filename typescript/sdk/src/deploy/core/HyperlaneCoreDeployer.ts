@@ -22,7 +22,7 @@ import {
 import multisigIsmVerifyCosts from '../../consts/multisigIsmVerifyCosts.json';
 import {
   CoreContracts,
-  GasOracleContracts,
+  InterchainGasPaymasterContracts,
   coreFactories,
 } from '../../core/contracts';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -51,15 +51,46 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
+  async deployGasContracts(
+    chain: ChainName,
+    proxyAdmin: ProxyAdmin,
+    deployOpts?: DeployOptions,
+  ): Promise<InterchainGasPaymasterContracts | undefined> {
+    if (this.configMap[chain].gas === undefined) {
+      return;
+    }
+    const storageGasOracle = await this.deployContract(
+      chain,
+      'storageGasOracle',
+      [],
+      deployOpts,
+    );
+    const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
+      chain,
+      proxyAdmin,
+      storageGasOracle,
+    );
+    const defaultIsmInterchainGasPaymaster =
+      await this.deployDefaultIsmInterchainGasPaymaster(
+        chain,
+        interchainGasPaymaster.address,
+      );
+    return {
+      storageGasOracle,
+      interchainGasPaymaster,
+      defaultIsmInterchainGasPaymaster,
+    };
+  }
+
   async deployInterchainGasPaymaster(
     chain: ChainName,
     proxyAdmin: ProxyAdmin,
-    gasOracleContracts: GasOracleContracts,
+    storageGasOracle: StorageGasOracle,
     deployOpts?: DeployOptions,
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
-    const beneficiary = this.configMap[chain].igp.beneficiary;
+    const beneficiary = this.configMap[chain].igp!.beneficiary;
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
@@ -82,7 +113,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       const desiredGasOracle = this.getGasOracleAddress(
         chain,
         remote,
-        gasOracleContracts,
+        storageGasOracle,
       );
       if (!utils.eqAddress(currentGasOracle, desiredGasOracle)) {
         gasOracleConfigsToSet.push({
@@ -175,26 +206,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     }
 
     return defaultIsmInterchainGasPaymaster;
-  }
-
-  async deployGasOracleContracts(
-    chain: ChainName,
-    deployOpts?: DeployOptions,
-  ): Promise<GasOracleContracts> {
-    const storageGasOracle = await this.deployStorageGasOracle(
-      chain,
-      deployOpts,
-    );
-    return {
-      storageGasOracle,
-    };
-  }
-
-  async deployStorageGasOracle(
-    chain: ChainName,
-    deployOpts?: DeployOptions,
-  ): Promise<StorageGasOracle> {
-    return this.deployContract(chain, 'storageGasOracle', [], deployOpts);
   }
 
   async deployMailbox(
@@ -317,17 +328,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
-    const gasOracleContracts = await this.deployGasOracleContracts(chain);
-    const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
-      chain,
-      proxyAdmin,
-      gasOracleContracts,
-    );
-    const defaultIsmInterchainGasPaymaster =
-      await this.deployDefaultIsmInterchainGasPaymaster(
-        chain,
-        interchainGasPaymaster.address,
-      );
     const mailbox = await this.deployMailbox(
       chain,
       multisigIsm.address,
@@ -337,21 +337,20 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       chain,
       mailbox.address,
     );
+    const igp = await this.deployGasContracts(chain, proxyAdmin);
     // Ownership of the Mailbox and the interchainGasPaymaster is transferred upon initialization.
-    const ownables: Ownable[] = [
-      multisigIsm,
-      proxyAdmin,
-      defaultIsmInterchainGasPaymaster,
-    ];
+    const ownables: Ownable[] = [multisigIsm, proxyAdmin];
+    if (igp !== undefined) {
+      ownables.push(igp.defaultIsmInterchainGasPaymaster);
+    }
+
     await this.transferOwnershipOfContracts(chain, ownables);
 
     return {
-      ...gasOracleContracts,
       validatorAnnounce,
       proxyAdmin,
       mailbox,
-      interchainGasPaymaster,
-      defaultIsmInterchainGasPaymaster,
+      igp,
       multisigIsm,
     };
   }
@@ -398,7 +397,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         domain: metadata.chainId,
         addresses: {
           mailbox: contracts.mailbox.contract.address,
-          interchainGasPaymaster: contracts.interchainGasPaymaster.address,
+          interchainGasPaymaster: contracts.igp
+            ? contracts.igp.interchainGasPaymaster.address
+            : ethers.constants.AddressZero,
           validatorAnnounce: contracts.validatorAnnounce.address,
         },
         signer: null,
@@ -426,7 +427,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   private getGasOracleAddress(
     local: ChainName,
     remote: ChainName,
-    gasOracleContracts: GasOracleContracts,
+    storageGasOracle: StorageGasOracle,
   ): types.Address {
     const localConfig = this.configMap[local];
     const gasOracleType = localConfig.igp.gasOracles[remote];

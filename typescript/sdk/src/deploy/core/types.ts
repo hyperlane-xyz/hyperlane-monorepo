@@ -25,7 +25,7 @@ export type MultisigIsmConfig = {
 export type CoreConfig = {
   multisigIsm: ChainMap<MultisigIsmConfig>;
   owner: types.Address;
-  igp: InterchainGasPaymasterConfig;
+  igp?: InterchainGasPaymasterConfig;
   remove?: boolean;
 };
 
