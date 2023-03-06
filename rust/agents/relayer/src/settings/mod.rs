@@ -1,8 +1,9 @@
 //! Configuration
 
-use crate::settings::matching_list::MatchingList;
 use hyperlane_base::decl_settings;
 use hyperlane_core::U256;
+
+use crate::settings::matching_list::MatchingList;
 
 pub mod matching_list;
 
@@ -20,8 +21,9 @@ pub enum GasPaymentEnforcementPolicy {
     /// The required amount of gas on the foreign chain has been paid according
     /// to on-chain fee quoting.
     OnChainFeeQuoting {
-        /// Optional fraction of gas which must be paid before attempting to run the transaction.
-        /// Must be written as `"numerator / denominator"` where both are integers.
+        /// Optional fraction of gas which must be paid before attempting to run
+        /// the transaction. Must be written as `"numerator /
+        /// denominator"` where both are integers.
         #[serde(default = "default_gasfraction")]
         gasfraction: String,
     },
@@ -34,8 +36,8 @@ pub struct GasPaymentEnforcementConfig {
     /// The gas payment enforcement policy
     #[serde(flatten)]
     pub policy: GasPaymentEnforcementPolicy,
-    /// An optional matching list, any message that matches will use this policy. By default all
-    /// messages will match.
+    /// An optional matching list, any message that matches will use this
+    /// policy. By default all messages will match.
     #[serde(default)]
     pub matching_list: MatchingList,
 }
