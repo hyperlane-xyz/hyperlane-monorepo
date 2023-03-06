@@ -5,7 +5,7 @@ import { AgentConfig, DeployEnvironment } from '../config';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd } from '../utils/utils';
 
-import { AgentAwsKey } from './aws';
+import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { CloudAgentKey } from './keys';
 import { KEY_ROLE_ENUM } from './roles';

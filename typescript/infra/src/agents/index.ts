@@ -18,7 +18,7 @@ import { execCmd } from '../utils/utils';
 
 import { keyIdentifier } from './agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
-import { AgentAwsKey } from './aws';
+import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
 import { KEY_ROLE_ENUM } from './roles';

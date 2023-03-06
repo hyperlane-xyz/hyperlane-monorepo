@@ -44,7 +44,7 @@ export abstract class BaseCloudAgentKey extends BaseAgentKey {
 // Base class to represent cloud-hosted keys for which the current
 // process has the credentials.
 export abstract class CloudAgentKey extends BaseCloudAgentKey {
-  constructor(
+  protected constructor(
     public readonly environment: DeployEnvironment,
     public readonly context: Contexts,
     public readonly role: KEY_ROLE_ENUM,
