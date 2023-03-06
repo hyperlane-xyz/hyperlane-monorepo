@@ -1,6 +1,6 @@
 {
   "goerli": {
-    "id": 5,
+    "chainId": 5,
     "name": "goerli",
     "displayName": "Goerli",
     "nativeToken": { "name": "Ether", "symbol": "ETH", "decimals": 18 },

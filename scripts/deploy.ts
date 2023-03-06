@@ -12,12 +12,8 @@ import path from 'path';
 import yargs from 'yargs';
 
 import {
-  ChainMap,
-  ChainMetadata,
-  IChainConnection,
+  chainMetadata,
   MultiProvider,
-  chainConnectionConfigs,
-  objMap,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 
@@ -66,38 +62,14 @@ async function deployWarpRoute() {
     );
   }
 
-  const multiProviderConfig: ChainMap<any, IChainConnection> = {};
-  for (const chain of targetChains) {
-    if (chainConfigs && chainConfigs[chain]) {
-      // Use custom config
-      const chainConfig = chainConfigs[chain] as ChainMetadata;
-      multiProviderConfig[chain] = {
-        id: chainConfig.id,
-        provider: new ethers.providers.JsonRpcProvider(
-          chainConfig.publicRpcUrls[0].http,
-        ),
-        confirmations: chainConfig.blocks.confirmations,
-        // @ts-ignore
-        overrides: chainConfig.overrides,
-      };
-    } else if (chainConnectionConfigs[chain]) {
-      // Use SDK default
-      multiProviderConfig[chain] = chainConnectionConfigs[chain];
-    } else {
-      throw new Error(`No chain config found for ${chain}`);
-    }
-  }
-
   console.log('Preparing wallet');
   const signer = new ethers.Wallet(privateKey);
 
   console.log('Preparing chain providers');
   const multiProvider = new MultiProvider(
-    objMap(multiProviderConfig, (_chain, conf) => ({
-      ...conf,
-      signer: signer.connect(conf.provider),
-    })),
+    { ...chainMetadata, ...chainConfigs }
   );
+  multiProvider.setSharedSigner(signer)
 
   console.log('Starting deployments');
   const deployer = new HypERC20Deployer(multiProvider, tokenConfigs, undefined);
