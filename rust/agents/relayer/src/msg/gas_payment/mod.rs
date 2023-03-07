@@ -10,9 +10,7 @@ use hyperlane_core::{
 
 use crate::settings::{matching_list::MatchingList, GasPaymentEnforcementPolicy};
 
-use self::policies::{
-    GasPaymentPolicyMinimum, GasPaymentPolicyNone,
-};
+use self::policies::{GasPaymentPolicyMinimum, GasPaymentPolicyNone};
 
 mod policies;
 
