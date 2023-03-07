@@ -136,7 +136,9 @@ fn main() -> ExitCode {
     let validator_db = concat_path(&rocks_db_dir, "validator");
 
     let common_env = hashmap! {
-        "RUST_BACKTRACE" => "full"
+        "RUST_BACKTRACE" => "full",
+        "HYP_BASE_TRACING_FMT" => "pretty",
+        "HYP_BASE_TRACING_LEVEL" => "debug",
     };
 
     let relayer_env = hashmap! {
@@ -146,11 +148,7 @@ fn main() -> ExitCode {
         "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpQuorum",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_URL" => "http://127.0.0.1:8545",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_TYPE" => "http",
-        "BASE_CONFIG" => "test_config.json",
-        "RUN_ENV" => "test",
         "HYP_BASE_METRICS" => "9092",
-        "HYP_BASE_TRACING_FMT" => "pretty",
-        "HYP_BASE_TRACING_LEVEL" => "debug",
         "HYP_BASE_DB" => relayer_db.to_str().unwrap(),
         "HYP_BASE_CHAINS_TEST1_SIGNER_KEY" => "8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61",
         "HYP_BASE_CHAINS_TEST1_SIGNER_TYPE" => "hexKey",
@@ -171,12 +169,7 @@ fn main() -> ExitCode {
         "HYP_BASE_CHAINS_TEST2_CONNECTION_TYPE" => "httpFallback",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_URLS" => "http://127.0.0.1:8545",
         "HYP_BASE_CHAINS_TEST3_CONNECTION_TYPE" => "http",
-        "BASE_CONFIG" => "test_config.json",
-        "RUN_ENV" => "test",
         "HYP_BASE_METRICS" => "9091",
-        "HYP_BASE_TRACING_FMT" => "pretty",
-        "HYP_BASE_TRACING_LEVEL" => "debug",
-        "HYP_BASE_DB" => validator_db.to_str().unwrap(),
         "HYP_VALIDATOR_ORIGINCHAINNAME" => "test1",
         "HYP_VALIDATOR_VALIDATOR_KEY" => "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
         "HYP_VALIDATOR_VALIDATOR_TYPE" => "hexKey",

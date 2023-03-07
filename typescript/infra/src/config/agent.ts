@@ -205,9 +205,8 @@ export enum TransactionSubmissionType {
 }
 
 export interface AgentConfig {
-  environment: string;
-  namespace: string;
   runEnv: DeployEnvironment;
+  namespace: string;
   context: Contexts;
   docker: DockerConfig;
   quorumProvider?: boolean;
@@ -264,7 +263,6 @@ export type RustChainSetup = {
 };
 
 export type RustConfig = {
-  environment: DeployEnvironment;
   chains: Partial<ChainMap<RustChainSetup>>;
   // TODO: Separate DBs for each chain (fold into RustChainSetup)
   db: string;
@@ -304,7 +302,7 @@ export class ChainAgentConfig {
       );
     }
     const awsUser = new AgentAwsUser(
-      this.agentConfig.environment,
+      this.agentConfig.runEnv,
       this.agentConfig.context,
       KEY_ROLE_ENUM.Relayer,
       this.agentConfig.aws!.region,
@@ -329,7 +327,7 @@ export class ChainAgentConfig {
         };
         if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
           const awsUser = new ValidatorAgentAwsUser(
-            this.agentConfig.environment,
+            this.agentConfig.runEnv,
             this.agentConfig.context,
             this.chainName,
             i,
@@ -372,7 +370,7 @@ export class ChainAgentConfig {
 
     if (awsRegion !== undefined) {
       const awsUser = new AgentAwsUser(
-        this.agentConfig.environment,
+        this.agentConfig.runEnv,
         this.agentConfig.context,
         KEY_ROLE_ENUM.Relayer,
         awsRegion,

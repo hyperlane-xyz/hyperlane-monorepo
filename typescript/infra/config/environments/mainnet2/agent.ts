@@ -24,7 +24,6 @@ const interchainQueriesMatchingList = routerMatchingList(
 );
 
 export const hyperlane: AgentConfig = {
-  environment,
   namespace: environment,
   runEnv: environment,
   context: Contexts.Hyperlane,
@@ -68,7 +67,6 @@ export const hyperlane: AgentConfig = {
 };
 
 export const releaseCandidate: AgentConfig = {
-  environment,
   namespace: environment,
   runEnv: environment,
   context: Contexts.ReleaseCandidate,

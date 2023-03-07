@@ -91,22 +91,28 @@ contract GasRouterTest is Test {
         vm.deal(address(this), gas * gasPrice);
 
         setDestinationGas(originRouter, remoteDomain, gas);
+
+        uint256 requiredPayment = gas * gasPrice;
         vm.expectRevert("insufficient interchain gas payment");
-        originRouter.dispatchWithGas{value: gas * gasPrice - 1}(
+        originRouter.dispatchWithGas{value: requiredPayment - 1}(
             remoteDomain,
             ""
         );
-        vm.deal(address(this), gas * gasPrice + 1);
-        originRouter.dispatchWithGas{value: gas * gasPrice + 1}(
+
+        vm.deal(address(this), requiredPayment + 1);
+        originRouter.dispatchWithGas{value: requiredPayment + 1}(
             remoteDomain,
             ""
         );
         assertEq(refund, 1);
 
-        vm.deal(address(this), gas * gasPrice + 1);
+        // Reset the IGP balance to avoid a balance overflow
+        vm.deal(address(environment.igps(originDomain)), 0);
+
+        vm.deal(address(this), requiredPayment + 1);
         passRefund = false;
         vm.expectRevert("Interchain gas payment refund failed");
-        originRouter.dispatchWithGas{value: gas * gasPrice + 1}(
+        originRouter.dispatchWithGas{value: requiredPayment + 1}(
             remoteDomain,
             ""
         );
