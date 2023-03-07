@@ -1,56 +1,13 @@
-import type { BigNumber, ethers } from 'ethers';
+import type { BigNumber } from 'ethers';
 
-import {
-  GasRouter,
-  IInterchainGasPaymaster,
-  IInterchainSecurityModule,
-  Mailbox,
-  ProxyAdmin,
-  Router,
-} from '@hyperlane-xyz/core';
+import { GasRouter } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
-import { HyperlaneContracts, HyperlaneFactories } from '../contracts';
-import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
 import { objMap, promiseObjAll } from '../utils/objects';
 
-export type RouterContracts<RouterContract extends Router = Router> =
-  HyperlaneContracts & {
-    router: RouterContract;
-  };
-
-export type ProxiedRouterContracts<RouterContract extends Router = Router> =
-  RouterContracts<RouterContract> & {
-    proxyAdmin: ProxyAdmin;
-    proxiedRouter: ProxiedContract<RouterContract, TransparentProxyAddresses>;
-  };
-
-type RouterFactory<RouterContract extends Router = Router> =
-  ethers.ContractFactory & {
-    deploy: (...args: any[]) => Promise<RouterContract>;
-  };
-
-export type RouterFactories<RouterContract extends Router = Router> =
-  HyperlaneFactories & {
-    router: RouterFactory<RouterContract>;
-  };
-
-export type ConnectionClientContracts = {
-  mailbox: ProxiedContract<Mailbox, TransparentProxyAddresses>;
-  interchainGasPaymaster: ProxiedContract<
-    IInterchainGasPaymaster,
-    TransparentProxyAddresses
-  >;
-  interchainSecurityModule?: IInterchainSecurityModule;
-};
-
-export type ConnectionClientConfig = {
-  mailbox: types.Address;
-  interchainGasPaymaster: types.Address;
-  interchainSecurityModule?: types.Address;
-};
+import { RouterContracts } from './types';
 
 export { Router } from '@hyperlane-xyz/core';
 
@@ -86,4 +43,11 @@ export class GasRouterApp<
 export { GasRouterDeployer } from './GasRouterDeployer';
 export { HyperlaneRouterChecker } from './HyperlaneRouterChecker';
 export { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
-export { GasRouterConfig, RouterConfig } from './types';
+export {
+  ProxiedRouterContracts,
+  RouterContracts,
+  RouterFactories,
+  ConnectionClientConfig,
+  GasRouterConfig,
+  RouterConfig,
+} from './types';
