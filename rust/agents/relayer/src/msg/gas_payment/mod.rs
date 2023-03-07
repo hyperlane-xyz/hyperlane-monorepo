@@ -11,7 +11,7 @@ use hyperlane_core::{
 use crate::settings::{matching_list::MatchingList, GasPaymentEnforcementPolicy};
 
 use self::policies::{
-    GasPaymentPolicyMeetsEstimatedCost, GasPaymentPolicyMinimum, GasPaymentPolicyNone,
+    GasPaymentPolicyMinimum, GasPaymentPolicyNone,
 };
 
 mod policies;
@@ -46,9 +46,6 @@ impl GasPaymentEnforcer {
             GasPaymentEnforcementPolicy::None => Box::new(GasPaymentPolicyNone),
             GasPaymentEnforcementPolicy::Minimum { payment } => {
                 Box::new(GasPaymentPolicyMinimum::new(payment))
-            }
-            GasPaymentEnforcementPolicy::MeetsEstimatedCost { coingeckoapikey } => {
-                Box::new(GasPaymentPolicyMeetsEstimatedCost::new(coingeckoapikey))
             }
         };
 

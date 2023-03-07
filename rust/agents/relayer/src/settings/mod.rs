@@ -15,10 +15,6 @@ pub enum GasPaymentEnforcementPolicy {
     Minimum {
         payment: U256,
     },
-
-    MeetsEstimatedCost {
-        coingeckoapikey: Option<String>,
-    },
 }
 
 /// Config for gas payment enforcement
