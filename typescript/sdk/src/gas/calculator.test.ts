@@ -2,10 +2,9 @@ import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import sinon from 'sinon';
 
-import { Chains } from '../consts/chains';
-import { HyperlaneCore } from '../core/HyperlaneCore';
-import { CoreContracts } from '../core/contracts';
-import { MultiProvider } from '../providers/MultiProvider';
+import { Chains } from '../consts';
+import { CoreContracts, HyperlaneCore } from '../core';
+import { MultiProvider } from '../providers';
 import { MockProvider, MockTokenPriceGetter } from '../test/testUtils';
 import { ChainName, TestChainNames } from '../types';
 

@@ -5,10 +5,10 @@ import type { types } from '@hyperlane-xyz/utils';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
-import { MultiProvider } from '../providers/MultiProvider';
+import { MultiProvider } from '../providers';
 import { TransparentProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils/objects';
+import { objMap } from '../utils';
 
 import { proxyAdmin, proxyImplementation, proxyViolation } from './proxy';
 import {

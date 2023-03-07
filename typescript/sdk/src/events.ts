@@ -5,7 +5,7 @@ import type {
   TypedEventFilter,
 } from '@hyperlane-xyz/core/dist/common';
 
-import { MultiProvider } from './providers/MultiProvider';
+import { MultiProvider } from './providers';
 import { ChainName } from './types';
 
 export class Annotated<T extends TypedEvent> {

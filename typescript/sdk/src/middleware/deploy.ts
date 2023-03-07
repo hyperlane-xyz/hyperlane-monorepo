@@ -9,12 +9,15 @@ import {
   InterchainQueryFactories,
   interchainAccountFactories,
   interchainQueryFactories,
-} from '../../middleware';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ProxiedRouterContracts, RouterFactories } from '../../router';
-import { ChainMap, ChainName } from '../../types';
-import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
-import { RouterConfig } from '../router/types';
+} from '../middleware';
+import { MultiProvider } from '../providers';
+import {
+  HyperlaneRouterDeployer,
+  ProxiedRouterContracts,
+  RouterConfig,
+  RouterFactories,
+} from '../router';
+import { ChainMap, ChainName } from '../types';
 
 export abstract class MiddlewareRouterDeployer<
   MiddlewareRouterConfig extends RouterConfig,

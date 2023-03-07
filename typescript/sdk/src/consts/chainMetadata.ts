@@ -2,8 +2,7 @@ import type { Chain as WagmiChain } from '@wagmi/chains';
 import type { providers } from 'ethers';
 
 import { ChainName } from '../types';
-import { objMap } from '../utils/objects';
-import { chainMetadataToWagmiChain } from '../utils/wagmi';
+import { chainMetadataToWagmiChain, objMap } from '../utils';
 
 import { Chains, Mainnets, Testnets } from './chains';
 

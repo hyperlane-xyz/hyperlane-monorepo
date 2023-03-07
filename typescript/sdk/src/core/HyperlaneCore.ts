@@ -4,18 +4,18 @@ import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
-import { environments } from '../consts/environments';
+import { coreEnvironments } from '../consts';
 import { buildContracts } from '../contracts';
-import { MultiProvider } from '../providers/MultiProvider';
+import { MultiProvider } from '../providers';
 import { ConnectionClientConfig } from '../router';
 import { ChainMap, ChainName } from '../types';
-import { objMap, pick } from '../utils/objects';
+import { objMap, pick } from '../utils';
 
 import { CoreContracts, coreFactories } from './contracts';
 
-export type CoreEnvironment = keyof typeof environments;
+export type CoreEnvironment = keyof typeof coreEnvironments;
 export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
-  keyof typeof environments[E],
+  keyof typeof coreEnvironments[E],
   ChainName
 >;
 
@@ -38,7 +38,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     env: Env,
     multiProvider: MultiProvider,
   ): HyperlaneCore {
-    const envConfig = environments[env];
+    const envConfig = coreEnvironments[env];
     if (!envConfig) {
       throw new Error(`No default env config found for ${env}`);
     }

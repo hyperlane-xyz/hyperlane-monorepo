@@ -1,6 +1,6 @@
 import type { Chain as WagmiChain } from '@wagmi/chains';
 
-import { ChainMetadata, etherToken } from '../consts/chainMetadata';
+import { ChainMetadata, etherToken } from '../consts';
 
 export function chainMetadataToWagmiChain(metadata: ChainMetadata): WagmiChain {
   return {

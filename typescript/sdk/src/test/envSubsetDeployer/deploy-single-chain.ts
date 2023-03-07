@@ -1,8 +1,8 @@
-import { Chains } from '../../consts/chains';
+import { Chains } from '../../consts';
 import { serializeContracts } from '../../contracts';
-import { HyperlaneCore } from '../../core/HyperlaneCore';
-import { getChainToOwnerMap } from '../../deploy/utils';
-import { MultiProvider } from '../../providers/MultiProvider';
+import { HyperlaneCore } from '../../core';
+import { getChainToOwnerMap } from '../../deploy';
+import { MultiProvider } from '../../providers';
 
 import { EnvSubsetDeployer, alfajoresChainConfig } from './app';
 import { getAlfajoresSigner } from './utils';

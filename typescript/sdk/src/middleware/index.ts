@@ -11,7 +11,7 @@ import {
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 
-import { ProxiedRouterContracts, RouterFactories } from './router';
+import { ProxiedRouterContracts, RouterFactories } from '../router';
 
 export type InterchainAccountFactories =
   RouterFactories<InterchainAccountRouter>;
@@ -48,3 +48,13 @@ export type LiquidityLayerContracts =
     circleBridgeAdapter?: CircleBridgeAdapter;
     portalAdapter?: PortalAdapter;
   };
+
+export { InterchainAccountDeployer, InterchainQueryDeployer } from './deploy';
+export { LiquidityLayerApp } from './liquidity-layer/LiquidityLayerApp';
+export {
+  BridgeAdapterConfig,
+  BridgeAdapterType,
+  CircleBridgeAdapterConfig,
+  LiquidityLayerDeployer,
+  PortalAdapterConfig,
+} from './liquidity-layer/LiquidityLayerRouterDeployer';

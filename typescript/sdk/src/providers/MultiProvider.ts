@@ -12,11 +12,12 @@ import { types } from '@hyperlane-xyz/utils';
 
 import {
   ChainMetadata,
+  CoreChainName,
+  TestChains,
   chainMetadata as defaultChainMetadata,
-} from '../consts/chainMetadata';
-import { CoreChainName, TestChains } from '../consts/chains';
+} from '../consts';
 import { ChainMap, ChainName } from '../types';
-import { pick } from '../utils/objects';
+import { pick } from '../utils';
 
 type Provider = providers.Provider;
 

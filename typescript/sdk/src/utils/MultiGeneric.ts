@@ -1,4 +1,4 @@
-import { AllDeprecatedChains } from '../consts/chains';
+import { AllDeprecatedChains } from '../consts';
 import { ChainMap, ChainName } from '../types';
 
 // Generalized map container for chain name to some value

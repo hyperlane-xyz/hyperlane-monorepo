@@ -3,11 +3,11 @@ import type { BigNumber, ethers } from 'ethers';
 import { GasRouter, ProxyAdmin, Router } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from './HyperlaneApp';
-import { HyperlaneContracts, HyperlaneFactories } from './contracts';
-import { ProxiedContract, TransparentProxyAddresses } from './proxy';
-import { ChainMap, ChainName } from './types';
-import { objMap, promiseObjAll } from './utils/objects';
+import { HyperlaneApp } from '../HyperlaneApp';
+import { HyperlaneContracts, HyperlaneFactories } from '../contracts';
+import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
+import { ChainMap, ChainName } from '../types';
+import { objMap, promiseObjAll } from '../utils/objects';
 
 export type RouterContracts<RouterContract extends Router = Router> =
   HyperlaneContracts & {
@@ -66,3 +66,8 @@ export class GasRouterApp<
     );
   }
 }
+
+export { GasRouterDeployer } from './GasRouterDeployer';
+export { HyperlaneRouterChecker } from './HyperlaneRouterChecker';
+export { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
+export { GasRouterConfig, RouterConfig } from './types';
