@@ -28,7 +28,7 @@ use crate::{
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         SubmitMessageArgs,
     },
-    settings::{matching_list::MatchingList, RelayerSettings},
+    settings::{matching_list::MatchingList, GasPaymentEnforcementConfig, RelayerSettings},
 };
 
 /// A relayer agent
@@ -118,20 +118,14 @@ impl BaseAgent for Relayer {
             .context("Relayer must run on a configured chain")?
             .domain()?;
 
-        let gas_enforcement_policy = settings.gaspaymentenforcement.policy;
-        let gas_enforcement_whitelist =
-            parse_matching_list(&settings.gaspaymentenforcement.whitelist);
-
-        info!(
-            ?gas_enforcement_policy,
-            %gas_enforcement_whitelist,
-            "Gas enforcement configuration"
-        );
+        let gas_enforcement_policies =
+            parse_gas_enforcement_policies(&settings.gaspaymentenforcement);
+        info!(?gas_enforcement_policies, "Gas enforcement configuration");
 
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
-            gas_enforcement_policy,
-            gas_enforcement_whitelist,
+            gas_enforcement_policies,
             mailboxes.get(&origin_chain).unwrap().db().clone(),
+            &settings.coingeckoapikey,
         ));
 
         let allow_local_checkpoint_syncers = settings.allowlocalcheckpointsyncers.unwrap_or(false);
@@ -362,6 +356,10 @@ fn parse_matching_list(list: &Option<String>) -> MatchingList {
         .transpose()
         .expect("Invalid matching list received")
         .unwrap_or_default()
+}
+
+fn parse_gas_enforcement_policies(policies: &str) -> Vec<GasPaymentEnforcementConfig> {
+    serde_json::from_str(policies).expect("Invalid gas payment enforcement configuration received")
 }
 
 #[cfg(test)]
