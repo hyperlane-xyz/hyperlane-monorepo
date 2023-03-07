@@ -10,14 +10,16 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { Chains } from '../consts';
 import { TestCoreApp, TestCoreDeployer } from '../core';
-import { InterchainAccountContracts } from '../middleware';
 import { MultiProvider } from '../providers';
 import { RouterConfig } from '../router';
 import { getTestOwnerConfig } from '../test/testUtils';
 import { ChainMap } from '../types';
 import { objMap, promiseObjAll } from '../utils';
 
-import { InterchainAccountDeployer } from './deploy';
+import {
+  InterchainAccountContracts,
+  InterchainAccountDeployer,
+} from './deploy';
 
 describe('InterchainAccountRouter', async () => {
   const localChain = Chains.test1;

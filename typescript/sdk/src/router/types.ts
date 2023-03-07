@@ -1,6 +1,10 @@
+import { ethers } from 'ethers';
+
+import { ProxyAdmin, Router } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import type { ConnectionClientConfig } from '../router';
+import { HyperlaneContracts, HyperlaneFactories } from '../contracts';
+import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 
 export type OwnableConfig = {
   owner: types.Address;
@@ -13,3 +17,30 @@ type GasConfig = {
 };
 
 export type GasRouterConfig = RouterConfig & GasConfig;
+
+export type RouterContracts<RouterContract extends Router = Router> =
+  HyperlaneContracts & {
+    router: RouterContract;
+  };
+
+export type ProxiedRouterContracts<RouterContract extends Router = Router> =
+  RouterContracts<RouterContract> & {
+    proxyAdmin: ProxyAdmin;
+    proxiedRouter: ProxiedContract<RouterContract, TransparentProxyAddresses>;
+  };
+
+type RouterFactory<RouterContract extends Router = Router> =
+  ethers.ContractFactory & {
+    deploy: (...args: any[]) => Promise<RouterContract>;
+  };
+
+export type RouterFactories<RouterContract extends Router = Router> =
+  HyperlaneFactories & {
+    router: RouterFactory<RouterContract>;
+  };
+
+export type ConnectionClientConfig = {
+  mailbox: types.Address;
+  interchainGasPaymaster: types.Address;
+  interchainSecurityModule?: types.Address;
+};
