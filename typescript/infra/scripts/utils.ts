@@ -152,8 +152,8 @@ export function getCoreVerificationDirectory(environment: DeployEnvironment) {
   return path.join(getCoreDirectory(environment), 'verification');
 }
 
-export function getCoreRustDirectory(environment: DeployEnvironment) {
-  return path.join('../../', 'rust', 'config', environment);
+export function getCoreRustDirectory() {
+  return path.join('../../', 'rust', 'config');
 }
 
 export function getKeyRoleAndChainArgs() {
