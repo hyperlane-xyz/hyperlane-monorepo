@@ -149,8 +149,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
       );
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
-      const id = log.args['messageId'];
       const parsed = utils.parseMessage(message);
+      const id = utils.messageId(message);
       return { id, message, parsed };
     });
   }
