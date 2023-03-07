@@ -77,12 +77,12 @@ use rusoto_kms::KmsClient;
 use serde::Deserialize;
 
 pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
+use hyperlane_core::utils::StrOrInt;
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
     InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
-use hyperlane_core::utils::StrOrInt;
 pub use signers::SignerConf;
 
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
