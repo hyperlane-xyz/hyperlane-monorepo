@@ -128,6 +128,10 @@ static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainSetup>,
+    /// Default signer configuration for chains which do not define their own.
+    /// This value is intentionally private as it will get consumed by
+    /// `post_deserialize`.
+    default_signer: Option<SignerConf>,
     /// Gelato config
     pub gelato: Option<GelatoConf>,
     /// Port to listen for prometheus scrape requests
@@ -257,6 +261,14 @@ impl Settings {
         )?))
     }
 
+    /// Make internal connections as-needed after deserializing.
+    pub(super) fn post_deserialize(&mut self) {
+        let Some(signer) = self.default_signer.take() else { return };
+        for chain in self.chains.values_mut() {
+            chain.signer.get_or_insert_with(|| signer.clone());
+        }
+    }
+
     /// Private to preserve linearity of AgentCore::from_settings -- creating an
     /// agent consumes the settings.
     fn clone(&self) -> Self {
@@ -265,6 +277,7 @@ impl Settings {
             gelato: self.gelato.clone(),
             metrics: self.metrics.clone(),
             tracing: self.tracing.clone(),
+            default_signer: self.default_signer.clone(),
         }
     }
 }

@@ -1,6 +1,6 @@
 //! Configuration
 
-use hyperlane_base::decl_settings;
+use hyperlane_base::{decl_settings};
 use hyperlane_core::U256;
 
 pub mod matching_list;
@@ -29,7 +29,8 @@ pub struct GasPaymentEnforcementConfig {
     pub policy: GasPaymentEnforcementPolicy,
     /// An optional whitelist, where all matching messages will be considered
     /// as if they have met the gas payment enforcement policy.
-    /// If None is provided, all messages will be considered NOT on the whitelist.
+    /// If None is provided, all messages will be considered NOT on the
+    /// whitelist.
     pub whitelist: Option<String>,
 }
 
