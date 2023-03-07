@@ -1,5 +1,4 @@
 {
-  "environment": "mainnet2",
   "chains": {
     "celo": {
       "name": "celo",

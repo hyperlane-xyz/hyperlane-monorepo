@@ -40,7 +40,7 @@ function getLiquidityLayerRelayerHelmValues(
 ) {
   const values = {
     hyperlane: {
-      runEnv: agentConfig.environment,
+      runEnv: agentConfig.runEnv,
       // Only used for fetching RPC urls as env vars
       chains: agentConfig.contextChainNames,
       connectionType: relayerConfig.connectionType,

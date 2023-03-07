@@ -10,7 +10,6 @@ import { chainNames } from './chains';
 import { validators } from './validators';
 
 export const hyperlane: AgentConfig = {
-  environment: 'test',
   namespace: 'test',
   runEnv: 'test',
   context: Contexts.Hyperlane,

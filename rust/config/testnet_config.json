@@ -1,5 +1,4 @@
 {
-  "environment": "testnet3",
   "chains": {
     "alfajores": {
       "name": "alfajores",

@@ -15,11 +15,7 @@
 //!
 //! ### Configuration
 //!
-//! Agents read settings from the config files and/or env.
-//!
-//! Config files are loaded from `rust/config/default` unless specified
-//! otherwise, i.e.  via $RUN_ENV and $BASE_CONFIG (see the definition of
-//! `decl_settings` in `rust/hyperlane-base/src/macros.rs`).
+//! Agents read settings from the config files and/or env from `config/<env?
 //!
 //! #### N.B.: Environment variable names correspond 1:1 with cfg file's JSON object hierarchy.
 //!
@@ -33,7 +29,7 @@
 //!
 //! will be read as an override to be applied against the hierarchical structure
 //! of the configuration provided by the json config file at
-//! `./config/$RUN_ENV/$BASE_CONFIG`.
+//! `./config/<env>/<config>.json`.
 //!
 //! For example, if the config file `example_config.json` is:
 //!
@@ -63,17 +59,15 @@
 //! Configuration key/value pairs are loaded in the following order, with later
 //! sources taking precedence:
 //!
-//! 1. The config file specified by the `RUN_ENV` and `BASE_CONFIG`
-//!    env vars. `$RUN_ENV/$BASE_CONFIG`
-//! 2. The config file specified by the `RUN_ENV` env var and the
-//!    agent's name. `$RUN_ENV/{agent}-partial.json`.
-//!    E.g. `$RUN_ENV/validator-partial.json`
+//! 1. The files matching `config/<env>/<config>.json`.
+//! 2. The order of configs in `CONFIG_FILES` with each sequential one
+//!    overwriting previous ones as appropriate.
 //! 3. Configuration env vars with the prefix `HYP_BASE` intended
 //!    to be shared by multiple agents in the same environment
 //!    E.g. `export HYP_BASE_INBOXES_KOVAN_DOMAIN=3000`
-//! 4. Configuration env vars with the prefix `HYP_{agent name}`
+//! 4. Configuration env vars with the prefix `HYP_<agent_prefix>`
 //!    intended to be used by a specific agent.
-//!    E.g. `export HYP_KATHY_CHAT_TYPE="static message"`
+//!    E.g. `export HYP_RELAYER_ORIGINCHAIN="ethereum"`
 
 use std::{collections::HashMap, sync::Arc};
 
