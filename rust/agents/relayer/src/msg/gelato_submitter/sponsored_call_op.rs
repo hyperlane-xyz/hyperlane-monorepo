@@ -99,6 +99,7 @@ impl SponsoredCallOp {
             .fetch_metadata(&self.message.message, self.mailbox.clone())
             .await?
         else {
+            info!("Could not fetch metadata");
             return Ok(false)
         };
 

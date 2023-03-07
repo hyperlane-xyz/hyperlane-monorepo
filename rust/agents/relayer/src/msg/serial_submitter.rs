@@ -252,6 +252,7 @@ impl SerialSubmitter {
             .fetch_metadata(&msg.message, self.mailbox.clone())
             .await?
         else {
+            info!("Could not fetch metadata");
             return Ok(false)
         };
 
