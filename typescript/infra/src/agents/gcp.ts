@@ -3,6 +3,7 @@ import { Wallet, ethers } from 'ethers';
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
+import { DeployEnvironment } from '../config';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd, include } from '../utils/utils';
 
@@ -35,7 +36,7 @@ type RemoteKey = UnfetchedKey | FetchedKey;
 
 export class AgentGCPKey extends CloudAgentKey {
   constructor(
-    environment: string,
+    environment: DeployEnvironment,
     context: Contexts,
     role: KEY_ROLE_ENUM,
     chainName?: ChainName,

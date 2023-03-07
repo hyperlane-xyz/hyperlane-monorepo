@@ -134,7 +134,7 @@ jobs:
       - name: Install Foundry
         uses: onbjerg/foundry-toolchain@v1
         with:
-          version: nightly
+          version: nightly-28b2ae6d5ad3e802b813b679e26bc15b9b8d230b
 
       - name: Install dependencies
         run: cd solidity && forge install
@@ -151,18 +151,17 @@ jobs:
           sarif: results.sarif
           fail-on: none
           ignore-compile: true
-  
+
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: ${{ steps.slither.outputs.sarif }}
-  
+
       - name: gas
         run: yarn workspace @hyperlane-xyz/core run gas-ci
 
       - name: forge-test
         run: yarn workspace @hyperlane-xyz/core run test:forge
-
 
       # Will fail if hardhat tests fail but not if forge tests fail
       - name: coverage
