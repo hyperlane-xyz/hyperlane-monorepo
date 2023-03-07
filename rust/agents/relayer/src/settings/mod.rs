@@ -64,6 +64,9 @@ decl_settings!(Relayer {
     transactiongaslimit: Option<String>,
     /// Comma separated List of domain ids to skip transaction gas for.
     skiptransactiongaslimitfor: Option<String>,
+    /// If true, allows local storage based checkpoint syncers.
+    /// Not intended for production use. Defaults to false.
+    allowlocalcheckpointsyncers: Option<bool>,
 });
 
 fn default_gasfraction() -> String {
