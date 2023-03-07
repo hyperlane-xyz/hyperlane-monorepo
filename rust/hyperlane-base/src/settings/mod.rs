@@ -82,6 +82,7 @@ use hyperlane_core::{
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
     InterchainGasPaymasterIndexer, Mailbox, MailboxIndexer, MultisigIsm, ValidatorAnnounce, H256,
 };
+use hyperlane_core::utils::StrOrInt;
 pub use signers::SignerConf;
 
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
@@ -135,7 +136,7 @@ pub struct Settings {
     /// Gelato config
     pub gelato: Option<GelatoConf>,
     /// Port to listen for prometheus scrape requests
-    pub metrics: Option<String>,
+    pub metrics: Option<StrOrInt>,
     /// The tracing configuration
     pub tracing: TracingConfig,
 }
@@ -255,7 +256,7 @@ impl Settings {
             name,
             self.metrics
                 .as_ref()
-                .map(|v| v.parse::<u16>().context("Port must be a valid u16"))
+                .map(|v| v.try_into().context("Port must be a valid u16"))
                 .transpose()?,
             prometheus::Registry::new(),
         )?))
