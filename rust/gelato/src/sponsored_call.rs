@@ -30,7 +30,7 @@ pub struct SponsoredCallArgs {
 
 #[derive(Debug, Clone)]
 pub struct SponsoredCallApiCall<'a> {
-    pub http: reqwest::Client,
+    pub http: &'a reqwest::Client,
     pub args: &'a SponsoredCallArgs,
     pub sponsor_api_key: &'a str,
 }

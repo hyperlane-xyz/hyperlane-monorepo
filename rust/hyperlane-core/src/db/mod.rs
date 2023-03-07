@@ -17,6 +17,9 @@ mod hyperlane_db;
 /// Type-specific db operations
 mod typed_db;
 
+/// Internal-use storage types.
+mod storage_types;
+
 #[derive(Debug, Clone)]
 /// A KV Store
 pub struct DB(Arc<Rocks>);
