@@ -5,9 +5,7 @@ metadata:
   labels:
     {{- include "agent-common.labels" . | nindent 4 }}
 data:
-  RUN_ENV: {{ .Values.hyperlane.runEnv | quote }}
   ONELINE_BACKTRACES: "true"
-  BASE_CONFIG: {{ .Values.hyperlane.baseConfig }}
   RUST_BACKTRACE: {{ .Values.hyperlane.rustBacktrace }}
   HYP_BASE_DB: {{ .Values.hyperlane.dbPath }}
   HYP_BASE_TRACING_FMT: {{ .Values.hyperlane.tracing.format }}

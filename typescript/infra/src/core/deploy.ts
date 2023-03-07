@@ -23,6 +23,7 @@ import { types } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';
 import { ConnectionType } from '../config/agent';
+import { deployEnvToSdkEnv } from '../config/environment';
 import { writeJSON } from '../utils/utils';
 
 export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
@@ -109,7 +110,6 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
 
   writeRustConfigs(directory: string) {
     const rustConfig: RustConfig = {
-      environment: this.environment,
       chains: {},
       db: 'db_path',
       tracing: {
@@ -154,6 +154,10 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
 
       rustConfig.chains[chain] = chainConfig;
     });
-    writeJSON(directory, `${this.environment}_config.json`, rustConfig);
+    writeJSON(
+      directory,
+      `${deployEnvToSdkEnv[this.environment]}_config.json`,
+      rustConfig,
+    );
   }
 }
