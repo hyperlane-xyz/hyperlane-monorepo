@@ -4,6 +4,7 @@ import { HDNode } from 'ethers/lib/utils';
 import { Contexts } from '../../config/contexts';
 import { AgentGCPKey } from '../agents/gcp';
 import { KEY_ROLE_ENUM } from '../agents/roles';
+import { DeployEnvironment } from '../config';
 
 // Keys that are derived from the deployer key, mainly to have deterministic addresses on every chain
 // The order here matters so don't mix it up
@@ -20,7 +21,7 @@ const DeterministicKeyRoleNonces = {
 };
 
 export const getDeterministicKey = async (
-  environment: string,
+  environment: DeployEnvironment,
   deterministicKeyRole: DeterministicKeyRoles,
 ) => {
   const deployerKey = new AgentGCPKey(
