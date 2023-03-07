@@ -44,6 +44,7 @@ pub struct Relayer {
     blacklist: Arc<MatchingList>,
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
+    allow_local_checkpoint_syncers: bool,
 }
 
 impl AsRef<HyperlaneAgentCore> for Relayer {
@@ -133,6 +134,8 @@ impl BaseAgent for Relayer {
             mailboxes.get(&origin_chain).unwrap().db().clone(),
         ));
 
+        let allow_local_checkpoint_syncers = settings.allowlocalcheckpointsyncers.unwrap_or(false);
+
         Ok(Self {
             origin_chain,
             core,
@@ -144,6 +147,7 @@ impl BaseAgent for Relayer {
             blacklist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
+            allow_local_checkpoint_syncers,
         })
     }
 
@@ -183,6 +187,7 @@ impl BaseAgent for Relayer {
                 chain_setup,
                 prover_sync.clone(),
                 self.validator_announce.clone(),
+                self.allow_local_checkpoint_syncers,
                 self.core.metrics.clone(),
             );
             tasks.push(self.run_destination_mailbox(
