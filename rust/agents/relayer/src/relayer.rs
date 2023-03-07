@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{bail, ensure, Context, Result};
+use eyre::{ensure, Context, Result};
 use hyperlane_core::U256;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},

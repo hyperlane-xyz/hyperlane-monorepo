@@ -132,7 +132,7 @@ pub struct Settings {
     /// Default signer configuration for chains which do not define their own.
     /// This value is intentionally private as it will get consumed by
     /// `post_deserialize`.
-    default_signer: Option<SignerConf>,
+    defaultsigner: Option<SignerConf>,
     /// Gelato config
     pub gelato: Option<GelatoConf>,
     /// Port to listen for prometheus scrape requests
@@ -264,7 +264,7 @@ impl Settings {
 
     /// Make internal connections as-needed after deserializing.
     pub(super) fn post_deserialize(&mut self) {
-        let Some(signer) = self.default_signer.take() else { return };
+        let Some(signer) = self.defaultsigner.take() else { return };
         for chain in self.chains.values_mut() {
             chain.signer.get_or_insert_with(|| signer.clone());
         }
@@ -278,7 +278,7 @@ impl Settings {
             gelato: self.gelato.clone(),
             metrics: self.metrics.clone(),
             tracing: self.tracing.clone(),
-            default_signer: self.default_signer.clone(),
+            defaultsigner: self.defaultsigner.clone(),
         }
     }
 }
