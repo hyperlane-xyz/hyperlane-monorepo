@@ -6,7 +6,7 @@ use std::sync::Arc;
 use derive_new::new;
 use eyre::Context;
 use tokio::sync::RwLock;
-use tracing::{debug, instrument};
+use tracing::{debug, info, instrument};
 
 use hyperlane_base::{
     CachingMailbox, ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics,
@@ -57,7 +57,7 @@ impl MetadataBuilder {
             .await
             .context(CTX)?
         {
-            debug!(
+            info!(
                 recipient=?message.recipient,
                 "Could not fetch metadata: Recipient is not a contract"
             );
@@ -92,7 +92,7 @@ impl MetadataBuilder {
             )
             .await.context(CTX)?
         else {
-            debug!(
+            info!(
                 ?validators, threshold, highest_known_nonce,
                 "Could not fetch metadata: Unable to reach quorum"
             );
@@ -123,7 +123,7 @@ impl MetadataBuilder {
                 multisig_ism.format_metadata(&validators, threshold, &checkpoint, &proof);
             Ok(Some(metadata))
         } else {
-            debug!(
+            info!(
                 ?checkpoint,
                 canonical_root = ?proof.root(),
                 "Could not fetch metadata: Signed checkpoint does not match canonical root"
