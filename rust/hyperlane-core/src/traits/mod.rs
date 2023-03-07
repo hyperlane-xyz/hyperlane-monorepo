@@ -27,6 +27,10 @@ pub struct TxOutcome {
     pub txid: crate::H256,
     /// True if executed, false otherwise (reverted, etc.)
     pub executed: bool,
+    /// Amount of gas used on this transaction.
+    pub gas_used: crate::U256,
+    /// Price paid for the gas
+    pub gas_price: crate::U256,
     // TODO: more? What can be abstracted across all chains?
 }
 
@@ -35,6 +39,8 @@ impl From<ethers::prelude::TransactionReceipt> for TxOutcome {
         Self {
             txid: t.transaction_hash,
             executed: t.status.unwrap().low_u32() == 1,
+            gas_used: t.gas_used.unwrap_or(crate::U256::zero()),
+            gas_price: t.effective_gas_price.unwrap_or(crate::U256::zero()),
         }
     }
 }

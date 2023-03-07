@@ -272,21 +272,17 @@ impl SerialSubmitter {
         };
 
         // If the gas payment requirement hasn't been met, move to the next tick.
-        let (meets_gas_requirement, gas_payment) = self
+        let Some(gas_limit) = self
             .gas_payment_enforcer
             .message_meets_gas_payment_requirement(&msg.message, &tx_cost_estimate)
-            .await?;
-        if !meets_gas_requirement {
-            info!(
-                ?gas_payment,
-                ?tx_cost_estimate,
-                "Gas payment requirement not met yet"
-            );
+            .await?
+        else {
+            info!(?tx_cost_estimate, "Gas payment requirement not met yet");
             return Ok(false);
-        }
+        };
 
         // Go ahead and attempt processing of message to destination chain.
-        debug!(?gas_payment, ?tx_cost_estimate, "Ready to process message");
+        debug!(?gas_limit, "Ready to process message");
 
         // TODO: consider differentiating types of processing errors, and pushing to the front of the
         // run queue for intermittent types of errors that can occur even if a message's processing isn't
@@ -304,27 +300,31 @@ impl SerialSubmitter {
 
         // We use the estimated gas limit from the prior call to `process_estimate_costs` to
         // avoid a second gas estimation.
-        let process_result = self
+        let outcome = self
             .mailbox
             .process(&msg.message, &metadata, Some(gas_limit))
-            .await;
-        match process_result {
-            // TODO(trevor): Instead of immediately marking as processed, move to a verification
-            // queue, which will wait for finality and indexing by the mailbox indexer and then mark
-            // as processed (or eventually retry if no confirmation is ever seen).
+            .await?;
 
-            // Only mark the message as processed if the transaction didn't revert.
-            Ok(outcome) if outcome.executed => {
-                info!(hash=?outcome.txid,
-                wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
-                "Message successfully processed by transaction");
-                Ok(true)
-            }
-            Ok(outcome) => {
-                info!(hash=?outcome.txid, "Transaction attempting to process transaction reverted");
-                Ok(false)
-            }
-            Err(e) => Err(e.into()),
+        // TODO(trevor): Instead of immediately marking as processed, move to a verification
+        //  queue, which will wait for finality and indexing by the mailbox indexer and then mark
+        //  as processed (or eventually retry if no confirmation is ever seen).
+
+        self.gas_payment_enforcer
+            .record_tx_outcome(&msg.message, outcome)?;
+        if outcome.executed {
+            info!(
+                hash=?outcome.txid,
+                wq_sz=?self.wait_queue.len(),
+                rq_sz=?self.run_queue.len(),
+                "Message successfully processed by transaction"
+            );
+            Ok(true)
+        } else {
+            info!(
+                hash=?outcome.txid,
+                "Transaction attempting to process transaction reverted"
+            );
+            Ok(false)
         }
     }
 
