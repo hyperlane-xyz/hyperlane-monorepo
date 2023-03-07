@@ -161,6 +161,7 @@ fn main() -> ExitCode {
         "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
         "HYP_RELAYER_DESTINATIONCHAINNAMES" => "test2,test3",
         "HYP_RELAYER_WHITELIST" => r#"[{"senderAddress": "*", "destinationDomain": ["13372", "13373"], "recipientAddress": "*"}]"#,
+        "HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS" => "true",
     };
 
     let validator_env = hashmap! {
