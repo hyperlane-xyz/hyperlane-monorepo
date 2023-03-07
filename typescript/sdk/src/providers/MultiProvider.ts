@@ -513,7 +513,7 @@ export class MultiProvider {
     const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
     this.logger(
       `Pending ${
-        txUrl || 'transaction'
+        txUrl || response.hash
       } (waiting ${confirmations} blocks for confirmation)`,
     );
     return response.wait(confirmations);
