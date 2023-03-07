@@ -1,6 +1,13 @@
 import type { BigNumber, ethers } from 'ethers';
 
-import { GasRouter, ProxyAdmin, Router } from '@hyperlane-xyz/core';
+import {
+  GasRouter,
+  IInterchainGasPaymaster,
+  IInterchainSecurityModule,
+  Mailbox,
+  ProxyAdmin,
+  Router,
+} from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
@@ -29,6 +36,15 @@ export type RouterFactories<RouterContract extends Router = Router> =
   HyperlaneFactories & {
     router: RouterFactory<RouterContract>;
   };
+
+export type ConnectionClientContracts = {
+  mailbox: ProxiedContract<Mailbox, TransparentProxyAddresses>;
+  interchainGasPaymaster: ProxiedContract<
+    IInterchainGasPaymaster,
+    TransparentProxyAddresses
+  >;
+  interchainSecurityModule?: IInterchainSecurityModule;
+};
 
 export type ConnectionClientConfig = {
   mailbox: types.Address;

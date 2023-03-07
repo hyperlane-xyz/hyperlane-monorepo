@@ -7,9 +7,8 @@ import { HyperlaneApp } from '../HyperlaneApp';
 import { coreEnvironments } from '../consts';
 import { buildContracts } from '../contracts';
 import { MultiProvider } from '../providers';
-import { ConnectionClientConfig } from '../router';
-import { ChainMap, ChainName } from '../types';
-import { objMap, pick } from '../utils';
+import { ChainName } from '../types';
+import { pick } from '../utils';
 
 import { CoreContracts, coreFactories } from './contracts';
 
@@ -59,34 +58,6 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
 
   getContracts(chain: ChainName): CoreContracts {
     return super.getContracts(chain);
-  }
-
-  getConnectionClientConfig(chain: ChainName): ConnectionClientConfig {
-    const contracts = this.getContracts(chain);
-    return {
-      mailbox: contracts.mailbox.address,
-      // TODO allow these to be more easily changed
-      interchainGasPaymaster:
-        contracts.defaultIsmInterchainGasPaymaster.address,
-    };
-  }
-
-  getConnectionClientConfigMap(): ChainMap<ConnectionClientConfig> {
-    return objMap(this.contractsMap, (chain) =>
-      this.getConnectionClientConfig(chain),
-    );
-  }
-
-  extendWithConnectionClientConfig<T>(
-    configMap: ChainMap<T>,
-  ): ChainMap<T & ConnectionClientConfig> {
-    const connectionClientConfigMap = this.getConnectionClientConfigMap();
-    return objMap(configMap, (chain, config) => {
-      return {
-        ...config,
-        ...connectionClientConfigMap[chain],
-      };
-    });
   }
 
   protected getDestination(message: DispatchedMessage): {

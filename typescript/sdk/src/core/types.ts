@@ -1,21 +1,8 @@
-import {
-  InterchainGasPaymaster,
-  Mailbox,
-  MultisigIsm,
-} from '@hyperlane-xyz/core';
+import { Mailbox, MultisigIsm } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import type { CheckerViolation } from '../deploy';
-import { ChainMap, ChainName } from '../types';
-
-export enum GasOracleContractType {
-  StorageGasOracle = 'StorageGasOracle',
-}
-
-export type InterchainGasPaymasterConfig = {
-  beneficiary: types.Address;
-  gasOracles: ChainMap<GasOracleContractType>;
-};
+import { ChainName } from '../types';
 
 export type MultisigIsmConfig = {
   validators: Array<types.Address>;
@@ -25,7 +12,6 @@ export type MultisigIsmConfig = {
 export type CoreConfig = {
   multisigIsm: MultisigIsmConfig;
   owner: types.Address;
-  igp: InterchainGasPaymasterConfig;
   remove?: boolean;
 };
 
@@ -34,7 +20,6 @@ export enum CoreViolationType {
   Mailbox = 'Mailbox',
   ConnectionManager = 'ConnectionManager',
   ValidatorAnnounce = 'ValidatorAnnounce',
-  InterchainGasPaymaster = 'InterchainGasPaymaster',
 }
 
 export enum MultisigIsmViolationType {
@@ -44,11 +29,6 @@ export enum MultisigIsmViolationType {
 
 export enum MailboxViolationType {
   DefaultIsm = 'DefaultIsm',
-}
-
-export enum IgpViolationType {
-  Beneficiary = 'Beneficiary',
-  GasOracles = 'GasOracles',
 }
 
 export interface MailboxViolation extends CheckerViolation {
@@ -87,22 +67,4 @@ export interface ValidatorAnnounceViolation extends CheckerViolation {
   validator: types.Address;
   actual: boolean;
   expected: boolean;
-}
-
-export interface IgpViolation extends CheckerViolation {
-  type: CoreViolationType.InterchainGasPaymaster;
-  contract: InterchainGasPaymaster;
-  subType: IgpViolationType;
-}
-
-export interface IgpBeneficiaryViolation extends IgpViolation {
-  subType: IgpViolationType.Beneficiary;
-  actual: types.Address;
-  expected: types.Address;
-}
-
-export interface IgpGasOraclesViolation extends IgpViolation {
-  subType: IgpViolationType.GasOracles;
-  actual: ChainMap<types.Address>;
-  expected: ChainMap<types.Address>;
 }

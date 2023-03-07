@@ -1,5 +1,6 @@
 import { types } from '@hyperlane-xyz/utils';
 
+import { CoreAddresses } from '../../core';
 import { ChainMap } from '../../types';
 import { objMap } from '../../utils';
 
@@ -9,17 +10,31 @@ import testnet from './testnet.json';
 
 export const environments = { test, testnet, mainnet };
 
-type HyperlaneCoreAddressMap = ChainMap<{
+/*
+type HyperlanceContractAddresses = CoreAddresses & MiddlewareAddresses & IgpAddresses &
   mailbox: types.Address;
   multisigIsm: types.Address;
   interchainGasPaymaster: types.Address;
   interchainAccountRouter?: types.Address;
   interchainQueryRouter?: types.Address;
   create2Factory: types.Address;
-}>;
+};
+*/
 
 // Export developer-relevant addresses
 export const hyperlaneCoreAddresses = objMap(
+  { ...testnet, ...mainnet },
+  (_chain, addresses) => ({
+    mailbox: addresses.mailbox.proxy,
+    multisigIsm: addresses.multisigIsm,
+    proxyAdmin: addresses.proxyAdmin,
+    validatorAnnounce: addresses.validatorAnnounce,
+  }),
+) as ChainMap<CoreAddresses>;
+
+/*
+// Export developer-relevant addresses
+export const hyperlaneMiddlewareAddresses = objMap(
   { ...testnet, ...mainnet },
   (_chain, addresses) => ({
     mailbox: addresses.mailbox.proxy,
@@ -29,4 +44,5 @@ export const hyperlaneCoreAddresses = objMap(
     interchainQueryRouter: undefined,
     create2Factory: addresses.create2Factory,
   }),
-) as HyperlaneCoreAddressMap;
+) as ChainMap<CoreAddresses>;
+*/

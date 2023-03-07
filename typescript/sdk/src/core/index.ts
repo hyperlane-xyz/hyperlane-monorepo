@@ -1,9 +1,4 @@
-export {
-  ConnectionClientContracts,
-  CoreContracts,
-  coreFactories,
-  GasOracleContracts,
-} from './contracts';
+export { CoreAddresses, CoreContracts, coreFactories } from './contracts';
 export {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
