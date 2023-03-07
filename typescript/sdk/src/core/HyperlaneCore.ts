@@ -147,7 +147,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
         (log): log is ethers.utils.LogDescription =>
           !!log && log.name === 'Dispatch',
       );
-    return dispatchLogs.map((log, i) => {
+    return dispatchLogs.map((log) => {
       const message = log.args['message'];
       const parsed = utils.parseMessage(message);
       const id = utils.messageId(message);
