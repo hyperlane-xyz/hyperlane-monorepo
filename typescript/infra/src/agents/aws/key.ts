@@ -48,7 +48,7 @@ export class AgentAwsKey extends CloudAgentKey {
     chainName?: ChainName,
     index?: number,
   ) {
-    super(agentConfig.environment, agentConfig.context, role, chainName, index);
+    super(agentConfig.runEnv, agentConfig.context, role, chainName, index);
     if (!agentConfig.aws) {
       throw new Error('Not configured as AWS');
     }

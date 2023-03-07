@@ -7,13 +7,13 @@ import {
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
 
-import { CoreConfig, GasOracleContractType } from '../core';
 import { MultiProvider } from '../providers';
 import { ChainMap, ChainName } from '../types';
 
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
 import { TestCoreApp } from './TestCoreApp';
 import { coreFactories } from './contracts';
+import { CoreConfig, GasOracleContractType } from './types';
 
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
