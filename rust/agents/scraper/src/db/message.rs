@@ -4,7 +4,7 @@ use sea_orm::{
 };
 use tracing::{instrument, trace};
 
-use hyperlane_core::{HyperlaneMessage, LogMeta, H256};
+use hyperlane_core::{HyperlaneMessage, InterchainGasPayment, LogMeta, H256};
 use migration::OnConflict;
 
 use crate::conversions::format_h256;
@@ -27,6 +27,13 @@ pub struct StorableMessage<'a> {
     /// The database id of the transaction the message was sent in
     pub txn_id: i64,
     pub timestamp: TimeDateTime,
+}
+
+pub struct StorablePayment<'a> {
+    pub payment: &'a InterchainGasPayment,
+    pub meta: &'a LogMeta,
+    /// The database id of the transaction the payment was made in
+    pub txn_id: i64,
 }
 
 impl ScraperDb {
@@ -150,5 +157,14 @@ impl ScraperDb {
             .exec(&self.0)
             .await?;
         Ok(())
+    }
+
+    #[instrument(skip_all)]
+    pub async fn store_payments(
+        &self,
+        domain: u32,
+        payments: impl Iterator<Item = StorablePayment<'_>>,
+    ) -> Result<()> {
+        todo!()
     }
 }

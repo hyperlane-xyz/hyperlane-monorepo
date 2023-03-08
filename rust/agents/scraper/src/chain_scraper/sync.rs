@@ -13,7 +13,9 @@ use hyperlane_core::{
     KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor, H256,
 };
 
-use crate::chain_scraper::{Delivery, HyperlaneMessageWithMeta, SqlChainScraper, TxnWithIdAndTime};
+use crate::chain_scraper::{
+    Delivery, HyperlaneMessageWithMeta, Payment, SqlChainScraper, TxnWithIdAndTime,
+};
 
 /// Workhorse of synchronization. This consumes a `SqlChainScraper` which has
 /// the needed connections and information to work and then adds additional
@@ -120,18 +122,19 @@ impl Syncer {
                 }
             };
 
-            let (sorted_messages, deliveries) = self.scrape_range(from, to).await?;
+            let extracted = self.scrape_range(from, to).await?;
 
             let validation = validate_message_continuity(
                 Some(self.last_nonce),
-                &sorted_messages
+                &extracted
+                    .sorted_messages
                     .iter()
                     .map(|r| &r.message)
                     .collect::<Vec<_>>(),
             );
             match validation {
                 ListValidity::Valid => {
-                    let max_nonce_of_batch = self.record_data(sorted_messages, deliveries).await?;
+                    let max_nonce_of_batch = self.record_data(extracted).await?;
 
                     self.cursor.update(from as u64).await;
                     if let Some(idx) = max_nonce_of_batch {
@@ -141,7 +144,7 @@ impl Syncer {
                     self.indexed_height.set(to as i64);
                 }
                 ListValidity::Empty => {
-                    let _ = self.record_data(sorted_messages, deliveries).await?;
+                    let _ = self.record_data(extracted).await?;
                     self.indexed_height.set(to as i64);
                 }
                 ListValidity::InvalidContinuation => {
@@ -175,11 +178,7 @@ impl Syncer {
 
     /// Fetch contract data from a given block range.
     #[instrument(skip(self))]
-    async fn scrape_range(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> Result<(Vec<HyperlaneMessageWithMeta>, Vec<Delivery>)> {
+    async fn scrape_range(&self, from: u32, to: u32) -> Result<ExtractedData> {
         let sorted_messages = self
             .contracts
             .mailbox_indexer
@@ -193,6 +192,15 @@ impl Syncer {
             .await?
             .into_iter()
             .map(|(message_id, meta)| Delivery { message_id, meta })
+            .collect_vec();
+
+        let payments = self
+            .contracts
+            .igp_indexer
+            .fetch_gas_payments(from, to)
+            .await?
+            .into_iter()
+            .map(|(payment, meta)| Payment { payment, meta })
             .collect_vec();
 
         debug!(
@@ -216,20 +224,30 @@ impl Syncer {
             "Filtered any messages already indexed for mailbox"
         );
 
-        Ok((sorted_messages, deliveries))
+        Ok(ExtractedData {
+            sorted_messages,
+            deliveries,
+            payments,
+        })
     }
 
     /// Record messages and deliveries, will fetch any extra data needed to do
     /// so. Returns the max nonce or None if no messages were provided.
     #[instrument(
         skip_all,
-        fields(sorted_messages = sorted_messages.len(), deliveries = deliveries.len())
+        fields(
+            sorted_messages = extracted.sorted_messages.len(),
+            deliveries = extracted.deliveries.len(),
+            payments = extracted.payments.len()
+        )
     )]
-    async fn record_data(
-        &self,
-        sorted_messages: Vec<HyperlaneMessageWithMeta>,
-        deliveries: Vec<Delivery>,
-    ) -> Result<Option<u32>> {
+    async fn record_data(&self, extracted: ExtractedData) -> Result<Option<u32>> {
+        let ExtractedData {
+            sorted_messages,
+            deliveries,
+            payments,
+        } = extracted;
+
         let txns: HashMap<H256, TxnWithIdAndTime> = self
             .ensure_blocks_and_txns(
                 sorted_messages
@@ -244,6 +262,11 @@ impl Syncer {
         if !deliveries.is_empty() {
             self.store_deliveries(&deliveries, &txns).await?;
             self.stored_deliveries.inc_by(deliveries.len() as u64);
+        }
+
+        if !payments.is_empty() {
+            self.store_payments(&payments, &txns).await?;
+            self.stored_payments.inc_by(payments.len() as u64);
         }
 
         if !sorted_messages.is_empty() {
@@ -264,4 +287,10 @@ impl Syncer {
             Ok(None)
         }
     }
+}
+
+struct ExtractedData {
+    sorted_messages: Vec<HyperlaneMessageWithMeta>,
+    deliveries: Vec<Delivery>,
+    payments: Vec<Payment>,
 }

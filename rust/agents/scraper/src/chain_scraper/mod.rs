@@ -10,17 +10,20 @@ use futures::TryFutureExt;
 use sea_orm::prelude::TimeDateTime;
 use tracing::trace;
 
-use hyperlane_base::chains::IndexSettings;
-use hyperlane_base::ContractSyncMetrics;
+use hyperlane_base::{chains::IndexSettings, ContractSyncMetrics};
 use hyperlane_core::{
-    BlockInfo, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, LogMeta,
-    Mailbox, MailboxIndexer, H256, U256,
+    BlockInfo, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, Mailbox, MailboxIndexer, H256,
+    U256,
 };
 
-use crate::chain_scraper::sync::Syncer;
-use crate::date_time;
-use crate::db::{
-    BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn,
+use crate::{
+    chain_scraper::sync::Syncer,
+    date_time,
+    db::{
+        BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorablePayment,
+        StorableTxn,
+    },
 };
 
 mod sync;
@@ -29,7 +32,8 @@ mod sync;
 #[derive(Debug, Clone)]
 pub struct Contracts {
     pub mailbox: Arc<dyn Mailbox>,
-    pub indexer: Arc<dyn MailboxIndexer>,
+    pub mailbox_indexer: Arc<dyn MailboxIndexer>,
+    pub igp_indexer: Arc<dyn InterchainGasPaymasterIndexer>,
     pub provider: Arc<dyn HyperlaneProvider>,
 }
 
@@ -142,6 +146,23 @@ impl SqlChainScraper {
                 storable,
             )
             .await
+    }
+
+    async fn store_payments(
+        &self,
+        payments: &[Payment],
+        txns: &HashMap<H256, TxnWithIdAndTime>,
+    ) -> Result<()> {
+        if payments.is_empty() {
+            return Ok(());
+        }
+
+        let storable = payments.iter().map(|payment| {
+            let txn_id = txns.get(&payment.meta.transaction_hash).unwrap().id;
+            payment.as_storable(txn_id)
+        });
+
+        self.db.store_payments(self.domain().id(), storable).await
     }
 
     /// Takes a list of txn and block hashes and ensure they are all in the
@@ -348,6 +369,22 @@ impl Delivery {
     fn as_storable(&self, txn_id: i64) -> StorableDelivery {
         StorableDelivery {
             message_id: self.message_id,
+            meta: &self.meta,
+            txn_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Payment {
+    payment: InterchainGasPayment,
+    meta: LogMeta,
+}
+
+impl Payment {
+    fn as_storable(&self, txn_id: i64) -> StorablePayment {
+        StorablePayment {
+            payment: &self.payment,
             meta: &self.meta,
             txn_id,
         }

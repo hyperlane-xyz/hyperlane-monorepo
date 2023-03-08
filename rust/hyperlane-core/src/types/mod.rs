@@ -108,13 +108,13 @@ impl Decode for InterchainGasPaymentMeta {
     }
 }
 
-/// An InterchainGasPayment with metadata to uniquely identify the payment
-#[derive(Debug)]
-pub struct InterchainGasPaymentWithMeta {
-    /// The InterchainGasPayment
-    pub payment: InterchainGasPayment,
-    /// Metadata for the payment
-    pub meta: InterchainGasPaymentMeta,
+impl From<&LogMeta> for InterchainGasPaymentMeta {
+    fn from(meta: &LogMeta) -> Self {
+        Self {
+            transaction_hash: meta.transaction_hash,
+            log_index: meta.log_index.as_u64(),
+        }
+    }
 }
 
 /// A cost estimate for a transaction.
