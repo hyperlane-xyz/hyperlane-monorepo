@@ -156,10 +156,11 @@ fn main() -> ExitCode {
         "HYP_BASE_CHAINS_TEST2_SIGNER_TYPE" => "hexKey",
         "HYP_BASE_CHAINS_TEST3_SIGNER_KEY" => "701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82",
         "HYP_BASE_CHAINS_TEST3_SIGNER_TYPE" => "hexKey",
-        "HYP_RELAYER_GASPAYMENTENFORCEMENT_POLICY_TYPE" => "none",
+        "HYP_RELAYER_GASPAYMENTENFORCEMENT" => r#"[{"type": "none"}]"#,
         "HYP_RELAYER_ORIGINCHAINNAME" => "test1",
         "HYP_RELAYER_DESTINATIONCHAINNAMES" => "test2,test3",
-        "HYP_RELAYER_WHITELIST" => r#"[{"senderAddress": "*", "destinationDomain": ["13372", "13373"], "recipientAddress": "*"}]"#,
+        "HYP_RELAYER_WHITELIST" => r#"[{"senderAddress": "*", "destinationDomain": [13372, 13373], "recipientAddress": "*"}]"#,
+        "HYP_RELAYER_ALLOWLOCALCHECKPOINTSYNCERS" => "true",
     };
 
     let validator_env = hashmap! {

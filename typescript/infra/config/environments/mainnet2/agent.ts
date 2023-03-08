@@ -50,17 +50,20 @@ export const hyperlane: AgentConfig = {
           recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
         },
       ],
-      gasPaymentEnforcement: {
-        policy: {
+      gasPaymentEnforcement: [
+        {
+          type: GasPaymentEnforcementPolicyType.None,
+          // To continue relaying interchain query callbacks, we whitelist
+          // all messages between interchain query routers.
+          // This whitelist will become more strict with
+          // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
+          matchingList: interchainQueriesMatchingList,
+        },
+        {
           type: GasPaymentEnforcementPolicyType.Minimum,
           payment: 1,
         },
-        // To continue relaying interchain query callbacks, we whitelist
-        // all messages between interchain query routers.
-        // This whitelist will become more strict with
-        // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
-        whitelist: interchainQueriesMatchingList,
-      },
+      ],
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,
@@ -86,13 +89,16 @@ export const releaseCandidate: AgentConfig = {
   relayer: {
     default: {
       whitelist: releaseCandidateHelloworldMatchingList,
-      gasPaymentEnforcement: {
-        policy: {
+      gasPaymentEnforcement: [
+        {
+          type: GasPaymentEnforcementPolicyType.None,
+          matchingList: interchainQueriesMatchingList,
+        },
+        {
           type: GasPaymentEnforcementPolicyType.Minimum,
           payment: 1,
         },
-        whitelist: interchainQueriesMatchingList,
-      },
+      ],
       transactionGasLimit: 750000,
       // Skipping arbitrum because the gas price estimates are inclusive of L1
       // fees which leads to wildly off predictions.
