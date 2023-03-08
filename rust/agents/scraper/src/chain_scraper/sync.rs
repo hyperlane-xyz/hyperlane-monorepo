@@ -25,10 +25,10 @@ use crate::chain_scraper::{Delivery, HyperlaneMessageWithMeta, SqlChainScraper, 
 /// configured but as a struct + multiple functions.
 pub(super) struct Syncer {
     scraper: SqlChainScraper,
-    indexed_message_height: IntGauge,
-    indexed_deliveries_height: IntGauge,
+    indexed_height: IntGauge,
     stored_messages: IntCounter,
     stored_deliveries: IntCounter,
+    stored_payments: IntCounter,
     missed_messages: IntCounter,
     message_nonce: IntGaugeVec,
     sync_cursor: RateLimitedSyncBlockRangeCursor<Arc<dyn MailboxIndexer>>,
@@ -54,29 +54,27 @@ impl Syncer {
     pub async fn new(scraper: SqlChainScraper) -> Result<Self> {
         let domain = scraper.domain();
         let chain_name = domain.name();
-        let message_labels = ["messages", chain_name];
-        let deliveries_labels = ["deliveries", chain_name];
 
-        let indexed_message_height = scraper
+        let indexed_height = scraper
             .metrics
             .indexed_height
-            .with_label_values(&message_labels);
-        let indexed_deliveries_height = scraper
-            .metrics
-            .indexed_height
-            .with_label_values(&deliveries_labels);
-        let stored_messages = scraper
-            .metrics
-            .stored_events
-            .with_label_values(&message_labels);
+            .with_label_values(&["all", chain_name]);
         let stored_deliveries = scraper
             .metrics
             .stored_events
-            .with_label_values(&deliveries_labels);
+            .with_label_values(&["deliveries", chain_name]);
+        let stored_payments = scraper
+            .metrics
+            .stored_events
+            .with_label_values(&["gas_payments", chain_name]);
+        let stored_messages = scraper
+            .metrics
+            .stored_events
+            .with_label_values(&["messages", chain_name]);
         let missed_messages = scraper
             .metrics
             .missed_events
-            .with_label_values(&message_labels);
+            .with_label_values(&["messages", chain_name]);
         let message_nonce = scraper.metrics.message_nonce.clone();
 
         let chunk_size = scraper.chunk_size;
@@ -85,7 +83,7 @@ impl Syncer {
         let last_nonce = scraper.last_message_nonce().await?.unwrap_or(0);
 
         let sync_cursor = RateLimitedSyncBlockRangeCursor::new(
-            scraper.contracts.indexer.clone(),
+            scraper.contracts.mailbox_indexer.clone(),
             chunk_size,
             initial_height,
         )
@@ -93,10 +91,10 @@ impl Syncer {
 
         Ok(Self {
             scraper,
-            indexed_message_height,
-            indexed_deliveries_height,
+            indexed_height,
             stored_messages,
             stored_deliveries,
+            stored_payments,
             missed_messages,
             message_nonce,
             sync_cursor,
@@ -110,8 +108,7 @@ impl Syncer {
     pub async fn run(mut self) -> Result<()> {
         let start_block = self.sync_cursor.current_position();
         info!(from = start_block, "Resuming chain sync");
-        self.indexed_message_height.set(start_block as i64);
-        self.indexed_deliveries_height.set(start_block as i64);
+        self.indexed_height.set(start_block as i64);
 
         loop {
             let start_block = self.sync_cursor.current_position();
@@ -141,13 +138,11 @@ impl Syncer {
                         self.last_nonce = idx;
                     }
                     self.last_valid_range_start_block = from;
-                    self.indexed_message_height.set(to as i64);
-                    self.indexed_deliveries_height.set(to as i64);
+                    self.indexed_height.set(to as i64);
                 }
                 ListValidity::Empty => {
                     let _ = self.record_data(sorted_messages, deliveries).await?;
-                    self.indexed_message_height.set(to as i64);
-                    self.indexed_deliveries_height.set(to as i64);
+                    self.indexed_height.set(to as i64);
                 }
                 ListValidity::InvalidContinuation => {
                     self.missed_messages.inc();
@@ -160,9 +155,7 @@ impl Syncer {
                     );
                     self.sync_cursor
                         .backtrack(self.last_valid_range_start_block);
-                    self.indexed_message_height
-                        .set(self.last_valid_range_start_block as i64);
-                    self.indexed_deliveries_height
+                    self.indexed_height
                         .set(self.last_valid_range_start_block as i64);
                 }
                 ListValidity::ContainsGaps => {
@@ -189,13 +182,13 @@ impl Syncer {
     ) -> Result<(Vec<HyperlaneMessageWithMeta>, Vec<Delivery>)> {
         let sorted_messages = self
             .contracts
-            .indexer
+            .mailbox_indexer
             .fetch_sorted_messages(from, to)
             .await?;
 
         let deliveries = self
             .contracts
-            .indexer
+            .mailbox_indexer
             .fetch_delivered_messages(from, to)
             .await?
             .into_iter()
