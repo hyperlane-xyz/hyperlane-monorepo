@@ -18,14 +18,14 @@ import {
   connectContracts,
   serializeContracts,
 } from '../contracts';
-import { MultiProvider } from '../providers';
+import { MultiProvider } from '../providers/MultiProvider';
 import {
   ProxiedContract,
   ProxyKind,
   TransparentProxyAddresses,
 } from '../proxy';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils';
+import { objMap } from '../utils/objects';
 
 import { ContractVerificationInput } from './verify/types';
 import { getContractVerificationInput } from './verify/utils';

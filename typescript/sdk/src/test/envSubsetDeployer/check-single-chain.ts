@@ -1,8 +1,8 @@
 import { buildContracts } from '../../contracts';
-import { HyperlaneCore } from '../../core';
-import { getChainToOwnerMap } from '../../deploy';
-import { MultiProvider } from '../../providers';
-import { RouterContracts } from '../../router';
+import { HyperlaneCore } from '../../core/HyperlaneCore';
+import { getChainToOwnerMap } from '../../deploy/utils';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { RouterContracts } from '../../router/types';
 import { ChainMap } from '../../types';
 
 import {

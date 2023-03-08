@@ -1,4 +1,4 @@
-import { MultiProvider } from '../providers';
+import { MultiProvider } from '../providers/MultiProvider';
 
 import { HyperlaneCore } from './HyperlaneCore';
 

@@ -7,8 +7,8 @@ import { ethers } from 'hardhat';
 import { TestMailbox, TestRecipient__factory } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { Chains } from '../consts';
-import { MultiProvider } from '../providers';
+import { Chains } from '../consts/chains';
+import { MultiProvider } from '../providers/MultiProvider';
 
 import { TestCoreApp } from './TestCoreApp';
 import { TestCoreDeployer } from './TestCoreDeployer';

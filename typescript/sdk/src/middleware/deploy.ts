@@ -8,13 +8,13 @@ import {
   InterchainQueryRouter__factory,
 } from '@hyperlane-xyz/core';
 
-import { MultiProvider } from '../providers';
+import { MultiProvider } from '../providers/MultiProvider';
+import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
 import {
-  HyperlaneRouterDeployer,
   ProxiedRouterContracts,
   RouterConfig,
   RouterFactories,
-} from '../router';
+} from '../router/types';
 import { ChainMap, ChainName } from '../types';
 
 export type InterchainAccountFactories =

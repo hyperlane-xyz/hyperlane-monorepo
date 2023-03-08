@@ -4,8 +4,8 @@ import { Ownable } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
-import { HyperlaneAppChecker } from '../deploy';
-import { RouterContracts } from '../router';
+import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
+import { RouterContracts } from '../router/types';
 import { ChainName } from '../types';
 
 import { RouterConfig } from './types';

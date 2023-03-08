@@ -5,7 +5,7 @@ import {
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import type { CheckerViolation } from '../deploy';
+import type { CheckerViolation } from '../deploy/types';
 import { ChainMap, ChainName } from '../types';
 
 export enum GasOracleContractType {

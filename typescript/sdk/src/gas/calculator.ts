@@ -4,10 +4,10 @@ import { BigNumber, FixedNumber, ethers } from 'ethers';
 import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
-import { CoreEnvironment, HyperlaneCore } from '../core';
-import { MultiProvider } from '../providers';
+import { CoreEnvironment, HyperlaneCore } from '../core/HyperlaneCore';
+import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
-import { convertDecimalValue, mulBigAndFixed } from '../utils';
+import { convertDecimalValue, mulBigAndFixed } from '../utils/number';
 
 import { CoinGeckoTokenPriceGetter, TokenPriceGetter } from './token-prices';
 

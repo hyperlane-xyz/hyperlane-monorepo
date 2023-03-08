@@ -4,10 +4,9 @@ import { warn } from '@hyperlane-xyz/utils';
 
 import {
   ChainMetadata,
-  CoreChainName,
-  Mainnets,
   chainMetadata as defaultChainMetadata,
-} from '../consts';
+} from '../consts/chainMetadata';
+import { CoreChainName, Mainnets } from '../consts/chains';
 import { ChainMap, ChainName } from '../types';
 
 export interface TokenPriceGetter {

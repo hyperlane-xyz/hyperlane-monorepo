@@ -1,7 +1,7 @@
 import { Mailbox, MultisigIsm } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import type { CheckerViolation } from '../deploy';
+import type { CheckerViolation } from '../deploy/types';
 import { ChainName } from '../types';
 
 export type MultisigIsmConfig = {

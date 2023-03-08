@@ -39,15 +39,3 @@ export class GasRouterApp<
     );
   }
 }
-
-export { GasRouterDeployer } from './GasRouterDeployer';
-export { HyperlaneRouterChecker } from './HyperlaneRouterChecker';
-export { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
-export {
-  ProxiedRouterContracts,
-  RouterContracts,
-  RouterFactories,
-  ConnectionClientConfig,
-  GasRouterConfig,
-  RouterConfig,
-} from './types';

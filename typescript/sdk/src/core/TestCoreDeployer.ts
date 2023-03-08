@@ -7,7 +7,7 @@ import {
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
 
-import { MultiProvider } from '../providers';
+import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';

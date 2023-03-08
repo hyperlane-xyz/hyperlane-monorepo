@@ -1,19 +1,20 @@
 import { TestRouter__factory } from '@hyperlane-xyz/core';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
-import { Chains, TestChains, chainMetadata } from '../../consts';
-import { HyperlaneCore } from '../../core';
-import { HyperlaneDeployer } from '../../deploy';
-import { MultiProvider } from '../../providers';
+import { chainMetadata } from '../../consts/chainMetadata';
+import { Chains, TestChains } from '../../consts/chains';
+import { HyperlaneCore } from '../../core/HyperlaneCore';
+import { HyperlaneDeployer } from '../../deploy/HyperlaneDeployer';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { HyperlaneRouterChecker } from '../../router/HyperlaneRouterChecker';
+import { HyperlaneRouterDeployer } from '../../router/HyperlaneRouterDeployer';
 import {
-  HyperlaneRouterChecker,
-  HyperlaneRouterDeployer,
   RouterConfig,
   RouterContracts,
   RouterFactories,
-} from '../../router';
+} from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
-import { objMap, pick, promiseObjAll } from '../../utils';
+import { objMap, pick, promiseObjAll } from '../../utils/objects';
 
 export const fullTestEnvConfigs = pick(chainMetadata, TestChains);
 

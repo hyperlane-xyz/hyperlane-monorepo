@@ -2,7 +2,7 @@ import { utils as ethersUtils } from 'ethers';
 
 import { types, utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneAppChecker } from '../deploy';
+import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { ChainName } from '../types';
 
 import { HyperlaneCore } from './HyperlaneCore';

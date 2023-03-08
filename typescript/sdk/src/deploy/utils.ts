@@ -1,7 +1,7 @@
 import { types } from '@hyperlane-xyz/utils';
 
 import { ChainMap } from '../types';
-import { objMap } from '../utils';
+import { objMap } from '../utils/objects';
 
 export function getChainToOwnerMap(
   configMap: ChainMap<any>,

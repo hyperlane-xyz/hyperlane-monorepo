@@ -15,11 +15,11 @@ import {
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import multisigIsmVerifyCosts from '../consts/multisigIsmVerifyCosts.json';
-import { DeployOptions, HyperlaneDeployer } from '../deploy';
-import { MultiProvider } from '../providers';
+import { DeployOptions, HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { MultiProvider } from '../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
-import { objMap } from '../utils';
+import { objMap } from '../utils/objects';
 
 import { CoreContracts, GasOracleContracts, coreFactories } from './contracts';
 import { CoreConfig, GasOracleContractType } from './types';

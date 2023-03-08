@@ -4,9 +4,9 @@ import { ethers } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../../providers';
+import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
-import { MultiGeneric } from '../../utils';
+import { MultiGeneric } from '../../utils/MultiGeneric';
 
 import {
   CompilerOptions,

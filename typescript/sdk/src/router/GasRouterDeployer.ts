@@ -2,8 +2,8 @@ import { debug } from 'debug';
 
 import { GasRouter } from '@hyperlane-xyz/core';
 
-import { DeployerOptions } from '../deploy';
-import { MultiProvider } from '../providers';
+import { DeployerOptions } from '../deploy/HyperlaneDeployer';
+import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap } from '../types';
 
 import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';

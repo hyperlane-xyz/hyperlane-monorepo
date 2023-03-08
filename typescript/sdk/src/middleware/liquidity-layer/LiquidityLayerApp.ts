@@ -10,8 +10,8 @@ import {
 import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
-import { Chains } from '../../consts';
-import { MultiProvider } from '../../providers';
+import { Chains } from '../../consts/chains';
+import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
 
 import { BridgeAdapterConfig } from './LiquidityLayerRouterDeployer';
