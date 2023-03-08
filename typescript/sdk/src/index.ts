@@ -2,7 +2,9 @@ export {
   chainIdToMetadata,
   ChainMetadata,
   chainMetadata,
+  ChainMetadataSchema,
   ExplorerFamily,
+  isValidChainMetadata,
   mainnetChainsMetadata,
   RpcPagination,
   testnetChainsMetadata,
@@ -15,6 +17,8 @@ export {
   CoreChainName,
   DeprecatedChains,
   Mainnets,
+  TestChains,
+  Testnets,
 } from './consts/chains';
 export {
   environments as coreEnvironments,
@@ -53,12 +57,12 @@ export {
   CoreViolationType,
   EnrolledValidatorsViolation,
   GasOracleContractType,
-  MultisigIsmViolation,
-  MultisigIsmViolationType,
   IgpBeneficiaryViolation,
   IgpGasOraclesViolation,
   IgpViolation,
   IgpViolationType,
+  MultisigIsmViolation,
+  MultisigIsmViolationType,
 } from './core/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
