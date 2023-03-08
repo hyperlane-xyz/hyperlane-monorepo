@@ -115,31 +115,31 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testOwner() public {
-        OwnableMulticall remoteIca = remoteRouter.getDeployedInterchainAccount(
+        DeployerMulticall remoteIca = remoteRouter.getDeployedInterchainAccount(
             originDomain,
             address(this)
         );
-        assertEq(remoteIca.owner(), address(remoteRouter));
+        assertEq(remoteIca.deployer(), address(remoteRouter));
 
-        OwnableMulticall localIca = originRouter.getDeployedInterchainAccount(
+        DeployerMulticall localIca = originRouter.getDeployedInterchainAccount(
             remoteDomain,
             address(this)
         );
-        assertEq(localIca.owner(), address(originRouter));
+        assertEq(localIca.deployer(), address(originRouter));
     }
 
     function testBytes32Owner() public {
-        OwnableMulticall remoteIca = remoteRouter.getDeployedInterchainAccount(
+        DeployerMulticall remoteIca = remoteRouter.getDeployedInterchainAccount(
             originDomain,
             address(this).addressToBytes32()
         );
-        assertEq(remoteIca.owner(), address(remoteRouter));
+        assertEq(remoteIca.deployer(), address(remoteRouter));
 
-        OwnableMulticall localIca = originRouter.getDeployedInterchainAccount(
+        DeployerMulticall localIca = originRouter.getDeployedInterchainAccount(
             remoteDomain,
             address(this).addressToBytes32()
         );
-        assertEq(localIca.owner(), address(originRouter));
+        assertEq(localIca.deployer(), address(originRouter));
     }
 
     function testReceiveValue(uint256 value) public {
@@ -152,6 +152,8 @@ contract InterchainAccountRouterTest is Test {
         // receive value after deployed
         remoteRouter.getDeployedInterchainAccount(originDomain, address(this));
         assert(ica.code.length > 0);
+        // necessary in forge tests for receive() to be executed upon transfer ?
+        DeployerMulticall(ica).deployer();
         ica.transfer(value / 2);
     }
 

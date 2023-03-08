@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 // ============ Internal Imports ============
-import {OwnableMulticall} from "../OwnableMulticall.sol";
+import {DeployerMulticall} from "../DeployerMulticall.sol";
 import {Router} from "../Router.sol";
 import {IInterchainAccountRouter} from "../../interfaces/IInterchainAccountRouter.sol";
 import {InterchainCallMessage} from "./InterchainCallMessage.sol";
@@ -39,10 +39,10 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
     );
 
     /**
-     * @notice Constructor deploys a relay (OwnableMulticall.sol) contract that will be cloned for each interchain account.
+     * @notice Constructor deploys a relay (DeployerMulticall.sol) contract that will be cloned for each interchain account.
      */
     constructor() {
-        implementation = address(new OwnableMulticall());
+        implementation = address(new DeployerMulticall());
         // cannot be stored immutably because it is dynamically sized
         bytes memory bytecode = MinimalProxy.bytecode(implementation);
         bytecodeHash = keccak256(bytecode);
@@ -119,7 +119,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
      */
     function getDeployedInterchainAccount(uint32 _origin, bytes32 _sender)
         public
-        returns (OwnableMulticall)
+        returns (DeployerMulticall)
     {
         bytes32 salt = _salt(_origin, _sender);
         address payable interchainAccount = _getInterchainAccount(salt);
@@ -127,15 +127,13 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
             bytes memory bytecode = MinimalProxy.bytecode(implementation);
             interchainAccount = payable(Create2.deploy(0, salt, bytecode));
             emit InterchainAccountCreated(_origin, _sender, interchainAccount);
-            // transfers ownership to this contract
-            OwnableMulticall(interchainAccount).initialize();
         }
-        return OwnableMulticall(interchainAccount);
+        return DeployerMulticall(interchainAccount);
     }
 
     function getDeployedInterchainAccount(uint32 _origin, address _sender)
         public
-        returns (OwnableMulticall)
+        returns (DeployerMulticall)
     {
         return
             getDeployedInterchainAccount(_origin, _sender.addressToBytes32());
@@ -178,7 +176,7 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
         bytes32, // router sender
         bytes calldata _message
     ) internal override {
-        OwnableMulticall interchainAccount = getDeployedInterchainAccount(
+        DeployerMulticall interchainAccount = getDeployedInterchainAccount(
             _origin,
             InterchainCallMessage.sender(_message)
         );
