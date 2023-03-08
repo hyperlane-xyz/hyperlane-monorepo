@@ -354,7 +354,7 @@ where
         let gas_limit = contract_call
             .tx
             .gas()
-            .map(|gas| *gas)
+            .copied()
             .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?;
 
         // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
