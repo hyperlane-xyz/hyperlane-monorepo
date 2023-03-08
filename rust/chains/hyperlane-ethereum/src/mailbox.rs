@@ -3,7 +3,6 @@
 
 use std::collections::HashMap;
 use std::num::NonZeroU64;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -187,17 +186,14 @@ where
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         // Arbitrum Nitro based chains are a special case for transaction cost estimation.
         // The gas amount that eth_estimateGas returns considers both L1 and L2 gas costs.
-        // We use the NodeInterface to isolate the L2 gas costs.
+        // We use the NodeInterface, found at address(0xC8), to isolate the L2 gas costs.
         // See https://developer.arbitrum.io/arbos/gas#nodeinterfacesol or https://github.com/OffchainLabs/nitro/blob/master/contracts/src/node-interface/NodeInterface.sol#L110
-        let arbitrum_node_interface = if locator.domain.is_arbitrum_nitro() {
-            // Arbitrum's NodeInterface is accessible at address(0xC8)
-            Some(Arc::new(ArbitrumNodeInterface::new(
-                H160::from_str("0x00000000000000000000000000000000000000C8").unwrap(),
+        let arbitrum_node_interface = locator.domain.is_arbitrum_nitro().then(|| {
+            Arc::new(ArbitrumNodeInterface::new(
+                H160::from_low_u64_be(0xC8),
                 provider.clone(),
-            )))
-        } else {
-            None
-        };
+            ))
+        });
 
         Self {
             contract: Arc::new(EthereumMailboxInternal::new(
@@ -362,19 +358,18 @@ where
             .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?;
 
         // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
-        let l2_gas_limit = match &self.arbitrum_node_interface {
-            Some(arbitrum_node_interface) => {
-                let (l1_gas_limit, _, _) = arbitrum_node_interface
-                    .gas_estimate_l1_component(
-                        self.contract.address(),
-                        false, // Not a contract creation
-                        contract_call.calldata().unwrap_or_default(),
-                    )
-                    .call()
-                    .await?;
-                Some(gas_limit.saturating_sub(l1_gas_limit.into()))
-            }
-            None => None,
+        let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
+            let (l1_gas_limit, _, _) = arbitrum_node_interface
+                .gas_estimate_l1_component(
+                    self.contract.address(),
+                    false, // Not a contract creation
+                    contract_call.calldata().unwrap_or_default(),
+                )
+                .call()
+                .await?;
+            Some(gas_limit.saturating_sub(l1_gas_limit.into()))
+        } else {
+            None
         };
 
         let gas_price = self
@@ -412,7 +407,7 @@ impl HyperlaneAbi for EthereumMailboxAbi {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    use std::{str::FromStr, sync::Arc};
 
     use ethers::{
         abi::{encode, Token},
@@ -421,7 +416,7 @@ mod test {
     };
     use hyperlane_core::{
         ContractLocator, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
-        TxCostEstimate, H256, U256,
+        TxCostEstimate, H160, H256, U256,
     };
 
     use crate::{mailbox::GAS_ESTIMATE_BUFFER, EthereumMailbox};
@@ -443,6 +438,13 @@ mod test {
 
         let message = HyperlaneMessage::default();
         let metadata: Vec<u8> = vec![];
+
+        assert!(mailbox.arbitrum_node_interface.is_some());
+        // Confirm `H160::from_low_u64_ne(0xC8)` does what's expected
+        assert_eq!(
+            mailbox.arbitrum_node_interface.as_ref().unwrap().address(),
+            H160::from_str("0x00000000000000000000000000000000000000C8").unwrap(),
+        );
 
         // The MockProvider responses we push are processed in LIFO
         // order, so we start with the final RPCs and work toward the first
