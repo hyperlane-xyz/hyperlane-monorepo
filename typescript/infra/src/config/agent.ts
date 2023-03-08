@@ -1,3 +1,5 @@
+import { BigNumberish } from 'ethers';
+
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
@@ -36,9 +38,9 @@ export function getChainOverriddenConfig<T>(
 export type MatchingList = MatchingListElement[];
 
 interface MatchingListElement {
-  originDomain?: '*' | string | string[] | number | number[];
+  originDomain?: '*' | number | number[];
   senderAddress?: '*' | string | string[];
-  destinationDomain?: '*' | string | string[] | number | number[];
+  destinationDomain?: '*' | number | number[];
   recipientAddress?: '*' | string | string[];
 }
 
@@ -54,33 +56,28 @@ export type GasPaymentEnforcementPolicy =
     }
   | {
       type: GasPaymentEnforcementPolicyType.Minimum;
-      payment: string | number;
+      payment: BigNumberish;
     }
   | {
       type: GasPaymentEnforcementPolicyType.MeetsEstimatedCost;
     };
 
-export interface GasPaymentEnforcementConfig {
-  policy: GasPaymentEnforcementPolicy;
-  whitelist?: MatchingList;
-}
+export type GasPaymentEnforcementConfig = GasPaymentEnforcementPolicy & {
+  matchingList?: MatchingList;
+};
 
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
-  gasPaymentEnforcement: GasPaymentEnforcementConfig;
+  gasPaymentEnforcement: GasPaymentEnforcementConfig[];
+  coingeckoApiKey?: string;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
-  transactionGasLimit?: bigint;
+  transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: number[];
 }
 
 // Per-chain relayer agent configs
 type ChainRelayerConfigs = ChainOverridableConfig<BaseRelayerConfig>;
-
-interface SerializableGasPaymentEnforcementConfig
-  extends Omit<GasPaymentEnforcementConfig, 'whitelist'> {
-  whitelist?: string;
-}
 
 // Full relayer agent config for a single chain
 interface RelayerConfig
@@ -93,7 +90,7 @@ interface RelayerConfig
     | 'gasPaymentEnforcement'
   > {
   originChainName: ChainName;
-  gasPaymentEnforcement: SerializableGasPaymentEnforcementConfig;
+  gasPaymentEnforcement: string;
   whitelist?: string;
   blacklist?: string;
   transactionGasLimit?: string;
@@ -203,9 +200,8 @@ export enum TransactionSubmissionType {
 }
 
 export interface AgentConfig {
-  environment: string;
-  namespace: string;
   runEnv: DeployEnvironment;
+  namespace: string;
   context: Contexts;
   docker: DockerConfig;
   quorumProvider?: boolean;
@@ -252,17 +248,16 @@ export type RustCoreAddresses = {
 
 export type RustChainSetup = {
   name: ChainName;
-  domain: string;
+  domain: number;
   signer?: RustSigner | null;
-  finalityBlocks: string;
+  finalityBlocks: number;
   addresses: RustCoreAddresses;
   protocol: 'ethereum' | 'fuel';
   connection: RustConnection;
-  index?: { from: string };
+  index?: { from: number };
 };
 
 export type RustConfig = {
-  environment: DeployEnvironment;
   chains: Partial<ChainMap<RustChainSetup>>;
   // TODO: Separate DBs for each chain (fold into RustChainSetup)
   db: string;
@@ -302,7 +297,7 @@ export class ChainAgentConfig {
       );
     }
     const awsUser = new AgentAwsUser(
-      this.agentConfig.environment,
+      this.agentConfig.runEnv,
       this.agentConfig.context,
       KEY_ROLE_ENUM.Relayer,
       this.agentConfig.aws!.region,
@@ -327,7 +322,7 @@ export class ChainAgentConfig {
         };
         if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
           const awsUser = new ValidatorAgentAwsUser(
-            this.agentConfig.environment,
+            this.agentConfig.runEnv,
             this.agentConfig.context,
             this.chainName,
             i,
@@ -370,7 +365,7 @@ export class ChainAgentConfig {
 
     if (awsRegion !== undefined) {
       const awsUser = new AgentAwsUser(
-        this.agentConfig.environment,
+        this.agentConfig.runEnv,
         this.agentConfig.context,
         KEY_ROLE_ENUM.Relayer,
         awsRegion,
@@ -401,13 +396,11 @@ export class ChainAgentConfig {
 
     const relayerConfig: RelayerConfig = {
       originChainName: this.chainName,
-      gasPaymentEnforcement: {
-        ...baseConfig.gasPaymentEnforcement,
-        whitelist: baseConfig.gasPaymentEnforcement.whitelist
-          ? JSON.stringify(baseConfig.gasPaymentEnforcement.whitelist)
-          : undefined,
-      },
+      gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
+    if (baseConfig.coingeckoApiKey) {
+      relayerConfig.coingeckoApiKey = baseConfig.coingeckoApiKey;
+    }
     if (baseConfig.whitelist) {
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
     }
@@ -452,10 +445,15 @@ export class ChainAgentConfig {
   }
 
   async ensureCoingeckoApiKeySecretExistsIfRequired() {
+    const baseConfig = getChainOverriddenConfig(
+      this.agentConfig.relayer!,
+      this.chainName,
+    );
     // The CoinGecko API Key is only needed when using the "MeetsEstimatedCost" policy.
     if (
-      this.relayerConfig?.gasPaymentEnforcement.policy.type !==
-      GasPaymentEnforcementPolicyType.MeetsEstimatedCost
+      baseConfig.gasPaymentEnforcement.every(
+        (p) => p.type != GasPaymentEnforcementPolicyType.MeetsEstimatedCost,
+      )
     ) {
       return;
     }

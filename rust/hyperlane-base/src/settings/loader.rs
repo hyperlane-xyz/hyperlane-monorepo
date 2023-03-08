@@ -1,31 +1,14 @@
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
+use std::path::PathBuf;
 
 use config::{Config, Environment, File};
 use eyre::{Context, Result};
 use serde::Deserialize;
 
 /// Load a settings object from the config locations.
-///
-/// Read settings from the config files and/or env
-/// The config will be located at `config/default` unless specified
-/// otherwise
-///
-/// Configs are loaded in the following precedence order:
-///
-/// 1. The file specified by the `RUN_ENV` and `BASE_CONFIG`
-///    env vars. `RUN_ENV/BASE_CONFIG`
-/// 2. The file specified by the `RUN_ENV` env var and the
-///    agent's name. `RUN_ENV/<agent_prefix>-partial.json`
-/// 3. Configuration env vars with the prefix `HYP_BASE` intended
-///    to be shared by multiple agents in the same environment
-/// 4. Configuration env vars with the prefix `HYP_<agent_prefix>`
-///    intended to be used by a specific agent.
-///
-/// Specify a configuration directory with the `RUN_ENV` env
-/// variable. Specify a configuration file with the `BASE_CONFIG`
-/// env variable.
+/// Further documentation can be found in the `settings` module.
 pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
     agent_prefix: &str,
     ignore_prefixes: &[S],
@@ -41,19 +24,29 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
         })
         .collect();
 
-    let builder = Config::builder();
+    let mut base_config_sources = vec![];
+    let mut builder = Config::builder();
 
-    // Load the base config file the old way
-    let builder = match (env::var("RUN_ENV").ok(), env::var("BASE_CONFIG").ok()) {
-        (Some(env), Some(fname)) => {
-            builder.add_source(File::with_name(&format!("./config/{}/{}", env, fname)))
+    // Always load the default config files (`rust/config/*.json`)
+    for entry in PathBuf::from("./config")
+        .read_dir()
+        .expect("Failed to open config directory")
+        .map(Result::unwrap)
+    {
+        if !entry.file_type().unwrap().is_file() {
+            continue;
         }
-        _ => builder,
-    };
 
-    // Load a set of config files
+        let fname = entry.file_name();
+        let ext = fname.to_str().unwrap().split('.').last().unwrap_or("");
+        if ext == "json" {
+            base_config_sources.push(format!("{:?}", entry.path()));
+            builder = builder.add_source(File::from(entry.path()));
+        }
+    }
+
+    // Load a set of additional user specified config files
     let config_file_paths: Vec<String> = env::var("CONFIG_FILES")
-        .ok()
         .map(|s| s.split(',').map(|s| s.to_string()).collect())
         .unwrap_or_default();
 
@@ -74,7 +67,20 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
                 .source(Some(filtered_env)),
         )
         .build()?;
-    let formatted_config = format!("{:#?}", config_deserializer).replace('\n', "\\n");
+
+    let formatted_config = {
+        let f = format!("{:#?}", config_deserializer);
+        if env::var("ONELINE_BACKTRACES")
+            .map(|v| v.to_lowercase())
+            .as_deref()
+            == Ok("true")
+        {
+            f.replace('\n', "\\n")
+        } else {
+            f
+        }
+    };
+
     match Config::try_deserialize(config_deserializer) {
         Ok(cfg) => Ok(cfg),
         Err(err) => {
@@ -86,6 +92,10 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
             } else {
                 Err(err.into())
             };
+
+            for cfg_path in base_config_sources.iter().chain(config_file_paths.iter()) {
+                err = err.with_context(|| format!("Config loaded: {cfg_path}"));
+            }
 
             println!(
                 "Error during deserialization, showing the config for debugging: {}",

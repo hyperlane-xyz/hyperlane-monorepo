@@ -27,7 +27,6 @@ contract TestQuerySenderTest is Test {
             destinationDomain
         );
         igp = testEnvironment.igps(originDomain);
-        igp.setGasPrice(1);
 
         sender = new TestQuerySender();
         sender.initialize(

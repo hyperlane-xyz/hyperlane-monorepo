@@ -82,7 +82,9 @@ export abstract class HyperlaneDeployer<
 
     this.logger(`Start deploy to ${targetChains}`);
     for (const chain of targetChains) {
-      const signerUrl = await this.multiProvider.getExplorerAddressUrl(chain);
+      const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
+        chain,
+      );
       this.logger(`Deploying to ${chain} from ${signerUrl} ...`);
       this.deployedContracts[chain] = await this.deployContracts(
         chain,
@@ -127,8 +129,11 @@ export abstract class HyperlaneDeployer<
     deployOpts?: DeployOptions,
   ): Promise<ReturnType<F['deploy']>> {
     const cachedContract = this.deployedContracts[chain]?.[contractName];
-    if (cachedContract) {
-      this.logger(`Recovered contract ${contractName} on ${chain}`);
+    if (cachedContract && !(cachedContract instanceof ProxiedContract)) {
+      this.logger(
+        `Recovered contract ${contractName} on ${chain}`,
+        cachedContract,
+      );
       return cachedContract as ReturnType<F['deploy']>;
     }
 
@@ -362,8 +367,15 @@ export abstract class HyperlaneDeployer<
     deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
     const cachedProxy = this.deployedContracts[chain]?.[contractName as any];
-    if (cachedProxy) {
-      this.logger(`Recovered proxy ${contractName.toString()} on ${chain}`);
+    if (
+      cachedProxy &&
+      cachedProxy.addresses.proxy &&
+      cachedProxy.addresses.implementation
+    ) {
+      this.logger(
+        `Recovered proxy and implementation ${contractName.toString()} on ${chain}`,
+        cachedProxy,
+      );
       return cachedProxy as ProxiedContract<C, TransparentProxyAddresses>;
     }
 
@@ -373,6 +385,20 @@ export abstract class HyperlaneDeployer<
       constructorArgs,
       deployOpts,
     );
+    // If the proxy already existed in artifacts but the implementation did not,
+    // we only deploy the implementation and keep the proxy.
+    // Changing the proxy's implementation address on-chain is left to
+    // the govern / checker script
+    if (cachedProxy && cachedProxy.addresses.proxy) {
+      this.logger(
+        `Recovered proxy ${contractName.toString()} on ${chain}`,
+        cachedProxy,
+      );
+
+      cachedProxy.addresses.implementation = implementation.address;
+      this.cacheContract(chain, contractName, cachedProxy);
+      return cachedProxy as ProxiedContract<C, TransparentProxyAddresses>;
+    }
 
     const contract = await this.deployProxy(
       chain,

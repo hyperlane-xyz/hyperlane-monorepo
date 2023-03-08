@@ -2,7 +2,9 @@ export {
   chainIdToMetadata,
   ChainMetadata,
   chainMetadata,
+  ChainMetadataSchema,
   ExplorerFamily,
+  isValidChainMetadata,
   mainnetChainsMetadata,
   RpcPagination,
   testnetChainsMetadata,
@@ -15,6 +17,8 @@ export {
   CoreChainName,
   DeprecatedChains,
   Mainnets,
+  TestChains,
+  Testnets,
 } from './consts/chains';
 export {
   environments as coreEnvironments,
@@ -32,6 +36,7 @@ export {
   ConnectionClientContracts,
   CoreContracts,
   coreFactories,
+  GasOracleContracts,
 } from './core/contracts';
 export {
   AnnotatedDispatch,
@@ -51,6 +56,11 @@ export {
   CoreConfig,
   CoreViolationType,
   EnrolledValidatorsViolation,
+  GasOracleContractType,
+  IgpBeneficiaryViolation,
+  IgpGasOraclesViolation,
+  IgpViolation,
+  IgpViolationType,
   MultisigIsmViolation,
   MultisigIsmViolationType,
 } from './deploy/core/types';

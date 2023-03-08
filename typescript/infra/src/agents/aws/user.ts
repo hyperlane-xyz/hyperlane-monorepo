@@ -10,7 +10,7 @@ import {
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
-import { AgentConfig } from '../../config';
+import { AgentConfig, DeployEnvironment } from '../../config';
 import {
   fetchGCPSecret,
   gcpSecretExists,
@@ -27,7 +27,7 @@ export class AgentAwsUser {
   private _arn: string | undefined;
 
   constructor(
-    public readonly environment: string,
+    public readonly environment: DeployEnvironment,
     public readonly context: Contexts,
     public readonly role: KEY_ROLE_ENUM,
     public readonly region: string,
