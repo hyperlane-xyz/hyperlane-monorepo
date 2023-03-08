@@ -8,7 +8,7 @@ import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import "../contracts/test/TestRecipient.sol";
 import "../contracts/middleware/InterchainAccountRouter.sol";
-import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
+import {TestHyperlaneConnectionClient} from "../contracts/test/TestHyperlaneConnectionClient.sol";
 import {CallLib} from "../contracts/libs/Call.sol";
 
 contract InterchainAccountRouterTest is Test {
@@ -31,7 +31,7 @@ contract InterchainAccountRouterTest is Test {
     TestRecipient recipient;
     address payable ica;
 
-    OwnableMulticall ownable;
+    TestHyperlaneConnectionClient ownable;
 
     function setUp() public {
         environment = new MockHyperlaneEnvironment(originDomain, remoteDomain);
@@ -65,7 +65,7 @@ contract InterchainAccountRouterTest is Test {
         );
 
         ica = remoteRouter.getInterchainAccount(originDomain, address(this));
-        ownable = new OwnableMulticall();
+        ownable = new TestHyperlaneConnectionClient();
     }
 
     function dispatchTransferOwner(address newOwner) public {
