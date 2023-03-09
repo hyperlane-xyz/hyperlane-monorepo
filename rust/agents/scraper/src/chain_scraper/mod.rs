@@ -12,8 +12,8 @@ use tracing::trace;
 
 use hyperlane_base::{chains::IndexSettings, ContractSyncMetrics};
 use hyperlane_core::{
-    BlockInfo, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, Mailbox, MailboxIndexer, H256,
+    BlockInfo, H256, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, Mailbox, MailboxIndexer,
     U256,
 };
 
@@ -21,10 +21,11 @@ use crate::{
     chain_scraper::sync::Syncer,
     date_time,
     db::{
-        BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorablePayment,
+        BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage,
         StorableTxn,
     },
 };
+use crate::db::payment::StorablePayment;
 
 mod sync;
 

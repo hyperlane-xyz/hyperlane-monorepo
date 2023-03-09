@@ -18,6 +18,7 @@ mod block;
 mod block_cursor;
 mod message;
 mod txn;
+mod payment;
 
 impl Deref for StorableTxn {
     type Target = TxnInfo;
