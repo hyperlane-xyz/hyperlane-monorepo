@@ -1,128 +1,159 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 // ============ Internal Imports ============
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
 import {Message} from "../libs/Message.sol";
-import {StaticMultisigIsmMetadata} from "../libs/StaticMultisigIsmMetadata.sol";
-import {MerkleLib} from "../libs/Merkle.sol";
-import {StaticMOfNAddressSet} from "./StaticMOfNAddressSet.sol";
+import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
+import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
+
+import {OwnableMOfNAddressSet} from "../libs/OwnableMOfNAddressSet.sol";
+import {StaticMOfNAddressSet} from "../libs/StaticMOfNAddressSet.sol";
 
 /**
- * @title MultisigIsm
- * @notice Manages per-domain m-of-n Validator sets that are used to verify
- * interchain messages.
+ * @title StaticMultisigIsm
+ * @notice Manages per-domain m-of-n Validator sets in storage that are used
+ * to verify interchain messages.
  */
-contract StaticMultisigIsm is StaticMOfNAddressSet, IMultisigIsm {
-    // ============ Constants ============
-
-    uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.MULTISIG);
+contract StaticMultisigIsm is OwnableMOfNAddressSet, AbstractMultisigIsm {
+    // ============ Public Storage ============
+    mapping(uint32 => StaticMOfNAddressSet.AddressSet) private _sets;
 
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
-    constructor(address[] memory _validators, uint8 threshold)
-        StaticMOfNAddressSet(_validators, threshold)
-    {}
+    constructor() OwnableMOfNAddressSet() {}
 
     // ============ Public Functions ============
 
-    function validatorsAndThreshold(bytes calldata)
+    /**
+     * @notice Returns the set of validators responsible for verifying _message
+     * and the number of signatures required
+     * @dev Can change based on the content of _message
+     * @param _message Hyperlane formatted interchain message
+     * @return validators The array of validator addresses
+     * @return threshold The number of validator signatures needed
+     */
+    function validatorsAndThreshold(bytes calldata _message)
         public
         view
+        virtual
+        override
         returns (address[] memory, uint8)
     {
-        return (values(), _threshold);
+        return valuesAndThreshold(Message.origin(_message));
     }
 
-    function verify(bytes calldata _metadata, bytes calldata _message)
+    /**
+     * @notice Returns whether an address is contained in a set.
+     * @param _domain The remote domain of the set.
+     * @param _value The address to test for set membership.
+     * @return True if the address is contained, false otherwise.
+     */
+    function contains(uint32 _domain, address _value)
         public
         view
+        virtual
+        override
         returns (bool)
     {
-        require(_verifyMerkleProof(_metadata, _message), "!merkle");
-        require(_verifyValidatorSignatures(_metadata, _message), "!sigs");
-        return true;
+        return StaticMOfNAddressSet.contains(_sets[_domain], _value);
     }
 
-    function _verifyMerkleProof(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) internal pure returns (bool) {
-        // calculate the expected root based on the proof
-        bytes32 _calculatedRoot = MerkleLib.branchRoot(
-            Message.id(_message),
-            StaticMultisigIsmMetadata.proof(_metadata),
-            Message.nonce(_message)
-        );
-        return _calculatedRoot == StaticMultisigIsmMetadata.root(_metadata);
+    /**
+     * @notice Gets the current set
+     * @param _domain The remote domain of the set.
+     * @return The addresses of the set.
+     */
+    function values(uint32 _domain)
+        public
+        view
+        virtual
+        override
+        returns (address[] memory)
+    {
+        return StaticMOfNAddressSet.values(_sets[_domain]);
     }
 
-    function _verifyValidatorSignatures(
-        bytes calldata _metadata,
-        bytes calldata _message
-    ) internal view returns (bool) {
-        bytes32 _digest = _getCheckpointDigest(
-            _metadata,
-            Message.origin(_message)
-        );
-        uint256 _validatorIndex = 0;
-        // Assumes that signatures are ordered by validator
-        for (uint256 i = 0; i < _threshold; ++i) {
-            address _signer = ECDSA.recover(
-                _digest,
-                StaticMultisigIsmMetadata.signatureAt(_metadata, i)
-            );
-            // Loop through remaining validators until we find a match
-            for (
-                ;
-                _validatorIndex < _numValues &&
-                    _signer != valueAt(_validatorIndex);
-                ++_validatorIndex
-            ) {}
-            // Fail if we never found a match
-            require(_validatorIndex < _numValues, "!threshold");
-            ++_validatorIndex;
+    /**
+     * @notice Gets the current threshold
+     * @param _domain The remote domain of the set.
+     * @return The threshold of the set.
+     */
+    function threshold(uint32 _domain)
+        public
+        view
+        virtual
+        override
+        returns (uint8)
+    {
+        return StaticMOfNAddressSet.threshold(_sets[_domain]);
+    }
+
+    /**
+     * @notice Returns the number of values contained in the set.
+     * @param _domain The remote domain of the set.
+     * @return The number of values contained in the set.
+     */
+    function length(uint32 _domain)
+        public
+        view
+        virtual
+        override
+        returns (uint256)
+    {
+        return StaticMOfNAddressSet.length(_sets[_domain]);
+    }
+
+    // ============ Private Functions ============
+
+    /**
+     * @notice Adds multiple values to multiple sets.
+     * @dev Reverts if `_value` is already in the set.
+     * @dev _values[i] are the values to add for _domains[i].
+     * @param _domains The remote domains of the sets.
+     * @param _values The values to add to the sets.
+     */
+    function _addMany(uint32[] calldata _domains, address[][] calldata _values)
+        internal
+        virtual
+        override
+    {
+        require(_domains.length == _values.length);
+        for (uint256 i = 0; i < _domains.length; i++) {
+            StaticMOfNAddressSet.add(_sets[_domains[i]], _values[i]);
         }
-        return true;
     }
 
-    function _getDomainHash(uint32 _origin, bytes32 _originMailbox)
-        internal
-        pure
-        returns (bytes32)
-    {
-        // Including the origin mailbox address in the signature allows the slashing
-        // protocol to enroll multiple mailboxes. Otherwise, a valid signature for
-        // mailbox A would be indistinguishable from a fraudulent signature for mailbox
-        // B.
-        // The slashing protocol should slash if validators sign attestations for
-        // anything other than a whitelisted mailbox.
-        return
-            keccak256(abi.encodePacked(_origin, _originMailbox, "HYPERLANE"));
+    /**
+     * @notice Adds a value into a set.
+     * @dev Reverts if `_value` is already in the set.
+     * @param _domain The remote domain of the set.
+     * @param _value The value to add to the set.
+     */
+    function _add(uint32 _domain, address _value) internal virtual override {
+        StaticMOfNAddressSet.add(_sets[_domain], _value);
     }
 
-    function _getCheckpointDigest(bytes calldata _metadata, uint32 _origin)
+    /**
+     * @notice Removes a value from a set.
+     * @dev Reverts if `_value` is not in the set.
+     * @param _domain The remote domain of the set.
+     * @param _value The value to remove from the set.
+     */
+    function _remove(uint32 _domain, address _value) internal virtual override {
+        StaticMOfNAddressSet.remove(_sets[_domain], _value);
+    }
+
+    /**
+     * @notice Sets the quorum threshold.
+     * @param _domain The remote domain of the set.
+     * @param _threshold The new quorum threshold.
+     */
+    function _setThreshold(uint32 _domain, uint8 _threshold)
         internal
-        pure
-        returns (bytes32)
+        virtual
+        override
     {
-        bytes32 _domainHash = _getDomainHash(
-            _origin,
-            StaticMultisigIsmMetadata.originMailbox(_metadata)
-        );
-        return
-            ECDSA.toEthSignedMessageHash(
-                keccak256(
-                    abi.encodePacked(
-                        _domainHash,
-                        StaticMultisigIsmMetadata.root(_metadata),
-                        StaticMultisigIsmMetadata.index(_metadata)
-                    )
-                )
-            );
+        StaticMOfNAddressSet.setThreshold(_sets[_domain], _threshold);
     }
 }

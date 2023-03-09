@@ -7,36 +7,184 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
-import {Message} from "../libs/Message.sol";
-import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
-import {EnumerableMOfNSet} from "../libs/EnumerableMOfNSet.sol";
-import {OwnableMOfNSet} from "../libs/OwnableMOfNSet.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 
+import {Message} from "../libs/Message.sol";
+import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
+import {LegacyMultisigIsmMetadata} from "../libs/LegacyMultisigIsmMetadata.sol";
+
+import {OwnableMOfNAddressSet} from "../libs/OwnableMOfNAddressSet.sol";
+import {StorageMOfNAddressSet} from "../libs/StorageMOfNAddressSet.sol";
+
 /**
- * @title MultisigIsm
+ * @title LegacyStorageMultisig
  * @notice Manages per-domain m-of-n Validator sets that are used to verify
  * interchain messages.
  */
-contract MultisigIsm is IMultisigIsm, OwnableMOfNSet {
+contract LegacyStorageMultisigIsm is
+    OwnableMOfNAddressSet,
+    AbstractMultisigIsm
+{
     // ============ Libraries ============
 
     using Message for bytes;
-    using MultisigIsmMetadata for bytes;
+    using LegacyMultisigIsmMetadata for bytes;
     using MerkleLib for MerkleLib.Tree;
+
+    // ============ Events ============
+
+    event CommitmentUpdated(uint32 indexed domain, bytes32 commitment);
 
     // ============ Constants ============
 
-    uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.MULTISIG);
+    uint8 public constant override moduleType =
+        uint8(IInterchainSecurityModule.Types.LEGACY_MULTISIG);
+
+    // ============ Public Storage ============
+    mapping(uint32 => StorageMOfNAddressSet.AddressSet) private _sets;
+    mapping(uint32 => bytes32) private _commitments;
 
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
-    constructor() OwnableMOfNSet() {}
+    constructor() OwnableMOfNAddressSet() {}
 
     // ============ Public Functions ============
+
+    /**
+     * @notice Returns the set of validators responsible for verifying _message
+     * and the number of signatures required
+     * @dev Can change based on the content of _message
+     * @param _message Hyperlane formatted interchain message
+     * @return validators The array of validator addresses
+     * @return threshold The number of validator signatures needed
+     */
+    function validatorsAndThreshold(bytes calldata _message)
+        public
+        view
+        virtual
+        override
+        returns (address[] memory, uint8)
+    {
+        return valuesAndThreshold(Message.origin(_message));
+    }
+
+    /**
+     * @notice Returns whether an address is contained in a set.
+     * @param _domain The remote domain of the set.
+     * @param _value The address to test for set membership.
+     * @return True if the address is contained, false otherwise.
+     */
+    function contains(uint32 _domain, address _value)
+        public
+        view
+        virtual
+        override
+        returns (bool)
+    {
+        return StorageMOfNAddressSet.contains(_sets[_domain], _value);
+    }
+
+    /**
+     * @notice Gets the current set
+     * @param _domain The remote domain of the set.
+     * @return The addresses of the set.
+     */
+    function values(uint32 _domain)
+        public
+        view
+        virtual
+        override
+        returns (address[] memory)
+    {
+        return StorageMOfNAddressSet.values(_sets[_domain]);
+    }
+
+    /**
+     * @notice Gets the current threshold
+     * @param _domain The remote domain of the set.
+     * @return The threshold of the set.
+     */
+    function threshold(uint32 _domain)
+        public
+        view
+        virtual
+        override
+        returns (uint8)
+    {
+        return StorageMOfNAddressSet.threshold(_sets[_domain]);
+    }
+
+    /**
+     * @notice Returns the number of values contained in the set.
+     * @param _domain The remote domain of the set.
+     * @return The number of values contained in the set.
+     */
+    function length(uint32 _domain)
+        public
+        view
+        virtual
+        override
+        returns (uint256)
+    {
+        return StorageMOfNAddressSet.length(_sets[_domain]);
+    }
+
+    // ============ Private Functions ============
+
+    /**
+     * @notice Adds multiple values to multiple sets.
+     * @dev Reverts if `_value` is already in the set.
+     * @dev _values[i] are the values to add for _domains[i].
+     * @param _domains The remote domains of the sets.
+     * @param _values The values to add to the sets.
+     */
+    function _addMany(uint32[] calldata _domains, address[][] calldata _values)
+        internal
+        virtual
+        override
+    {
+        require(_domains.length == _values.length);
+        for (uint256 i = 0; i < _domains.length; i++) {
+            StorageMOfNAddressSet.add(_sets[_domains[i]], _values[i]);
+        }
+        _updateCommitment(_domain);
+    }
+
+    /**
+     * @notice Adds a value into a set.
+     * @dev Reverts if `_value` is already in the set.
+     * @param _domain The remote domain of the set.
+     * @param _value The value to add to the set.
+     */
+    function _add(uint32 _domain, address _value) internal virtual override {
+        StorageMOfNAddressSet.add(_sets[_domain], _value);
+        _updateCommitment(_domain);
+    }
+
+    /**
+     * @notice Removes a value from a set.
+     * @dev Reverts if `_value` is not in the set.
+     * @param _domain The remote domain of the set.
+     * @param _value The value to remove from the set.
+     */
+    function _remove(uint32 _domain, address _value) internal virtual override {
+        StorageMOfNAddressSet.remove(_sets[_domain], _value);
+        _updateCommitment(_domain);
+    }
+
+    /**
+     * @notice Sets the quorum threshold.
+     * @param _domain The remote domain of the set.
+     * @param _threshold The new quorum threshold.
+     */
+    function _setThreshold(uint32 _domain, uint8 _threshold)
+        internal
+        virtual
+        override
+    {
+        StorageMOfNAddressSet.setThreshold(_sets[_domain], _threshold);
+    }
 
     /**
      * @notice Requires that m-of-n validators verify a merkle root,
@@ -134,28 +282,6 @@ contract MultisigIsm is IMultisigIsm, OwnableMOfNSet {
     }
 
     /**
-     * @notice Returns the domain hash that validators are expected to use
-     * when signing checkpoints.
-     * @param _origin The origin domain of the checkpoint.
-     * @param _originMailbox The address of the origin mailbox as bytes32.
-     * @return The domain hash.
-     */
-    function _getDomainHash(uint32 _origin, bytes32 _originMailbox)
-        internal
-        pure
-        returns (bytes32)
-    {
-        // Including the origin mailbox address in the signature allows the slashing
-        // protocol to enroll multiple mailboxes. Otherwise, a valid signature for
-        // mailbox A would be indistinguishable from a fraudulent signature for mailbox
-        // B.
-        // The slashing protocol should slash if validators sign attestations for
-        // anything other than a whitelisted mailbox.
-        return
-            keccak256(abi.encodePacked(_origin, _originMailbox, "HYPERLANE"));
-    }
-
-    /**
      * @notice Returns the digest validators are expected to sign when signing checkpoints.
      * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
      * @param _origin The origin domain of the checkpoint.
@@ -168,15 +294,15 @@ contract MultisigIsm is IMultisigIsm, OwnableMOfNSet {
     {
         bytes32 _domainHash = _getDomainHash(
             _origin,
-            _metadata.originMailbox()
+            LegacyMultisigIsmMetadata.originMailbox(_metadata)
         );
         return
             ECDSA.toEthSignedMessageHash(
                 keccak256(
                     abi.encodePacked(
                         _domainHash,
-                        _metadata.root(),
-                        _metadata.index()
+                        LegacyMultisigIsmMetadata.root(_metadata),
+                        LegacyMultisigIsmMetadata.index(_metadata)
                     )
                 )
             );

@@ -3,20 +3,20 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
-import {AbstractAggregationIsm} from "./AbstractAggregationIsm.sol";
-import {AggregationIsmMetadata} from "../libs/AggregationIsmMetadata.sol";
+import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
+import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
 
 import {OwnableMOfNAddressSet} from "../libs/OwnableMOfNAddressSet.sol";
-import {StaticMOfNAddressSet} from "../libs/StaticMOfNAddressSet.sol";
+import {StorageMOfNAddressSet} from "../libs/StorageMOfNAddressSet.sol";
 
 /**
- * @title StaticAggregationIsm
+ * @title StorageMultisigIsm
  * @notice Manages per-domain m-of-n Validator sets in storage that are used
  * to verify interchain messages.
  */
-contract StaticAggregationIsm is OwnableMOfNAddressSet, AbstractAggregationIsm {
+contract StorageMultisigIsm is OwnableMOfNAddressSet, AbstractMultisigIsm {
     // ============ Public Storage ============
-    mapping(uint32 => StaticMOfNAddressSet.AddressSet) private _sets;
+    mapping(uint32 => StorageMOfNAddressSet.AddressSet) private _sets;
 
     // ============ Constructor ============
 
@@ -33,7 +33,7 @@ contract StaticAggregationIsm is OwnableMOfNAddressSet, AbstractAggregationIsm {
      * @return validators The array of validator addresses
      * @return threshold The number of validator signatures needed
      */
-    function ismsAndThreshold(bytes calldata _message)
+    function validatorsAndThreshold(bytes calldata _message)
         public
         view
         virtual
@@ -56,7 +56,7 @@ contract StaticAggregationIsm is OwnableMOfNAddressSet, AbstractAggregationIsm {
         override
         returns (bool)
     {
-        return StaticMOfNAddressSet.contains(_sets[_domain], _value);
+        return StorageMOfNAddressSet.contains(_sets[_domain], _value);
     }
 
     /**
@@ -71,7 +71,7 @@ contract StaticAggregationIsm is OwnableMOfNAddressSet, AbstractAggregationIsm {
         override
         returns (address[] memory)
     {
-        return StaticMOfNAddressSet.values(_sets[_domain]);
+        return StorageMOfNAddressSet.values(_sets[_domain]);
     }
 
     /**
@@ -86,7 +86,7 @@ contract StaticAggregationIsm is OwnableMOfNAddressSet, AbstractAggregationIsm {
         override
         returns (uint8)
     {
-        return StaticMOfNAddressSet.threshold(_sets[_domain]);
+        return StorageMOfNAddressSet.threshold(_sets[_domain]);
     }
 
     /**
@@ -101,7 +101,7 @@ contract StaticAggregationIsm is OwnableMOfNAddressSet, AbstractAggregationIsm {
         override
         returns (uint256)
     {
-        return StaticMOfNAddressSet.length(_sets[_domain]);
+        return StorageMOfNAddressSet.length(_sets[_domain]);
     }
 
     // ============ Private Functions ============
@@ -120,7 +120,7 @@ contract StaticAggregationIsm is OwnableMOfNAddressSet, AbstractAggregationIsm {
     {
         require(_domains.length == _values.length);
         for (uint256 i = 0; i < _domains.length; i++) {
-            StaticMOfNAddressSet.add(_sets[_domains[i]], _values[i]);
+            StorageMOfNAddressSet.add(_sets[_domains[i]], _values[i]);
         }
     }
 
@@ -131,7 +131,7 @@ contract StaticAggregationIsm is OwnableMOfNAddressSet, AbstractAggregationIsm {
      * @param _value The value to add to the set.
      */
     function _add(uint32 _domain, address _value) internal virtual override {
-        StaticMOfNAddressSet.add(_sets[_domain], _value);
+        StorageMOfNAddressSet.add(_sets[_domain], _value);
     }
 
     /**
@@ -141,7 +141,7 @@ contract StaticAggregationIsm is OwnableMOfNAddressSet, AbstractAggregationIsm {
      * @param _value The value to remove from the set.
      */
     function _remove(uint32 _domain, address _value) internal virtual override {
-        StaticMOfNAddressSet.remove(_sets[_domain], _value);
+        StorageMOfNAddressSet.remove(_sets[_domain], _value);
     }
 
     /**
@@ -154,6 +154,6 @@ contract StaticAggregationIsm is OwnableMOfNAddressSet, AbstractAggregationIsm {
         virtual
         override
     {
-        StaticMOfNAddressSet.setThreshold(_sets[_domain], _threshold);
+        StorageMOfNAddressSet.setThreshold(_sets[_domain], _threshold);
     }
 }
