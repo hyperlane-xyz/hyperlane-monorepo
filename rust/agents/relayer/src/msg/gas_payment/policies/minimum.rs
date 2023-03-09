@@ -59,6 +59,7 @@ async fn test_gas_payment_policy_minimum() {
                 &TxCostEstimate {
                     gas_limit: U256::from(100000u32),
                     gas_price: U256::from(100000u32),
+                    l2_gas_limit: None,
                 },
             )
             .await
@@ -81,6 +82,25 @@ async fn test_gas_payment_policy_minimum() {
                 &TxCostEstimate {
                     gas_limit: U256::from(100000u32),
                     gas_price: U256::from(100001u32),
+                    l2_gas_limit: None,
+                },
+            )
+            .await
+            .unwrap(),
+        Some(U256::from(100000u32))
+    );
+
+    // Ensure that even if the l2_gas_limit isn't None, the gas_limit is what's returned
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(
+                &message,
+                &current_payment,
+                &current_expenditure,
+                &TxCostEstimate {
+                    gas_limit: U256::from(100000u32),
+                    gas_price: U256::from(100001u32),
+                    l2_gas_limit: Some(U256::from(22222u32)),
                 },
             )
             .await
