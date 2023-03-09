@@ -1,7 +1,6 @@
-use std::time;
-use std::time::UNIX_EPOCH;
+use sea_orm::prelude::{TimeDateTime};
+use time::OffsetDateTime;
 
-use sea_orm::prelude::DateTime;
 use sea_orm_migration::prelude::*;
 
 /// List of domain data we want to initialize the database with.
@@ -224,9 +223,8 @@ impl MigrationTrait for Migration {
         let db = manager.get_connection();
         for domain in DOMAINS {
             let now = {
-                let sys = time::SystemTime::now();
-                let dur = sys.duration_since(UNIX_EPOCH).unwrap();
-                DateTime::from_timestamp_opt(dur.as_secs() as i64, dur.subsec_nanos()).unwrap()
+                let offset = OffsetDateTime::now_utc();
+                TimeDateTime::new(offset.date(), offset.time())
             };
 
             EntityTrait::insert(domain::ActiveModel {
@@ -288,8 +286,8 @@ mod domain {
     pub struct Model {
         #[sea_orm(primary_key, auto_increment = false)]
         id: u32,
-        time_created: DateTime,
-        time_updated: DateTime,
+        time_created: TimeDateTime,
+        time_updated: TimeDateTime,
         name: String,
         native_token: String,
         chain_id: u64,
