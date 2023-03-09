@@ -33,6 +33,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(GasPayment::Payment, Wei).not_null())
                     .col(ColumnDef::new_with_type(GasPayment::GasAmount, Wei).not_null())
                     .col(ColumnDef::new(GasPayment::TxId).big_integer().not_null())
+                    .col(ColumnDef::new(GasPayment::LogIndex).big_unsigned().not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(GasPayment::TxId)
@@ -82,6 +83,8 @@ pub enum GasPayment {
     Payment,
     /// Amount of destination gas paid for.
     GasAmount,
-    /// Transaction the payment was made in
+    /// Transaction the payment was made in.
     TxId,
+    /// Used to disambiguate duplicate payments from multiple payments made in same transaction.
+    LogIndex,
 }

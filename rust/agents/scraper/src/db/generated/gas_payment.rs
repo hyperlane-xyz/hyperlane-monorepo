@@ -20,6 +20,7 @@ pub struct Model {
     pub payment: BigDecimal,
     pub gas_amount: BigDecimal,
     pub tx_id: i64,
+    pub log_index: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -31,6 +32,7 @@ pub enum Column {
     Payment,
     GasAmount,
     TxId,
+    LogIndex,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
@@ -62,6 +64,7 @@ impl ColumnTrait for Column {
             Self::Payment => ColumnType::Decimal(Some((78u32, 0u32))).def(),
             Self::GasAmount => ColumnType::Decimal(Some((78u32, 0u32))).def(),
             Self::TxId => ColumnType::BigInteger.def(),
+            Self::LogIndex => ColumnType::BigInteger.def(),
         }
     }
 }

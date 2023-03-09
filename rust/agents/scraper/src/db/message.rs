@@ -1,4 +1,5 @@
 use eyre::Result;
+use itertools::Itertools;
 use sea_orm::{
     prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QueryOrder, QuerySelect,
 };
@@ -7,11 +8,11 @@ use tracing::{instrument, trace};
 use hyperlane_core::{HyperlaneMessage, InterchainGasPayment, LogMeta, H256};
 use migration::OnConflict;
 
-use crate::conversions::format_h256;
+use crate::conversions::{format_h256, u256_to_decimal};
 use crate::date_time;
 use crate::db::ScraperDb;
 
-use super::generated::{delivered_message, message};
+use super::generated::{delivered_message, gas_payment, message};
 
 #[derive(Debug, Clone)]
 pub struct StorableDelivery<'a> {
@@ -83,7 +84,7 @@ impl ScraperDb {
                 destination_mailbox: Unchanged(destination_mailbox.clone()),
                 tx_id: Set(delivery.txn_id),
             })
-            .collect::<Vec<_>>();
+            .collect_vec();
 
         debug_assert!(!models.is_empty());
         trace!(?models, "Writing delivered messages to database");
@@ -111,27 +112,25 @@ impl ScraperDb {
         messages: impl Iterator<Item = StorableMessage<'_>>,
     ) -> Result<()> {
         let models = messages
-            .map(|storable| {
-                Ok(message::ActiveModel {
-                    id: NotSet,
-                    time_created: Set(date_time::now()),
-                    msg_id: Unchanged(format_h256(&storable.msg.id())),
-                    origin: Unchanged(storable.msg.origin as i32),
-                    destination: Set(storable.msg.destination as i32),
-                    nonce: Unchanged(storable.msg.nonce as i32),
-                    sender: Set(format_h256(&storable.msg.sender)),
-                    recipient: Set(format_h256(&storable.msg.recipient)),
-                    msg_body: Set(if storable.msg.body.is_empty() {
-                        None
-                    } else {
-                        Some(storable.msg.body)
-                    }),
-                    origin_mailbox: Unchanged(format_h256(origin_mailbox)),
-                    timestamp: Set(storable.timestamp),
-                    origin_tx_id: Set(storable.txn_id),
-                })
+            .map(|storable| message::ActiveModel {
+                id: NotSet,
+                time_created: Set(date_time::now()),
+                msg_id: Unchanged(format_h256(&storable.msg.id())),
+                origin: Unchanged(storable.msg.origin as i32),
+                destination: Set(storable.msg.destination as i32),
+                nonce: Unchanged(storable.msg.nonce as i32),
+                sender: Set(format_h256(&storable.msg.sender)),
+                recipient: Set(format_h256(&storable.msg.recipient)),
+                msg_body: Set(if storable.msg.body.is_empty() {
+                    None
+                } else {
+                    Some(storable.msg.body)
+                }),
+                origin_mailbox: Unchanged(format_h256(origin_mailbox)),
+                timestamp: Set(storable.timestamp),
+                origin_tx_id: Set(storable.txn_id),
             })
-            .collect::<Result<Vec<message::ActiveModel>>>()?;
+            .collect_vec();
 
         debug_assert!(!models.is_empty());
         trace!(?models, "Writing messages to database");
@@ -165,6 +164,39 @@ impl ScraperDb {
         domain: u32,
         payments: impl Iterator<Item = StorablePayment<'_>>,
     ) -> Result<()> {
-        todo!()
+        let models = payments
+            .map(|storable| gas_payment::ActiveModel {
+                id: NotSet,
+                time_created: Set(date_time::now()),
+                domain: Unchanged(domain as i32),
+                msg_id: Unchanged(format_h256(&storable.payment.message_id)),
+                payment: Set(u256_to_decimal(storable.payment.payment)),
+                gas_amount: Set(u256_to_decimal(storable.payment.gas_amount)),
+                tx_id: Unchanged(storable.txn_id),
+                log_index: Unchanged(storable.meta.log_index.as_u64() as i64),
+            })
+            .collect_vec();
+
+        debug_assert!(!models.is_empty());
+        trace!(?models, "Writing gas payments to database");
+
+        Insert::many(models)
+            .on_conflict(
+                OnConflict::columns([
+                    gas_payment::Column::Domain,
+                    gas_payment::Column::MsgId,
+                    gas_payment::Column::TxId,
+                    gas_payment::Column::LogIndex,
+                ])
+                .update_columns([
+                    gas_payment::Column::TimeCreated,
+                    gas_payment::Column::Payment,
+                    gas_payment::Column::GasAmount,
+                ])
+                .to_owned(),
+            )
+            .exec(&self.0)
+            .await?;
+        Ok(())
     }
 }
