@@ -56,7 +56,7 @@ export type GasPaymentEnforcementPolicy =
     }
   | {
       type: GasPaymentEnforcementPolicyType.Minimum;
-      payment: BigNumberish;
+      payment: string; // An integer string, may be 0x-prefixed
     };
 
 export type GasPaymentEnforcementConfig = GasPaymentEnforcementPolicy & {
