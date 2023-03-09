@@ -1,10 +1,12 @@
 use std::fmt::Debug;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use ethers::providers::{Http, HttpClientError, JsonRpcClient, ProviderError};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
+use tokio::time::sleep;
 use tracing::warn;
 
 use ethers_prometheus::json_rpc_client::PrometheusJsonRpcClient;
@@ -52,7 +54,8 @@ impl<T> Default for FallbackProviderBuilder<T> {
 }
 
 impl<T> FallbackProviderBuilder<T> {
-    /// Add a new provider to the set. Each new provider will be a lower priority than the previous.
+    /// Add a new provider to the set. Each new provider will be a lower
+    /// priority than the previous.
     pub fn add_provider(mut self, provider: T) -> Self {
         self.providers.push(provider);
         self
@@ -97,30 +100,36 @@ impl JsonRpcClient for FallbackProvider<PrometheusJsonRpcClient<Http>> {
         let params = serde_json::to_value(params).expect("valid");
 
         let mut errors = vec![];
-        for (idx, provider) in self.0.iter().enumerate() {
-            let fut = match params {
-                Value::Null => provider.request(method, ()),
-                _ => provider.request(method, &params),
-            };
+        // make sure we do at least 4 total retries.
+        while errors.len() <= 3 {
+            if !errors.is_empty() {
+                sleep(Duration::from_secs(10)).await;
+            }
+            for (idx, provider) in self.0.iter().enumerate() {
+                let fut = match params {
+                    Value::Null => provider.request(method, ()),
+                    _ => provider.request(method, &params),
+                };
 
-            match fut.await {
-                Ok(v) => return Ok(serde_json::from_value(v)?),
+                match fut.await {
+                    Ok(v) => return Ok(serde_json::from_value(v)?),
 
-                Err(HttpClientError::ReqwestError(e)) => {
-                    warn!(error=%e, provider_index=%idx, ?provider, method, "ReqwestError in http provider; falling back to the next provider");
-                    errors.push(HttpClientError::ReqwestError(e).into())
-                }
-                Err(HttpClientError::SerdeJson { err, text }) => {
-                    warn!(error=%err, text, provider_index=%idx, ?provider, method, "ReqwestError in http provider; falling back to the next provider");
-                    errors.push(HttpClientError::SerdeJson { err, text }.into())
-                }
-                Err(HttpClientError::JsonRpcError(e)) => {
-                    if METHODS_TO_NOT_TO_FALLBACK_ON.contains(&method) {
-                        warn!(error = %e, provider_index=%idx, ?provider, method, "JsonRpcError in http provider; not falling back");
-                        return Err(HttpClientError::JsonRpcError(e).into());
-                    } else {
-                        warn!(error = %e, provider_index=%idx, ?provider, method, "JsonRpcError in http provider; falling back to the next provider");
-                        errors.push(HttpClientError::JsonRpcError(e).into())
+                    Err(HttpClientError::ReqwestError(e)) => {
+                        warn!(error=%e, provider_index=%idx, ?provider, method, "ReqwestError in http provider; falling back to the next provider");
+                        errors.push(HttpClientError::ReqwestError(e).into())
+                    }
+                    Err(HttpClientError::SerdeJson { err, text }) => {
+                        warn!(error=%err, text, provider_index=%idx, ?provider, method, "ReqwestError in http provider; falling back to the next provider");
+                        errors.push(HttpClientError::SerdeJson { err, text }.into())
+                    }
+                    Err(HttpClientError::JsonRpcError(e)) => {
+                        if METHODS_TO_NOT_TO_FALLBACK_ON.contains(&method) {
+                            warn!(error = %e, provider_index=%idx, ?provider, method, "JsonRpcError in http provider; not falling back");
+                            return Err(HttpClientError::JsonRpcError(e).into());
+                        } else {
+                            warn!(error = %e, provider_index=%idx, ?provider, method, "JsonRpcError in http provider; falling back to the next provider");
+                            errors.push(HttpClientError::JsonRpcError(e).into())
+                        }
                     }
                 }
             }
