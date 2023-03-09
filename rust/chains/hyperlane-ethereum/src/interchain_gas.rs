@@ -122,10 +122,11 @@ where
                 payment: InterchainGasPayment {
                     message_id: H256::from(log.message_id),
                     payment: log.payment,
+                    gas_amount: log.gas_amount,
                 },
                 meta: InterchainGasPaymentMeta {
                     transaction_hash: log_meta.transaction_hash,
-                    log_index: log_meta.log_index,
+                    log_index: log_meta.log_index.as_u64(),
                 },
             })
             .collect())

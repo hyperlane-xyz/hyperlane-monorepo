@@ -581,7 +581,7 @@ class ContextFunder {
     });
     log('Sent transaction', {
       key: keyInfo,
-      txUrl: this.multiProvider.getExplorerTxUrl(chain, {
+      txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
         hash: tx.transactionHash,
       }),
       context: this.context,
