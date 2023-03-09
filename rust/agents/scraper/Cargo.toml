@@ -10,6 +10,7 @@ ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10
 eyre = "0.6"
 futures = "0.3"
 itertools = "0.10"
+num-bigint = "0.4"
 prometheus = "0.13"
 sea-orm = { version = "~0.11", features = ["sqlx-postgres", "runtime-tokio-native-tls", "macros", "with-bigdecimal", "with-time"], default-features = false }
 serde = { version = "1.0", features = ["derive"] }

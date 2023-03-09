@@ -62,7 +62,7 @@ impl ColumnTrait for Column {
             Self::BlockHeight => ColumnType::BigInteger.def(),
             Self::BlockTimestamp => ColumnType::DateTime.def(),
             Self::Processable => ColumnType::Boolean.def(),
-            Self::EstimatedGasCost => ColumnType::Decimal(Some((78u32, 18u32))).def().null(),
+            Self::EstimatedGasCost => ColumnType::Decimal(Some((78u32, 0u32))).def().null(),
             Self::ErrorMsg => ColumnType::Text.def().null(),
         }
     }

@@ -11,22 +11,22 @@ impl EntityName for Entity {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel)]
+#[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel, Eq)]
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
     pub hash: String,
     pub block_id: i64,
-    pub gas_limit: f64,
-    pub max_priority_fee_per_gas: Option<f64>,
-    pub max_fee_per_gas: Option<f64>,
-    pub gas_price: Option<f64>,
-    pub effective_gas_price: Option<f64>,
+    pub gas_limit: BigDecimal,
+    pub max_priority_fee_per_gas: Option<BigDecimal>,
+    pub max_fee_per_gas: Option<BigDecimal>,
+    pub gas_price: Option<BigDecimal>,
+    pub effective_gas_price: Option<BigDecimal>,
     pub nonce: i64,
     pub sender: String,
     pub recipient: Option<String>,
-    pub gas_used: f64,
-    pub cumulative_gas_used: f64,
+    pub gas_used: BigDecimal,
+    pub cumulative_gas_used: BigDecimal,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -75,16 +75,16 @@ impl ColumnTrait for Column {
             Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Hash => ColumnType::String(Some(64u32)).def().unique(),
             Self::BlockId => ColumnType::BigInteger.def(),
-            Self::GasLimit => ColumnType::Double.def(),
-            Self::MaxPriorityFeePerGas => ColumnType::Double.def().null(),
-            Self::MaxFeePerGas => ColumnType::Double.def().null(),
-            Self::GasPrice => ColumnType::Double.def().null(),
-            Self::EffectiveGasPrice => ColumnType::Double.def().null(),
+            Self::GasLimit => ColumnType::Decimal(Some((78u32, 0u32))).def(),
+            Self::MaxPriorityFeePerGas => ColumnType::Decimal(Some((78u32, 0u32))).def().null(),
+            Self::MaxFeePerGas => ColumnType::Decimal(Some((78u32, 0u32))).def().null(),
+            Self::GasPrice => ColumnType::Decimal(Some((78u32, 0u32))).def().null(),
+            Self::EffectiveGasPrice => ColumnType::Decimal(Some((78u32, 0u32))).def().null(),
             Self::Nonce => ColumnType::BigInteger.def(),
             Self::Sender => ColumnType::String(Some(64u32)).def(),
             Self::Recipient => ColumnType::String(Some(64u32)).def().null(),
-            Self::GasUsed => ColumnType::Double.def(),
-            Self::CumulativeGasUsed => ColumnType::Double.def(),
+            Self::GasUsed => ColumnType::Decimal(Some((78u32, 0u32))).def(),
+            Self::CumulativeGasUsed => ColumnType::Decimal(Some((78u32, 0u32))).def(),
         }
     }
 }

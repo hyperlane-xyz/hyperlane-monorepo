@@ -4583,6 +4583,7 @@ dependencies = [
  "hyperlane-test",
  "itertools",
  "migration",
+ "num-bigint",
  "prometheus",
  "sea-orm",
  "serde",

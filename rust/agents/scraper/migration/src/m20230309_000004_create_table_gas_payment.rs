@@ -30,7 +30,8 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(GasPayment::Domain).unsigned().not_null())
                     .col(ColumnDef::new_with_type(GasPayment::MsgId, Hash).not_null())
-                    .col(ColumnDef::new_with_type(GasPayment::Amount, Wei).not_null())
+                    .col(ColumnDef::new_with_type(GasPayment::Payment, Wei).not_null())
+                    .col(ColumnDef::new_with_type(GasPayment::GasAmount, Wei).not_null())
                     .col(ColumnDef::new(GasPayment::TxId).big_integer().not_null())
                     .foreign_key(
                         ForeignKey::create()
@@ -77,8 +78,10 @@ pub enum GasPayment {
     Domain,
     /// Unique id of the message on the blockchain which was paid for
     MsgId,
-    /// How much was paid
-    Amount,
+    /// Amount of native tokens paid.
+    Payment,
+    /// Amount of destination gas paid for.
+    GasAmount,
     /// Transaction the payment was made in
     TxId,
 }

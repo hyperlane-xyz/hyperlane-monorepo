@@ -4,9 +4,9 @@ use eyre::{eyre, Context, Result};
 use sea_orm::{prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, NotSet, QuerySelect};
 use tracing::{instrument, trace};
 
-use hyperlane_core::{TxnInfo, H256, U256};
+use hyperlane_core::{TxnInfo, H256};
 
-use crate::conversions::{format_h256, parse_h256};
+use crate::conversions::{format_h256, parse_h256, u256_to_decimal};
 use crate::date_time;
 use crate::db::ScraperDb;
 
@@ -49,7 +49,6 @@ impl ScraperDb {
     /// Store a new transaction into the database (or update an existing one).
     #[instrument(skip_all)]
     pub async fn store_txns(&self, txns: impl Iterator<Item = StorableTxn>) -> Result<i64> {
-        let as_f64 = U256::to_f64_lossy;
         let models = txns
             .map(|txn| {
                 let receipt = txn
@@ -60,18 +59,18 @@ impl ScraperDb {
                 Ok(transaction::ActiveModel {
                     id: NotSet,
                     block_id: Unchanged(txn.block_id),
-                    gas_limit: Set(as_f64(txn.gas_limit)),
-                    max_priority_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(as_f64)),
+                    gas_limit: Set(u256_to_decimal(txn.gas_limit)),
+                    max_priority_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(u256_to_decimal)),
                     hash: Unchanged(format_h256(&txn.hash)),
                     time_created: Set(date_time::now()),
-                    gas_used: Set(as_f64(receipt.gas_used)),
-                    gas_price: Set(txn.gas_price.map(as_f64)),
-                    effective_gas_price: Set(receipt.effective_gas_price.map(as_f64)),
+                    gas_used: Set(u256_to_decimal(receipt.gas_used)),
+                    gas_price: Set(txn.gas_price.map(u256_to_decimal)),
+                    effective_gas_price: Set(receipt.effective_gas_price.map(u256_to_decimal)),
                     nonce: Set(txn.nonce as i64),
                     sender: Set(format_h256(&txn.sender)),
                     recipient: Set(txn.recipient.as_ref().map(format_h256)),
-                    max_fee_per_gas: Set(txn.max_fee_per_gas.map(as_f64)),
-                    cumulative_gas_used: Set(as_f64(receipt.cumulative_gas_used)),
+                    max_fee_per_gas: Set(txn.max_fee_per_gas.map(u256_to_decimal)),
+                    cumulative_gas_used: Set(u256_to_decimal(receipt.cumulative_gas_used)),
                 })
             })
             .collect::<Result<Vec<_>>>()?;

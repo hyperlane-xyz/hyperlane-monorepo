@@ -17,7 +17,8 @@ pub struct Model {
     pub time_created: TimeDateTime,
     pub domain: i32,
     pub msg_id: String,
-    pub amount: BigDecimal,
+    pub payment: BigDecimal,
+    pub gas_amount: BigDecimal,
     pub tx_id: i64,
 }
 
@@ -27,7 +28,8 @@ pub enum Column {
     TimeCreated,
     Domain,
     MsgId,
-    Amount,
+    Payment,
+    GasAmount,
     TxId,
 }
 
@@ -57,7 +59,8 @@ impl ColumnTrait for Column {
             Self::TimeCreated => ColumnType::DateTime.def(),
             Self::Domain => ColumnType::Integer.def(),
             Self::MsgId => ColumnType::String(Some(64u32)).def(),
-            Self::Amount => ColumnType::Decimal(Some((78u32, 18u32))).def(),
+            Self::Payment => ColumnType::Decimal(Some((78u32, 0u32))).def(),
+            Self::GasAmount => ColumnType::Decimal(Some((78u32, 0u32))).def(),
             Self::TxId => ColumnType::BigInteger.def(),
         }
     }
