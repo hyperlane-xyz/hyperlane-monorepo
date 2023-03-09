@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::WrapErr;
+use eyre::{eyre, WrapErr};
 use tokio::task::JoinHandle;
 use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
@@ -27,6 +27,8 @@ pub struct Scraper {
 decl_settings!(Scraper {
     /// Database connection string
     db: String,
+    /// Comma separated list of chains to scrape
+    chainstoscrape: String,
 });
 
 #[async_trait]
@@ -47,7 +49,12 @@ impl BaseAgent for Scraper {
         let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
         let mut scrapers: HashMap<u32, SqlChainScraper> = HashMap::new();
 
-        for (chain_name, chain_setup) in settings.chains.iter() {
+        let chains_to_scrape = settings.chainstoscrape.split(",");
+        for chain_name in chains_to_scrape {
+            let chain_setup = settings
+                .chains
+                .get(chain_name)
+                .ok_or_else(|| eyre!("No configuration for chain {chain_name}"))?;
             let ctx = || format!("Loading chain {chain_name}");
             let local = Self::load_chain(&settings, chain_name, &metrics)
                 .await

@@ -55,6 +55,14 @@ spec:
         - secretRef:
             name: {{ include "agent-common.fullname" . }}-scraper-secret
         env:
+{{- $scraperChainNames := list }}
+{{- range .Values.hyperlane.chains }}
+{{- if not .disabled }}
+{{- $scraperChainNames = append $scraperChainNames .name }}
+{{- end }}
+{{- end }}
+          - name: HYP_SCRAPER_CHAINSTOSCRAPE
+            value: {{ $scraperChainNames | join "." }}
           {{- if .Values.hyperlane.tracing.uri }}
           - name: HYP_BASE_TRACING_JAEGER_NAME
             value: {{ include "agent-common.fullname" . }}-scraper
