@@ -1,7 +1,7 @@
 use sea_orm_migration::prelude::*;
 
-use crate::l20221122_types::*;
-use crate::m20221122_000004_create_table_message::Message;
+use crate::l20230309_types::*;
+use crate::m20230309_000004_create_table_message::Message;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -45,7 +45,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(&mut ColumnDef::new_with_type(
                         MessageState::EstimatedGasCost,
-                        CryptoCurrency,
+                        Wei,
                     ))
                     .col(ColumnDef::new(MessageState::ErrorMsg).text())
                     .foreign_key(

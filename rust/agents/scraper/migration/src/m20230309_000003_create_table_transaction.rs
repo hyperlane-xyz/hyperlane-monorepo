@@ -1,7 +1,9 @@
+use std::borrow::BorrowMut as _;
+
 use sea_orm_migration::prelude::*;
 
-use crate::l20221122_types::*;
-use crate::m20221122_000002_create_table_block::Block;
+use crate::l20230309_types::*;
+use crate::m20230309_000002_create_table_block::Block;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -37,23 +39,19 @@ impl MigrationTrait for Migration {
                             .big_integer()
                             .not_null(),
                     )
-                    .col(ColumnDef::new(Transaction::GasLimit).double().not_null())
-                    .col(ColumnDef::new(Transaction::MaxPriorityFeePerGas).double())
-                    .col(ColumnDef::new(Transaction::MaxFeePerGas).double())
-                    .col(ColumnDef::new(Transaction::GasPrice).double())
-                    .col(ColumnDef::new(Transaction::EffectiveGasPrice).double())
+                    .col(ColumnDef::new_with_type(Transaction::GasLimit, Wei).not_null())
+                    .col(
+                        ColumnDef::new_with_type(Transaction::MaxPriorityFeePerGas, Wei)
+                            .borrow_mut(),
+                    )
+                    .col(ColumnDef::new_with_type(Transaction::MaxFeePerGas, Wei).borrow_mut())
+                    .col(ColumnDef::new_with_type(Transaction::GasPrice, Wei).borrow_mut())
+                    .col(ColumnDef::new_with_type(Transaction::EffectiveGasPrice, Wei).borrow_mut())
                     .col(ColumnDef::new(Transaction::Nonce).big_unsigned().not_null())
                     .col(ColumnDef::new_with_type(Transaction::Sender, Address).not_null())
-                    .col(&mut ColumnDef::new_with_type(
-                        Transaction::Recipient,
-                        Address,
-                    ))
-                    .col(ColumnDef::new(Transaction::GasUsed).double().not_null())
-                    .col(
-                        ColumnDef::new(Transaction::CumulativeGasUsed)
-                            .double()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new_with_type(Transaction::Recipient, Address).borrow_mut())
+                    .col(ColumnDef::new_with_type(Transaction::GasUsed, Wei).not_null())
+                    .col(ColumnDef::new_with_type(Transaction::CumulativeGasUsed, Wei).not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Transaction::BlockId)

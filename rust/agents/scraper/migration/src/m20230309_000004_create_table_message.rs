@@ -1,6 +1,6 @@
-use crate::l20221122_types::*;
-use crate::m20221122_000001_create_table_domain::Domain;
-use crate::m20221122_000003_create_table_transaction::Transaction;
+use crate::l20230309_types::*;
+use crate::m20230309_000001_create_table_domain::Domain;
+use crate::m20230309_000003_create_table_transaction::Transaction;
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]

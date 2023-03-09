@@ -1,8 +1,8 @@
 use sea_orm_migration::prelude::*;
 
-use crate::l20221122_types::*;
-use crate::m20221122_000001_create_table_domain::Domain;
-use crate::m20221122_000003_create_table_transaction::Transaction;
+use crate::l20230309_types::*;
+use crate::m20230309_000001_create_table_domain::Domain;
+use crate::m20230309_000003_create_table_transaction::Transaction;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -30,7 +30,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(GasPayment::Domain).unsigned().not_null())
                     .col(ColumnDef::new_with_type(GasPayment::MsgId, Hash).not_null())
-                    .col(ColumnDef::new_with_type(GasPayment::Amount, CryptoCurrency).not_null())
+                    .col(ColumnDef::new_with_type(GasPayment::Amount, Wei).not_null())
                     .col(ColumnDef::new(GasPayment::TxId).big_integer().not_null())
                     .foreign_key(
                         ForeignKey::create()
