@@ -1495,6 +1495,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.13.1",
  "borsh",
+ "bs58",
  "hyperlane-core",
  "itertools",
  "log",

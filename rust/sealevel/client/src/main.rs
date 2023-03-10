@@ -3,10 +3,13 @@
 // #![deny(missing_docs)] // FIXME
 #![deny(unsafe_code)]
 
+use std::str::FromStr as _;
+
 use clap::{Args, Parser, Subcommand};
 use hyperlane_sealevel_ism_rubber_stamp::ID as DEFAULT_ISM_PROG_ID;
 use hyperlane_sealevel_mailbox::{
     ID as MAILBOX_PROG_ID,
+    SPL_NOOP,
     hyperlane_core::{message::HyperlaneMessage, types::H256, Encode},
     accounts::{InboxAccount, OutboxAccount},
     instruction::{
@@ -281,7 +284,8 @@ fn main() {
                 data: ixn.into_instruction_data().unwrap(),
                 accounts: vec![
                     AccountMeta::new(outbox_account, false),
-                    AccountMeta::new_readonly(payer.pubkey(), true)
+                    AccountMeta::new_readonly(payer.pubkey(), true),
+                    AccountMeta::new_readonly(Pubkey::from_str(SPL_NOOP).unwrap(), false),
                 ],
             };
             instructions.push(outbox_instruction);
@@ -338,6 +342,7 @@ fn main() {
                 accounts: vec![
                     AccountMeta::new(inbox_account, false),
                     AccountMeta::new_readonly(auth_account, false),
+                    AccountMeta::new_readonly(Pubkey::from_str(SPL_NOOP).unwrap(), false),
                     AccountMeta::new_readonly(inbox.ism, false),
                     AccountMeta::new_readonly(inbox.recipient, false),
                     // Note: we would have to provide ism accounts and recipient accounts here if

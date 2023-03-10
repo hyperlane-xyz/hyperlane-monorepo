@@ -10,6 +10,7 @@ CHAIN_ID="13375"
 solana -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_mailbox.so"
 solana -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_recipient_echo.so"
 solana -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/hyperlane_sealevel_ism_rubber_stamp.so"
+solana -k "${KEYPAIR}" program deploy "${DEPLOY_DIR}/spl_noop.so"
 
 set +e
 while ! "${BIN_DIR}/hyperlane-sealevel-client" -k "${KEYPAIR}" init; do

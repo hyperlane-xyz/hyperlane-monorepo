@@ -1,6 +1,8 @@
 //! Entrypoint, dispatch, and execution for the Hyperlane Sealevel mailbox instruction.
 
-use hyperlane_core::{Decode, HyperlaneMessage, H256};
+use std::str::FromStr as _;
+
+use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256};
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
 use solana_program::{
@@ -23,6 +25,7 @@ use crate::{
         InboxProcess, InboxSetDefaultModule, Init, Instruction as MailboxIxn, IsmInstruction,
         OutboxDispatch, OutboxQuery, RecipientInstruction, MAX_MESSAGE_BODY_BYTES, VERSION,
     },
+    SPL_NOOP,
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -225,6 +228,11 @@ fn inbox_process(
         return Err(ProgramError::IncorrectProgramId);
     }
 
+    let spl_noop = next_account_info(accounts_iter)?;
+    if spl_noop.key != &Pubkey::from_str(SPL_NOOP).unwrap() || !spl_noop.executable {
+        return Err(ProgramError::InvalidArgument);
+    }
+
     let id = message.id();
     if inbox.delivered.contains(&id) {
         return Err(ProgramError::from(Error::DuplicateMessage));
@@ -303,7 +311,15 @@ fn inbox_process(
     );
     invoke_signed(&verify, &ism_accounts, &[auth_seeds])?;
     invoke_signed(&recieve, &recp_accounts, &[auth_seeds])?;
-    msg!("Hyperlane inbox: {:?}", id);
+
+    // FIXME do we need an equivalent of both ProcessId and Process solidity events?
+    let noop_cpi_log = Instruction {
+        program_id: Pubkey::from_str(SPL_NOOP).unwrap(),
+        accounts: vec![],
+        data: format!("Hyperlane inbox: {:?}", id).into_bytes(),
+    };
+    msg!("data = {}", bs58::encode(&noop_cpi_log.data).into_string()); // FIXME remove
+    invoke_signed(&noop_cpi_log, &[], &[auth_seeds])?;
 
     InboxAccount::from(inbox).store(inbox_account, true)?;
     Ok(())
@@ -366,6 +382,10 @@ fn outbox_dispatch(
     if !sender.is_signer || sender.executable {
         return Err(ProgramError::MissingRequiredSignature);
     }
+    let spl_noop = next_account_info(accounts_iter)?;
+    if spl_noop.key != &Pubkey::from_str(SPL_NOOP).unwrap() || !spl_noop.executable {
+        return Err(ProgramError::InvalidArgument);
+    }
 
     if accounts_iter.next().is_some() {
         return Err(ProgramError::from(Error::ExtraneousAccount));
@@ -388,18 +408,25 @@ fn outbox_dispatch(
         recipient: dispatch.recipient,
         body: dispatch.message_body,
     };
-    let formatted = message
-        .format()
+    let mut formatted = vec![];
+    message
+        .write_to(&mut formatted)
         .map_err(|_| ProgramError::from(Error::MalformattedMessage))?;
-    // TODO Get this dynamically: https://github.com/solana-labs/solana/issues/23653
-    let remaining_log_budget_bytes = 10_000 - 18; // Default minus our log message prefix.
-    if formatted.len() > remaining_log_budget_bytes {
-        return Err(ProgramError::from(Error::LogBudgetExceeded));
-    }
 
     let id = message.id();
     outbox.tree.ingest(id);
-    msg!("Hyperlane outbox: {}", &formatted);
+
+    let noop_cpi_log = Instruction {
+        program_id: *spl_noop.key,
+        accounts: vec![],
+        data: formatted,
+    };
+    let auth_seeds: &[&[u8]] = mailbox_authority_pda_seeds!(
+        outbox.local_domain,
+        outbox.auth_bump_seed
+    );
+    msg!("data = {}", bs58::encode(&noop_cpi_log.data).into_string()); // FIXME remove
+    invoke_signed(&noop_cpi_log, &[], &[auth_seeds])?;
 
     OutboxAccount::from(outbox).store(outbox_account, true)?;
 
@@ -510,8 +537,6 @@ fn outbox_get_root(
 #[cfg(test)]
 mod test {
     use super::*;
-
-    use std::str::FromStr as _;
 
     use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, Encode};
     use itertools::Itertools as _;
