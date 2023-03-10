@@ -25,7 +25,7 @@ use crate::{
         StorableTxn,
     },
 };
-use crate::db::payment::StorablePayment;
+use crate::db::StorablePayment;
 
 mod sync;
 

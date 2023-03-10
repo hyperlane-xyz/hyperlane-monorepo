@@ -9,6 +9,7 @@ pub use block_cursor::BlockCursor;
 use hyperlane_core::TxnInfo;
 pub use message::*;
 pub use txn::*;
+pub use payment::*;
 
 #[allow(clippy::all)]
 mod generated;
