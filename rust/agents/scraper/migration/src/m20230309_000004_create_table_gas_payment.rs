@@ -33,7 +33,11 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(GasPayment::Payment, Wei).not_null())
                     .col(ColumnDef::new_with_type(GasPayment::GasAmount, Wei).not_null())
                     .col(ColumnDef::new(GasPayment::TxId).big_integer().not_null())
-                    .col(ColumnDef::new(GasPayment::LogIndex).big_unsigned().not_null())
+                    .col(
+                        ColumnDef::new(GasPayment::LogIndex)
+                            .big_unsigned()
+                            .not_null(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(GasPayment::TxId)
@@ -43,6 +47,14 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .from_col(GasPayment::Domain)
                             .to(Domain::Table, Domain::Id),
+                    )
+                    .index(
+                        Index::create()
+                            // don't need domain because TxId includes it
+                            .col(GasPayment::MsgId)
+                            .col(GasPayment::TxId)
+                            .col(GasPayment::LogIndex)
+                            .unique(),
                     )
                     .to_owned(),
             )
@@ -85,6 +97,7 @@ pub enum GasPayment {
     GasAmount,
     /// Transaction the payment was made in.
     TxId,
-    /// Used to disambiguate duplicate payments from multiple payments made in same transaction.
+    /// Used to disambiguate duplicate payments from multiple payments made in
+    /// same transaction.
     LogIndex,
 }

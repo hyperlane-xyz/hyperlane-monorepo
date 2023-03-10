@@ -45,7 +45,7 @@ impl ScraperDb {
         Insert::many(models)
             .on_conflict(
                 OnConflict::columns([
-                    gas_payment::Column::Domain,
+                    // don't need domain because TxId includes it
                     gas_payment::Column::MsgId,
                     gas_payment::Column::TxId,
                     gas_payment::Column::LogIndex,
