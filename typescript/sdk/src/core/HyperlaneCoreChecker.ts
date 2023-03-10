@@ -51,6 +51,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     await this.checkMultisigIsm(chain);
     await this.checkBytecodes(chain);
     await this.checkValidatorAnnounce(chain);
+    await this.checkDefaultIsmInterchainGasPaymaster(chain);
     await this.checkInterchainGasPaymaster(chain);
   }
 
@@ -260,6 +261,10 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       };
       this.addViolation(violation);
     }
+  }
+
+  async checkDefaultIsmInterchainGasPaymaster(local: ChainName): Promise<void> {
+    // checkDefaultIsmInterchainGasPaymaster
   }
 
   async checkInterchainGasPaymaster(local: ChainName): Promise<void> {

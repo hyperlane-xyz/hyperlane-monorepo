@@ -1,3 +1,5 @@
+import { BigNumber } from 'ethers';
+
 import {
   InterchainGasPaymaster,
   Mailbox,
@@ -44,6 +46,10 @@ export enum MultisigIsmViolationType {
 
 export enum MailboxViolationType {
   DefaultIsm = 'DefaultIsm',
+}
+
+export enum DefaultIsmIgpViolationType {
+  DestinationGasOverheads = 'DestinationGasOverheads',
 }
 
 export enum IgpViolationType {
@@ -105,4 +111,17 @@ export interface IgpGasOraclesViolation extends IgpViolation {
   subType: IgpViolationType.GasOracles;
   actual: ChainMap<types.Address>;
   expected: ChainMap<types.Address>;
+}
+
+export interface DefaultIsmIgpViolation extends CheckerViolation {
+  type: CoreViolationType.InterchainGasPaymaster;
+  contract: InterchainGasPaymaster;
+  subType: IgpViolationType;
+}
+
+export interface DefaultIsmIgpDestinationGasOverheadsViolation
+  extends IgpViolation {
+  subType: IgpViolationType.Beneficiary;
+  actual: ChainMap<BigNumber>;
+  expected: ChainMap<BigNumber>;
 }
