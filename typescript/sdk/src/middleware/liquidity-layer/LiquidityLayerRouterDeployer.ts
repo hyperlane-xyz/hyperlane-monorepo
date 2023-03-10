@@ -7,17 +7,17 @@ import {
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
+import { MultiProvider } from '../../providers/MultiProvider';
+import { RouterConfig } from '../../router/types';
+import { ChainMap, ChainName } from '../../types';
+import { objFilter, objMap } from '../../utils/objects';
+import { MiddlewareRouterDeployer } from '../deploy';
+
 import {
   LiquidityLayerContracts,
   LiquidityLayerFactories,
   liquidityLayerFactories,
-} from '../../middleware';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ChainMap, ChainName } from '../../types';
-import { objFilter, objMap } from '../../utils/objects';
-import { RouterConfig } from '../router/types';
-
-import { MiddlewareRouterDeployer } from './deploy';
+} from './contracts';
 
 export enum BridgeAdapterType {
   Circle = 'Circle',

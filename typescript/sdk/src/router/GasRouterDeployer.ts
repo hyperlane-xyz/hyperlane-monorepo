@@ -2,13 +2,12 @@ import { debug } from 'debug';
 
 import { GasRouter } from '@hyperlane-xyz/core';
 
-import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterContracts, RouterFactories } from '../../router';
-import { ChainMap } from '../../types';
-import { DeployerOptions } from '../HyperlaneDeployer';
+import { DeployerOptions } from '../deploy/HyperlaneDeployer';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainMap } from '../types';
 
 import { HyperlaneRouterDeployer } from './HyperlaneRouterDeployer';
-import { GasRouterConfig } from './types';
+import { GasRouterConfig, RouterContracts, RouterFactories } from './types';
 
 export abstract class GasRouterDeployer<
   Config extends GasRouterConfig,

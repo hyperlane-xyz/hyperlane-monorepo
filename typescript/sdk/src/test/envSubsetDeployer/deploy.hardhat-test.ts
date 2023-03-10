@@ -4,10 +4,9 @@ import { ethers } from 'hardhat';
 import { ChainMetadata } from '../../consts/chainMetadata';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
-import { RouterConfig } from '../../deploy/router/types';
 import { getChainToOwnerMap } from '../../deploy/utils';
 import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterContracts } from '../../router';
+import { RouterConfig, RouterContracts } from '../../router/types';
 import { ChainMap } from '../../types';
 
 import {
