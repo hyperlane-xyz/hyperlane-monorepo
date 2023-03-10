@@ -44,7 +44,7 @@ contract InterchainGasPaymasterTest is Test {
 
     function testInitializeRevertsIfCalledTwice() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        igp.initialize(beneficiary);
+        igp.initialize(address(this), beneficiary);
     }
 
     // ============ payForGas ============

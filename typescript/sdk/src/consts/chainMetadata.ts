@@ -472,7 +472,7 @@ export const mumbai: ChainMetadata = {
   nativeToken: maticToken,
   publicRpcUrls: [
     {
-      http: 'https://rpc-mumbai.maticvigil.com',
+      http: 'https://rpc.ankr.com/polygon_mumbai',
       pagination: {
         // eth_getLogs and eth_newFilter are limited to a 10,000 blocks range
         blocks: 10000,
