@@ -62,6 +62,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         contracts.proxyAdmin,
         contracts.mailbox.contract,
         contracts.multisigIsm,
+        contracts.interchainGasPaymaster.contract,
+        contracts.defaultIsmInterchainGasPaymaster,
       ];
       return this.checkOwnership(chain, config.owner, ownables);
     }
