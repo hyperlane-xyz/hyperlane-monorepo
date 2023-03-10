@@ -5,8 +5,8 @@ import {
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import { ChainMap, ChainName } from '../../types';
-import type { CheckerViolation } from '../types';
+import type { CheckerViolation } from '../deploy/types';
+import { ChainMap, ChainName } from '../types';
 
 export enum GasOracleContractType {
   StorageGasOracle = 'StorageGasOracle',

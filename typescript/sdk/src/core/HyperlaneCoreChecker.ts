@@ -2,10 +2,10 @@ import { utils as ethersUtils } from 'ethers';
 
 import { types, utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneCore } from '../../core/HyperlaneCore';
-import { ChainName } from '../../types';
-import { HyperlaneAppChecker } from '../HyperlaneAppChecker';
+import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
+import { ChainName } from '../types';
 
+import { HyperlaneCore } from './HyperlaneCore';
 import {
   CoreConfig,
   CoreViolationType,
@@ -30,7 +30,7 @@ const MULTISIG_ISM_BYTECODE_HASH =
 const PROXY_ADMIN_BYTECODE_HASH =
   '0x7c378e9d49408861ca754fe684b9f7d1ea525bddf095ee0463902df701453ba0';
 const INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH =
-  '0xcee48ab556ae2ff12b6458fa92e5e31f4a07f7852a0ed06e43a7f06f3c4c6d76';
+  '0xe995bcd732f4861606036357edb2a4d4c3e9b8d7e599fe548790ac1cf26888f8';
 const OVERHEAD_IGP_BYTECODE_HASH =
   '0x3cfed1f24f1e9b28a76d5a8c61696a04f7bc474404b823a2fcc210ea52346252';
 
@@ -62,6 +62,8 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         contracts.proxyAdmin,
         contracts.mailbox.contract,
         contracts.multisigIsm,
+        contracts.interchainGasPaymaster.contract,
+        contracts.defaultIsmInterchainGasPaymaster,
       ];
       return this.checkOwnership(chain, config.owner, ownables);
     }

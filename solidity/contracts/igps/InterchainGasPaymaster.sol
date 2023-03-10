@@ -53,13 +53,21 @@ contract InterchainGasPaymaster is
     // ============ Constructor ============
 
     constructor(address _beneficiary) {
-        initialize(_beneficiary); // allows contract to be used without proxying
+        initialize(msg.sender, _beneficiary); // allows contract to be used without proxying
     }
 
     // ============ External Functions ============
 
-    function initialize(address _beneficiary) public initializer {
+    /**
+     * @param _owner The owner of the contract.
+     * @param _beneficiary The beneficiary.
+     */
+    function initialize(address _owner, address _beneficiary)
+        public
+        initializer
+    {
         __Ownable_init();
+        _transferOwnership(_owner);
         _setBeneficiary(_beneficiary);
     }
 

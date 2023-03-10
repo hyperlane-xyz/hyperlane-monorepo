@@ -48,6 +48,7 @@ export enum GasPaymentEnforcementPolicyType {
   None = 'none',
   Minimum = 'minimum',
   MeetsEstimatedCost = 'meetsEstimatedCost',
+  OnChainFeeQuoting = 'onChainFeeQuoting',
 }
 
 export type GasPaymentEnforcementPolicy =
@@ -56,10 +57,11 @@ export type GasPaymentEnforcementPolicy =
     }
   | {
       type: GasPaymentEnforcementPolicyType.Minimum;
-      payment: BigNumberish;
+      payment: string; // An integer string, may be 0x-prefixed
     }
   | {
-      type: GasPaymentEnforcementPolicyType.MeetsEstimatedCost;
+      type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting;
+      gasfraction?: string; // An optional string of "numerator / denominator", e.g. "1 / 2"
     };
 
 export type GasPaymentEnforcementConfig = GasPaymentEnforcementPolicy & {
@@ -69,7 +71,6 @@ export type GasPaymentEnforcementConfig = GasPaymentEnforcementPolicy & {
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcementConfig[];
-  coingeckoApiKey?: string;
   whitelist?: MatchingList;
   blacklist?: MatchingList;
   transactionGasLimit?: BigNumberish;
@@ -398,9 +399,6 @@ export class ChainAgentConfig {
       originChainName: this.chainName,
       gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
-    if (baseConfig.coingeckoApiKey) {
-      relayerConfig.coingeckoApiKey = baseConfig.coingeckoApiKey;
-    }
     if (baseConfig.whitelist) {
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
     }
@@ -442,29 +440,6 @@ export class ChainAgentConfig {
       );
     }
     return true;
-  }
-
-  async ensureCoingeckoApiKeySecretExistsIfRequired() {
-    const baseConfig = getChainOverriddenConfig(
-      this.agentConfig.relayer!,
-      this.chainName,
-    );
-    // The CoinGecko API Key is only needed when using the "MeetsEstimatedCost" policy.
-    if (
-      baseConfig.gasPaymentEnforcement.every(
-        (p) => p.type != GasPaymentEnforcementPolicyType.MeetsEstimatedCost,
-      )
-    ) {
-      return;
-    }
-    // Check to see if the Gelato API key exists in GCP secret manager - throw if it doesn't
-    const secretName = `${this.agentConfig.runEnv}-coingecko-api-key`;
-    const secretExists = await gcpSecretExists(secretName);
-    if (!secretExists) {
-      throw Error(
-        `Expected CoinGecko API Key GCP Secret named ${secretName} to exist, have you created it?`,
-      );
-    }
   }
 
   transactionSubmissionType(chain: ChainName): TransactionSubmissionType {
