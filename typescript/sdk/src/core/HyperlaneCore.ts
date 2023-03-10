@@ -4,7 +4,7 @@ import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
-import { environments } from '../consts//environments';
+import { environments } from '../consts/environments';
 import { buildContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router/types';
