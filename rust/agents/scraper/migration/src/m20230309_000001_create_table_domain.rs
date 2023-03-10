@@ -1,4 +1,4 @@
-use sea_orm::prelude::{TimeDateTime};
+use sea_orm::prelude::TimeDateTime;
 use time::OffsetDateTime;
 
 use sea_orm_migration::prelude::*;

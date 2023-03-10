@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 
-use crate::{ChainResult, HyperlaneMessage, LogMeta, H256, InterchainGasPayment};
+use crate::{ChainResult, HyperlaneMessage, InterchainGasPayment, LogMeta, H256};
 
 /// Interface for an indexer.
 #[async_trait]

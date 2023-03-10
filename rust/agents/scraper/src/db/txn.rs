@@ -60,7 +60,9 @@ impl ScraperDb {
                     id: NotSet,
                     block_id: Unchanged(txn.block_id),
                     gas_limit: Set(u256_to_decimal(txn.gas_limit)),
-                    max_priority_fee_per_gas: Set(txn.max_priority_fee_per_gas.map(u256_to_decimal)),
+                    max_priority_fee_per_gas: Set(txn
+                        .max_priority_fee_per_gas
+                        .map(u256_to_decimal)),
                     hash: Unchanged(format_h256(&txn.hash)),
                     time_created: Set(date_time::now()),
                     gas_used: Set(u256_to_decimal(receipt.gas_used)),

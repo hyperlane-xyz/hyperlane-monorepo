@@ -12,7 +12,4 @@ const SIGNIFICANT_DIGITS_IN_256_BIT_INTEGER: u32 = 78;
 /// A type to represent a U256 crypto currency scaled integer value with 2^18
 /// scaling
 #[allow(non_upper_case_globals)]
-pub const Wei: ColumnType = ColumnType::Decimal(Some((
-    SIGNIFICANT_DIGITS_IN_256_BIT_INTEGER,
-    0
-)));
+pub const Wei: ColumnType = ColumnType::Decimal(Some((SIGNIFICANT_DIGITS_IN_256_BIT_INTEGER, 0)));
