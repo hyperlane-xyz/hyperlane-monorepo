@@ -48,6 +48,7 @@ export enum GasPaymentEnforcementPolicyType {
   None = 'none',
   Minimum = 'minimum',
   MeetsEstimatedCost = 'meetsEstimatedCost',
+  OnChainFeeQuoting = 'onChainFeeQuoting',
 }
 
 export type GasPaymentEnforcementPolicy =
@@ -56,7 +57,11 @@ export type GasPaymentEnforcementPolicy =
     }
   | {
       type: GasPaymentEnforcementPolicyType.Minimum;
-      payment: BigNumberish;
+      payment: string; // An integer string, may be 0x-prefixed
+    }
+  | {
+      type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting;
+      gasfraction?: string; // An optional string of "numerator / denominator", e.g. "1 / 2"
     };
 
 export type GasPaymentEnforcementConfig = GasPaymentEnforcementPolicy & {
