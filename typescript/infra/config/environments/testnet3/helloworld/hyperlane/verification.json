@@ -5,6 +5,12 @@
       "address": "0x921D3A71386d3Ab8f3AD4eC91ce1556D5FC26859",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x477D860f8F41bC69dDD32821F2Bf2C2Af0243F16",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
     }
   ],
   "fuji": [
@@ -12,6 +18,12 @@
       "name": "HelloWorld",
       "address": "0x1C847335D123632fC7D662AB87Ac7872aCD920f2",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x5da3b8d6F73dF6003A490072106730218c475AAd",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
       "isProxy": false
     }
   ],
@@ -21,6 +33,12 @@
       "address": "0x854fd51C04408ad84DA3838A4fF7282522F7866E",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x1A4d8a5eD6C93Af828655e15C44eeE2c2851F0D6",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
     }
   ],
   "bsctestnet": [
@@ -28,6 +46,12 @@
       "name": "HelloWorld",
       "address": "0x5447A1679f1Ce836A241c50ae1FC915d3DbA9c23",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0xE09BF59dCA6e622efC33f6fbd8EF85dE45233388",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
       "isProxy": false
     }
   ],
@@ -37,6 +61,12 @@
       "address": "0x0637A1360Ea44602DAe5c4ba515c2BCb6C762fbc",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x405BFdEcB33230b4Ad93C29ba4499b776CfBa189",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
     }
   ],
   "moonbasealpha": [
@@ -44,6 +74,12 @@
       "name": "HelloWorld",
       "address": "0xE81De1d727Ba319185a86D92E8Eb4e41046CE6B7",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x89e02C3C7b97bCBa63279E10E2a44e6cEF69E6B2",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
       "isProxy": false
     }
   ],
@@ -53,6 +89,12 @@
       "address": "0xa76A3E719E5ff7159a29B8876272052b89B3589F",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
       "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x3582d1238cBC812165981E4fFaB0E8D9a4518910",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
+      "isProxy": false
     }
   ],
   "arbitrumgoerli": [
@@ -60,6 +102,12 @@
       "name": "HelloWorld",
       "address": "0xa76A3E719E5ff7159a29B8876272052b89B3589F",
       "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f857706ce59cb7ae6df81bbd0b0a656db3e6beda",
+      "isProxy": false
+    },
+    {
+      "name": "Router",
+      "address": "0x339B46496D60b1b6B42e9715DeD8B3D2154dA0Bb",
+      "constructorArguments": "000000000000000000000000cc737a94fecaec165abcf12ded095bb13f037685000000000000000000000000f90cb82a76492614d07b82a7658917f3ac811ac1",
       "isProxy": false
     }
   ]
