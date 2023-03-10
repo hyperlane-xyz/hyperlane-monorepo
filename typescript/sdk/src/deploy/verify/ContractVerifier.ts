@@ -63,14 +63,14 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     action: ExplorerApiActions,
     options?: Record<string, string>,
   ): Promise<any> {
-    const apiUrl = this.multiProvider.getExplorerApiUrl(chain);
-
+    const apiUrl = new URL(this.multiProvider.getExplorerApiUrl(chain));
     const params = new URLSearchParams({
       apikey: this.apiKeys[chain],
       module: 'contract',
       action,
       ...options,
     });
+    apiUrl.search = params.toString();
 
     let response: Response;
     if (
@@ -142,7 +142,7 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
       data,
     );
 
-    const addressUrl = await this.multiProvider.getExplorerAddressUrl(
+    const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
       chain,
       input.address,
     );

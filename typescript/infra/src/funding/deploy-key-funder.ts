@@ -43,7 +43,7 @@ function getKeyFunderHelmValues(
       schedule: keyFunderConfig.cronSchedule,
     },
     hyperlane: {
-      runEnv: agentConfig.environment,
+      runEnv: agentConfig.runEnv,
       // Only used for fetching RPC urls as env vars
       chains: agentConfig.contextChainNames,
       contextFundingFrom: keyFunderConfig.contextFundingFrom,

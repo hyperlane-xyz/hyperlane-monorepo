@@ -28,11 +28,9 @@ storage:
 # Note: For successful operation, one _must_ pass signer keys as
 #       they are not baked into the image for security reasons.
 hyperlane:
-  # Sets the config folder to use
+  # Defines what environment is being run
   runEnv: 'default'
   context: 'hyperlane'
-  # Sets the base config to be used (switch between Homes)
-  baseConfig: 'base.json'
   # Set the DB location to be the volume
   dbPath: /usr/share/hyperlane
   rustBacktrace: full
