@@ -45,8 +45,9 @@ impl GasPaymentPolicy for GasPaymentPolicyOnChainFeeQuoting {
         current_expenditure: &InterchainGasExpenditure,
         tx_cost_estimate: &TxCostEstimate,
     ) -> Result<Option<U256>> {
-        let fractional_gas_estimate =
-            (tx_cost_estimate.gas_limit * self.fractional_numerator) / self.fractional_denominator;
+        let fractional_gas_estimate = (tx_cost_estimate.enforceable_gas_limit()
+            * self.fractional_numerator)
+            / self.fractional_denominator;
         let gas_amount = current_payment
             .gas_amount
             .saturating_sub(current_expenditure.gas_used);
@@ -86,6 +87,7 @@ mod test {
     const COST_ESTIMATE: TxCostEstimate = TxCostEstimate {
         gas_limit: U256([2000, 0, 0, 0]), // MIN * 2
         gas_price: U256([100001, 0, 0, 0]),
+        l2_gas_limit: None,
     };
 
     #[test]
@@ -191,5 +193,48 @@ mod test {
                 .unwrap(),
             Some(MIN * 2 + 250)
         )
+    }
+
+    #[tokio::test]
+    async fn test_l2_gas_amount() {
+        let policy = GasPaymentPolicyOnChainFeeQuoting::default();
+        let message = HyperlaneMessage::default();
+
+        let tx_cost_estimate = TxCostEstimate {
+            gas_limit: MIN * 100, // Large gas limit
+            gas_price: COST_ESTIMATE.gas_price,
+            l2_gas_limit: Some(MIN * 2),
+        };
+
+        // First ensure that if l2_gas_limit is None, because of the high gas limit,
+        // we return None
+        assert_eq!(
+            policy
+                .message_meets_gas_payment_requirement(
+                    &message,
+                    &current_payment(MIN),
+                    &current_expenditure(0),
+                    &TxCostEstimate {
+                        l2_gas_limit: None,
+                        ..tx_cost_estimate
+                    }
+                )
+                .await
+                .unwrap(),
+            None
+        );
+        // And now when l2_gas_limit is Some, expect Some(tx_cost_estimate.gas_limit)
+        assert_eq!(
+            policy
+                .message_meets_gas_payment_requirement(
+                    &message,
+                    &current_payment(MIN),
+                    &current_expenditure(0),
+                    &tx_cost_estimate,
+                )
+                .await
+                .unwrap(),
+            Some(tx_cost_estimate.gas_limit),
+        );
     }
 }
