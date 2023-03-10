@@ -89,8 +89,7 @@ export const releaseCandidate: AgentConfig = {
           matchingList: interchainQueriesMatchingList,
         },
         {
-          type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: '1', // require 1 wei
+          type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
         },
       ],
       transactionGasLimit: 750000,
