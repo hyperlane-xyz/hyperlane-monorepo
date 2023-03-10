@@ -76,9 +76,10 @@ impl ScraperDb {
             .collect::<Result<Vec<_>>>()?;
 
         debug_assert!(!models.is_empty());
+        let id_offset = models.len() as i64 - 1;
         trace!(?models, "Writing txns to database");
-        // this is actually the ID that was first inserted for postgres
-        let first_id = Insert::many(models).exec(&self.0).await?.last_insert_id;
+        let first_id = Insert::many(models).exec(&self.0).await?.last_insert_id - id_offset;
+        debug_assert!(first_id > 0);
         Ok(first_id)
     }
 }
