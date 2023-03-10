@@ -6,5 +6,4 @@ pub use super::delivered_message::Entity as DeliveredMessage;
 pub use super::domain::Entity as Domain;
 pub use super::gas_payment::Entity as GasPayment;
 pub use super::message::Entity as Message;
-pub use super::message_state::Entity as MessageState;
 pub use super::transaction::Entity as Transaction;
