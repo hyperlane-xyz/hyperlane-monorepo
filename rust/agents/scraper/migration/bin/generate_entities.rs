@@ -12,7 +12,7 @@ mod common;
 
 const RAW_DB_PATH: &str = "./agents/scraper/src/db/generated";
 const DOCKER_NAME: &str = "scraper-entity-generator";
-const CLI_VERSION: &str = "~0.11.0";
+const CLI_VERSION: &str = "0.11.1";
 
 struct PostgresDockerContainer;
 
