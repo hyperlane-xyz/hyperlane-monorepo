@@ -1,10 +1,8 @@
 use std::borrow::BorrowMut as _;
 
-use sea_orm::ConnectionTrait;
 use sea_orm_migration::prelude::*;
 
 use crate::l20230309_types::*;
-use crate::m20230309_000001_create_table_domain::Domain;
 use crate::m20230309_000002_create_table_block::Block;
 
 #[derive(DeriveMigrationName)]

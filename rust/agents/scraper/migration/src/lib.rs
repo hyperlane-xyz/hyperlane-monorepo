@@ -10,9 +10,9 @@ mod m20230309_000002_create_table_block;
 
 mod m20230309_000003_create_table_cursor;
 mod m20230309_000003_create_table_transaction;
+mod m20230309_000004_create_table_delivered_message;
 mod m20230309_000004_create_table_gas_payment;
 mod m20230309_000005_create_table_message;
-mod m20230309_000004_create_table_delivered_message;
 
 pub struct Migrator;
 

@@ -71,8 +71,10 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        manager.get_connection().execute_unprepared(&format!(
-            r#"
+        manager
+            .get_connection()
+            .execute_unprepared(&format!(
+                r#"
             CREATE VIEW "{tgp_table}" AS
             SELECT
                 "gp"."{gp_mid}" AS "{tgp_mid}",
@@ -81,16 +83,16 @@ impl MigrationTrait for Migration {
             FROM "{gp_table}" AS "gp"
             GROUP BY "gp"."{gp_mid}"
             "#,
-            gp_table = GasPayment::Table.to_string(),
-            gp_mid = GasPayment::MsgId.to_string(),
-            gp_payment = GasPayment::Payment.to_string(),
-            gp_gas_amount = GasPayment::GasAmount.to_string(),
-
-            tgp_table = TotalGasPayment::Table.to_string(),
-            tgp_mid = TotalGasPayment::MsgId.to_string(),
-            tgp_payment = TotalGasPayment::TotalPayment.to_string(),
-            tgp_gas_amount = TotalGasPayment::TotalGasAmount.to_string(),
-        )).await?;
+                gp_table = GasPayment::Table.to_string(),
+                gp_mid = GasPayment::MsgId.to_string(),
+                gp_payment = GasPayment::Payment.to_string(),
+                gp_gas_amount = GasPayment::GasAmount.to_string(),
+                tgp_table = TotalGasPayment::Table.to_string(),
+                tgp_mid = TotalGasPayment::MsgId.to_string(),
+                tgp_payment = TotalGasPayment::TotalPayment.to_string(),
+                tgp_gas_amount = TotalGasPayment::TotalGasAmount.to_string(),
+            ))
+            .await?;
 
         Ok(())
     }

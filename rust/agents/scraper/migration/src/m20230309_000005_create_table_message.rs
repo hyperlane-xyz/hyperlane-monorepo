@@ -1,11 +1,11 @@
-use sea_orm::ConnectionTrait;
 use crate::l20230309_types::*;
 use crate::m20230309_000001_create_table_domain::Domain;
-use crate::m20230309_000003_create_table_transaction::Transaction;
-use sea_orm_migration::prelude::*;
 use crate::m20230309_000002_create_table_block::Block;
+use crate::m20230309_000003_create_table_transaction::Transaction;
 use crate::m20230309_000004_create_table_delivered_message::DeliveredMessage;
 use crate::m20230309_000004_create_table_gas_payment::TotalGasPayment;
+use sea_orm::ConnectionTrait;
+use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -203,12 +203,10 @@ impl MigrationTrait for Migration {
             msg_body = Message::MsgBody.to_string(),
             msg_origin_mb = Message::OriginMailbox.to_string(),
             msg_oti = Message::OriginTxId.to_string(),
-
             domain_table = Domain::Table.to_string(),
             domain_id = Domain::Id.to_string(),
             domain_name = Domain::Name.to_string(),
             domain_chain_id = Domain::ChainId.to_string(),
-
             tx_table = Transaction::Table.to_string(),
             tx_id = Transaction::Id.to_string(),
             tx_hash = Transaction::Hash.to_string(),
@@ -223,18 +221,15 @@ impl MigrationTrait for Migration {
             tx_receipient = Transaction::Recipient.to_string(),
             tx_gas_used = Transaction::GasUsed.to_string(),
             tx_cgu = Transaction::CumulativeGasUsed.to_string(),
-
             block_table = Block::Table.to_string(),
             block_id = Block::Id.to_string(),
-            block_hash=Block::Hash.to_string(),
-            block_height=Block::Height.to_string(),
-            block_timestamp=Block::Timestamp.to_string(),
-
+            block_hash = Block::Hash.to_string(),
+            block_height = Block::Height.to_string(),
+            block_timestamp = Block::Timestamp.to_string(),
             tgp_table = TotalGasPayment::Table.to_string(),
             tgp_mid = TotalGasPayment::MsgId.to_string(),
             tgp_payment = TotalGasPayment::TotalPayment.to_string(),
             tgp_gas_amount = TotalGasPayment::TotalGasAmount.to_string(),
-
             dmsg_table = DeliveredMessage::Table.to_string(),
             dmsg_id = DeliveredMessage::Id.to_string(),
             dmsg_mid = DeliveredMessage::MsgId.to_string(),
