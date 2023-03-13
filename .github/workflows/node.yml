@@ -111,7 +111,7 @@ jobs:
 
   test-env:
     env:
-      DEBUG=hyperlane:*
+      DEBUG: hyperlane:*
 
     runs-on: ubuntu-latest
     needs: [yarn-build]
