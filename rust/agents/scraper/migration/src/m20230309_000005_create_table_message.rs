@@ -95,7 +95,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        manager.get_connection().execute_unprepared(&format!(
+        let sql = format!(
             r#"
             CREATE VIEW "{msg_table}_view" AS
             SELECT
@@ -120,9 +120,9 @@ impl MigrationTrait for Migration {
                 "origin_block"."{block_timestamp}" AS "send_occured_at",
                 "dmsg"."{dmsg_time_created}" AS "delivery_scraped_at",
                 "dest_block"."{block_timestamp}" AS "delivery_occured_at",
-                "delivery_occured_at" - "send_occured_at" AS "delivery_latency",
-                "send_scraped_at" - "send_occured_at" AS "send_scape_latency",
-                "delivery_scraped_at" - "delivery_occured_at" AS "delivery_scape_latency",
+                "dest_block"."{block_timestamp}" - "origin_block"."{block_timestamp}" AS "delivery_latency",
+                "msg"."{msg_time_created}" - "origin_block"."{block_timestamp}" AS "send_scape_latency",
+                "dmsg"."{dmsg_time_created}" - "dest_block"."{block_timestamp}" AS "delivery_scape_latency",
 
                 "msg"."{msg_sender}" AS "sender",
                 "msg"."{msg_recipient}" AS "recipient",
@@ -241,7 +241,9 @@ impl MigrationTrait for Migration {
             dmsg_dest_mb = DeliveredMessage::DestinationMailbox.to_string(),
             dmsg_dti = DeliveredMessage::DestinationTxId.to_string(),
             dmsg_time_created = DeliveredMessage::TimeCreated.to_string(),
-        )).await?;
+        );
+        // eprintln!("{sql}");
+        manager.get_connection().execute_unprepared(&sql).await?;
 
         Ok(())
     }

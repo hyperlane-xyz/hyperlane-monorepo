@@ -74,12 +74,12 @@ impl MigrationTrait for Migration {
         manager.get_connection().execute_unprepared(&format!(
             r#"
             CREATE VIEW "{tgp_table}" AS
-                SELECT
-                    "gp"."{gp_mid}" AS "{tgp_mid}",
-                    SUM("gp"."{gp_payment}") AS "{tgp_payment}",
-                    SUM("gp"."{gp_gas_amount}") AS "{tgp_gas_amount}",
-                FROM "{gp_table}" AS "gp"
-                GROUP BY "gp"."{gp_mid}"
+            SELECT
+                "gp"."{gp_mid}" AS "{tgp_mid}",
+                SUM("gp"."{gp_payment}") AS "{tgp_payment}",
+                SUM("gp"."{gp_gas_amount}") AS "{tgp_gas_amount}"
+            FROM "{gp_table}" AS "gp"
+            GROUP BY "gp"."{gp_mid}"
             "#,
             gp_table = GasPayment::Table.to_string(),
             gp_mid = GasPayment::MsgId.to_string(),
