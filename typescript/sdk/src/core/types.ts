@@ -4,6 +4,7 @@ import {
   InterchainGasPaymaster,
   Mailbox,
   MultisigIsm,
+  OverheadIgp,
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
@@ -37,6 +38,7 @@ export enum CoreViolationType {
   ConnectionManager = 'ConnectionManager',
   ValidatorAnnounce = 'ValidatorAnnounce',
   InterchainGasPaymaster = 'InterchainGasPaymaster',
+  DefaultIsmInterchainGasPaymaster = 'DefaultIsmInterchainGasPaymaster',
 }
 
 export enum MultisigIsmViolationType {
@@ -114,14 +116,14 @@ export interface IgpGasOraclesViolation extends IgpViolation {
 }
 
 export interface DefaultIsmIgpViolation extends CheckerViolation {
-  type: CoreViolationType.InterchainGasPaymaster;
-  contract: InterchainGasPaymaster;
-  subType: IgpViolationType;
+  type: CoreViolationType.DefaultIsmInterchainGasPaymaster;
+  contract: OverheadIgp;
+  subType: DefaultIsmIgpViolationType;
 }
 
 export interface DefaultIsmIgpDestinationGasOverheadsViolation
-  extends IgpViolation {
-  subType: IgpViolationType.Beneficiary;
+  extends DefaultIsmIgpViolation {
+  subType: DefaultIsmIgpViolationType.DestinationGasOverheads;
   actual: ChainMap<BigNumber>;
   expected: ChainMap<BigNumber>;
 }

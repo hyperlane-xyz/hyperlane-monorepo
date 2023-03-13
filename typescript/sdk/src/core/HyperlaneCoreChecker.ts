@@ -1,7 +1,8 @@
-import { utils as ethersUtils } from 'ethers';
+import { BigNumber, utils as ethersUtils } from 'ethers';
 
 import { types, utils } from '@hyperlane-xyz/utils';
 
+import multisigIsmVerifyCosts from '../consts/multisigIsmVerifyCosts.json';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { ChainName } from '../types';
 
@@ -9,6 +10,8 @@ import { HyperlaneCore } from './HyperlaneCore';
 import {
   CoreConfig,
   CoreViolationType,
+  DefaultIsmIgpDestinationGasOverheadsViolation,
+  DefaultIsmIgpViolationType,
   EnrolledValidatorsViolation,
   GasOracleContractType,
   IgpBeneficiaryViolation,
@@ -264,7 +267,45 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   }
 
   async checkDefaultIsmInterchainGasPaymaster(local: ChainName): Promise<void> {
-    // checkDefaultIsmInterchainGasPaymaster
+    const coreContracts = this.app.getContracts(local);
+    const defaultIsmIgp = coreContracts.defaultIsmInterchainGasPaymaster;
+
+    // Construct the violation, updating the actual & expected
+    // objects as violations are found.
+    // A single violation is used so that only a single `setDestinationGasOverheads`
+    // call is generated to set multiple gas overheads.
+    const gasOverheadViolation: DefaultIsmIgpDestinationGasOverheadsViolation =
+      {
+        type: CoreViolationType.DefaultIsmInterchainGasPaymaster,
+        subType: DefaultIsmIgpViolationType.DestinationGasOverheads,
+        contract: defaultIsmIgp,
+        chain: local,
+        actual: {},
+        expected: {},
+      };
+
+    const remotes = this.multiProvider.getRemoteChains(local);
+    for (const remote of remotes) {
+      const { validators, threshold } = this.configMap[remote].multisigIsm;
+      const expectedOverhead = this.getExpectedOverheadGas(
+        threshold,
+        validators.length,
+      );
+
+      const remoteId = this.multiProvider.getDomainId(remote);
+      const existingOverhead = await defaultIsmIgp.destinationGasOverhead(
+        remoteId,
+      );
+      if (!expectedOverhead.eq(existingOverhead)) {
+        const remoteChain = remote as ChainName;
+        gasOverheadViolation.actual[remoteChain] = existingOverhead;
+        gasOverheadViolation.expected[remoteChain] = expectedOverhead;
+      }
+    }
+
+    if (Object.keys(gasOverheadViolation.actual).length > 0) {
+      this.addViolation(gasOverheadViolation);
+    }
   }
 
   async checkInterchainGasPaymaster(local: ChainName): Promise<void> {
@@ -331,5 +372,19 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       default:
         throw Error(`Unsupported gas oracle type ${gasOracleType}`);
     }
+  }
+
+  private getExpectedOverheadGas(
+    threshold: number,
+    validatorSetCount: number,
+  ): BigNumber {
+    const expectedOverhead: number | undefined =
+      // @ts-ignore
+      multisigIsmVerifyCosts[`${validatorSetCount}`][`${threshold}`];
+    if (!expectedOverhead)
+      throw new Error(
+        `Unknown verification cost for ${threshold} of ${validatorSetCount}`,
+      );
+    return BigNumber.from(expectedOverhead);
   }
 }
