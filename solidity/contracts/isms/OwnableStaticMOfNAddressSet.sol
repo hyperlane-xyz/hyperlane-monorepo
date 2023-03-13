@@ -8,9 +8,9 @@ import {OwnableMOfNAddressSet} from "../libs/OwnableMOfNAddressSet.sol";
 import {StaticMOfNAddressSet} from "../libs/StaticMOfNAddressSet.sol";
 
 /**
- * @title StaticMOfNAddressSetIsm
+ * @title OwnableStaticMOfNAddressSet
  */
-contract StaticMOfNAddressSetIsm is OwnableMOfNAddressSet {
+contract OwnableStaticMOfNAddressSet is OwnableMOfNAddressSet {
     // ============ Public Storage ============
     mapping(uint32 => StaticMOfNAddressSet.AddressSet) private _sets;
 

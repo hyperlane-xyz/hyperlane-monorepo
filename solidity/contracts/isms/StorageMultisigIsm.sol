@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {StorageMOfNAddressSetIsm} from "./StorageMOfNAddressSetIsm.sol";
+import {OwnableStorageMOfNAddressSet} from "./OwnableStorageMOfNAddressSet.sol";
 import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
 import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
 
@@ -11,7 +11,10 @@ import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
  * @notice Manages per-domain m-of-n Validator sets in storage that are used
  * to verify interchain messages.
  */
-contract StorageMultisigIsm is StorageMOfNAddressSetIsm, AbstractMultisigIsm {
+contract StorageMultisigIsm is
+    OwnableStorageMOfNAddressSet,
+    AbstractMultisigIsm
+{
     // ============ Public Functions ============
 
     /**

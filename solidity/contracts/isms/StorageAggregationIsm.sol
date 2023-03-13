@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {StorageMOfNAddressSetIsm} from "./StorageMOfNAddressSetIsm.sol";
+import {OwnableStorageMOfNAddressSet} from "./OwnableStorageMOfNAddressSet.sol";
 import {AbstractAggregationIsm} from "./AbstractAggregationIsm.sol";
 import {AggregationIsmMetadata} from "../libs/AggregationIsmMetadata.sol";
 
@@ -12,7 +12,7 @@ import {AggregationIsmMetadata} from "../libs/AggregationIsmMetadata.sol";
  * to verify interchain messages.
  */
 contract StorageAggregationIsm is
-    StorageMOfNAddressSetIsm,
+    OwnableStorageMOfNAddressSet,
     AbstractAggregationIsm
 {
     // ============ Public Functions ============
