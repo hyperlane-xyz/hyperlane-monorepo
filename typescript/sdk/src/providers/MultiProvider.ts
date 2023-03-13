@@ -550,7 +550,14 @@ export class MultiProvider {
     tx: PopulatedTransaction,
     from?: string,
   ): Promise<BigNumber> {
-    const txReq = await this.prepareTx(chainNameOrId, tx, from);
+    const txReq = {
+      ...(await this.prepareTx(chainNameOrId, tx, from)),
+      // Reset any tx request params that may have an unintended effect on gas estimation
+      gasLimit: undefined,
+      gasPrice: undefined,
+      maxPriorityFeePerGas: undefined,
+      maxFeePerGas: undefined,
+    };
     const provider = this.getProvider(chainNameOrId);
     return provider.estimateGas(txReq);
   }
