@@ -15,10 +15,10 @@ impl EntityName for Entity {
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
-    pub msg_id: String,
+    pub msg_id: Vec<u8>,
     pub domain: i32,
-    pub destination_mailbox: String,
-    pub tx_id: i64,
+    pub destination_mailbox: Vec<u8>,
+    pub destination_tx_id: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -28,7 +28,7 @@ pub enum Column {
     MsgId,
     Domain,
     DestinationMailbox,
-    TxId,
+    DestinationTxId,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
@@ -55,10 +55,14 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
-            Self::MsgId => ColumnType::String(Some(64u32)).def().unique(),
+            Self::MsgId => ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None))
+                .def()
+                .unique(),
             Self::Domain => ColumnType::Integer.def(),
-            Self::DestinationMailbox => ColumnType::String(Some(64u32)).def(),
-            Self::TxId => ColumnType::BigInteger.def(),
+            Self::DestinationMailbox => {
+                ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None)).def()
+            }
+            Self::DestinationTxId => ColumnType::BigInteger.def(),
         }
     }
 }
@@ -71,7 +75,7 @@ impl RelationTrait for Relation {
                 .to(super::domain::Column::Id)
                 .into(),
             Self::Transaction => Entity::belongs_to(super::transaction::Entity)
-                .from(Column::TxId)
+                .from(Column::DestinationTxId)
                 .to(super::transaction::Column::Id)
                 .into(),
         }

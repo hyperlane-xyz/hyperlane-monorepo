@@ -15,15 +15,14 @@ impl EntityName for Entity {
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
-    pub msg_id: String,
+    pub msg_id: Vec<u8>,
     pub origin: i32,
     pub destination: i32,
     pub nonce: i32,
-    pub sender: String,
-    pub recipient: String,
+    pub sender: Vec<u8>,
+    pub recipient: Vec<u8>,
     pub msg_body: Option<Vec<u8>>,
-    pub origin_mailbox: String,
-    pub timestamp: TimeDateTime,
+    pub origin_mailbox: Vec<u8>,
     pub origin_tx_id: i64,
 }
 
@@ -39,7 +38,6 @@ pub enum Column {
     Recipient,
     MsgBody,
     OriginMailbox,
-    Timestamp,
     OriginTxId,
 }
 
@@ -67,17 +65,20 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
-            Self::MsgId => ColumnType::String(Some(64u32)).def().unique(),
+            Self::MsgId => ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None))
+                .def()
+                .unique(),
             Self::Origin => ColumnType::Integer.def(),
             Self::Destination => ColumnType::Integer.def(),
             Self::Nonce => ColumnType::Integer.def(),
-            Self::Sender => ColumnType::String(Some(64u32)).def(),
-            Self::Recipient => ColumnType::String(Some(64u32)).def(),
+            Self::Sender => ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None)).def(),
+            Self::Recipient => ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None)).def(),
             Self::MsgBody => ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None))
                 .def()
                 .null(),
-            Self::OriginMailbox => ColumnType::String(Some(64u32)).def(),
-            Self::Timestamp => ColumnType::DateTime.def(),
+            Self::OriginMailbox => {
+                ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None)).def()
+            }
             Self::OriginTxId => ColumnType::BigInteger.def(),
         }
     }

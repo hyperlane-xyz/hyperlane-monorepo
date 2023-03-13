@@ -15,7 +15,7 @@ impl EntityName for Entity {
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
-    pub hash: String,
+    pub hash: Vec<u8>,
     pub block_id: i64,
     pub gas_limit: BigDecimal,
     pub max_priority_fee_per_gas: Option<BigDecimal>,
@@ -23,8 +23,8 @@ pub struct Model {
     pub gas_price: Option<BigDecimal>,
     pub effective_gas_price: Option<BigDecimal>,
     pub nonce: i64,
-    pub sender: String,
-    pub recipient: Option<String>,
+    pub sender: Vec<u8>,
+    pub recipient: Option<Vec<u8>>,
     pub gas_used: BigDecimal,
     pub cumulative_gas_used: BigDecimal,
 }
@@ -73,7 +73,9 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
-            Self::Hash => ColumnType::String(Some(64u32)).def().unique(),
+            Self::Hash => ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None))
+                .def()
+                .unique(),
             Self::BlockId => ColumnType::BigInteger.def(),
             Self::GasLimit => ColumnType::Decimal(Some((78u32, 0u32))).def(),
             Self::MaxPriorityFeePerGas => ColumnType::Decimal(Some((78u32, 0u32))).def().null(),
@@ -81,8 +83,10 @@ impl ColumnTrait for Column {
             Self::GasPrice => ColumnType::Decimal(Some((78u32, 0u32))).def().null(),
             Self::EffectiveGasPrice => ColumnType::Decimal(Some((78u32, 0u32))).def().null(),
             Self::Nonce => ColumnType::BigInteger.def(),
-            Self::Sender => ColumnType::String(Some(64u32)).def(),
-            Self::Recipient => ColumnType::String(Some(64u32)).def().null(),
+            Self::Sender => ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None)).def(),
+            Self::Recipient => ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None))
+                .def()
+                .null(),
             Self::GasUsed => ColumnType::Decimal(Some((78u32, 0u32))).def(),
             Self::CumulativeGasUsed => ColumnType::Decimal(Some((78u32, 0u32))).def(),
         }
