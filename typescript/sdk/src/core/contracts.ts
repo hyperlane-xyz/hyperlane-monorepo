@@ -4,10 +4,10 @@ import {
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
   InterchainQueryRouter__factory,
+  LegacyMultisigIsm,
+  LegacyMultisigIsm__factory,
   Mailbox,
   Mailbox__factory,
-  MultisigIsm,
-  MultisigIsm__factory,
   OverheadIgp,
   OverheadIgp__factory,
   ProxyAdmin,
@@ -35,7 +35,7 @@ export type ConnectionClientContracts = {
 export type CoreContracts = GasOracleContracts &
   ConnectionClientContracts & {
     mailbox: ProxiedContract<Mailbox, TransparentProxyAddresses>;
-    multisigIsm: MultisigIsm;
+    multisigIsm: LegacyMultisigIsm;
     proxyAdmin: ProxyAdmin;
     validatorAnnounce: ValidatorAnnounce;
   };
@@ -49,6 +49,6 @@ export const coreFactories = {
   interchainGasPaymaster: new InterchainGasPaymaster__factory(),
   defaultIsmInterchainGasPaymaster: new OverheadIgp__factory(),
   storageGasOracle: new StorageGasOracle__factory(),
-  multisigIsm: new MultisigIsm__factory(),
+  multisigIsm: new LegacyMultisigIsm__factory(),
   mailbox: new Mailbox__factory(),
 };

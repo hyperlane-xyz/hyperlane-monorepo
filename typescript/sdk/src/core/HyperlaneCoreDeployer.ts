@@ -3,8 +3,8 @@ import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
+  LegacyMultisigIsm,
   Mailbox,
-  MultisigIsm,
   OverheadIgp,
   Ownable,
   Ownable__factory,
@@ -222,7 +222,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     return validatorAnnounce;
   }
 
-  async deployMultisigIsm(chain: ChainName): Promise<MultisigIsm> {
+  async deployLegacyMultisigIsm(chain: ChainName): Promise<LegacyMultisigIsm> {
     const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
     const configChains = Object.keys(this.configMap);
     const remotes = this.multiProvider
@@ -234,7 +234,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       // TODO: Remove extraneous validators
       const remoteDomains = this.multiProvider.getDomainIds(remotes);
       const actualValidators = await Promise.all(
-        remoteDomains.map((id) => multisigIsm.values(id)),
+        remoteDomains.map((id) => multisigIsm.validators(id)),
       );
       const expectedValidators = remotes.map(
         (chain) => this.configMap[chain].multisigIsm.validators,
@@ -307,7 +307,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     const provider = this.multiProvider.getProvider(chain);
     const startingBlockNumber = await provider.getBlockNumber();
     this.startingBlockNumbers[chain] = startingBlockNumber;
-    const multisigIsm = await this.deployMultisigIsm(chain);
+    const multisigIsm = await this.deployLegacyMultisigIsm(chain);
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 

@@ -7,6 +7,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 // ============ Internal Imports ============
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
 import {Message} from "../libs/Message.sol";
 import {LegacyMultisigIsmMetadata} from "../libs/LegacyMultisigIsmMetadata.sol";
@@ -27,7 +28,8 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
 
     // ============ Constants ============
 
-    uint8 public constant moduleType = 3;
+    uint8 public constant moduleType =
+        uint8(IInterchainSecurityModule.Types.LEGACY_MULTISIG);
 
     // ============ Mutable Storage ============
 

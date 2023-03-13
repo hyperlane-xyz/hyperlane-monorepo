@@ -271,7 +271,7 @@ export class HyperlaneCoreGovernor {
           ...(violation as EnrolledValidatorsViolation),
           add: (validator) => ({
             to: multisigIsm.address,
-            data: multisigIsm.interface.encodeFunctionData('add', [
+            data: multisigIsm.interface.encodeFunctionData('enrollValidator', [
               remoteDomainId,
               validator,
             ]),
@@ -279,10 +279,10 @@ export class HyperlaneCoreGovernor {
           }),
           remove: (validator) => ({
             to: multisigIsm.address,
-            data: multisigIsm.interface.encodeFunctionData('remove', [
-              remoteDomainId,
-              validator,
-            ]),
+            data: multisigIsm.interface.encodeFunctionData(
+              'unenrollValidator',
+              [remoteDomainId, validator],
+            ),
             description: `Unenroll ${validator} ${baseDescription}`,
           }),
         });

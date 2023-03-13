@@ -5,8 +5,8 @@ import {
   Checkpoint,
   Domain,
   HexString,
+  ParsedLegacyMultisigIsmMetadata,
   ParsedMessage,
-  ParsedMultisigIsmMetadata,
 } from './types';
 
 export function assert(predicate: any, errorMessage?: string) {
@@ -49,9 +49,9 @@ export function formatCallData<
   );
 }
 
-export const parseMultisigIsmMetadata = (
+export const parseLegacyMultisigIsmMetadata = (
   metadata: string,
-): ParsedMultisigIsmMetadata => {
+): ParsedLegacyMultisigIsmMetadata => {
   const MERKLE_ROOT_OFFSET = 0;
   const MERKLE_INDEX_OFFSET = 32;
   const ORIGIN_MAILBOX_OFFSET = 36;
@@ -97,8 +97,8 @@ export const parseMultisigIsmMetadata = (
   };
 };
 
-export const formatStaticMultisigIsmMetadata = (
-  metadata: ParsedMultisigIsmMetadata,
+export const formatMultisigIsmMetadata = (
+  metadata: ParsedLegacyMultisigIsmMetadata,
 ): string => {
   return ethers.utils.solidityPack(
     ['bytes32', 'uint32', 'bytes32', 'bytes32[32]', 'bytes'],
@@ -112,8 +112,8 @@ export const formatStaticMultisigIsmMetadata = (
   );
 };
 
-export const formatMultisigIsmMetadata = (
-  metadata: ParsedMultisigIsmMetadata,
+export const formatLegacyMultisigIsmMetadata = (
+  metadata: ParsedLegacyMultisigIsmMetadata,
 ): string => {
   return ethers.utils.solidityPack(
     [

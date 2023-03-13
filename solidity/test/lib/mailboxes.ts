@@ -4,9 +4,9 @@ import { ethers } from 'ethers';
 import { Validator, types, utils } from '@hyperlane-xyz/utils';
 
 import {
-  MultisigIsm,
-  SingleMultisigIsm,
-  StaticMultisigIsm,
+  LegacyMultisigIsm,
+  SingleLegacyMultisigIsm,
+  StaticLegacyMultisigIsm,
   TestMailbox,
 } from '../../types';
 import { DispatchEvent } from '../../types/contracts/Mailbox';
@@ -84,7 +84,7 @@ export async function signCheckpoint(
 
 export async function dispatchMessageAndReturnStaticMetadata(
   mailbox: TestMailbox,
-  multisigIsm: StaticMultisigIsm,
+  multisigIsm: StaticLegacyMultisigIsm,
   destination: number,
   recipient: string,
   messageStr: string,
@@ -108,7 +108,7 @@ export async function dispatchMessageAndReturnStaticMetadata(
     mailbox.address,
     orderedValidators,
   );
-  const metadata = utils.formatStaticMultisigIsmMetadata({
+  const metadata = utils.formatStaticLegacyMultisigIsmMetadata({
     checkpointRoot: root,
     checkpointIndex: index,
     originMailbox: mailbox.address,
@@ -121,7 +121,7 @@ export async function dispatchMessageAndReturnStaticMetadata(
 
 export async function dispatchMessageAndReturnSingleMetadata(
   mailbox: TestMailbox,
-  multisigIsm: SingleMultisigIsm,
+  multisigIsm: SingleLegacyMultisigIsm,
   destination: number,
   recipient: string,
   messageStr: string,
@@ -145,7 +145,7 @@ export async function dispatchMessageAndReturnSingleMetadata(
     mailbox.address,
     orderedValidators,
   );
-  const metadata = utils.formatMultisigIsmMetadata({
+  const metadata = utils.formatLegacyMultisigIsmMetadata({
     checkpointRoot: root,
     checkpointIndex: index,
     originMailbox: mailbox.address,
@@ -158,7 +158,7 @@ export async function dispatchMessageAndReturnSingleMetadata(
 
 export async function dispatchMessageAndReturnMetadata(
   mailbox: TestMailbox,
-  multisigIsm: MultisigIsm,
+  multisigIsm: LegacyMultisigIsm,
   destination: number,
   recipient: string,
   messageStr: string,
@@ -183,7 +183,7 @@ export async function dispatchMessageAndReturnMetadata(
     orderedValidators,
   );
   const origin = utils.parseMessage(proofAndMessage.message).origin;
-  const metadata = utils.formatMultisigIsmMetadata({
+  const metadata = utils.formatLegacyMultisigIsmMetadata({
     checkpointRoot: root,
     checkpointIndex: index,
     originMailbox: mailbox.address,
