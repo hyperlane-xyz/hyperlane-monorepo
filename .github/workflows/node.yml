@@ -132,7 +132,6 @@ jobs:
       - name: check ${{ matrix.environment }} deployment
         run: yarn workspace @hyperlane-xyz/infra run ts-node ./scripts/check-deploy.ts -e ${{ matrix.environment }}
 
-      // must pass fork url to use runtime forking
       - run: anvil --fork-url https://eth.llamarpc.com &
 
       - name: deploy core against ${{ matrix.environment }} fork
@@ -140,6 +139,9 @@ jobs:
 
       - name: govern ${{ matrix.environment }} deployment
         run: yarn workspace @hyperlane-xyz/infra run ts-node ./scripts/govern.ts -e ${{ matrix.environment }}
+      
+      - name: check ${{ matrix.environment }} after governance
+        run: yarn workspace @hyperlane-xyz/infra run ts-node ./scripts/check-deploy.ts -e ${{ matrix.environment }}
 
   test-sol:
     env:
