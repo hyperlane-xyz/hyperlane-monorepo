@@ -1,3 +1,4 @@
+use sea_orm::ConnectionTrait;
 use sea_orm_migration::prelude::*;
 
 use crate::l20230309_types::*;
@@ -43,7 +44,7 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(DeliveredMessage::TxId)
+                        ColumnDef::new(DeliveredMessage::DestinationTxId)
                             .big_integer()
                             .not_null(),
                     )
@@ -54,7 +55,7 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .from_col(DeliveredMessage::TxId)
+                            .from_col(DeliveredMessage::DestinationTxId)
                             .to(Transaction::Table, Transaction::Id),
                     )
                     .to_owned(),
@@ -65,7 +66,7 @@ impl MigrationTrait for Migration {
                 Index::create()
                     .table(DeliveredMessage::Table)
                     .name("delivered_message_tx_idx")
-                    .col(DeliveredMessage::TxId)
+                    .col(DeliveredMessage::DestinationTxId)
                     .to_owned(),
             )
             .await?;
@@ -104,5 +105,5 @@ pub enum DeliveredMessage {
     /// Address of the mailbox contract the message was received by
     DestinationMailbox,
     /// Transaction the delivery was included in
-    TxId,
+    DestinationTxId,
 }
