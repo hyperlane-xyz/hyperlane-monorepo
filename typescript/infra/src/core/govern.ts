@@ -142,7 +142,7 @@ export class HyperlaneCoreGovernor {
           break;
         }
         case ProxyKind.Transparent: {
-          await this.handleProxyViolation(violation as ProxyViolation);
+          this.handleProxyViolation(violation as ProxyViolation);
           break;
         }
         case CoreViolationType.InterchainGasPaymaster: {
@@ -173,8 +173,7 @@ export class HyperlaneCoreGovernor {
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls)) {
       for (const call of this.calls[chain]) {
-        const submissionType = await this.inferCallSubmissionType(chain, call);
-        call.submissionType = submissionType;
+        call.submissionType = await this.inferCallSubmissionType(chain, call);
       }
     }
   }

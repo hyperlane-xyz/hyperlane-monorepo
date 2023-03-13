@@ -1,3 +1,5 @@
+import { JsonRpcProvider } from '@ethersproject/providers';
+
 import {
   buildContracts,
   coreFactories,
@@ -6,6 +8,7 @@ import {
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
+import { forkAndImpersonateOwner } from '../src/utils/fork';
 import { readJSON, writeJSON } from '../src/utils/utils';
 
 import {
@@ -20,6 +23,13 @@ async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
+
+  // fork test network and impersonate owner in CI
+  if (process.env.CI == 'true') {
+    const forkChain = environment === 'testnet3' ? 'goerli' : 'ethereum';
+    await forkAndImpersonateOwner(forkChain, config.core, multiProvider);
+  }
+
   const deployer = new HyperlaneCoreInfraDeployer(
     multiProvider,
     config.core,
