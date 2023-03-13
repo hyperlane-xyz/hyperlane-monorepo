@@ -3,7 +3,10 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import {AggregationIsm} from "../../contracts/isms/AggregationIsm.sol";
+import {IAggregationIsm} from "../../interfaces/IAggregationIsm.sol";
+import {IMOfNAddressSet} from "../../interfaces/IMOfNAddressSet.sol";
+import {StaticAggregationIsm} from "../../contracts/isms/StaticAggregationIsm.sol";
+import {StorageAggregationIsm} from "../../contracts/isms/StorageAggregationIsm.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {AggregationIsmMetadata} from "../../contracts/libs/AggregationIsmMetadata.sol";
 
@@ -27,12 +30,10 @@ contract TestIsm {
     }
 }
 
-contract AggregationIsmTest is Test {
-    AggregationIsm ism;
+interface IStaticOrStorageAggregationIsm is IMOfNAddressSet, IAggregationIsm {}
 
-    function setUp() public {
-        ism = new AggregationIsm();
-    }
+abstract contract AggregationIsmTest is Test {
+    IStaticOrStorageAggregationIsm ism;
 
     function choose(
         uint8 m,
@@ -79,7 +80,7 @@ contract AggregationIsmTest is Test {
     ) private view returns (bytes memory) {
         uint256 bitmask = choose(m, n, seed);
         bytes memory offsets;
-        uint32 start = 1 + ((32 + 8) * uint32(n));
+        uint32 start = 8 * uint32(n);
         bytes memory metametadata;
         for (uint256 i = 0; i < n; i++) {
             bool chosen = (bitmask & (1 << i)) > 0;
@@ -96,7 +97,7 @@ contract AggregationIsmTest is Test {
                 offsets = bytes.concat(offsets, abi.encodePacked(offset));
             }
         }
-        return abi.encodePacked(n, ism.values(domain), offsets, metametadata);
+        return abi.encodePacked(offsets, metametadata);
     }
 
     function testVerify(
@@ -163,7 +164,7 @@ contract AggregationIsmTest is Test {
             domain,
             messageSuffix
         );
-        vm.expectRevert(bytes("!matches"));
+        vm.expectRevert(bytes("!threshold"));
         ism.verify(metadata, message);
     }
 
@@ -216,5 +217,21 @@ contract AggregationIsmTest is Test {
             .ismsAndThreshold(message);
         assertEq(abi.encode(actualIsms), abi.encode(expectedIsms));
         assertEq(actualThreshold, m);
+    }
+}
+
+contract StaticAggregationIsmTest is AggregationIsmTest {
+    function setUp() public {
+        ism = IStaticOrStorageAggregationIsm(
+            address(new StaticAggregationIsm())
+        );
+    }
+}
+
+contract StorageAggregationIsmTest is AggregationIsmTest {
+    function setUp() public {
+        ism = IStaticOrStorageAggregationIsm(
+            address(new StorageAggregationIsm())
+        );
     }
 }
