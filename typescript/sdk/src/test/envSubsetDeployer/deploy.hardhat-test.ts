@@ -1,11 +1,12 @@
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 
-import { ChainMetadata } from '../../consts';
-import { TestCoreApp, TestCoreDeployer } from '../../core';
-import { getChainToOwnerMap } from '../../deploy';
-import { MultiProvider } from '../../providers';
-import { RouterConfig, RouterContracts } from '../../router';
+import { ChainMetadata } from '../../consts/chainMetadata';
+import { TestCoreApp } from '../../core/TestCoreApp';
+import { TestCoreDeployer } from '../../core/TestCoreDeployer';
+import { getChainToOwnerMap } from '../../deploy/utils';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { RouterConfig, RouterContracts } from '../../router/types';
 import { ChainMap } from '../../types';
 
 import {

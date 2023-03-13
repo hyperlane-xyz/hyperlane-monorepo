@@ -7,7 +7,7 @@ import {
   PortalAdapter__factory,
 } from '@hyperlane-xyz/core';
 
-import { ProxiedRouterContracts, RouterFactories } from '../../router';
+import { ProxiedRouterContracts, RouterFactories } from '../../router/types';
 
 export type LiquidityLayerFactories = RouterFactories<LiquidityLayerRouter> & {
   circleBridgeAdapter: CircleBridgeAdapter__factory;

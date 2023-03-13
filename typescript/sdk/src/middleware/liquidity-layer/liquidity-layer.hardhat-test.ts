@@ -16,12 +16,14 @@ import {
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { Chains, chainMetadata } from '../../consts';
-import { TestCoreApp, TestCoreDeployer } from '../../core';
-import { MultiProvider } from '../../providers';
+import { chainMetadata } from '../../consts/chainMetadata';
+import { Chains } from '../../consts/chains';
+import { TestCoreApp } from '../../core/TestCoreApp';
+import { TestCoreDeployer } from '../../core/TestCoreDeployer';
+import { MultiProvider } from '../../providers/MultiProvider';
 import { getTestOwnerConfig } from '../../test/testUtils';
 import { ChainMap } from '../../types';
-import { objMap } from '../../utils';
+import { objMap } from '../../utils/objects';
 
 import { LiquidityLayerApp } from './LiquidityLayerApp';
 import {

@@ -30,7 +30,7 @@ pub struct SponsoredCallArgs {
 
 #[derive(Debug, Clone)]
 pub struct SponsoredCallApiCall<'a> {
-    pub http: reqwest::Client,
+    pub http: &'a reqwest::Client,
     pub args: &'a SponsoredCallArgs,
     pub sponsor_api_key: &'a str,
 }
@@ -138,7 +138,7 @@ mod tests {
     fn test_http_result_deserialization() {
         let reply_json =
             r#"{"taskId": "0x053d975549b9298bb7672b20d3f7c0960df00d065e6f68c29abd8550b31cdbc2"}"#;
-        let parsed: HTTPResult = serde_json::from_str(&reply_json).unwrap();
+        let parsed: HTTPResult = serde_json::from_str(reply_json).unwrap();
         assert_eq!(
             parsed,
             HTTPResult {
