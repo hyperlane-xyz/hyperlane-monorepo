@@ -91,78 +91,10 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        // manager.get_connection().execute_unprepared(&format!(
-        //     r#"
-        //         CREATE VIEW "{tx_table}_view" AS
-        //         SELECT
-        //             "{tx_table}"."{tx_id}" AS "id",
-        //             "{tx_table}"."{tx_time_created}" AS "time_created",
-        //             concat('0x', encode("{tx_table}"."{tx_hash}"::bytea, 'hex')) AS "hash",
-        //             "{tx_table}"."{tx_block_id}" AS "block_id",
-        //             "{tx_table}"."{tx_gas_limit}" AS "gas_limit",
-        //             "{tx_table}"."{tx_mpfpg}" AS "max_priority_fee_per_gas",
-        //             "{tx_table}"."{tx_mfpg}" AS "max_fee_per_gas",
-        //             "{tx_table}"."{tx_gas_price}" AS "gas_price",
-        //             "{tx_table}"."{tx_egp}" AS "effective_gas_price",
-        //             "{tx_table}"."{tx_nonce}" AS "nonce",
-        //             concat('0x', encode("{tx_table}"."{tx_sender}"::bytea, 'hex')) AS "sender",
-        //             concat('0x', encode("{tx_table}"."{tx_receipient}"::bytea, 'hex')) AS "recipient",
-        //             "{tx_table}"."{tx_gas_used}" AS "gas_used",
-        //             "{tx_table}"."{tx_cgu}" AS "cumulative_gas_used",
-        //             "{block_table}"."{block_domain}" as "domain_id",
-        //             "{domain_table}"."{domain_name}" AS "domain",
-        //             "{domain_table}"."{domain_chain_id}" AS "chain_id",
-        //             concat('0x', encode("{block_table}"."{block_hash}"::bytea, 'hex')) AS "block_hash",
-        //             "{block_table}"."{block_height}" AS "block_height",
-        //             "{block_table}"."{block_timestamp}" AS "timestamp"
-        //         FROM "{tx_table}"
-        //             INNER JOIN "{block_table}"
-        //                 ON "{block_table}"."{block_id}" = "{tx_table}"."{tx_block_id}"
-        //             INNER JOIN "{domain_table}"
-        //                 ON "{domain_table}"."{domain_id}" = "{block_table}"."{block_domain}"
-        //     "#,
-        //     tx_table = Transaction::Table.to_string(),
-        //     tx_id = Transaction::Id.to_string(),
-        //     tx_time_created = Transaction::TimeCreated.to_string(),
-        //     tx_hash = Transaction::Hash.to_string(),
-        //     tx_block_id = Transaction::BlockId.to_string(),
-        //     tx_gas_limit = Transaction::GasLimit.to_string(),
-        //     tx_mpfpg = Transaction::MaxPriorityFeePerGas.to_string(),
-        //     tx_mfpg = Transaction::MaxFeePerGas.to_string(),
-        //     tx_gas_price = Transaction::GasPrice.to_string(),
-        //     tx_egp = Transaction::EffectiveGasPrice.to_string(),
-        //     tx_nonce = Transaction::Nonce.to_string(),
-        //     tx_sender = Transaction::Sender.to_string(),
-        //     tx_receipient = Transaction::Recipient.to_string(),
-        //     tx_gas_used = Transaction::GasUsed.to_string(),
-        //     tx_cgu = Transaction::CumulativeGasUsed.to_string(),
-        // 
-        //     block_table = Block::Table.to_string(),
-        //     block_id = Block::Id.to_string(),
-        //     block_domain = Block::Domain.to_string(),
-        //     block_hash=Block::Hash.to_string(),
-        //     block_height=Block::Height.to_string(),
-        //     block_timestamp=Block::Timestamp.to_string(),
-        // 
-        //     domain_table = Domain::Table.to_string(),
-        //     domain_id = Domain::Id.to_string(),
-        //     domain_name=Domain::Name.to_string(),
-        //     domain_chain_id=Domain::ChainId.to_string(),
-        // )).await?;
-
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // manager
-        //     .get_connection()
-        //     .execute_unprepared(&format!(
-        //         r#"DROP VIEW IF EXISTS "{}_view""#,
-        //         Transaction::Table.to_string()
-        //     ))
-        //     .await?;
-
         manager
             .drop_table(Table::drop().table(Transaction::Table).to_owned())
             .await

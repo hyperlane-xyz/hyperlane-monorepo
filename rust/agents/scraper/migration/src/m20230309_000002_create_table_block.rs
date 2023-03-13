@@ -72,48 +72,10 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        // manager.get_connection().execute_unprepared(&format!(
-        //     r#"
-        //         CREATE VIEW "{block_table}_view" AS
-        //         SELECT
-        //             "{block_table}"."{block_id}" AS "id",
-        //             "{block_table}"."{block_time_created}" AS "time_created",
-        //             "{block_table}"."{block_domain}" as "domain_id",
-        //             "{domain_table}"."{domain_name}" AS "domain",
-        //             "{domain_table}"."{domain_chain_id}" AS "chain_id",
-        //             concat('0x', encode("{block_table}"."{block_hash}"::bytea, 'hex')) AS "hash",
-        //             "{block_table}"."{block_height}" AS "height",
-        //             "{block_table}"."{block_timestamp}" AS "timestamp"
-        //         FROM "{block_table}"
-        //             INNER JOIN "{domain_table}"
-        //                 ON "{domain_table}"."{domain_id}" = "{block_table}"."{block_domain}"
-        //     "#,
-        //     block_table=Block::Table.to_string(),
-        //     block_id=Block::Id.to_string(),
-        //     block_time_created=Block::TimeCreated.to_string(),
-        //     block_domain=Block::Domain.to_string(),
-        //     block_hash=Block::Hash.to_string(),
-        //     block_height=Block::Height.to_string(),
-        //     block_timestamp=Block::Timestamp.to_string(),
-        //
-        //     domain_table=Domain::Table.to_string(),
-        //     domain_id=Domain::Id.to_string(),
-        //     domain_name=Domain::Name.to_string(),
-        //     domain_chain_id=Domain::ChainId.to_string(),
-        // )).await?;
-
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // manager
-        //     .get_connection()
-        //     .execute_unprepared(&format!(
-        //         r#"DROP VIEW IF EXISTS "{}_view""#,
-        //         Block::Table.to_string()
-        //     ))
-        //     .await?;
         manager
             .drop_table(Table::drop().table(Block::Table).to_owned())
             .await
