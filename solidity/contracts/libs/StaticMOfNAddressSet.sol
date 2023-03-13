@@ -34,20 +34,25 @@ library StaticMOfNAddressSet {
      * @param _value The address to remove from the set
      */
     function remove(AddressSet storage _set, address _value) internal {
-        address[] memory _values = new address[](1);
-        _values[0] = _value;
-        _remove(_set, _values);
-    }
-
-    /**
-     * @notice Removes one or more addresses from the set
-     * @param _set The set to remove from
-     * @param _values The addresses to remove from the set
-     */
-    function remove(AddressSet storage _set, address[] memory _values)
-        internal
-    {
-        _remove(_set, _values);
+        require(contains(_set, _value), "!contained");
+        (address[] memory _oldValues, uint8 _threshold) = valuesAndThreshold(
+            _set
+        );
+        require(_threshold <= _oldValues.length - 1, "reduce threshold");
+        if (_oldValues.length == 1) {
+            _set.implementation = SingleStaticMOfNAddressSet(address(0));
+            return;
+        }
+        address[] memory _newValues = new address[](_oldValues.length - 1);
+        uint256 j = 0;
+        for (uint256 i = 0; i < _oldValues.length; i++) {
+            bool _isEqual = _oldValues[i] == _value;
+            if (!_isEqual) {
+                _newValues[j] = _oldValues[i];
+                j += 1;
+            }
+        }
+        _deploy(_set, _newValues, threshold(_set));
     }
 
     /**
@@ -57,7 +62,7 @@ library StaticMOfNAddressSet {
      * @param _threshold The threshold to set to
      */
     function setThreshold(AddressSet storage _set, uint8 _threshold) internal {
-        require(_threshold > 0 && _threshold <= length(_set), "!range");
+        require(0 < _threshold && _threshold <= length(_set), "!range");
         _deploy(_set, values(_set), _threshold);
     }
 
@@ -71,6 +76,9 @@ library StaticMOfNAddressSet {
         view
         returns (address[] memory)
     {
+        if (!_isDeployed(_set)) {
+            return new address[](0);
+        }
         return _set.implementation.values();
     }
 
@@ -112,6 +120,9 @@ library StaticMOfNAddressSet {
      * @return The number of values in the set
      */
     function length(AddressSet storage _set) internal view returns (uint256) {
+        if (!_isDeployed(_set)) {
+            return 0;
+        }
         return values(_set).length;
     }
 
@@ -121,6 +132,9 @@ library StaticMOfNAddressSet {
      * @return The number of values in the set
      */
     function threshold(AddressSet storage _set) internal view returns (uint8) {
+        if (!_isDeployed(_set)) {
+            return 0;
+        }
         return _set.implementation.threshold();
     }
 
@@ -134,10 +148,17 @@ library StaticMOfNAddressSet {
         view
         returns (address[] memory, uint8)
     {
+        if (!_isDeployed(_set)) {
+            return (new address[](0), 0);
+        }
         return _set.implementation.valuesAndThreshold();
     }
 
     // ============ Internal Functions ============
+
+    function _isDeployed(AddressSet storage _set) private view returns (bool) {
+        return (address(_set.implementation) != address(0));
+    }
 
     /**
      * @notice Adds an address to the set without updating the commitment
@@ -145,53 +166,31 @@ library StaticMOfNAddressSet {
      * @param _values The address to add to the set
      */
     function _add(AddressSet storage _set, address[] memory _values) private {
-        (address[] memory _oldValues, uint8 _threshold) = _set
-            .implementation
-            .valuesAndThreshold();
-        address[] memory _newValues = new address[](
-            _oldValues.length + _values.length
-        );
-
-        for (uint256 i = 0; i < _oldValues.length; i++) {
-            _newValues[i] = _oldValues[i];
+        if (!_isDeployed(_set)) {
             for (uint256 j = 0; j < _values.length; j++) {
-                require(_oldValues[i] != _values[j], "contained");
+                require(_values[j] != address(0), "zero address");
             }
-        }
-        for (uint256 j = 0; j < _values.length; j++) {
-            require(_values[j] != address(0), "zero address");
-            _newValues[j + _oldValues.length] = _values[j];
-        }
-        _deploy(_set, _newValues, _threshold);
-    }
+            _deploy(_set, _values, 0);
+        } else {
+            (address[] memory _oldValues, uint8 _threshold) = _set
+                .implementation
+                .valuesAndThreshold();
+            address[] memory _newValues = new address[](
+                _oldValues.length + _values.length
+            );
 
-    /**
-     * @notice Removes an address from the set without updating the commitment
-     * @param _set The set to add to
-     * @param _values The addresses to remove from the set
-     */
-    function _remove(AddressSet storage _set, address[] memory _values)
-        private
-    {
-        (address[] memory _oldValues, uint8 _threshold) = _set
-            .implementation
-            .valuesAndThreshold();
-        require(_oldValues.length >= _threshold, "reduce threshold");
-        address[] memory _newValues = new address[](
-            _oldValues.length + _values.length - 1
-        );
-
-        // TODO: I don't trust this code entirely
-        uint256 _contained = 0;
-        for (uint256 i = 0; i < _oldValues.length; i++) {
-            _newValues[i - _contained] = _oldValues[i];
-            for (uint256 j = 0; j < _values.length; j++) {
-                if (_oldValues[i] == _values[j]) {
-                    _contained += 1;
+            for (uint256 i = 0; i < _oldValues.length; i++) {
+                _newValues[i] = _oldValues[i];
+                for (uint256 j = 0; j < _values.length; j++) {
+                    require(_oldValues[i] != _values[j], "contained");
                 }
             }
+            for (uint256 j = 0; j < _values.length; j++) {
+                require(_values[j] != address(0), "zero address");
+                _newValues[j + _oldValues.length] = _values[j];
+            }
+            _deploy(_set, _newValues, _threshold);
         }
-        _deploy(_set, _newValues, _threshold);
     }
 
     function _deploy(
@@ -230,8 +229,8 @@ contract SingleStaticMOfNAddressSet {
 
     // solhint-disable-next-line no-empty-blocks
     constructor(address[] memory _values, uint8 tthreshold) {
-        require(0 < _values.length && _values.length <= 16);
-        require(0 < tthreshold && tthreshold <= _values.length);
+        require(0 < _values.length && _values.length <= 16, "too many");
+        require(tthreshold <= _values.length, "threshold");
         _threshold = tthreshold;
         _numValues = uint8(_values.length);
         _value0 = _numValues > 0 ? _values[0] : address(0);

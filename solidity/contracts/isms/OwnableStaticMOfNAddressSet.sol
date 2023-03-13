@@ -112,7 +112,6 @@ contract OwnableStaticMOfNAddressSet is OwnableMOfNAddressSet {
         virtual
         override
     {
-        require(_domains.length == _values.length);
         for (uint256 i = 0; i < _domains.length; i++) {
             StaticMOfNAddressSet.add(_sets[_domains[i]], _values[i]);
         }

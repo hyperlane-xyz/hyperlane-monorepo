@@ -8,6 +8,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IMOfNAddressSet} from "../../interfaces/IMOfNAddressSet.sol";
 import {Message} from "./Message.sol";
 
+// TODO: Add domains(), ability to remove domain.
 abstract contract OwnableMOfNAddressSet is IMOfNAddressSet, Ownable {
     // ============ Libraries ============
 

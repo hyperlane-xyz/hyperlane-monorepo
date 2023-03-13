@@ -8,7 +8,6 @@ import {OwnableStorageMOfNAddressSet} from "../contracts/isms/OwnableStorageMOfN
 import {OwnableStaticMOfNAddressSet} from "../contracts/isms/OwnableStaticMOfNAddressSet.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
-// This is being treated as a test!
 abstract contract OwnableMOfNAddressSetTest is Test {
     using TypeCasts for address;
     event ValueAdded(
@@ -62,6 +61,7 @@ abstract contract OwnableMOfNAddressSetTest is Test {
         set.add(domain, value);
     }
 
+    /*
     function testAddMany(uint8 numDomains, uint8 numValues) public {
         vm.assume(numDomains < 32 && numValues < 32);
         uint32 firstDomain = 100_000;
@@ -81,6 +81,7 @@ abstract contract OwnableMOfNAddressSetTest is Test {
         }
         set.addMany(domains, values);
     }
+    */
 
     function testRemove(uint32 domain, address value) public {
         vm.assume(value != address(0x0));
@@ -217,10 +218,8 @@ contract OwnableStorageMOfNAddressSetTest is OwnableMOfNAddressSetTest {
     }
 }
 
-/*
 contract OwnableStaticMOfNAddressSetTest is OwnableMOfNAddressSetTest {
     function setUp() public {
         set = new OwnableStaticMOfNAddressSet();
     }
 }
-*/

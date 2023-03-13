@@ -67,7 +67,7 @@ library StorageMOfNAddressSet {
      * @param _threshold The threshold to set to
      */
     function setThreshold(AddressSet storage _set, uint8 _threshold) internal {
-        require(_threshold > 0 && _threshold <= _set.values.length(), "!range");
+        require(0 < _threshold && _threshold <= _set.values.length(), "!range");
         _set.threshold = _threshold;
     }
 
