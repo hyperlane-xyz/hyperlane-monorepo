@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "dependencies": {
-    "@hyperlane-xyz/core": "1.2.1",
-    "@hyperlane-xyz/utils": "1.2.1",
+    "@hyperlane-xyz/core": "1.2.2",
+    "@hyperlane-xyz/utils": "1.2.2",
     "@wagmi/chains": "^0.2.6",
     "coingecko-api": "^1.0.10",
     "cross-fetch": "^3.1.5",
