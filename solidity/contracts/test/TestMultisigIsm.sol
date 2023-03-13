@@ -2,9 +2,9 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {MultisigIsm} from "../isms/MultisigIsm.sol";
+import {LegacyStorageMultisigIsm} from "../isms/LegacyStorageMultisigIsm.sol";
 
-contract TestMultisigIsm is MultisigIsm {
+contract TestLegacyStorageMultisigIsm is LegacyStorageMultisigIsm {
     function getDomainHash(uint32 _origin, bytes32 _originMailbox)
         external
         pure
