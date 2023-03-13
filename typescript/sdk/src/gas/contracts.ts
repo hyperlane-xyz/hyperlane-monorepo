@@ -6,6 +6,7 @@ import {
   StorageGasOracle,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
+import { types } from '@hyperlane-xyz/utils';
 
 import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 
@@ -16,6 +17,12 @@ export type IgpContracts = {
   >;
   defaultIsmInterchainGasPaymaster: OverheadIgp;
   storageGasOracle: StorageGasOracle;
+};
+
+export type IgpAddresses = {
+  interchainGasPaymaster: types.Address | TransparentProxyAddresses;
+  defaultIsmInterchainGasPaymaster: types.Address;
+  storageGasOracle: types.Address;
 };
 
 export const igpFactories = {

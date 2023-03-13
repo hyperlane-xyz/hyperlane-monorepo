@@ -15,7 +15,7 @@ import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
 import { getTestOwnerConfig } from '../test/testUtils';
 import { ChainMap } from '../types';
-import { objMap, promiseObjAll } from '../utils';
+import { objMap, promiseObjAll } from '../utils/objects';
 
 import {
   InterchainAccountContracts,

@@ -14,7 +14,7 @@ import {
   RouterFactories,
 } from '../../router/types';
 import { ChainMap, ChainName } from '../../types';
-import { objMap, pick, promiseObjAll } from '../../utils';
+import { objMap, pick, promiseObjAll } from '../../utils/objects';
 
 export const fullTestEnvConfigs = pick(chainMetadata, TestChains);
 

@@ -5,9 +5,10 @@ import { ethers } from 'hardhat';
 
 import { types } from '@hyperlane-xyz/utils';
 
-import { Chains } from '../consts';
-import { HyperlaneCore, TestCoreDeployer } from '../core';
-import { MultiProvider } from '../providers';
+import { Chains } from '../consts/chains';
+import { HyperlaneCore } from '../core/HyperlaneCore';
+import { TestCoreDeployer } from '../core/TestCoreDeployer';
+import { MultiProvider } from '../providers/MultiProvider';
 
 import { InterchainGasCalculator } from './calculator';
 

@@ -17,7 +17,7 @@ import {
 } from '../consts/chainMetadata';
 import { CoreChainName, TestChains } from '../consts/chains';
 import { ChainMap, ChainName } from '../types';
-import { pick } from '../utils';
+import { pick } from '../utils/objects';
 
 type Provider = providers.Provider;
 

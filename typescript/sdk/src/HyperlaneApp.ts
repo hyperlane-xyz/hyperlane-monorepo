@@ -4,9 +4,10 @@ import {
   connectContracts,
   serializeContracts,
 } from './contracts';
-import { MultiProvider } from './providers';
+import { MultiProvider } from './providers/MultiProvider';
 import { ChainMap, ChainName } from './types';
-import { MultiGeneric, objMap } from './utils';
+import { MultiGeneric } from './utils/MultiGeneric';
+import { objMap } from './utils/objects';
 
 export class HyperlaneApp<
   Contracts extends HyperlaneContracts,

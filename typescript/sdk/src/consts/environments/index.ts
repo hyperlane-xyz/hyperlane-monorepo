@@ -1,25 +1,16 @@
-import { types } from '@hyperlane-xyz/utils';
-
-import { CoreAddresses } from '../../core';
+import { CoreAddresses } from '../../core/contracts';
+import { IgpAddresses } from '../../gas/contracts';
 import { ChainMap } from '../../types';
-import { objMap } from '../../utils';
+import { objMap } from '../../utils/objects';
 
 import mainnet from './mainnet.json';
 import test from './test.json';
 import testnet from './testnet.json';
 
-export const environments = { test, testnet, mainnet };
+export const hyperlaneEnvironments = { test, testnet, mainnet };
 
-/*
-type HyperlanceContractAddresses = CoreAddresses & MiddlewareAddresses & IgpAddresses &
-  mailbox: types.Address;
-  multisigIsm: types.Address;
-  interchainGasPaymaster: types.Address;
-  interchainAccountRouter?: types.Address;
-  interchainQueryRouter?: types.Address;
-  create2Factory: types.Address;
-};
-*/
+// TODO: Add middleware addresses
+type HyperlaneContractAddresses = CoreAddresses & IgpAddresses;
 
 // Export developer-relevant addresses
 export const hyperlaneCoreAddresses = objMap(
@@ -32,17 +23,18 @@ export const hyperlaneCoreAddresses = objMap(
   }),
 ) as ChainMap<CoreAddresses>;
 
-/*
-// Export developer-relevant addresses
-export const hyperlaneMiddlewareAddresses = objMap(
+export const hyperlaneContractAddresses = objMap(
   { ...testnet, ...mainnet },
   (_chain, addresses) => ({
     mailbox: addresses.mailbox.proxy,
     multisigIsm: addresses.multisigIsm,
+    proxyAdmin: addresses.proxyAdmin,
+    validatorAnnounce: addresses.validatorAnnounce,
     interchainGasPaymaster: addresses.interchainGasPaymaster.proxy,
-    interchainAccountRouter: undefined,
-    interchainQueryRouter: undefined,
-    create2Factory: addresses.create2Factory,
+    storageGasOracle: addresses.storageGasOracle,
+    defaultIsmInterchainGasPaymaster:
+      addresses.defaultIsmInterchainGasPaymaster,
+    //interchainAccountRouter: undefined,
+    //interchainQueryRouter: undefined,
   }),
-) as ChainMap<CoreAddresses>;
-*/
+) as ChainMap<HyperlaneContractAddresses>;

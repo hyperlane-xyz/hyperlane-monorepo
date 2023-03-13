@@ -7,13 +7,13 @@ import {
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
 
-import { MultiProvider } from '../providers';
+import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
 import { TestCoreApp } from './TestCoreApp';
 import { coreFactories } from './contracts';
-import { CoreConfig, GasOracleContractType } from './types';
+import { CoreConfig } from './types';
 
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
@@ -24,6 +24,7 @@ const testConfig: CoreConfig = {
     validators: [nonZeroAddress],
     threshold: 1,
   },
+  /*
   igp: {
     beneficiary: nonZeroAddress,
     gasOracles: {
@@ -32,6 +33,7 @@ const testConfig: CoreConfig = {
       test3: GasOracleContractType.StorageGasOracle,
     },
   },
+  */
 };
 
 const testCoreFactories = {

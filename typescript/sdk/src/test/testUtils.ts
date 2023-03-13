@@ -2,7 +2,8 @@ import { ethers } from 'ethers';
 
 import { types } from '@hyperlane-xyz/utils';
 
-import { TestChains, chainMetadata } from '../consts';
+import { chainMetadata } from '../consts/chainMetadata';
+import { TestChains } from '../consts/chains';
 import {
   CoinGeckoInterface,
   CoinGeckoResponse,

@@ -1,5 +1,3 @@
-import { BigNumber } from 'ethers';
-
 import { Mailbox, MultisigIsm } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 

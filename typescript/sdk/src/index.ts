@@ -9,6 +9,8 @@ export {
   RpcPagination,
   testnetChainsMetadata,
   wagmiChainMetadata,
+} from './consts/chainMetadata';
+export {
   AllChains,
   AllDeprecatedChains,
   Chains,
@@ -19,9 +21,9 @@ export {
   Testnets,
 } from './consts/chains';
 export {
-  environments as coreEnvironments,
+  hyperlaneContractAddresses,
   hyperlaneCoreAddresses,
-} from './consts';
+} from './consts/environments';
 export {
   buildContracts,
   connectContracts,
@@ -31,13 +33,12 @@ export {
   serializeContracts,
 } from './contracts';
 export {
-  ConnectionClientContracts,
-  CoreContracts,
-  coreFactories,
-  GasOracleContracts,
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
   HyperlaneLifecyleEvent,
+} from './core/events';
+export { CoreContracts, coreFactories } from './core/contracts';
+export {
   CoreContractsMap,
   DispatchedMessage,
   HyperlaneCore,
@@ -49,17 +50,17 @@ export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
 export {
   CoreConfig,
   CoreViolationType,
-  DefaultIsmIgpViolation,
-  DefaultIsmIgpViolationType,
   EnrolledValidatorsViolation,
   GasOracleContractType,
+  MultisigIsmViolation,
+  MultisigIsmViolationType,
+} from './core/types';
+export {
   IgpBeneficiaryViolation,
   IgpGasOraclesViolation,
   IgpViolation,
   IgpViolationType,
-  MultisigIsmViolation,
-  MultisigIsmViolationType,
-} from './core/types';
+} from './gas/types';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export {
@@ -87,24 +88,12 @@ export {
 export { getChainToOwnerMap } from './deploy/utils';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
 export {
-  GasRouterDeployer,
-  HyperlaneRouterChecker,
-  HyperlaneRouterDeployer,
-  GasRouterConfig,
-  RouterConfig,
-} from './router';
-export {
   Annotated,
   getEvents,
   queryAnnotatedEvents,
   TSContract,
 } from './events';
-export {
-  InterchainGasCalculator,
-  ParsedMessage,
-  CoinGeckoTokenPriceGetter,
-  TokenPriceGetter,
-} from './gas';
+export { InterchainGasCalculator, ParsedMessage } from './gas/calculator';
 export { HyperlaneApp } from './HyperlaneApp';
 export {
   interchainAccountFactories,
@@ -131,18 +120,14 @@ export {
   NameOrDomain,
   TestChainNames,
 } from './types';
+export { delay } from './utils/time';
+export { canonizeId, evmId } from './utils/ids';
+export { chainMetadataToWagmiChain } from './utils/wagmi';
+export { MultiGeneric } from './utils/MultiGeneric';
 export {
-  canonizeId,
-  evmId,
-  MultiGeneric,
   bigToFixed,
   convertDecimalValue,
   fixedToBig,
   mulBigAndFixed,
-  objMap,
-  objMapEntries,
-  pick,
-  promiseObjAll,
-  delay,
-  chainMetadataToWagmiChain,
-} from './utils';
+} from './utils/number';
+export { objMap, objMapEntries, pick, promiseObjAll } from './utils/objects';

@@ -3,7 +3,8 @@ import type { providers } from 'ethers';
 import { z } from 'zod';
 
 import { ChainName } from '../types';
-import { chainMetadataToWagmiChain, objMap } from '../utils';
+import { objMap } from '../utils/objects';
+import { chainMetadataToWagmiChain } from '../utils/wagmi';
 
 import { Chains, Mainnets, Testnets } from './chains';
 
