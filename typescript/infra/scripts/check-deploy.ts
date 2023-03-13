@@ -1,6 +1,7 @@
 import { HyperlaneCore, HyperlaneCoreChecker } from '@hyperlane-xyz/sdk';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
+import { fork } from '../src/utils/fork';
 
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
@@ -8,6 +9,12 @@ async function check() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
+
+  // fork test network and impersonate owner in CI
+  if (process.env.CI == 'true') {
+    const forkChain = environment === 'testnet3' ? 'goerli' : 'ethereum';
+    await fork(forkChain, multiProvider, false); // don't reset fork state
+  }
 
   // environments union doesn't work well with typescript
   const core = HyperlaneCore.fromEnvironment(

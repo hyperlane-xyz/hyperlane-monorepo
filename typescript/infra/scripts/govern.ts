@@ -2,7 +2,7 @@ import { HyperlaneCore, HyperlaneCoreChecker } from '@hyperlane-xyz/sdk';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneCoreGovernor } from '../src/core/govern';
-import { forkAndImpersonateOwner } from '../src/utils/fork';
+import { fork, impersonateOwner } from '../src/utils/fork';
 
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
@@ -28,7 +28,8 @@ async function check() {
   // fork test network and impersonate owner in CI
   if (process.env.CI == 'true') {
     const forkChain = environment === 'testnet3' ? 'goerli' : 'ethereum';
-    await forkAndImpersonateOwner(forkChain, config.core, multiProvider);
+    await fork(forkChain, multiProvider);
+    await impersonateOwner(forkChain, config.core, multiProvider);
   }
 
   const governor = new HyperlaneCoreGovernor(coreChecker);

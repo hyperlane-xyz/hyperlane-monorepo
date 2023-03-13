@@ -8,7 +8,7 @@ import {
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
-import { forkAndImpersonateOwner } from '../src/utils/fork';
+import { fork, impersonateOwner } from '../src/utils/fork';
 import { readJSON, writeJSON } from '../src/utils/utils';
 
 import {
@@ -24,10 +24,10 @@ async function main() {
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  // fork test network and impersonate owner in CI
   if (process.env.CI == 'true') {
     const forkChain = environment === 'testnet3' ? 'goerli' : 'ethereum';
-    await forkAndImpersonateOwner(forkChain, config.core, multiProvider);
+    await fork(forkChain, multiProvider);
+    await impersonateOwner(forkChain, config.core, multiProvider);
   }
 
   const deployer = new HyperlaneCoreInfraDeployer(
