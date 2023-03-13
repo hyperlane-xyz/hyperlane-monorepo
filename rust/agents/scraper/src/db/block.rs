@@ -7,7 +7,7 @@ use tracing::trace;
 
 use hyperlane_core::{BlockInfo, H256};
 
-use crate::conversions::{format_h256, parse_h256};
+use crate::conversions::{address_to_bytes, h256_to_bytes};
 use crate::date_time;
 use crate::db::ScraperDb;
 
@@ -28,8 +28,7 @@ impl FromQueryResult for BasicBlock {
     fn from_query_result(res: &QueryResult, pre: &str) -> std::result::Result<Self, DbErr> {
         Ok(Self {
             id: res.try_get::<i64>(pre, "id")?,
-            hash: parse_h256(res.try_get::<String>(pre, "hash")?)
-                .map_err(|e| DbErr::Type(e.to_string()))?,
+            hash: H256::from_slice(&res.try_get::<Vec<u8>>(pre, "hash")?),
             timestamp: res.try_get::<TimeDateTime>(pre, "timestamp")?,
         })
     }
@@ -45,7 +44,7 @@ impl ScraperDb {
     ) -> Result<Vec<BasicBlock>> {
         // check database to see which blocks we already know and fetch their IDs
         block::Entity::find()
-            .filter(block::Column::Hash.is_in(hashes.map(format_h256)))
+            .filter(block::Column::Hash.is_in(hashes.map(h256_to_bytes)))
             .select_only()
             // these must align with the custom impl of FromQueryResult
             .column_as(block::Column::Id, "id")
@@ -66,7 +65,7 @@ impl ScraperDb {
         let models = blocks
             .map(|info| block::ActiveModel {
                 id: NotSet,
-                hash: Set(format_h256(&info.hash)),
+                hash: Set(address_to_bytes(&info.hash)),
                 time_created: Set(date_time::now()),
                 domain: Unchanged(domain as i32),
                 height: Unchanged(info.number as i64),

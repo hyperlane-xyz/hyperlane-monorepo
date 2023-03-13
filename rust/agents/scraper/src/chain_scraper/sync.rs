@@ -14,7 +14,7 @@ use hyperlane_core::{
 };
 
 use crate::chain_scraper::{
-    Delivery, HyperlaneMessageWithMeta, Payment, SqlChainScraper, TxnWithIdAndTime,
+    Delivery, HyperlaneMessageWithMeta, Payment, SqlChainScraper, TxnWithId,
 };
 
 /// Workhorse of synchronization. This consumes a `SqlChainScraper` which has
@@ -248,7 +248,7 @@ impl Syncer {
             payments,
         } = extracted;
 
-        let txns: HashMap<H256, TxnWithIdAndTime> = self
+        let txns: HashMap<H256, TxnWithId> = self
             .ensure_blocks_and_txns(
                 sorted_messages
                     .iter()

@@ -6,7 +6,7 @@ use tracing::{instrument, trace};
 use hyperlane_core::{InterchainGasPayment, LogMeta};
 use migration::OnConflict;
 
-use crate::conversions::{format_h256, u256_to_decimal};
+use crate::conversions::{h256_to_bytes, u256_to_decimal};
 use crate::date_time;
 use crate::db::ScraperDb;
 
@@ -31,7 +31,7 @@ impl ScraperDb {
                 id: NotSet,
                 time_created: Set(date_time::now()),
                 domain: Unchanged(domain as i32),
-                msg_id: Unchanged(format_h256(&storable.payment.message_id)),
+                msg_id: Unchanged(h256_to_bytes(&storable.payment.message_id)),
                 payment: Set(u256_to_decimal(storable.payment.payment)),
                 gas_amount: Set(u256_to_decimal(storable.payment.gas_amount)),
                 tx_id: Unchanged(storable.txn_id),

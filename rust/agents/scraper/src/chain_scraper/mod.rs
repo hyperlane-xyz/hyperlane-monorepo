@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use eyre::{eyre, Result};
 use futures::TryFutureExt;
-use sea_orm::prelude::TimeDateTime;
 use tracing::trace;
 
 use hyperlane_base::{chains::IndexSettings, ContractSyncMetrics};
@@ -95,7 +94,7 @@ impl SqlChainScraper {
     async fn store_messages(
         &self,
         messages: &[HyperlaneMessageWithMeta],
-        txns: &HashMap<H256, TxnWithIdAndTime>,
+        txns: &HashMap<H256, TxnWithId>,
     ) -> Result<u32> {
         debug_assert!(!messages.is_empty());
 
@@ -113,7 +112,6 @@ impl SqlChainScraper {
                         msg: m.message.clone(),
                         meta: &m.meta,
                         txn_id: txn.id,
-                        timestamp: txn.timestamp,
                     }
                 }),
             )
@@ -126,7 +124,7 @@ impl SqlChainScraper {
     async fn store_deliveries(
         &self,
         deliveries: &[Delivery],
-        txns: &HashMap<H256, TxnWithIdAndTime>,
+        txns: &HashMap<H256, TxnWithId>,
     ) -> Result<()> {
         if deliveries.is_empty() {
             return Ok(());
@@ -149,7 +147,7 @@ impl SqlChainScraper {
     async fn store_payments(
         &self,
         payments: &[Payment],
-        txns: &HashMap<H256, TxnWithIdAndTime>,
+        txns: &HashMap<H256, TxnWithId>,
     ) -> Result<()> {
         if payments.is_empty() {
             return Ok(());
@@ -170,7 +168,7 @@ impl SqlChainScraper {
     async fn ensure_blocks_and_txns(
         &self,
         message_metadata: impl Iterator<Item = &LogMeta>,
-    ) -> Result<impl Iterator<Item = TxnWithIdAndTime>> {
+    ) -> Result<impl Iterator<Item = TxnWithId>> {
         let block_hash_by_txn_hash: HashMap<H256, H256> = message_metadata
             .map(|meta| (meta.transaction_hash, meta.block_hash))
             .collect();
@@ -185,19 +183,11 @@ impl SqlChainScraper {
             .collect();
         trace!(?blocks, "Ensured blocks");
 
-        // not sure why rust can't detect the lifetimes here are valid, but just
-        // wrapping with the Arc/mutex for now.
-        let block_timestamps_by_txn: Arc<std::sync::Mutex<HashMap<H256, TimeDateTime>>> =
-            Default::default();
-
-        let block_timestamps_by_txn_clone = block_timestamps_by_txn.clone();
         // all txns we care about
         let txns_with_ids =
             self.ensure_txns(block_hash_by_txn_hash.into_iter().map(
                 move |(txn_hash, block_hash)| {
-                    let mut block_timestamps_by_txn = block_timestamps_by_txn_clone.lock().unwrap();
                     let block_info = *blocks.get(&block_hash).as_ref().unwrap();
-                    block_timestamps_by_txn.insert(txn_hash, block_info.timestamp);
                     TxnWithBlockId {
                         txn_hash,
                         block_id: block_info.id,
@@ -207,10 +197,9 @@ impl SqlChainScraper {
             .await?;
 
         Ok(
-            txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithIdAndTime {
+            txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithId {
                 hash,
                 id: txn_id,
-                timestamp: *block_timestamps_by_txn.lock().unwrap().get(&hash).unwrap(),
             }),
         )
     }
@@ -387,13 +376,6 @@ impl Payment {
             txn_id,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-struct TxnWithIdAndTime {
-    hash: H256,
-    id: i64,
-    timestamp: TimeDateTime,
 }
 
 #[derive(Debug, Clone)]

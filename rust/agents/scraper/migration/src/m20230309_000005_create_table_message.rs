@@ -1,11 +1,12 @@
+use sea_orm::ConnectionTrait;
+use sea_orm_migration::prelude::*;
+
 use crate::l20230309_types::*;
 use crate::m20230309_000001_create_table_domain::Domain;
 use crate::m20230309_000002_create_table_block::Block;
 use crate::m20230309_000003_create_table_transaction::Transaction;
 use crate::m20230309_000004_create_table_delivered_message::DeliveredMessage;
 use crate::m20230309_000004_create_table_gas_payment::TotalGasPayment;
-use sea_orm::ConnectionTrait;
-use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

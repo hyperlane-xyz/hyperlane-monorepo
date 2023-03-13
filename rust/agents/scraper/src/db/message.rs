@@ -8,7 +8,7 @@ use tracing::{instrument, trace};
 use hyperlane_core::{HyperlaneMessage, LogMeta, H256};
 use migration::OnConflict;
 
-use crate::conversions::format_h256;
+use crate::conversions::{address_to_bytes, h256_to_bytes};
 use crate::date_time;
 use crate::db::ScraperDb;
 
@@ -27,7 +27,6 @@ pub struct StorableMessage<'a> {
     pub meta: &'a LogMeta,
     /// The database id of the transaction the message was sent in
     pub txn_id: i64,
-    pub timestamp: TimeDateTime,
 }
 
 impl ScraperDb {
@@ -45,7 +44,7 @@ impl ScraperDb {
 
         Ok(message::Entity::find()
             .filter(message::Column::Origin.eq(origin_domain))
-            .filter(message::Column::OriginMailbox.eq(format_h256(origin_mailbox)))
+            .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
             .order_by_desc(message::Column::Nonce)
             .select_only()
             .column_as(message::Column::Nonce, QueryAs::Nonce)
@@ -64,7 +63,7 @@ impl ScraperDb {
         destination_mailbox: H256,
         deliveries: impl Iterator<Item = StorableDelivery<'_>>,
     ) -> Result<()> {
-        let destination_mailbox = format_h256(&destination_mailbox);
+        let destination_mailbox = address_to_bytes(&destination_mailbox);
         // we have a race condition where a message may not have been scraped yet even
         // though we have received news of delivery on this chain, so the
         // message IDs are looked up in a separate "thread".
@@ -72,10 +71,10 @@ impl ScraperDb {
             .map(|delivery| delivered_message::ActiveModel {
                 id: NotSet,
                 time_created: Set(date_time::now()),
-                msg_id: Unchanged(format_h256(&delivery.message_id)),
+                msg_id: Unchanged(h256_to_bytes(&delivery.message_id)),
                 domain: Unchanged(domain as i32),
                 destination_mailbox: Unchanged(destination_mailbox.clone()),
-                tx_id: Set(delivery.txn_id),
+                destination_tx_id: Set(delivery.txn_id),
             })
             .collect_vec();
 
@@ -87,7 +86,7 @@ impl ScraperDb {
                 OnConflict::columns([delivered_message::Column::MsgId])
                     .update_columns([
                         delivered_message::Column::TimeCreated,
-                        delivered_message::Column::TxId,
+                        delivered_message::Column::DestinationTxId,
                     ])
                     .to_owned(),
             )
@@ -108,19 +107,18 @@ impl ScraperDb {
             .map(|storable| message::ActiveModel {
                 id: NotSet,
                 time_created: Set(date_time::now()),
-                msg_id: Unchanged(format_h256(&storable.msg.id())),
+                msg_id: Unchanged(h256_to_bytes(&storable.msg.id())),
                 origin: Unchanged(storable.msg.origin as i32),
                 destination: Set(storable.msg.destination as i32),
                 nonce: Unchanged(storable.msg.nonce as i32),
-                sender: Set(format_h256(&storable.msg.sender)),
-                recipient: Set(format_h256(&storable.msg.recipient)),
+                sender: Set(address_to_bytes(&storable.msg.sender)),
+                recipient: Set(address_to_bytes(&storable.msg.recipient)),
                 msg_body: Set(if storable.msg.body.is_empty() {
                     None
                 } else {
                     Some(storable.msg.body)
                 }),
-                origin_mailbox: Unchanged(format_h256(origin_mailbox)),
-                timestamp: Set(storable.timestamp),
+                origin_mailbox: Unchanged(address_to_bytes(origin_mailbox)),
                 origin_tx_id: Set(storable.txn_id),
             })
             .collect_vec();
@@ -141,7 +139,6 @@ impl ScraperDb {
                     message::Column::Sender,
                     message::Column::Recipient,
                     message::Column::MsgBody,
-                    message::Column::Timestamp,
                     message::Column::OriginTxId,
                 ])
                 .to_owned(),

@@ -49,7 +49,7 @@ impl BaseAgent for Scraper {
         let contract_sync_metrics = ContractSyncMetrics::new(metrics.clone());
         let mut scrapers: HashMap<u32, SqlChainScraper> = HashMap::new();
 
-        let chains_to_scrape = settings.chainstoscrape.split(",");
+        let chains_to_scrape = settings.chainstoscrape.split(',');
         for chain_name in chains_to_scrape {
             let chain_setup = settings
                 .chains
