@@ -284,7 +284,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         expected: {},
       };
 
-    const remotes = this.multiProvider.getRemoteChains(local);
+    const remotes = this.app.remoteChains(local);
     for (const remote of remotes) {
       const { validators, threshold } = this.configMap[remote].multisigIsm;
       const expectedOverhead = this.getExpectedOverheadGas(
@@ -325,7 +325,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       expected: {},
     };
 
-    const remotes = this.multiProvider.getRemoteChains(local);
+    const remotes = this.app.remoteChains(local);
     for (const remote of remotes) {
       const remoteId = this.multiProvider.getDomainId(remote);
       const actualGasOracle = await igp.gasOracles(remoteId);
