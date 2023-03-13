@@ -57,7 +57,7 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
   }
 
   // deploy a test ISM in place of a multisig ISM
-  async deployMultisigIsm(chain: ChainName): Promise<LegacyMultisigIsm> {
+  async deployLegacyMultisigIsm(chain: ChainName): Promise<LegacyMultisigIsm> {
     const testIsm = await this.deployContractFromFactory(
       chain,
       testCoreFactories.testIsm,

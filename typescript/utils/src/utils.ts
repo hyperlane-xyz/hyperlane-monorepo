@@ -97,8 +97,9 @@ export const parseLegacyMultisigIsmMetadata = (
   };
 };
 
+/*
 export const formatMultisigIsmMetadata = (
-  metadata: ParsedLegacyMultisigIsmMetadata,
+  metadata: ParsedMultisigIsmMetadata,
 ): string => {
   return ethers.utils.solidityPack(
     ['bytes32', 'uint32', 'bytes32', 'bytes32[32]', 'bytes'],
@@ -111,6 +112,7 @@ export const formatMultisigIsmMetadata = (
     ],
   );
 };
+*/
 
 export const formatLegacyMultisigIsmMetadata = (
   metadata: ParsedLegacyMultisigIsmMetadata,
