@@ -1,25 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "forge-std/Test.sol";
 import {IMOfNAddressSet} from "../interfaces/IMOfNAddressSet.sol";
 import {OwnableStorageMOfNAddressSet} from "../contracts/isms/OwnableStorageMOfNAddressSet.sol";
 import {OwnableStaticMOfNAddressSet} from "../contracts/isms/OwnableStaticMOfNAddressSet.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
-contract OwnableStorageMOfNAddressSetTest is OwnableMOfNAddressSetTest, Test {
-    function setUp() public {
-        set = new OwnableStorageMOfNAddressSet();
-    }
-}
-
-contract OwnableStaticMOfNAddressSetTest is OwnableMOfNAddressSetTest, Test {
-    function setUp() public {
-        set = new OwnableStaticMOfNAddressSet();
-    }
-}
-
-contract OwnableMOfNAddressSetTest {
+contract OwnableMOfNAddressSetTest is Test {
     using TypeCasts for address;
     event ValueAdded(
         uint32 indexed domain,
@@ -55,13 +44,20 @@ contract OwnableMOfNAddressSetTest {
         set.add(domain, address(0));
     }
 
+    function transferOwnershipToNonOwner(address newOwner) private {
+        vm.assume(
+            newOwner != address(0x0) &&
+                newOwner != Ownable(address(set)).owner()
+        );
+        Ownable(address(set)).transferOwnership(newOwner);
+    }
+
     function testAddNonowner(
         uint32 domain,
         address value,
         address newOwner
     ) public {
-        vm.assume(newOwner != address(0x0) && newOwner != set.owner());
-        set.transferOwnership(newOwner);
+        transferOwnershipToNonOwner(newOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         set.add(domain, value);
     }
@@ -112,8 +108,7 @@ contract OwnableMOfNAddressSetTest {
         address value,
         address newOwner
     ) public {
-        vm.assume(newOwner != address(0x0) && newOwner != set.owner());
-        set.transferOwnership(newOwner);
+        transferOwnershipToNonOwner(newOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         set.remove(domain, value);
     }
@@ -147,8 +142,7 @@ contract OwnableMOfNAddressSetTest {
         uint8 threshold,
         address newOwner
     ) public {
-        vm.assume(newOwner != address(0x0) && newOwner != set.owner());
-        set.transferOwnership(newOwner);
+        transferOwnershipToNonOwner(newOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         set.setThreshold(domain, threshold);
     }
@@ -215,5 +209,17 @@ contract OwnableMOfNAddressSetTest {
         nonEmptySet[0] = value;
         assertEq(abi.encodePacked(values), abi.encodePacked(nonEmptySet));
         assertEq(threshold, 1);
+    }
+}
+
+contract OwnableStorageMOfNAddressSetTest is OwnableMOfNAddressSetTest {
+    function setUp() public {
+        set = new OwnableStorageMOfNAddressSet();
+    }
+}
+
+contract OwnableStaticMOfNAddressSetTest is OwnableMOfNAddressSetTest {
+    function setUp() public {
+        set = new OwnableStaticMOfNAddressSet();
     }
 }

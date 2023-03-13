@@ -1,18 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.0;
 
-// What we have today, mapping domains to threshold/validators
-// To be used by LegacyMultisigIsm.sol, StorageMultisigIsm.sol
-library SstoreMofNAddressSet {
-
-}
-
-// A more efficient version,
-// To be used by StaticMultisigIsm.sol.
-library StaticMOfNAddressSet {
-
-}
-
 interface IMOfNAddressSet {
     function add(uint32 _domain, address _value) external;
 
@@ -25,6 +13,11 @@ interface IMOfNAddressSet {
         uint32[] calldata _domains,
         uint8[] calldata _thresholds
     ) external;
+
+    function contains(uint32 _domain, address _value)
+        external
+        view
+        returns (bool);
 
     function setThreshold(uint32 _domain, uint8 _threshold) external;
 
