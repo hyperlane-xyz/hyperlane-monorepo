@@ -1,10 +1,9 @@
-import { chainMetadata } from '../../consts/chainMetadata';
 import { buildContracts } from '../../contracts';
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { getChainToOwnerMap } from '../../deploy/utils';
 import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterContracts } from '../../router';
-import { ChainMap, ChainName } from '../../types';
+import { RouterContracts } from '../../router/types';
+import { ChainMap } from '../../types';
 
 import {
   EnvSubsetApp,
@@ -12,7 +11,6 @@ import {
   alfajoresChainConfig,
   envSubsetFactories,
 } from './app';
-import { getAlfajoresProvider } from './utils';
 
 // Copied from output of deploy-single-chain.ts script
 const deploymentAddresses = {
@@ -24,22 +22,13 @@ const deploymentAddresses = {
 const ownerAddress = '0x35b74Ed5038bf0488Ff33bD9819b9D12D10A7560';
 
 async function check() {
-  const provider = getAlfajoresProvider();
-
   console.info('Preparing utilities');
-  const multiProvider = new MultiProvider({
-    alfajores: {
-      id: chainMetadata.alfajores.id,
-      provider,
-      confirmations: alfajoresChainConfig.alfajores.confirmations,
-      overrides: alfajoresChainConfig.alfajores.overrides,
-    },
-  });
+  const multiProvider = new MultiProvider();
 
   const contractsMap = buildContracts(
     deploymentAddresses,
     envSubsetFactories,
-  ) as ChainMap<ChainName, RouterContracts>;
+  ) as ChainMap<RouterContracts>;
   const app = new EnvSubsetApp(contractsMap, multiProvider);
   const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
   const config = core.extendWithConnectionClientConfig(

@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use derive_new::new;
 use ethers::prelude::Middleware;
 use tokio::time::sleep;
 use tracing::instrument;
@@ -18,23 +19,13 @@ use crate::BuildableWithProvider;
 
 /// Connection to an ethereum provider. Useful for querying information about
 /// the blockchain.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct EthereumProvider<M>
 where
     M: Middleware,
 {
     provider: Arc<M>,
     domain: HyperlaneDomain,
-}
-
-impl<M> EthereumProvider<M>
-where
-    M: Middleware,
-{
-    /// Creates a new EthereumProvider
-    pub fn new(provider: Arc<M>, domain: HyperlaneDomain) -> Self {
-        Self { provider, domain }
-    }
 }
 
 impl<M> HyperlaneChain for EthereumProvider<M>

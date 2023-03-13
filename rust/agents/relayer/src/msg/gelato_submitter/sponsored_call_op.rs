@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use derive_new::new;
 use eyre::Result;
 use tokio::{
     sync::mpsc::UnboundedSender,
@@ -17,7 +18,7 @@ use gelato::{
     types::Chain,
 };
 use hyperlane_base::CachingMailbox;
-use hyperlane_core::{ChainResult, HyperlaneContract, Mailbox};
+use hyperlane_core::{ChainResult, HyperlaneContract, Mailbox, U256};
 
 use crate::msg::{
     gas_payment::GasPaymentEnforcer, metadata_builder::MetadataBuilder, SubmitMessageArgs,
@@ -44,7 +45,7 @@ pub struct SponsoredCallOpArgs {
     pub message_processed_sender: UnboundedSender<SubmitMessageArgs>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct SponsoredCallOp(SponsoredCallOpArgs);
 
 impl Deref for SponsoredCallOp {
@@ -62,10 +63,6 @@ impl DerefMut for SponsoredCallOp {
 }
 
 impl SponsoredCallOp {
-    pub fn new(args: SponsoredCallOpArgs) -> Self {
-        Self(args)
-    }
-
     #[instrument(skip(self), fields(msg=?self.message.message))]
     pub async fn run(&mut self) {
         loop {
@@ -123,20 +120,21 @@ impl SponsoredCallOp {
 
         // If the gas payment requirement hasn't been met, sleep briefly and wait for
         // the next tick.
-        let (meets_gas_requirement, gas_payment) = self
+        let Some(gas_limit) = self
             .gas_payment_enforcer
             .message_meets_gas_payment_requirement(&self.message.message, &tx_cost_estimate)
-            .await?;
-
-        if !meets_gas_requirement {
-            info!(?gas_payment, "Gas payment requirement not met yet");
+            .await?
+        else {
+            info!(?tx_cost_estimate, "Gas payment requirement not met yet");
             return Ok(false);
-        }
+        };
 
         // Send the sponsored call.
-        let sponsored_call_result = self.send_sponsored_call_api_call(&metadata).await?;
+        let sponsored_call_result = self
+            .send_sponsored_call_api_call(&metadata, gas_limit)
+            .await?;
         info!(
-            msg=?self.message,
+            message=?self.message,
             task_id=sponsored_call_result.task_id,
             "Sent sponsored call",
         );
@@ -208,29 +206,26 @@ impl SponsoredCallOp {
     async fn send_sponsored_call_api_call(
         &self,
         metadata: &[u8],
+        gas_limit: U256,
     ) -> Result<SponsoredCallApiCallResult> {
-        let args = self.create_sponsored_call_args(metadata).await?;
-
-        let sponsored_call_api_call = SponsoredCallApiCall {
-            args: &args,
-            http: self.http.clone(),
-            sponsor_api_key: &self.sponsor_api_key,
-        };
-
-        sponsored_call_api_call.run().await
-    }
-
-    async fn create_sponsored_call_args(&self, metadata: &[u8]) -> Result<SponsoredCallArgs> {
-        let calldata = self
-            .mailbox
-            .process_calldata(&self.message.message, metadata);
-        Ok(SponsoredCallArgs {
+        let args = SponsoredCallArgs {
             chain_id: self.destination_chain,
             target: self.mailbox.address().into(),
-            data: calldata.into(),
-            gas_limit: None, // Gelato will handle gas estimation
-            retries: None,   // Use Gelato's default of 5 retries, each ~5 seconds apart
-        })
+            data: self
+                .mailbox
+                .process_calldata(&self.message.message, metadata)
+                .into(),
+            gas_limit: Some(gas_limit),
+            retries: None, // Use Gelato's default of 5 retries, each ~5 seconds apart
+        };
+
+        SponsoredCallApiCall {
+            args: &args,
+            http: &self.http,
+            sponsor_api_key: &self.sponsor_api_key,
+        }
+        .run()
+        .await
     }
 
     async fn message_delivered(&self) -> ChainResult<bool> {

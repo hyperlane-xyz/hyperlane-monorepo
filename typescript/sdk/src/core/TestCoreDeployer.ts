@@ -2,26 +2,35 @@ import { ethers } from 'ethers';
 
 import {
   MultisigIsm,
+  TestInterchainGasPaymaster__factory,
   TestIsm__factory,
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
 
-import { HyperlaneCoreDeployer } from '../deploy/core/HyperlaneCoreDeployer';
-import { CoreConfig } from '../deploy/core/types';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, TestChainNames } from '../types';
+import { ChainMap, ChainName } from '../types';
 
+import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
 import { TestCoreApp } from './TestCoreApp';
 import { coreFactories } from './contracts';
+import { CoreConfig, GasOracleContractType } from './types';
 
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ISM
-const testMultisigIsmConfig: CoreConfig = {
+const testConfig: CoreConfig = {
   owner: nonZeroAddress,
   multisigIsm: {
     validators: [nonZeroAddress],
     threshold: 1,
+  },
+  igp: {
+    beneficiary: nonZeroAddress,
+    gasOracles: {
+      test1: GasOracleContractType.StorageGasOracle,
+      test2: GasOracleContractType.StorageGasOracle,
+      test3: GasOracleContractType.StorageGasOracle,
+    },
   },
 };
 
@@ -29,31 +38,26 @@ const testCoreFactories = {
   ...coreFactories,
   mailbox: new TestMailbox__factory(),
   testIsm: new TestIsm__factory(),
+  interchainGasPaymaster: new TestInterchainGasPaymaster__factory(),
 };
 
-export class TestCoreDeployer<
-  TestChain extends TestChainNames = TestChainNames,
-> extends HyperlaneCoreDeployer<TestChain> {
+export class TestCoreDeployer extends HyperlaneCoreDeployer {
   constructor(
-    public readonly multiProvider: MultiProvider<TestChain>,
-    configMap?: ChainMap<TestChain, CoreConfig>,
+    public readonly multiProvider: MultiProvider,
+    configMap?: ChainMap<CoreConfig>,
   ) {
     // Note that the multisig module configs are unused.
-    const configs =
-      configMap ??
-      ({
-        test1: testMultisigIsmConfig,
-        test2: testMultisigIsmConfig,
-        test3: testMultisigIsmConfig,
-      } as ChainMap<TestChain, CoreConfig>); // cast so param can be optional
+    const configs = configMap ?? {
+      test1: testConfig,
+      test2: testConfig,
+      test3: testConfig,
+    };
 
     super(multiProvider, configs, testCoreFactories);
   }
 
   // deploy a test ISM in place of a multisig ISM
-  async deployMultisigIsm<LocalChain extends TestChain>(
-    chain: LocalChain,
-  ): Promise<MultisigIsm> {
+  async deployMultisigIsm(chain: ChainName): Promise<MultisigIsm> {
     const testIsm = await this.deployContractFromFactory(
       chain,
       testCoreFactories.testIsm,
@@ -69,7 +73,7 @@ export class TestCoreDeployer<
     return [];
   }
 
-  async deployApp(): Promise<TestCoreApp<TestChain>> {
+  async deployApp(): Promise<TestCoreApp> {
     return new TestCoreApp(await this.deploy(), this.multiProvider);
   }
 }

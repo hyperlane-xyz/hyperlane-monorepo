@@ -5,15 +5,14 @@ import { format } from 'util';
 
 import {
   AllChains,
-  ChainConnection,
   ChainName,
-  ChainNameToDomainId,
   Chains,
-  CompleteChainMap,
+  CoreChainName,
+  HyperlaneCore,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { ChainMap } from '@hyperlane-xyz/sdk/dist/types';
-import { error, log } from '@hyperlane-xyz/utils';
+import { error, log, warn } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { parseKeyIdentifier } from '../../src/agents/agent';
@@ -23,7 +22,9 @@ import {
   ReadOnlyCloudAgentKey,
 } from '../../src/agents/keys';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
+import { DeployEnvironment } from '../../src/config';
 import { ConnectionType } from '../../src/config/agent';
+import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
 import { submitMetrics } from '../../src/utils/metrics';
 import {
@@ -51,7 +52,7 @@ const L2Chains: ChainName[] = [
   Chains.arbitrumgoerli,
 ];
 
-const L2ToL1: ChainMap<L2Chain, ChainName> = {
+const L2ToL1: ChainMap<ChainName> = {
   optimismgoerli: 'goerli',
   arbitrumgoerli: 'goerli',
   optimism: 'ethereum',
@@ -94,7 +95,7 @@ const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 
-const desiredBalancePerChain: CompleteChainMap<string> = {
+const desiredBalancePerChain: ChainMap<string> = {
   celo: '0.3',
   alfajores: '1',
   avalanche: '0.3',
@@ -112,6 +113,46 @@ const desiredBalancePerChain: CompleteChainMap<string> = {
   optimismgoerli: '0.3',
   arbitrumgoerli: '0.1',
   gnosis: '0.1',
+  // unused
+  test1: '0',
+  test2: '0',
+  test3: '0',
+};
+
+// Used to fund kathy with more tokens such that it's able to pay interchain gas
+// on mainnet. The amount is roughly > $100
+const desiredKathyBalancePerChain: ChainMap<string> = {
+  celo: '150',
+  avalanche: '6',
+  polygon: '85',
+  ethereum: '0.4',
+  optimism: '0.1',
+  arbitrum: '0.1',
+  bsc: '0.35',
+  moonbeam: '250',
+  gnosis: '100',
+};
+
+// The balance threshold of the IGP contract that must be met for the key funder
+// to call `claim()`
+const igpClaimThresholdPerChain: ChainMap<string> = {
+  celo: '5',
+  alfajores: '1',
+  avalanche: '2',
+  fuji: '1',
+  ethereum: '0.4',
+  polygon: '20',
+  mumbai: '1',
+  optimism: '0.15',
+  arbitrum: '0.1',
+  bsc: '0.3',
+  bsctestnet: '1',
+  goerli: '1',
+  moonbasealpha: '2',
+  moonbeam: '5',
+  optimismgoerli: '1',
+  arbitrumgoerli: '1',
+  gnosis: '5',
   // unused
   test1: '0',
   test2: '0',
@@ -159,7 +200,11 @@ async function main() {
       ConnectionType.Http,
       ConnectionType.HttpQuorum,
     ])
-    .demandOption('connection-type').argv;
+    .demandOption('connection-type')
+
+    .boolean('skip-igp-claim')
+    .describe('skip-igp-claim', 'If true, never claims funds from the IGP')
+    .default('skip-igp-claim', false).argv;
 
   const environment = assertEnvironment(argv.e as string);
   constMetricLabels.hyperlane_deployment = environment;
@@ -175,9 +220,11 @@ async function main() {
   if (argv.f) {
     contextFunders = argv.f.map((path) =>
       ContextFunder.fromSerializedAddressFile(
+        environment,
         multiProvider,
         path,
         argv.contextsAndRoles,
+        argv.skipIgpClaim,
       ),
     );
   } else {
@@ -185,9 +232,11 @@ async function main() {
     contextFunders = await Promise.all(
       contexts.map((context) =>
         ContextFunder.fromContext(
+          environment,
           multiProvider,
           context,
           argv.contextsAndRoles[context]!,
+          argv.skipIgpClaim,
         ),
       ),
     );
@@ -209,24 +258,33 @@ async function main() {
 // Funds keys for a single context
 class ContextFunder {
   public readonly chains: ChainName[];
+  core: HyperlaneCore;
 
   constructor(
-    public readonly multiProvider: MultiProvider<any>,
+    public readonly environment: DeployEnvironment,
+    public readonly multiProvider: MultiProvider,
     public readonly keys: BaseCloudAgentKey[],
     public readonly context: Contexts,
     public readonly rolesToFund: KEY_ROLE_ENUM[],
+    public readonly skipIgpClaim: boolean,
   ) {
     const uniqueChains = new Set(
       keys.map((key) => key.chainName!).filter((chain) => chain !== undefined),
     );
 
     this.chains = Array.from(uniqueChains) as ChainName[];
+    this.core = HyperlaneCore.fromEnvironment(
+      deployEnvToSdkEnv[this.environment],
+      multiProvider,
+    );
   }
 
   static fromSerializedAddressFile(
-    multiProvider: MultiProvider<any>,
+    environment: DeployEnvironment,
+    multiProvider: MultiProvider,
     path: string,
     contextsAndRolesToFund: ContextAndRolesMap,
+    skipIgpClaim: boolean,
   ) {
     log('Reading identifiers and addresses from file', {
       path,
@@ -240,7 +298,7 @@ class ContextFunder {
         // references newer chains.
         return (
           parsed.chainName === undefined ||
-          AllChains.includes(parsed.chainName as ChainName)
+          AllChains.includes(parsed.chainName as CoreChainName)
         );
       })
       .map((idAndAddress: any) =>
@@ -274,21 +332,37 @@ class ContextFunder {
       context,
     });
 
-    return new ContextFunder(multiProvider, keys, context, rolesToFund);
+    return new ContextFunder(
+      environment,
+      multiProvider,
+      keys,
+      context,
+      rolesToFund,
+      skipIgpClaim,
+    );
   }
 
   // The keys here are not ReadOnlyCloudAgentKeys, instead they are AgentGCPKey or AgentAWSKeys,
   // which require credentials to fetch. If you want to avoid requiring credentials, use
   // fromSerializedAddressFile instead.
   static async fromContext(
-    multiProvider: MultiProvider<any>,
+    environment: DeployEnvironment,
+    multiProvider: MultiProvider,
     context: Contexts,
     rolesToFund: KEY_ROLE_ENUM[],
+    skipIgpClaim: boolean,
   ) {
     const agentConfig = await getAgentConfig(context);
     const keys = getAllCloudAgentKeys(agentConfig);
     await Promise.all(keys.map((key) => key.fetch()));
-    return new ContextFunder(multiProvider, keys, context, rolesToFund);
+    return new ContextFunder(
+      environment,
+      multiProvider,
+      keys,
+      context,
+      rolesToFund,
+      skipIgpClaim,
+    );
   }
 
   // Funds all the roles in this.rolesToFund
@@ -299,6 +373,9 @@ class ContextFunder {
     const promises = Object.entries(this.getChainKeys()).map(
       async ([chain, keys]) => {
         if (keys.length > 0) {
+          if (!this.skipIgpClaim) {
+            await this.attemptToClaimFromIgp(chain as ChainName);
+          }
           await this.bridgeIfL2(chain as ChainName);
         }
         for (const key of keys) {
@@ -322,7 +399,7 @@ class ContextFunder {
     const entries = AllChains.map((c) => {
       return [c, []];
     });
-    const chainKeys: CompleteChainMap<BaseCloudAgentKey[]> =
+    const chainKeys: ChainMap<BaseCloudAgentKey[]> =
       Object.fromEntries(entries);
     for (const role of this.rolesToFund) {
       const keys = this.getKeysWithRole(role);
@@ -348,37 +425,40 @@ class ContextFunder {
     key: BaseCloudAgentKey,
     chain: ChainName,
   ): Promise<boolean> {
-    const chainConnection = this.multiProvider.tryGetChainConnection(chain);
-    if (!chainConnection) {
+    const provider = this.multiProvider.tryGetProvider(chain);
+    if (!provider) {
       error('Cannot get chain connection', {
         chain,
       });
       // Consider this an error, but don't throw and prevent all future funding attempts
       return true;
     }
-    const desiredBalance = desiredBalancePerChain[chain];
+    const desiredBalance = this.getDesiredBalanceForRole(chain, key.role);
 
     let failureOccurred = false;
 
     try {
-      await this.fundKeyIfRequired(chainConnection, chain, key, desiredBalance);
+      await this.fundKeyIfRequired(chain, key, desiredBalance);
     } catch (err) {
       error('Error funding key', {
-        key: await getKeyInfo(key, chain, chainConnection),
+        key: await getKeyInfo(
+          key,
+          chain,
+          this.multiProvider.getProvider(chain),
+        ),
         context: this.context,
         error: err,
       });
       failureOccurred = true;
     }
-    await this.updateWalletBalanceGauge(chainConnection, chain);
+    await this.updateWalletBalanceGauge(chain);
 
     return failureOccurred;
   }
 
   private async bridgeIfL2(chain: ChainName) {
     if (L2Chains.includes(chain)) {
-      const chainConnection = this.multiProvider.tryGetChainConnection(chain)!;
-      const funderAddress = await chainConnection.getAddress()!;
+      const funderAddress = await this.multiProvider.getSignerAddress(chain)!;
       const desiredBalanceEther = ethers.utils.parseUnits(
         desiredBalancePerChain[chain],
         'ether',
@@ -387,7 +467,7 @@ class ContextFunder {
       // By bridging the funder with 10x the desired balance we save
       // on L1 gas.
       const bridgeAmount = await this.getFundingAmount(
-        chainConnection,
+        chain,
         funderAddress,
         desiredBalanceEther.mul(10),
       );
@@ -397,12 +477,39 @@ class ContextFunder {
     }
   }
 
+  private async attemptToClaimFromIgp(chain: ChainName) {
+    const igpClaimThresholdEther = igpClaimThresholdPerChain[chain];
+    if (!igpClaimThresholdEther) {
+      warn(`No IGP claim threshold for chain ${chain}`);
+      return;
+    }
+    const igpClaimThreshold = ethers.utils.parseEther(igpClaimThresholdEther);
+
+    const provider = this.multiProvider.getProvider(chain);
+    const igp = this.core.getContracts(chain).interchainGasPaymaster;
+    const igpBalance = await provider.getBalance(igp.address);
+
+    log('Checking IGP balance', {
+      igpBalance: ethers.utils.formatEther(igpBalance),
+      igpClaimThreshold: ethers.utils.formatEther(igpClaimThreshold),
+    });
+
+    if (igpBalance.gt(igpClaimThreshold)) {
+      log('IGP balance exceeds claim threshold, claiming');
+      await this.multiProvider.handleTx(chain, igp.contract.claim());
+    } else {
+      log('IGP balance does not exceed claim threshold, skipping');
+    }
+  }
+
   private async getFundingAmount(
-    chainConnection: ChainConnection,
+    chain: ChainName,
     address: string,
     desiredBalance: BigNumber,
   ): Promise<BigNumber> {
-    const currentBalance = await chainConnection.provider.getBalance(address);
+    const currentBalance = await this.multiProvider
+      .getProvider(chain)
+      .getBalance(address);
     const delta = desiredBalance.sub(currentBalance);
     const minDelta = desiredBalance
       .mul(MIN_DELTA_NUMERATOR)
@@ -410,32 +517,41 @@ class ContextFunder {
     return delta.gt(minDelta) ? delta : BigNumber.from(0);
   }
 
+  private getDesiredBalanceForRole(
+    chain: ChainName,
+    role: KEY_ROLE_ENUM,
+  ): BigNumber {
+    const desiredBalanceEther =
+      role === KEY_ROLE_ENUM.Kathy && desiredKathyBalancePerChain[chain]
+        ? desiredKathyBalancePerChain[chain]
+        : desiredBalancePerChain[chain];
+    let desiredBalance = ethers.utils.parseEther(desiredBalanceEther);
+    if (this.context === Contexts.ReleaseCandidate) {
+      desiredBalance = desiredBalance
+        .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
+        .div(RC_FUNDING_DISCOUNT_DENOMINATOR);
+    }
+    return desiredBalance;
+  }
+
   // Tops up the key's balance to the desired balance if the current balance
   // is lower than the desired balance by the min delta
   private async fundKeyIfRequired(
-    chainConnection: ChainConnection,
     chain: ChainName,
     key: BaseCloudAgentKey,
-    desiredBalance: string,
+    desiredBalance: BigNumber,
   ) {
-    const desiredBalanceEther = ethers.utils.parseUnits(
-      desiredBalance,
-      'ether',
-    );
-    const adjustedDesiredBalance =
-      this.context === Contexts.ReleaseCandidate
-        ? desiredBalanceEther
-            .mul(RC_FUNDING_DISCOUNT_NUMERATOR)
-            .div(RC_FUNDING_DISCOUNT_DENOMINATOR)
-        : desiredBalanceEther;
-
     const fundingAmount = await this.getFundingAmount(
-      chainConnection,
+      chain,
       key.address,
-      adjustedDesiredBalance,
+      desiredBalance,
     );
-    const keyInfo = await getKeyInfo(key, chain, chainConnection);
-    const funderAddress = await chainConnection.getAddress()!;
+    const keyInfo = await getKeyInfo(
+      key,
+      chain,
+      this.multiProvider.getProvider(chain),
+    );
+    const funderAddress = await this.multiProvider.getSignerAddress(chain);
 
     if (fundingAmount.eq(0)) {
       log('Skipping funding for key', {
@@ -452,28 +568,28 @@ class ContextFunder {
         funder: {
           address: funderAddress,
           balance: ethers.utils.formatEther(
-            await chainConnection.signer!.getBalance(),
+            await this.multiProvider.getSigner(chain).getBalance(),
           ),
         },
         context: this.context,
       });
     }
 
-    const tx = await chainConnection.signer!.sendTransaction({
+    const tx = await this.multiProvider.sendTransaction(chain, {
       to: key.address,
       value: fundingAmount,
-      ...chainConnection.overrides,
     });
     log('Sent transaction', {
       key: keyInfo,
-      txUrl: chainConnection.getTxUrl(tx),
+      txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
+        hash: tx.transactionHash,
+      }),
       context: this.context,
       chain,
     });
-    const receipt = await tx.wait(chainConnection.confirmations);
     log('Got transaction receipt', {
       key: keyInfo,
-      receipt,
+      tx,
       context: this.context,
       chain,
     });
@@ -481,20 +597,18 @@ class ContextFunder {
 
   private async bridgeToL2(l2Chain: L2Chain, to: string, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
-    const l1ChainConnection = await this.multiProvider.tryGetChainConnection(
-      l1Chain,
-    )!;
-    const l2ChainConnection = await this.multiProvider.tryGetChainConnection(
-      l2Chain,
-    )!;
     log('Bridging ETH to L2', {
       amount: ethers.utils.formatEther(amount),
       l1Funder: await getAddressInfo(
-        await l1ChainConnection.getAddress()!,
+        await this.multiProvider.getSignerAddress(l1Chain),
         l1Chain,
-        l1ChainConnection,
+        this.multiProvider.getProvider(l1Chain),
       ),
-      l2Funder: await getAddressInfo(to, l2Chain, l2ChainConnection),
+      l2Funder: await getAddressInfo(
+        to,
+        l2Chain,
+        this.multiProvider.getProvider(l2Chain),
+      ),
     });
     let tx;
     if (l2Chain.includes('optimism')) {
@@ -504,9 +618,7 @@ class ContextFunder {
     } else {
       throw new Error(`${l2Chain} is not an L2`);
     }
-    await this.multiProvider
-      .tryGetChainConnection(L2ToL1[l2Chain])!
-      .handleTx(tx);
+    await this.multiProvider.handleTx(l1Chain, tx);
   }
 
   private async bridgeToOptimism(
@@ -515,40 +627,33 @@ class ContextFunder {
     to: string,
   ) {
     const l1Chain = L2ToL1[l2Chain];
-    const l1ChainConnection =
-      this.multiProvider.tryGetChainConnection(l1Chain)!;
-    const l2ChainConnection =
-      this.multiProvider.tryGetChainConnection(l2Chain)!;
     const crossChainMessenger = new CrossChainMessenger({
-      l1ChainId: ChainNameToDomainId[l1Chain],
-      l2ChainId: ChainNameToDomainId[l2Chain],
-      l1SignerOrProvider: l1ChainConnection.signer!,
-      l2SignerOrProvider: l2ChainConnection.provider,
+      l1ChainId: this.multiProvider.getDomainId(l1Chain),
+      l2ChainId: this.multiProvider.getDomainId(l2Chain),
+      l1SignerOrProvider: this.multiProvider.getSignerOrProvider(l1Chain),
+      l2SignerOrProvider: this.multiProvider.getSignerOrProvider(l2Chain),
     });
     return crossChainMessenger.depositETH(amount, {
       recipient: to,
-      overrides: l1ChainConnection.overrides,
+      overrides: this.multiProvider.getTransactionOverrides(l1Chain),
     });
   }
 
   private async bridgeToArbitrum(l2Chain: L2Chain, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
-    const l1ChainConnection =
-      this.multiProvider.tryGetChainConnection(l1Chain)!;
-    const l2Network = await getL2Network(ChainNameToDomainId[l2Chain]);
+    const l2Network = await getL2Network(
+      this.multiProvider.getDomainId(l2Chain),
+    );
     const ethBridger = new EthBridger(l2Network);
     return ethBridger.deposit({
       amount,
-      l1Signer: l1ChainConnection.signer!,
-      overrides: l1ChainConnection.overrides,
+      l1Signer: this.multiProvider.getSigner(l1Chain),
+      overrides: this.multiProvider.getTransactionOverrides(l1Chain),
     });
   }
 
-  private async updateWalletBalanceGauge(
-    chainConnection: ChainConnection,
-    chain: ChainName,
-  ) {
-    const funderAddress = await chainConnection.getAddress();
+  private async updateWalletBalanceGauge(chain: ChainName) {
+    const funderAddress = await this.multiProvider.getSignerAddress(chain);
     walletBalanceGauge
       .labels({
         chain,
@@ -560,7 +665,9 @@ class ContextFunder {
       })
       .set(
         parseFloat(
-          ethers.utils.formatEther(await chainConnection.signer!.getBalance()),
+          ethers.utils.formatEther(
+            await this.multiProvider.getSigner(chain).getBalance(),
+          ),
         ),
       );
   }
@@ -573,13 +680,11 @@ class ContextFunder {
 async function getAddressInfo(
   address: string,
   chain: ChainName,
-  chainConnection: ChainConnection,
+  provider: ethers.providers.Provider,
 ) {
   return {
     chain,
-    balance: ethers.utils.formatEther(
-      await chainConnection.provider.getBalance(address),
-    ),
+    balance: ethers.utils.formatEther(await provider.getBalance(address)),
     address,
   };
 }
@@ -587,10 +692,10 @@ async function getAddressInfo(
 async function getKeyInfo(
   key: BaseCloudAgentKey,
   chain: ChainName,
-  chainConnection: ChainConnection,
+  provider: ethers.providers.Provider,
 ) {
   return {
-    ...(await getAddressInfo(key.address, chain, chainConnection)),
+    ...(await getAddressInfo(key.address, chain, provider)),
     context: key.context,
     originChain: key.chainName,
     role: key.role,

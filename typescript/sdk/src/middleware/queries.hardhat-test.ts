@@ -9,49 +9,46 @@ import {
 } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { testChainConnectionConfigs } from '../consts/chainConnectionConfigs';
+import { chainMetadata } from '../consts/chainMetadata';
+import { Chains } from '../consts/chains';
 import { TestCoreApp } from '../core/TestCoreApp';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
-import { InterchainQueryDeployer } from '../deploy/middleware/deploy';
-import { RouterConfig } from '../deploy/router/types';
-import { getChainToOwnerMap, getTestMultiProvider } from '../deploy/utils';
-import { ChainNameToDomainId } from '../domains';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, TestChainNames } from '../types';
+import { RouterConfig } from '../router/types';
+import { getTestOwnerConfig } from '../test/testUtils';
+import { ChainMap } from '../types';
+
+import { InterchainQueryDeployer } from './deploy';
 
 describe('InterchainQueryRouter', async () => {
-  const localChain = 'test1';
-  const remoteChain = 'test2';
-  const localDomain = ChainNameToDomainId[localChain];
-  const remoteDomain = ChainNameToDomainId[remoteChain];
+  const localChain = Chains.test1;
+  const remoteChain = Chains.test2;
+  const localDomain = chainMetadata[localChain].chainId;
+  const remoteDomain = chainMetadata[remoteChain].chainId;
 
   let signer: SignerWithAddress;
   let local: InterchainQueryRouter;
   let remote: InterchainQueryRouter;
-  let multiProvider: MultiProvider<TestChainNames>;
+  let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
-  let config: ChainMap<TestChainNames, RouterConfig>;
+  let config: ChainMap<RouterConfig>;
   let testQuery: TestQuery;
 
   before(async () => {
     [signer] = await ethers.getSigners();
 
-    multiProvider = getTestMultiProvider(signer);
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
     config = coreApp.extendWithConnectionClientConfig(
-      getChainToOwnerMap(testChainConnectionConfigs, signer.address),
+      getTestOwnerConfig(signer.address),
     );
   });
 
   beforeEach(async () => {
-    const InterchainQuery = new InterchainQueryDeployer(
-      multiProvider,
-      config,
-      coreApp,
-    );
+    const InterchainQuery = new InterchainQueryDeployer(multiProvider, config);
 
     const contracts = await InterchainQuery.deploy();
 

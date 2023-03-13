@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::str::FromStr;
 use std::sync::Arc;
 
+use derive_new::new;
 use tokio::sync::RwLock;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, trace};
 
 use hyperlane_base::{
     CachingMailbox, ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics,
@@ -12,16 +14,16 @@ use hyperlane_base::{
 use hyperlane_core::{
     HyperlaneChain, HyperlaneMessage, Mailbox, MultisigIsm, ValidatorAnnounce, H160, H256,
 };
-use std::str::FromStr;
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
-#[derive(Clone)]
+#[derive(Clone, new)]
 pub struct MetadataBuilder {
-    metrics: Arc<CoreMetrics>,
     chain_setup: ChainSetup,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     validator_announce: Arc<dyn ValidatorAnnounce>,
+    allow_local_checkpoint_syncers: bool,
+    metrics: Arc<CoreMetrics>,
 }
 
 impl Debug for MetadataBuilder {
@@ -35,20 +37,6 @@ impl Debug for MetadataBuilder {
 }
 
 impl MetadataBuilder {
-    pub fn new(
-        chain_setup: ChainSetup,
-        prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-        validator_announce: Arc<dyn ValidatorAnnounce>,
-        metrics: Arc<CoreMetrics>,
-    ) -> Self {
-        MetadataBuilder {
-            metrics,
-            chain_setup,
-            prover_sync,
-            validator_announce,
-        }
-    }
-
     #[instrument(err, skip(mailbox))]
     pub async fn fetch_metadata(
         &self,
@@ -140,6 +128,18 @@ impl MetadataBuilder {
         for (i, validator_storage_locations) in storage_locations.iter().enumerate() {
             for storage_location in validator_storage_locations.iter().rev() {
                 if let Ok(conf) = CheckpointSyncerConf::from_str(storage_location) {
+                    // If this is a LocalStorage based checkpoint syncer and it's not
+                    // allowed, ignore it
+                    if matches!(conf, CheckpointSyncerConf::LocalStorage { .. })
+                        && !self.allow_local_checkpoint_syncers
+                    {
+                        trace!(
+                            ?conf,
+                            "Ignoring disallowed LocalStorage based checkpoint syncer"
+                        );
+                        continue;
+                    }
+
                     if let Ok(checkpoint_syncer) = conf.build(None) {
                         checkpoint_syncers
                             .insert(H160::from(validators[i]), checkpoint_syncer.into());

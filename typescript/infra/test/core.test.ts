@@ -10,32 +10,30 @@ import {
   HyperlaneCore,
   HyperlaneCoreChecker,
   MultiProvider,
-  getTestMultiProvider,
   objMap,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 
 import { environment as testConfig } from '../config/environments/test';
-import { TestChains } from '../config/environments/test/chains';
 import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
 import { writeJSON } from '../src/utils/utils';
 
 describe('core', async () => {
   const environment = 'test';
 
-  let multiProvider: MultiProvider<TestChains>;
-  let deployer: HyperlaneCoreInfraDeployer<TestChains>;
-  let core: HyperlaneCore<TestChains>;
-  let contracts: CoreContractsMap<TestChains>;
-  let coreConfig: ChainMap<TestChains, CoreConfig>;
+  let multiProvider: MultiProvider;
+  let deployer: HyperlaneCoreInfraDeployer;
+  let core: HyperlaneCore;
+  let contracts: CoreContractsMap;
+  let coreConfig: ChainMap<CoreConfig>;
 
-  let owners: ChainMap<TestChains, string>;
+  let owners: ChainMap<string>;
   beforeEach(async () => {
     const [signer, owner] = await ethers.getSigners();
     // This is kind of awkward and really these tests shouldn't live here
-    multiProvider = getTestMultiProvider(signer, testConfig.transactionConfigs);
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
     coreConfig = testConfig.core;
-    owners = objMap(testConfig.transactionConfigs, () => owner.address);
+    owners = objMap(testConfig.chainMetadataConfigs, () => owner.address);
   });
 
   it('deploys', async () => {
@@ -91,12 +89,44 @@ describe('core', async () => {
     it('can be resumed from partial contracts', async () => {
       sinon.restore(); // restore normal deployer behavior
 
+      //@ts-ignore operand not optional, ignore for this test
       delete deployer.deployedContracts.test2!.multisigIsm;
+      //@ts-ignore operand not optional, ignore for this test
       delete deployer.deployedContracts.test2!.mailbox;
 
       const result = await deployer.deploy();
       expect(result.test2).to.have.keys(Object.keys(result.test1));
       expect(result.test3).to.have.keys(Object.keys(result.test1));
+    });
+  });
+
+  describe('proxy upgrades', async () => {
+    beforeEach(async () => {
+      deployer = new HyperlaneCoreInfraDeployer(
+        multiProvider,
+        coreConfig,
+        environment,
+      );
+      await deployer.deploy();
+    });
+
+    it('deploys a new implementation if it has been removed from the artifacts', async () => {
+      // Copy the old addresses
+      const oldAddresses = {
+        ...deployer.deployedContracts.test2!.interchainGasPaymaster!.addresses,
+      };
+      // @ts-ignore
+      delete deployer.deployedContracts.test2!.interchainGasPaymaster!.addresses
+        .implementation;
+      const result = await deployer.deploy();
+      const newAddresses = result.test2.interchainGasPaymaster.addresses;
+      // New implementation
+      expect(newAddresses.implementation).to.not.be.undefined;
+      expect(newAddresses.implementation).to.not.equal(
+        oldAddresses.implementation,
+      );
+      // Same proxy
+      expect(newAddresses.proxy).to.equal(oldAddresses.proxy);
     });
   });
 

@@ -1,7 +1,7 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
-import { AgentConfig } from '../config';
+import { AgentConfig, DeployEnvironment } from '../config';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd } from '../utils/utils';
 
@@ -15,10 +15,10 @@ interface KeyAsAddress {
   address: string;
 }
 
-export function getCloudAgentKey<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
+export function getCloudAgentKey(
+  agentConfig: AgentConfig,
   role: KEY_ROLE_ENUM,
-  chainName?: Chain,
+  chainName?: ChainName,
   index?: number,
 ): CloudAgentKey {
   if (
@@ -30,7 +30,7 @@ export function getCloudAgentKey<Chain extends ChainName>(
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
     return new AgentGCPKey(
-      agentConfig.environment,
+      agentConfig.runEnv,
       agentConfig.context,
       role,
       chainName,
@@ -40,7 +40,7 @@ export function getCloudAgentKey<Chain extends ChainName>(
 }
 
 export function getValidatorCloudAgentKeys(
-  agentConfig: AgentConfig<any>,
+  agentConfig: AgentConfig,
 ): Array<CloudAgentKey> {
   // For each chainName, create validatorCount keys
   return agentConfig.contextChainNames.flatMap((chainName) => {
@@ -60,7 +60,7 @@ export function getValidatorCloudAgentKeys(
 }
 
 export function getRelayerCloudAgentKeys(
-  agentConfig: AgentConfig<any>,
+  agentConfig: AgentConfig,
 ): Array<CloudAgentKey> {
   return agentConfig.contextChainNames.map((chainName) =>
     getCloudAgentKey(agentConfig, KEY_ROLE_ENUM.Relayer, chainName),
@@ -68,7 +68,7 @@ export function getRelayerCloudAgentKeys(
 }
 
 export function getAllCloudAgentKeys(
-  agentConfig: AgentConfig<any>,
+  agentConfig: AgentConfig,
 ): Array<CloudAgentKey> {
   return agentConfig.rolesWithKeys.flatMap((role) => {
     if (role === KEY_ROLE_ENUM.Validator) {
@@ -81,20 +81,18 @@ export function getAllCloudAgentKeys(
   });
 }
 
-export async function deleteAgentKeys(agentConfig: AgentConfig<any>) {
+export async function deleteAgentKeys(agentConfig: AgentConfig) {
   const keys = getAllCloudAgentKeys(agentConfig);
   await Promise.all(keys.map((key) => key.delete()));
   await execCmd(
     `gcloud secrets delete ${addressesIdentifier(
-      agentConfig.environment,
+      agentConfig.runEnv,
       agentConfig.context,
     )} --quiet`,
   );
 }
 
-export async function createAgentKeysIfNotExists(
-  agentConfig: AgentConfig<any>,
-) {
+export async function createAgentKeysIfNotExists(agentConfig: AgentConfig) {
   const keys = getAllCloudAgentKeys(agentConfig);
 
   await Promise.all(
@@ -104,22 +102,22 @@ export async function createAgentKeysIfNotExists(
   );
 
   await persistAddresses(
-    agentConfig.environment,
+    agentConfig.runEnv,
     agentConfig.context,
     keys.map((key) => key.serializeAsAddress()),
   );
 }
 
-export async function rotateKey<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
+export async function rotateKey(
+  agentConfig: AgentConfig,
   role: KEY_ROLE_ENUM,
-  chainName: Chain,
+  chainName: ChainName,
 ) {
   const key = getCloudAgentKey(agentConfig, role, chainName);
   await key.update();
   const keyIdentifier = key.identifier;
   const addresses = await fetchGCPKeyAddresses(
-    agentConfig.environment,
+    agentConfig.runEnv,
     agentConfig.context,
   );
   const filteredAddresses = addresses.filter((_) => {
@@ -128,14 +126,14 @@ export async function rotateKey<Chain extends ChainName>(
 
   filteredAddresses.push(key.serializeAsAddress());
   await persistAddresses(
-    agentConfig.environment,
+    agentConfig.runEnv,
     agentConfig.context,
     filteredAddresses,
   );
 }
 
 async function persistAddresses(
-  environment: string,
+  environment: DeployEnvironment,
   context: Contexts,
   keys: KeyAsAddress[],
 ) {
@@ -150,9 +148,9 @@ async function persistAddresses(
 }
 
 // This function returns all keys for a given outbox chain in a dictionary where the key is the identifier
-export async function fetchKeysForChain<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
-  chainName: Chain,
+export async function fetchKeysForChain(
+  agentConfig: AgentConfig,
+  chainName: ChainName,
 ): Promise<Record<string, CloudAgentKey>> {
   // Get all keys for the chainName. Include keys where chainName is undefined,
   // which are keys that are not chain-specific but should still be included
@@ -170,13 +168,19 @@ export async function fetchKeysForChain<Chain extends ChainName>(
   return Object.fromEntries(keys);
 }
 
-async function fetchGCPKeyAddresses(environment: string, context: Contexts) {
+async function fetchGCPKeyAddresses(
+  environment: DeployEnvironment,
+  context: Contexts,
+) {
   const addresses = await fetchGCPSecret(
     addressesIdentifier(environment, context),
   );
   return addresses as KeyAsAddress[];
 }
 
-function addressesIdentifier(environment: string, context: Contexts) {
+function addressesIdentifier(
+  environment: DeployEnvironment,
+  context: Contexts,
+) {
   return `${context}-${environment}-key-addresses`;
 }

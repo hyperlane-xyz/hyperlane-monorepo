@@ -1,3 +1,4 @@
+use std::env;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -52,10 +53,19 @@ pub trait BaseAgent: Send + Sync + Debug {
 /// lifecycle. This assumes only a single agent is being run. This will
 /// initialize the metrics server and tracing as well.
 pub async fn agent_main<A: BaseAgent>() -> Result<()> {
-    #[cfg(feature = "oneline-errors")]
-    crate::oneline_eyre::install()?;
-    #[cfg(all(feature = "color_eyre", not(feature = "oneline-errors")))]
-    color_eyre::install()?;
+    if env::var("ONELINE_BACKTRACES")
+        .map(|v| v.to_lowercase())
+        .as_deref()
+        == Ok("true")
+    {
+        #[cfg(feature = "oneline-errors")]
+        crate::oneline_eyre::install()?;
+        #[cfg(not(feature = "oneline-errors"))]
+        panic!("The oneline errors feature was not included");
+    } else {
+        #[cfg(feature = "color_eyre")]
+        color_eyre::install()?;
+    }
 
     let settings = A::Settings::new().map_err(|e| e.into())?;
     let core_settings: &Settings = settings.as_ref();
@@ -63,7 +73,7 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
     core_settings.tracing.start_tracing(&metrics)?;
     let agent = A::from_settings(settings, metrics.clone()).await?;
-    let _ = metrics.run_http_server();
+    metrics.run_http_server();
 
     agent.run().await.await?
 }

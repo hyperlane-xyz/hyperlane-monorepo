@@ -28,7 +28,7 @@ use crate::{
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         SubmitMessageArgs,
     },
-    settings::{matching_list::MatchingList, RelayerSettings},
+    settings::{matching_list::MatchingList, GasPaymentEnforcementConfig, RelayerSettings},
 };
 
 /// A relayer agent
@@ -44,6 +44,7 @@ pub struct Relayer {
     blacklist: Arc<MatchingList>,
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
+    allow_local_checkpoint_syncers: bool,
 }
 
 impl AsRef<HyperlaneAgentCore> for Relayer {
@@ -66,16 +67,12 @@ impl BaseAgent for Relayer {
         let core = settings.build_hyperlane_core(metrics.clone());
         let db = DB::from_path(&settings.db)?;
 
-        let chain_names: Vec<_> = if let Some(ref remotes) = settings.destinationchainnames {
-            // Use defined remote chains + the origin chain
-            remotes
-                .split(',')
-                .chain([settings.originchainname.as_str()])
-                .collect()
-        } else {
-            // If not provided, default to using every chain listed in self.chains.
-            settings.chains.keys().map(String::as_str).collect()
-        };
+        // Use defined remote chains + the origin chain
+        let chain_names: Vec<_> = settings
+            .destinationchainnames
+            .split(',')
+            .chain([settings.originchainname.as_str()])
+            .collect();
 
         let mailboxes = settings
             .build_all_mailboxes(chain_names.as_slice(), &metrics, db.clone())
@@ -121,21 +118,16 @@ impl BaseAgent for Relayer {
             .context("Relayer must run on a configured chain")?
             .domain()?;
 
-        let gas_enforcement_policy = settings.gaspaymentenforcement.policy;
-        let gas_enforcement_whitelist =
-            parse_matching_list(&settings.gaspaymentenforcement.whitelist);
-
-        info!(
-            ?gas_enforcement_policy,
-            %gas_enforcement_whitelist,
-            "Gas enforcement configuration"
-        );
+        let gas_enforcement_policies =
+            parse_gas_enforcement_policies(&settings.gaspaymentenforcement);
+        info!(?gas_enforcement_policies, "Gas enforcement configuration");
 
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
-            gas_enforcement_policy,
-            gas_enforcement_whitelist,
+            gas_enforcement_policies,
             mailboxes.get(&origin_chain).unwrap().db().clone(),
         ));
+
+        let allow_local_checkpoint_syncers = settings.allowlocalcheckpointsyncers.unwrap_or(false);
 
         Ok(Self {
             origin_chain,
@@ -148,6 +140,7 @@ impl BaseAgent for Relayer {
             blacklist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
+            allow_local_checkpoint_syncers,
         })
     }
 
@@ -187,6 +180,7 @@ impl BaseAgent for Relayer {
                 chain_setup,
                 prover_sync.clone(),
                 self.validator_announce.clone(),
+                self.allow_local_checkpoint_syncers,
                 self.core.metrics.clone(),
             );
             tasks.push(self.run_destination_mailbox(
@@ -361,6 +355,10 @@ fn parse_matching_list(list: &Option<String>) -> MatchingList {
         .transpose()
         .expect("Invalid matching list received")
         .unwrap_or_default()
+}
+
+fn parse_gas_enforcement_policies(policies: &str) -> Vec<GasPaymentEnforcementConfig> {
+    serde_json::from_str(policies).expect("Invalid gas payment enforcement configuration received")
 }
 
 #[cfg(test)]

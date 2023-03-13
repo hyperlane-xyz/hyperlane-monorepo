@@ -1,7 +1,7 @@
 import { BigNumber } from 'ethers';
 import { format } from 'util';
 
-import { objMap, promiseObjAll } from '@hyperlane-xyz/sdk';
+import { promiseObjAll } from '@hyperlane-xyz/sdk';
 import { error } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
@@ -59,16 +59,18 @@ async function main() {
     ).address;
 
   await promiseObjAll(
-    objMap(multiProvider.chainMap, async (chain, dc) => {
+    multiProvider.mapKnownChains(async (chain) => {
       if (argv.chainsToSkip?.includes(chain)) {
         return;
       }
       // fund signer on each network with gas * gasPrice
-      const actual = await dc.provider.getBalance(address);
+      const provider = multiProvider.getProvider(chain);
+      const overrides = multiProvider.getTransactionOverrides(chain);
+      const actual = await provider.getBalance(address);
       const gasPrice = BigNumber.from(
-        await (dc.overrides.gasPrice ||
-          dc.overrides.maxFeePerGas ||
-          dc.provider.getGasPrice()),
+        await (overrides.gasPrice ||
+          overrides.maxFeePerGas ||
+          provider.getGasPrice()),
       );
       const desired = gasPrice.mul(argv.gasAmount!);
       const value = desired.sub(actual);
@@ -76,7 +78,7 @@ async function main() {
         console.log(
           `Funding ${address} on chain '${chain}' with ${value} native tokens`,
         );
-        await dc.sendTransaction({
+        await multiProvider.sendTransaction(chain, {
           to: address,
           value,
         });

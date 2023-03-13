@@ -126,6 +126,17 @@ pub enum HyperlaneDomain {
     },
 }
 
+impl HyperlaneDomain {
+    pub fn is_arbitrum_nitro(&self) -> bool {
+        matches!(
+            self,
+            HyperlaneDomain::Known(
+                KnownHyperlaneDomain::Arbitrum | KnownHyperlaneDomain::ArbitrumGoerli,
+            )
+        )
+    }
+}
+
 /// Types of Hyperlane domains.
 #[derive(
     FromPrimitive, EnumString, IntoStaticStr, strum::Display, Copy, Clone, Eq, PartialEq, Debug,
@@ -284,20 +295,6 @@ impl HyperlaneDomain {
         }
     }
 
-    pub fn from_config_strs(
-        domain_id: &str,
-        name: &str,
-        protocol: HyperlaneDomainProtocol,
-    ) -> Result<Self, &'static str> {
-        HyperlaneDomain::from_config(
-            domain_id
-                .parse::<u32>()
-                .map_err(|_| "Domain id is an invalid uint")?,
-            name,
-            protocol,
-        )
-    }
-
     /// The chain name
     pub fn name(&self) -> &str {
         match self {
@@ -423,9 +420,9 @@ mod tests {
         hyperlane_settings()
             .iter()
             .flat_map(|x: &Settings| {
-                x.chains.iter().map(|(_, v)| ChainCoordinate {
+                x.chains.values().map(|v| ChainCoordinate {
                     name: v.name.clone(),
-                    domain: v.domain.parse().unwrap(),
+                    domain: (&v.domain).try_into().expect("Invalid domain id"),
                 })
             })
             .collect()

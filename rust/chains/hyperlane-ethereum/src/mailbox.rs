@@ -8,7 +8,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
+use ethers::types::Eip1559TransactionRequest;
 use ethers_contract::builders::ContractCall;
+use hyperlane_core::H160;
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -18,10 +20,14 @@ use hyperlane_core::{
     RawHyperlaneMessage, TxCostEstimate, TxOutcome, H256, U256,
 };
 
+use crate::contracts::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::contracts::mailbox::{Mailbox as EthereumMailboxInternal, ProcessCall, MAILBOX_ABI};
 use crate::trait_builder::BuildableWithProvider;
 use crate::tx::report_tx;
 use crate::EthereumProvider;
+
+/// An amount of gas to add to the estimated gas
+const GAS_ESTIMATE_BUFFER: u32 = 100000;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -168,6 +174,7 @@ where
     contract: Arc<EthereumMailboxInternal<M>>,
     domain: HyperlaneDomain,
     provider: Arc<M>,
+    arbitrum_node_interface: Option<Arc<ArbitrumNodeInterface<M>>>,
 }
 
 impl<M> EthereumMailbox<M>
@@ -177,6 +184,17 @@ where
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
+        // Arbitrum Nitro based chains are a special case for transaction cost estimation.
+        // The gas amount that eth_estimateGas returns considers both L1 and L2 gas costs.
+        // We use the NodeInterface, found at address(0xC8), to isolate the L2 gas costs.
+        // See https://developer.arbitrum.io/arbos/gas#nodeinterfacesol or https://github.com/OffchainLabs/nitro/blob/master/contracts/src/node-interface/NodeInterface.sol#L110
+        let arbitrum_node_interface = locator.domain.is_arbitrum_nitro().then(|| {
+            Arc::new(ArbitrumNodeInterface::new(
+                H160::from_low_u64_be(0xC8),
+                provider.clone(),
+            ))
+        });
+
         Self {
             contract: Arc::new(EthereumMailboxInternal::new(
                 locator.address,
@@ -184,6 +202,7 @@ where
             )),
             domain: locator.domain.clone(),
             provider,
+            arbitrum_node_interface,
         }
     }
 
@@ -199,13 +218,36 @@ where
             metadata.to_vec().into(),
             RawHyperlaneMessage::from(message).to_vec().into(),
         );
-
         let gas_limit = if let Some(gas_limit) = tx_gas_limit {
             gas_limit
         } else {
-            tx.estimate_gas().await?.saturating_add(U256::from(100000))
+            tx.estimate_gas()
+                .await?
+                .saturating_add(U256::from(GAS_ESTIMATE_BUFFER))
         };
-        Ok(tx.gas(gas_limit))
+        let Ok((max_fee, max_priority_fee)) = self.provider.estimate_eip1559_fees(None).await else {
+            // Is not EIP 1559 chain
+            return Ok(tx.gas(gas_limit))
+        };
+        // Is EIP 1559 chain
+        let mut request = Eip1559TransactionRequest::new();
+        if let Some(from) = tx.tx.from() {
+            request = request.from(*from);
+        }
+        if let Some(to) = tx.tx.to() {
+            request = request.to(to.clone());
+        }
+        if let Some(data) = tx.tx.data() {
+            request = request.data(data.clone());
+        }
+        if let Some(value) = tx.tx.value() {
+            request = request.value(*value);
+        }
+        request = request.max_fee_per_gas(max_fee);
+        request = request.max_priority_fee_per_gas(max_priority_fee);
+        let mut eip_1559_tx = tx.clone();
+        eip_1559_tx.tx = ethers::types::transaction::eip2718::TypedTransaction::Eip1559(request);
+        Ok(eip_1559_tx.gas(gas_limit))
     }
 }
 
@@ -312,7 +354,24 @@ where
         let gas_limit = contract_call
             .tx
             .gas()
+            .copied()
             .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?;
+
+        // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
+        let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
+            let (l1_gas_limit, _, _) = arbitrum_node_interface
+                .gas_estimate_l1_component(
+                    self.contract.address(),
+                    false, // Not a contract creation
+                    contract_call.calldata().unwrap_or_default(),
+                )
+                .call()
+                .await?;
+            Some(gas_limit.saturating_sub(l1_gas_limit.into()))
+        } else {
+            None
+        };
+
         let gas_price = self
             .provider
             .get_gas_price()
@@ -320,8 +379,9 @@ where
             .map_err(ChainCommunicationError::from_other)?;
 
         Ok(TxCostEstimate {
-            gas_limit: *gas_limit,
+            gas_limit,
             gas_price,
+            l2_gas_limit,
         })
     }
 
@@ -342,5 +402,96 @@ impl HyperlaneAbi for EthereumMailboxAbi {
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
         super::extract_fn_map(&MAILBOX_ABI)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::{str::FromStr, sync::Arc};
+
+    use ethers::{
+        abi::{encode, Token},
+        providers::{MockProvider, Provider},
+        types::{Block, Transaction},
+    };
+    use hyperlane_core::{
+        ContractLocator, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
+        TxCostEstimate, H160, H256, U256,
+    };
+
+    use crate::{mailbox::GAS_ESTIMATE_BUFFER, EthereumMailbox};
+
+    #[tokio::test]
+    async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
+        let mock_provider = Arc::new(MockProvider::new());
+        let provider = Arc::new(Provider::new(mock_provider.clone()));
+
+        let mailbox = EthereumMailbox::new(
+            provider.clone(),
+            &ContractLocator {
+                // An Arbitrum Nitro chain
+                domain: HyperlaneDomain::Known(KnownHyperlaneDomain::ArbitrumGoerli),
+                // Address doesn't matter because we're using a MockProvider
+                address: H256::default(),
+            },
+        );
+
+        let message = HyperlaneMessage::default();
+        let metadata: Vec<u8> = vec![];
+
+        assert!(mailbox.arbitrum_node_interface.is_some());
+        // Confirm `H160::from_low_u64_ne(0xC8)` does what's expected
+        assert_eq!(
+            mailbox.arbitrum_node_interface.as_ref().unwrap().address(),
+            H160::from_str("0x00000000000000000000000000000000000000C8").unwrap(),
+        );
+
+        // The MockProvider responses we push are processed in LIFO
+        // order, so we start with the final RPCs and work toward the first
+        // RPCs
+
+        // RPC 4: eth_gasPrice by process_estimate_costs
+        // Return 15 gwei
+        let gas_price: U256 = ethers::utils::parse_units("15", "gwei").unwrap().into();
+        mock_provider.push(gas_price).unwrap();
+
+        // RPC 3: eth_call to the ArbitrumNodeInterface's gasEstimateL1Component function by process_estimate_costs
+        let l1_gas_estimate = U256::from(800000u32); // 800k gas
+        let base_fee = U256::from(5u32);
+        let l1_base_fee = U256::from(6u32);
+        let return_bytes = encode(&[Token::Tuple(vec![
+            Token::Uint(l1_gas_estimate),
+            Token::Uint(base_fee),
+            Token::Uint(l1_base_fee),
+        ])]);
+        let encoded_return_hex = hex::encode(return_bytes);
+        mock_provider
+            .push::<String, _>(format!("0x{:}", encoded_return_hex))
+            .unwrap();
+
+        // RPC 2: eth_getBlockByNumber from the estimate_eip1559_fees call in process_contract_call
+        mock_provider.push(Block::<Transaction>::default()).unwrap();
+
+        // RPC 1: eth_estimateGas from the estimate_gas call in process_contract_call
+        // Return 1M gas
+        let gas_limit = U256::from(1000000u32);
+        mock_provider.push(gas_limit).unwrap();
+
+        let tx_cost_estimate = mailbox
+            .process_estimate_costs(&message, &metadata)
+            .await
+            .unwrap();
+
+        // The TxCostEstimat's gas limit includes the buffer
+        let estimated_gas_limit = gas_limit.saturating_add(GAS_ESTIMATE_BUFFER.into());
+
+        assert_eq!(
+            tx_cost_estimate,
+            TxCostEstimate {
+                gas_limit: estimated_gas_limit,
+                gas_price,
+                l2_gas_limit: Some(estimated_gas_limit.saturating_sub(l1_gas_estimate)),
+            },
+        );
     }
 }

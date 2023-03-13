@@ -16,7 +16,6 @@ eyre = "0.6"
 tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-futures = "0.2"
 tracing-subscriber = "0.3"
-rocksdb = "0.18"
 prometheus = "0.13"
 
 hyperlane-core = { path = "../../hyperlane-core" }
@@ -28,5 +27,6 @@ tokio-test = "0.4"
 hyperlane-test = { path = "../../hyperlane-test" }
 
 [features]
-default = ["hyperlane-base/color-eyre"]
+default = ["color-eyre", "oneline-errors"]
 oneline-errors = ["hyperlane-base/oneline-errors"]
+color-eyre = ["hyperlane-base/color-eyre"]

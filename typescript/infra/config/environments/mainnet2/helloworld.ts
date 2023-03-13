@@ -3,16 +3,16 @@ import { ConnectionType } from '../../../src/config/agent';
 import { HelloWorldKathyRunMode } from '../../../src/config/helloworld';
 import { Contexts } from '../../contexts';
 
-import { MainnetChains, environment } from './chains';
+import { environment } from './chains';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
 
-export const hyperlane: HelloWorldConfig<MainnetChains> = {
+export const hyperlane: HelloWorldConfig = {
   addresses: hyperlaneAddresses,
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '83ec4f0-20230216-122421',
+      tag: '5ccba55-20230310-183328',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -28,12 +28,12 @@ export const hyperlane: HelloWorldConfig<MainnetChains> = {
   },
 };
 
-export const releaseCandidate: HelloWorldConfig<MainnetChains> = {
+export const releaseCandidate: HelloWorldConfig = {
   addresses: rcAddresses,
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '83ec4f0-20230216-122421',
+      tag: '5ccba55-20230310-183328',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -47,9 +47,7 @@ export const releaseCandidate: HelloWorldConfig<MainnetChains> = {
   },
 };
 
-export const helloWorld: Partial<
-  Record<Contexts, HelloWorldConfig<MainnetChains>>
-> = {
+export const helloWorld: Partial<Record<Contexts, HelloWorldConfig>> = {
   [Contexts.Hyperlane]: hyperlane,
   [Contexts.ReleaseCandidate]: releaseCandidate,
 };

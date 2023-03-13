@@ -18,7 +18,7 @@ import {
 
 async function main() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment) as any;
+  const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const deployer = new HyperlaneCoreInfraDeployer(
     multiProvider,
@@ -58,14 +58,17 @@ async function main() {
   let existingVerificationInputs = [];
   try {
     existingVerificationInputs = readJSON(verificationDir, verificationFile);
-  } finally {
-    writeJSON(
-      getCoreVerificationDirectory(environment),
-      'verification.json',
-      deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
-    );
+  } catch (err) {
+    /* ignore error */
   }
-  deployer.writeRustConfigs(getCoreRustDirectory(environment));
+
+  writeJSON(
+    getCoreVerificationDirectory(environment),
+    'verification.json',
+    deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
+  );
+
+  deployer.writeRustConfigs(getCoreRustDirectory());
 }
 
 main().then(console.log).catch(console.error);

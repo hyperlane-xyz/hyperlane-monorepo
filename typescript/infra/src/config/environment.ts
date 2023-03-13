@@ -1,8 +1,8 @@
 import {
   ChainMap,
+  ChainMetadata,
   ChainName,
   CoreConfig,
-  EnvironmentConfig,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { CoreEnvironment } from '@hyperlane-xyz/sdk/dist/core/HyperlaneCore';
@@ -13,6 +13,7 @@ import { KEY_ROLE_ENUM } from '../agents/roles';
 
 import { AgentConfig, ConnectionType } from './agent';
 import { KeyFunderConfig } from './funding';
+import { AllStorageGasOracleConfigs } from './gas-oracle';
 import { HelloWorldConfig } from './helloworld';
 import { InfrastructureConfig } from './infrastructure';
 import { LiquidityLayerRelayerConfig } from './middleware';
@@ -24,21 +25,22 @@ export type EnvironmentChain<E extends DeployEnvironment> = Extract<
   ChainName
 >;
 
-export type CoreEnvironmentConfig<Chain extends ChainName> = {
+export type CoreEnvironmentConfig = {
   environment: DeployEnvironment;
-  transactionConfigs: EnvironmentConfig<Chain>;
+  chainMetadataConfigs: ChainMap<ChainMetadata>;
   // Each AgentConfig, keyed by the context
-  agents: Partial<Record<Contexts, AgentConfig<Chain>>>;
-  core: ChainMap<Chain, CoreConfig>;
+  agents: Partial<Record<Contexts, AgentConfig>>;
+  core: ChainMap<CoreConfig>;
   infra: InfrastructureConfig;
   getMultiProvider: (
     context?: Contexts,
     role?: KEY_ROLE_ENUM,
     connectionType?: ConnectionType,
-  ) => Promise<MultiProvider<Chain>>;
-  helloWorld?: Partial<Record<Contexts, HelloWorldConfig<Chain>>>;
+  ) => Promise<MultiProvider>;
+  helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig;
   liquidityLayerRelayerConfig?: LiquidityLayerRelayerConfig;
+  storageGasOracleConfig?: AllStorageGasOracleConfigs;
 };
 
 export const deployEnvToSdkEnv: Record<DeployEnvironment, CoreEnvironment> = {

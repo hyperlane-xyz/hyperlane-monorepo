@@ -6,11 +6,10 @@ import {
 } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 
-import { TestChains, chainNames } from './chains';
+import { chainNames } from './chains';
 import { validators } from './validators';
 
-export const hyperlane: AgentConfig<TestChains> = {
-  environment: 'test',
+export const hyperlane: AgentConfig = {
   namespace: 'test',
   runEnv: 'test',
   context: Contexts.Hyperlane,
@@ -24,11 +23,11 @@ export const hyperlane: AgentConfig<TestChains> = {
   validators,
   relayer: {
     default: {
-      gasPaymentEnforcement: {
-        policy: {
+      gasPaymentEnforcement: [
+        {
           type: GasPaymentEnforcementPolicyType.None,
         },
-      },
+      ],
     },
   },
   rolesWithKeys: ALL_KEY_ROLES,

@@ -25,14 +25,13 @@ import { KEY_ROLE_ENUM } from './roles';
 
 const helmChartPath = '../../rust/helm/hyperlane-agent/';
 
-async function helmValuesForChain<Chain extends ChainName>(
-  chainName: Chain,
-  agentConfig: AgentConfig<Chain>,
+async function helmValuesForChain(
+  chainName: ChainName,
+  agentConfig: AgentConfig,
 ) {
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
   const gelatoApiKeyRequired =
     await chainAgentConfig.ensureGelatoApiKeySecretExistsIfRequired();
-  await chainAgentConfig.ensureCoingeckoApiKeySecretExistsIfRequired();
 
   // By default, if a context only enables a subset of chains, the
   // connection url (or urls, when HttpQuorum is used) are not fetched
@@ -65,7 +64,6 @@ async function helmValuesForChain<Chain extends ChainName>(
     hyperlane: {
       runEnv: agentConfig.runEnv,
       context: agentConfig.context,
-      baseConfig: `${agentConfig.runEnv}_config.json`,
       aws: !!agentConfig.aws,
       gelatoApiKeyRequired,
       chains: agentConfig.environmentChainNames.map((envChainName) => ({
@@ -94,10 +92,10 @@ async function helmValuesForChain<Chain extends ChainName>(
   };
 }
 
-export async function getAgentEnvVars<Chain extends ChainName>(
-  outboxChainName: Chain,
+export async function getAgentEnvVars(
+  outboxChainName: ChainName,
   role: KEY_ROLE_ENUM,
-  agentConfig: AgentConfig<Chain>,
+  agentConfig: AgentConfig,
   index?: number,
 ) {
   const chainNames = agentConfig.contextChainNames;
@@ -117,12 +115,10 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   });
 
   // Base vars from config map
-  envVars.push(`BASE_CONFIG=${valueDict.hyperlane.baseConfig}`);
-  envVars.push(`RUN_ENV=${agentConfig.runEnv}`);
   envVars.push(`HYP_BASE_METRICS=9090`);
   envVars.push(`HYP_BASE_TRACING_LEVEL=info`);
   envVars.push(
-    `HYP_BASE_DB=/tmp/${agentConfig.environment}-${role}-${outboxChainName}${
+    `HYP_BASE_DB=/tmp/${agentConfig.runEnv}-${role}-${outboxChainName}${
       role === KEY_ROLE_ENUM.Validator ? `-${index}` : ''
     }-db`,
   );
@@ -135,7 +131,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
     )) as Record<string, AgentGCPKey>;
 
     const keyId = keyIdentifier(
-      agentConfig.environment,
+      agentConfig.runEnv,
       agentConfig.context,
       role,
       outboxChainName,
@@ -165,7 +161,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   } else {
     // AWS keys
 
-    let user: AgentAwsUser<Chain>;
+    let user: AgentAwsUser;
 
     if (role === KEY_ROLE_ENUM.Validator && agentConfig.validators) {
       const checkpointSyncer =
@@ -177,7 +173,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
         );
       }
       user = new ValidatorAgentAwsUser(
-        agentConfig.environment,
+        agentConfig.runEnv,
         agentConfig.context,
         outboxChainName,
         index!,
@@ -186,7 +182,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       );
     } else {
       user = new AgentAwsUser(
-        agentConfig.environment,
+        agentConfig.runEnv,
         agentConfig.context,
         role,
         agentConfig.aws!.region,
@@ -271,9 +267,7 @@ function configEnvVars(
   return envVars;
 }
 
-export async function getSecretAwsCredentials<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
-) {
+export async function getSecretAwsCredentials(agentConfig: AgentConfig) {
   return {
     accessKeyId: await fetchGCPSecret(
       `${agentConfig.runEnv}-aws-access-key-id`,
@@ -312,10 +306,7 @@ export async function getSecretDeployerKey(
   return key.privateKey;
 }
 
-async function getSecretRpcEndpoints<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
-  quorum = false,
-) {
+async function getSecretRpcEndpoints(agentConfig: AgentConfig, quorum = false) {
   const environment = agentConfig.runEnv;
   return Object.fromEntries(
     agentConfig.contextChainNames.map((chainName) => [
@@ -325,9 +316,9 @@ async function getSecretRpcEndpoints<Chain extends ChainName>(
   );
 }
 
-export async function doesAgentReleaseExist<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
-  outboxChainName: Chain,
+export async function doesAgentReleaseExist(
+  agentConfig: AgentConfig,
+  outboxChainName: ChainName,
 ) {
   try {
     await execCmd(
@@ -345,10 +336,10 @@ export async function doesAgentReleaseExist<Chain extends ChainName>(
   }
 }
 
-export async function runAgentHelmCommand<Chain extends ChainName>(
+export async function runAgentHelmCommand(
   action: HelmCommand,
-  agentConfig: AgentConfig<Chain>,
-  outboxChainName: Chain,
+  agentConfig: AgentConfig,
+  outboxChainName: ChainName,
 ) {
   if (action === HelmCommand.Remove) {
     return execCmd(
@@ -356,7 +347,6 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
         outboxChainName,
         agentConfig,
       )} --namespace ${agentConfig.namespace}`,
-
       {},
       false,
       true,
@@ -408,9 +398,9 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
   return;
 }
 
-function getHelmReleaseName<Chain extends ChainName>(
-  outboxChainName: Chain,
-  agentConfig: AgentConfig<Chain>,
+function getHelmReleaseName(
+  outboxChainName: ChainName,
+  agentConfig: AgentConfig,
 ): string {
   // For backward compatibility reasons, don't include the context
   // in the name of the helm release if the context is the default "hyperlane"

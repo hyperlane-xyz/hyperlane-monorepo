@@ -17,7 +17,7 @@ async function deploy() {
   const agentConfig = await getContextAgentConfig(config);
 
   for (const chain of agentConfig.contextChainNames) {
-    await runAgentHelmCommand<any>(HelmCommand.UpgradeDiff, agentConfig, chain);
+    await runAgentHelmCommand(HelmCommand.UpgradeDiff, agentConfig, chain);
   }
 }
 

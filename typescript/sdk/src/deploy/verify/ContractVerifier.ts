@@ -28,16 +28,13 @@ enum ExplorerApiErrors {
   PROXY_FAILED = 'A corresponding implementation contract was unfortunately not detected for the proxy address.',
 }
 
-export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
-  Chain,
-  VerificationInput
-> {
+export class ContractVerifier extends MultiGeneric<VerificationInput> {
   protected logger: Debugger;
 
   constructor(
-    verificationInputs: ChainMap<Chain, VerificationInput>,
-    protected readonly multiProvider: MultiProvider<Chain>,
-    protected readonly apiKeys: ChainMap<Chain, string>,
+    verificationInputs: ChainMap<VerificationInput>,
+    protected readonly multiProvider: MultiProvider,
+    protected readonly apiKeys: ChainMap<string>,
     protected readonly flattenedSource: string, // flattened source code from eg `hardhat flatten`
     protected readonly compilerOptions: CompilerOptions,
   ) {
@@ -51,7 +48,10 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     );
   }
 
-  async verifyChain(chain: Chain, inputs: VerificationInput): Promise<void> {
+  async verifyChain(
+    chain: ChainName,
+    inputs: VerificationInput,
+  ): Promise<void> {
     this.logger(`Verifying ${chain}...`);
     for (const input of inputs) {
       await this.verifyContract(chain, input);
@@ -59,19 +59,18 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
   }
 
   private async submitForm(
-    chain: Chain,
+    chain: ChainName,
     action: ExplorerApiActions,
     options?: Record<string, string>,
   ): Promise<any> {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const apiUrl = chainConnection.getApiUrl();
-
+    const apiUrl = new URL(this.multiProvider.getExplorerApiUrl(chain));
     const params = new URLSearchParams({
       apikey: this.apiKeys[chain],
       module: 'contract',
       action,
       ...options,
     });
+    apiUrl.search = params.toString();
 
     let response: Response;
     if (
@@ -114,7 +113,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
   }
 
   async verifyContract(
-    chain: Chain,
+    chain: ChainName,
     input: ContractVerificationInput,
   ): Promise<void> {
     if (input.address === ethers.constants.AddressZero) {
@@ -143,9 +142,10 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       data,
     );
 
-    const addressUrl = await this.multiProvider
-      .getChainConnection(chain)
-      .getAddressUrl(input.address);
+    const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
+      chain,
+      input.address,
+    );
 
     // poll for verified status
     if (guid) {

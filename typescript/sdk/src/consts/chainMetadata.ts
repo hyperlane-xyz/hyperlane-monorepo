@@ -1,9 +1,12 @@
 import type { Chain as WagmiChain } from '@wagmi/chains';
+import type { providers } from 'ethers';
+import { z } from 'zod';
 
+import { ChainName } from '../types';
 import { objMap } from '../utils/objects';
 import { chainMetadataToWagmiChain } from '../utils/wagmi';
 
-import { ChainName, Chains, Mainnets, Testnets } from './chains';
+import { Chains, Mainnets, Testnets } from './chains';
 
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
@@ -16,14 +19,16 @@ export enum ExplorerFamily {
  * for Hyperlane-supported chains
  */
 export interface ChainMetadata {
-  id: number;
+  chainId: number;
+  /** Hyperlane domain, only required if differs from id above */
+  domainId?: number;
   name: ChainName;
   /** Human-readable name */
-  displayName: string;
+  displayName?: string;
   /** Shorter human-readable name */
   displayNameShort?: string;
   /** Default currency/token used by chain */
-  nativeToken: {
+  nativeToken?: {
     name: string;
     symbol: string;
     decimals: number;
@@ -35,25 +40,29 @@ export interface ChainMetadata {
     pagination?: RpcPagination;
   }>;
   /** Collection of block explorers */
-  blockExplorers: Array<{
+  blockExplorers?: Array<{
     name: string;
     url: string;
-    family: ExplorerFamily;
     apiUrl?: string;
+    apiKey?: string;
+    family?: ExplorerFamily;
   }>;
-  blocks: {
-    // Number of blocks to wait before considering a transaction confirmed
+  blocks?: {
+    /** Number of blocks to wait before considering a transaction confirmed */
     confirmations: number;
-    // TODO consider merging with confirmations, requires agent code changes
-    // Number of blocks before a transaction has a near-zero chance of reverting
-    reorgPeriod: number;
-    // Rough estimate of time per block in seconds
-    estimateBlockTime: number;
+    //  TODO consider merging with confirmations, requires agent code changes */
+    /** Number of blocks before a transaction has a near-zero chance of reverting */
+    reorgPeriod?: number;
+    /** Rough estimate of time per block in seconds */
+    estimateBlockTime?: number;
   };
-  // The CoinGecko API sometimes expects IDs that do not match ChainNames
+  transactionOverrides?: Partial<providers.TransactionRequest>;
+  /** The CoinGecko API sometimes expects IDs that do not match ChainNames */
   gasCurrencyCoinGeckoId?: string;
-  // URL of the gnosis safe transaction service.
+  /** URL of the gnosis safe transaction service */
   gnosisSafeTransactionServiceUrl?: string;
+  /** Is chain a testnet or a mainnet */
+  isTestnet?: boolean;
 }
 
 export interface RpcPagination {
@@ -62,33 +71,88 @@ export interface RpcPagination {
 }
 
 /**
+ * Zod schema for ChainMetadata validation
+ * Keep in sync with ChainMetadata above
+ */
+export const ChainMetadataSchema = z.object({
+  chainId: z.number(),
+  domainId: z.number().optional(),
+  name: z.string(),
+  displayName: z.string().optional(),
+  displayNameShort: z.string().optional(),
+  nativeToken: z
+    .object({
+      name: z.string(),
+      symbol: z.string(),
+      decimals: z.number(),
+    })
+    .optional(),
+  publicRpcUrls: z
+    .array(
+      z.object({
+        http: z.string().url(),
+        webSocket: z.string().optional(),
+        pagination: z
+          .object({
+            blocks: z.number(),
+            from: z.number(),
+          })
+          .optional(),
+      }),
+    )
+    .nonempty(),
+  blockExplorers: z
+    .array(
+      z.object({
+        name: z.string(),
+        url: z.string().url(),
+        apiUrl: z.string().url().optional(),
+        apiKey: z.string().optional(),
+        family: z.string().optional(),
+      }),
+    )
+    .optional(),
+  blocks: z
+    .object({
+      confirmations: z.number(),
+      reorgPeriod: z.number().optional(),
+      estimateBlockTime: z.number().optional(),
+    })
+    .optional(),
+  transactionOverrides: z.object({}).optional(),
+  gasCurrencyCoinGeckoId: z.string().optional(),
+  gnosisSafeTransactionServiceUrl: z.string().optional(),
+  isTestnet: z.boolean().optional(),
+});
+
+/**
  * Common native currencies
  */
-const avaxToken = {
+export const avaxToken = {
   decimals: 18,
   name: 'Avalanche',
   symbol: 'AVAX',
 };
-const bnbToken = {
+export const bnbToken = {
   decimals: 18,
   name: 'BNB',
   symbol: 'BNB',
 };
-const celoToken = {
+export const celoToken = {
   decimals: 18,
   name: 'CELO',
   symbol: 'CELO',
 };
-const etherToken = { name: 'Ether', symbol: 'ETH', decimals: 18 };
-const maticToken = { name: 'MATIC', symbol: 'MATIC', decimals: 18 };
-const xDaiToken = { name: 'xDai', symbol: 'xDai', decimals: 18 };
+export const etherToken = { name: 'Ether', symbol: 'ETH', decimals: 18 };
+export const maticToken = { name: 'MATIC', symbol: 'MATIC', decimals: 18 };
+export const xDaiToken = { name: 'xDai', symbol: 'xDai', decimals: 18 };
 
 /**
  * Chain metadata
  */
 
 export const alfajores: ChainMetadata = {
-  id: 44787,
+  chainId: 44787,
   name: Chains.alfajores,
   displayName: 'Alfajores',
   nativeToken: celoToken,
@@ -97,7 +161,7 @@ export const alfajores: ChainMetadata = {
     {
       name: 'CeloScan',
       url: 'https://alfajores.celoscan.io',
-      apiUrl: 'https://api-alfajores.celoscan.io/',
+      apiUrl: 'https://api-alfajores.celoscan.io/api',
       family: ExplorerFamily.Etherscan,
     },
     {
@@ -111,10 +175,11 @@ export const alfajores: ChainMetadata = {
     reorgPeriod: 0,
     estimateBlockTime: 5,
   },
+  isTestnet: true,
 };
 
 export const arbitrum: ChainMetadata = {
-  id: 42161,
+  chainId: 42161,
   name: Chains.arbitrum,
   displayName: 'Arbitrum',
   nativeToken: etherToken,
@@ -123,7 +188,7 @@ export const arbitrum: ChainMetadata = {
     {
       name: 'Arbiscan',
       url: 'https://arbiscan.io',
-      apiUrl: 'https://api.arbiscan.io',
+      apiUrl: 'https://api.arbiscan.io/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -138,7 +203,7 @@ export const arbitrum: ChainMetadata = {
 };
 
 export const arbitrumgoerli: ChainMetadata = {
-  id: 421613,
+  chainId: 421613,
   name: Chains.arbitrumgoerli,
   displayName: 'Arbitrum Goerli',
   displayNameShort: 'Arb. Goerli',
@@ -147,8 +212,8 @@ export const arbitrumgoerli: ChainMetadata = {
   blockExplorers: [
     {
       name: 'Arbiscan',
-      url: 'https://goerli.arbiscan.io/',
-      apiUrl: 'https://api-goerli.arbiscan.io',
+      url: 'https://goerli.arbiscan.io',
+      apiUrl: 'https://api-goerli.arbiscan.io/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -157,10 +222,11 @@ export const arbitrumgoerli: ChainMetadata = {
     reorgPeriod: 1,
     estimateBlockTime: 3,
   },
+  isTestnet: true,
 };
 
 export const avalanche: ChainMetadata = {
-  id: 43114,
+  chainId: 43114,
   name: Chains.avalanche,
   displayName: 'Avalanche',
   nativeToken: avaxToken,
@@ -177,7 +243,7 @@ export const avalanche: ChainMetadata = {
     {
       name: 'SnowTrace',
       url: 'https://snowtrace.io',
-      apiUrl: 'https://api.snowtrace.io',
+      apiUrl: 'https://api.snowtrace.io/api',
       family: ExplorerFamily.Other,
     },
   ],
@@ -192,7 +258,7 @@ export const avalanche: ChainMetadata = {
 };
 
 export const bsc: ChainMetadata = {
-  id: 56,
+  chainId: 56,
   name: Chains.bsc,
   displayName: 'Binance Smart Chain',
   displayNameShort: 'Binance',
@@ -205,7 +271,7 @@ export const bsc: ChainMetadata = {
     {
       name: 'BscScan',
       url: 'https://bscscan.com',
-      apiUrl: 'https://api.bscscan.com',
+      apiUrl: 'https://api.bscscan.com/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -219,7 +285,7 @@ export const bsc: ChainMetadata = {
 };
 
 export const bsctestnet: ChainMetadata = {
-  id: 97,
+  chainId: 97,
   name: Chains.bsctestnet,
   displayName: 'BSC Testnet',
   nativeToken: bnbToken,
@@ -228,7 +294,7 @@ export const bsctestnet: ChainMetadata = {
     {
       name: 'BscScan',
       url: 'https://testnet.bscscan.com',
-      apiUrl: 'https://api-testnet.bscscan.com',
+      apiUrl: 'https://api-testnet.bscscan.com/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -237,10 +303,11 @@ export const bsctestnet: ChainMetadata = {
     reorgPeriod: 9,
     estimateBlockTime: 3,
   },
+  isTestnet: true,
 };
 
 export const celo: ChainMetadata = {
-  id: 42220,
+  chainId: 42220,
   name: Chains.celo,
   displayName: 'Celo',
   nativeToken: celoToken,
@@ -249,12 +316,13 @@ export const celo: ChainMetadata = {
     {
       name: 'CeloScan',
       url: 'https://celoscan.io',
-      apiUrl: 'https://api.celoscan.io',
+      apiUrl: 'https://api.celoscan.io/api',
       family: ExplorerFamily.Etherscan,
     },
     {
       name: 'Blockscout',
       url: 'https://explorer.celo.org',
+      apiUrl: 'https://explorer.celo.org/mainnet/api',
       family: ExplorerFamily.Blockscout,
     },
   ],
@@ -268,7 +336,7 @@ export const celo: ChainMetadata = {
 };
 
 export const ethereum: ChainMetadata = {
-  id: 1,
+  chainId: 1,
   name: Chains.ethereum,
   displayName: 'Ethereum',
   nativeToken: etherToken,
@@ -277,12 +345,13 @@ export const ethereum: ChainMetadata = {
     {
       name: 'Etherscan',
       url: 'https://etherscan.io',
-      apiUrl: 'https://api.etherscan.io',
+      apiUrl: 'https://api.etherscan.io/api',
       family: ExplorerFamily.Etherscan,
     },
     {
       name: 'Blockscout',
       url: 'https://blockscout.com/eth/mainnet',
+      apiUrl: 'https://blockscout.com/eth/mainnet/api',
       family: ExplorerFamily.Blockscout,
     },
   ],
@@ -295,7 +364,7 @@ export const ethereum: ChainMetadata = {
 };
 
 export const fuji: ChainMetadata = {
-  id: 43113,
+  chainId: 43113,
   name: Chains.fuji,
   displayName: 'Fuji',
   nativeToken: avaxToken,
@@ -304,7 +373,7 @@ export const fuji: ChainMetadata = {
     {
       name: 'SnowTrace',
       url: 'https://testnet.snowtrace.io',
-      apiUrl: 'https://api-testnet.snowtrace.io',
+      apiUrl: 'https://api-testnet.snowtrace.io/api',
       family: ExplorerFamily.Other,
     },
   ],
@@ -313,10 +382,11 @@ export const fuji: ChainMetadata = {
     reorgPeriod: 3,
     estimateBlockTime: 2,
   },
+  isTestnet: true,
 };
 
 export const goerli: ChainMetadata = {
-  id: 5,
+  chainId: 5,
   name: Chains.goerli,
   displayName: 'Goerli',
   nativeToken: etherToken,
@@ -329,7 +399,7 @@ export const goerli: ChainMetadata = {
     {
       name: 'Etherscan',
       url: 'https://goerli.etherscan.io',
-      apiUrl: 'https://api-goerli.etherscan.io',
+      apiUrl: 'https://api-goerli.etherscan.io/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -338,10 +408,11 @@ export const goerli: ChainMetadata = {
     reorgPeriod: 2,
     estimateBlockTime: 13,
   },
+  isTestnet: true,
 };
 
 export const moonbasealpha: ChainMetadata = {
-  id: 1287,
+  chainId: 1287,
   name: Chains.moonbasealpha,
   displayName: 'Moonbase Alpha',
   displayNameShort: 'Moonbase',
@@ -355,7 +426,7 @@ export const moonbasealpha: ChainMetadata = {
     {
       name: 'MoonScan',
       url: 'https://moonbase.moonscan.io',
-      apiUrl: 'https://api-moonbase.moonscan.io',
+      apiUrl: 'https://api-moonbase.moonscan.io/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -364,10 +435,11 @@ export const moonbasealpha: ChainMetadata = {
     reorgPeriod: 1,
     estimateBlockTime: 12,
   },
+  isTestnet: true,
 };
 
 export const moonbeam: ChainMetadata = {
-  id: 1284,
+  chainId: 1284,
   name: Chains.moonbeam,
   displayName: 'Moonbeam',
   nativeToken: {
@@ -380,7 +452,7 @@ export const moonbeam: ChainMetadata = {
     {
       name: 'MoonScan',
       url: 'https://moonscan.io',
-      apiUrl: 'https://api-moonbeam.moonscan.io',
+      apiUrl: 'https://api-moonbeam.moonscan.io/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -394,13 +466,13 @@ export const moonbeam: ChainMetadata = {
 };
 
 export const mumbai: ChainMetadata = {
-  id: 80001,
+  chainId: 80001,
   name: Chains.mumbai,
   displayName: 'Mumbai',
   nativeToken: maticToken,
   publicRpcUrls: [
     {
-      http: 'https://rpc-mumbai.maticvigil.com',
+      http: 'https://rpc.ankr.com/polygon_mumbai',
       pagination: {
         // eth_getLogs and eth_newFilter are limited to a 10,000 blocks range
         blocks: 10000,
@@ -415,7 +487,7 @@ export const mumbai: ChainMetadata = {
     {
       name: 'PolygonScan',
       url: 'https://mumbai.polygonscan.com',
-      apiUrl: 'https://api-testnet.polygonscan.com',
+      apiUrl: 'https://api-testnet.polygonscan.com/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -424,10 +496,11 @@ export const mumbai: ChainMetadata = {
     reorgPeriod: 32,
     estimateBlockTime: 5,
   },
+  isTestnet: true,
 };
 
 export const optimism: ChainMetadata = {
-  id: 10,
+  chainId: 10,
   name: Chains.optimism,
   displayName: 'Optimism',
   nativeToken: etherToken,
@@ -436,7 +509,7 @@ export const optimism: ChainMetadata = {
     {
       name: 'Etherscan',
       url: 'https://optimistic.etherscan.io',
-      apiUrl: 'https://api-optimistic.etherscan.io',
+      apiUrl: 'https://api-optimistic.etherscan.io/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -451,7 +524,7 @@ export const optimism: ChainMetadata = {
 };
 
 export const optimismgoerli: ChainMetadata = {
-  id: 420,
+  chainId: 420,
   name: Chains.optimismgoerli,
   displayName: 'Optimism Goerli',
   displayNameShort: 'Opt. Goerli',
@@ -461,7 +534,7 @@ export const optimismgoerli: ChainMetadata = {
     {
       name: 'Etherscan',
       url: 'https://goerli-optimism.etherscan.io',
-      apiUrl: 'https://api-goerli-optimism.etherscan.io',
+      apiUrl: 'https://api-goerli-optimism.etherscan.io/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -470,10 +543,11 @@ export const optimismgoerli: ChainMetadata = {
     reorgPeriod: 1,
     estimateBlockTime: 3,
   },
+  isTestnet: true,
 };
 
 export const polygon: ChainMetadata = {
-  id: 137,
+  chainId: 137,
   name: Chains.polygon,
   displayName: 'Polygon',
   nativeToken: etherToken,
@@ -492,7 +566,7 @@ export const polygon: ChainMetadata = {
     {
       name: 'PolygonScan',
       url: 'https://polygonscan.com',
-      apiUrl: 'https://api.polygonscan.com',
+      apiUrl: 'https://api.polygonscan.com/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -507,7 +581,7 @@ export const polygon: ChainMetadata = {
 };
 
 export const gnosis: ChainMetadata = {
-  id: 100,
+  chainId: 100,
   name: Chains.gnosis,
   displayName: 'Gnosis',
   nativeToken: xDaiToken,
@@ -524,7 +598,7 @@ export const gnosis: ChainMetadata = {
     {
       name: 'GnosisScan',
       url: 'https://gnosisscan.io',
-      apiUrl: 'https://api.gnosisscan.io',
+      apiUrl: 'https://api.gnosisscan.io/api',
       family: ExplorerFamily.Etherscan,
     },
   ],
@@ -538,7 +612,7 @@ export const gnosis: ChainMetadata = {
 };
 
 export const test1: ChainMetadata = {
-  id: 13371,
+  chainId: 13371,
   name: Chains.test1,
   displayName: 'Test 1',
   nativeToken: etherToken,
@@ -549,10 +623,11 @@ export const test1: ChainMetadata = {
     reorgPeriod: 0,
     estimateBlockTime: 3,
   },
+  isTestnet: true,
 };
 
 export const test2: ChainMetadata = {
-  id: 13372,
+  chainId: 13372,
   name: Chains.test2,
   displayName: 'Test 2',
   nativeToken: etherToken,
@@ -563,10 +638,11 @@ export const test2: ChainMetadata = {
     reorgPeriod: 1,
     estimateBlockTime: 3,
   },
+  isTestnet: true,
 };
 
 export const test3: ChainMetadata = {
-  id: 13373,
+  chainId: 13373,
   name: Chains.test3,
   displayName: 'Test 3',
   nativeToken: etherToken,
@@ -577,6 +653,7 @@ export const test3: ChainMetadata = {
     reorgPeriod: 2,
     estimateBlockTime: 3,
   },
+  isTestnet: true,
 };
 
 /**
@@ -617,7 +694,7 @@ export const wagmiChainMetadata: Record<ChainName, WagmiChain> = objMap(
 export const chainIdToMetadata = Object.values(chainMetadata).reduce<
   Record<number, ChainMetadata>
 >((result, chain) => {
-  result[chain.id] = chain;
+  result[chain.chainId] = chain;
   return result;
 }, {});
 
@@ -628,30 +705,6 @@ export const testnetChainsMetadata: Array<ChainMetadata> = Testnets.map(
   (chainName) => chainMetadata[chainName],
 );
 
-/**
- * @deprecated use ChainMetadata
- */
-export type PartialChainMetadata = {
-  id: number;
-  finalityBlocks: number;
-  nativeTokenDecimals?: number;
-  paginate?: RpcPagination;
-  // The CoinGecko API expects, in some cases, IDs that do not match
-  // ChainNames.
-  gasCurrencyCoinGeckoId?: string;
-  // URL of the gnosis safe transaction service.
-  gnosisSafeTransactionServiceUrl?: string;
-};
-
-/**
- * @deprecated use chainMetadata
- */
-export const partialChainMetadata: Record<ChainName, PartialChainMetadata> =
-  objMap(chainMetadata, (_, metadata) => ({
-    id: metadata.id,
-    finalityBlocks: metadata.blocks.confirmations,
-    nativeTokenDecimals: metadata.nativeToken.decimals,
-    paginate: metadata.publicRpcUrls[0]?.pagination,
-    gasCurrencyCoinGeckoId: metadata.gasCurrencyCoinGeckoId,
-    gnosisSafeTransactionServiceUrl: metadata.gnosisSafeTransactionServiceUrl,
-  }));
+export function isValidChainMetadata(c: ChainMetadata): boolean {
+  return ChainMetadataSchema.safeParse(c).success;
+}

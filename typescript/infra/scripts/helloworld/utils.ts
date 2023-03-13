@@ -5,13 +5,10 @@ import {
 } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
-  ChainName,
   HyperlaneCore,
   MultiProvider,
   RouterConfig,
   buildContracts,
-  objMap,
-  promiseObjAll,
 } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
@@ -21,33 +18,27 @@ import { ConnectionType } from '../../src/config/agent';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { HelloWorldConfig } from '../../src/config/helloworld';
 
-export async function getConfiguration<Chain extends ChainName>(
+export async function getConfiguration(
   environment: DeployEnvironment,
-  multiProvider: MultiProvider<Chain>,
-): Promise<ChainMap<Chain, RouterConfig>> {
-  const signerMap = await promiseObjAll(
-    multiProvider.map(async (_, dc) => dc.signer!),
-  );
-  const ownerMap = await promiseObjAll(
-    objMap(signerMap, async (_, signer) => {
-      return {
-        owner: await signer.getAddress(),
-      };
-    }),
-  );
+  multiProvider: MultiProvider,
+): Promise<ChainMap<RouterConfig>> {
+  const ownerMap: ChainMap<{ owner: string }> = {};
+  for (const chain of multiProvider.getKnownChainNames()) {
+    ownerMap[chain] = {
+      owner: await multiProvider.getSignerAddress(chain),
+    };
+  }
 
-  // Currently can't be typed as per https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/594/files#diff-40a12589668de942078f498e0ab0fda512e1eb7397189d6d286b590ae87c45d1R31
-  // @ts-ignore
-  const core: HyperlaneCore<Chain> = HyperlaneCore.fromEnvironment(
+  const core: HyperlaneCore = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
-    multiProvider as any,
+    multiProvider,
   );
 
   return core.extendWithConnectionClientConfig(ownerMap);
 }
 
-export async function getApp<Chain extends ChainName>(
-  coreConfig: CoreEnvironmentConfig<Chain>,
+export async function getApp(
+  coreConfig: CoreEnvironmentConfig,
   context: Contexts,
   keyRole: KEY_ROLE_ENUM,
   keyContext: Contexts = context,
@@ -57,23 +48,23 @@ export async function getApp<Chain extends ChainName>(
   const contracts = buildContracts(
     helloworldConfig.addresses,
     helloWorldFactories,
-  ) as ChainMap<Chain, HelloWorldContracts>;
-  const multiProvider: MultiProvider<any> = await coreConfig.getMultiProvider(
+  ) as ChainMap<HelloWorldContracts>;
+  const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
     keyRole,
     connectionType,
   );
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[coreConfig.environment],
-    multiProvider as any,
-  ) as HyperlaneCore<any>;
+    multiProvider,
+  ) as HyperlaneCore;
   return new HelloWorldApp(core, contracts, multiProvider);
 }
 
-export function getHelloWorldConfig<Chain extends ChainName>(
-  coreConfig: CoreEnvironmentConfig<Chain>,
+export function getHelloWorldConfig(
+  coreConfig: CoreEnvironmentConfig,
   context: Contexts,
-): HelloWorldConfig<Chain> {
+): HelloWorldConfig {
   const helloWorldConfigs = coreConfig.helloWorld;
   if (!helloWorldConfigs) {
     throw new Error(

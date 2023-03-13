@@ -7,19 +7,25 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 const circleDomainMapping = [
-  { hyperlaneDomain: chainMetadata[Chains.goerli].id, circleDomain: 0 },
-  { hyperlaneDomain: chainMetadata[Chains.fuji].id, circleDomain: 1 },
+  { hyperlaneDomain: chainMetadata[Chains.goerli].chainId, circleDomain: 0 },
+  { hyperlaneDomain: chainMetadata[Chains.fuji].chainId, circleDomain: 1 },
 ];
 
 const wormholeDomainMapping = [
-  { hyperlaneDomain: chainMetadata[Chains.goerli].id, wormholeDomain: 2 },
-  { hyperlaneDomain: chainMetadata[Chains.fuji].id, wormholeDomain: 6 },
-  { hyperlaneDomain: chainMetadata[Chains.mumbai].id, wormholeDomain: 5 },
-  { hyperlaneDomain: chainMetadata[Chains.bsctestnet].id, wormholeDomain: 4 },
-  { hyperlaneDomain: chainMetadata[Chains.alfajores].id, wormholeDomain: 14 },
+  { hyperlaneDomain: chainMetadata[Chains.goerli].chainId, wormholeDomain: 2 },
+  { hyperlaneDomain: chainMetadata[Chains.fuji].chainId, wormholeDomain: 6 },
+  { hyperlaneDomain: chainMetadata[Chains.mumbai].chainId, wormholeDomain: 5 },
+  {
+    hyperlaneDomain: chainMetadata[Chains.bsctestnet].chainId,
+    wormholeDomain: 4,
+  },
+  {
+    hyperlaneDomain: chainMetadata[Chains.alfajores].chainId,
+    wormholeDomain: 14,
+  },
 ];
 
-export const bridgeAdapterConfigs: ChainMap<any, BridgeAdapterConfig> = {
+export const bridgeAdapterConfigs: ChainMap<BridgeAdapterConfig> = {
   [Chains.goerli]: {
     portal: {
       type: BridgeAdapterType.Portal,

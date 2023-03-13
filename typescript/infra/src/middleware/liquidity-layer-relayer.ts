@@ -1,15 +1,11 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
-
 import { AgentConfig, CoreEnvironmentConfig } from '../config';
 import { LiquidityLayerRelayerConfig } from '../config/middleware';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
-export async function runLiquidityLayerRelayerHelmCommand<
-  Chain extends ChainName,
->(
+export async function runLiquidityLayerRelayerHelmCommand(
   helmCommand: HelmCommand,
-  agentConfig: AgentConfig<Chain>,
+  agentConfig: AgentConfig,
   relayerConfig: LiquidityLayerRelayerConfig,
 ) {
   const values = getLiquidityLayerRelayerHelmValues(agentConfig, relayerConfig);
@@ -38,13 +34,13 @@ export async function runLiquidityLayerRelayerHelmCommand<
   );
 }
 
-function getLiquidityLayerRelayerHelmValues<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
+function getLiquidityLayerRelayerHelmValues(
+  agentConfig: AgentConfig,
   relayerConfig: LiquidityLayerRelayerConfig,
 ) {
   const values = {
     hyperlane: {
-      runEnv: agentConfig.environment,
+      runEnv: agentConfig.runEnv,
       // Only used for fetching RPC urls as env vars
       chains: agentConfig.contextChainNames,
       connectionType: relayerConfig.connectionType,
@@ -61,7 +57,7 @@ function getLiquidityLayerRelayerHelmValues<Chain extends ChainName>(
 }
 
 export function getLiquidityLayerRelayerConfig(
-  coreConfig: CoreEnvironmentConfig<any>,
+  coreConfig: CoreEnvironmentConfig,
 ): LiquidityLayerRelayerConfig {
   const relayerConfig = coreConfig.liquidityLayerRelayerConfig;
   if (!relayerConfig) {

@@ -5,20 +5,17 @@ import { ConnectionType } from '../../../src/config/agent';
 import { Contexts } from '../../contexts';
 
 import { agents } from './agent';
-import {
-  TestnetChains,
-  environment as environmentName,
-  testnetConfigs,
-} from './chains';
+import { environment as environmentName, testnetConfigs } from './chains';
 import { core } from './core';
 import { keyFunderConfig } from './funding';
+import { storageGasOracleConfig } from './gas-oracle';
 import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
 import { liquidityLayerRelayerConfig } from './middleware';
 
-export const environment: CoreEnvironmentConfig<TestnetChains> = {
+export const environment: CoreEnvironmentConfig = {
   environment: environmentName,
-  transactionConfigs: testnetConfigs,
+  chainMetadataConfigs: testnetConfigs,
   getMultiProvider: (
     context: Contexts = Contexts.Hyperlane,
     role: KEY_ROLE_ENUM = KEY_ROLE_ENUM.Deployer,
@@ -38,4 +35,5 @@ export const environment: CoreEnvironmentConfig<TestnetChains> = {
   helloWorld,
   keyFunderConfig,
   liquidityLayerRelayerConfig,
+  storageGasOracleConfig,
 };

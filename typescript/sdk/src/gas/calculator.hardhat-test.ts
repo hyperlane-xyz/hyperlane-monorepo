@@ -5,31 +5,29 @@ import { ethers } from 'hardhat';
 
 import { types } from '@hyperlane-xyz/utils';
 
+import { Chains } from '../consts/chains';
 import { HyperlaneCore } from '../core/HyperlaneCore';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
-import { getTestMultiProvider } from '../deploy/utils';
 import { MultiProvider } from '../providers/MultiProvider';
-import { TestChainNames } from '../types';
 
 import { InterchainGasCalculator } from './calculator';
 
 describe('InterchainGasCalculator', async () => {
-  const localChain = 'test1';
-  const remoteChain = 'test2';
+  const localChain = Chains.test1;
+  const remoteChain = Chains.test2;
 
-  const expectedDefaultQuote = BigNumber.from('1');
   const testGasAmount = BigNumber.from('100000');
 
   let signer: SignerWithAddress;
-  let multiProvider: MultiProvider<TestChainNames>;
+  let multiProvider: MultiProvider;
 
-  let calculator: InterchainGasCalculator<TestChainNames>;
+  let calculator: InterchainGasCalculator;
   let igp: types.Address;
 
   before(async () => {
     [signer] = await ethers.getSigners();
 
-    multiProvider = getTestMultiProvider(signer);
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
@@ -46,7 +44,8 @@ describe('InterchainGasCalculator', async () => {
         testGasAmount,
       );
 
-      expect(quote).to.equal(expectedDefaultQuote);
+      // (100,000 gas amount + 151,966 overhead) * 10 gas price
+      expect(quote).to.equal(BigNumber.from('2519660'));
     });
   });
 
@@ -58,7 +57,8 @@ describe('InterchainGasCalculator', async () => {
         testGasAmount,
       );
 
-      expect(quote).to.equal(expectedDefaultQuote);
+      // 100,000 gas amount * 10 gas price
+      expect(quote).to.equal(BigNumber.from('1000000'));
     });
   });
 
@@ -71,7 +71,8 @@ describe('InterchainGasCalculator', async () => {
         igp,
       );
 
-      expect(quote).to.equal(expectedDefaultQuote);
+      // 100,000 gas amount * 10 gas price
+      expect(quote).to.equal(BigNumber.from('1000000'));
     });
   });
 });

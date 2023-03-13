@@ -1,3 +1,5 @@
+import { BigNumberish } from 'ethers';
+
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
@@ -13,15 +15,15 @@ import { gcpSecretExists } from '../utils/gcloud';
 import { DeployEnvironment } from './environment';
 
 // Allows a "default" config to be specified and any per-chain overrides.
-interface ChainOverridableConfig<Chain extends ChainName, T> {
+interface ChainOverridableConfig<T> {
   default: T;
-  chainOverrides?: Partial<ChainMap<Chain, Partial<T>>>;
+  chainOverrides?: ChainMap<Partial<T>>;
 }
 
-// Returns the default config with any overriden values specified for the provided chain.
-export function getChainOverriddenConfig<Chain extends ChainName, T>(
-  overridableConfig: ChainOverridableConfig<Chain, T>,
-  chain: Chain,
+// Returns the default config with any overridden values specified for the provided chain.
+export function getChainOverriddenConfig<T>(
+  overridableConfig: ChainOverridableConfig<T>,
+  chain: ChainName,
 ): T {
   return {
     ...overridableConfig.default,
@@ -36,9 +38,9 @@ export function getChainOverriddenConfig<Chain extends ChainName, T>(
 export type MatchingList = MatchingListElement[];
 
 interface MatchingListElement {
-  originDomain?: '*' | string | string[] | number | number[];
+  originDomain?: '*' | number | number[];
   senderAddress?: '*' | string | string[];
-  destinationDomain?: '*' | string | string[] | number | number[];
+  destinationDomain?: '*' | number | number[];
   recipientAddress?: '*' | string | string[];
 }
 
@@ -46,6 +48,7 @@ export enum GasPaymentEnforcementPolicyType {
   None = 'none',
   Minimum = 'minimum',
   MeetsEstimatedCost = 'meetsEstimatedCost',
+  OnChainFeeQuoting = 'onChainFeeQuoting',
 }
 
 export type GasPaymentEnforcementPolicy =
@@ -54,36 +57,28 @@ export type GasPaymentEnforcementPolicy =
     }
   | {
       type: GasPaymentEnforcementPolicyType.Minimum;
-      payment: string | number;
+      payment: string; // An integer string, may be 0x-prefixed
     }
   | {
-      type: GasPaymentEnforcementPolicyType.MeetsEstimatedCost;
+      type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting;
+      gasfraction?: string; // An optional string of "numerator / denominator", e.g. "1 / 2"
     };
 
-export interface GasPaymentEnforcementConfig {
-  policy: GasPaymentEnforcementPolicy;
-  whitelist?: MatchingList;
-}
+export type GasPaymentEnforcementConfig = GasPaymentEnforcementPolicy & {
+  matchingList?: MatchingList;
+};
 
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
-  gasPaymentEnforcement: GasPaymentEnforcementConfig;
+  gasPaymentEnforcement: GasPaymentEnforcementConfig[];
   whitelist?: MatchingList;
   blacklist?: MatchingList;
-  transactionGasLimit?: bigint;
+  transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: number[];
 }
 
 // Per-chain relayer agent configs
-type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
-  Chain,
-  BaseRelayerConfig
->;
-
-interface SerializableGasPaymentEnforcementConfig
-  extends Omit<GasPaymentEnforcementConfig, 'whitelist'> {
-  whitelist?: string;
-}
+type ChainRelayerConfigs = ChainOverridableConfig<BaseRelayerConfig>;
 
 // Full relayer agent config for a single chain
 interface RelayerConfig
@@ -96,7 +91,7 @@ interface RelayerConfig
     | 'gasPaymentEnforcement'
   > {
   originChainName: ChainName;
-  gasPaymentEnforcement: SerializableGasPaymentEnforcementConfig;
+  gasPaymentEnforcement: string;
   whitelist?: string;
   blacklist?: string;
   transactionGasLimit?: string;
@@ -149,10 +144,7 @@ interface ValidatorChainConfig {
 }
 
 // Validator agents for each chain.
-export type ChainValidatorConfigs<Chain extends ChainName> = ChainMap<
-  Chain,
-  ValidatorChainConfig
->;
+export type ChainValidatorConfigs = ChainMap<ValidatorChainConfig>;
 
 // Helm config for a single validator
 interface ValidatorHelmConfig {
@@ -198,9 +190,9 @@ export interface DockerConfig {
   tag: string;
 }
 
-export interface GelatoConfig<Chain extends ChainName> {
+export interface GelatoConfig {
   // List of chains in which using Gelato is enabled for
-  enabledChains: Chain[];
+  enabledChains: ChainName[];
 }
 
 export enum TransactionSubmissionType {
@@ -208,10 +200,9 @@ export enum TransactionSubmissionType {
   Gelato = 'gelato',
 }
 
-export interface AgentConfig<Chain extends ChainName> {
-  environment: string;
-  namespace: string;
+export interface AgentConfig {
   runEnv: DeployEnvironment;
+  namespace: string;
   context: Contexts;
   docker: DockerConfig;
   quorumProvider?: boolean;
@@ -219,13 +210,13 @@ export interface AgentConfig<Chain extends ChainName> {
   index?: IndexingConfig;
   aws?: AwsConfig;
   // Names of all chains in the environment
-  environmentChainNames: Chain[];
+  environmentChainNames: ChainName[];
   // Names of chains this context cares about
-  contextChainNames: Chain[];
-  gelato?: GelatoConfig<Chain>;
+  contextChainNames: ChainName[];
+  gelato?: GelatoConfig;
   // RC contexts do not provide validators
-  validators?: ChainValidatorConfigs<Chain>;
-  relayer?: ChainRelayerConfigs<Chain>;
+  validators?: ChainValidatorConfigs;
+  relayer?: ChainRelayerConfigs;
   // Roles to manage keys for
   rolesWithKeys: KEY_ROLE_ENUM[];
 }
@@ -258,18 +249,17 @@ export type RustCoreAddresses = {
 
 export type RustChainSetup = {
   name: ChainName;
-  domain: string;
+  domain: number;
   signer?: RustSigner | null;
-  finalityBlocks: string;
+  finalityBlocks: number;
   addresses: RustCoreAddresses;
   protocol: 'ethereum' | 'fuel';
   connection: RustConnection;
-  index?: { from: string };
+  index?: { from: number };
 };
 
-export type RustConfig<Chain extends ChainName> = {
-  environment: DeployEnvironment;
-  chains: Partial<ChainMap<Chain, RustChainSetup>>;
+export type RustConfig = {
+  chains: Partial<ChainMap<RustChainSetup>>;
   // TODO: Separate DBs for each chain (fold into RustChainSetup)
   db: string;
   tracing: {
@@ -279,10 +269,10 @@ export type RustConfig<Chain extends ChainName> = {
 };
 
 // Helper to get chain-specific agent configurations
-export class ChainAgentConfig<Chain extends ChainName> {
+export class ChainAgentConfig {
   constructor(
-    public readonly agentConfig: AgentConfig<Chain>,
-    public readonly chainName: Chain,
+    public readonly agentConfig: AgentConfig,
+    public readonly chainName: ChainName,
   ) {}
 
   // Credentials are only needed if AWS keys are needed -- otherwise, the
@@ -308,7 +298,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
       );
     }
     const awsUser = new AgentAwsUser(
-      this.agentConfig.environment,
+      this.agentConfig.runEnv,
       this.agentConfig.context,
       KEY_ROLE_ENUM.Relayer,
       this.agentConfig.aws!.region,
@@ -333,7 +323,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
         };
         if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
           const awsUser = new ValidatorAgentAwsUser(
-            this.agentConfig.environment,
+            this.agentConfig.runEnv,
             this.agentConfig.context,
             this.chainName,
             i,
@@ -376,7 +366,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
     if (awsRegion !== undefined) {
       const awsUser = new AgentAwsUser(
-        this.agentConfig.environment,
+        this.agentConfig.runEnv,
         this.agentConfig.context,
         KEY_ROLE_ENUM.Relayer,
         awsRegion,
@@ -407,12 +397,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
     const relayerConfig: RelayerConfig = {
       originChainName: this.chainName,
-      gasPaymentEnforcement: {
-        ...baseConfig.gasPaymentEnforcement,
-        whitelist: baseConfig.gasPaymentEnforcement.whitelist
-          ? JSON.stringify(baseConfig.gasPaymentEnforcement.whitelist)
-          : undefined,
-      },
+      gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
     if (baseConfig.whitelist) {
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
@@ -457,25 +442,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
     return true;
   }
 
-  async ensureCoingeckoApiKeySecretExistsIfRequired() {
-    // The CoinGecko API Key is only needed when using the "MeetsEstimatedCost" policy.
-    if (
-      this.relayerConfig?.gasPaymentEnforcement.policy.type !==
-      GasPaymentEnforcementPolicyType.MeetsEstimatedCost
-    ) {
-      return;
-    }
-    // Check to see if the Gelato API key exists in GCP secret manager - throw if it doesn't
-    const secretName = `${this.agentConfig.runEnv}-coingecko-api-key`;
-    const secretExists = await gcpSecretExists(secretName);
-    if (!secretExists) {
-      throw Error(
-        `Expected CoinGecko API Key GCP Secret named ${secretName} to exist, have you created it?`,
-      );
-    }
-  }
-
-  transactionSubmissionType(chain: Chain): TransactionSubmissionType {
+  transactionSubmissionType(chain: ChainName): TransactionSubmissionType {
     if (this.agentConfig.gelato?.enabledChains.includes(chain)) {
       return TransactionSubmissionType.Gelato;
     }

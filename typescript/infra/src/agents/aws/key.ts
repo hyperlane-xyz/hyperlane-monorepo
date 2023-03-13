@@ -43,12 +43,12 @@ export class AgentAwsKey extends CloudAgentKey {
   public remoteKey: RemoteKey = { fetched: false };
 
   constructor(
-    agentConfig: AgentConfig<any>,
+    agentConfig: AgentConfig,
     role: KEY_ROLE_ENUM,
     chainName?: ChainName,
     index?: number,
   ) {
-    super(agentConfig.environment, agentConfig.context, role, chainName, index);
+    super(agentConfig.runEnv, agentConfig.context, role, chainName, index);
     if (!agentConfig.aws) {
       throw new Error('Not configured as AWS');
     }

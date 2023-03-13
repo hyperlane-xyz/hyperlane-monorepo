@@ -41,20 +41,19 @@ export interface DeployOptions {
 
 export const CREATE2FACTORY_ADDRESS =
   '0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a';
+
 export abstract class HyperlaneDeployer<
-  Chain extends ChainName,
   Config,
   Contracts extends HyperlaneContracts,
   Factories extends HyperlaneFactories,
 > {
-  public deployedContracts: Partial<Record<Chain, Partial<Contracts>>> = {};
-
-  verificationInputs: ChainMap<Chain, ContractVerificationInput[]>;
+  public deployedContracts: ChainMap<Contracts> = {};
+  public verificationInputs: ChainMap<ContractVerificationInput[]>;
   protected logger: Debugger;
 
   constructor(
-    protected readonly multiProvider: MultiProvider<Chain>,
-    protected readonly configMap: ChainMap<Chain, Config>,
+    protected readonly multiProvider: MultiProvider,
+    protected readonly configMap: ChainMap<Config>,
     protected readonly factories: Factories,
     protected readonly options?: DeployerOptions,
   ) {
@@ -62,35 +61,30 @@ export abstract class HyperlaneDeployer<
     this.logger = options?.logger || debug('hyperlane:AppDeployer');
   }
 
-  abstract deployContracts(chain: Chain, config: Config): Promise<Contracts>;
+  abstract deployContracts(
+    chain: ChainName,
+    config: Config,
+  ): Promise<Contracts>;
 
   async deploy(
-    partialDeployment: Partial<Record<Chain, Partial<Contracts>>> = this
-      .deployedContracts,
-  ): Promise<Record<Chain, Contracts>> {
-    objMap(
-      partialDeployment as ChainMap<Chain, Contracts>,
-      (chain, contracts) => {
-        this.logger(
-          `Recovering contracts for ${chain} from partial deployment`,
-        );
-        const chainConnection = this.multiProvider.getChainConnection(chain);
-        this.deployedContracts[chain] = connectContracts(
-          contracts,
-          chainConnection.signer!,
-        );
-      },
-    );
-    const configChains = Object.keys(this.configMap) as Chain[];
+    partialDeployment: ChainMap<Contracts> = this.deployedContracts,
+  ): Promise<ChainMap<Contracts>> {
+    objMap(partialDeployment, (chain, contracts) => {
+      this.logger(`Recovering contracts for ${chain} from partial deployment`);
+      const signer = this.multiProvider.getSigner(chain);
+      this.deployedContracts[chain] = connectContracts(contracts, signer);
+    });
+    const configChains = Object.keys(this.configMap);
     const targetChains = this.multiProvider.intersect(
       configChains,
-      false,
+      true,
     ).intersection;
 
     this.logger(`Start deploy to ${targetChains}`);
     for (const chain of targetChains) {
-      const chainConnection = this.multiProvider.getChainConnection(chain);
-      const signerUrl = await chainConnection.getAddressUrl();
+      const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
+        chain,
+      );
       this.logger(`Deploying to ${chain} from ${signerUrl} ...`);
       this.deployedContracts[chain] = await this.deployContracts(
         chain,
@@ -107,16 +101,15 @@ export abstract class HyperlaneDeployer<
         ),
       );
     }
-    return this.deployedContracts as ChainMap<Chain, Contracts>;
+    return this.deployedContracts;
   }
 
   protected async runIfOwner<T>(
-    chain: Chain,
+    chain: ChainName,
     ownable: Ownable,
     fn: () => Promise<T>,
   ): Promise<T | undefined> {
-    const dc = this.multiProvider.getChainConnection(chain);
-    const address = await dc.signer!.getAddress();
+    const address = await this.multiProvider.getSignerAddress(chain);
     const owner = await ownable.owner();
     const logObj = { owner, signer: address };
     if (address === owner) {
@@ -129,31 +122,27 @@ export abstract class HyperlaneDeployer<
   }
 
   protected async deployContractFromFactory<F extends ethers.ContractFactory>(
-    chain: Chain,
+    chain: ChainName,
     factory: F,
     contractName: string,
     constructorArgs: Parameters<F['deploy']>,
     deployOpts?: DeployOptions,
   ): Promise<ReturnType<F['deploy']>> {
     const cachedContract = this.deployedContracts[chain]?.[contractName];
-    if (cachedContract) {
-      this.logger(`Recovered contract ${contractName} on ${chain}`);
+    if (cachedContract && !(cachedContract instanceof ProxiedContract)) {
+      this.logger(
+        `Recovered contract ${contractName} on ${chain}`,
+        cachedContract,
+      );
       return cachedContract as ReturnType<F['deploy']>;
     }
 
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const signer = chainConnection.signer;
-    if (!signer) {
-      throw new Error(`No signer for ${chain}`);
-    }
-
+    const provider = this.multiProvider.getProvider(chain);
+    const signer = this.multiProvider.getSigner(chain);
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
     this.logger(`Deploy ${contractName} on ${chain}`);
-
-    if (
-      deployOpts &&
-      deployOpts.create2Salt &&
-      (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
-    ) {
+    const factoryCode = await provider.getCode(CREATE2FACTORY_ADDRESS);
+    if (deployOpts && deployOpts.create2Salt && factoryCode != '0x') {
       this.logger(`Deploying with CREATE2 factory`);
 
       const create2Factory = Create2Factory__factory.connect(
@@ -176,20 +165,17 @@ export abstract class HyperlaneDeployer<
         salt,
       );
 
-      if ((await chainConnection.provider.getCode(contractAddr)) === '0x') {
+      const contractCode = await provider.getCode(contractAddr);
+      if (contractCode === '0x') {
         const deployTx = deployOpts.initCalldata
           ? await create2Factory.deployAndInit(
               bytecode,
               salt,
               deployOpts.initCalldata,
-              chainConnection.overrides,
+              overrides,
             )
-          : await create2Factory.deploy(
-              bytecode,
-              salt,
-              chainConnection.overrides,
-            );
-        await chainConnection.handleTx(deployTx);
+          : await create2Factory.deploy(bytecode, salt, overrides);
+        await this.multiProvider.handleTx(chain, deployTx);
       } else {
         this.logger(
           `Found contract deployed at CREATE2 address, skipping contract deploy`,
@@ -209,9 +195,9 @@ export abstract class HyperlaneDeployer<
     } else {
       const contract = await factory
         .connect(signer)
-        .deploy(...constructorArgs, chainConnection.overrides);
+        .deploy(...constructorArgs, overrides);
 
-      await chainConnection.handleTx(contract.deployTransaction);
+      await this.multiProvider.handleTx(chain, contract.deployTransaction);
 
       if (deployOpts?.initCalldata) {
         this.logger(`Initialize ${contractName} on ${chain}`);
@@ -219,7 +205,7 @@ export abstract class HyperlaneDeployer<
           to: contract.address,
           data: deployOpts.initCalldata,
         });
-        await chainConnection.handleTx(initTx);
+        await this.multiProvider.handleTx(chain, initTx);
       }
 
       const verificationInput = getContractVerificationInput(
@@ -234,7 +220,7 @@ export abstract class HyperlaneDeployer<
   }
 
   async deployContract<K extends keyof Factories>(
-    chain: Chain,
+    chain: ChainName,
     contractName: K,
     args: Parameters<Factories[K]['deploy']>,
     deployOpts?: DeployOptions,
@@ -251,7 +237,7 @@ export abstract class HyperlaneDeployer<
   }
 
   protected async deployProxy<C extends ethers.Contract>(
-    chain: Chain,
+    chain: ChainName,
     implementation: C,
     proxyAdmin: ProxyAdmin,
     initArgs: Parameters<C['initialize']>,
@@ -262,12 +248,13 @@ export abstract class HyperlaneDeployer<
       initArgs,
     );
     let proxy: TransparentUpgradeableProxy;
-    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const provider = this.multiProvider.getProvider(chain);
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
     this.logger(`Deploying transparent upgradable proxy`);
     if (
       deployOpts &&
       deployOpts.create2Salt &&
-      (await chainConnection.provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
+      (await provider.getCode(CREATE2FACTORY_ADDRESS)) != '0x'
     ) {
       // To get consistent addresses with Create2, we need to use
       // consistent constructor arguments.
@@ -289,9 +276,7 @@ export abstract class HyperlaneDeployer<
       // Note this requires the proxy contracts to ensure admin power has been
       // transferred to the canonical proxy admin at some point in the future.
       const proxyAdminOwner = await proxyAdmin.owner();
-      const deployer = await this.multiProvider
-        .getChainSigner(chain)
-        .getAddress();
+      const deployer = await this.multiProvider.getSignerAddress(chain);
       let deployerOwnedProxyAdmin = proxyAdmin;
       if (proxyAdminOwner.toLowerCase() !== deployer.toLowerCase()) {
         deployerOwnedProxyAdmin = await this.deployContractFromFactory(
@@ -322,9 +307,9 @@ export abstract class HyperlaneDeployer<
         proxy.address,
         implementation.address,
         initData,
-        chainConnection.overrides,
+        overrides,
       );
-      await chainConnection.handleTx(upgradeAndCallTx);
+      await this.multiProvider.handleTx(chain, upgradeAndCallTx);
       // Change the proxy admin from deployerOwnedProxyAdmin to proxyAdmin if necessary.
       await this.changeProxyAdmin(
         chain,
@@ -355,12 +340,12 @@ export abstract class HyperlaneDeployer<
   }
 
   private cacheContract<K extends keyof Factories>(
-    chain: Chain,
+    chain: ChainName,
     contractName: K,
     contract: HyperlaneContract,
   ) {
     if (!this.deployedContracts[chain]) {
-      this.deployedContracts[chain] = {};
+      this.deployedContracts[chain] = {} as Contracts;
     }
     // @ts-ignore
     this.deployedContracts[chain][contractName] = contract;
@@ -374,7 +359,7 @@ export abstract class HyperlaneDeployer<
     K extends keyof Factories,
     C extends Awaited<ReturnType<Factories[K]['deploy']>>,
   >(
-    chain: Chain,
+    chain: ChainName,
     contractName: K,
     constructorArgs: Parameters<Factories[K]['deploy']>,
     proxyAdmin: ProxyAdmin,
@@ -382,8 +367,15 @@ export abstract class HyperlaneDeployer<
     deployOpts?: DeployOptions,
   ): Promise<ProxiedContract<C, TransparentProxyAddresses>> {
     const cachedProxy = this.deployedContracts[chain]?.[contractName as any];
-    if (cachedProxy) {
-      this.logger(`Recovered proxy ${contractName.toString()} on ${chain}`);
+    if (
+      cachedProxy &&
+      cachedProxy.addresses.proxy &&
+      cachedProxy.addresses.implementation
+    ) {
+      this.logger(
+        `Recovered proxy and implementation ${contractName.toString()} on ${chain}`,
+        cachedProxy,
+      );
       return cachedProxy as ProxiedContract<C, TransparentProxyAddresses>;
     }
 
@@ -393,6 +385,20 @@ export abstract class HyperlaneDeployer<
       constructorArgs,
       deployOpts,
     );
+    // If the proxy already existed in artifacts but the implementation did not,
+    // we only deploy the implementation and keep the proxy.
+    // Changing the proxy's implementation address on-chain is left to
+    // the govern / checker script
+    if (cachedProxy && cachedProxy.addresses.proxy) {
+      this.logger(
+        `Recovered proxy ${contractName.toString()} on ${chain}`,
+        cachedProxy,
+      );
+
+      cachedProxy.addresses.implementation = implementation.address;
+      this.cacheContract(chain, contractName, cachedProxy);
+      return cachedProxy as ProxiedContract<C, TransparentProxyAddresses>;
+    }
 
     const contract = await this.deployProxy(
       chain,
@@ -410,7 +416,7 @@ export abstract class HyperlaneDeployer<
    * if the admin is not already the `desiredProxyAdmin`.
    */
   async changeProxyAdmin(
-    chain: Chain,
+    chain: ChainName,
     proxyAddress: types.Address,
     currentProxyAdmin: ProxyAdmin,
     desiredProxyAdmin: ProxyAdmin,
@@ -425,26 +431,23 @@ export abstract class HyperlaneDeployer<
     this.logger(
       `Transferring proxy admin from ${currentProxyAdmin} to ${desiredProxyAdmin}`,
     );
-    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const overrides = this.multiProvider.getTransactionOverrides(chain);
     const changeAdminTx = await currentProxyAdmin.changeProxyAdmin(
       proxyAddress,
       desiredProxyAdmin.address,
-      chainConnection.overrides,
+      overrides,
     );
-    await chainConnection.handleTx(changeAdminTx);
+    await this.multiProvider.handleTx(chain, changeAdminTx);
   }
 
   mergeWithExistingVerificationInputs(
-    existingInputsMap: ChainMap<Chain, ContractVerificationInput[]>,
-  ): ChainMap<Chain, ContractVerificationInput[]> {
-    const allChains = new Set<Chain>();
-    Object.keys(existingInputsMap).forEach((_) => allChains.add(_ as Chain));
-    Object.keys(this.verificationInputs).forEach((_) =>
-      allChains.add(_ as Chain),
-    );
+    existingInputsMap: ChainMap<ContractVerificationInput[]>,
+  ): ChainMap<ContractVerificationInput[]> {
+    const allChains = new Set<ChainName>();
+    Object.keys(existingInputsMap).forEach((_) => allChains.add(_));
+    Object.keys(this.verificationInputs).forEach((_) => allChains.add(_));
 
-    // @ts-ignore
-    const ret: ChainMap<Chain, ContractVerificationInput[]> = {};
+    const ret: ChainMap<ContractVerificationInput[]> = {};
     for (const chain of allChains) {
       const existingInputs = existingInputsMap[chain] || [];
       const newInputs = this.verificationInputs[chain] || [];

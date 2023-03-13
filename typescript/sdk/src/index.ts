@@ -1,163 +1,140 @@
 export {
-  Chains,
-  ChainName,
-  DeprecatedChains,
-  AllChains,
-  Mainnets,
-  AllDeprecatedChains,
-} from './consts/chains';
-export {
-  ChainMetadata,
-  RpcPagination,
-  ExplorerFamily,
-  chainMetadata,
   chainIdToMetadata,
+  ChainMetadata,
+  chainMetadata,
+  ChainMetadataSchema,
+  ExplorerFamily,
+  isValidChainMetadata,
   mainnetChainsMetadata,
+  RpcPagination,
   testnetChainsMetadata,
   wagmiChainMetadata,
-  PartialChainMetadata,
-  partialChainMetadata,
 } from './consts/chainMetadata';
 export {
-  chainConnectionConfigs,
-  testChainConnectionConfigs,
-} from './consts/chainConnectionConfigs';
+  AllChains,
+  AllDeprecatedChains,
+  Chains,
+  CoreChainName,
+  DeprecatedChains,
+  Mainnets,
+  TestChains,
+  Testnets,
+} from './consts/chains';
 export {
   environments as coreEnvironments,
   hyperlaneCoreAddresses,
 } from './consts/environments';
-
 export {
-  ChainMap,
-  CompleteChainMap,
-  Connection,
-  NameOrDomain,
-  RemoteChainMap,
-  Remotes,
-  TestChainNames,
-  IChainConnection,
-} from './types';
-
-export { ChainNameToDomainId, DomainIdToChainName } from './domains';
-
-export { HyperlaneApp } from './HyperlaneApp';
-
-export {
+  buildContracts,
+  connectContracts,
   HyperlaneAddresses,
   HyperlaneContracts,
   HyperlaneFactories,
-  buildContracts,
-  connectContracts,
   serializeContracts,
 } from './contracts';
-
+export {
+  ConnectionClientContracts,
+  CoreContracts,
+  coreFactories,
+  GasOracleContracts,
+} from './core/contracts';
+export {
+  AnnotatedDispatch,
+  AnnotatedLifecycleEvent,
+  HyperlaneLifecyleEvent,
+} from './core/events';
+export {
+  CoreContractsMap,
+  DispatchedMessage,
+  HyperlaneCore,
+} from './core/HyperlaneCore';
+export { TestCoreApp, TestCoreContracts } from './core/TestCoreApp';
+export { TestCoreDeployer } from './core/TestCoreDeployer';
+export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker';
+export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
+export {
+  CoreConfig,
+  CoreViolationType,
+  DefaultIsmIgpViolation,
+  DefaultIsmIgpViolationType,
+  EnrolledValidatorsViolation,
+  GasOracleContractType,
+  IgpBeneficiaryViolation,
+  IgpGasOraclesViolation,
+  IgpViolation,
+  IgpViolationType,
+  MultisigIsmViolation,
+  MultisigIsmViolationType,
+} from './core/types';
+export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
+export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
+export {
+  InterchainAccountDeployer,
+  InterchainQueryDeployer,
+} from './middleware/deploy';
+export { LiquidityLayerApp } from './middleware/liquidity-layer/LiquidityLayerApp';
+export {
+  BridgeAdapterConfig,
+  BridgeAdapterType,
+  CircleBridgeAdapterConfig,
+  LiquidityLayerDeployer,
+  PortalAdapterConfig,
+} from './middleware/liquidity-layer/LiquidityLayerRouterDeployer';
+export { ProxyViolation } from './deploy/proxy';
+export { GasRouterDeployer } from './router/GasRouterDeployer';
+export { HyperlaneRouterChecker } from './router/HyperlaneRouterChecker';
+export { HyperlaneRouterDeployer } from './router/HyperlaneRouterDeployer';
+export { GasRouterConfig, RouterConfig } from './router/types';
+export {
+  CheckerViolation,
+  OwnerViolation,
+  ViolationType,
+} from './deploy/types';
+export { getChainToOwnerMap } from './deploy/utils';
+export { ContractVerifier } from './deploy/verify/ContractVerifier';
+export {
+  CompilerOptions,
+  ContractVerificationInput,
+  VerificationInput,
+} from './deploy/verify/types';
+export * as verificationUtils from './deploy/verify/utils';
 export {
   Annotated,
   getEvents,
   queryAnnotatedEvents,
   TSContract,
 } from './events';
-
-export {
-  TransparentProxyAddresses,
-  ProxiedContract,
-  ProxyAddresses,
-} from './proxy';
-
-export {
-  Router,
-  RouterContracts,
-  RouterFactories,
-  RouterApp,
-  GasRouterApp,
-} from './router';
-
-export { ChainConnection } from './providers/ChainConnection';
-export { MultiProvider } from './providers/MultiProvider';
-export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
-
-export {
-  HyperlaneCore,
-  CoreContractsMap,
-  DispatchedMessage,
-} from './core/HyperlaneCore';
-export {
-  CoreContracts,
-  coreFactories,
-  ConnectionClientContracts,
-} from './core/contracts';
-export {
-  HyperlaneLifecyleEvent,
-  AnnotatedDispatch,
-  AnnotatedLifecycleEvent,
-} from './core/events';
-export {
-  HyperlaneMessage,
-  HyperlaneStatus,
-  MessageStatus,
-  resolveDomain,
-  resolveId,
-  resolveChains,
-} from './core/message';
-export { TestCoreApp, TestCoreContracts } from './core/TestCoreApp';
-export { TestCoreDeployer } from './core/TestCoreDeployer';
-
 export { InterchainGasCalculator, ParsedMessage } from './gas/calculator';
 export {
   CoinGeckoTokenPriceGetter,
   TokenPriceGetter,
 } from './gas/token-prices';
-
-export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
+export { HyperlaneApp } from './HyperlaneApp';
 export {
-  CheckerViolation,
-  EnvironmentConfig,
-  OwnerViolation,
-  ViolationType,
-} from './deploy/types';
-export { HyperlaneCoreDeployer } from './deploy/core/HyperlaneCoreDeployer';
-export { HyperlaneCoreChecker } from './deploy/core/HyperlaneCoreChecker';
-export {
-  CoreConfig,
-  CoreViolationType,
-  EnrolledValidatorsViolation,
-  MultisigIsmViolation,
-  MultisigIsmViolationType,
-} from './deploy/core/types';
-export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
-export { ProxyViolation } from './deploy/proxy';
-export { HyperlaneRouterDeployer } from './deploy/router/HyperlaneRouterDeployer';
-export { GasRouterDeployer } from './deploy/router/GasRouterDeployer';
-export { HyperlaneRouterChecker } from './deploy/router/HyperlaneRouterChecker';
-export {
-  InterchainAccountDeployer,
-  InterchainQueryDeployer,
-} from './deploy/middleware/deploy';
-export {
-  LiquidityLayerDeployer,
-  BridgeAdapterType,
-  BridgeAdapterConfig,
-  CircleBridgeAdapterConfig,
-  PortalAdapterConfig,
-} from './deploy/middleware/LiquidityLayerRouterDeployer';
-export { LiquidityLayerApp } from './deploy/middleware/LiquidityLayerApp';
-
-export {
-  LiquidityLayerContracts,
   interchainAccountFactories,
   interchainQueryFactories,
-  liquidityLayerFactories,
-} from './middleware';
-export { GasRouterConfig, RouterConfig } from './deploy/router/types';
-export { getTestMultiProvider, getChainToOwnerMap } from './deploy/utils';
-export { ContractVerifier } from './deploy/verify/ContractVerifier';
+} from './middleware/deploy';
 export {
-  ContractVerificationInput,
-  VerificationInput,
-  CompilerOptions,
-} from './deploy/verify/types';
-export * as verificationUtils from './deploy/verify/utils';
-
+  LiquidityLayerContracts,
+  liquidityLayerFactories,
+} from './middleware/liquidity-layer/contracts';
+export { MultiProvider } from './providers/MultiProvider';
+export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
+export {
+  ProxiedContract,
+  ProxyAddresses,
+  TransparentProxyAddresses,
+} from './proxy';
+export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
+export { RouterContracts, RouterFactories } from './router/types';
+export { getTestOwnerConfig } from './test/testUtils';
+export {
+  ChainMap,
+  ChainName,
+  Connection,
+  NameOrDomain,
+  TestChainNames,
+} from './types';
 export { canonizeId, evmId } from './utils/ids';
 export { MultiGeneric } from './utils/MultiGeneric';
 export {
@@ -166,6 +143,6 @@ export {
   fixedToBig,
   mulBigAndFixed,
 } from './utils/number';
-export { objMap, objMapEntries, promiseObjAll, pick } from './utils/objects';
+export { objMap, objMapEntries, pick, promiseObjAll } from './utils/objects';
 export { delay } from './utils/time';
 export { chainMetadataToWagmiChain } from './utils/wagmi';
