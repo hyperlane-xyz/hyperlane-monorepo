@@ -211,7 +211,10 @@ impl Syncer {
         let sorted_messages = sorted_messages
             .into_iter()
             .map(|(message, meta)| HyperlaneMessageWithMeta { message, meta })
-            .filter(|m| self.last_nonce.map_or(true, |last_nonce| m.message.nonce > last_nonce))
+            .filter(|m| {
+                self.last_nonce
+                    .map_or(true, |last_nonce| m.message.nonce > last_nonce)
+            })
             .collect::<Vec<_>>();
 
         debug!(
