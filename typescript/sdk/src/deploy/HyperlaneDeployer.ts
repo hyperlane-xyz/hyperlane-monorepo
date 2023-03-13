@@ -132,7 +132,7 @@ export abstract class HyperlaneDeployer<
     if (cachedContract && !(cachedContract instanceof ProxiedContract)) {
       this.logger(
         `Recovered contract ${contractName} on ${chain}`,
-        cachedContract,
+        cachedContract.address,
       );
       return cachedContract as ReturnType<F['deploy']>;
     }
@@ -374,7 +374,8 @@ export abstract class HyperlaneDeployer<
     ) {
       this.logger(
         `Recovered proxy and implementation ${contractName.toString()} on ${chain}`,
-        cachedProxy,
+        cachedProxy.addresses.proxy,
+        cachedProxy.addresses.implementation,
       );
       return cachedProxy as ProxiedContract<C, TransparentProxyAddresses>;
     }
@@ -392,7 +393,7 @@ export abstract class HyperlaneDeployer<
     if (cachedProxy && cachedProxy.addresses.proxy) {
       this.logger(
         `Recovered proxy ${contractName.toString()} on ${chain}`,
-        cachedProxy,
+        cachedProxy.addresses.proxy,
       );
 
       cachedProxy.addresses.implementation = implementation.address;
