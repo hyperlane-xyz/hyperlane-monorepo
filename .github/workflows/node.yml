@@ -109,6 +109,38 @@ jobs:
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
 
+  test-env:
+    env:
+      DEBUG=hyperlane:*
+
+    runs-on: ubuntu-latest
+    needs: [yarn-build]
+    strategy: 
+      matrix:
+        environment: [testnet3, mainnet2]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: ./*
+          key: ${{ github.sha }}
+
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
+
+      // must pass fork url to use runtime forking
+      - run: anvil --fork-url https://eth.llamarpc.com &
+
+      - name: deploy core against ${{ matrix.environment }} fork
+        run: yarn workspace @hyperlane-xyz/infra run ts-node ./scripts/core.ts -e ${{ matrix.environment }} 
+
+      - name: check ${{ matrix.environment }} deployment
+        run: yarn workspace @hyperlane-xyz/infra run ts-node ./scripts/check-deploy.ts -e ${{ matrix.environment }}
+
+      - name: govern ${{ matrix.environment }} deployment
+        run: yarn workspace @hyperlane-xyz/infra run ts-node ./scripts/govern.ts -e ${{ matrix.environment }}
+
   test-sol:
     env:
       ETHERSCAN_API_KEY: ''
