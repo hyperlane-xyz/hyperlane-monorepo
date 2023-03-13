@@ -1,5 +1,3 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
-
 import {
   buildContracts,
   coreFactories,
