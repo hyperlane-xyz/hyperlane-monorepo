@@ -418,7 +418,7 @@ export const sepolia: ChainMetadata = {
   nativeToken: etherToken,
   publicRpcUrls: [
     { http: 'https://endpoints.omniatech.io/v1/eth/sepolia/public' },
-    { http: 'https://rpc.sepolia.org	' },
+    { http: 'https://rpc.sepolia.org' },
   ],
   blockExplorers: [
     {

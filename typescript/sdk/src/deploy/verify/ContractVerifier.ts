@@ -130,8 +130,8 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
         chain,
         ExplorerApiActions.GETSOURCECODE,
         {
-          address: input.address,
           ...this.compilerOptions,
+          address: input.address,
         },
       );
       return result[0].SourceCode !== '';
