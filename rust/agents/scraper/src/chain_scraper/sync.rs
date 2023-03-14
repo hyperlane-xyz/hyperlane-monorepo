@@ -36,7 +36,7 @@ pub(super) struct Syncer {
     sync_cursor: RateLimitedSyncBlockRangeCursor<Arc<dyn MailboxIndexer>>,
 
     last_valid_range_start_block: u32,
-    last_nonce: u32,
+    last_nonce: Option<u32>,
 }
 
 impl Deref for Syncer {
@@ -82,7 +82,7 @@ impl Syncer {
         let chunk_size = scraper.chunk_size;
         let initial_height = scraper.cursor.height().await as u32;
         let last_valid_range_start_block = initial_height;
-        let last_nonce = scraper.last_message_nonce().await?.unwrap_or(0);
+        let last_nonce = scraper.last_message_nonce().await?;
 
         let sync_cursor = RateLimitedSyncBlockRangeCursor::new(
             scraper.contracts.mailbox_indexer.clone(),
@@ -125,7 +125,7 @@ impl Syncer {
             let extracted = self.scrape_range(from, to).await?;
 
             let validation = validate_message_continuity(
-                Some(self.last_nonce),
+                self.last_nonce,
                 &extracted
                     .sorted_messages
                     .iter()
@@ -137,9 +137,7 @@ impl Syncer {
                     let max_nonce_of_batch = self.record_data(extracted).await?;
 
                     self.cursor.update(from as u64).await;
-                    if let Some(idx) = max_nonce_of_batch {
-                        self.last_nonce = idx;
-                    }
+                    self.last_nonce = max_nonce_of_batch;
                     self.last_valid_range_start_block = from;
                     self.indexed_height.set(to as i64);
                 }
@@ -214,7 +212,10 @@ impl Syncer {
         let sorted_messages = sorted_messages
             .into_iter()
             .map(|(message, meta)| HyperlaneMessageWithMeta { message, meta })
-            .filter(|m| m.message.nonce > self.last_nonce)
+            .filter(|m| {
+                self.last_nonce
+                    .map_or(true, |last_nonce| m.message.nonce > last_nonce)
+            })
             .collect::<Vec<_>>();
 
         debug!(
