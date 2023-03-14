@@ -1,16 +1,43 @@
-import { HyperlaneCore, HyperlaneCoreChecker } from '@hyperlane-xyz/sdk';
+import {
+  HyperlaneCore,
+  HyperlaneCoreChecker,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneCoreGovernor } from '../src/core/govern';
-import { fork, impersonateOwner } from '../src/utils/fork';
+import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import {
+  assertEnvironment,
+  getArgsWithFork,
+  getCoreEnvironmentConfig,
+} from './utils';
 
 async function check() {
-  const environment = await getEnvironment();
+  const argv = await getArgsWithFork().argv;
+  const environment = assertEnvironment(argv.environment);
   const config = getCoreEnvironmentConfig(environment);
 
-  const multiProvider = await config.getMultiProvider();
+  const multiProvider =
+    process.env.CI === 'true'
+      ? new MultiProvider() // use default RPCs
+      : await config.getMultiProvider();
+
+  if (argv.fork) {
+    // TODO: make this more generic
+    const forkChain = environment === 'testnet3' ? 'goerli' : 'ethereum';
+
+    // rotate chain provider to local RPC
+    const provider = useLocalProvider(multiProvider, forkChain);
+
+    // rotate chain signer to impersonated owner
+    const signer = await impersonateAccount(
+      provider,
+      config.core[forkChain].owner,
+    );
+    multiProvider.setSigner(forkChain, signer);
+  }
 
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
@@ -24,13 +51,6 @@ async function check() {
   );
   await coreChecker.check();
   coreChecker.expectViolations({});
-
-  // fork test network and impersonate owner in CI
-  if (process.env.CI == 'true') {
-    const forkChain = environment === 'testnet3' ? 'goerli' : 'ethereum';
-    await fork(forkChain, multiProvider);
-    await impersonateOwner(forkChain, config.core, multiProvider);
-  }
 
   const governor = new HyperlaneCoreGovernor(coreChecker);
   await governor.govern();

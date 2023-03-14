@@ -1,46 +1,31 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
+import { JsonRpcProvider, JsonRpcSigner } from '@ethersproject/providers';
 
-import {
-  ChainMap,
-  ChainName,
-  CoreConfig,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 
-export const resetFork = async (
-  chain: ChainName,
-  multiProvider: MultiProvider,
-) => {
-  const provider = multiProvider.getProvider(chain) as JsonRpcProvider;
+export const fork = async (provider: JsonRpcProvider, url: string) => {
   await provider.send('hardhat_reset', [
     {
       forking: {
-        jsonRpcUrl: multiProvider.getRpcUrl(chain),
+        jsonRpcUrl: url,
       },
     },
   ]);
 };
 
-export const impersonateOwner = async (
-  chain: ChainName,
-  config: ChainMap<CoreConfig>,
-  multiProvider: MultiProvider,
-) => {
-  const provider = multiProvider.getProvider(chain) as JsonRpcProvider;
-  const chainConfig = config[chain];
-  await provider.send('hardhat_impersonateAccount', [chainConfig.owner]);
-  const signer = provider.getSigner(chainConfig.owner);
-  multiProvider.setSigner(chain, signer);
+export const impersonateAccount = async (
+  provider: JsonRpcProvider,
+  account: string,
+): Promise<JsonRpcSigner> => {
+  await provider.send('hardhat_impersonateAccount', [account]);
+  return provider.getSigner(account);
 };
 
-export const fork = async (
-  chain: ChainName,
+export const useLocalProvider = (
   multiProvider: MultiProvider,
-  reset = true,
-) => {
-  const provider = new JsonRpcProvider('http://localhost:8545');
+  chain: ChainName,
+  port = 8545,
+): JsonRpcProvider => {
+  const provider = new JsonRpcProvider(`http://localhost:${port}`);
   multiProvider.setProvider(chain, provider);
-  if (reset) {
-    await resetFork(chain, multiProvider);
-  }
+  return provider;
 };

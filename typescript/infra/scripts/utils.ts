@@ -31,6 +31,13 @@ export function getArgsWithContext() {
     .alias('c', 'context');
 }
 
+export function getArgsWithFork() {
+  return getArgs()
+    .boolean('fork')
+    .describe('fork', 'fork local chain state from RPC url')
+    .alias('f', 'fork');
+}
+
 export function getArgs() {
   return yargs(process.argv.slice(2))
     .describe('environment', 'deploy environment')

@@ -1,19 +1,34 @@
-import { HyperlaneCore, HyperlaneCoreChecker } from '@hyperlane-xyz/sdk';
+import {
+  HyperlaneCore,
+  HyperlaneCoreChecker,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
-import { fork } from '../src/utils/fork';
+import { useLocalProvider } from '../src/utils/fork';
 
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import {
+  assertEnvironment,
+  getArgsWithFork,
+  getCoreEnvironmentConfig,
+} from './utils';
 
 async function check() {
-  const environment = await getEnvironment();
+  const argv = await getArgsWithFork().argv;
+  const environment = assertEnvironment(argv.environment);
   const config = getCoreEnvironmentConfig(environment);
-  const multiProvider = await config.getMultiProvider();
 
-  // fork test network and impersonate owner in CI
-  if (process.env.CI == 'true') {
+  const multiProvider =
+    process.env.CI === 'true'
+      ? new MultiProvider() // use default RPCs
+      : await config.getMultiProvider();
+
+  if (argv.fork) {
+    // TODO: make this more generic
     const forkChain = environment === 'testnet3' ? 'goerli' : 'ethereum';
-    await fork(forkChain, multiProvider, false); // don't reset fork state
+
+    // rotate chain provider to local RPC
+    useLocalProvider(multiProvider, forkChain);
   }
 
   // environments union doesn't work well with typescript
