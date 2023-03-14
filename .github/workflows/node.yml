@@ -130,8 +130,9 @@ jobs:
 
         run: |
           cd typescript/infra
-          yarn ts-node ./scripts/check-deploy.ts -e ${{ matrix.environment }}
+          DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e ${{ matrix.environment }}
           anvil --fork-url https://eth.llamarpc.com &
+          sleep 10
           DEBUG=hyperlane:* yarn ts-node ./scripts/core.ts -e ${{ matrix.environment }} --fork
           DEBUG=hyperlane:* yarn ts-node ./scripts/govern.ts -e ${{ matrix.environment }} --fork
           DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e ${{ matrix.environment }} --fork
