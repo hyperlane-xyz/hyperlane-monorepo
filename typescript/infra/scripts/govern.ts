@@ -56,4 +56,4 @@ async function check() {
   await governor.govern();
 }
 
-check().then(console.log).catch(console.error);
+check().then().catch(console.error);
