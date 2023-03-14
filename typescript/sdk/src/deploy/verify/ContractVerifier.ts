@@ -156,6 +156,7 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
 
     if (await this.isAlreadyVerified(chain, input)) {
       this.logger(`Contract ${input.name} already verified on ${chain}`);
+      // There is a rate limit of 5 requests per second
       await sleep(200);
       return;
     }
