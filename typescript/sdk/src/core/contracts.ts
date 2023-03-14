@@ -25,7 +25,7 @@ export type CoreContracts = {
 export type CoreAddresses = {
   mailbox: types.Address | TransparentProxyAddresses;
   multisigIsm: types.Address;
-  proxyAdmin?: types.Address;
+  proxyAdmin: types.Address;
   validatorAnnounce: types.Address;
 };
 

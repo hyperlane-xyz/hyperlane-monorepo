@@ -593,9 +593,10 @@ export class MultiProvider {
    */
   static createTestMultiProvider(
     params: { signer?: Signer; provider?: Provider } = {},
+    chains: ChainName[] = TestChains,
   ): MultiProvider {
     const { signer, provider } = params;
-    const chainMetadata = pick(defaultChainMetadata, TestChains);
+    const chainMetadata = pick(defaultChainMetadata, chains);
     const mp = new MultiProvider(chainMetadata);
     if (signer) {
       mp.setSharedSigner(signer);
@@ -603,7 +604,7 @@ export class MultiProvider {
     const _provider = provider || signer?.provider;
     if (_provider) {
       const providerMap: ChainMap<Provider> = {};
-      TestChains.forEach((t) => (providerMap[t] = _provider));
+      chains.forEach((t) => (providerMap[t] = _provider));
       mp.setProviders(providerMap);
     }
     return mp;

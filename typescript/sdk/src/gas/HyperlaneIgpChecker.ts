@@ -1,12 +1,13 @@
 import { BigNumber, utils as ethersUtils } from 'ethers';
 
-import { utils } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { ChainName } from '../types';
 
 import { HyperlaneIgp } from './HyperlaneIgp';
 import {
+  GasOracleContractType,
   IgpBeneficiaryViolation,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
@@ -178,10 +179,9 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     }
   }
 
-  /*
   getGasOracleAddress(local: ChainName, remote: ChainName): types.Address {
     const config = this.configMap[local];
-    const gasOracleType = config.igp.gasOracles[remote];
+    const gasOracleType = config.gasOracleType[remote];
     if (!gasOracleType) {
       throw Error(
         `Expected gas oracle type for local ${local} and remote ${remote}`,
@@ -195,5 +195,4 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         throw Error(`Unsupported gas oracle type ${gasOracleType}`);
     }
   }
-  */
 }

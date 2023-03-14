@@ -2,16 +2,7 @@ import { Mailbox, MultisigIsm } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import type { CheckerViolation } from '../deploy/types';
-import { ChainMap, ChainName } from '../types';
-
-export enum GasOracleContractType {
-  StorageGasOracle = 'StorageGasOracle',
-}
-
-export type InterchainGasPaymasterConfig = {
-  beneficiary: types.Address;
-  gasOracles: ChainMap<GasOracleContractType>;
-};
+import { ChainName } from '../types';
 
 export type MultisigIsmConfig = {
   validators: Array<types.Address>;

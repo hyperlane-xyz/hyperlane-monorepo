@@ -2,7 +2,7 @@ import { TestRouter__factory } from '@hyperlane-xyz/core';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
 import { chainMetadata } from '../../consts/chainMetadata';
-import { Chains, TestChains } from '../../consts/chains';
+import { Chains } from '../../consts/chains';
 import { HyperlaneCore } from '../../core/HyperlaneCore';
 import { HyperlaneDeployer } from '../../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../../providers/MultiProvider';
@@ -16,12 +16,14 @@ import {
 import { ChainMap, ChainName } from '../../types';
 import { objMap, pick, promiseObjAll } from '../../utils/objects';
 
+/*
 export const fullTestEnvConfigs = pick(chainMetadata, TestChains);
 
 export const subsetTestConfigs = pick(chainMetadata, [
   Chains.test1,
   Chains.test2,
 ]);
+*/
 
 export const alfajoresChainConfig = pick(chainMetadata, [Chains.alfajores]);
 

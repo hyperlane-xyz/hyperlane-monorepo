@@ -54,6 +54,18 @@ function getFactory(
   return factories[key];
 }
 
+// TODO: Support for recursive filtering
+export function filterContracts(
+  addressOrObject: HyperlaneAddresses,
+  factories: HyperlaneFactories,
+): HyperlaneAddresses {
+  return Object.fromEntries(
+    Object.entries(addressOrObject).filter(([k, v]) =>
+      Object.keys(factories).includes(k),
+    ),
+  );
+}
+
 export function buildContracts(
   addressOrObject: HyperlaneAddresses,
   factories: HyperlaneFactories,

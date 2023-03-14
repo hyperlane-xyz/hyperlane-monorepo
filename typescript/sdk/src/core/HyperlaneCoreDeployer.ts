@@ -4,14 +4,12 @@ import { ethers } from 'ethers';
 import {
   Mailbox,
   MultisigIsm,
-  OverheadIgp,
   Ownable,
   ProxyAdmin,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
 
-import multisigIsmVerifyCosts from '../consts/multisigIsmVerifyCosts.json';
 import { DeployOptions, HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
@@ -27,7 +25,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   typeof coreFactories
 > {
   startingBlockNumbers: ChainMap<number | undefined>;
-  gasOverhead: ChainMap<OverheadIgp.DomainConfigStruct>;
 
   constructor(
     multiProvider: MultiProvider,
@@ -36,20 +33,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   ) {
     super(multiProvider, configMap, factoriesOverride, {
       logger: debug('hyperlane:CoreDeployer'),
-    });
-    this.gasOverhead = objMap(configMap, (chain, config) => {
-      const { validators, threshold } = config.multisigIsm;
-      const verifyCost =
-        // @ts-ignore
-        multisigIsmVerifyCosts[`${validators.length}`][`${threshold}`];
-      if (!verifyCost)
-        throw new Error(
-          `Unknown verification cost for ${threshold} of ${validators.length}`,
-        );
-      return {
-        domain: multiProvider.getDomainId(chain),
-        gasOverhead: verifyCost,
-      };
     });
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }

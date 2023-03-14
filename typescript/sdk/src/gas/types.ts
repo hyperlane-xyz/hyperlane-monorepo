@@ -14,18 +14,12 @@ export type IgpConfig = {
   owner: types.Address;
   proxyAdmin: types.Address;
   beneficiary: types.Address;
+  gasOracleType: ChainMap<GasOracleContractType>;
 };
 
 export type OverheadIgpConfig = IgpConfig & {
   overhead: ChainMap<number>;
 };
-
-/*
-export type InterchainGasPaymasterConfig = {
-  beneficiary: types.Address;
-  gasOracles: ChainMap<GasOracleContractType>;
-};
-*/
 
 export enum IgpViolationType {
   Beneficiary = 'Beneficiary',

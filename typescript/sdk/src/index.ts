@@ -51,7 +51,6 @@ export {
   CoreConfig,
   CoreViolationType,
   EnrolledValidatorsViolation,
-  GasOracleContractType,
   MultisigIsmViolation,
   MultisigIsmViolationType,
 } from './core/types';
@@ -85,7 +84,6 @@ export {
   OwnerViolation,
   ViolationType,
 } from './deploy/types';
-export { getChainToOwnerMap } from './deploy/utils';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
 export {
   Annotated,

@@ -59,7 +59,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     );
 
     // Set the gas oracles
-
     const configChains = Object.keys(this.configMap);
     const remotes = this.multiProvider
       .intersect(configChains, false)
@@ -87,7 +86,6 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         ),
       );
     }
-
     return igp;
   }
 
@@ -120,11 +118,14 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     // Only set gas overhead configs if they differ from what's on chain
     const configs: OverheadIgp.DomainConfigStruct[] = [];
     for (const remote of remotes) {
+      const remoteDomain = this.multiProvider.getDomainId(remote);
       const gasOverhead = this.configMap[chain].overhead[remote];
       const existingOverhead =
-        await overheadInterchainGasPaymaster.destinationGasOverhead(remote);
+        await overheadInterchainGasPaymaster.destinationGasOverhead(
+          remoteDomain,
+        );
       if (!existingOverhead.eq(gasOverhead)) {
-        configs.push({ domain: remote, gasOverhead });
+        configs.push({ domain: remoteDomain, gasOverhead });
       }
     }
 

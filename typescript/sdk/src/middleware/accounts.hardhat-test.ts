@@ -13,7 +13,7 @@ import { TestCoreApp } from '../core/TestCoreApp';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
 import { MultiProvider } from '../providers/MultiProvider';
 import { RouterConfig } from '../router/types';
-import { createRouterConfigMap } from '../test/testUtils';
+import { deployTestIgpsAndGetRouterConfig } from '../test/testUtils';
 import { ChainMap } from '../types';
 import { objMap, promiseObjAll } from '../utils/objects';
 
@@ -41,13 +41,11 @@ describe('InterchainAccountRouter', async () => {
 
     const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
-    const igpDeployer = new TestIgpDeployer(multiProvider);
-    const igpContractsMaps = await igpDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = createRouterConfigMap(
+    config = await deployTestIgpsAndGetRouterConfig(
+      multiProvider,
       signer.address,
       coreContractsMaps,
-      igpContractsMaps,
     );
 
     config.test1.interchainSecurityModule =

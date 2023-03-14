@@ -8,33 +8,13 @@ import {
 } from '@hyperlane-xyz/core';
 
 import { MultiProvider } from '../providers/MultiProvider';
+import { testCoreConfig } from '../test/testUtils';
 import { ChainMap, ChainName } from '../types';
 
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer';
 import { TestCoreApp } from './TestCoreApp';
 import { coreFactories } from './contracts';
 import { CoreConfig } from './types';
-
-const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
-
-// dummy config as TestInbox and TestOutbox do not use deployed ISM
-const testConfig: CoreConfig = {
-  owner: nonZeroAddress,
-  multisigIsm: {
-    validators: [nonZeroAddress],
-    threshold: 1,
-  },
-  /*
-  igp: {
-    beneficiary: nonZeroAddress,
-    gasOracles: {
-      test1: GasOracleContractType.StorageGasOracle,
-      test2: GasOracleContractType.StorageGasOracle,
-      test3: GasOracleContractType.StorageGasOracle,
-    },
-  },
-  */
-};
 
 const testCoreFactories = {
   ...coreFactories,
@@ -50,9 +30,9 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
   ) {
     // Note that the multisig module configs are unused.
     const configs = configMap ?? {
-      test1: testConfig,
-      test2: testConfig,
-      test3: testConfig,
+      test1: testCoreConfig,
+      test2: testCoreConfig,
+      test3: testCoreConfig,
     };
 
     super(multiProvider, configs, testCoreFactories);

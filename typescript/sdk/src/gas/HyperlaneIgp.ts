@@ -5,7 +5,7 @@ import { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { hyperlaneEnvironments } from '../consts/environments';
-import { buildContracts } from '../contracts';
+import { buildContracts, filterContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 import { pick } from '../utils/objects';
@@ -31,19 +31,19 @@ export class HyperlaneIgp extends HyperlaneApp<IgpContracts> {
     env: Env,
     multiProvider: MultiProvider,
   ): HyperlaneIgp {
-    const addresses = hyperlaneEnvironments[env];
-    if (!addresses) {
+    const envAddresses = hyperlaneEnvironments[env];
+    if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
 
-    const envChains = Object.keys(addresses);
+    const envChains = Object.keys(envAddresses);
 
     const { intersection, multiProvider: intersectionProvider } =
       multiProvider.intersect(envChains, true);
 
-    const intersectionAddresses = pick(addresses, intersection);
+    const intersectionAddresses = pick(envAddresses, intersection);
     const contractsMap = buildContracts(
-      intersectionAddresses,
+      filterContracts(intersectionAddresses, igpFactories),
       igpFactories,
     ) as IgpContractsMap;
 

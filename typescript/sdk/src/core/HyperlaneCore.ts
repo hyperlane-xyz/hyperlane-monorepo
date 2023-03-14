@@ -5,7 +5,7 @@ import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { hyperlaneEnvironments } from '../consts/environments';
-import { buildContracts } from '../contracts';
+import { buildContracts, filterContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 import { pick } from '../utils/objects';
@@ -37,19 +37,19 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     env: Env,
     multiProvider: MultiProvider,
   ): HyperlaneCore {
-    const envConfig = hyperlaneEnvironments[env];
-    if (!envConfig) {
-      throw new Error(`No default env config found for ${env}`);
+    const envAddresses = hyperlaneEnvironments[env];
+    if (!envAddresses) {
+      throw new Error(`No addresses found for ${env}`);
     }
 
-    const envChains = Object.keys(envConfig);
+    const envChains = Object.keys(envAddresses);
 
     const { intersection, multiProvider: intersectionProvider } =
       multiProvider.intersect(envChains, true);
 
-    const intersectionConfig = pick(envConfig, intersection);
+    const intersectionAddresses = pick(envAddresses, intersection);
     const contractsMap = buildContracts(
-      intersectionConfig,
+      filterContracts(intersectionAddresses, coreFactories),
       coreFactories,
     ) as CoreContractsMap;
 

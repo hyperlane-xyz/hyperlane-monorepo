@@ -1,21 +1,15 @@
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 
-import { ChainMetadata } from '../../consts/chainMetadata';
+import { TestChains } from '../../consts/chains';
 import { TestCoreApp } from '../../core/TestCoreApp';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer';
-import { getChainToOwnerMap } from '../../deploy/utils';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { RouterConfig, RouterContracts } from '../../router/types';
-import { ChainMap } from '../../types';
+import { ChainMap, ChainName } from '../../types';
+import { deployTestIgpsAndGetRouterConfig, testCoreConfig } from '../testUtils';
 
-import {
-  EnvSubsetApp,
-  EnvSubsetChecker,
-  EnvSubsetDeployer,
-  fullTestEnvConfigs,
-  subsetTestConfigs,
-} from './app';
+import { EnvSubsetApp, EnvSubsetChecker, EnvSubsetDeployer } from './app';
 
 // Tests deploying the basic EnvSubsetApp to a local hardhat-based test env
 describe('deploy app for full test env', async () => {
@@ -26,7 +20,7 @@ describe('deploy app for full test env', async () => {
   let app: EnvSubsetApp;
 
   before(async () => {
-    const testEnv = await initTestEnv(fullTestEnvConfigs);
+    const testEnv = await initTestEnv(TestChains);
     multiProvider = testEnv.multiProvider;
     config = testEnv.config;
     deployer = testEnv.deployer;
@@ -56,13 +50,10 @@ describe('deploy app to test env subset', async () => {
   let app: EnvSubsetApp;
 
   before(async () => {
-    const testEnv = await initTestEnv(subsetTestConfigs);
-    multiProvider = testEnv.multiProvider;
-    config = {
-      test1: testEnv.config.test1,
-      test2: testEnv.config.test2,
-    };
-    deployer = testEnv.deployer;
+    ({ multiProvider, config, deployer } = await initTestEnv([
+      'test1',
+      'test2',
+    ]));
   });
 
   it('deploys', async () => {
@@ -80,15 +71,22 @@ describe('deploy app to test env subset', async () => {
   });
 });
 
-async function initTestEnv(environmentConfig: ChainMap<ChainMetadata>) {
+async function initTestEnv(chains: ChainName[]) {
   const [signer] = await ethers.getSigners();
-  const multiProvider = MultiProvider.createTestMultiProvider({ signer });
-
-  const coreDeployer = new TestCoreDeployer(multiProvider);
+  const multiProvider = MultiProvider.createTestMultiProvider(
+    { signer },
+    chains,
+  );
+  const coreConfig = Object.fromEntries(
+    chains.map((chain) => [chain, testCoreConfig]),
+  );
+  const coreDeployer = new TestCoreDeployer(multiProvider, coreConfig);
   const coreContractsMaps = await coreDeployer.deploy();
   const core = new TestCoreApp(coreContractsMaps, multiProvider);
-  const config = core.extendWithConnectionClientConfig(
-    getChainToOwnerMap(environmentConfig, signer.address),
+  const config = await deployTestIgpsAndGetRouterConfig(
+    multiProvider,
+    signer.address,
+    coreContractsMaps,
   );
   const deployer = new EnvSubsetDeployer(multiProvider, config, core);
   return { multiProvider, config, deployer };
