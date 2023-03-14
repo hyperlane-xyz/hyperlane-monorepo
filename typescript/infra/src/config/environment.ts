@@ -3,8 +3,8 @@ import {
   ChainMetadata,
   ChainName,
   CoreConfig,
-  IgpConfig,
   MultiProvider,
+  OverheadIgpConfig,
 } from '@hyperlane-xyz/sdk';
 import { CoreEnvironment } from '@hyperlane-xyz/sdk/dist/core/HyperlaneCore';
 import { types } from '@hyperlane-xyz/utils';
@@ -33,7 +33,7 @@ export type CoreEnvironmentConfig = {
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, AgentConfig>>;
   core: ChainMap<CoreConfig>;
-  igp: ChainMap<IgpConfig>;
+  igp: ChainMap<OverheadIgpConfig>;
   owners: ChainMap<types.Address>;
   infra: InfrastructureConfig;
   getMultiProvider: (

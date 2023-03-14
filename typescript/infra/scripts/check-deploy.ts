@@ -1,28 +1,49 @@
-import { HyperlaneCore, HyperlaneCoreChecker } from '@hyperlane-xyz/sdk';
+import {
+  HyperlaneAppChecker,
+  HyperlaneCore,
+  HyperlaneCoreChecker,
+  HyperlaneIgp,
+  HyperlaneIgpChecker,
+} from '@hyperlane-xyz/sdk';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
 
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import { getArgs, getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function check() {
+  const { module } = await getArgs()
+    .string('module')
+    .choices('module', ['core', 'igp'])
+    .demandOption('module')
+    .alias('m', 'module').argv;
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
+  let checker: HyperlaneAppChecker<any, any>;
+  switch (module) {
+    case 'core':
+      const core = HyperlaneCore.fromEnvironment(
+        deployEnvToSdkEnv[environment],
+        multiProvider,
+      );
+      checker = new HyperlaneCoreChecker(multiProvider, core, config.core);
+      break;
+    case 'igp':
+      const igp = HyperlaneIgp.fromEnvironment(
+        deployEnvToSdkEnv[environment],
+        multiProvider,
+      );
+      checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
+      break;
+    default:
+      throw new Error('Unknown module type');
+  }
   // environments union doesn't work well with typescript
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
-  const coreChecker = new HyperlaneCoreChecker(
-    multiProvider,
-    core,
-    config.core,
-  );
-  await coreChecker.check();
+  await checker.check();
 
-  if (coreChecker.violations.length > 0) {
-    console.table(coreChecker.violations, [
+  if (checker.violations.length > 0) {
+    console.table(checker.violations, [
       'chain',
       'remote',
       'name',
@@ -32,7 +53,7 @@ async function check() {
       'expected',
     ]);
     throw new Error(
-      `Checking core deploy yielded ${coreChecker.violations.length} violations`,
+      `Checking ${module} deploy yielded ${checker.violations.length} violations`,
     );
   } else {
     console.info('CoreChecker found no violations');
