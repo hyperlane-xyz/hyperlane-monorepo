@@ -19,9 +19,10 @@ const TRANSPARENT_PROXY_BYTECODE_HASH =
   '0x4dde3d0906b6492bf1d4947f667afe8d53c8899f1d8788cabafd082938dceb2d';
 const INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH =
   '0xe995bcd732f4861606036357edb2a4d4c3e9b8d7e599fe548790ac1cf26888f8';
+const OWNER_INITIALIZABLE_INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH =
+  '0xd2c5b00ac2d058117491d581d63c3c4fcf6aeb2667c6cc0c7caed359c9eebea1';
 const OVERHEAD_IGP_BYTECODE_HASH =
   '0x3cfed1f24f1e9b28a76d5a8c61696a04f7bc474404b823a2fcc210ea52346252';
-
 export class HyperlaneIgpChecker extends HyperlaneAppChecker<
   HyperlaneIgp,
   OverheadIgpConfig
@@ -49,25 +50,27 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 
   async checkBytecodes(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
-
     await this.checkBytecode(
       chain,
       'InterchainGasPaymaster proxy',
       contracts.interchainGasPaymaster.address,
-      TRANSPARENT_PROXY_BYTECODE_HASH,
+      [TRANSPARENT_PROXY_BYTECODE_HASH],
     );
     await this.checkBytecode(
       chain,
       'InterchainGasPaymaster implementation',
       contracts.interchainGasPaymaster.addresses.implementation,
-      INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+      [
+        INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+        OWNER_INITIALIZABLE_INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+      ],
     );
 
     await this.checkBytecode(
       chain,
       'OverheadIGP',
       contracts.defaultIsmInterchainGasPaymaster.address,
-      OVERHEAD_IGP_BYTECODE_HASH,
+      [OVERHEAD_IGP_BYTECODE_HASH],
       (_) =>
         // Remove the address of the wrapped ISM from the bytecode
         _.replaceAll(

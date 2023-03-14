@@ -48,6 +48,21 @@ export const multisigIsmConfig: ChainMap<MultisigIsmConfig> = {
       '0x0bba4043ff242f8bf3f39bafa8930a84d644d947',
     ],
   },
+  sepolia: {
+    owner: DEPLOYER_ADDRESS,
+    multisigIsm: {
+      threshold: 2,
+      validators: [
+        '0xbc748ee311f5f2d1975d61cdf531755ce8ce3066',
+        '0xc4233b2bfe5aec08964a94b403052abb3eafcf07',
+        '0x6b36286c19f5c10bdc139ea9ee7f82287303f61d',
+      ],
+    },
+    igp: {
+      beneficiary: DEPLOYER_ADDRESS,
+      gasOracles: getGasOracles('sepolia'),
+    },
+  },
   moonbasealpha: {
     threshold: 2,
     validators: [

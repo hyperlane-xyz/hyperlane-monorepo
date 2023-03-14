@@ -19,6 +19,8 @@ import {
 
 const MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH =
   '0x29b7294ab3ad2e8587e5cce0e2289ce65e12a2ea2f1e7ab34a05e7737616f457';
+const MAILBOX_WITHOUT_LOCAL_DOMAIN_NONZERO_PAUSE_BYTE_CODE_HASH =
+  '0x4e73e34c0982b93eebb4ac4889e9e4e1611f7c24feacf016c3a13e389f146d9c';
 const TRANSPARENT_PROXY_BYTECODE_HASH =
   '0x4dde3d0906b6492bf1d4947f667afe8d53c8899f1d8788cabafd082938dceb2d';
 const MULTISIG_ISM_BYTECODE_HASH =
@@ -88,7 +90,10 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       chain,
       'Mailbox implementation',
       contracts.mailbox.addresses.implementation,
-      MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
+      [
+        MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
+        MAILBOX_WITHOUT_LOCAL_DOMAIN_NONZERO_PAUSE_BYTE_CODE_HASH,
+      ],
       (_) =>
         // This is obviously super janky but basically we are searching
         //  for the ocurrences of localDomain in the bytecode and remove
@@ -107,19 +112,19 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       chain,
       'Mailbox proxy',
       contracts.mailbox.address,
-      TRANSPARENT_PROXY_BYTECODE_HASH,
+      [TRANSPARENT_PROXY_BYTECODE_HASH],
     );
     await this.checkBytecode(
       chain,
       'ProxyAdmin',
       contracts.proxyAdmin.address,
-      PROXY_ADMIN_BYTECODE_HASH,
+      [PROXY_ADMIN_BYTECODE_HASH],
     );
     await this.checkBytecode(
       chain,
       'MultisigIsm implementation',
       contracts.multisigIsm.address,
-      MULTISIG_ISM_BYTECODE_HASH,
+      [MULTISIG_ISM_BYTECODE_HASH],
     );
   }
 
