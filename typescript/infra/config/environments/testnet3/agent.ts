@@ -29,7 +29,7 @@ export const hyperlane: AgentConfig = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '1cbe5fd-20230309-202035',
+    tag: '0b10247-20230313-205739',
   },
   aws: {
     region: 'us-east-1',
