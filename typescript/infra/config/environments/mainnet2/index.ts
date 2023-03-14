@@ -12,6 +12,7 @@ import { storageGasOracleConfig } from './gas-oracle';
 import { helloWorld } from './helloworld';
 import { igp } from './igp';
 import { infrastructure } from './infrastructure';
+import { owners } from './owners';
 
 export const environment: CoreEnvironmentConfig = {
   environment: environmentName,
@@ -32,6 +33,7 @@ export const environment: CoreEnvironmentConfig = {
   agents,
   core,
   igp,
+  owners,
   infra: infrastructure,
   helloWorld,
   keyFunderConfig,

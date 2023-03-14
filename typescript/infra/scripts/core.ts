@@ -10,8 +10,7 @@ import { readJSON, writeJSON } from '../src/utils/utils';
 
 import {
   getCoreContractsSdkFilepath,
-  getCoreEnvironmentConfig,
-  getCoreRustDirectory,
+  getCoreEnvironmentConfig, // getCoreRustDirectory,
   getCoreVerificationDirectory,
   getEnvironment,
 } from './utils';
@@ -69,7 +68,7 @@ async function main() {
     deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
   );
 
-  deployer.writeRustConfigs(getCoreRustDirectory());
+  //deployer.writeRustConfigs(getCoreRustDirectory());
 }
 
 main().then(console.log).catch(console.error);

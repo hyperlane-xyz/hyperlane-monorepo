@@ -9,15 +9,23 @@ import {
   MultiProvider,
   ProxiedContract,
   TransparentProxyAddresses,
-  chainMetadata,
-  objMap,
+  /*
+chainMetadata,
+objMap,
+*/
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
-import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';
+import {
+  DeployEnvironment,
+  /*RustChainSetup, RustConfig*/
+} from '../config';
+
+/*
 import { ConnectionType } from '../config/agent';
 import { deployEnvToSdkEnv } from '../config/environment';
 import { writeJSON } from '../utils/utils';
+*/
 
 export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   environment: DeployEnvironment;
@@ -63,6 +71,7 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
     return super.deployValidatorAnnounce(chain, mailboxAddress, deployOpts);
   }
 
+  /*
   writeRustConfigs(directory: string) {
     const rustConfig: RustConfig = {
       chains: {},
@@ -115,4 +124,5 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
       rustConfig,
     );
   }
+  */
 }

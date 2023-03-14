@@ -64,6 +64,7 @@ export {
   IgpViolationType,
   OverheadIgpConfig,
 } from './gas/types';
+export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
 export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
 export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';

@@ -13,6 +13,7 @@ import { helloWorld } from './helloworld';
 import { igp } from './igp';
 import { infrastructure } from './infrastructure';
 import { liquidityLayerRelayerConfig } from './middleware';
+import { owners } from './owners';
 
 export const environment: CoreEnvironmentConfig = {
   environment: environmentName,
@@ -35,6 +36,7 @@ export const environment: CoreEnvironmentConfig = {
   igp,
   infra: infrastructure,
   helloWorld,
+  owners,
   keyFunderConfig,
   liquidityLayerRelayerConfig,
   storageGasOracleConfig,

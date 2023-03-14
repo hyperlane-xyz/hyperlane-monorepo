@@ -50,7 +50,7 @@ describe('core', async () => {
     const base = './test/outputs/core';
     writeJSON(base, 'contracts.json', serializeContracts(contracts));
     writeJSON(base, 'verification.json', deployer.verificationInputs);
-    deployer.writeRustConfigs(base);
+    // deployer.writeRustConfigs(base);
   });
 
   describe('failure modes', async () => {

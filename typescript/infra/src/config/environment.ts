@@ -7,6 +7,7 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { CoreEnvironment } from '@hyperlane-xyz/sdk/dist/core/HyperlaneCore';
+import { types } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
@@ -33,6 +34,7 @@ export type CoreEnvironmentConfig = {
   agents: Partial<Record<Contexts, AgentConfig>>;
   core: ChainMap<CoreConfig>;
   igp: ChainMap<IgpConfig>;
+  owners: ChainMap<types.Address>;
   infra: InfrastructureConfig;
   getMultiProvider: (
     context?: Contexts,
