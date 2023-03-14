@@ -196,12 +196,7 @@ impl SqlChainScraper {
             ))
             .await?;
 
-        Ok(
-            txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithId {
-                hash,
-                id: txn_id,
-            }),
-        )
+        Ok(txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithId { hash, id: txn_id }))
     }
 
     /// Takes a list of transaction hashes and the block id the transaction is
