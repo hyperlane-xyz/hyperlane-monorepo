@@ -12,6 +12,7 @@ export const testnetConfigs: ChainMap<ChainMetadata> = {
   },
   bsctestnet: chainMetadata.bsctestnet,
   goerli: chainMetadata.goerli,
+  sepolia: chainMetadata.sepolia,
   moonbasealpha: chainMetadata.moonbasealpha,
   optimismgoerli: chainMetadata.optimismgoerli,
   arbitrumgoerli: chainMetadata.arbitrumgoerli,

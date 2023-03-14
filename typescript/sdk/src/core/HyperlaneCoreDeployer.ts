@@ -78,7 +78,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     // Set the gas oracles
 
-    const remotes = this.multiProvider.getRemoteChains(chain);
+    const configChains = Object.keys(this.configMap);
+    const remotes = this.multiProvider
+      .intersect(configChains, false)
+      .multiProvider.getRemoteChains(chain);
 
     const gasOracleConfigsToSet: InterchainGasPaymaster.GasOracleConfigStruct[] =
       [];

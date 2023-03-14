@@ -75,6 +75,7 @@ impl From<&'_ Address> for H160 {
 pub enum KnownHyperlaneDomain {
     Ethereum = 1,
     Goerli = 5,
+    Sepolia = 11155111,
 
     Polygon = 137,
     Mumbai = 80001,
@@ -191,7 +192,7 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Zksync2Testnet
+                Alfajores, MoonbaseAlpha, Zksync2Testnet, Sepolia
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1],
         })
@@ -202,7 +203,7 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             HyperlaneDomainProtocol::Ethereum: [
-                Ethereum, Goerli, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
+                Ethereum, Goerli, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
                 Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
                 Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
             ],
