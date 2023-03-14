@@ -151,6 +151,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "sepolia",
+        token: "ETH",
+        domain: 11155111,
+        chain_id: 11155111,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "test1",
         token: "ETH",
         domain: 13371,
