@@ -224,19 +224,27 @@ contract InterchainAccountRouter is
      * @param _sender The sender of the interchain message
      * @param _message The InterchainAccountMessage containing the account
      * owner, ISM, and sequence of calls to be relayed
+     * @dev Does not need to be onlyRemoteRouter, as this application is designed
+     * to receive messages from untrusted remote contracts.
      */
     function handle(
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
     ) external onlyMailbox {
+        (
+            bytes32 _owner,
+            bytes32 _ism,
+            CallLib.Call[] memory _calls
+        ) = InterchainAccountMessage.decode(_message);
+
         OwnableMulticall _interchainAccount = getDeployedInterchainAccount(
             _origin,
             _sender,
-            InterchainAccountMessage.owner(_message),
-            InterchainAccountMessage.ismAddress(_message)
+            _owner,
+            TypeCasts.bytes32ToAddress(_ism)
         );
-        _interchainAccount.proxyCalls(InterchainAccountMessage.calls(_message));
+        _interchainAccount.proxyCalls(_calls);
     }
 
     /**
@@ -339,7 +347,7 @@ contract InterchainAccountRouter is
         bytes32 _ism,
         CallLib.Call[] calldata _calls
     ) public returns (bytes32) {
-        bytes memory _body = InterchainAccountMessage.format(
+        bytes memory _body = InterchainAccountMessage.encode(
             msg.sender,
             _ism,
             _calls
@@ -465,7 +473,7 @@ contract InterchainAccountRouter is
         bytes32 _owner,
         address _ism
     ) private pure returns (bytes32) {
-        return bytes32(abi.encodePacked(_origin, _router, _owner, _ism));
+        return keccak256(abi.encodePacked(_origin, _router, _owner, _ism));
     }
 
     /**

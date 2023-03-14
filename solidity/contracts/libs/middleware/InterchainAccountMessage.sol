@@ -25,12 +25,12 @@ library InterchainAccountMessage {
      * @param _calls The sequence of calls to make
      * @return Formatted message body
      */
-    function format(
+    function encode(
         bytes32 _owner,
         bytes32 _ism,
         CallLib.Call[] calldata _calls
     ) internal pure returns (bytes memory) {
-        return abi.encodePacked(_owner, _ism, abi.encode(_calls));
+        return abi.encode(_owner, _ism, _calls);
     }
 
     /**
@@ -41,12 +41,12 @@ library InterchainAccountMessage {
      * @param _calls The sequence of calls to make
      * @return Formatted message body
      */
-    function format(
+    function encode(
         address _owner,
         bytes32 _ism,
         CallLib.Call[] calldata _calls
     ) internal pure returns (bytes memory) {
-        return format(TypeCasts.addressToBytes32(_owner), _ism, _calls);
+        return encode(TypeCasts.addressToBytes32(_owner), _ism, _calls);
     }
 
     /**
@@ -85,11 +85,15 @@ library InterchainAccountMessage {
      * @param _message The interchain account message
      * @return The array of calls
      */
-    function calls(bytes calldata _message)
+    function decode(bytes calldata _message)
         internal
         pure
-        returns (CallLib.Call[] memory)
+        returns (
+            bytes32,
+            bytes32,
+            CallLib.Call[] memory
+        )
     {
-        return abi.decode(_message[CALLS_OFFSET:], (CallLib.Call[]));
+        return abi.decode(_message, (bytes32, bytes32, CallLib.Call[]));
     }
 }

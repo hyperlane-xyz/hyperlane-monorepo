@@ -49,7 +49,7 @@ library InterchainQueryMessage {
      * response callbacks
      * @return Formatted message body
      */
-    function format(
+    function encode(
         bytes32 _sender,
         CallLib.StaticCallWithCallback[] calldata _calls
     ) internal pure returns (bytes memory) {
@@ -80,7 +80,7 @@ library InterchainQueryMessage {
      * @param _calls The sequence of callbacks to make
      * @return Formatted message body
      */
-    function format(bytes32 _sender, bytes[] memory _calls)
+    function encode(bytes32 _sender, bytes[] memory _calls)
         internal
         pure
         returns (bytes memory)

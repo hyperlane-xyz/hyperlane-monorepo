@@ -81,7 +81,7 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
         emit QueryDispatched(_destinationDomain, msg.sender);
         messageId = _dispatch(
             _destinationDomain,
-            InterchainQueryMessage.format(msg.sender.addressToBytes32(), calls)
+            InterchainQueryMessage.encode(msg.sender.addressToBytes32(), calls)
         );
     }
 
@@ -108,7 +108,7 @@ contract InterchainQueryRouter is Router, IInterchainQueryRouter {
             emit QueryExecuted(_origin, sender);
             _dispatch(
                 _origin,
-                InterchainQueryMessage.format(sender, callbacks)
+                InterchainQueryMessage.encode(sender, callbacks)
             );
         } else if (messageType == InterchainQueryMessage.MessageType.RESPONSE) {
             address senderAddress = sender.bytes32ToAddress();
