@@ -166,8 +166,8 @@ contract InterchainAccountRouterTest is Test {
         vm.assume(data != bytes32(0));
         CallLib.Call memory call = CallLib.Call(
             TypeCasts.addressToBytes32(address(target)),
-            abi.encodeCall(target.set, (data)),
-            0
+            0,
+            abi.encodeCall(target.set, (data))
         );
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;

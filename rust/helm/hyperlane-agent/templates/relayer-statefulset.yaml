@@ -56,9 +56,13 @@ spec:
             name: {{ include "agent-common.fullname" . }}-relayer-secret
         env:
 {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.relayer.config "agent_name" "relayer") | indent 10 }}
+{{- $relayerChainNames := list }}
           {{- range .Values.hyperlane.relayerChains }}
 {{- include "agent-common.config-env-vars" (dict "config" .signer "agent_name" "base" "key_name_prefix" (printf "CHAINS_%s_SIGNER_" (.name | upper))) | indent 10 }}
+{{- $relayerChainNames = append $relayerChainNames .name }}
           {{- end }}
+          - name: HYP_RELAYER_DESTINATIONCHAINNAMES
+            value: {{ without $relayerChainNames .Values.hyperlane.relayer.config.originChainName | join "," }}
           {{- if .Values.hyperlane.tracing.uri }}
           - name: HYP_BASE_TRACING_JAEGER_NAME
             value: {{ include "agent-common.fullname" . }}-relayer

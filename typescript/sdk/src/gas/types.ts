@@ -1,8 +1,8 @@
 import { Mailbox, MultisigIsm } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import { ChainName } from '../../types';
-import type { CheckerViolation } from '../types';
+import type { CheckerViolation } from '../deploy/types';
+import { ChainName } from '../types';
 
 export type MultisigIsmConfig = {
   validators: Array<types.Address>;

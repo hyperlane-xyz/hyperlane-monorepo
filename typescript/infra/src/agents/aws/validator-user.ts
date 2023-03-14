@@ -8,7 +8,7 @@ import {
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts';
-import { AgentConfig } from '../../config';
+import { AgentConfig, DeployEnvironment } from '../../config';
 import { KEY_ROLE_ENUM } from '../roles';
 
 import { AgentAwsKey } from './key';
@@ -18,7 +18,7 @@ export class ValidatorAgentAwsUser extends AgentAwsUser {
   private adminS3Client: S3Client;
 
   constructor(
-    environment: string,
+    environment: DeployEnvironment,
     context: Contexts,
     public readonly chainName: ChainName,
     public readonly index: number,

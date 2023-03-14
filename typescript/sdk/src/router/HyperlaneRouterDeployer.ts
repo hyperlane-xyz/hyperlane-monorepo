@@ -2,13 +2,18 @@ import { debug } from 'debug';
 
 import { utils } from '@hyperlane-xyz/utils';
 
-import { MultiProvider } from '../../providers/MultiProvider';
-import { RouterContracts, RouterFactories } from '../../router';
-import { ChainMap } from '../../types';
-import { objMap, promiseObjAll } from '../../utils/objects';
-import { DeployerOptions, HyperlaneDeployer } from '../HyperlaneDeployer';
-
-import { RouterConfig } from './types';
+import {
+  DeployerOptions,
+  HyperlaneDeployer,
+} from '../deploy/HyperlaneDeployer';
+import { MultiProvider } from '../providers/MultiProvider';
+import {
+  RouterConfig,
+  RouterContracts,
+  RouterFactories,
+} from '../router/types';
+import { ChainMap } from '../types';
+import { objMap, promiseObjAll } from '../utils/objects';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,

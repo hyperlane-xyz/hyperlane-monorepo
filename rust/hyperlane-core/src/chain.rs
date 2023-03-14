@@ -75,6 +75,7 @@ impl From<&'_ Address> for H160 {
 pub enum KnownHyperlaneDomain {
     Ethereum = 1,
     Goerli = 5,
+    Sepolia = 11155111,
 
     Polygon = 137,
     Mumbai = 80001,
@@ -124,6 +125,17 @@ pub enum HyperlaneDomain {
         domain_type: HyperlaneDomainType,
         domain_protocol: HyperlaneDomainProtocol,
     },
+}
+
+impl HyperlaneDomain {
+    pub fn is_arbitrum_nitro(&self) -> bool {
+        matches!(
+            self,
+            HyperlaneDomain::Known(
+                KnownHyperlaneDomain::Arbitrum | KnownHyperlaneDomain::ArbitrumGoerli,
+            )
+        )
+    }
 }
 
 /// Types of Hyperlane domains.
@@ -180,7 +192,7 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Zksync2Testnet
+                Alfajores, MoonbaseAlpha, Zksync2Testnet, Sepolia
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1],
         })
@@ -191,7 +203,7 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             HyperlaneDomainProtocol::Ethereum: [
-                Ethereum, Goerli, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
+                Ethereum, Goerli, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
                 Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
                 Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
             ],
@@ -282,20 +294,6 @@ impl HyperlaneDomain {
                 domain_protocol: protocol,
             })
         }
-    }
-
-    pub fn from_config_strs(
-        domain_id: &str,
-        name: &str,
-        protocol: HyperlaneDomainProtocol,
-    ) -> Result<Self, &'static str> {
-        HyperlaneDomain::from_config(
-            domain_id
-                .parse::<u32>()
-                .map_err(|_| "Domain id is an invalid uint")?,
-            name,
-            protocol,
-        )
     }
 
     /// The chain name
@@ -423,9 +421,9 @@ mod tests {
         hyperlane_settings()
             .iter()
             .flat_map(|x: &Settings| {
-                x.chains.iter().map(|(_, v)| ChainCoordinate {
+                x.chains.values().map(|v| ChainCoordinate {
                     name: v.name.clone(),
-                    domain: v.domain.parse().unwrap(),
+                    domain: (&v.domain).try_into().expect("Invalid domain id"),
                 })
             })
             .collect()

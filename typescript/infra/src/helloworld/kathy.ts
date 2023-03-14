@@ -17,7 +17,7 @@ export async function runHelloworldKathyHelmCommand(
   // If using AWS keys, ensure the Kathy user and key has been created
   if (agentConfig.aws) {
     const awsUser = new AgentAwsUser(
-      agentConfig.environment,
+      agentConfig.runEnv,
       agentConfig.context,
       KEY_ROLE_ENUM.Kathy,
       agentConfig.aws.region,

@@ -13,11 +13,12 @@ import { chainMetadata } from '../consts/chainMetadata';
 import { Chains } from '../consts/chains';
 import { TestCoreApp } from '../core/TestCoreApp';
 import { TestCoreDeployer } from '../core/TestCoreDeployer';
-import { InterchainQueryDeployer } from '../deploy/middleware/deploy';
-import { RouterConfig } from '../deploy/router/types';
 import { MultiProvider } from '../providers/MultiProvider';
+import { RouterConfig } from '../router/types';
 import { getTestOwnerConfig } from '../test/testUtils';
 import { ChainMap } from '../types';
+
+import { InterchainQueryDeployer } from './deploy';
 
 describe('InterchainQueryRouter', async () => {
   const localChain = Chains.test1;

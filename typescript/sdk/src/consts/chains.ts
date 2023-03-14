@@ -13,6 +13,7 @@ export enum Chains {
   ethereum = 'ethereum',
   fuji = 'fuji',
   goerli = 'goerli',
+  sepolia = 'sepolia',
   moonbasealpha = 'moonbasealpha',
   moonbeam = 'moonbeam',
   mumbai = 'mumbai',
@@ -59,6 +60,7 @@ export const Testnets: Array<CoreChainName> = [
   Chains.moonbasealpha,
   Chains.mumbai,
   Chains.optimismgoerli,
+  Chains.sepolia,
 ];
 
 export const TestChains: Array<CoreChainName> = [
@@ -69,6 +71,6 @@ export const TestChains: Array<CoreChainName> = [
 
 export const AllChains: Array<CoreChainName> = [
   ...Mainnets,
-  ...TestChains,
+  ...Testnets,
   ...TestChains,
 ];

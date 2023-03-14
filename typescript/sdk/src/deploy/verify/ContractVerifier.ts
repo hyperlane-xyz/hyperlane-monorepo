@@ -3,6 +3,7 @@ import { Debugger, debug } from 'debug';
 import { ethers } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
+import { sleep } from '@hyperlane-xyz/utils/dist/src/utils';
 
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
@@ -15,6 +16,7 @@ import {
 } from './types';
 
 enum ExplorerApiActions {
+  GETSOURCECODE = 'getsourcecode',
   VERIFY_IMPLEMENTATION = 'verifysourcecode',
   MARK_PROXY = 'verifyproxycontract',
   CHECK_STATUS = 'checkverifystatus',
@@ -63,8 +65,11 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     action: ExplorerApiActions,
     options?: Record<string, string>,
   ): Promise<any> {
-    const apiUrl = this.multiProvider.getExplorerApiUrl(chain);
-
+    const apiUrl = new URL(this.multiProvider.getExplorerApiUrl(chain));
+    const isGetRequest =
+      action === ExplorerApiActions.CHECK_STATUS ||
+      action === ExplorerApiActions.CHECK_PROXY_STATUS ||
+      action === ExplorerApiActions.GETSOURCECODE;
     const params = new URLSearchParams({
       apikey: this.apiKeys[chain],
       module: 'contract',
@@ -73,10 +78,7 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     });
 
     let response: Response;
-    if (
-      action === ExplorerApiActions.CHECK_STATUS ||
-      action === ExplorerApiActions.CHECK_PROXY_STATUS
-    ) {
+    if (isGetRequest) {
       response = await fetch(`${apiUrl}?${params}`);
     } else {
       response = await fetch(apiUrl, {
@@ -88,7 +90,14 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
       });
     }
 
-    const result = JSON.parse(await response.text());
+    let result;
+    let responseText;
+    try {
+      responseText = await response.text();
+      result = JSON.parse(responseText);
+    } catch (e) {
+      this.logger(`Failed to parse response from ${responseText}`, e);
+    }
     if (result.message === 'NOTOK') {
       switch (result.result) {
         case ExplorerApiErrors.VERIFICATION_PENDING:
@@ -112,6 +121,26 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
     return result.result;
   }
 
+  private async isAlreadyVerified(
+    chain: ChainName,
+    input: ContractVerificationInput,
+  ) {
+    try {
+      const result = await this.submitForm(
+        chain,
+        ExplorerApiActions.GETSOURCECODE,
+        {
+          ...this.compilerOptions,
+          address: input.address,
+        },
+      );
+      return result[0].SourceCode !== '';
+    } catch (error) {
+      this.logger(`Error checking if contract is already verified: ${error}`);
+      return false;
+    }
+  }
+
   async verifyContract(
     chain: ChainName,
     input: ContractVerificationInput,
@@ -122,6 +151,13 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
 
     if (Array.isArray(input.constructorArguments)) {
       this.logger('Constructor arguments in legacy format, skipping');
+      return;
+    }
+
+    if (await this.isAlreadyVerified(chain, input)) {
+      this.logger(`Contract ${input.name} already verified on ${chain}`);
+      // There is a rate limit of 5 requests per second
+      await sleep(200);
       return;
     }
 
@@ -142,7 +178,7 @@ export class ContractVerifier extends MultiGeneric<VerificationInput> {
       data,
     );
 
-    const addressUrl = await this.multiProvider.getExplorerAddressUrl(
+    const addressUrl = await this.multiProvider.tryGetExplorerAddressUrl(
       chain,
       input.address,
     );

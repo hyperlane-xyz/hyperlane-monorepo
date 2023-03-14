@@ -116,7 +116,7 @@ library CallLib {
         uint256 value,
         bytes memory data
     ) internal pure returns (Call memory) {
-        return Call(to, data, value);
+        return Call(to, value, data);
     }
 
     function build(
@@ -124,7 +124,7 @@ library CallLib {
         uint256 value,
         bytes memory data
     ) internal pure returns (Call memory) {
-        return Call(TypeCasts.addressToBytes32(to), data, value);
+        return Call(TypeCasts.addressToBytes32(to), value, data);
     }
 
     function build(

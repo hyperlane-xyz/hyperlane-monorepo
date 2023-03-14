@@ -94,7 +94,10 @@ async function main() {
                 validatorBaseConfig.checkpointSyncer.bucket,
                 validatorBaseConfig.checkpointSyncer.region,
               );
-              announcements.push(await validator.getAnnouncement());
+              announcements.push([
+                validatorBaseConfig.name,
+                await validator.getAnnouncement(),
+              ]);
               chains.push(chain);
             }
           }
@@ -104,7 +107,10 @@ async function main() {
   }
 
   for (let i = 0; i < announcements.length; i++) {
-    const announcement = announcements[i];
+    const [name, announcement] = announcements[i];
+    if (!announcement) {
+      console.info(`No announcement for ${name}`);
+    }
     const chain = chains[i];
     const contracts = core.getContracts(chain);
     const validatorAnnounce = contracts.validatorAnnounce;
