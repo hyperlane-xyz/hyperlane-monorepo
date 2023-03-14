@@ -8,6 +8,7 @@ import { agents } from './agent';
 import { testConfigs } from './chains';
 import { core } from './core';
 import { storageGasOracleConfig } from './gas-oracle';
+import { igp } from './igp';
 import { infra } from './infra';
 
 export const environment: CoreEnvironmentConfig = {
@@ -15,6 +16,7 @@ export const environment: CoreEnvironmentConfig = {
   chainMetadataConfigs: testConfigs,
   agents,
   core,
+  igp,
   infra,
   // NOTE: Does not work from hardhat.config.ts
   getMultiProvider: async () => {

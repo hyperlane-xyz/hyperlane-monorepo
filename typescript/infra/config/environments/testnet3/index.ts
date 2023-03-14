@@ -10,6 +10,7 @@ import { core } from './core';
 import { keyFunderConfig } from './funding';
 import { storageGasOracleConfig } from './gas-oracle';
 import { helloWorld } from './helloworld';
+import { igp } from './igp';
 import { infrastructure } from './infrastructure';
 import { liquidityLayerRelayerConfig } from './middleware';
 
@@ -31,6 +32,7 @@ export const environment: CoreEnvironmentConfig = {
     ),
   agents,
   core,
+  igp,
   infra: infrastructure,
   helloWorld,
   keyFunderConfig,
