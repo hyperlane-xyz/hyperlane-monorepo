@@ -178,6 +178,39 @@ export const validators: ChainValidatorConfigs = {
       },
     ],
   },
+  sepolia: {
+    interval: 5,
+    reorgPeriod: chainMetadata.sepolia.blocks!.reorgPeriod!,
+    validators: [
+      {
+        address: '0xbc748ee311f5f2d1975d61cdf531755ce8ce3066',
+        name: s3BucketName('sepolia', 0),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('sepolia', 0),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0xc4233b2bfe5aec08964a94b403052abb3eafcf07',
+        name: s3BucketName('sepolia', 1),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('sepolia', 1),
+          region: s3BucketRegion,
+        },
+      },
+      {
+        address: '0x6b36286c19f5c10bdc139ea9ee7f82287303f61d',
+        name: s3BucketName('sepolia', 2),
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: s3BucketName('sepolia', 2),
+          region: s3BucketRegion,
+        },
+      },
+    ],
+  },
   moonbasealpha: {
     interval: 5,
     reorgPeriod: chainMetadata.moonbasealpha.blocks!.reorgPeriod!,

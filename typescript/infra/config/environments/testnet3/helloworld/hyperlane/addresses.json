@@ -22,5 +22,8 @@
   },
   "arbitrumgoerli": {
     "router": "0x339B46496D60b1b6B42e9715DeD8B3D2154dA0Bb"
+  },
+  "sepolia": {
+    "router": "0x5d56B8a669F50193b54319442c6EEE5edD662381"
   }
 }

@@ -55,6 +55,8 @@ export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer';
 export {
   CoreConfig,
   CoreViolationType,
+  DefaultIsmIgpViolation,
+  DefaultIsmIgpViolationType,
   EnrolledValidatorsViolation,
   GasOracleContractType,
   IgpBeneficiaryViolation,

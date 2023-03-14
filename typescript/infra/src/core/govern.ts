@@ -1,11 +1,13 @@
 import { prompts } from 'prompts';
 
-import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
+import { InterchainGasPaymaster, OverheadIgp } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
   CoreContracts,
   CoreViolationType,
+  DefaultIsmIgpViolation,
+  DefaultIsmIgpViolationType,
   EnrolledValidatorsViolation,
   HyperlaneCoreChecker,
   IgpBeneficiaryViolation,
@@ -149,6 +151,12 @@ export class HyperlaneCoreGovernor {
           this.handleIgpViolation(violation as IgpViolation);
           break;
         }
+        case CoreViolationType.DefaultIsmInterchainGasPaymaster: {
+          this.handleDefaultIsmIgpViolation(
+            violation as DefaultIsmIgpViolation,
+          );
+          break;
+        }
         default:
           throw new Error(`Unsupported violation type ${violation.type}`);
       }
@@ -190,10 +198,7 @@ export class HyperlaneCoreGovernor {
       submitterAddress: types.Address,
     ): Promise<boolean> => {
       try {
-        await multiProvider.estimateGas(chain, {
-          ...call,
-          from: submitterAddress,
-        });
+        await multiProvider.estimateGas(chain, call, submitterAddress);
         return true;
       } catch (e) {} // eslint-disable-line no-empty
       return false;
@@ -359,6 +364,43 @@ export class HyperlaneCoreGovernor {
       }
       default:
         throw new Error(`Unsupported IgpViolationType: ${violation.subType}`);
+    }
+  }
+
+  handleDefaultIsmIgpViolation(violation: DefaultIsmIgpViolation) {
+    switch (violation.subType) {
+      case DefaultIsmIgpViolationType.DestinationGasOverheads: {
+        const configs: OverheadIgp.DomainConfigStruct[] = Object.entries(
+          violation.expected,
+        ).map(
+          ([remote, gasOverhead]) =>
+            ({
+              domain: this.checker.multiProvider.getDomainId(remote),
+              gasOverhead: gasOverhead,
+            } as OverheadIgp.DomainConfigStruct),
+        );
+
+        this.pushCall(violation.chain, {
+          to: violation.contract.address,
+          data: violation.contract.interface.encodeFunctionData(
+            'setDestinationGasOverheads',
+            [configs],
+          ),
+          description: `Setting ${Object.keys(violation.expected)
+            .map((remoteStr) => {
+              const remote = remoteStr as ChainName;
+              const remoteId = this.checker.multiProvider.getDomainId(remote);
+              const expected = violation.expected[remote];
+              return `destination gas overhead for ${remote} (domain ID ${remoteId}) to ${expected}`;
+            })
+            .join(', ')}`,
+        });
+        break;
+      }
+      default:
+        throw new Error(
+          `Unsupported DefaultIsmIgpViolationType: ${violation.subType}`,
+        );
     }
   }
 }

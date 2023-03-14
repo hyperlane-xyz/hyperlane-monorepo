@@ -211,6 +211,7 @@ pub fn hyperlane_domain_id_to_gelato_chain(domain: &HyperlaneDomain) -> Result<C
         HyperlaneDomain::Known(d) => match d {
             KnownHyperlaneDomain::Ethereum => Chain::Ethereum,
             KnownHyperlaneDomain::Goerli => Chain::Goerli,
+            KnownHyperlaneDomain::Sepolia => Chain::Sepolia,
 
             KnownHyperlaneDomain::Polygon => Chain::Polygon,
             KnownHyperlaneDomain::Mumbai => Chain::Mumbai,

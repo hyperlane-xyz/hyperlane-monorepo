@@ -11,6 +11,7 @@ pub enum Chain {
     Ethereum = 1,
     Rinkeby = 4,
     Goerli = 5,
+    Sepolia = 11155111,
     Kovan = 42,
 
     Polygon = 137,
