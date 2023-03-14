@@ -8,7 +8,7 @@ import {TypeCasts} from "../TypeCasts.sol";
  * Format of message:
  * [   0:  32] ICA owner
  * [  32:  64] ICA ISM
- * [  65:????] Calls, abi encoded
+ * [  64:????] Calls, abi encoded
  */
 library InterchainAccountMessage {
     using TypeCasts for bytes32;

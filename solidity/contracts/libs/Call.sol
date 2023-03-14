@@ -15,8 +15,8 @@ library CallLib {
     struct Call {
         // supporting non EVM targets
         bytes32 to;
-        bytes data;
         uint256 value;
+        bytes data;
     }
 
     struct StaticCallWithCallback {

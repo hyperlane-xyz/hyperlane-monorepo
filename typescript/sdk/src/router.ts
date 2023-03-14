@@ -42,7 +42,6 @@ export type ConnectionClientConfig = {
   mailbox: types.Address;
   interchainGasPaymaster: types.Address;
   interchainSecurityModule?: types.Address;
-  owner?: types.Address;
 };
 
 export class RouterApp<
