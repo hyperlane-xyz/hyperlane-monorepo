@@ -2,17 +2,17 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "agent-common.fullname" . }}-scraper3
+  name: {{ include "agent-common.fullname" . }}-scraper
   labels:
     {{- include "agent-common.labels" . | nindent 4 }}
-    app.kubernetes.io/component: scraper3
+    app.kubernetes.io/component: scraper
 spec:
   selector:
     matchLabels:
       {{- include "agent-common.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: scraper3
+      app.kubernetes.io/component: scraper
   replicas: 1 
-  serviceName: {{ include "agent-common.fullname" . }}-scraper3
+  serviceName: {{ include "agent-common.fullname" . }}-scraper
   template:
     metadata:
       annotations:
@@ -25,7 +25,7 @@ spec:
         {{- end }}
       labels:
         {{- include "agent-common.labels" . | nindent 8 }}
-        app.kubernetes.io/component: scraper3
+        app.kubernetes.io/component: scraper
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
@@ -53,20 +53,11 @@ spec:
         - secretRef:
             name: {{ include "agent-common.fullname" . }}-secret
         - secretRef:
-            name: {{ include "agent-common.fullname" . }}-scraper3-secret
+            name: {{ include "agent-common.fullname" . }}-scraper-secret
         env:
-#{{- $scraperChainNames := list }}
-#{{- range .Values.hyperlane.chains }}
-#{{- if not .disabled }}
-#{{- $scraperChainNames = append $scraperChainNames .name }}
-#{{- end }}
-#{{- end }}
-          - name: HYP_SCRAPER_CHAINSTOSCRAPE
-#            value: {{ $scraperChainNames | join "." }}
-            value: alfajores,fuji,sepolia
           {{- if .Values.hyperlane.tracing.uri }}
           - name: HYP_BASE_TRACING_JAEGER_NAME
-            value: {{ include "agent-common.fullname" . }}-scraper3
+            value: {{ include "agent-common.fullname" . }}-scraper
           {{- end }}
         resources:
           {{- toYaml .Values.hyperlane.scraper.resources | nindent 10 }}
