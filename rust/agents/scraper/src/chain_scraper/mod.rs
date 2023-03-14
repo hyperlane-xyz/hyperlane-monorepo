@@ -11,9 +11,9 @@ use tracing::trace;
 
 use hyperlane_base::{chains::IndexSettings, ContractSyncMetrics};
 use hyperlane_core::{
-    BlockInfo, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, Mailbox, MailboxIndexer, H256,
-    U256,
+    BlockInfo, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, Mailbox,
+    MailboxIndexer, H256, U256,
 };
 
 use crate::db::StorablePayment;
@@ -77,7 +77,10 @@ impl SqlChainScraper {
     /// Sync contract data and other blockchain with the current chain state.
     /// This will create a long-running task that should be spawned.
     pub fn sync(self) -> impl Future<Output = Result<()>> + Send + 'static {
-        Syncer::new(self).and_then(|syncer| syncer.run())
+        let chain = self.contracts.mailbox.domain().name().to_owned();
+        Syncer::new(self)
+            .and_then(|syncer| syncer.run())
+            .and_then(|()| async move { panic!("Sync task for {chain} stopped!") })
     }
 
     /// Fetch the highest message nonce we have seen for the local domain.
