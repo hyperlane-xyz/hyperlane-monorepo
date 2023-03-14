@@ -1,17 +1,10 @@
 import { ethers } from 'ethers';
 
-import {
-  InterchainGasPaymaster,
-  Mailbox,
-  OverheadIgp,
-  ProxyAdmin,
-  ValidatorAnnounce,
-} from '@hyperlane-xyz/core';
+import { Mailbox, ProxyAdmin, ValidatorAnnounce } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
   CoreConfig,
-  GasOracleContracts,
   HyperlaneCoreDeployer,
   MultiProvider,
   ProxiedContract,
@@ -36,44 +29,6 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   ) {
     super(multiProvider, configMap);
     this.environment = environment;
-  }
-
-  async deployInterchainGasPaymaster(
-    chain: ChainName,
-    proxyAdmin: ProxyAdmin,
-    gasOracleContracts: GasOracleContracts,
-  ): Promise<
-    ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
-  > {
-    const deployOpts = {
-      create2Salt: ethers.utils.solidityKeccak256(
-        ['string', 'string', 'uint8'],
-        [this.environment, 'interchainGasPaymaster', 6],
-      ),
-    };
-    return super.deployInterchainGasPaymaster(
-      chain,
-      proxyAdmin,
-      gasOracleContracts,
-      deployOpts,
-    );
-  }
-
-  async deployDefaultIsmInterchainGasPaymaster(
-    chain: ChainName,
-    interchainGasPaymasterAddress: types.Address,
-  ): Promise<OverheadIgp> {
-    const deployOpts = {
-      create2Salt: ethers.utils.solidityKeccak256(
-        ['string', 'string', 'uint8'],
-        [this.environment, 'defaultIsmInterchainGasPaymaster', 4],
-      ),
-    };
-    return super.deployDefaultIsmInterchainGasPaymaster(
-      chain,
-      interchainGasPaymasterAddress,
-      deployOpts,
-    );
   }
 
   async deployMailbox(

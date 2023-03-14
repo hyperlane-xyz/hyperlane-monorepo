@@ -16,6 +16,7 @@ import {
   getEnvironment,
 } from './utils';
 
+// TODO: Switch between core/igp based on flag.
 async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);

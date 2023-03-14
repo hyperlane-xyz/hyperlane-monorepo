@@ -21,9 +21,8 @@ import {
   getCoreEnvironmentConfig,
   getEnvironment,
   getEnvironmentDirectory,
+  getRouterConfig,
 } from '../utils';
-
-import { getConfiguration } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
@@ -34,7 +33,7 @@ async function main() {
     Contexts.Hyperlane,
     KEY_ROLE_ENUM.Deployer,
   );
-  const configMap = await getConfiguration(environment, multiProvider);
+  const configMap = await getRouterConfig(environment, multiProvider);
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
     multiProvider,

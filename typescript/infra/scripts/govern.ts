@@ -5,6 +5,7 @@ import { HyperlaneCoreGovernor } from '../src/core/govern';
 
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
+// TODO: Switch between core/igp based on flag
 async function check() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);

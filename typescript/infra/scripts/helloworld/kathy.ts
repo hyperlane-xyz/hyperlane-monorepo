@@ -7,7 +7,7 @@ import {
   ChainName,
   DispatchedMessage,
   HyperlaneCore,
-  InterchainGasCalculator,
+  HyperlaneIgp,
 } from '@hyperlane-xyz/sdk';
 import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
 
@@ -150,8 +150,8 @@ async function main(): Promise<boolean> {
     undefined,
     connectionType,
   );
-  const gasCalculator = InterchainGasCalculator.fromEnvironment(
-    deployEnvToSdkEnv[environment],
+  const igp = HyperlaneIgp.fromEnvironment(
+    deployEnvToSdkEnv[coreConfig.environment],
     app.multiProvider,
   );
   const appChains = app.chains();
@@ -323,9 +323,9 @@ async function main(): Promise<boolean> {
     try {
       await sendMessage(
         app,
+        igp,
         origin,
         destination,
-        gasCalculator,
         messageSendTimeout,
         messageReceiptTimeout,
       );
@@ -356,9 +356,9 @@ async function main(): Promise<boolean> {
 
 async function sendMessage(
   app: HelloWorldApp,
+  igp: HyperlaneIgp,
   origin: ChainName,
   destination: ChainName,
-  gasCalc: InterchainGasCalculator,
   messageSendTimeout: number,
   messageReceiptTimeout: number,
 ) {
@@ -368,7 +368,7 @@ async function sendMessage(
 
   const value = await utils.retryAsync(
     () =>
-      gasCalc.quoteGasPaymentForDefaultIsmIgp(
+      igp.quoteGasPaymentForDefaultIsmIgp(
         origin,
         destination,
         expectedHandleGas,

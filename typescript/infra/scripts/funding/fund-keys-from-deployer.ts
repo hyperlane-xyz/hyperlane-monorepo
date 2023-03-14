@@ -8,7 +8,7 @@ import {
   ChainName,
   Chains,
   CoreChainName,
-  HyperlaneCore,
+  HyperlaneIgp,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { ChainMap } from '@hyperlane-xyz/sdk/dist/types';
@@ -258,7 +258,7 @@ async function main() {
 // Funds keys for a single context
 class ContextFunder {
   public readonly chains: ChainName[];
-  core: HyperlaneCore;
+  igp: HyperlaneIgp;
 
   constructor(
     public readonly environment: DeployEnvironment,
@@ -273,7 +273,7 @@ class ContextFunder {
     );
 
     this.chains = Array.from(uniqueChains) as ChainName[];
-    this.core = HyperlaneCore.fromEnvironment(
+    this.igp = HyperlaneIgp.fromEnvironment(
       deployEnvToSdkEnv[this.environment],
       multiProvider,
     );
@@ -486,7 +486,7 @@ class ContextFunder {
     const igpClaimThreshold = ethers.utils.parseEther(igpClaimThresholdEther);
 
     const provider = this.multiProvider.getProvider(chain);
-    const igp = this.core.getContracts(chain).interchainGasPaymaster;
+    const igp = this.igp.getContracts(chain).interchainGasPaymaster;
     const igpBalance = await provider.getBalance(igp.address);
 
     log('Checking IGP balance', {

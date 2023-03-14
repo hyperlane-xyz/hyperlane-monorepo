@@ -4,7 +4,12 @@ import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 import { TestSendReceiver__factory } from '@hyperlane-xyz/core';
-import { ChainName, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  HyperlaneCore,
+  MultiProvider,
+  hyperlaneContractAddresses,
+} from '@hyperlane-xyz/sdk';
 
 import { sleep } from './src/utils/utils';
 
@@ -62,13 +67,13 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remoteId = multiProvider.getDomainId(remote);
         const coreContracts = core.getContracts(local);
         const mailbox = coreContracts.mailbox.contract;
-        const paymaster = coreContracts.interchainGasPaymaster;
         // Send a batch of messages to the destination chain to test
         // the relayer submitting only greedily
         for (let i = 0; i < 10; i++) {
           await recipient.dispatchToSelf(
             mailbox.address,
-            paymaster.address,
+            // TODO: This is annoying
+            hyperlaneContractAddresses[local].interchainGasPaymaster as string,
             remoteId,
             '0x1234',
             {

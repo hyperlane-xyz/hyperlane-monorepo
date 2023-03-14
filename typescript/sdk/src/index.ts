@@ -51,15 +51,22 @@ export {
   CoreConfig,
   CoreViolationType,
   EnrolledValidatorsViolation,
+  MultisigIsmConfig,
   MultisigIsmViolation,
   MultisigIsmViolationType,
 } from './core/types';
 export {
+  GasOracleContractType,
   IgpBeneficiaryViolation,
+  IgpConfig,
   IgpGasOraclesViolation,
   IgpViolation,
   IgpViolationType,
+  OverheadIgpConfig,
 } from './gas/types';
+export { HyperlaneIgp } from './gas/HyperlaneIgp';
+export { HyperlaneIgpChecker } from './gas/HyperlaneIgpChecker';
+export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer';
 export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker';
 export { HyperlaneDeployer } from './deploy/HyperlaneDeployer';
 export {
@@ -85,6 +92,7 @@ export {
   ViolationType,
 } from './deploy/types';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
+export { CompilerOptions } from './deploy/verify/types';
 export {
   Annotated,
   getEvents,

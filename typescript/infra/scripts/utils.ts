@@ -6,7 +6,10 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  HyperlaneCore,
+  HyperlaneIgp,
   MultiProvider,
+  RouterConfig,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/sdk';
@@ -20,7 +23,7 @@ import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
 import { ConnectionType } from '../src/config/agent';
 import { fetchProvider } from '../src/config/chain';
-import { EnvironmentNames } from '../src/config/environment';
+import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { assertContext } from '../src/utils/utils';
 
 export function getArgsWithContext() {
@@ -186,4 +189,28 @@ export async function assertCorrectKubeContext(
     );
     process.exit(1);
   }
+}
+
+export async function getRouterConfig(
+  environment: DeployEnvironment,
+  multiProvider: MultiProvider,
+): Promise<ChainMap<RouterConfig>> {
+  const core = HyperlaneCore.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider,
+  );
+  const igp = HyperlaneIgp.fromEnvironment(
+    deployEnvToSdkEnv[environment],
+    multiProvider,
+  );
+  const config: ChainMap<RouterConfig> = {};
+  for (const chain of multiProvider.getKnownChainNames()) {
+    config[chain] = {
+      owner: await multiProvider.getSignerAddress(chain),
+      mailbox: core.getContracts(chain).mailbox.address,
+      interchainGasPaymaster:
+        igp.getContracts(chain).interchainGasPaymaster.address,
+    };
+  }
+  return config;
 }

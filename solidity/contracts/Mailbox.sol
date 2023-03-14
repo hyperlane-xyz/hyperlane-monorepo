@@ -145,7 +145,6 @@ contract Mailbox is
         bytes32 _recipientAddress,
         bytes calldata _messageBody
     ) external override notPaused returns (bytes32) {
-        uint256 blah = tx.gasLeft();
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
         // Format the message into packed bytes.
         bytes memory _message = Message.formatMessage(
