@@ -3,7 +3,8 @@ import { ethers } from 'ethers';
 import { types } from '@hyperlane-xyz/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { TestChains } from '../consts/chains';
+import { CoreContracts } from '../core/contracts';
+import { IgpContracts } from '../gas/contracts';
 import {
   CoinGeckoInterface,
   CoinGeckoResponse,
@@ -11,12 +12,23 @@ import {
   CoinGeckoSimplePriceParams,
   TokenPriceGetter,
 } from '../gas/token-prices';
+import { RouterConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
+import { objMap } from '../utils/objects';
 
-export function getTestOwnerConfig(owner: types.Address) {
-  const config: ChainMap<{ owner: types.Address }> = {};
-  TestChains.forEach((t) => (config[t] = { owner }));
-  return config;
+export function createRouterConfigMap(
+  owner: types.Address,
+  coreContracts: ChainMap<CoreContracts>,
+  igpContracts: ChainMap<IgpContracts>,
+): ChainMap<RouterConfig> {
+  return objMap(coreContracts, (chain, contracts) => {
+    return {
+      owner,
+      mailbox: contracts.mailbox.address,
+      interchainGasPaymaster:
+        igpContracts[chain].interchainGasPaymaster.address,
+    };
+  });
 }
 
 const MOCK_NETWORK = {

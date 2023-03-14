@@ -112,7 +112,6 @@ export {
 } from './proxy';
 export { GasRouterApp, Router, RouterApp } from './router/RouterApps';
 export { RouterContracts, RouterFactories } from './router/types';
-export { getTestOwnerConfig } from './test/testUtils';
 export {
   ChainMap,
   ChainName,
