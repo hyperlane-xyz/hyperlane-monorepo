@@ -12,6 +12,9 @@ export enum GasOracleContractType {
 
 export type IgpConfig = {
   owner: types.Address;
+  // TODO: Should this be configured, or deployed for you automagically?
+  // The partial deployment I think will pull in the ProxyAdmin address
+  // rather than redeploy it.
   proxyAdmin: types.Address;
   beneficiary: types.Address;
   gasOracleType: ChainMap<GasOracleContractType>;
