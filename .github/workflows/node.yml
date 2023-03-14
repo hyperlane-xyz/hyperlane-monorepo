@@ -135,13 +135,13 @@ jobs:
       - run: anvil --fork-url https://eth.llamarpc.com &
 
       - name: deploy core against ${{ matrix.environment }} fork
-        run: yarn workspace @hyperlane-xyz/infra run ts-node ./scripts/core.ts -e ${{ matrix.environment }} 
+        run: yarn workspace @hyperlane-xyz/infra run ts-node ./scripts/core.ts -e ${{ matrix.environment }} --fork
 
       - name: govern ${{ matrix.environment }} deployment
-        run: yarn workspace @hyperlane-xyz/infra run ts-node ./scripts/govern.ts -e ${{ matrix.environment }}
+        run: yarn workspace @hyperlane-xyz/infra run ts-node ./scripts/govern.ts -e ${{ matrix.environment }} --fork
       
       - name: check ${{ matrix.environment }} after governance
-        run: yarn workspace @hyperlane-xyz/infra run ts-node ./scripts/check-deploy.ts -e ${{ matrix.environment }}
+        run: yarn workspace @hyperlane-xyz/infra run ts-node ./scripts/check-deploy.ts -e ${{ matrix.environment }} --fork
 
   test-sol:
     env:
