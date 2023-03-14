@@ -93,7 +93,6 @@ export {
   queryAnnotatedEvents,
   TSContract,
 } from './events';
-export { InterchainGasCalculator, ParsedMessage } from './gas/calculator';
 export { HyperlaneApp } from './HyperlaneApp';
 export {
   interchainAccountFactories,

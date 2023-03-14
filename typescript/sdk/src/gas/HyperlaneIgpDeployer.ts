@@ -7,6 +7,7 @@ import {
   Ownable,
   Ownable__factory,
   ProxyAdmin,
+  ProxyAdmin__factory,
   StorageGasOracle,
 } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
@@ -40,7 +41,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
   async deployInterchainGasPaymaster(
     chain: ChainName,
-    proxyAdmin: types.Address,
+    proxyAdmin: ProxyAdmin,
     storageGasOracle: StorageGasOracle,
     deployOpts?: DeployOptions,
   ): Promise<
@@ -157,9 +158,13 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     const startingBlockNumber = await provider.getBlockNumber();
     this.startingBlockNumbers[chain] = startingBlockNumber;
     const storageGasOracle = await this.deployStorageGasOracle(chain);
+    const proxyAdmin = ProxyAdmin__factory.connect(
+      config.proxyAdmin,
+      this.multiProvider.getProvider(chain),
+    );
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
       chain,
-      this.configMap[chain].proxyAdmin,
+      proxyAdmin,
       storageGasOracle,
     );
     const overheadInterchainGasPaymaster =
@@ -172,6 +177,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     await this.transferOwnershipOfContracts(chain, ownables);
 
     return {
+      proxyAdmin,
       storageGasOracle,
       interchainGasPaymaster,
       defaultIsmInterchainGasPaymaster: overheadInterchainGasPaymaster,
