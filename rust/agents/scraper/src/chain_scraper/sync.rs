@@ -254,7 +254,8 @@ impl Syncer {
                 sorted_messages
                     .iter()
                     .map(|r| &r.meta)
-                    .chain(deliveries.iter().map(|d| &d.meta)),
+                    .chain(deliveries.iter().map(|d| &d.meta))
+                    .chain(payments.iter().map(|p| &p.meta)),
             )
             .await?
             .map(|t| (t.hash, t))
