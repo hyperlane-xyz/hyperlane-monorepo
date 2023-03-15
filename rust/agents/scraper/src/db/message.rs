@@ -3,7 +3,7 @@ use itertools::Itertools;
 use sea_orm::{
     prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QueryOrder, QuerySelect,
 };
-use tracing::{debug, instrument};
+use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{HyperlaneMessage, LogMeta, H256};
 use migration::OnConflict;
@@ -86,7 +86,8 @@ impl ScraperDb {
             .collect_vec();
 
         debug_assert!(!models.is_empty());
-        debug!(?models, "Writing delivered messages to database");
+        debug!(deliveries=models.len(), "Writing delivered messages to database");
+        trace!(?models, "Writing delivered messages to database");
 
         Insert::many(models)
             .on_conflict(
@@ -131,7 +132,8 @@ impl ScraperDb {
             .collect_vec();
 
         debug_assert!(!models.is_empty());
-        debug!(?models, "Writing messages to database");
+        debug!(messages=models.len(), "Writing messages to database");
+        trace!(?models, "Writing messages to database");
 
         Insert::many(models)
             .on_conflict(

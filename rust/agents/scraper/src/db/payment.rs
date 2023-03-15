@@ -1,7 +1,7 @@
 use eyre::Result;
 use itertools::Itertools;
 use sea_orm::{ActiveValue::*, Insert};
-use tracing::{debug, instrument};
+use tracing::{debug, trace, instrument};
 
 use hyperlane_core::{InterchainGasPayment, LogMeta};
 use migration::OnConflict;
@@ -40,7 +40,8 @@ impl ScraperDb {
             .collect_vec();
 
         debug_assert!(!models.is_empty());
-        debug!(?models, "Writing gas payments to database");
+        debug!(payments=models.len(), "Writing gas payments to database");
+        trace!(?models, "Writing gas payments to database");
 
         Insert::many(models)
             .on_conflict(
