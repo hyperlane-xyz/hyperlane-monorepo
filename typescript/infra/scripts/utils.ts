@@ -56,18 +56,12 @@ export function assertEnvironment(env: string): DeployEnvironment {
   );
 }
 
-export function getCoreEnvironmentConfig<Env extends DeployEnvironment>(
-  env: Env,
-): CoreEnvironmentConfig {
-  return environments[env];
-}
-
 export async function getEnvironment() {
   return assertEnvironment(await getEnvironmentFromArgs());
 }
 
 export async function getEnvironmentConfig() {
-  return getCoreEnvironmentConfig(await getEnvironment());
+  return environments[await getEnvironment()];
 }
 
 export async function getContext(defaultContext?: string): Promise<Contexts> {
@@ -113,8 +107,8 @@ async function getKeyForRole(
   role: KEY_ROLE_ENUM,
   index?: number,
 ): Promise<CloudAgentKey> {
-  const coreConfig = getCoreEnvironmentConfig(environment);
-  const agentConfig = await getAgentConfig(context, coreConfig);
+  const environmentConfig = environments[environment];
+  const agentConfig = await getAgentConfig(context, environmentConfig);
   return getCloudAgentKey(agentConfig, role, chain, index);
 }
 
@@ -139,7 +133,7 @@ export async function getMultiProviderForRole(
   return multiProvider;
 }
 
-export function getCoreContractsSdkFilepath() {
+export function getContractAddressesSdkFilepath() {
   return path.join('../sdk/src/consts/environments');
 }
 

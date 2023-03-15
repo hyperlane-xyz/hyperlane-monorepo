@@ -5,7 +5,12 @@ import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 
-import { AllChains, ChainName, CoreChainName } from '@hyperlane-xyz/sdk';
+import {
+  AllChains,
+  ChainName,
+  CoreChainName,
+  objMerge,
+} from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts';
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
@@ -156,9 +161,10 @@ export function writeJSON(directory: string, filename: string, obj: any) {
   if (!fs.existsSync(directory)) {
     fs.mkdirSync(directory, { recursive: true });
   }
+  const previous = readJSON(directory, filename);
   fs.writeFileSync(
     path.join(directory, filename),
-    JSON.stringify(obj, null, 2) + '\n',
+    JSON.stringify(objMerge(previous, obj), null, 2) + '\n',
   );
 }
 

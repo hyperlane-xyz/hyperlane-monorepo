@@ -4,6 +4,7 @@ import {
   OverheadIgp,
   OverheadIgp__factory,
   ProxyAdmin,
+  ProxyAdmin__factory,
   StorageGasOracle,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
@@ -29,6 +30,7 @@ export type IgpAddresses = {
 };
 
 export const igpFactories = {
+  proxyAdmin: new ProxyAdmin__factory(),
   interchainGasPaymaster: new InterchainGasPaymaster__factory(),
   overheadIgp: new OverheadIgp__factory(),
   storageGasOracle: new StorageGasOracle__factory(),

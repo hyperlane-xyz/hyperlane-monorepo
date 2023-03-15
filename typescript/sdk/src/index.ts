@@ -135,5 +135,11 @@ export {
   fixedToBig,
   mulBigAndFixed,
 } from './utils/number';
-export { objMap, objMapEntries, pick, promiseObjAll } from './utils/objects';
+export {
+  objMap,
+  objMapEntries,
+  objMerge,
+  pick,
+  promiseObjAll,
+} from './utils/objects';
 export { multisigIsmVerificationCost } from './utils/ism';

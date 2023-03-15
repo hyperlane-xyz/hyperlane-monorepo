@@ -7,7 +7,6 @@ import {
   Ownable,
   Ownable__factory,
   ProxyAdmin,
-  ProxyAdmin__factory,
   StorageGasOracle,
 } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
@@ -158,11 +157,10 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     const provider = this.multiProvider.getProvider(chain);
     const startingBlockNumber = await provider.getBlockNumber();
     this.startingBlockNumbers[chain] = startingBlockNumber;
+    // NB: To share ProxyAdmins with HyperlaneCore, ensure the ProxyAdmin
+    // is loaded into the contract cache.
+    const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
     const storageGasOracle = await this.deployStorageGasOracle(chain);
-    const proxyAdmin = ProxyAdmin__factory.connect(
-      config.proxyAdmin,
-      this.multiProvider.getProvider(chain),
-    );
     const interchainGasPaymaster = await this.deployInterchainGasPaymaster(
       chain,
       proxyAdmin,

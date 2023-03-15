@@ -28,7 +28,7 @@ async function check() {
   let checker: HyperlaneAppChecker<any, any>;
   let governor: HyperlaneAppGovernor<any, any>;
   switch (module) {
-    case 'core':
+    case 'core': {
       const core = HyperlaneCore.fromEnvironment(
         deployEnvToSdkEnv[environment],
         multiProvider,
@@ -39,7 +39,8 @@ async function check() {
         config.owners,
       );
       break;
-    case 'igp':
+    }
+    case 'igp': {
       const igp = HyperlaneIgp.fromEnvironment(
         deployEnvToSdkEnv[environment],
         multiProvider,
@@ -50,6 +51,7 @@ async function check() {
         config.owners,
       );
       break;
+    }
     default:
       throw new Error('Unknown module type');
   }

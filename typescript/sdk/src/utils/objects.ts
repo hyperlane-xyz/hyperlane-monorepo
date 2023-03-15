@@ -45,3 +45,24 @@ export function pick<K extends string, V = any>(obj: Record<K, V>, keys: K[]) {
   }
   return ret as Record<K, V>;
 }
+
+export function isObject(item: any) {
+  return item && typeof item === 'object' && !Array.isArray(item);
+}
+
+// Recursively merges b into a
+export function objMerge(a: Record<string, any>, b: Record<string, any>): any {
+  const ret: Record<string, any> = {};
+  if (isObject(a) && isObject(b)) {
+    for (const key of Object.keys(a)) {
+      if (Object.keys(b).includes(key)) {
+        ret[key] = objMerge(a[key], b[key]);
+      } else {
+        ret[key] = a[key];
+      }
+    }
+    return ret;
+  } else {
+    return b;
+  }
+}

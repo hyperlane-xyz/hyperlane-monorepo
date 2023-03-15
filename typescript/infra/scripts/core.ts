@@ -9,16 +9,16 @@ import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
 import { readJSON, writeJSON } from '../src/utils/utils';
 
 import {
-  getCoreContractsSdkFilepath,
-  getCoreEnvironmentConfig, // getCoreRustDirectory,
+  getContractAddressesSdkFilepath, // getCoreRustDirectory,
   getCoreVerificationDirectory,
   getEnvironment,
+  getEnvironmentConfig,
 } from './utils';
 
 // TODO: Switch between core/igp based on flag.
 async function main() {
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = await getEnvironmentConfig();
   const multiProvider = await config.getMultiProvider();
   const deployer = new HyperlaneCoreInfraDeployer(
     multiProvider,
@@ -32,7 +32,7 @@ async function main() {
       break previousAddressParsing;
     }
     const addresses = readJSON(
-      getCoreContractsSdkFilepath(),
+      getContractAddressesSdkFilepath(),
       `${deployEnvToSdkEnv[environment]}.json`,
     );
     previousContracts = buildContracts(addresses, coreFactories);
@@ -49,7 +49,7 @@ async function main() {
 
   // Persist artifacts, irrespective of deploy success
   writeJSON(
-    getCoreContractsSdkFilepath(),
+    getContractAddressesSdkFilepath(),
     `${deployEnvToSdkEnv[environment]}.json`,
     serializeContracts(deployer.deployedContracts),
   );

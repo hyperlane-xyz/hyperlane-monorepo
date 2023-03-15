@@ -2,7 +2,6 @@ import {
   ChainMap,
   GasOracleContractType,
   OverheadIgpConfig,
-  hyperlaneContractAddresses,
   multisigIsmVerificationCost,
   objMap,
 } from '@hyperlane-xyz/sdk';
@@ -33,8 +32,6 @@ export const igp: ChainMap<OverheadIgpConfig> = objMap(
       owner,
       beneficiary: KEY_FUNDER_ADDRESS,
       gasOracleType: getGasOracles(chain),
-      // TODO: How do?
-      proxyAdmin: hyperlaneContractAddresses[chain].proxyAdmin,
       overhead: Object.fromEntries(
         remotes(chain).map((remote) => [
           remote,
