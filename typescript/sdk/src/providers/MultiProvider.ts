@@ -27,7 +27,7 @@ export const providerBuilder = (config?: {
   http?: string;
   network?: providers.Networkish;
   retry?: RetryOptions;
-}) => {
+}): providers.JsonRpcProvider => {
   const baseProvider = new providers.JsonRpcProvider(
     config?.http,
     config?.network,
