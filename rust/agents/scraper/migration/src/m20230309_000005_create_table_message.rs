@@ -117,9 +117,9 @@ impl MigrationTrait for Migration {
                 "dest_domain"."{domain_name}" AS "destination_domain",
 
                 "msg"."{msg_time_created}" AS "send_scraped_at",
-                "origin_block"."{block_timestamp}" AS "send_occured_at",
+                "origin_block"."{block_timestamp}" AS "send_occurred_at",
                 "dmsg"."{dmsg_time_created}" AS "delivery_scraped_at",
-                "dest_block"."{block_timestamp}" AS "delivery_occured_at",
+                "dest_block"."{block_timestamp}" AS "delivery_occurred_at",
                 "dest_block"."{block_timestamp}" - "origin_block"."{block_timestamp}" AS "delivery_latency",
                 "msg"."{msg_time_created}" - "origin_block"."{block_timestamp}" AS "send_scape_latency",
                 "dmsg"."{dmsg_time_created}" - "dest_block"."{block_timestamp}" AS "delivery_scape_latency",
