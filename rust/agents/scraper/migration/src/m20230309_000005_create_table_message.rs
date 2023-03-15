@@ -159,7 +159,6 @@ impl MigrationTrait for Migration {
                 "dest_block"."{block_height}" AS "destination_block_height",
                 "dest_block"."{block_hash}" AS "destination_block_hash",
 
-                convert_from("msg"."{msg_body}", 'UTF8') AS "message_body_text",
                 "msg"."{msg_body}" AS "message_body"
             FROM "{msg_table}" AS "msg"
                 LEFT JOIN "{domain_table}"
