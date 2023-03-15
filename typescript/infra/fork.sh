@@ -23,7 +23,10 @@ while ! cast bn; do
   sleep 1
 done
 
-repeat 10 cast rpc eth_chainId
+cast rpc eth_chainId
+cast rpc eth_chainId
+cast rpc eth_chainId
+cast rpc eth_chainId
 
 echo "=== Run checker against forked $ENVIRONMENT ===\n"
 DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT --fork $FORK_CHAIN
