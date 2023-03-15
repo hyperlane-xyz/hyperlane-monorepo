@@ -393,7 +393,7 @@ export const goerli: ChainMetadata = {
   displayName: 'Goerli',
   nativeToken: etherToken,
   publicRpcUrls: [
-    { http: 'https://endpoints.omniatech.io/v1/eth/goerli/public' },
+    // { http: 'https://endpoints.omniatech.io/v1/eth/goerli/public' },
     { http: 'https://rpc.ankr.com/eth_goerli' },
     { http: 'https://eth-goerli.public.blastapi.io' },
   ],
