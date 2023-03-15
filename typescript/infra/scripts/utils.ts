@@ -7,6 +7,7 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  CoreConfig,
   HyperlaneCore,
   HyperlaneIgp,
   MultiProvider,
@@ -217,4 +218,20 @@ export async function getRouterConfig(
     };
   }
   return config;
+}
+
+export function getValidatorsByChain(
+  config: ChainMap<CoreConfig>,
+): ChainMap<Set<string>> {
+  const validators: ChainMap<Set<string>> = {};
+  objMap(config, (local, coreConfig) => {
+    objMap(coreConfig.multisigIsm, (remote, multisigIsmConfig) => {
+      if (validators[remote] === undefined) {
+        validators[remote] = new Set(multisigIsmConfig.validators);
+      } else {
+        multisigIsmConfig.validators.map((v) => validators[remote].add(v));
+      }
+    });
+  });
+  return validators;
 }

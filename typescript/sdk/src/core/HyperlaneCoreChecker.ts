@@ -139,11 +139,18 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   }
 
   async checkValidatorAnnounce(chain: ChainName): Promise<void> {
-    const expectedValidators = this.configMap[chain].multisigIsm.validators;
+    const expectedValidators = new Set<string>();
+    const remotes = Object.keys(this.configMap).filter((c) => c !== chain);
+    remotes.map((remote) =>
+      this.configMap[remote].multisigIsm[chain].validators.forEach(
+        expectedValidators.add,
+        expectedValidators,
+      ),
+    );
     const validatorAnnounce = this.app.getContracts(chain).validatorAnnounce;
     const announcedValidators =
       await validatorAnnounce.getAnnouncedValidators();
-    expectedValidators.map((validator) => {
+    [...expectedValidators].map((validator) => {
       const matches = announcedValidators.filter((x) =>
         utils.eqAddress(x, validator),
       );
@@ -174,10 +181,10 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   ): Promise<void> {
     const coreContracts = this.app.getContracts(local);
     const multisigIsm = coreContracts.multisigIsm;
-    const config = this.configMap[remote];
+    const config = this.configMap[local];
 
     const remoteDomain = this.multiProvider.getDomainId(remote);
-    const multisigIsmConfig = config.multisigIsm;
+    const multisigIsmConfig = config.multisigIsm[remote];
     const expectedValidators = multisigIsmConfig.validators;
     const actualValidators = await multisigIsm.validators(remoteDomain);
 

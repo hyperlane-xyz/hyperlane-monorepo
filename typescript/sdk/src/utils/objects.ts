@@ -51,18 +51,24 @@ export function isObject(item: any) {
 }
 
 // Recursively merges b into a
+// Where there are conflicts, b takes priority over a
 export function objMerge(a: Record<string, any>, b: Record<string, any>): any {
   const ret: Record<string, any> = {};
   if (isObject(a) && isObject(b)) {
-    for (const key of Object.keys(a)) {
-      if (Object.keys(b).includes(key)) {
+    const aKeys = new Set(Object.keys(a));
+    const bKeys = new Set(Object.keys(b));
+    const allKeys = new Set([...aKeys, ...bKeys]);
+    for (const key of allKeys.values()) {
+      if (aKeys.has(key) && bKeys.has(key)) {
         ret[key] = objMerge(a[key], b[key]);
-      } else {
+      } else if (aKeys.has(key)) {
         ret[key] = a[key];
+      } else {
+        ret[key] = b[key];
       }
     }
     return ret;
   } else {
-    return b;
+    return b ? b : a;
   }
 }

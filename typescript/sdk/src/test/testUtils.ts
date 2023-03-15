@@ -69,13 +69,25 @@ export async function deployTestIgpsAndGetRouterConfig(
 const nonZeroAddress = ethers.constants.AddressZero.replace('00', '01');
 
 // dummy config as TestInbox and TestOutbox do not use deployed ISM
-export const testCoreConfig: CoreConfig = {
-  owner: nonZeroAddress,
-  multisigIsm: {
+export function testCoreConfig(chains: ChainName[]): ChainMap<CoreConfig> {
+  const multisigIsm = {
     validators: [nonZeroAddress],
     threshold: 1,
-  },
-};
+  };
+  return Object.fromEntries(
+    chains.map((local) => [
+      local,
+      {
+        owner: nonZeroAddress,
+        multisigIsm: Object.fromEntries(
+          chains
+            .filter((c) => c !== local)
+            .map((remote) => [remote, multisigIsm]),
+        ),
+      },
+    ]),
+  );
+}
 
 // A mock CoinGecko intended to be used by tests
 export class MockCoinGecko implements CoinGeckoInterface {

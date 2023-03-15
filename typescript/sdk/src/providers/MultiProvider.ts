@@ -36,42 +36,55 @@ export class MultiProvider {
    * Create a new MultiProvider with the given chainMetadata,
    * or the SDK's default metadata if not provided
    */
+  /**
+   * Create a new MultiProvider with the given chainMetadata,
+   * or the SDK's default metadata if not provided
+   */
   constructor(
     chainMetadata: ChainMap<ChainMetadata> = defaultChainMetadata,
     options: MultiProviderOptions = {},
   ) {
     Object.entries(chainMetadata).forEach(([key, cm]) => {
-      if (!isValidChainMetadata(cm))
-        throw new Error(`Invalid chain metadata for ${cm.chainId}`);
       if (key !== cm.name)
         throw new Error(
           `Chain name mismatch: Key was ${key}, but name is ${cm.name}`,
         );
+      this.addChain(cm);
     });
-
-    this.metadata = chainMetadata;
-    // Ensure no two chains have overlapping names/domainIds/chainIds
-    const chainNames = new Set<string>();
-    const chainIds = new Set<number>();
-    const domainIds = new Set<number>();
-    for (const chain of Object.values(chainMetadata)) {
-      const { name, chainId, domainId } = chain;
-      if (chainNames.has(name))
-        throw new Error(`Duplicate chain name: ${name}`);
-      if (chainIds.has(chainId))
-        throw new Error(`Duplicate chain id: ${chainId}`);
-      if (domainIds.has(chainId))
-        throw new Error(`Overlapping chain/domain id: ${chainId}`);
-      if (domainId && domainIds.has(domainId))
-        throw new Error(`Duplicate domain id: ${domainId}`);
-      if (domainId && chainIds.has(domainId))
-        throw new Error(`Overlapping chain/domain id: ${domainId}`);
-      chainNames.add(name);
-      chainIds.add(chainId);
-      if (domainId) domainIds.add(domainId);
-    }
-
     this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
+  }
+
+  addChain(metadata: ChainMetadata): void {
+    if (!isValidChainMetadata(metadata))
+      throw new Error(`Invalid chain metadata for ${metadata.name}`);
+    // Ensure no two chains have overlapping names/domainIds/chainIds
+    for (const chainMetadata of Object.values(this.metadata)) {
+      const { name, chainId, domainId } = chainMetadata;
+      if (name == metadata.name)
+        throw new Error(`Duplicate chain name: ${name}`);
+      if (
+        chainId == metadata.chainId ||
+        domainId == metadata.chainId ||
+        (metadata.domainId &&
+          (chainId == metadata.domainId || domainId === metadata.domainId))
+      )
+        throw new Error(
+          `Chain/Domain id conflict: ${name} and ${metadata.name}`,
+        );
+    }
+    this.metadata[metadata.name] = metadata;
+    if (this.useSharedSigner) {
+      const signers = Object.values(this.signers);
+      if (signers.length > 0) {
+        this.setSharedSigner(signers[0]);
+      }
+    }
+  }
+
+  addChains(metadata: ChainMap<ChainMetadata>): void {
+    for (const chain of Object.keys(metadata)) {
+      this.addChain(metadata[chain]);
+    }
   }
 
   /**

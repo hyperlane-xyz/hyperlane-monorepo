@@ -2,7 +2,7 @@ import { Mailbox, MultisigIsm } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
 import type { CheckerViolation } from '../deploy/types';
-import { ChainName } from '../types';
+import { ChainMap, ChainName } from '../types';
 
 export type MultisigIsmConfig = {
   validators: Array<types.Address>;
@@ -10,7 +10,7 @@ export type MultisigIsmConfig = {
 };
 
 export type CoreConfig = {
-  multisigIsm: MultisigIsmConfig;
+  multisigIsm: ChainMap<MultisigIsmConfig>;
   owner: types.Address;
   remove?: boolean;
 };

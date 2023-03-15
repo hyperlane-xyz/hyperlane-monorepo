@@ -77,9 +77,7 @@ async function initTestEnv(chains: ChainName[]) {
     { signer },
     chains,
   );
-  const coreConfig = Object.fromEntries(
-    chains.map((chain) => [chain, testCoreConfig]),
-  );
+  const coreConfig = testCoreConfig(chains);
   const coreDeployer = new TestCoreDeployer(multiProvider, coreConfig);
   const coreContractsMaps = await coreDeployer.deploy();
   const core = new TestCoreApp(coreContractsMaps, multiProvider);

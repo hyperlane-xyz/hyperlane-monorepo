@@ -7,6 +7,7 @@ import {
   TestMailbox__factory,
 } from '@hyperlane-xyz/core';
 
+import { TestChains } from '../consts/chains';
 import { MultiProvider } from '../providers/MultiProvider';
 import { testCoreConfig } from '../test/testUtils';
 import { ChainMap, ChainName } from '../types';
@@ -29,11 +30,7 @@ export class TestCoreDeployer extends HyperlaneCoreDeployer {
     configMap?: ChainMap<CoreConfig>,
   ) {
     // Note that the multisig module configs are unused.
-    const configs = configMap ?? {
-      test1: testCoreConfig,
-      test2: testCoreConfig,
-      test3: testCoreConfig,
-    };
+    const configs = configMap ?? testCoreConfig(TestChains);
 
     super(multiProvider, configs, testCoreFactories);
   }

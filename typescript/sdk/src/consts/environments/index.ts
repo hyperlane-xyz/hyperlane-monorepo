@@ -10,7 +10,7 @@ import testnet from './testnet.json';
 export const hyperlaneEnvironments = { test, testnet, mainnet };
 
 // TODO: Add middleware addresses
-type HyperlaneContractAddresses = CoreAddresses & IgpAddresses;
+export type HyperlaneContractAddresses = CoreAddresses & IgpAddresses;
 
 // Export developer-relevant addresses
 export const hyperlaneCoreAddresses = objMap(

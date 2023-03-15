@@ -73,10 +73,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
   async deployMultisigIsm(chain: ChainName): Promise<MultisigIsm> {
     const multisigIsm = await this.deployContract(chain, 'multisigIsm', []);
-    const configChains = Object.keys(this.configMap);
-    const remotes = this.multiProvider
-      .intersect(configChains, false)
-      .multiProvider.getRemoteChains(chain);
+    const remotes = Object.keys(this.configMap[chain].multisigIsm);
     const overrides = this.multiProvider.getTransactionOverrides(chain);
 
     await super.runIfOwner(chain, multisigIsm, async () => {
@@ -86,7 +83,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         remoteDomains.map((id) => multisigIsm.validators(id)),
       );
       const expectedValidators = remotes.map(
-        (chain) => this.configMap[chain].multisigIsm.validators,
+        (remote) => this.configMap[chain].multisigIsm[remote].validators,
       );
       const validatorsToEnroll = expectedValidators.map((validators, i) =>
         validators.filter(
@@ -97,12 +94,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       const chainsToEnrollValidators = remotes.filter(
         (_, i) => validatorsToEnroll[i].length > 0,
       );
-
       if (chainsToEnrollValidators.length > 0) {
         this.logger(
           `Enroll ${chainsToEnrollValidators} validators on ${chain}`,
         );
-
         await this.multiProvider.handleTx(
           chain,
           multisigIsm.enrollValidators(
@@ -114,12 +109,11 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
           ),
         );
       }
-
       const actualThresholds = await Promise.all(
         remoteDomains.map((id) => multisigIsm.threshold(id)),
       );
       const expectedThresholds = remotes.map(
-        (chain) => this.configMap[chain].multisigIsm.threshold,
+        (remote) => this.configMap[chain].multisigIsm[remote].threshold,
       );
       const chainsToSetThreshold = remotes.filter(
         (_, i) => actualThresholds[i] !== expectedThresholds[i],
@@ -133,14 +127,13 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
           multisigIsm.setThresholds(
             chainsToSetThreshold.map((c) => this.multiProvider.getDomainId(c)),
             chainsToSetThreshold.map(
-              (c) => this.configMap[c].multisigIsm.threshold,
+              (remote) => this.configMap[chain].multisigIsm[remote].threshold,
             ),
             overrides,
           ),
         );
       }
     });
-
     return multisigIsm;
   }
 

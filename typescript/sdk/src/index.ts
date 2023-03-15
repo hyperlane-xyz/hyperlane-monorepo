@@ -21,6 +21,7 @@ export {
   Testnets,
 } from './consts/chains';
 export {
+  HyperlaneContractAddresses,
   hyperlaneContractAddresses,
   hyperlaneCoreAddresses,
 } from './consts/environments';
@@ -147,6 +148,7 @@ export {
   mulBigAndFixed,
 } from './utils/number';
 export {
+  objFilter,
   objMap,
   objMapEntries,
   objMerge,
