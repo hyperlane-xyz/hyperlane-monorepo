@@ -1,21 +1,16 @@
 import { FallbackProviderConfig } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 
-import { ChainName, RetryJsonRpcProvider } from '@hyperlane-xyz/sdk';
+import { ChainName, providerBuilder } from '@hyperlane-xyz/sdk';
 
 import { getSecretRpcEndpoint } from '../agents';
 
 import { ConnectionType } from './agent';
 import { DeployEnvironment } from './environment';
 
-const providerBuilder = (url: string, retry = true) => {
-  const baseProvider = new ethers.providers.JsonRpcProvider(url);
-  return retry
-    ? new RetryJsonRpcProvider(baseProvider, {
-        maxRequests: 6,
-        baseRetryMs: 50,
-      })
-    : baseProvider;
+const defaultRetry = {
+  maxRequests: 6,
+  baseRetryMs: 50,
 };
 
 export async function fetchProvider(
@@ -27,18 +22,18 @@ export async function fetchProvider(
   const rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
   switch (connectionType) {
     case ConnectionType.Http: {
-      return providerBuilder(rpcData);
+      return providerBuilder({ http: rpcData, retry: defaultRetry });
     }
     case ConnectionType.HttpQuorum: {
       return new ethers.providers.FallbackProvider(
-        (rpcData as string[]).map((url) => providerBuilder(url, false)), // disable retry for quorum
+        (rpcData as string[]).map((url) => providerBuilder({ http: url })), // disable retry for quorum
       );
     }
     case ConnectionType.HttpFallback: {
       return new ethers.providers.FallbackProvider(
         (rpcData as string[]).map((url, index) => {
           const fallbackProviderConfig: FallbackProviderConfig = {
-            provider: providerBuilder(url),
+            provider: providerBuilder({ http: url, retry: defaultRetry }),
             // Priority is used by the FallbackProvider to determine
             // how to order providers using ascending ordering.
             // When not specified, all providers have the same priority

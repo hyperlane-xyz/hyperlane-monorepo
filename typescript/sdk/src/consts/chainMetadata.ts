@@ -2,6 +2,7 @@ import type { Chain as WagmiChain } from '@wagmi/chains';
 import type { providers } from 'ethers';
 import { z } from 'zod';
 
+import { RetryOptions } from '../providers/RetryProvider';
 import { ChainName } from '../types';
 import { objMap } from '../utils/objects';
 import { chainMetadataToWagmiChain } from '../utils/wagmi';
@@ -38,6 +39,7 @@ export interface ChainMetadata {
     http: string;
     webSocket?: string;
     pagination?: RpcPagination;
+    retry?: RetryOptions;
   }>;
   /** Collection of block explorers */
   blockExplorers?: Array<{

@@ -119,7 +119,7 @@ export {
   LiquidityLayerContracts,
   liquidityLayerFactories,
 } from './middleware/liquidity-layer/contracts';
-export { MultiProvider } from './providers/MultiProvider';
+export { MultiProvider, providerBuilder } from './providers/MultiProvider';
 export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
 export {
   ProxiedContract,

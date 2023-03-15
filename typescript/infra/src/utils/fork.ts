@@ -1,6 +1,6 @@
 import { JsonRpcProvider, JsonRpcSigner } from '@ethersproject/providers';
 
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import { ChainName, MultiProvider, providerBuilder } from '@hyperlane-xyz/sdk';
 
 export const fork = async (provider: JsonRpcProvider, url: string) => {
   await provider.send('hardhat_reset', [
@@ -25,7 +25,13 @@ export const useLocalProvider = (
   chain: ChainName,
   port = 8545,
 ): JsonRpcProvider => {
-  const provider = new JsonRpcProvider(`http://localhost:${port}`);
+  const provider = providerBuilder({
+    http: `http://localhost:${port}`,
+    retry: {
+      maxRequests: 6,
+      baseRetryMs: 50,
+    },
+  });
   multiProvider.setProvider(chain, provider);
   return provider;
 };

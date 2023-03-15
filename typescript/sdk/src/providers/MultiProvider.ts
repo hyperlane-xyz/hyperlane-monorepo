@@ -19,7 +19,20 @@ import { CoreChainName, TestChains } from '../consts/chains';
 import { ChainMap, ChainName } from '../types';
 import { pick } from '../utils/objects';
 
+import { RetryJsonRpcProvider, RetryOptions } from './RetryProvider';
+
 type Provider = providers.Provider;
+
+export const providerBuilder = (config: {
+  http: string;
+  id?: number;
+  retry?: RetryOptions;
+}) => {
+  const baseProvider = new providers.JsonRpcProvider(config.http, config.id);
+  return config.retry
+    ? new RetryJsonRpcProvider(baseProvider, config.retry)
+    : baseProvider;
+};
 
 interface MultiProviderOptions {
   loggerName?: string;
@@ -192,11 +205,15 @@ export class MultiProvider {
         'http://localhost:8545',
         31337,
       );
-    } else if (publicRpcUrls.length && publicRpcUrls[0].http) {
-      this.providers[name] = new providers.JsonRpcProvider(
-        publicRpcUrls[0].http,
-        id,
-      );
+    } else if (publicRpcUrls.length) {
+      if (publicRpcUrls.length > 1) {
+        this.providers[name] = new providers.FallbackProvider(
+          publicRpcUrls.map((v) => providerBuilder({ ...v, id })),
+          1,
+        );
+      } else {
+        this.providers[name] = providerBuilder({ ...publicRpcUrls[0], id });
+      }
     } else {
       return null;
     }
