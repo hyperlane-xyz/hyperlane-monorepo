@@ -35,12 +35,8 @@ async function check() {
   );
 
   if (argv.fork) {
-    // TODO: make this more generic
-    const forkChain = environment === 'testnet3' ? 'goerli' : 'ethereum';
-
-    // rotate chain provider to local RPC
-    useLocalProvider(multiProvider, forkChain);
-    await coreChecker.checkChain(forkChain);
+    const { network } = await useLocalProvider(multiProvider);
+    await coreChecker.checkChain(network.name);
   } else {
     await coreChecker.check();
   }

@@ -23,13 +23,13 @@ import { RetryJsonRpcProvider, RetryOptions } from './RetryProvider';
 
 type Provider = providers.Provider;
 
-export const providerBuilder = (config: {
-  http: string;
+export const providerBuilder = (config?: {
+  http?: string;
   id?: number;
   retry?: RetryOptions;
 }) => {
-  const baseProvider = new providers.JsonRpcProvider(config.http, config.id);
-  return config.retry
+  const baseProvider = new providers.JsonRpcProvider(config?.http, config?.id);
+  return config?.retry
     ? new RetryJsonRpcProvider(baseProvider, config.retry)
     : baseProvider;
 };

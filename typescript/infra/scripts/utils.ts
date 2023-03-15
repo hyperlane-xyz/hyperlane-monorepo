@@ -34,7 +34,7 @@ export function getArgsWithContext() {
 export function getArgsWithFork() {
   return getArgs()
     .boolean('fork')
-    .describe('fork', 'fork local chain state from RPC url')
+    .describe('fork', 'use local fork for script')
     .alias('f', 'fork');
 }
 

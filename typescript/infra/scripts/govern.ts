@@ -25,18 +25,14 @@ async function check() {
       : await config.getMultiProvider();
 
   if (argv.fork) {
-    // TODO: make this more generic
-    const forkChain = environment === 'testnet3' ? 'goerli' : 'ethereum';
-
-    // rotate chain provider to local RPC
-    const provider = useLocalProvider(multiProvider, forkChain);
+    const { provider, network } = await useLocalProvider(multiProvider);
 
     // rotate chain signer to impersonated owner
     const signer = await impersonateAccount(
       provider,
-      config.core[forkChain].owner,
+      config.core[network.name].owner,
     );
-    multiProvider.setSigner(forkChain, signer);
+    multiProvider.setSigner(network.name, signer);
   }
 
   const core = HyperlaneCore.fromEnvironment(
@@ -49,10 +45,10 @@ async function check() {
     core,
     config.core,
   );
+  const governor = new HyperlaneCoreGovernor(coreChecker);
   await coreChecker.check();
   coreChecker.expectViolations({});
 
-  const governor = new HyperlaneCoreGovernor(coreChecker);
   await governor.govern();
 }
 

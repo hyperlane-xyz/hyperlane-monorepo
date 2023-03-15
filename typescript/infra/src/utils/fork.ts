@@ -1,6 +1,12 @@
-import { JsonRpcProvider, JsonRpcSigner } from '@ethersproject/providers';
+import {
+  JsonRpcProvider,
+  JsonRpcSigner,
+  Network,
+} from '@ethersproject/providers';
 
-import { ChainName, MultiProvider, providerBuilder } from '@hyperlane-xyz/sdk';
+import { MultiProvider, providerBuilder } from '@hyperlane-xyz/sdk';
+
+import { defaultRetry } from '../config/chain';
 
 export const fork = async (provider: JsonRpcProvider, url: string) => {
   await provider.send('hardhat_reset', [
@@ -20,18 +26,11 @@ export const impersonateAccount = async (
   return provider.getSigner(account);
 };
 
-export const useLocalProvider = (
+export const useLocalProvider = async (
   multiProvider: MultiProvider,
-  chain: ChainName,
-  port = 8545,
-): JsonRpcProvider => {
-  const provider = providerBuilder({
-    http: `http://localhost:${port}`,
-    retry: {
-      maxRequests: 6,
-      baseRetryMs: 50,
-    },
-  });
-  multiProvider.setProvider(chain, provider);
-  return provider;
+): Promise<{ provider: JsonRpcProvider; network: Network }> => {
+  const provider = providerBuilder({ retry: defaultRetry });
+  const network = await provider.getNetwork();
+  multiProvider.setProvider(network.chainId, provider);
+  return { provider, network };
 };

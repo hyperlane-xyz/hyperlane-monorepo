@@ -8,7 +8,7 @@ import { getSecretRpcEndpoint } from '../agents';
 import { ConnectionType } from './agent';
 import { DeployEnvironment } from './environment';
 
-const defaultRetry = {
+export const defaultRetry = {
   maxRequests: 6,
   baseRetryMs: 50,
 };

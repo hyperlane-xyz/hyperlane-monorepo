@@ -8,7 +8,7 @@ import {
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
-import { fork, impersonateAccount, useLocalProvider } from '../src/utils/fork';
+import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import { readJSON, writeJSON } from '../src/utils/utils';
 
 import {
@@ -55,24 +55,22 @@ async function main() {
   }
 
   if (argv.fork) {
+    const { provider, network } = await useLocalProvider(multiProvider);
+
+    const forkChain = network.name;
+    console.log(`Running against ${forkChain} fork`);
+
     // TODO: make this more generic
-    const forkChain = environment === 'testnet3' ? 'goerli' : 'ethereum';
     const deployerAddress =
       environment === 'testnet3'
         ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
         : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
-    // rotate chain provider to local RPC
-    const provider = useLocalProvider(multiProvider, forkChain);
-
-    // fork chain provider from remote state
-    await fork(provider, multiProvider.getRpcUrl(forkChain));
-
     // rotate chain signer to impersonated deployer
     const signer = await impersonateAccount(provider, deployerAddress);
     multiProvider.setSigner(forkChain, signer);
 
-    await deployer.deployContracts(forkChain, config.core[forkChain]);
+    await deployer.deployContracts(network.name, config.core[forkChain]);
     return;
   }
 
