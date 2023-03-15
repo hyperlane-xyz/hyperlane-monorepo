@@ -55,7 +55,7 @@ export class HyperlaneCoreGovernor {
     this.canPropose = objMap(this.checker.app.contractsMap, () => new Map());
   }
 
-  async govern() {
+  async govern(confirm = true) {
     // 1. Produce calls from checker violations.
     await this.mapViolationsToCalls();
 
@@ -65,11 +65,11 @@ export class HyperlaneCoreGovernor {
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
     for (const chain of Object.keys(this.calls)) {
-      await this.sendCalls(chain);
+      await this.sendCalls(chain, confirm);
     }
   }
 
-  async governChain(chain: ChainName, confirm = false) {
+  async governChain(chain: ChainName, confirm = true) {
     // 1. Produce calls from checker violations.
     await this.mapViolationsToCalls();
 
@@ -81,7 +81,7 @@ export class HyperlaneCoreGovernor {
     await this.sendCalls(chain, confirm);
   }
 
-  protected async sendCalls(chain: ChainName, confirm = false) {
+  protected async sendCalls(chain: ChainName, confirm: boolean) {
     const calls = this.calls[chain];
     console.log(`\nFound ${calls.length} transactions for ${chain}`);
     const filterCalls = (submissionType: SubmissionType) =>
@@ -89,7 +89,6 @@ export class HyperlaneCoreGovernor {
     const summarizeCalls = async (
       submissionType: SubmissionType,
       calls: AnnotatedCallData[],
-      confirm = false,
     ): Promise<boolean> => {
       if (calls.length > 0) {
         console.log(
@@ -99,7 +98,7 @@ export class HyperlaneCoreGovernor {
           console.log(`> > ${c.description} (to: ${c.to} data: ${c.data})`),
         );
         const response =
-          confirm ||
+          !confirm ||
           prompts.confirm({
             type: 'confirm',
             name: 'value',
@@ -117,7 +116,7 @@ export class HyperlaneCoreGovernor {
     ) => {
       const calls = filterCalls(submissionType);
       if (calls.length > 0) {
-        const confirmed = await summarizeCalls(submissionType, calls, confirm);
+        const confirmed = await summarizeCalls(submissionType, calls);
         if (confirmed) {
           console.log(`Submitting calls on ${chain} via ${submissionType}`);
           await multiSend.sendTransactions(

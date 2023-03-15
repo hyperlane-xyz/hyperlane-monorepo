@@ -1,8 +1,4 @@
-import {
-  HyperlaneCore,
-  HyperlaneCoreChecker,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneCore, HyperlaneCoreChecker } from '@hyperlane-xyz/sdk';
 
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { useLocalProvider } from '../src/utils/fork';
@@ -17,11 +13,7 @@ async function check() {
   const argv = await getArgsWithFork().argv;
   const environment = assertEnvironment(argv.environment);
   const config = getCoreEnvironmentConfig(environment);
-
-  const multiProvider =
-    process.env.CI === 'true'
-      ? new MultiProvider() // use default RPCs
-      : await config.getMultiProvider();
+  const multiProvider = await config.getMultiProvider();
 
   // must rotate to forked provider before building core contracts
   if (argv.fork) {
@@ -63,4 +55,6 @@ async function check() {
   }
 }
 
-check().then().catch(console.error);
+check()
+  .then()
+  .catch(() => process.exit(1));

@@ -15,7 +15,7 @@ import {
   HyperlaneContract,
   HyperlaneContracts,
   HyperlaneFactories,
-  connectContracts,
+  connectContractsMap,
   serializeContracts,
 } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
@@ -61,19 +61,23 @@ export abstract class HyperlaneDeployer<
     this.logger = options?.logger || debug('hyperlane:AppDeployer');
   }
 
+  cacheContracts(partialDeployment: ChainMap<Contracts>) {
+    this.deployedContracts = connectContractsMap(
+      partialDeployment,
+      this.multiProvider,
+    );
+  }
+
   abstract deployContracts(
     chain: ChainName,
     config: Config,
   ): Promise<Contracts>;
 
   async deploy(
-    partialDeployment: ChainMap<Contracts> = this.deployedContracts,
+    partialDeployment?: ChainMap<Contracts>,
   ): Promise<ChainMap<Contracts>> {
-    objMap(partialDeployment, (chain, contracts) => {
-      this.logger(`Recovering contracts for ${chain} from partial deployment`);
-      const signer = this.multiProvider.getSigner(chain);
-      this.deployedContracts[chain] = connectContracts(contracts, signer);
-    });
+    this.cacheContracts(partialDeployment);
+
     const configChains = Object.keys(this.configMap);
     const targetChains = this.multiProvider.intersect(
       configChains,

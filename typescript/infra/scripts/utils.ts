@@ -130,6 +130,10 @@ export async function getMultiProviderForRole(
   index?: number,
   connectionType?: ConnectionType,
 ): Promise<MultiProvider> {
+  if (process.env.CI === 'true') {
+    return new MultiProvider(); // use default RPCs
+  }
+
   const multiProvider = new MultiProvider(txConfigs);
   await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {

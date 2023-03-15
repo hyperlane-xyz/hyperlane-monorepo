@@ -23,16 +23,16 @@ while ! cast bn; do
   sleep 1
 done
 
-echo "=== Run checker against forked $ENVIRONMENT ===\n"
+echo "=== Run checker against forked $ENVIRONMENT ==="
 DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT --fork $FORK_CHAIN
 
-echo "=== Run core deployer against forked $ENVIRONMENT ===\n"
+echo "=== Run core deployer against forked $ENVIRONMENT ==="
 DEBUG=hyperlane:* yarn ts-node ./scripts/core.ts -e $ENVIRONMENT --fork $FORK_CHAIN
 
-echo "=== Run govern against forked $ENVIRONMENT ===\n"
+echo "=== Run govern against forked $ENVIRONMENT ==="
 DEBUG=hyperlane:* yarn ts-node ./scripts/govern.ts -e $ENVIRONMENT --fork $FORK_CHAIN
 
-echo "=== Run checker against forked $ENVIRONMENT ===\n"
+echo "=== Run checker against forked $ENVIRONMENT ==="
 DEBUG=hyperlane:* yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT --fork $FORK_CHAIN
 
 SUCCESS=$?
