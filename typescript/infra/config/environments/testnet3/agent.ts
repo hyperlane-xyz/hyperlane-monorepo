@@ -53,9 +53,22 @@ export const hyperlane: AgentConfig = {
           // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
           matchingList: interchainQueriesMatchingList,
         },
+        // Don't enforce amounts for arbitrumgoerli yet
         {
           type: GasPaymentEnforcementPolicyType.Minimum,
           payment: '1',
+          matchingList: [
+            {
+              originDomain: '*',
+              destinationDomain: chainMetadata.arbitrumgoerli.domainId,
+              senderAddress: '*',
+              recipientAddress: '*',
+            },
+          ],
+        },
+        // Default policy is OnChainFeeQuoting
+        {
+          type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
         },
       ],
     },
@@ -88,6 +101,20 @@ export const releaseCandidate: AgentConfig = {
           type: GasPaymentEnforcementPolicyType.None,
           matchingList: interchainQueriesMatchingList,
         },
+        // Don't enforce amounts for arbitrumgoerli yet
+        {
+          type: GasPaymentEnforcementPolicyType.Minimum,
+          payment: '1',
+          matchingList: [
+            {
+              originDomain: '*',
+              destinationDomain: chainMetadata.arbitrumgoerli.domainId,
+              senderAddress: '*',
+              recipientAddress: '*',
+            },
+          ],
+        },
+        // Default policy is OnChainFeeQuoting
         {
           type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
         },
