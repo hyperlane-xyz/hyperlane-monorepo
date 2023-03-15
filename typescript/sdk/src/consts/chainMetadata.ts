@@ -342,7 +342,10 @@ export const ethereum: ChainMetadata = {
   name: Chains.ethereum,
   displayName: 'Ethereum',
   nativeToken: etherToken,
-  publicRpcUrls: [{ http: 'https://cloudflare-eth.com' }],
+  publicRpcUrls: [
+    { http: 'https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' },
+    { http: 'https://cloudflare-eth.com' },
+  ],
   blockExplorers: [
     {
       name: 'Etherscan',
@@ -393,7 +396,7 @@ export const goerli: ChainMetadata = {
   displayName: 'Goerli',
   nativeToken: etherToken,
   publicRpcUrls: [
-    // { http: 'https://endpoints.omniatech.io/v1/eth/goerli/public' },
+    { http: 'https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' },
     { http: 'https://rpc.ankr.com/eth_goerli' },
     { http: 'https://eth-goerli.public.blastapi.io' },
   ],

@@ -51,7 +51,7 @@ async function main() {
   }
 
   if (argv.fork) {
-    const { provider, network } = await useLocalProvider(multiProvider);
+    await useLocalProvider(multiProvider, argv.fork);
 
     // connect contracts to forked provider
     deployer.deployedContracts = connectContractsMap(
@@ -59,8 +59,7 @@ async function main() {
       multiProvider,
     );
 
-    const forkChain = network.name;
-    console.log(`Running against ${forkChain} fork`);
+    console.log(`Running against ${argv.fork} fork`);
 
     // TODO: make this more generic
     const deployerAddress =
@@ -69,10 +68,10 @@ async function main() {
         : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
     // rotate chain signer to impersonated deployer
-    const signer = await impersonateAccount(provider, deployerAddress);
-    multiProvider.setSigner(forkChain, signer);
+    const signer = await impersonateAccount(deployerAddress);
+    multiProvider.setSigner(argv.fork, signer);
 
-    await deployer.deployContracts(network.name, config.core[forkChain]);
+    await deployer.deployContracts(argv.fork, config.core[argv.fork]);
     return;
   }
 

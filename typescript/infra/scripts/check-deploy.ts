@@ -25,7 +25,7 @@ async function check() {
 
   // must rotate to forked provider before building core contracts
   if (argv.fork) {
-    await useLocalProvider(multiProvider);
+    await useLocalProvider(multiProvider, argv.fork);
   }
 
   // environments union doesn't work well with typescript
@@ -40,23 +40,12 @@ async function check() {
   );
 
   if (argv.fork) {
-    const { network } = await useLocalProvider(multiProvider);
-    await coreChecker.checkChain(network.name);
+    await coreChecker.checkChain(argv.fork);
   } else {
     await coreChecker.check();
   }
 
   if (coreChecker.violations.length > 0) {
-    const violation = coreChecker.violations[0];
-    const desc = (s: any) =>
-      `${Object.keys(s)
-        .map((remote) => {
-          const expected = s[remote];
-          return `destination gas overhead for ${remote} to ${expected}`;
-        })
-        .join('\n')}`;
-    console.log('ACTUAL:', desc(violation.actual));
-    console.log('EXPECTED:', desc(violation.expected));
     console.table(coreChecker.violations, [
       'chain',
       'remote',

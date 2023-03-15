@@ -26,7 +26,7 @@ async function check() {
 
   // must rotate to forked provider before building core contracts
   if (argv.fork) {
-    await useLocalProvider(multiProvider);
+    await useLocalProvider(multiProvider, argv.fork);
   }
 
   const core = HyperlaneCore.fromEnvironment(
@@ -42,16 +42,12 @@ async function check() {
   const governor = new HyperlaneCoreGovernor(coreChecker);
 
   if (argv.fork) {
-    const { provider, network } = await useLocalProvider(multiProvider);
     // rotate chain signer to impersonated owner
-    const signer = await impersonateAccount(
-      provider,
-      config.core[network.name].owner,
-    );
-    multiProvider.setSigner(network.name, signer);
+    const signer = await impersonateAccount(config.core[argv.fork].owner);
+    multiProvider.setSigner(argv.fork, signer);
 
-    await coreChecker.checkChain(network.name);
-    await governor.governChain(network.name, true);
+    await coreChecker.checkChain(argv.fork);
+    await governor.governChain(argv.fork, true);
     return;
   }
 

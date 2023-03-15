@@ -1,13 +1,10 @@
-import {
-  JsonRpcProvider,
-  JsonRpcSigner,
-  Network,
-} from '@ethersproject/providers';
+import { JsonRpcProvider, JsonRpcSigner } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 
-export const fork = async (provider: JsonRpcProvider, url: string) => {
+export const resetFork = async (url: string) => {
+  const provider = new JsonRpcProvider();
   await provider.send('hardhat_reset', [
     {
       forking: {
@@ -18,9 +15,9 @@ export const fork = async (provider: JsonRpcProvider, url: string) => {
 };
 
 export const impersonateAccount = async (
-  provider: JsonRpcProvider,
   account: string,
 ): Promise<JsonRpcSigner> => {
+  const provider = new JsonRpcProvider();
   await provider.send('hardhat_impersonateAccount', [account]);
   await provider.send('hardhat_setBalance', [
     account,
@@ -31,12 +28,8 @@ export const impersonateAccount = async (
 
 export const useLocalProvider = async (
   multiProvider: MultiProvider,
-): Promise<{ provider: JsonRpcProvider; network: Network }> => {
+  chain: ChainName | number,
+) => {
   const provider = new JsonRpcProvider();
-  const network = await provider.getNetwork();
-  if (network.name === 'homestead') {
-    network.name = 'ethereum';
-  }
-  multiProvider.setProvider(network.chainId, provider);
-  return { provider, network };
+  multiProvider.setProvider(chain, provider);
 };

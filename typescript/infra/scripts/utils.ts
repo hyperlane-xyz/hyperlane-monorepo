@@ -33,8 +33,8 @@ export function getArgsWithContext() {
 
 export function getArgsWithFork() {
   return getArgs()
-    .boolean('fork')
-    .describe('fork', 'use local fork for script')
+    .string('fork')
+    .describe('fork', 'network to fork')
     .alias('f', 'fork');
 }
 
