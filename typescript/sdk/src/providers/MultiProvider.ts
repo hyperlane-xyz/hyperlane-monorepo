@@ -25,10 +25,13 @@ type Provider = providers.Provider;
 
 export const providerBuilder = (config?: {
   http?: string;
-  id?: number;
+  network?: providers.Networkish;
   retry?: RetryOptions;
 }) => {
-  const baseProvider = new providers.JsonRpcProvider(config?.http, config?.id);
+  const baseProvider = new providers.JsonRpcProvider(
+    config?.http,
+    config?.network,
+  );
   return config?.retry
     ? new RetryJsonRpcProvider(baseProvider, config.retry)
     : baseProvider;
@@ -208,11 +211,14 @@ export class MultiProvider {
     } else if (publicRpcUrls.length) {
       if (publicRpcUrls.length > 1) {
         this.providers[name] = new providers.FallbackProvider(
-          publicRpcUrls.map((v) => providerBuilder({ ...v, id })),
+          publicRpcUrls.map((v) => providerBuilder({ ...v, network: id })),
           1,
         );
       } else {
-        this.providers[name] = providerBuilder({ ...publicRpcUrls[0], id });
+        this.providers[name] = providerBuilder({
+          ...publicRpcUrls[0],
+          network: id,
+        });
       }
     } else {
       return null;
@@ -239,6 +245,10 @@ export class MultiProvider {
   setProvider(chainNameOrId: ChainName | number, provider: Provider): Provider {
     const chainName = this.getChainName(chainNameOrId);
     this.providers[chainName] = provider;
+    const signer = this.signers[chainName];
+    if (signer && signer.provider) {
+      this.setSigner(chainName, signer.connect(provider));
+    }
     return provider;
   }
 

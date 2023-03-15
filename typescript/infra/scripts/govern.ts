@@ -24,15 +24,9 @@ async function check() {
       ? new MultiProvider() // use default RPCs
       : await config.getMultiProvider();
 
+  // must rotate to forked provider before building core contracts
   if (argv.fork) {
-    const { provider, network } = await useLocalProvider(multiProvider);
-
-    // rotate chain signer to impersonated owner
-    const signer = await impersonateAccount(
-      provider,
-      config.core[network.name].owner,
-    );
-    multiProvider.setSigner(network.name, signer);
+    await useLocalProvider(multiProvider);
   }
 
   const core = HyperlaneCore.fromEnvironment(
@@ -46,9 +40,22 @@ async function check() {
     config.core,
   );
   const governor = new HyperlaneCoreGovernor(coreChecker);
-  await coreChecker.check();
-  coreChecker.expectViolations({});
 
+  if (argv.fork) {
+    const { provider, network } = await useLocalProvider(multiProvider);
+    // rotate chain signer to impersonated owner
+    const signer = await impersonateAccount(
+      provider,
+      config.core[network.name].owner,
+    );
+    multiProvider.setSigner(network.name, signer);
+
+    await coreChecker.checkChain(network.name);
+    await governor.governChain(network.name, true);
+    return;
+  }
+
+  await coreChecker.check();
   await governor.govern();
 }
 

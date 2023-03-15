@@ -7,16 +7,17 @@ fi
 
 # TODO: make this more generic
 if [ "$ENVIRONMENT" == "testnet3" ]; then
-  RPC_URL="https://rpc.ankr.com/eth_goerli"
+  RPC_URL="https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
 elif [ "$ENVIRONMENT" == "mainnet2" ]; then
-  RPC_URL="https://rpc.ankr.com/eth_mainnet"
+  RPC_URL="https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
 else
   echo "Unknown environment $ENVIRONMENT"
   exit 1
 fi
 
+
 # TODO: for network in environment
-anvil --fork-url $RPC_URL &
+anvil --fork-url $RPC_URL --block-time 3 &
 ANVIL_PID=$!
 
 while ! cast bn; do

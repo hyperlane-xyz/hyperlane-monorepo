@@ -23,6 +23,11 @@ async function check() {
       ? new MultiProvider() // use default RPCs
       : await config.getMultiProvider();
 
+  // must rotate to forked provider before building core contracts
+  if (argv.fork) {
+    await useLocalProvider(multiProvider);
+  }
+
   // environments union doesn't work well with typescript
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
@@ -42,6 +47,16 @@ async function check() {
   }
 
   if (coreChecker.violations.length > 0) {
+    const violation = coreChecker.violations[0];
+    const desc = (s: any) =>
+      `${Object.keys(s)
+        .map((remote) => {
+          const expected = s[remote];
+          return `destination gas overhead for ${remote} to ${expected}`;
+        })
+        .join('\n')}`;
+    console.log('ACTUAL:', desc(violation.actual));
+    console.log('EXPECTED:', desc(violation.expected));
     console.table(coreChecker.violations, [
       'chain',
       'remote',

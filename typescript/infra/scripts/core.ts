@@ -46,16 +46,18 @@ async function main() {
       `${deployEnvToSdkEnv[environment]}.json`,
     );
     previousContracts = buildContracts(addresses, coreFactories);
-    deployer.deployedContracts = connectContractsMap(
-      previousContracts,
-      multiProvider,
-    );
   } catch (e) {
     console.info('Could not load partial core addresses, file may not exist');
   }
 
   if (argv.fork) {
     const { provider, network } = await useLocalProvider(multiProvider);
+
+    // connect contracts to forked provider
+    deployer.deployedContracts = connectContractsMap(
+      previousContracts,
+      multiProvider,
+    );
 
     const forkChain = network.name;
     console.log(`Running against ${forkChain} fork`);
