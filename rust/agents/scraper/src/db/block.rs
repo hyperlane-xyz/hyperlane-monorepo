@@ -3,7 +3,7 @@ use sea_orm::{
     prelude::*, ActiveValue::*, DbErr, EntityTrait, FromQueryResult, Insert, QueryResult,
     QuerySelect,
 };
-use tracing::trace;
+use tracing::debug;
 
 use hyperlane_core::{BlockInfo, H256};
 
@@ -43,7 +43,7 @@ impl ScraperDb {
         hashes: impl Iterator<Item = &H256>,
     ) -> Result<Vec<BasicBlock>> {
         // check database to see which blocks we already know and fetch their IDs
-        block::Entity::find()
+        let blocks = block::Entity::find()
             .filter(block::Column::Hash.is_in(hashes.map(h256_to_bytes)))
             .select_only()
             // these must align with the custom impl of FromQueryResult
@@ -53,7 +53,10 @@ impl ScraperDb {
             .into_model::<BasicBlock>()
             .all(&self.0)
             .await
-            .context("When fetching blocks")
+            .context("When querying blocks")?;
+
+        debug!(?blocks, "Queried block info for hashes");
+        Ok(blocks)
     }
 
     /// Store a new block (or update an existing one)
@@ -75,7 +78,7 @@ impl ScraperDb {
 
         debug_assert!(!models.is_empty());
         let id_offset = models.len() as i64 - 1;
-        trace!(?models, "Writing blocks to database");
+        debug!(?models, "Writing blocks to database");
         let first_id = Insert::many(models).exec(&self.0).await?.last_insert_id - id_offset;
         debug_assert!(first_id > 0);
         Ok(first_id)

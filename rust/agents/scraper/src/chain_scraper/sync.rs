@@ -5,7 +5,7 @@ use std::sync::Arc;
 use eyre::Result;
 use itertools::Itertools;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 use hyperlane_base::last_message::validate_message_continuity;
 use hyperlane_base::RateLimitedSyncBlockRangeCursor;
@@ -177,12 +177,15 @@ impl Syncer {
     /// Fetch contract data from a given block range.
     #[instrument(skip(self))]
     async fn scrape_range(&self, from: u32, to: u32) -> Result<ExtractedData> {
+        debug!(from, to, "Fetching messages for range");
         let sorted_messages = self
             .contracts
             .mailbox_indexer
             .fetch_sorted_messages(from, to)
             .await?;
+        trace!(from, to, ?sorted_messages, "Fetched messages");
 
+        debug!(from, to, "Fetching deliveries for range");
         let deliveries = self
             .contracts
             .mailbox_indexer
@@ -191,7 +194,9 @@ impl Syncer {
             .into_iter()
             .map(|(message_id, meta)| Delivery { message_id, meta })
             .collect_vec();
+        trace!(from, to, ?deliveries, "Fetched deliveries");
 
+        debug!(from, to, "Fetching payments for range");
         let payments = self
             .contracts
             .igp_indexer
@@ -200,12 +205,14 @@ impl Syncer {
             .into_iter()
             .map(|(payment, meta)| Payment { payment, meta })
             .collect_vec();
+        trace!(from, to, ?payments, "Fetched payments");
 
         debug!(
             from,
             to,
             message_count = sorted_messages.len(),
             deliveries_count = deliveries.len(),
+            payments = payments.len(),
             "Indexed block range for chain"
         );
 

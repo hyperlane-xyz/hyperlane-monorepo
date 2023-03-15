@@ -240,10 +240,8 @@ impl SqlChainScraper {
         let mut storable: Vec<StorableTxn> = Vec::with_capacity(txns_to_insert.len());
         let as_f64 = U256::to_f64_lossy;
         for (hash, (_, block_id)) in txns_to_insert.iter() {
-            storable.push(StorableTxn {
-                info: self.contracts.provider.get_txn_by_hash(hash).await?,
-                block_id: *block_id,
-            });
+            let info = self.contracts.provider.get_txn_by_hash(hash).await?;
+            storable.push(StorableTxn { info, block_id: *block_id });
         }
 
         if !storable.is_empty() {

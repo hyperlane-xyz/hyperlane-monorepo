@@ -3,7 +3,7 @@ use itertools::Itertools;
 use sea_orm::{
     prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QueryOrder, QuerySelect,
 };
-use tracing::{instrument, trace};
+use tracing::{debug, instrument};
 
 use hyperlane_core::{HyperlaneMessage, LogMeta, H256};
 use migration::OnConflict;
@@ -42,7 +42,7 @@ impl ScraperDb {
             Nonce,
         }
 
-        Ok(message::Entity::find()
+        let last_nonce = message::Entity::find()
             .filter(message::Column::Origin.eq(origin_domain))
             .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
             .order_by_desc(message::Column::Nonce)
@@ -51,7 +51,14 @@ impl ScraperDb {
             .into_values::<i32, QueryAs>()
             .one(&self.0)
             .await?
-            .map(|idx| idx as u32))
+            .map(|idx| idx as u32);
+        debug!(
+            ?last_nonce,
+            origin_domain,
+            ?origin_mailbox,
+            "Queried last message nonce from database"
+        );
+        Ok(last_nonce)
     }
 
     /// Store deliveries from a mailbox into the database (or update an existing
@@ -79,7 +86,7 @@ impl ScraperDb {
             .collect_vec();
 
         debug_assert!(!models.is_empty());
-        trace!(?models, "Writing delivered messages to database");
+        debug!(?models, "Writing delivered messages to database");
 
         Insert::many(models)
             .on_conflict(
@@ -124,7 +131,7 @@ impl ScraperDb {
             .collect_vec();
 
         debug_assert!(!models.is_empty());
-        trace!(?models, "Writing messages to database");
+        debug!(?models, "Writing messages to database");
 
         Insert::many(models)
             .on_conflict(
