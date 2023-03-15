@@ -65,9 +65,7 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
-            Self::MsgId => ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None))
-                .def()
-                .unique(),
+            Self::MsgId => ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None)).def(),
             Self::Origin => ColumnType::Integer.def(),
             Self::Destination => ColumnType::Integer.def(),
             Self::Nonce => ColumnType::Integer.def(),
