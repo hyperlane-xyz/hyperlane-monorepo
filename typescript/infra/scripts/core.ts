@@ -105,6 +105,8 @@ async function main() {
     `${deployEnvToSdkEnv[environment]}.json`,
   );
   const agentConfig = await buildAgentConfig(addresses, multiProvider);
+
+  console.log({ addresses, agentConfig });
   writeJSON(
     getAgentConfigDirectory(),
     `${deployEnvToSdkEnv[environment]}_config.json`,

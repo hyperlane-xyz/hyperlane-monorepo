@@ -1,8 +1,8 @@
 {
   "test1": {
-    "storageGasOracle": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "storageGasOracle": "0x4A351C6aE3249499CBb50E8FE6566E2615386Da8",
     "validatorAnnounce": "0x0ed64d01D0B4B655E410EF1441dD677B695639E7",
-    "proxyAdmin": "0xFD6F7A6a5c21A3f503EBaE7a473639974379c351",
+    "proxyAdmin": "0x3818eAb6Ca8Bf427222bfACFA706c514145F4104",
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0x5302E909d1e93e30F05B5D6Eea766363D14F9892",
@@ -10,16 +10,16 @@
     },
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
-      "implementation": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
+      "proxy": "0xc3b99d27eF3B07C94Ee3cFD670281F0CF98A02f1",
+      "implementation": "0xa8fcCF4D0e2f2c4451123fF2F9ddFc9be465Fa1d"
     },
-    "defaultIsmInterchainGasPaymaster": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "defaultIsmInterchainGasPaymaster": "0x975cDd867aCB99f0195be09C269E2440aa1b1FA8",
     "multisigIsm": "0x02b0B4EFd909240FCB2Eb5FAe060dC60D112E3a4"
   },
   "test2": {
-    "storageGasOracle": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
+    "storageGasOracle": "0xa95A928eEc085801d981d13FFE749872D8FD5bec",
     "validatorAnnounce": "0x870526b7973b56163a6997bB7C886F5E4EA53638",
-    "proxyAdmin": "0x986aaa537b8cc170761FDAC6aC4fc7F9d8a20A8C",
+    "proxyAdmin": "0xAA5c5496e2586F81d8d2d0B970eB85aB088639c2",
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0xefc1aB2475ACb7E60499Efb171D173be19928a05",
@@ -27,16 +27,16 @@
     },
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d",
-      "implementation": "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c"
+      "proxy": "0x4458AcB1185aD869F982D51b5b0b87e23767A3A9",
+      "implementation": "0x575D3d18666B28680255a202fB5d482D1949bB32"
     },
-    "defaultIsmInterchainGasPaymaster": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1",
+    "defaultIsmInterchainGasPaymaster": "0x721a1ecB9105f2335a8EA7505D343a5a09803A06",
     "multisigIsm": "0x4bf010f1b9beDA5450a8dD702ED602A104ff65EE"
   },
   "test3": {
-    "storageGasOracle": "0x84eA74d481Ee0A5332c457a4d796187F6Ba67fEB",
+    "storageGasOracle": "0xcb0A9835CDf63c84FE80Fcc59d91d7505871c98B",
     "validatorAnnounce": "0x8bCe54ff8aB45CB075b044AE117b8fD91F9351aB",
-    "proxyAdmin": "0xB2b580ce436E6F77A5713D80887e14788Ef49c9A",
+    "proxyAdmin": "0xf274De14171Ab928A5Ec19928cE35FaD91a42B64",
     "mailbox": {
       "kind": "Transparent",
       "proxy": "0x66F625B8c4c635af8b74ECe2d7eD0D58b4af3C3d",
@@ -44,10 +44,10 @@
     },
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0xa82fF9aFd8f496c3d6ac40E2a0F282E47488CFc9",
-      "implementation": "0x9E545E3C0baAB3E08CdfD552C960A1050f373042"
+      "proxy": "0x8b9d5A75328b5F3167b04B42AD00092E7d6c485c",
+      "implementation": "0xFD296cCDB97C605bfdE514e9810eA05f421DEBc2"
     },
-    "defaultIsmInterchainGasPaymaster": "0x851356ae760d987E095750cCeb3bC6014560891C",
+    "defaultIsmInterchainGasPaymaster": "0xd8A9159c111D0597AD1b475b8d7e5A217a1d1d05",
     "multisigIsm": "0xD49a0e9A4CD5979aE36840f542D2d7f02C4817Be"
   }
 }

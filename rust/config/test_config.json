@@ -1,0 +1,90 @@
+{
+  "chains": {
+    "test1": {
+      "name": "test1",
+      "domain": 13371,
+      "addresses": {
+        "mailbox": {
+          "kind": "Transparent",
+          "proxy": "0x5302E909d1e93e30F05B5D6Eea766363D14F9892",
+          "implementation": "0xa6e99A4ED7498b3cdDCBB61a6A607a4925Faa1B7"
+        },
+        "interchainGasPaymaster": {
+          "kind": "Transparent",
+          "proxy": "0xc3b99d27eF3B07C94Ee3cFD670281F0CF98A02f1",
+          "implementation": "0xa8fcCF4D0e2f2c4451123fF2F9ddFc9be465Fa1d"
+        },
+        "validatorAnnounce": "0x0ed64d01D0B4B655E410EF1441dD677B695639E7"
+      },
+      "signer": null,
+      "protocol": "ethereum",
+      "finalityBlocks": 0,
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": 3468
+      }
+    },
+    "test2": {
+      "name": "test2",
+      "domain": 13372,
+      "addresses": {
+        "mailbox": {
+          "kind": "Transparent",
+          "proxy": "0xefc1aB2475ACb7E60499Efb171D173be19928a05",
+          "implementation": "0xde2Bd2ffEA002b8E84ADeA96e5976aF664115E2c"
+        },
+        "interchainGasPaymaster": {
+          "kind": "Transparent",
+          "proxy": "0x4458AcB1185aD869F982D51b5b0b87e23767A3A9",
+          "implementation": "0x575D3d18666B28680255a202fB5d482D1949bB32"
+        },
+        "validatorAnnounce": "0x870526b7973b56163a6997bB7C886F5E4EA53638"
+      },
+      "signer": null,
+      "protocol": "ethereum",
+      "finalityBlocks": 1,
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": 3468
+      }
+    },
+    "test3": {
+      "name": "test3",
+      "domain": 13373,
+      "addresses": {
+        "mailbox": {
+          "kind": "Transparent",
+          "proxy": "0x66F625B8c4c635af8b74ECe2d7eD0D58b4af3C3d",
+          "implementation": "0xB377a2EeD7566Ac9fCb0BA673604F9BF875e2Bab"
+        },
+        "interchainGasPaymaster": {
+          "kind": "Transparent",
+          "proxy": "0x8b9d5A75328b5F3167b04B42AD00092E7d6c485c",
+          "implementation": "0xFD296cCDB97C605bfdE514e9810eA05f421DEBc2"
+        },
+        "validatorAnnounce": "0x8bCe54ff8aB45CB075b044AE117b8fD91F9351aB"
+      },
+      "signer": null,
+      "protocol": "ethereum",
+      "finalityBlocks": 2,
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "index": {
+        "from": 3468
+      }
+    }
+  },
+  "db": "db_path",
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  }
+}
