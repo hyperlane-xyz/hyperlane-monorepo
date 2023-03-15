@@ -209,6 +209,7 @@ export class MultiProvider {
         31337,
       );
     } else if (publicRpcUrls.length) {
+      console.log('build MP with', publicRpcUrls);
       if (publicRpcUrls.length > 1) {
         this.providers[name] = new providers.FallbackProvider(
           publicRpcUrls.map((v) => providerBuilder({ ...v, network: id })),

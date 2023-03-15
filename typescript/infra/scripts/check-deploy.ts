@@ -18,6 +18,7 @@ async function check() {
   const environment = assertEnvironment(argv.environment);
   const config = getCoreEnvironmentConfig(environment);
 
+  console.log(process.env.CI === 'true');
   const multiProvider =
     process.env.CI === 'true'
       ? new MultiProvider() // use default RPCs
