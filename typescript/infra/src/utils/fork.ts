@@ -34,10 +34,15 @@ export const useLocalProvider = async (
   multiProvider: MultiProvider,
   chain: ChainName | number,
 ) => {
-  const provider = new JsonRpcProvider('http://localhost:8545', 1);
+  const currentProvider = multiProvider.getProvider(chain);
+  const network = await currentProvider.getNetwork();
+  const provider = new JsonRpcProvider(
+    'http://localhost:8545',
+    network.chainId,
+  );
   const retryProvider = new RetryJsonRpcProvider(provider, {
     maxRequests: 5,
-    baseRetryMs: 1000,
+    baseRetryMs: 100,
   });
   multiProvider.setProvider(chain, retryProvider);
 };
