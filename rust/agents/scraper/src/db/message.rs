@@ -86,7 +86,10 @@ impl ScraperDb {
             .collect_vec();
 
         debug_assert!(!models.is_empty());
-        debug!(deliveries=models.len(), "Writing delivered messages to database");
+        debug!(
+            deliveries = models.len(),
+            "Writing delivered messages to database"
+        );
         trace!(?models, "Writing delivered messages to database");
 
         Insert::many(models)
@@ -132,7 +135,7 @@ impl ScraperDb {
             .collect_vec();
 
         debug_assert!(!models.is_empty());
-        debug!(messages=models.len(), "Writing messages to database");
+        debug!(messages = models.len(), "Writing messages to database");
         trace!(?models, "Writing messages to database");
 
         Insert::many(models)

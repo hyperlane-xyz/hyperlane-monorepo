@@ -45,7 +45,7 @@ impl ScraperDb {
             .map(|(id, hash)| Ok((H256::from_slice(&hash), id)))
             .collect::<Result<HashMap<_, _>>>()?;
 
-        debug!(txns=txns.len(), "Queried transaction info for hashes");
+        debug!(txns = txns.len(), "Queried transaction info for hashes");
         trace!(?txns, "Queried transaction info for hashes");
         Ok(txns)
     }
@@ -83,7 +83,7 @@ impl ScraperDb {
 
         debug_assert!(!models.is_empty());
         let id_offset = models.len() as i64 - 1;
-        debug!(txns=models.len(), "Writing txns to database");
+        debug!(txns = models.len(), "Writing txns to database");
         trace!(?models, "Writing txns to database");
         let first_id = Insert::many(models).exec(&self.0).await?.last_insert_id - id_offset;
         debug_assert!(first_id > 0);
