@@ -7,7 +7,7 @@ use hyperlane_core::{H256, U256};
 pub fn address_to_bytes(data: &H256) -> Vec<u8> {
     if hex::is_h160(data.as_fixed_bytes()) {
         // take the last 20 bytes
-        data.as_fixed_bytes()[11..32].into()
+        data.as_fixed_bytes()[12..32].into()
     } else {
         data.as_fixed_bytes().as_slice().into()
     }
