@@ -95,7 +95,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
         let sql = format!(
             r#"
             CREATE VIEW "{msg_table}_view" AS
@@ -164,8 +163,8 @@ impl MigrationTrait for Migration {
                 "dest_block"."{block_height}" AS "destination_block_height",
                 "dest_block"."{block_hash}" AS "destination_block_hash",
 
+                convert_from("msg"."{msg_body}", 'UTF8') AS "message_body_text"
                 "msg"."{msg_body}" AS "message_body",
-                "msg"."{msg_body}" AS "message_body_bytes"
             FROM "{msg_table}" AS "msg"
                 INNER JOIN "{domain_table}"
                     AS "origin_domain"
@@ -238,6 +237,7 @@ impl MigrationTrait for Migration {
             dmsg_dti = DeliveredMessage::DestinationTxId.to_string(),
             dmsg_time_created = DeliveredMessage::TimeCreated.to_string(),
         );
+
         // eprintln!("{sql}");
         manager.get_connection().execute_unprepared(&sql).await?;
 
