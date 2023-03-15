@@ -4,6 +4,7 @@ import {
   helloWorldFactories,
 } from '@hyperlane-xyz/helloworld';
 import {
+  AgentConnectionType,
   ChainMap,
   HyperlaneCore,
   MultiProvider,
@@ -13,7 +14,6 @@ import {
 import { Contexts } from '../../config/contexts';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { CoreEnvironmentConfig } from '../../src/config';
-import { ConnectionType } from '../../src/config/agent';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { HelloWorldConfig } from '../../src/config/helloworld';
 
@@ -22,7 +22,7 @@ export async function getApp(
   context: Contexts,
   keyRole: KEY_ROLE_ENUM,
   keyContext: Contexts = context,
-  connectionType: ConnectionType = ConnectionType.Http,
+  connectionType: AgentConnectionType = AgentConnectionType.Http,
 ) {
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
   const contracts = buildContracts(

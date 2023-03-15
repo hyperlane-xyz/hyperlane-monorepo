@@ -1,19 +1,20 @@
 import {
+  AgentConnectionType,
   ChainMap,
   ChainMetadata,
   ChainName,
   CoreConfig,
+  CoreEnvironment,
   MultiProvider,
   OverheadIgpConfig,
 } from '@hyperlane-xyz/sdk';
-import { CoreEnvironment } from '@hyperlane-xyz/sdk/dist/core/HyperlaneCore';
 import { types } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
 import { KEY_ROLE_ENUM } from '../agents/roles';
 
-import { AgentConfig, ConnectionType } from './agent';
+import { AgentConfig } from './agent';
 import { KeyFunderConfig } from './funding';
 import { AllStorageGasOracleConfigs } from './gas-oracle';
 import { HelloWorldConfig } from './helloworld';
@@ -39,7 +40,7 @@ export type CoreEnvironmentConfig = {
   getMultiProvider: (
     context?: Contexts,
     role?: KEY_ROLE_ENUM,
-    connectionType?: ConnectionType,
+    connectionType?: AgentConnectionType,
   ) => Promise<MultiProvider>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
   keyFunderConfig?: KeyFunderConfig;

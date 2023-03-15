@@ -2,6 +2,7 @@ import path from 'path';
 import yargs from 'yargs';
 
 import {
+  AgentConnectionType,
   AllChains,
   ChainMap,
   ChainMetadata,
@@ -21,7 +22,6 @@ import { getCloudAgentKey } from '../src/agents/key-utils';
 import { CloudAgentKey } from '../src/agents/keys';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
-import { ConnectionType } from '../src/config/agent';
 import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { assertContext } from '../src/utils/utils';
@@ -122,7 +122,7 @@ export async function getMultiProviderForRole(
   context: Contexts,
   role: KEY_ROLE_ENUM,
   index?: number,
-  connectionType?: ConnectionType,
+  connectionType?: AgentConnectionType,
 ): Promise<MultiProvider> {
   const multiProvider = new MultiProvider(txConfigs);
   await promiseObjAll(
@@ -159,7 +159,7 @@ export function getVerificationDirectory(
   return path.join(getModuleDirectory(environment, module), 'verification');
 }
 
-export function getCoreRustDirectory() {
+export function getAgentConfigDirectory() {
   return path.join('../../', 'rust', 'config');
 }
 

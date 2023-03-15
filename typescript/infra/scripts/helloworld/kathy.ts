@@ -4,6 +4,7 @@ import { format } from 'util';
 
 import { HelloWorldApp } from '@hyperlane-xyz/helloworld';
 import {
+  AgentConnectionType,
   ChainName,
   DispatchedMessage,
   HyperlaneCore,
@@ -12,7 +13,6 @@ import {
 import { debug, error, log, utils, warn } from '@hyperlane-xyz/utils';
 
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
-import { ConnectionType } from '../../src/config/agent';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { startMetricsServer } from '../../src/utils/metrics';
 import { assertChain, diagonalize, sleep } from '../../src/utils/utils';
@@ -104,11 +104,11 @@ function getKathyArgs() {
 
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', ConnectionType.Http)
+    .default('connection-type', AgentConnectionType.Http)
     .choices('connection-type', [
-      ConnectionType.Http,
-      ConnectionType.HttpQuorum,
-      ConnectionType.HttpFallback,
+      AgentConnectionType.Http,
+      AgentConnectionType.HttpQuorum,
+      AgentConnectionType.HttpFallback,
     ])
     .demandOption('connection-type');
 

@@ -9,23 +9,10 @@ import {
   MultiProvider,
   ProxiedContract,
   TransparentProxyAddresses,
-  /*
-chainMetadata,
-objMap,
-*/
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
-import {
-  DeployEnvironment,
-  /*RustChainSetup, RustConfig*/
-} from '../config';
-
-/*
-import { ConnectionType } from '../config/agent';
-import { deployEnvToSdkEnv } from '../config/environment';
-import { writeJSON } from '../utils/utils';
-*/
+import { DeployEnvironment } from '../config';
 
 export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   environment: DeployEnvironment;
@@ -70,59 +57,4 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
     };
     return super.deployValidatorAnnounce(chain, mailboxAddress, deployOpts);
   }
-
-  /*
-  writeRustConfigs(directory: string) {
-    const rustConfig: RustConfig = {
-      chains: {},
-      db: 'db_path',
-      tracing: {
-        level: 'debug',
-        fmt: 'json',
-      },
-    };
-    objMap(this.configMap, (chain) => {
-      const contracts = this.deployedContracts[chain];
-      const metadata = chainMetadata[chain];
-      // Don't write config for undeployed chains
-      if (
-        contracts == undefined ||
-        contracts.mailbox == undefined ||
-        contracts.interchainGasPaymaster == undefined ||
-        contracts.validatorAnnounce == undefined
-      ) {
-        return;
-      }
-
-      const chainConfig: RustChainSetup = {
-        name: chain,
-        domain: metadata.chainId,
-        addresses: {
-          mailbox: contracts.mailbox.contract.address,
-          interchainGasPaymaster: contracts.interchainGasPaymaster.address,
-          validatorAnnounce: contracts.validatorAnnounce.address,
-        },
-        signer: null,
-        protocol: 'ethereum',
-        finalityBlocks: metadata.blocks!.reorgPeriod!,
-        connection: {
-          type: ConnectionType.Http,
-          url: '',
-        },
-      };
-
-      const startingBlockNumber = this.startingBlockNumbers[chain];
-      if (startingBlockNumber) {
-        chainConfig.index = { from: startingBlockNumber };
-      }
-
-      rustConfig.chains[chain] = chainConfig;
-    });
-    writeJSON(
-      directory,
-      `${deployEnvToSdkEnv[this.environment]}_config.json`,
-      rustConfig,
-    );
-  }
-  */
 }

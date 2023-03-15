@@ -34,12 +34,22 @@ export {
   serializeContracts,
 } from './contracts';
 export {
+  AgentChainSetup,
+  AgentConfig,
+  AgentConnection,
+  AgentConnectionType,
+  AgentContractAddresses,
+  AgentSigner,
+  buildAgentConfig,
+} from './agents/types';
+export {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
   HyperlaneLifecyleEvent,
 } from './core/events';
 export { CoreContracts, coreFactories } from './core/contracts';
 export {
+  CoreEnvironment,
   CoreContractsMap,
   DispatchedMessage,
   HyperlaneCore,

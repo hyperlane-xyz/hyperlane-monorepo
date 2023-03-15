@@ -1,5 +1,6 @@
+import { AgentConnectionType } from '@hyperlane-xyz/sdk';
+
 import { AgentConfig } from '../config';
-import { ConnectionType } from '../config/agent';
 import {
   HelmCommand,
   buildHelmChartDependencies,
@@ -59,7 +60,7 @@ async function scraperHelmValues(agentConfig: AgentConfig) {
   let baseConnectionConfig: Record<string, string> = {
     type: agentConfig.connectionType,
   };
-  if (baseConnectionConfig.type == ConnectionType.HttpQuorum) {
+  if (baseConnectionConfig.type == AgentConnectionType.HttpQuorum) {
     baseConnectionConfig = {
       ...baseConnectionConfig,
       urls: '',

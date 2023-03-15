@@ -4,6 +4,7 @@ import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
+  AgentConnectionType,
   AllChains,
   ChainName,
   Chains,
@@ -23,7 +24,6 @@ import {
 } from '../../src/agents/keys';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { DeployEnvironment } from '../../src/config';
-import { ConnectionType } from '../../src/config/agent';
 import { deployEnvToSdkEnv } from '../../src/config/environment';
 import { ContextAndRoles, ContextAndRolesMap } from '../../src/config/funding';
 import { submitMetrics } from '../../src/utils/metrics';
@@ -197,10 +197,10 @@ async function main() {
 
     .string('connection-type')
     .describe('connection-type', 'The provider connection type to use for RPCs')
-    .default('connection-type', ConnectionType.Http)
+    .default('connection-type', AgentConnectionType.Http)
     .choices('connection-type', [
-      ConnectionType.Http,
-      ConnectionType.HttpQuorum,
+      AgentConnectionType.Http,
+      AgentConnectionType.HttpQuorum,
     ])
     .demandOption('connection-type')
 

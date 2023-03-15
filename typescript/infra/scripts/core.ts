@@ -1,6 +1,7 @@
 import {
   HyperlaneDeployer,
   HyperlaneFactories,
+  buildAgentConfig,
   buildContracts,
   coreFactories,
   serializeContracts,
@@ -13,8 +14,9 @@ import { HyperlaneIgpInfraDeployer } from '../src/gas/deploy';
 import { mergeJSON, readJSON, writeJSON } from '../src/utils/utils';
 
 import {
+  getAgentConfigDirectory,
   getArgs,
-  getContractAddressesSdkFilepath, // getCoreRustDirectory,
+  getContractAddressesSdkFilepath,
   getEnvironment,
   getEnvironmentConfig,
   getVerificationDirectory,
@@ -98,7 +100,16 @@ async function main() {
     deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
   );
 
-  //deployer.writeRustConfigs(getCoreRustDirectory());
+  const addresses = readJSON(
+    getContractAddressesSdkFilepath(),
+    `${deployEnvToSdkEnv[environment]}.json`,
+  );
+  const agentConfig = await buildAgentConfig(addresses, multiProvider);
+  writeJSON(
+    getAgentConfigDirectory(),
+    `${deployEnvToSdkEnv[environment]}_config.json`,
+    agentConfig,
+  );
 }
 
 main().then(console.log).catch(console.error);
