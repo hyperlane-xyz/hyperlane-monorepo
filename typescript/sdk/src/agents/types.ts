@@ -3,7 +3,6 @@ import { types } from '@hyperlane-xyz/utils';
 import { chainMetadata } from '../consts/chainMetadata';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
-import { objMap, promiseObjAll } from '../utils/objects';
 
 export type AgentSigner = {
   key: string;
@@ -64,32 +63,32 @@ export async function buildAgentConfig(
       fmt: 'json',
     },
   };
-  await promiseObjAll(
-    objMap(addresses, async (chain, agentAddresses) => {
-      const metadata = chainMetadata[chain];
-      const chainConfig: AgentChainSetup = {
-        name: chain,
-        domain: metadata.chainId,
-        addresses: {
-          mailbox: agentAddresses.mailbox,
-          interchainGasPaymaster: agentAddresses.interchainGasPaymaster,
-          validatorAnnounce: agentAddresses.validatorAnnounce,
-        },
-        signer: null,
-        protocol: 'ethereum',
-        finalityBlocks: metadata.blocks!.reorgPeriod!,
-        connection: {
-          type: AgentConnectionType.Http,
-          url: '',
-        },
-      };
 
-      chainConfig.index = {
-        from: await multiProvider.getProvider(chain).getBlockNumber(),
-      };
+  const chains = Object.keys(addresses).sort();
+  for (const chain of chains) {
+    const metadata = chainMetadata[chain];
+    const chainConfig: AgentChainSetup = {
+      name: chain,
+      domain: metadata.chainId,
+      addresses: {
+        mailbox: addresses[chain].mailbox,
+        interchainGasPaymaster: addresses[chain].interchainGasPaymaster,
+        validatorAnnounce: addresses[chain].validatorAnnounce,
+      },
+      signer: null,
+      protocol: 'ethereum',
+      finalityBlocks: metadata.blocks!.reorgPeriod!,
+      connection: {
+        type: AgentConnectionType.Http,
+        url: '',
+      },
+    };
 
-      agentConfig.chains[chain] = chainConfig;
-    }),
-  );
+    chainConfig.index = {
+      from: await multiProvider.getProvider(chain).getBlockNumber(),
+    };
+
+    agentConfig.chains[chain] = chainConfig;
+  }
   return agentConfig;
 }
