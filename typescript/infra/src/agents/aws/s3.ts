@@ -14,6 +14,7 @@ export interface S3Receipt<T = unknown> {
 export class S3Wrapper {
   private readonly client: S3Client;
   readonly bucket: string;
+  readonly region: string;
 
   static fromBucketUrl(bucketUrl: string): S3Wrapper {
     const match = bucketUrl.match(S3_BUCKET_REGEX);
@@ -23,6 +24,7 @@ export class S3Wrapper {
 
   constructor(bucket: string, region: string) {
     this.bucket = bucket;
+    this.region = region;
     this.client = new S3Client({ region });
   }
 
