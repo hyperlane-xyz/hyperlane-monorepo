@@ -351,30 +351,31 @@ where
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
         let contract_call = self.process_contract_call(message, metadata, None).await?;
+        let gas_limit = contract_call
+            .tx
+            .gas()
+            .copied()
+            .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?;
 
         // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
-        let (gas_limit, l2_gas_limit) =
-            if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
-                let (gas_estimate, l1_gas_estimate, _, _) = arbitrum_node_interface
-                    .gas_estimate_components(
-                        self.contract.address(),
-                        false, // Not a contract creation
-                        contract_call.calldata().unwrap_or_default(),
-                    )
-                    .call()
-                    .await?;
-                (
-                    U256::from(gas_estimate),
-                    Some(gas_estimate.saturating_sub(l1_gas_estimate.into()).into()),
+        // Still use the `gas_limit` we have above because this gas limit has already
+        // had a safety buffer applied.
+        let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
+            // Note this will give an Err if the transaction will revert.
+            // Because the transaction has already passed gas estimation in `process_contract_call`,
+            // this is unlikely to happen.
+            let (gas_estimate, l1_gas_estimate, _, _) = arbitrum_node_interface
+                .gas_estimate_components(
+                    self.contract.address(),
+                    false, // Not a contract creation
+                    contract_call.calldata().unwrap_or_default(),
                 )
-            } else {
-                let gas_limit = contract_call
-                    .tx
-                    .gas()
-                    .copied()
-                    .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?;
-                (gas_limit, None)
-            };
+                .call()
+                .await?;
+            Some(gas_estimate.saturating_sub(l1_gas_estimate.into()).into())
+        } else {
+            None
+        };
 
         let gas_price = self
             .provider
