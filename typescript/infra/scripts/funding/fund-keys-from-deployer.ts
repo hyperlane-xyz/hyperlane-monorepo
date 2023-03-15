@@ -372,24 +372,6 @@ class ContextFunder {
   async fund(): Promise<boolean> {
     let failureOccurred = false;
 
-    // Returns whether an error occurred
-    const gracefullyHandleError = async (
-      fn: () => Promise<void>,
-      chain: ChainName,
-      errorMessage: string,
-    ) => {
-      try {
-        await fn();
-        return false;
-      } catch (err) {
-        error(errorMessage, {
-          chain,
-          error: format(err),
-        });
-      }
-      return true;
-    };
-
     const promises = Object.entries(this.getChainKeys()).map(
       async ([chain, keys]) => {
         if (keys.length > 0) {
@@ -774,6 +756,24 @@ function parseContextAndRoles(str: string): ContextAndRoles {
     context,
     roles,
   };
+}
+
+// Returns whether an error occurred
+async function gracefullyHandleError(
+  fn: () => Promise<void>,
+  chain: ChainName,
+  errorMessage: string,
+): Promise<boolean> {
+  try {
+    await fn();
+    return false;
+  } catch (err) {
+    error(errorMessage, {
+      chain,
+      error: format(err),
+    });
+  }
+  return true;
 }
 
 main().catch((err) => {
