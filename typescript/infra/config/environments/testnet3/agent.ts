@@ -29,7 +29,7 @@ export const hyperlane: AgentConfig = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '0b10247-20230313-205739',
+    tag: '19d9450-20230315-153147',
   },
   aws: {
     region: 'us-east-1',
@@ -53,7 +53,7 @@ export const hyperlane: AgentConfig = {
           // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
           matchingList: interchainQueriesMatchingList,
         },
-        // Don't enforce amounts for arbitrumgoerli yet
+        // Don't enforce amounts for messages to arbitrumgoerli yet
         {
           type: GasPaymentEnforcementPolicyType.Minimum,
           payment: '1',
@@ -82,7 +82,7 @@ export const releaseCandidate: AgentConfig = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '1cbe5fd-20230309-202035',
+    tag: '19d9450-20230315-153147',
   },
   aws: {
     region: 'us-east-1',
@@ -101,7 +101,7 @@ export const releaseCandidate: AgentConfig = {
           type: GasPaymentEnforcementPolicyType.None,
           matchingList: interchainQueriesMatchingList,
         },
-        // Don't enforce amounts for arbitrumgoerli yet
+        // Don't enforce amounts for messages to arbitrumgoerli yet
         {
           type: GasPaymentEnforcementPolicyType.Minimum,
           payment: '1',
