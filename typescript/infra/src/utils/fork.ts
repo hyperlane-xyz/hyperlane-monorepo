@@ -1,7 +1,11 @@
 import { JsonRpcProvider, JsonRpcSigner } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  MultiProvider,
+  RetryJsonRpcProvider,
+} from '@hyperlane-xyz/sdk';
 
 export const resetFork = async (url: string) => {
   const provider = new JsonRpcProvider();
@@ -30,6 +34,10 @@ export const useLocalProvider = async (
   multiProvider: MultiProvider,
   chain: ChainName | number,
 ) => {
-  const provider = new JsonRpcProvider();
-  multiProvider.setProvider(chain, provider);
+  const provider = new JsonRpcProvider('http://localhost:8545', 1);
+  const retryProvider = new RetryJsonRpcProvider(provider, {
+    maxRequests: 5,
+    baseRetryMs: 1000,
+  });
+  multiProvider.setProvider(chain, retryProvider);
 };
