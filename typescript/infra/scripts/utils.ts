@@ -60,6 +60,10 @@ export async function getEnvironment() {
   return assertEnvironment(await getEnvironmentFromArgs());
 }
 
+export function getCoreEnvironmentConfig(environment: DeployEnvironment) {
+  return environments[environment];
+}
+
 export async function getEnvironmentConfig() {
   return environments[await getEnvironment()];
 }
@@ -141,12 +145,18 @@ export function getEnvironmentDirectory(environment: DeployEnvironment) {
   return path.join('./config/environments/', environment);
 }
 
-export function getCoreDirectory(environment: DeployEnvironment) {
-  return path.join(getEnvironmentDirectory(environment), 'core');
+export function getModuleDirectory(
+  environment: DeployEnvironment,
+  module: string,
+) {
+  return path.join(getEnvironmentDirectory(environment), module);
 }
 
-export function getCoreVerificationDirectory(environment: DeployEnvironment) {
-  return path.join(getCoreDirectory(environment), 'verification');
+export function getVerificationDirectory(
+  environment: DeployEnvironment,
+  module: string,
+) {
+  return path.join(getModuleDirectory(environment, module), 'verification');
 }
 
 export function getCoreRustDirectory() {

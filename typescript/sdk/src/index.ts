@@ -27,6 +27,7 @@ export {
 export {
   buildContracts,
   connectContracts,
+  filterAddresses,
   HyperlaneAddresses,
   HyperlaneContracts,
   HyperlaneFactories,

@@ -4,7 +4,7 @@ import type { types } from '@hyperlane-xyz/utils';
 
 import { ProxiedContract, ProxyAddresses, isProxyAddresses } from './proxy';
 import { Connection } from './types';
-import { objMap } from './utils/objects';
+import { isObject, objMap } from './utils/objects';
 
 export type HyperlaneFactories = {
   [key: string]: ethers.ContractFactory;
@@ -54,25 +54,48 @@ function getFactory(
   return factories[key];
 }
 
-// TODO: Support for recursive filtering
-export function filterContracts(
-  addressOrObject: HyperlaneAddresses,
-  factories: HyperlaneFactories,
-): HyperlaneAddresses {
-  return Object.fromEntries(
-    Object.entries(addressOrObject).filter(([k, v]) =>
-      Object.keys(factories).includes(k),
-    ),
+function isAddress(addressOrObject: any) {
+  return (
+    isProxyAddresses(addressOrObject) || typeof addressOrObject === 'string'
   );
+}
+
+// TODO: Support for recursive filtering
+// TODO:
+export function filterAddresses(
+  addressOrObject: HyperlaneAddresses,
+  contractNames: string[],
+): HyperlaneAddresses {
+  const ret: HyperlaneAddresses = {};
+  for (const key of Object.keys(addressOrObject)) {
+    if (isAddress(addressOrObject[key])) {
+      if (contractNames.includes(key)) {
+        ret[key] = addressOrObject[key];
+      }
+    } else if (isObject(addressOrObject[key])) {
+      const obj = filterAddresses(
+        addressOrObject[key] as HyperlaneAddresses,
+        contractNames,
+      );
+      if (Object.keys(obj).length > 0) {
+        ret[key] = obj;
+      }
+    }
+  }
+  return ret;
 }
 
 export function buildContracts(
   addressOrObject: HyperlaneAddresses,
   factories: HyperlaneFactories,
+  filter = true,
   max_depth = 5,
 ): HyperlaneContracts {
   if (max_depth === 0) {
     throw new Error('buildContracts tried to go too deep');
+  }
+  if (filter) {
+    addressOrObject = filterAddresses(addressOrObject, Object.keys(factories));
   }
   return objMap(addressOrObject, (key, address: any) => {
     if (isProxyAddresses(address)) {
@@ -84,6 +107,7 @@ export function buildContracts(
       return buildContracts(
         address as HyperlaneAddresses,
         factories,
+        false,
         max_depth - 1,
       );
     }

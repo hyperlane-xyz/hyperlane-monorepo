@@ -157,14 +157,22 @@ export function warn(text: string, padded = false) {
   }
 }
 
+export function mergeJSON(directory: string, filename: string, obj: any) {
+  if (fs.existsSync(path.join(directory, filename))) {
+    const previous = readJSON(directory, filename);
+    writeJSON(directory, filename, objMerge(previous, obj));
+  } else {
+    writeJSON(directory, filename, obj);
+  }
+}
+
 export function writeJSON(directory: string, filename: string, obj: any) {
   if (!fs.existsSync(directory)) {
     fs.mkdirSync(directory, { recursive: true });
   }
-  const previous = readJSON(directory, filename);
   fs.writeFileSync(
     path.join(directory, filename),
-    JSON.stringify(objMerge(previous, obj), null, 2) + '\n',
+    JSON.stringify(obj, null, 2) + '\n',
   );
 }
 

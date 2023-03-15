@@ -5,7 +5,7 @@ import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { hyperlaneEnvironments } from '../consts/environments';
-import { buildContracts, filterContracts } from '../contracts';
+import { buildContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName } from '../types';
 import { pick } from '../utils/objects';
@@ -49,7 +49,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
 
     const intersectionAddresses = pick(envAddresses, intersection);
     const contractsMap = buildContracts(
-      filterContracts(intersectionAddresses, coreFactories),
+      intersectionAddresses,
       coreFactories,
     ) as CoreContractsMap;
 

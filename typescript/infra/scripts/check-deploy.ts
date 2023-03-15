@@ -11,7 +11,7 @@ import { HyperlaneCoreGovernor } from '../src/core/govern';
 import { HyperlaneIgpGovernor } from '../src/gas/govern';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 
-import { getArgs, getCoreEnvironmentConfig, getEnvironment } from './utils';
+import { getArgs, getEnvironment, getEnvironmentConfig } from './utils';
 
 async function check() {
   const { govern, module } = await getArgs()
@@ -22,7 +22,7 @@ async function check() {
     .boolean('govern')
     .alias('g', 'govern').argv;
   const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
+  const config = await getEnvironmentConfig();
   const multiProvider = await config.getMultiProvider();
 
   let checker: HyperlaneAppChecker<any, any>;
