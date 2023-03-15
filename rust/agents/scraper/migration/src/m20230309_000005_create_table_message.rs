@@ -32,11 +32,7 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default("NOW()"),
                     )
-                    .col(
-                        ColumnDef::new_with_type(Message::MsgId, Hash)
-                            .not_null()
-                            .unique_key(),
-                    )
+                    .col(ColumnDef::new_with_type(Message::MsgId, Hash).not_null())
                     .col(ColumnDef::new(Message::Origin).unsigned().not_null())
                     .col(ColumnDef::new(Message::Destination).unsigned().not_null())
                     .col(ColumnDef::new(Message::Nonce).unsigned().not_null())
@@ -267,7 +263,7 @@ pub enum Message {
     Id,
     /// Time of record creation
     TimeCreated,
-    /// Unique id of the message on the blockchain
+    /// Id of the message on the blockchain
     MsgId,
     /// Domain ID of the origin chain
     Origin,
