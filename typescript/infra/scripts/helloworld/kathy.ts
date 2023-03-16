@@ -283,8 +283,9 @@ async function main(): Promise<boolean> {
 
     // Skip Ethereum if we've been configured to do so for this cycle
     if (
-      (origin === 'ethereum' || destination === 'ethereum') &&
-      currentCycle % (cyclesBetweenEthereumMessages + 1) !== 0
+      ((origin === 'ethereum' || destination === 'ethereum') &&
+        currentCycle % (cyclesBetweenEthereumMessages + 1) !== 0) ||
+      destination !== 'arbitrumgoerli'
     ) {
       debug('Skipping message to/from Ethereum', {
         currentCycle,
