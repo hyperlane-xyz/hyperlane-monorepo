@@ -40,9 +40,13 @@ export class MultiProvider {
     chainMetadata: ChainMap<ChainMetadata> = defaultChainMetadata,
     options: MultiProviderOptions = {},
   ) {
-    Object.values(chainMetadata).forEach((cm) => {
+    Object.entries(chainMetadata).forEach(([key, cm]) => {
       if (!isValidChainMetadata(cm))
         throw new Error(`Invalid chain metadata for ${cm.chainId}`);
+      if (key !== cm.name)
+        throw new Error(
+          `Chain name mismatch: Key was ${key}, but name is ${cm.name}`,
+        );
     });
 
     this.metadata = chainMetadata;
@@ -546,7 +550,14 @@ export class MultiProvider {
     tx: PopulatedTransaction,
     from?: string,
   ): Promise<BigNumber> {
-    const txReq = await this.prepareTx(chainNameOrId, tx, from);
+    const txReq = {
+      ...(await this.prepareTx(chainNameOrId, tx, from)),
+      // Reset any tx request params that may have an unintended effect on gas estimation
+      gasLimit: undefined,
+      gasPrice: undefined,
+      maxPriorityFeePerGas: undefined,
+      maxFeePerGas: undefined,
+    };
     const provider = this.getProvider(chainNameOrId);
     return provider.estimateGas(txReq);
   }

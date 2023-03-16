@@ -3,10 +3,10 @@ import { ethers } from 'ethers';
 import { Ownable } from '@hyperlane-xyz/core';
 import { utils } from '@hyperlane-xyz/utils';
 
-import { HyperlaneApp } from '../../HyperlaneApp';
-import { RouterContracts } from '../../router';
-import { ChainName } from '../../types';
-import { HyperlaneAppChecker } from '../HyperlaneAppChecker';
+import { HyperlaneApp } from '../HyperlaneApp';
+import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
+import { RouterContracts } from '../router/types';
+import { ChainName } from '../types';
 
 import { RouterConfig } from './types';
 

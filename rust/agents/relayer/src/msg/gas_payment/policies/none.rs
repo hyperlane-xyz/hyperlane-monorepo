@@ -31,24 +31,46 @@ async fn test_gas_payment_policy_none() {
 
     let message = HyperlaneMessage::default();
 
+    let current_payment = InterchainGasPayment {
+        message_id: H256::zero(),
+        payment: U256::zero(),
+        gas_amount: U256::zero(),
+    };
+    let current_expenditure = InterchainGasExpenditure {
+        message_id: H256::zero(),
+        tokens_used: U256::zero(),
+        gas_used: U256::zero(),
+    };
+
     // Always returns true
     assert_eq!(
         policy
             .message_meets_gas_payment_requirement(
                 &message,
-                &InterchainGasPayment {
-                    message_id: H256::zero(),
-                    payment: U256::zero(),
-                    gas_amount: U256::zero(),
-                },
-                &InterchainGasExpenditure {
-                    message_id: H256::zero(),
-                    tokens_used: U256::zero(),
-                    gas_used: U256::zero(),
-                },
+                &current_payment,
+                &current_expenditure,
                 &TxCostEstimate {
                     gas_limit: U256::from(100000u32),
                     gas_price: U256::from(100001u32),
+                    l2_gas_limit: None,
+                },
+            )
+            .await
+            .unwrap(),
+        Some(U256::from(100000u32))
+    );
+
+    // Ensure that even if the l2_gas_limit is Some, we return the gas_limit
+    assert_eq!(
+        policy
+            .message_meets_gas_payment_requirement(
+                &message,
+                &current_payment,
+                &current_expenditure,
+                &TxCostEstimate {
+                    gas_limit: U256::from(100000u32),
+                    gas_price: U256::from(100001u32),
+                    l2_gas_limit: Some(U256::from(22222u32)),
                 },
             )
             .await
