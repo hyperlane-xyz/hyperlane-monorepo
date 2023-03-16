@@ -17,7 +17,7 @@ export const resetFork = async (url: string) => {
 export const impersonateAccount = async (
   account: string,
 ): Promise<JsonRpcSigner> => {
-  const provider = new JsonRpcProvider();
+  const provider = new JsonRpcProvider('http://127.0.0.1:8545');
   await provider.send('hardhat_impersonateAccount', [account]);
   await provider.send('hardhat_setBalance', [
     account,
@@ -30,6 +30,6 @@ export const useLocalProvider = async (
   multiProvider: MultiProvider,
   chain: ChainName | number,
 ) => {
-  const provider = new JsonRpcProvider();
+  const provider = new JsonRpcProvider('http://127.0.0.1:8545');
   multiProvider.setProvider(chain, provider);
 };
