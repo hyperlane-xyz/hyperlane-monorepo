@@ -207,7 +207,7 @@ impl Syncer {
             .collect_vec();
         trace!(from, to, ?payments, "Fetched payments");
 
-        debug!(
+        info!(
             from,
             to,
             message_count = sorted_messages.len(),
