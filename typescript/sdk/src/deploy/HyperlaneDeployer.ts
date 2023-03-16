@@ -82,7 +82,9 @@ export abstract class HyperlaneDeployer<
 
     this.logger(`Start deploy to ${targetChains}`);
     for (const chain of targetChains) {
-      const signerUrl = await this.multiProvider.getExplorerAddressUrl(chain);
+      const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
+        chain,
+      );
       this.logger(`Deploying to ${chain} from ${signerUrl} ...`);
       this.deployedContracts[chain] = await this.deployContracts(
         chain,
@@ -130,7 +132,7 @@ export abstract class HyperlaneDeployer<
     if (cachedContract && !(cachedContract instanceof ProxiedContract)) {
       this.logger(
         `Recovered contract ${contractName} on ${chain}`,
-        cachedContract,
+        cachedContract.address,
       );
       return cachedContract as ReturnType<F['deploy']>;
     }
@@ -372,7 +374,8 @@ export abstract class HyperlaneDeployer<
     ) {
       this.logger(
         `Recovered proxy and implementation ${contractName.toString()} on ${chain}`,
-        cachedProxy,
+        cachedProxy.addresses.proxy,
+        cachedProxy.addresses.implementation,
       );
       return cachedProxy as ProxiedContract<C, TransparentProxyAddresses>;
     }
@@ -390,7 +393,7 @@ export abstract class HyperlaneDeployer<
     if (cachedProxy && cachedProxy.addresses.proxy) {
       this.logger(
         `Recovered proxy ${contractName.toString()} on ${chain}`,
-        cachedProxy,
+        cachedProxy.addresses.proxy,
       );
 
       cachedProxy.addresses.implementation = implementation.address;

@@ -11,11 +11,11 @@ import { utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../../HyperlaneApp';
 import { Chains } from '../../consts/chains';
-import { LiquidityLayerContracts } from '../../middleware';
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
 
 import { BridgeAdapterConfig } from './LiquidityLayerRouterDeployer';
+import { LiquidityLayerContracts } from './contracts';
 
 const PORTAL_VAA_SERVICE_TESTNET_BASE_URL =
   'https://wormhole-v2-testnet-api.certus.one/v1/signed_vaa/';
@@ -64,13 +64,14 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
   }
 
   async fetchCircleMessageTransactions(chain: ChainName): Promise<string[]> {
-    const params = new URLSearchParams({
-      module: 'logs',
-      action: 'getLogs',
-      address: this.getContracts(chain).circleBridgeAdapter!.address,
-      topic0: BridgedTokenTopic,
-    });
-    const url = `${this.multiProvider.getExplorerApiUrl(chain)}?${params}`;
+    const url = new URL(this.multiProvider.getExplorerApiUrl(chain));
+    url.searchParams.set('module', 'logs');
+    url.searchParams.set('action', 'getLogs');
+    url.searchParams.set(
+      'address',
+      this.getContracts(chain).circleBridgeAdapter!.address,
+    );
+    url.searchParams.set('topic0', BridgedTokenTopic);
     const req = await fetch(url);
     const response = await req.json();
 
@@ -78,13 +79,14 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
   }
 
   async fetchPortalBridgeTransactions(chain: ChainName): Promise<string[]> {
-    const params = new URLSearchParams({
-      module: 'logs',
-      action: 'getLogs',
-      address: this.getContracts(chain).portalAdapter!.address,
-      topic0: PortalBridgedTokenTopic,
-    });
-    const url = `${this.multiProvider.getExplorerApiUrl(chain)}?${params}`;
+    const url = new URL(this.multiProvider.getExplorerApiUrl(chain));
+    url.searchParams.set('module', 'logs');
+    url.searchParams.set('action', 'getLogs');
+    url.searchParams.set(
+      'address',
+      this.getContracts(chain).portalAdapter!.address,
+    );
+    url.searchParams.set('topic0', PortalBridgedTokenTopic);
     const req = await fetch(url);
     const response = await req.json();
 
@@ -250,7 +252,7 @@ export class LiquidityLayerApp extends HyperlaneApp<LiquidityLayerContracts> {
     );
 
     console.log(
-      `Submitted attestations in ${this.multiProvider.getExplorerTxUrl(
+      `Submitted attestations in ${this.multiProvider.tryGetExplorerTxUrl(
         message.remoteChain,
         tx,
       )}`,

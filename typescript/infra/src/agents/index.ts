@@ -32,7 +32,6 @@ async function helmValuesForChain(
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
   const gelatoApiKeyRequired =
     await chainAgentConfig.ensureGelatoApiKeySecretExistsIfRequired();
-  await chainAgentConfig.ensureCoingeckoApiKeySecretExistsIfRequired();
 
   // By default, if a context only enables a subset of chains, the
   // connection url (or urls, when HttpQuorum is used) are not fetched

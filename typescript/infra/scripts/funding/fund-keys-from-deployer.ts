@@ -108,6 +108,7 @@ const desiredBalancePerChain: ChainMap<string> = {
   bsc: '0.05',
   bsctestnet: '1',
   goerli: '0.5',
+  sepolia: '0.5',
   moonbasealpha: '1',
   moonbeam: '0.5',
   optimismgoerli: '0.3',
@@ -148,6 +149,7 @@ const igpClaimThresholdPerChain: ChainMap<string> = {
   bsc: '0.3',
   bsctestnet: '1',
   goerli: '1',
+  sepolia: '1',
   moonbasealpha: '2',
   moonbeam: '5',
   optimismgoerli: '1',
@@ -374,12 +376,21 @@ class ContextFunder {
       async ([chain, keys]) => {
         if (keys.length > 0) {
           if (!this.skipIgpClaim) {
-            await this.attemptToClaimFromIgp(chain as ChainName);
+            failureOccurred ||= await gracefullyHandleError(
+              () => this.attemptToClaimFromIgp(chain),
+              chain,
+              'Error claiming from IGP',
+            );
           }
-          await this.bridgeIfL2(chain as ChainName);
+
+          failureOccurred ||= await gracefullyHandleError(
+            () => this.bridgeIfL2(chain),
+            chain,
+            'Error bridging to L2',
+          );
         }
         for (const key of keys) {
-          const failure = await this.attemptToFundKey(key, chain as ChainName);
+          const failure = await this.attemptToFundKey(key, chain);
           failureOccurred ||= failure;
         }
       },
@@ -490,15 +501,23 @@ class ContextFunder {
     const igpBalance = await provider.getBalance(igp.address);
 
     log('Checking IGP balance', {
+      chain,
       igpBalance: ethers.utils.formatEther(igpBalance),
       igpClaimThreshold: ethers.utils.formatEther(igpClaimThreshold),
     });
 
     if (igpBalance.gt(igpClaimThreshold)) {
-      log('IGP balance exceeds claim threshold, claiming');
-      await this.multiProvider.handleTx(chain, igp.contract.claim());
+      log('IGP balance exceeds claim threshold, claiming', {
+        chain,
+      });
+      await this.multiProvider.sendTransaction(
+        chain,
+        await igp.contract.populateTransaction.claim(),
+      );
     } else {
-      log('IGP balance does not exceed claim threshold, skipping');
+      log('IGP balance does not exceed claim threshold, skipping', {
+        chain,
+      });
     }
   }
 
@@ -581,7 +600,7 @@ class ContextFunder {
     });
     log('Sent transaction', {
       key: keyInfo,
-      txUrl: this.multiProvider.getExplorerTxUrl(chain, {
+      txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
         hash: tx.transactionHash,
       }),
       context: this.context,
@@ -740,6 +759,24 @@ function parseContextAndRoles(str: string): ContextAndRoles {
     context,
     roles,
   };
+}
+
+// Returns whether an error occurred
+async function gracefullyHandleError(
+  fn: () => Promise<void>,
+  chain: ChainName,
+  errorMessage: string,
+): Promise<boolean> {
+  try {
+    await fn();
+    return false;
+  } catch (err) {
+    error(errorMessage, {
+      chain,
+      error: format(err),
+    });
+  }
+  return true;
 }
 
 main().catch((err) => {

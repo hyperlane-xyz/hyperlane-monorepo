@@ -39,7 +39,7 @@ async function main() {
         return 'N/A';
       }
       const tx = await paymaster.contract.claim();
-      return multiProvider.getExplorerTxUrl(chain, tx);
+      return multiProvider.tryGetExplorerTxUrl(chain, tx);
     }),
   );
 

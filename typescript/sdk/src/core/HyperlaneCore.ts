@@ -7,7 +7,7 @@ import { HyperlaneApp } from '../HyperlaneApp';
 import { environments } from '../consts/environments';
 import { buildContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ConnectionClientConfig } from '../router';
+import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 import { objMap, pick } from '../utils/objects';
 
@@ -149,8 +149,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
       );
     return dispatchLogs.map((log) => {
       const message = log.args['message'];
-      const id = log.args['messageId'];
       const parsed = utils.parseMessage(message);
+      const id = utils.messageId(message);
       return { id, message, parsed };
     });
   }
