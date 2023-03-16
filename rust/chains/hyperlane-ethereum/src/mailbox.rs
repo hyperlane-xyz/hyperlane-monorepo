@@ -27,7 +27,7 @@ use crate::tx::report_tx;
 use crate::EthereumProvider;
 
 /// An amount of gas to add to the estimated gas
-const GAS_ESTIMATE_BUFFER: u32 = 100000;
+const GAS_ESTIMATE_BUFFER: u32 = 50000;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -360,7 +360,7 @@ where
         // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
         // Still use the `gas_limit` we have above because this gas limit has already
         // had a safety buffer applied.
-        let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
+        let l2_gas_estimate = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
             // Note this will give an Err if the transaction will revert.
             // Because the transaction has already passed gas estimation in `process_contract_call`,
             // this is unlikely to happen.
@@ -372,7 +372,12 @@ where
                 )
                 .call()
                 .await?;
-            Some(gas_estimate.saturating_sub(l1_gas_estimate.into()).into())
+            let l2_gas_estimate: U256 = gas_estimate.saturating_sub(l1_gas_estimate.into()).into();
+            // Very arbitrarily, we divide by 2 for a lower L2 gas estimate.
+            // We've observed L2 gas limits from NodeInterface.gasEstimateComponents to be grossly
+            // overestimated. The returned L2 gas is therefore not an upper bound on L2 gas usage,
+            // but a very rough estimation of L2 gas costs
+            Some(l2_gas_estimate / 2)
         } else {
             None
         };
@@ -386,7 +391,7 @@ where
         Ok(TxCostEstimate {
             gas_limit,
             gas_price,
-            l2_gas_limit,
+            l2_gas_estimate,
         })
     }
 
@@ -461,10 +466,14 @@ mod test {
         mock_provider.push(gas_price).unwrap();
 
         // RPC 3: eth_call to the ArbitrumNodeInterface's gasEstimateL1Component function by process_estimate_costs
-        let l1_gas_estimate = U256::from(800000u32); // 800k gas
+        // 1M gas - total gas limit
+        let gas_limit = U256::from(1000000u32);
+        // 800k gas
+        let l1_gas_estimate = U256::from(800000u32);
         let base_fee = U256::from(5u32);
         let l1_base_fee = U256::from(6u32);
         let return_bytes = encode(&[Token::Tuple(vec![
+            Token::Uint(gas_limit),
             Token::Uint(l1_gas_estimate),
             Token::Uint(base_fee),
             Token::Uint(l1_base_fee),
@@ -479,7 +488,6 @@ mod test {
 
         // RPC 1: eth_estimateGas from the estimate_gas call in process_contract_call
         // Return 1M gas
-        let gas_limit = U256::from(1000000u32);
         mock_provider.push(gas_limit).unwrap();
 
         let tx_cost_estimate = mailbox
@@ -495,7 +503,7 @@ mod test {
             TxCostEstimate {
                 gas_limit: estimated_gas_limit,
                 gas_price,
-                l2_gas_limit: Some(estimated_gas_limit.saturating_sub(l1_gas_estimate)),
+                l2_gas_estimate: Some(gas_limit.saturating_sub(l1_gas_estimate) / 2),
             },
         );
     }
