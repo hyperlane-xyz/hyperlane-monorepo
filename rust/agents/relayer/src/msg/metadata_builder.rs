@@ -137,12 +137,13 @@ impl MetadataBuilder {
         &self,
         validators: &[H256],
     ) -> eyre::Result<MultisigCheckpointSyncer> {
-        let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
         let storage_locations = self
             .validator_announce
             .get_announced_storage_locations(validators)
             .await?;
+
         // Only use the most recently announced location for now.
+        let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
         for (&validator, validator_storage_locations) in validators.iter().zip(storage_locations) {
             debug!(
                 ?validator,
@@ -151,26 +152,30 @@ impl MetadataBuilder {
             );
 
             for storage_location in validator_storage_locations.iter().rev() {
-                let Ok(conf) = CheckpointSyncerConf::from_str(storage_location) else { continue };
+                let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
+                    debug!(?validator, ?storage_location, "Could not parse checkpoint syncer config for validator");
+                    continue
+                };
 
                 // If this is a LocalStorage based checkpoint syncer and it's not
                 // allowed, ignore it
                 if !self.allow_local_checkpoint_syncers
-                    && matches!(conf, CheckpointSyncerConf::LocalStorage { .. })
+                    && matches!(config, CheckpointSyncerConf::LocalStorage { .. })
                 {
                     debug!(
-                        ?conf,
+                        ?config,
                         "Ignoring disallowed LocalStorage based checkpoint syncer"
                     );
                     continue;
                 }
 
-                match conf.build(None) {
+                match config.build(None) {
                     Ok(checkpoint_syncer) => {
                         // found the syncer for this validator
                         debug!(
                             ?validator,
-                            storage_location, "Configured checkpoint syncer for validator"
+                            ?config,
+                            "Configured checkpoint syncer for validator"
                         );
                         checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());
                         break;
@@ -178,7 +183,7 @@ impl MetadataBuilder {
                     Err(err) => {
                         debug!(
                             error=%err,
-                            config=?conf,
+                            ?config,
                             ?validator,
                             "Error when loading checkpoint syncer; will attempt to use the next config"
                         );
