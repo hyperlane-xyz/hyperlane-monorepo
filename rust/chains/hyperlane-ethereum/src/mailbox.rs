@@ -187,7 +187,7 @@ where
         // Arbitrum Nitro based chains are a special case for transaction cost estimation.
         // The gas amount that eth_estimateGas returns considers both L1 and L2 gas costs.
         // We use the NodeInterface, found at address(0xC8), to isolate the L2 gas costs.
-        // See https://developer.arbitrum.io/arbos/gas#nodeinterfacesol or https://github.com/OffchainLabs/nitro/blob/master/contracts/src/node-interface/NodeInterface.sol#L110
+        // See https://developer.arbitrum.io/arbos/gas#nodeinterfacesol or https://github.com/OffchainLabs/nitro/blob/master/contracts/src/node-interface/NodeInterface.sol#L25
         let arbitrum_node_interface = locator.domain.is_arbitrum_nitro().then(|| {
             Arc::new(ArbitrumNodeInterface::new(
                 H160::from_low_u64_be(0xC8),
