@@ -77,6 +77,7 @@ use rusoto_kms::KmsClient;
 use serde::Deserialize;
 
 pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
+use hyperlane_core::utils::StrOrInt;
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
@@ -126,8 +127,12 @@ static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainSetup>,
+    /// Default signer configuration for chains which do not define their own.
+    /// This value is intentionally private as it will get consumed by
+    /// `post_deserialize`.
+    defaultsigner: Option<SignerConf>,
     /// Port to listen for prometheus scrape requests
-    pub metrics: Option<String>,
+    pub metrics: Option<StrOrInt>,
     /// The tracing configuration
     pub tracing: TracingConfig,
 }
@@ -247,10 +252,18 @@ impl Settings {
             name,
             self.metrics
                 .as_ref()
-                .map(|v| v.parse::<u16>().context("Port must be a valid u16"))
+                .map(|v| v.try_into().context("Port must be a valid u16"))
                 .transpose()?,
             prometheus::Registry::new(),
         )?))
+    }
+
+    /// Make internal connections as-needed after deserializing.
+    pub(super) fn post_deserialize(&mut self) {
+        let Some(signer) = self.defaultsigner.take() else { return };
+        for chain in self.chains.values_mut() {
+            chain.signer.get_or_insert_with(|| signer.clone());
+        }
     }
 
     /// Private to preserve linearity of AgentCore::from_settings -- creating an
@@ -260,6 +273,7 @@ impl Settings {
             chains: self.chains.clone(),
             metrics: self.metrics.clone(),
             tracing: self.tracing.clone(),
+            defaultsigner: self.defaultsigner.clone(),
         }
     }
 }
