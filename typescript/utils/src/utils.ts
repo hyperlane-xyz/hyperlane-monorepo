@@ -200,7 +200,6 @@ export async function retryAsync<T>(
   let saveError;
   for (let i = 0; i < attempts; i++) {
     try {
-      console.log('attempt', i, 'of', attempts, '...', runner);
       return runner();
     } catch (error) {
       saveError = error;
