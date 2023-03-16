@@ -29,7 +29,7 @@ async function check() {
   // must rotate to forked provider before building core contracts
   if (argv.fork) {
     console.log('test');
-    const resp = await fetch('http://localhost:8545', {
+    const resp = await fetch('http://127.0.0.1:8545', {
       method: 'POST',
       body: JSON.stringify({
         jsonrpc: '2.0',

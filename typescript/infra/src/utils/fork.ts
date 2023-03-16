@@ -33,7 +33,7 @@ export const useLocalProvider = async (
   const currentProvider = multiProvider.getProvider(chain);
   const network = await currentProvider.getNetwork();
   const provider = new StaticJsonRpcProvider(
-    'http://localhost:8545',
+    'http://127.0.0.1:8545',
     network.chainId,
   );
   const retryProvider = new RetryProvider(provider, {
