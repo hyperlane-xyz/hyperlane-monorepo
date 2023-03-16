@@ -373,11 +373,15 @@ where
                 .call()
                 .await?;
             let l2_gas_estimate: U256 = gas_estimate.saturating_sub(l1_gas_estimate.into()).into();
-            // Very arbitrarily, we divide by 2 for a lower L2 gas estimate.
-            // We've observed L2 gas limits from NodeInterface.gasEstimateComponents to be grossly
-            // overestimated. The returned L2 gas is therefore not an upper bound on L2 gas usage,
-            // but a very rough estimation of L2 gas costs
-            Some(l2_gas_estimate / 2)
+            Some(l2_gas_estimate)
+
+            // IGNORE this doesn't work well:
+
+            // // Very arbitrarily, we divide by 2 for a lower L2 gas estimate.
+            // // We've observed L2 gas limits from NodeInterface.gasEstimateComponents to be grossly
+            // // overestimated. The returned L2 gas is therefore not an upper bound on L2 gas usage,
+            // // but a very rough estimation of L2 gas costs
+            // Some(l2_gas_estimate / 2)
         } else {
             None
         };
