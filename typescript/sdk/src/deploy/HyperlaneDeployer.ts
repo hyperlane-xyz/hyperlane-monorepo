@@ -61,7 +61,7 @@ export abstract class HyperlaneDeployer<
     this.logger = options?.logger || debug('hyperlane:AppDeployer');
   }
 
-  cacheContracts(partialDeployment: ChainMap<Contracts>) {
+  cacheContracts(partialDeployment: ChainMap<Contracts>): void {
     this.deployedContracts = connectContractsMap(
       partialDeployment,
       this.multiProvider,
@@ -76,7 +76,9 @@ export abstract class HyperlaneDeployer<
   async deploy(
     partialDeployment?: ChainMap<Contracts>,
   ): Promise<ChainMap<Contracts>> {
-    this.cacheContracts(partialDeployment);
+    if (partialDeployment) {
+      this.cacheContracts(partialDeployment);
+    }
 
     const configChains = Object.keys(this.configMap);
     const targetChains = this.multiProvider.intersect(
