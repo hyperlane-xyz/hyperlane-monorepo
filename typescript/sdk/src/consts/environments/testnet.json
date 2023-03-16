@@ -158,5 +158,23 @@
     "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a",
     "interchainAccountRouter": "0xc61Bbf8eAb0b748Ecb532A7ffC49Ab7ca6D3a39D",
     "interchainQueryRouter": "0xF782C6C4A02f2c71BB8a1Db0166FAB40ea956818"
+  },
+  "sepolia": {
+    "storageGasOracle": "0x1D5EbC3e15e9ECDe0e3530C85899556797eeaea5",
+    "validatorAnnounce": "0x3Fc742696D5dc9846e04f7A1823D92cb51695f9a",
+    "proxyAdmin": "0x7FE7EA170cf08A25C2ff315814D96D93C311E692",
+    "mailbox": {
+      "kind": "Transparent",
+      "proxy": "0xCC737a94FecaeC165AbCf12dED095BB13F037685",
+      "implementation": "0x67b4359c407359d260dD04E622af04E7450DD43b"
+    },
+    "interchainGasPaymaster": {
+      "kind": "Transparent",
+      "proxy": "0x8f9C3888bFC8a5B25AED115A82eCbb788b196d2a",
+      "implementation": "0xD28d890780A33ec5155f9972ce260c1b611C788b"
+    },
+    "defaultIsmInterchainGasPaymaster": "0xF987d7edcb5890cB321437d8145E3D51131298b6",
+    "multisigIsm": "0xD3d062a5dcBA85ae863618d4c264d2358300c283",
+    "create2Factory": "0xc97D8e6f57b0d64971453dDc6EB8483fec9d163a"
   }
 }

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{Context, Result};
+use eyre::{ensure, Context, Result};
 use hyperlane_core::U256;
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver, UnboundedSender},
@@ -67,10 +67,18 @@ impl BaseAgent for Relayer {
         let core = settings.build_hyperlane_core(metrics.clone());
         let db = DB::from_path(&settings.db)?;
 
+        let destination_chains = settings.destinationchainnames.split(',');
+
+        for destination_chain in destination_chains.clone() {
+            let Some(cfg) = settings.chains.get(destination_chain) else { continue };
+            ensure!(
+                cfg.signer.is_some(),
+                format!("Destination chain {destination_chain} does not have a configured signer")
+            )
+        }
+
         // Use defined remote chains + the origin chain
-        let chain_names: Vec<_> = settings
-            .destinationchainnames
-            .split(',')
+        let chain_names: Vec<_> = destination_chains
             .chain([settings.originchainname.as_str()])
             .collect();
 
@@ -125,7 +133,6 @@ impl BaseAgent for Relayer {
         let gas_payment_enforcer = Arc::new(GasPaymentEnforcer::new(
             gas_enforcement_policies,
             mailboxes.get(&origin_chain).unwrap().db().clone(),
-            &settings.coingeckoapikey,
         ));
 
         let allow_local_checkpoint_syncers = settings.allowlocalcheckpointsyncers.unwrap_or(false);

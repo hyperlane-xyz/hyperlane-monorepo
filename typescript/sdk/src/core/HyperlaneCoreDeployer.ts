@@ -14,18 +14,14 @@ import {
 } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
-import multisigIsmVerifyCosts from '../../consts/multisigIsmVerifyCosts.json';
-import {
-  CoreContracts,
-  GasOracleContracts,
-  coreFactories,
-} from '../../core/contracts';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ProxiedContract, TransparentProxyAddresses } from '../../proxy';
-import { ChainMap, ChainName } from '../../types';
-import { objMap } from '../../utils/objects';
-import { DeployOptions, HyperlaneDeployer } from '../HyperlaneDeployer';
+import multisigIsmVerifyCosts from '../consts/multisigIsmVerifyCosts.json';
+import { DeployOptions, HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
+import { ChainMap, ChainName } from '../types';
+import { objMap } from '../utils/objects';
 
+import { CoreContracts, GasOracleContracts, coreFactories } from './contracts';
 import { CoreConfig, GasOracleContractType } from './types';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
@@ -69,19 +65,23 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   ): Promise<
     ProxiedContract<InterchainGasPaymaster, TransparentProxyAddresses>
   > {
+    const owner = this.configMap[chain].owner;
     const beneficiary = this.configMap[chain].igp.beneficiary;
     const igp = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
       [beneficiary],
       proxyAdmin,
-      [beneficiary],
+      [owner, beneficiary],
       deployOpts,
     );
 
     // Set the gas oracles
 
-    const remotes = this.multiProvider.getRemoteChains(chain);
+    const configChains = Object.keys(this.configMap);
+    const remotes = this.multiProvider
+      .intersect(configChains, false)
+      .multiProvider.getRemoteChains(chain);
 
     const gasOracleConfigsToSet: InterchainGasPaymaster.GasOracleConfigStruct[] =
       [];

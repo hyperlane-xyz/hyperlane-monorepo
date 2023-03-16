@@ -7,7 +7,7 @@ import { HyperlaneApp } from '../HyperlaneApp';
 import { environments } from '../consts/environments';
 import { buildContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ConnectionClientConfig } from '../router';
+import { ConnectionClientConfig } from '../router/types';
 import { ChainMap, ChainName } from '../types';
 import { objMap, pick } from '../utils/objects';
 
