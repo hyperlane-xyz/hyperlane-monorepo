@@ -359,15 +359,21 @@ where
 
         // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
         let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
-            let (l1_gas_limit, _, _) = arbitrum_node_interface
-                .gas_estimate_l1_component(
-                    self.contract.address(),
-                    false, // Not a contract creation
-                    contract_call.calldata().unwrap_or_default(),
-                )
-                .call()
-                .await?;
-            Some(gas_limit.saturating_sub(l1_gas_limit.into()))
+            Some(
+                arbitrum_node_interface
+                    .estimate_retryable_ticket(
+                        H160::zero(),
+                        // Give the sender a deposit, otherwise it reverts
+                        U256::MAX,
+                        self.contract.address(),
+                        U256::zero(),
+                        H160::zero(),
+                        H160::zero(),
+                        contract_call.calldata().unwrap_or_default(),
+                    )
+                    .estimate_gas()
+                    .await?,
+            )
         } else {
             None
         };
@@ -410,7 +416,6 @@ mod test {
     use std::{str::FromStr, sync::Arc};
 
     use ethers::{
-        abi::{encode, Token},
         providers::{MockProvider, Provider},
         types::{Block, Transaction},
     };
@@ -455,19 +460,9 @@ mod test {
         let gas_price: U256 = ethers::utils::parse_units("15", "gwei").unwrap().into();
         mock_provider.push(gas_price).unwrap();
 
-        // RPC 3: eth_call to the ArbitrumNodeInterface's gasEstimateL1Component function by process_estimate_costs
-        let l1_gas_estimate = U256::from(800000u32); // 800k gas
-        let base_fee = U256::from(5u32);
-        let l1_base_fee = U256::from(6u32);
-        let return_bytes = encode(&[Token::Tuple(vec![
-            Token::Uint(l1_gas_estimate),
-            Token::Uint(base_fee),
-            Token::Uint(l1_base_fee),
-        ])]);
-        let encoded_return_hex = hex::encode(return_bytes);
-        mock_provider
-            .push::<String, _>(format!("0x{:}", encoded_return_hex))
-            .unwrap();
+        // RPC 3: eth_estimateGas to the ArbitrumNodeInterface's estimateRetryableTicket function by process_estimate_costs
+        let l2_gas_limit = U256::from(200000); // 200k gas
+        mock_provider.push(l2_gas_limit).unwrap();
 
         // RPC 2: eth_getBlockByNumber from the estimate_eip1559_fees call in process_contract_call
         mock_provider.push(Block::<Transaction>::default()).unwrap();
@@ -490,7 +485,7 @@ mod test {
             TxCostEstimate {
                 gas_limit: estimated_gas_limit,
                 gas_price,
-                l2_gas_limit: Some(estimated_gas_limit.saturating_sub(l1_gas_estimate)),
+                l2_gas_limit: Some(l2_gas_limit),
             },
         );
     }
