@@ -1,3 +1,5 @@
+import fetch from 'cross-fetch';
+
 import {
   HyperlaneCore,
   HyperlaneCoreChecker,
@@ -26,6 +28,16 @@ async function check() {
 
   // must rotate to forked provider before building core contracts
   if (argv.fork) {
+    console.log('test');
+    const resp = await fetch('http://localhost:8545', {
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'eth_chainId',
+      }),
+    });
+    console.log('got chain ID', await resp.json());
     await useLocalProvider(multiProvider, argv.fork);
   }
 
