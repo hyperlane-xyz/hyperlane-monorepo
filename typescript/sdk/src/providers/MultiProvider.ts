@@ -19,7 +19,7 @@ import { CoreChainName, TestChains } from '../consts/chains';
 import { ChainMap, ChainName } from '../types';
 import { pick } from '../utils/objects';
 
-import { RetryJsonRpcProvider, RetryOptions } from './RetryProvider';
+import { RetryOptions, RetryProvider } from './RetryProvider';
 
 type Provider = providers.Provider;
 
@@ -27,13 +27,13 @@ export const providerBuilder = (config?: {
   http?: string;
   network?: providers.Networkish;
   retry?: RetryOptions;
-}): providers.JsonRpcProvider => {
+}): providers.BaseProvider => {
   const baseProvider = new providers.StaticJsonRpcProvider(
     config?.http,
     config?.network,
   );
   return config?.retry
-    ? new RetryJsonRpcProvider(baseProvider, config.retry)
+    ? new RetryProvider(baseProvider, config.retry)
     : baseProvider;
 };
 

@@ -2,6 +2,7 @@
 //
 // Mostly taken from the removed version that was in ethers.js
 // See: https://github.com/ethers-io/ethers.js/discussions/3006
+import { Network } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
@@ -28,6 +29,10 @@ export class RetryProvider extends ethers.providers.BaseProvider {
     ethers.utils.defineReadOnly(this, 'retryOptions', retryOptions);
   }
 
+  async detectNetwork(): Promise<Network> {
+    return Promise.resolve(this.network);
+  }
+
   // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   perform(method: string, params: any): Promise<any> {
     return utils.retryAsync(
@@ -39,9 +44,10 @@ export class RetryProvider extends ethers.providers.BaseProvider {
 }
 
 // Need this separate class for JsonRpcProvider to still expose `getSigner`, so will retry at the request level
-export class RetryJsonRpcProvider extends ethers.providers.JsonRpcProvider {
+export class RetryJsonRpcProvider extends ethers.providers
+  .StaticJsonRpcProvider {
   constructor(
-    readonly provider: ethers.providers.JsonRpcProvider,
+    readonly provider: ethers.providers.StaticJsonRpcProvider,
     readonly retryOptions: RetryOptions,
   ) {
     super(provider.connection, provider.network);
