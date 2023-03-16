@@ -27,7 +27,7 @@ use crate::tx::report_tx;
 use crate::EthereumProvider;
 
 /// An amount of gas to add to the estimated gas
-const GAS_ESTIMATE_BUFFER: u32 = 100000;
+const GAS_ESTIMATE_BUFFER: u32 = 50000;
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
