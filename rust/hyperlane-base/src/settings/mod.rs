@@ -87,8 +87,6 @@ pub use signers::SignerConf;
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
 use crate::{CachingMailbox, CoreMetrics, HyperlaneAgentCore};
 
-use self::chains::GelatoConf;
-
 /// Chain configuration
 pub mod chains;
 pub(crate) mod loader;
@@ -128,8 +126,6 @@ static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainSetup>,
-    /// Gelato config
-    pub gelato: Option<GelatoConf>,
     /// Port to listen for prometheus scrape requests
     pub metrics: Option<String>,
     /// The tracing configuration
@@ -262,7 +258,6 @@ impl Settings {
     fn clone(&self) -> Self {
         Self {
             chains: self.chains.clone(),
-            gelato: self.gelato.clone(),
             metrics: self.metrics.clone(),
             tracing: self.tracing.clone(),
         }
