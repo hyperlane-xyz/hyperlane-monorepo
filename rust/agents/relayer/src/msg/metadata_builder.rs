@@ -6,7 +6,7 @@ use std::sync::Arc;
 use derive_new::new;
 use eyre::Context;
 use tokio::sync::RwLock;
-use tracing::{debug, info, instrument, trace};
+use tracing::{debug, info, instrument, warn};
 
 use hyperlane_base::{
     CachingMailbox, ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics,
@@ -143,27 +143,54 @@ impl MetadataBuilder {
             .get_announced_storage_locations(validators)
             .await?;
         // Only use the most recently announced location for now.
-        for (i, validator_storage_locations) in storage_locations.iter().enumerate() {
-            for storage_location in validator_storage_locations.iter().rev() {
-                if let Ok(conf) = CheckpointSyncerConf::from_str(storage_location) {
-                    // If this is a LocalStorage based checkpoint syncer and it's not
-                    // allowed, ignore it
-                    if matches!(conf, CheckpointSyncerConf::LocalStorage { .. })
-                        && !self.allow_local_checkpoint_syncers
-                    {
-                        trace!(
-                            ?conf,
-                            "Ignoring disallowed LocalStorage based checkpoint syncer"
-                        );
-                        continue;
-                    }
+        for (&validator, validator_storage_locations) in validators.iter().zip(storage_locations) {
+            debug!(
+                ?validator,
+                ?validator_storage_locations,
+                "Attempting to load checkpoint syncer for validator"
+            );
 
-                    if let Ok(checkpoint_syncer) = conf.build(None) {
-                        checkpoint_syncers
-                            .insert(H160::from(validators[i]), checkpoint_syncer.into());
+            for storage_location in validator_storage_locations.iter().rev() {
+                let Ok(conf) = CheckpointSyncerConf::from_str(storage_location) else { continue };
+
+                // If this is a LocalStorage based checkpoint syncer and it's not
+                // allowed, ignore it
+                if !self.allow_local_checkpoint_syncers
+                    && matches!(conf, CheckpointSyncerConf::LocalStorage { .. })
+                {
+                    debug!(
+                        ?conf,
+                        "Ignoring disallowed LocalStorage based checkpoint syncer"
+                    );
+                    continue;
+                }
+
+                match conf.build(None) {
+                    Ok(checkpoint_syncer) => {
+                        // found the syncer for this validator
+                        debug!(
+                            ?validator,
+                            storage_location, "Configured checkpoint syncer for validator"
+                        );
+                        checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());
                         break;
                     }
+                    Err(err) => {
+                        debug!(
+                            error=%err,
+                            config=?conf,
+                            ?validator,
+                            "Error when loading checkpoint syncer; will attempt to use the next config"
+                        );
+                    }
                 }
+            }
+            if checkpoint_syncers.get(&validator.into()).is_none() {
+                warn!(
+                    ?validator,
+                    ?validator_storage_locations,
+                    "No valid checkpoint syncer configs for validator"
+                );
             }
         }
         Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))
