@@ -133,8 +133,6 @@ jobs:
 
       - name: Install Foundry
         uses: onbjerg/foundry-toolchain@v1
-        with:
-          version: nightly-28b2ae6d5ad3e802b813b679e26bc15b9b8d230b
 
       - name: Install dependencies
         run: cd solidity && forge install
@@ -201,13 +199,6 @@ jobs:
         with:
           path: './solidity/lcov.info'
           key: ${{ github.sha }}
-
-      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
-        with:
-          title: 'Solidity Coverage Report'
-          lcov-file: ./solidity/lcov.info
-          lcov-base: ./solidity/lcov.base.info
-          delete-old-comments: true
 
       - name: check-coverage
         run: |

@@ -1,12 +1,15 @@
+import { BigNumber } from 'ethers';
+
 import {
   InterchainGasPaymaster,
   Mailbox,
   MultisigIsm,
+  OverheadIgp,
 } from '@hyperlane-xyz/core';
 import type { types } from '@hyperlane-xyz/utils';
 
-import { ChainMap, ChainName } from '../../types';
-import type { CheckerViolation } from '../types';
+import type { CheckerViolation } from '../deploy/types';
+import { ChainMap, ChainName } from '../types';
 
 export enum GasOracleContractType {
   StorageGasOracle = 'StorageGasOracle',
@@ -35,6 +38,7 @@ export enum CoreViolationType {
   ConnectionManager = 'ConnectionManager',
   ValidatorAnnounce = 'ValidatorAnnounce',
   InterchainGasPaymaster = 'InterchainGasPaymaster',
+  DefaultIsmInterchainGasPaymaster = 'DefaultIsmInterchainGasPaymaster',
 }
 
 export enum MultisigIsmViolationType {
@@ -44,6 +48,10 @@ export enum MultisigIsmViolationType {
 
 export enum MailboxViolationType {
   DefaultIsm = 'DefaultIsm',
+}
+
+export enum DefaultIsmIgpViolationType {
+  DestinationGasOverheads = 'DestinationGasOverheads',
 }
 
 export enum IgpViolationType {
@@ -105,4 +113,17 @@ export interface IgpGasOraclesViolation extends IgpViolation {
   subType: IgpViolationType.GasOracles;
   actual: ChainMap<types.Address>;
   expected: ChainMap<types.Address>;
+}
+
+export interface DefaultIsmIgpViolation extends CheckerViolation {
+  type: CoreViolationType.DefaultIsmInterchainGasPaymaster;
+  contract: OverheadIgp;
+  subType: DefaultIsmIgpViolationType;
+}
+
+export interface DefaultIsmIgpDestinationGasOverheadsViolation
+  extends DefaultIsmIgpViolation {
+  subType: DefaultIsmIgpViolationType.DestinationGasOverheads;
+  actual: ChainMap<BigNumber>;
+  expected: ChainMap<BigNumber>;
 }

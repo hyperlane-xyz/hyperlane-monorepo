@@ -14,9 +14,7 @@ use crate::settings::{
     matching_list::MatchingList, GasPaymentEnforcementConfig, GasPaymentEnforcementPolicy,
 };
 
-use self::policies::{
-    GasPaymentPolicyMeetsEstimatedCost, GasPaymentPolicyMinimum, GasPaymentPolicyNone,
-};
+use self::policies::{GasPaymentPolicyMinimum, GasPaymentPolicyNone};
 
 mod policies;
 
@@ -48,7 +46,6 @@ impl GasPaymentEnforcer {
     pub fn new(
         policy_configs: impl IntoIterator<Item = GasPaymentEnforcementConfig>,
         db: HyperlaneDB,
-        coingecko_api_key: &Option<String>,
     ) -> Self {
         let policies = policy_configs
             .into_iter()
@@ -58,9 +55,6 @@ impl GasPaymentEnforcer {
                     GasPaymentEnforcementPolicy::Minimum { payment } => {
                         Box::new(GasPaymentPolicyMinimum::new(payment))
                     }
-                    GasPaymentEnforcementPolicy::MeetsEstimatedCost => Box::new(
-                        GasPaymentPolicyMeetsEstimatedCost::new(coingecko_api_key.clone()),
-                    ),
                     GasPaymentEnforcementPolicy::OnChainFeeQuoting { gasfraction } => {
                         let gasfraction = gasfraction.replace(' ', "");
                         let v: Vec<&str> = gasfraction.split('/').collect();
@@ -166,7 +160,6 @@ mod test {
                     matching_list: Default::default(),
                 }],
                 hyperlane_db,
-                &None,
             );
 
             // Ensure that message without any payment is considered as not meeting the
@@ -198,7 +191,6 @@ mod test {
                     matching_list,
                 }],
                 hyperlane_db,
-                &None,
             );
 
             assert!(matches!(
@@ -242,7 +234,6 @@ mod test {
                     },
                 ],
                 hyperlane_db,
-                &None,
             );
 
             let sender: H256 = H160::from_str(sender_address).unwrap().into();
