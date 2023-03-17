@@ -88,8 +88,6 @@ pub use signers::SignerConf;
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
 use crate::{CachingMailbox, CoreMetrics, HyperlaneAgentCore};
 
-use self::chains::GelatoConf;
-
 /// Chain configuration
 pub mod chains;
 pub(crate) mod loader;
@@ -133,8 +131,6 @@ pub struct Settings {
     /// This value is intentionally private as it will get consumed by
     /// `post_deserialize`.
     defaultsigner: Option<SignerConf>,
-    /// Gelato config
-    pub gelato: Option<GelatoConf>,
     /// Port to listen for prometheus scrape requests
     pub metrics: Option<StrOrInt>,
     /// The tracing configuration
@@ -275,7 +271,6 @@ impl Settings {
     fn clone(&self) -> Self {
         Self {
             chains: self.chains.clone(),
-            gelato: self.gelato.clone(),
             metrics: self.metrics.clone(),
             tracing: self.tracing.clone(),
             defaultsigner: self.defaultsigner.clone(),

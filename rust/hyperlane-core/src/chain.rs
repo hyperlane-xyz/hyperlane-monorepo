@@ -431,10 +431,6 @@ mod tests {
 
     #[test]
     fn agent_json_config_consistency_checks() {
-        // TODO(webbhorn): Also verify with this functionality
-        // we have entries for all of the Gelato contract
-        // addresses we need hardcoded in the binary for now.
-
         // Verify that the hard-coded, macro-maintained
         // mapping in `hyperlane-core/src/chain.rs` named
         // by the macro `domain_and_chain` is complete
