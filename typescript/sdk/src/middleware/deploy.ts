@@ -1,20 +1,40 @@
 import { ethers } from 'ethers';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-
 import {
-  InterchainAccountContracts,
-  InterchainAccountFactories,
-  InterchainQueryContracts,
-  InterchainQueryFactories,
-  interchainAccountFactories,
-  interchainQueryFactories,
-} from '../../middleware';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ProxiedRouterContracts, RouterFactories } from '../../router';
-import { ChainMap, ChainName } from '../../types';
+  InterchainAccountRouter,
+  InterchainAccountRouter__factory,
+  InterchainQueryRouter,
+  InterchainQueryRouter__factory,
+} from '@hyperlane-xyz/core';
+
+import { MultiProvider } from '../providers/MultiProvider';
 import { HyperlaneRouterDeployer } from '../router/HyperlaneRouterDeployer';
-import { RouterConfig } from '../router/types';
+import {
+  ProxiedRouterContracts,
+  RouterConfig,
+  RouterFactories,
+} from '../router/types';
+import { ChainMap, ChainName } from '../types';
+
+export type InterchainAccountFactories =
+  RouterFactories<InterchainAccountRouter>;
+
+export const interchainAccountFactories: InterchainAccountFactories = {
+  router: new InterchainAccountRouter__factory(),
+};
+
+export type InterchainAccountContracts =
+  ProxiedRouterContracts<InterchainAccountRouter>;
+
+export type InterchainQueryFactories = RouterFactories<InterchainQueryRouter>;
+
+export const interchainQueryFactories: InterchainQueryFactories = {
+  router: new InterchainQueryRouter__factory(),
+};
+
+export type InterchainQueryContracts =
+  ProxiedRouterContracts<InterchainQueryRouter>;
 
 export abstract class MiddlewareRouterDeployer<
   MiddlewareRouterConfig extends RouterConfig,

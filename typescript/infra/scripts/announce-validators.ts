@@ -53,21 +53,28 @@ async function main() {
     multiProvider,
   );
 
-  const announcements = [];
+  const announcements: {
+    storageLocation: string;
+    announcement: any;
+  }[] = [];
   const chains: ChainName[] = [];
   if (location) {
     chains.push(chain!);
     if (location.startsWith('s3://')) {
       const validator = await S3Validator.fromStorageLocation(location);
-      announcements.push(await validator.getAnnouncement());
+      announcements.push({
+        storageLocation: validator.storageLocation(),
+        announcement: await validator.getAnnouncement(),
+      });
     } else if (location.startsWith('file://')) {
       const announcementFilepath = path.join(
         location.substring(7),
         'announcement.json',
       );
-      announcements.push(
-        JSON.parse(readFileSync(announcementFilepath, 'utf-8')),
-      );
+      announcements.push({
+        storageLocation: location,
+        announcement: JSON.parse(readFileSync(announcementFilepath, 'utf-8')),
+      });
     } else {
       throw new Error(`Unknown location type %{location}`);
     }
@@ -94,7 +101,10 @@ async function main() {
                 validatorBaseConfig.checkpointSyncer.bucket,
                 validatorBaseConfig.checkpointSyncer.region,
               );
-              announcements.push(await validator.getAnnouncement());
+              announcements.push({
+                storageLocation: validator.storageLocation(),
+                announcement: await validator.getAnnouncement(),
+              });
               chains.push(chain);
             }
           }
@@ -104,7 +114,10 @@ async function main() {
   }
 
   for (let i = 0; i < announcements.length; i++) {
-    const announcement = announcements[i];
+    const { storageLocation, announcement } = announcements[i];
+    if (!announcement) {
+      console.info(`No announcement for storageLocation ${storageLocation}`);
+    }
     const chain = chains[i];
     const contracts = core.getContracts(chain);
     const validatorAnnounce = contracts.validatorAnnounce;

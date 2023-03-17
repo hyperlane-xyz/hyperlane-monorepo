@@ -94,7 +94,7 @@ export abstract class HyperlaneAppChecker<
     chain: ChainName,
     name: string,
     address: string,
-    expectedBytecodeHash: string,
+    expectedBytecodeHashes: string[],
     modifyBytecodePriorToHash: (bytecode: string) => string = (_) => _,
   ): Promise<void> {
     const provider = this.multiProvider.getProvider(chain);
@@ -102,11 +102,11 @@ export abstract class HyperlaneAppChecker<
     const bytecodeHash = keccak256(
       modifyBytecodePriorToHash(this.removeBytecodeMetadata(bytecode)),
     );
-    if (bytecodeHash !== expectedBytecodeHash) {
+    if (!expectedBytecodeHashes.includes(bytecodeHash)) {
       this.addViolation({
         type: ViolationType.BytecodeMismatch,
         chain,
-        expected: expectedBytecodeHash,
+        expected: expectedBytecodeHashes,
         actual: bytecodeHash,
         name,
       } as BytecodeMismatchViolation);

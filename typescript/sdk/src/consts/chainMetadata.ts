@@ -411,6 +411,31 @@ export const goerli: ChainMetadata = {
   isTestnet: true,
 };
 
+export const sepolia: ChainMetadata = {
+  chainId: 11155111,
+  name: Chains.sepolia,
+  displayName: 'Sepolia',
+  nativeToken: etherToken,
+  publicRpcUrls: [
+    { http: 'https://endpoints.omniatech.io/v1/eth/sepolia/public' },
+    { http: 'https://rpc.sepolia.org' },
+  ],
+  blockExplorers: [
+    {
+      name: 'Etherscan',
+      url: 'https://sepolia.etherscan.io',
+      apiUrl: 'https://api-sepolia.etherscan.io/api',
+      family: ExplorerFamily.Etherscan,
+    },
+  ],
+  blocks: {
+    confirmations: 1,
+    reorgPeriod: 2,
+    estimateBlockTime: 13,
+  },
+  isTestnet: true,
+};
+
 export const moonbasealpha: ChainMetadata = {
   chainId: 1287,
   name: Chains.moonbasealpha,
@@ -472,7 +497,7 @@ export const mumbai: ChainMetadata = {
   nativeToken: maticToken,
   publicRpcUrls: [
     {
-      http: 'https://rpc-mumbai.maticvigil.com',
+      http: 'https://rpc.ankr.com/polygon_mumbai',
       pagination: {
         // eth_getLogs and eth_newFilter are limited to a 10,000 blocks range
         blocks: 10000,
@@ -673,6 +698,7 @@ export const chainMetadata = {
   ethereum,
   fuji,
   goerli,
+  sepolia,
   moonbasealpha,
   moonbeam,
   mumbai,

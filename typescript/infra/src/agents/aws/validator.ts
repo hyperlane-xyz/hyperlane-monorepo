@@ -39,6 +39,7 @@ const checkpointKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}.json`;
 const LATEST_KEY = 'checkpoint_latest_index.json';
 const ANNOUNCEMENT_KEY = 'announcement.json';
+const LOCATION_PREFIX = 's3://';
 
 /**
  * Extension of BaseValidator that includes AWS S3 utilities.
@@ -60,9 +61,8 @@ export class S3Validator extends BaseValidator {
   static async fromStorageLocation(
     storageLocation: string,
   ): Promise<S3Validator> {
-    const prefix = 's3://';
-    if (storageLocation.startsWith(prefix)) {
-      const suffix = storageLocation.slice(prefix.length);
+    if (storageLocation.startsWith(LOCATION_PREFIX)) {
+      const suffix = storageLocation.slice(LOCATION_PREFIX.length);
       const pieces = suffix.split('/');
       if (pieces.length == 2) {
         const s3Bucket = new S3Wrapper(pieces[0], pieces[1]);
@@ -170,6 +170,10 @@ export class S3Validator extends BaseValidator {
     }
 
     return checkpointMetrics.slice(-1 * count);
+  }
+
+  storageLocation(): string {
+    return `${LOCATION_PREFIX}/${this.s3Bucket.bucket}/${this.s3Bucket.region}`;
   }
 
   private async getCheckpointReceipt(
