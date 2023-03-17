@@ -29,7 +29,7 @@ export const hyperlane: AgentConfig = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '1cbe5fd-20230309-202035',
+    tag: '81ad229-20230316-173735',
   },
   aws: {
     region: 'us-east-1',
@@ -57,8 +57,7 @@ export const hyperlane: AgentConfig = {
           matchingList: interchainQueriesMatchingList,
         },
         {
-          type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: '1',
+          type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
         },
       ],
     },
@@ -72,7 +71,7 @@ export const releaseCandidate: AgentConfig = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '1cbe5fd-20230309-202035',
+    tag: '81ad229-20230316-173735',
   },
   aws: {
     region: 'us-east-1',
@@ -89,8 +88,7 @@ export const releaseCandidate: AgentConfig = {
           matchingList: interchainQueriesMatchingList,
         },
         {
-          type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: '1',
+          type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
         },
       ],
       transactionGasLimit: 750000,

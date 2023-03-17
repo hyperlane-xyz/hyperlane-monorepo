@@ -29,7 +29,7 @@ export const hyperlane: AgentConfig = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '19d9450-20230315-153147',
+    tag: '81ad229-20230316-173735',
   },
   aws: {
     region: 'us-east-1',
@@ -50,19 +50,6 @@ export const hyperlane: AgentConfig = {
           // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
           matchingList: interchainQueriesMatchingList,
         },
-        // Don't enforce amounts for messages to arbitrumgoerli yet
-        {
-          type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: '1',
-          matchingList: [
-            {
-              originDomain: '*',
-              destinationDomain: chainMetadata.arbitrumgoerli.domainId,
-              senderAddress: '*',
-              recipientAddress: '*',
-            },
-          ],
-        },
         // Default policy is OnChainFeeQuoting
         {
           type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
@@ -79,7 +66,7 @@ export const releaseCandidate: AgentConfig = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '19d9450-20230315-153147',
+    tag: '81ad229-20230316-173735',
   },
   aws: {
     region: 'us-east-1',
@@ -94,19 +81,6 @@ export const releaseCandidate: AgentConfig = {
         {
           type: GasPaymentEnforcementPolicyType.None,
           matchingList: interchainQueriesMatchingList,
-        },
-        // Don't enforce amounts for messages to arbitrumgoerli yet
-        {
-          type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: '1',
-          matchingList: [
-            {
-              originDomain: '*',
-              destinationDomain: chainMetadata.arbitrumgoerli.domainId,
-              senderAddress: '*',
-              recipientAddress: '*',
-            },
-          ],
         },
         // Default policy is OnChainFeeQuoting
         {
