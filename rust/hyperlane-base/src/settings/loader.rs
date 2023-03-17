@@ -3,16 +3,21 @@ use std::env;
 use std::error::Error;
 use std::path::PathBuf;
 
+use crate::Settings;
 use config::{Config, Environment, File};
 use eyre::{Context, Result};
 use serde::Deserialize;
 
 /// Load a settings object from the config locations.
 /// Further documentation can be found in the `settings` module.
-pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
+pub(crate) fn load_settings_object<'de, T, S>(
     agent_prefix: &str,
     ignore_prefixes: &[S],
-) -> Result<T> {
+) -> Result<T>
+where
+    T: Deserialize<'de> + AsMut<Settings>,
+    S: AsRef<str>,
+{
     // Derive additional prefix from agent name
     let prefix = format!("HYP_{}", agent_prefix).to_ascii_uppercase();
 
@@ -81,8 +86,11 @@ pub(crate) fn load_settings_object<'de, T: Deserialize<'de>, S: AsRef<str>>(
         }
     };
 
-    match Config::try_deserialize(config_deserializer) {
-        Ok(cfg) => Ok(cfg),
+    match Config::try_deserialize::<T>(config_deserializer) {
+        Ok(mut cfg) => {
+            cfg.as_mut().post_deserialize();
+            Ok(cfg)
+        }
         Err(err) => {
             let err_str = err.to_string();
 
