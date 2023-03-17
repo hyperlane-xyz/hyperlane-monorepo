@@ -10,7 +10,7 @@ use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers::types::Eip1559TransactionRequest;
 use ethers_contract::builders::ContractCall;
-use hyperlane_core::{H160, KnownHyperlaneDomain};
+use hyperlane_core::{KnownHyperlaneDomain, H160};
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -228,17 +228,20 @@ where
         let chain_id = match self.provider.get_chainid().await {
             Ok(chainId) => chainId.as_u32(),
             // Couldn't get chainId, assume not 1559
-            Err(_) => return Ok(tx.gas(gas_limit))
+            Err(_) => return Ok(tx.gas(gas_limit)),
         };
         let Ok((max_fee, max_priority_fee)) = self.provider.estimate_eip1559_fees(None).await else {
             // Is not EIP 1559 chain
             return Ok(tx.gas(gas_limit))
         };
-        let max_priority_fee = if KnownHyperlaneDomain::try_from(chain_id)? == KnownHyperlaneDomain::Polygon {
-            let min_polygon_fee = ethers::utils::parse_units("31", "gwei").unwrap().into();
-            // Polygon needs a max priority fee > 30 gwei
-            max_priority_fee.max(min_polygon_fee)
-        } else { max_priority_fee };
+        let max_priority_fee =
+            if KnownHyperlaneDomain::try_from(chain_id)? == KnownHyperlaneDomain::Polygon {
+                let min_polygon_fee = ethers::utils::parse_units("31", "gwei").unwrap().into();
+                // Polygon needs a max priority fee > 30 gwei
+                max_priority_fee.max(min_polygon_fee)
+            } else {
+                max_priority_fee
+            };
         // Is EIP 1559 chain
         let mut request = Eip1559TransactionRequest::new();
         if let Some(from) = tx.tx.from() {
