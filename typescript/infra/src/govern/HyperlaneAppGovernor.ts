@@ -60,7 +60,7 @@ export abstract class HyperlaneAppGovernor<
 
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
-    const chains = !!chain ? [chain] : Object.keys(this.calls);
+    const chains = chain ? [chain] : Object.keys(this.calls);
     for (const chain of chains) {
       await this.sendCalls(chain, confirm);
     }
