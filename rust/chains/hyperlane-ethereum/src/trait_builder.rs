@@ -34,6 +34,9 @@ pub enum EthereumProviderConnectionError {
     /// A URL string could not be parsed
     #[error("Failed to parse url {1:?}: {0}")]
     InvalidUrl(url::ParseError, String),
+    /// A URL string was `""`
+    #[error("The url is an empty string; ensure the default configuration has been overridden")]
+    EmptyUrl,
     /// Underlying websocket library threw an error
     #[error(transparent)]
     WebsocketClientError(#[from] WsClientError),
@@ -62,6 +65,7 @@ pub trait BuildableWithProvider {
         rpc_metrics: Option<JsonRpcClientMetrics>,
         middleware_metrics: Option<(MiddlewareMetrics, PrometheusMiddlewareConf)>,
     ) -> ChainResult<Self::Output> {
+        use EthereumProviderConnectionError::{EmptyUrl, InvalidUrl};
         Ok(match conn {
             ConnectionConf::HttpQuorum { urls } => {
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
@@ -70,9 +74,12 @@ pub trait BuildableWithProvider {
                     .build()
                     .map_err(EthereumProviderConnectionError::from)?;
                 for url in urls.split(',') {
-                    let parsed_url = url.parse::<Url>().map_err(|e| {
-                        EthereumProviderConnectionError::InvalidUrl(e, url.to_owned())
-                    })?;
+                    if url.is_empty() {
+                        return Err(EmptyUrl.into());
+                    }
+                    let parsed_url = url
+                        .parse::<Url>()
+                        .map_err(|e| InvalidUrl(e, url.to_owned()))?;
                     let http_provider =
                         Http::new_with_client(parsed_url.clone(), http_client.clone());
                     // Wrap the inner providers as RetryingProviders rather than the QuorumProvider.
@@ -107,16 +114,13 @@ pub trait BuildableWithProvider {
                     .map_err(EthereumProviderConnectionError::from)?;
                 for url in urls.split(',') {
                     let http_provider = Http::new_with_client(
-                        url.parse::<Url>().map_err(|e| {
-                            EthereumProviderConnectionError::InvalidUrl(e, url.to_owned())
-                        })?,
+                        url.parse::<Url>()
+                            .map_err(|e| InvalidUrl(e, url.to_owned()))?,
                         http_client.clone(),
                     );
                     let metrics_provider = self.wrap_rpc_with_metrics(
                         http_provider,
-                        Url::parse(url).map_err(|e| {
-                            EthereumProviderConnectionError::InvalidUrl(e, url.to_owned())
-                        })?,
+                        Url::parse(url).map_err(|e| InvalidUrl(e, url.to_owned()))?,
                         &rpc_metrics,
                         &middleware_metrics,
                     );
@@ -131,9 +135,7 @@ pub trait BuildableWithProvider {
                     .timeout(HTTP_CLIENT_TIMEOUT)
                     .build()
                     .map_err(EthereumProviderConnectionError::from)?;
-                let parsed_url = url
-                    .parse::<Url>()
-                    .map_err(|e| EthereumProviderConnectionError::InvalidUrl(e, url.clone()))?;
+                let parsed_url = url.parse::<Url>().map_err(|e| InvalidUrl(e, url.clone()))?;
                 let http_provider = Http::new_with_client(parsed_url.clone(), http_client);
                 let metrics_provider = self.wrap_rpc_with_metrics(
                     http_provider,
