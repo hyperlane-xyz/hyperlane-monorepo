@@ -101,7 +101,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     );
     const overheadInterchainGasPaymaster = await this.deployContract(
       chain,
-      'overheadIgp',
+      'defaultIsmInterchainGasPaymaster',
       [interchainGasPaymasterAddress],
       {
         ...deployOpts,

@@ -32,6 +32,6 @@ export type IgpAddresses = {
 export const igpFactories = {
   proxyAdmin: new ProxyAdmin__factory(),
   interchainGasPaymaster: new InterchainGasPaymaster__factory(),
-  overheadIgp: new OverheadIgp__factory(),
+  defaultIsmInterchainGasPaymaster: new OverheadIgp__factory(),
   storageGasOracle: new StorageGasOracle__factory(),
 };

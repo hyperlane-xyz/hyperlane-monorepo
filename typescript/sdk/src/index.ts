@@ -22,6 +22,7 @@ export {
 } from './consts/chains';
 export {
   HyperlaneContractAddresses,
+  hyperlaneAgentAddresses,
   hyperlaneContractAddresses,
   hyperlaneCoreAddresses,
 } from './consts/environments';
@@ -39,7 +40,7 @@ export {
   AgentConfig,
   AgentConnection,
   AgentConnectionType,
-  AgentContractAddresses,
+  HyperlaneAgentAddresses,
   AgentSigner,
   buildAgentConfig,
 } from './agents/types';

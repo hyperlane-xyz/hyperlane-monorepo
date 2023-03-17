@@ -5,10 +5,9 @@ import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
 import { hyperlaneEnvironments } from '../consts/environments';
-import { buildContracts } from '../contracts';
+import { HyperlaneAddresses } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
-import { pick } from '../utils/objects';
+import { ChainMap, ChainName } from '../types';
 
 import { CoreContracts, coreFactories } from './contracts';
 
@@ -33,6 +32,19 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     super(contractsMap, multiProvider);
   }
 
+  static fromAddresses(
+    addresses: ChainMap<HyperlaneAddresses>,
+    multiProvider: MultiProvider,
+  ): HyperlaneCore {
+    const { contracts, intersectionProvider } =
+      this.buildContracts<CoreContracts>(
+        addresses,
+        coreFactories,
+        multiProvider,
+      );
+    return new HyperlaneCore(contracts, intersectionProvider);
+  }
+
   static fromEnvironment<Env extends CoreEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
@@ -41,19 +53,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     if (!envAddresses) {
       throw new Error(`No addresses found for ${env}`);
     }
-
-    const envChains = Object.keys(envAddresses);
-
-    const { intersection, multiProvider: intersectionProvider } =
-      multiProvider.intersect(envChains, true);
-
-    const intersectionAddresses = pick(envAddresses, intersection);
-    const contractsMap = buildContracts(
-      intersectionAddresses,
-      coreFactories,
-    ) as CoreContractsMap;
-
-    return new HyperlaneCore(contractsMap, intersectionProvider);
+    return HyperlaneCore.fromAddresses(envAddresses, multiProvider);
   }
 
   getContracts(chain: ChainName): CoreContracts {

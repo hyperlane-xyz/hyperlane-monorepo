@@ -1,3 +1,4 @@
+import { HyperlaneAgentAddresses } from '../../agents/types';
 import { CoreAddresses } from '../../core/contracts';
 import { IgpAddresses } from '../../gas/contracts';
 import { ChainMap } from '../../types';
@@ -38,3 +39,12 @@ export const hyperlaneContractAddresses = objMap(
     //interchainQueryRouter: undefined,
   }),
 ) as ChainMap<HyperlaneContractAddresses>;
+
+export const hyperlaneAgentAddresses = objMap(
+  { ...testnet, ...mainnet },
+  (_chain, addresses) => ({
+    mailbox: addresses.mailbox.proxy,
+    validatorAnnounce: addresses.validatorAnnounce,
+    interchainGasPaymaster: addresses.interchainGasPaymaster.proxy,
+  }),
+) as ChainMap<HyperlaneAgentAddresses>;

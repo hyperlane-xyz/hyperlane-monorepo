@@ -20,10 +20,10 @@ export function objMap<K extends string, I = any, O = any>(
 
 export function objFilter<K extends string, I, O extends I>(
   obj: Record<K, I>,
-  func: (v: I) => v is O,
+  func: (k: K, v: I) => v is O,
 ): Record<K, O> {
   return Object.fromEntries(
-    Object.entries<I>(obj).filter(([, v]) => func(v)),
+    Object.entries<I>(obj).filter(([k, v]) => func(k as K, v)),
   ) as Record<K, O>;
 }
 
@@ -53,8 +53,8 @@ export function isObject(item: any) {
 // Recursively merges b into a
 // Where there are conflicts, b takes priority over a
 export function objMerge(a: Record<string, any>, b: Record<string, any>): any {
-  const ret: Record<string, any> = {};
   if (isObject(a) && isObject(b)) {
+    const ret: Record<string, any> = {};
     const aKeys = new Set(Object.keys(a));
     const bKeys = new Set(Object.keys(b));
     const allKeys = new Set([...aKeys, ...bKeys]);
