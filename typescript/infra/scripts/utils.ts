@@ -245,7 +245,7 @@ export function getValidatorsByChain(
   const validators: ChainMap<Set<string>> = {};
   objMap(config, (local, coreConfig) => {
     objMap(coreConfig.multisigIsm, (remote, multisigIsmConfig) => {
-      if (validators[remote] === undefined) {
+      if (!validators[remote]) {
         validators[remote] = new Set(multisigIsmConfig.validators);
       } else {
         multisigIsmConfig.validators.map((v) => validators[remote].add(v));

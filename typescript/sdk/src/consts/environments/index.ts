@@ -1,7 +1,7 @@
 import { HyperlaneAgentAddresses } from '../../agents/types';
 import { CoreAddresses } from '../../core/contracts';
 import { IgpAddresses } from '../../gas/contracts';
-import { ChainMap } from '../../types';
+import { ChainMap, ChainName } from '../../types';
 import { objMap } from '../../utils/objects';
 
 import mainnet from './mainnet.json';
@@ -9,6 +9,12 @@ import test from './test.json';
 import testnet from './testnet.json';
 
 export const hyperlaneEnvironments = { test, testnet, mainnet };
+
+export type HyperlaneEnvironment = keyof typeof hyperlaneEnvironments;
+export type HyperlaneEnvironmentChain<E extends HyperlaneEnvironment> = Extract<
+  keyof typeof hyperlaneEnvironments[E],
+  ChainName
+>;
 
 // TODO: Add middleware addresses
 export type HyperlaneContractAddresses = CoreAddresses & IgpAddresses;

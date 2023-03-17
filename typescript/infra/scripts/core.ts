@@ -12,7 +12,7 @@ import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
 import { HyperlaneIgpInfraDeployer } from '../src/gas/deploy';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
-import { mergeJSON, readJSON, writeJSON } from '../src/utils/utils';
+import { readJSON, writeJSON, writeMergedJSON } from '../src/utils/utils';
 
 import {
   getAgentConfigDirectory,
@@ -55,27 +55,22 @@ async function main() {
 
   let factories: HyperlaneFactories;
   let deployer: HyperlaneDeployer<any, any, any>;
-  switch (module) {
-    case 'core': {
-      factories = coreFactories;
-      deployer = new HyperlaneCoreInfraDeployer(
-        multiProvider,
-        config.core,
-        environment,
-      );
-      break;
-    }
-    case 'igp': {
-      factories = igpFactories;
-      deployer = new HyperlaneIgpInfraDeployer(
-        multiProvider,
-        config.igp,
-        environment,
-      );
-      break;
-    }
-    default:
-      throw new Error('Unknown module type');
+  if (module === 'core') {
+    factories = coreFactories;
+    deployer = new HyperlaneCoreInfraDeployer(
+      multiProvider,
+      config.core,
+      environment,
+    );
+  } else if (module === 'igp') {
+    factories = igpFactories;
+    deployer = new HyperlaneIgpInfraDeployer(
+      multiProvider,
+      config.igp,
+      environment,
+    );
+  } else {
+    throw new Error('Unknown module type');
   }
 
   if (environment !== 'test') {
@@ -103,7 +98,7 @@ async function main() {
   }
 
   // Persist address artifacts, irrespective of deploy success
-  mergeJSON(
+  writeMergedJSON(
     getContractAddressesSdkFilepath(),
     `${deployEnvToSdkEnv[environment]}.json`,
     serializeContracts(deployer.deployedContracts),

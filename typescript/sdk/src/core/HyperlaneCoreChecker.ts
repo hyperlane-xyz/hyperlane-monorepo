@@ -2,6 +2,7 @@ import { utils as ethersUtils } from 'ethers';
 
 import { utils } from '@hyperlane-xyz/utils';
 
+import { BytecodeHash } from '../consts/bytecode';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import { ChainName } from '../types';
 
@@ -16,17 +17,6 @@ import {
   ThresholdViolation,
   ValidatorAnnounceViolation,
 } from './types';
-
-const MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH =
-  '0x29b7294ab3ad2e8587e5cce0e2289ce65e12a2ea2f1e7ab34a05e7737616f457';
-const MAILBOX_WITHOUT_LOCAL_DOMAIN_NONZERO_PAUSE_BYTE_CODE_HASH =
-  '0x4e73e34c0982b93eebb4ac4889e9e4e1611f7c24feacf016c3a13e389f146d9c';
-const TRANSPARENT_PROXY_BYTECODE_HASH =
-  '0x4dde3d0906b6492bf1d4947f667afe8d53c8899f1d8788cabafd082938dceb2d';
-const MULTISIG_ISM_BYTECODE_HASH =
-  '0x5565704ffa5b10fdf37d57abfddcf137101d5fb418ded21fa6c5f90262c57dc2';
-const PROXY_ADMIN_BYTECODE_HASH =
-  '0x7c378e9d49408861ca754fe684b9f7d1ea525bddf095ee0463902df701453ba0';
 
 export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   HyperlaneCore,
@@ -91,16 +81,16 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       'Mailbox implementation',
       contracts.mailbox.addresses.implementation,
       [
-        MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
-        MAILBOX_WITHOUT_LOCAL_DOMAIN_NONZERO_PAUSE_BYTE_CODE_HASH,
+        BytecodeHash.MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
+        BytecodeHash.MAILBOX_WITHOUT_LOCAL_DOMAIN_NONZERO_PAUSE_BYTE_CODE_HASH,
       ],
-      (_) =>
+      (bytecode) =>
         // This is obviously super janky but basically we are searching
         //  for the ocurrences of localDomain in the bytecode and remove
         //  that to compare, but some coincidental ocurrences of
         // localDomain in the bytecode should be not be removed which
         // are just done via an offset guard
-        _.replaceAll(
+        bytecode.replaceAll(
           ethersUtils.defaultAbiCoder
             .encode(['uint32'], [localDomain])
             .slice(2),
@@ -112,19 +102,19 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       chain,
       'Mailbox proxy',
       contracts.mailbox.address,
-      [TRANSPARENT_PROXY_BYTECODE_HASH],
+      [BytecodeHash.TRANSPARENT_PROXY_BYTECODE_HASH],
     );
     await this.checkBytecode(
       chain,
       'ProxyAdmin',
       contracts.proxyAdmin.address,
-      [PROXY_ADMIN_BYTECODE_HASH],
+      [BytecodeHash.PROXY_ADMIN_BYTECODE_HASH],
     );
     await this.checkBytecode(
       chain,
       'MultisigIsm implementation',
       contracts.multisigIsm.address,
-      [MULTISIG_ISM_BYTECODE_HASH],
+      [BytecodeHash.MULTISIG_ISM_BYTECODE_HASH],
     );
   }
 
@@ -141,7 +131,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
   async checkValidatorAnnounce(chain: ChainName): Promise<void> {
     const expectedValidators = new Set<string>();
     const remotes = Object.keys(this.configMap).filter((c) => c !== chain);
-    remotes.map((remote) =>
+    remotes.forEach((remote) =>
       this.configMap[remote].multisigIsm[chain].validators.forEach(
         expectedValidators.add,
         expectedValidators,
@@ -150,7 +140,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const validatorAnnounce = this.app.getContracts(chain).validatorAnnounce;
     const announcedValidators =
       await validatorAnnounce.getAnnouncedValidators();
-    [...expectedValidators].map((validator) => {
+    [...expectedValidators].forEach((validator) => {
       const matches = announcedValidators.filter((x) =>
         utils.eqAddress(x, validator),
       );

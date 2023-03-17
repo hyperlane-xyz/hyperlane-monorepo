@@ -4,18 +4,15 @@ import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
-import { hyperlaneEnvironments } from '../consts/environments';
+import {
+  HyperlaneEnvironment,
+  hyperlaneEnvironments,
+} from '../consts/environments';
 import { HyperlaneAddresses } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
 import { CoreContracts, coreFactories } from './contracts';
-
-export type CoreEnvironment = keyof typeof hyperlaneEnvironments;
-export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
-  keyof typeof hyperlaneEnvironments[E],
-  ChainName
->;
 
 export type CoreContractsMap = {
   [chain: ChainName]: CoreContracts;
@@ -45,7 +42,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreContracts> {
     return new HyperlaneCore(contracts, intersectionProvider);
   }
 
-  static fromEnvironment<Env extends CoreEnvironment>(
+  static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
   ): HyperlaneCore {

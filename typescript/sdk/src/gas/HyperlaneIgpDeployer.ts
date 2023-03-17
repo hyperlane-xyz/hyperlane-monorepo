@@ -1,5 +1,4 @@
 import debug from 'debug';
-import { ethers } from 'ethers';
 
 import {
   InterchainGasPaymaster,
@@ -173,7 +172,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       );
     // Ownership of the Mailbox and the interchainGasPaymaster is transferred upon initialization.
     const ownables: Ownable[] = [overheadInterchainGasPaymaster];
-    await this.transferOwnershipOfContracts(chain, ownables);
+    await this.transferOwnershipOfContracts(chain, config.owner, ownables);
 
     return {
       proxyAdmin,
@@ -181,30 +180,5 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       interchainGasPaymaster,
       defaultIsmInterchainGasPaymaster: overheadInterchainGasPaymaster,
     };
-  }
-
-  async transferOwnershipOfContracts(
-    chain: ChainName,
-    ownables: Ownable[],
-  ): Promise<ethers.ContractReceipt[]> {
-    const owner = this.configMap[chain].owner;
-    const receipts: ethers.ContractReceipt[] = [];
-    for (const ownable of ownables) {
-      const currentOwner = await ownable.owner();
-      if (currentOwner.toLowerCase() !== owner.toLowerCase()) {
-        const receipt = await super.runIfOwner(chain, ownable, () =>
-          this.multiProvider.handleTx(
-            chain,
-            ownable.transferOwnership(
-              owner,
-              this.multiProvider.getTransactionOverrides(chain),
-            ),
-          ),
-        );
-        if (receipt) receipts.push(receipt);
-      }
-    }
-
-    return receipts.filter((x) => x !== undefined) as ethers.ContractReceipt[];
   }
 }

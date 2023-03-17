@@ -157,7 +157,7 @@ export function warn(text: string, padded = false) {
   }
 }
 
-export function mergeJSON(directory: string, filename: string, obj: any) {
+export function writeMergedJSON(directory: string, filename: string, obj: any) {
   if (fs.existsSync(path.join(directory, filename))) {
     const previous = readJSON(directory, filename);
     writeJSON(directory, filename, objMerge(previous, obj));

@@ -67,10 +67,8 @@ export function filterAddresses(
 ): HyperlaneAddresses {
   const ret: HyperlaneAddresses = {};
   for (const key of Object.keys(addressOrObject)) {
-    if (isAddress(addressOrObject[key])) {
-      if (contractNames.includes(key)) {
-        ret[key] = addressOrObject[key];
-      }
+    if (isAddress(addressOrObject[key]) && contractNames.includes(key)) {
+      ret[key] = addressOrObject[key];
     } else if (isObject(addressOrObject[key])) {
       const obj = filterAddresses(
         addressOrObject[key] as HyperlaneAddresses,

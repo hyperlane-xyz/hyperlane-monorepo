@@ -53,7 +53,6 @@ export {
 } from './core/events';
 export { CoreContracts, coreFactories } from './core/contracts';
 export {
-  CoreEnvironment,
   CoreContractsMap,
   DispatchedMessage,
   HyperlaneCore,
@@ -166,3 +165,4 @@ export {
   promiseObjAll,
 } from './utils/objects';
 export { multisigIsmVerificationCost } from './utils/ism';
+export { createRouterConfigMap } from './test/testUtils';

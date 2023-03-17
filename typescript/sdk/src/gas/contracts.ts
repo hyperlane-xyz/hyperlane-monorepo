@@ -12,6 +12,13 @@ import { types } from '@hyperlane-xyz/utils';
 
 import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 
+export type IgpAddresses = {
+  proxyAdmin: types.Address;
+  interchainGasPaymaster: types.Address | TransparentProxyAddresses;
+  defaultIsmInterchainGasPaymaster: types.Address;
+  storageGasOracle: types.Address;
+};
+
 export type IgpContracts = {
   proxyAdmin: ProxyAdmin;
   interchainGasPaymaster: ProxiedContract<
@@ -20,13 +27,6 @@ export type IgpContracts = {
   >;
   defaultIsmInterchainGasPaymaster: OverheadIgp;
   storageGasOracle: StorageGasOracle;
-};
-
-export type IgpAddresses = {
-  proxyAdmin: types.Address;
-  interchainGasPaymaster: types.Address | TransparentProxyAddresses;
-  defaultIsmInterchainGasPaymaster: types.Address;
-  storageGasOracle: types.Address;
 };
 
 export const igpFactories = {

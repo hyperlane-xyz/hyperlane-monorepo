@@ -4,18 +4,15 @@ import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
 import { types } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../HyperlaneApp';
-import { hyperlaneEnvironments } from '../consts/environments';
+import {
+  HyperlaneEnvironment,
+  hyperlaneEnvironments,
+} from '../consts/environments';
 import { HyperlaneAddresses } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName } from '../types';
 
 import { IgpContracts, igpFactories } from './contracts';
-
-export type IgpEnvironment = keyof typeof hyperlaneEnvironments;
-export type IgpEnvironmentChain<E extends IgpEnvironment> = Extract<
-  keyof typeof hyperlaneEnvironments[E],
-  ChainName
->;
 
 export type IgpContractsMap = {
   [chain: ChainName]: IgpContracts;
@@ -35,7 +32,7 @@ export class HyperlaneIgp extends HyperlaneApp<IgpContracts> {
     return new HyperlaneIgp(contracts, intersectionProvider);
   }
 
-  static fromEnvironment<Env extends IgpEnvironment>(
+  static fromEnvironment<Env extends HyperlaneEnvironment>(
     env: Env,
     multiProvider: MultiProvider,
   ): HyperlaneIgp {
@@ -63,7 +60,7 @@ export class HyperlaneIgp extends HyperlaneApp<IgpContracts> {
    * function.
    * @returns The amount of native tokens required to pay for interchain gas.
    */
-  async quoteGasPayment(
+  quoteGasPayment(
     origin: ChainName,
     destination: ChainName,
     gasAmount: BigNumber,
@@ -90,7 +87,7 @@ export class HyperlaneIgp extends HyperlaneApp<IgpContracts> {
    * function.
    * @returns The amount of native tokens required to pay for interchain gas.
    */
-  async quoteGasPaymentForDefaultIsmIgp(
+  quoteGasPaymentForDefaultIsmIgp(
     origin: ChainName,
     destination: ChainName,
     gasAmount: BigNumber,
@@ -117,7 +114,7 @@ export class HyperlaneIgp extends HyperlaneApp<IgpContracts> {
    * function.
    * @returns The amount of native tokens required to pay for interchain gas.
    */
-  protected async quoteGasPaymentForIgp(
+  protected quoteGasPaymentForIgp(
     origin: ChainName,
     destination: ChainName,
     gasAmount: BigNumber,

@@ -8,7 +8,7 @@ import {
   providers,
 } from 'ethers';
 
-import { types } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import {
   ChainMetadata,
@@ -421,7 +421,7 @@ export class MultiProvider {
    * Get chain names excluding given chain name
    */
   getRemoteChains(name: ChainName): ChainName[] {
-    return this.getKnownChainNames().filter((n) => n !== name);
+    return utils.exclude(name, this.getKnownChainNames());
   }
 
   /**

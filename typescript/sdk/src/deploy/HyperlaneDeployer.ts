@@ -9,7 +9,7 @@ import {
   TransparentUpgradeableProxy,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import { types } from '@hyperlane-xyz/utils';
+import { types, utils } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneContract,
@@ -460,5 +460,30 @@ export abstract class HyperlaneDeployer<
       ret[chain] = [...existingInputs, ...newInputs];
     }
     return ret;
+  }
+
+  protected async transferOwnershipOfContracts(
+    chain: ChainName,
+    owner: types.Address,
+    ownables: Ownable[],
+  ): Promise<ethers.ContractReceipt[]> {
+    const receipts: ethers.ContractReceipt[] = [];
+    for (const ownable of ownables) {
+      const currentOwner = await ownable.owner();
+      if (!utils.eqAddress(currentOwner, owner)) {
+        const receipt = await this.runIfOwner(chain, ownable, () =>
+          this.multiProvider.handleTx(
+            chain,
+            ownable.transferOwnership(
+              owner,
+              this.multiProvider.getTransactionOverrides(chain),
+            ),
+          ),
+        );
+        if (receipt) receipts.push(receipt);
+      }
+    }
+
+    return receipts.filter((x) => !!x) as ethers.ContractReceipt[];
   }
 }

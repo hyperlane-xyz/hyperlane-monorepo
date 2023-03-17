@@ -90,7 +90,7 @@ export abstract class HyperlaneAppGovernor<
             message: 'Can you confirm?',
             initial: false,
           });
-        return response as unknown as boolean;
+        return !!response;
       }
       return false;
     };

@@ -66,7 +66,7 @@ export function buildAgentConfig(
     },
   };
 
-  for (const chain of chains.sort()) {
+  for (const chain of [...chains].sort()) {
     const metadata = multiProvider.getChainMetadata(chain);
     const chainConfig: AgentChainSetup = {
       name: chain,
@@ -80,10 +80,7 @@ export function buildAgentConfig(
       },
       signer: null,
       protocol: 'ethereum',
-      finalityBlocks:
-        metadata.blocks && metadata.blocks.reorgPeriod
-          ? metadata.blocks.reorgPeriod
-          : 1,
+      finalityBlocks: metadata.blocks?.reorgPeriod ?? 1,
       connection: {
         type: AgentConnectionType.Http,
         url: '',

@@ -15,18 +15,18 @@ import { types } from '@hyperlane-xyz/utils';
 
 import { ProxiedContract, TransparentProxyAddresses } from '../proxy';
 
-export type CoreContracts = {
-  mailbox: ProxiedContract<Mailbox, TransparentProxyAddresses>;
-  multisigIsm: MultisigIsm;
-  proxyAdmin: ProxyAdmin;
-  validatorAnnounce: ValidatorAnnounce;
-};
-
 export type CoreAddresses = {
   mailbox: types.Address | TransparentProxyAddresses;
   multisigIsm: types.Address;
   proxyAdmin: types.Address;
   validatorAnnounce: types.Address;
+};
+
+export type CoreContracts = {
+  mailbox: ProxiedContract<Mailbox, TransparentProxyAddresses>;
+  multisigIsm: MultisigIsm;
+  proxyAdmin: ProxyAdmin;
+  validatorAnnounce: ValidatorAnnounce;
 };
 
 export const coreFactories = {

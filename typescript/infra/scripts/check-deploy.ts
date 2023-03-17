@@ -11,17 +11,12 @@ import { HyperlaneIgpGovernor } from '../src/gas/govern';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
-import {
-  getArgsWithModuleAndFork,
-  getEnvironment,
-  getEnvironmentConfig,
-} from './utils';
+import { getArgsWithModuleAndFork, getEnvironmentConfig } from './utils';
 
 async function check() {
-  const { fork, govern, module } = await getArgsWithModuleAndFork()
+  const { fork, govern, module, environment } = await getArgsWithModuleAndFork()
     .boolean('govern')
     .alias('g', 'govern').argv;
-  const environment = await getEnvironment();
   const config = await getEnvironmentConfig();
   const multiProvider = await config.getMultiProvider();
 
@@ -37,25 +32,16 @@ async function check() {
 
   let governor: HyperlaneAppGovernor<any, any>;
   const env = deployEnvToSdkEnv[environment];
-  switch (module) {
-    case 'core': {
-      const core = HyperlaneCore.fromEnvironment(env, multiProvider);
-      const checker = new HyperlaneCoreChecker(
-        multiProvider,
-        core,
-        config.core,
-      );
-      governor = new HyperlaneCoreGovernor(checker, config.owners);
-      break;
-    }
-    case 'igp': {
-      const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);
-      const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
-      governor = new HyperlaneIgpGovernor(checker, config.owners);
-      break;
-    }
-    default:
-      throw new Error('Unknown module type');
+  if (module === 'core') {
+    const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+    const checker = new HyperlaneCoreChecker(multiProvider, core, config.core);
+    governor = new HyperlaneCoreGovernor(checker, config.owners);
+  } else if (module === 'igp') {
+    const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);
+    const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
+    governor = new HyperlaneIgpGovernor(checker, config.owners);
+  } else {
+    throw new Error('Unknown module type');
   }
 
   if (fork) {

@@ -4,10 +4,10 @@ import {
   ChainMetadata,
   ChainName,
   CoreConfig,
-  CoreEnvironment,
   MultiProvider,
   OverheadIgpConfig,
 } from '@hyperlane-xyz/sdk';
+import { HyperlaneEnvironment } from '@hyperlane-xyz/sdk/dist/consts/environments';
 import { types } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts';
@@ -48,7 +48,10 @@ export type CoreEnvironmentConfig = {
   storageGasOracleConfig?: AllStorageGasOracleConfigs;
 };
 
-export const deployEnvToSdkEnv: Record<DeployEnvironment, CoreEnvironment> = {
+export const deployEnvToSdkEnv: Record<
+  DeployEnvironment,
+  HyperlaneEnvironment
+> = {
   mainnet2: 'mainnet',
   testnet3: 'testnet',
   test: 'test',
