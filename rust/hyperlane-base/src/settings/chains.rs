@@ -54,16 +54,6 @@ pub enum TransactionSubmissionType {
     /// "default" manner.
     #[default]
     Signer,
-    /// Submit transactions via the Gelato relay.
-    Gelato,
-}
-
-/// Configuration for using the Gelato Relay to interact with some chain.
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GelatoConf {
-    /// The sponsor API key for submitting sponsored calls
-    pub sponsorapikey: String,
 }
 
 /// Addresses for mailbox chain contracts

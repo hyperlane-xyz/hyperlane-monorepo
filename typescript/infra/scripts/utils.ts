@@ -31,6 +31,13 @@ export function getArgsWithContext() {
     .alias('c', 'context');
 }
 
+export function getArgsWithFork() {
+  return getArgs()
+    .string('fork')
+    .describe('fork', 'network to fork')
+    .alias('f', 'fork');
+}
+
 export function getArgs() {
   return yargs(process.argv.slice(2))
     .describe('environment', 'deploy environment')
@@ -123,6 +130,10 @@ export async function getMultiProviderForRole(
   index?: number,
   connectionType?: ConnectionType,
 ): Promise<MultiProvider> {
+  if (process.env.CI === 'true') {
+    return new MultiProvider(); // use default RPCs
+  }
+
   const multiProvider = new MultiProvider(txConfigs);
   await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {

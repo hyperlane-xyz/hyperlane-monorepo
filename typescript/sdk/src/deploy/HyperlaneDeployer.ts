@@ -15,7 +15,7 @@ import {
   HyperlaneContract,
   HyperlaneContracts,
   HyperlaneFactories,
-  connectContracts,
+  connectContractsMap,
   serializeContracts,
 } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
@@ -61,19 +61,25 @@ export abstract class HyperlaneDeployer<
     this.logger = options?.logger || debug('hyperlane:AppDeployer');
   }
 
+  cacheContracts(partialDeployment: ChainMap<Contracts>): void {
+    this.deployedContracts = connectContractsMap(
+      partialDeployment,
+      this.multiProvider,
+    );
+  }
+
   abstract deployContracts(
     chain: ChainName,
     config: Config,
   ): Promise<Contracts>;
 
   async deploy(
-    partialDeployment: ChainMap<Contracts> = this.deployedContracts,
+    partialDeployment?: ChainMap<Contracts>,
   ): Promise<ChainMap<Contracts>> {
-    objMap(partialDeployment, (chain, contracts) => {
-      this.logger(`Recovering contracts for ${chain} from partial deployment`);
-      const signer = this.multiProvider.getSigner(chain);
-      this.deployedContracts[chain] = connectContracts(contracts, signer);
-    });
+    if (partialDeployment) {
+      this.cacheContracts(partialDeployment);
+    }
+
     const configChains = Object.keys(this.configMap);
     const targetChains = this.multiProvider.intersect(
       configChains,
@@ -113,7 +119,6 @@ export abstract class HyperlaneDeployer<
     const owner = await ownable.owner();
     const logObj = { owner, signer: address };
     if (address === owner) {
-      this.logger('Owner and signer are equal, proceeding', logObj);
       return fn();
     } else {
       this.logger('Owner and signer NOT equal, skipping', logObj);
@@ -131,8 +136,7 @@ export abstract class HyperlaneDeployer<
     const cachedContract = this.deployedContracts[chain]?.[contractName];
     if (cachedContract && !(cachedContract instanceof ProxiedContract)) {
       this.logger(
-        `Recovered contract ${contractName} on ${chain}`,
-        cachedContract.address,
+        `Recovered ${contractName} on ${chain} ${cachedContract.address}`,
       );
       return cachedContract as ReturnType<F['deploy']>;
     }
@@ -373,9 +377,9 @@ export abstract class HyperlaneDeployer<
       cachedProxy.addresses.implementation
     ) {
       this.logger(
-        `Recovered proxy and implementation ${contractName.toString()} on ${chain}`,
-        cachedProxy.addresses.proxy,
-        cachedProxy.addresses.implementation,
+        `Recovered ${contractName.toString()} on ${chain} proxy=${
+          cachedProxy.addresses.proxy
+        } implementation=${cachedProxy.addresses.implementation}`,
       );
       return cachedProxy as ProxiedContract<C, TransparentProxyAddresses>;
     }
@@ -392,8 +396,9 @@ export abstract class HyperlaneDeployer<
     // the govern / checker script
     if (cachedProxy && cachedProxy.addresses.proxy) {
       this.logger(
-        `Recovered proxy ${contractName.toString()} on ${chain}`,
-        cachedProxy.addresses.proxy,
+        `Recovered ${contractName.toString()} on ${chain} proxy=${
+          cachedProxy.addresses.proxy
+        }`,
       );
 
       cachedProxy.addresses.implementation = implementation.address;
