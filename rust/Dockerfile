@@ -16,7 +16,6 @@ COPY hyperlane-base ./hyperlane-base
 COPY hyperlane-core ./hyperlane-core
 COPY hyperlane-test ./hyperlane-test
 COPY ethers-prometheus ./ethers-prometheus
-COPY gelato ./gelato
 COPY utils ./utils
 
 COPY Cargo.toml .
