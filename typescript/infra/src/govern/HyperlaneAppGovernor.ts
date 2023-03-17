@@ -51,7 +51,7 @@ export abstract class HyperlaneAppGovernor<
     this.canPropose = objMap(this.checker.app.contractsMap, () => new Map());
   }
 
-  async govern() {
+  async govern(confirm = true, chain?: ChainName) {
     // 1. Produce calls from checker violations.
     await this.mapViolationsToCalls();
 
@@ -60,12 +60,13 @@ export abstract class HyperlaneAppGovernor<
 
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
-    for (const chain of Object.keys(this.calls)) {
-      await this.sendCalls(chain);
+    const chains = !!chain ? [chain] : Object.keys(this.calls);
+    for (const chain of chains) {
+      await this.sendCalls(chain, confirm);
     }
   }
 
-  protected async sendCalls(chain: ChainName) {
+  protected async sendCalls(chain: ChainName, confirm: boolean) {
     const calls = this.calls[chain];
     console.log(`\nFound ${calls.length} transactions for ${chain}`);
     const filterCalls = (submissionType: SubmissionType) =>
@@ -81,12 +82,14 @@ export abstract class HyperlaneAppGovernor<
         calls.map((c) =>
           console.log(`> > ${c.description} (to: ${c.to} data: ${c.data})`),
         );
-        const response = prompts.confirm({
-          type: 'confirm',
-          name: 'value',
-          message: 'Can you confirm?',
-          initial: false,
-        });
+        const response =
+          !confirm ||
+          prompts.confirm({
+            type: 'confirm',
+            name: 'value',
+            message: 'Can you confirm?',
+            initial: false,
+          });
         return response as unknown as boolean;
       }
       return false;
@@ -147,8 +150,7 @@ export abstract class HyperlaneAppGovernor<
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls)) {
       for (const call of this.calls[chain]) {
-        const submissionType = await this.inferCallSubmissionType(chain, call);
-        call.submissionType = submissionType;
+        call.submissionType = await this.inferCallSubmissionType(chain, call);
       }
     }
   }

@@ -9,10 +9,10 @@ import {
   MultisigIsmViolation,
   MultisigIsmViolationType,
   OwnerViolation,
+  ProxyKind,
   ProxyViolation,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
-import { ProxyKind } from '@hyperlane-xyz/sdk/dist/proxy';
 import { types, utils } from '@hyperlane-xyz/utils';
 
 import {
@@ -40,7 +40,7 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
           break;
         }
         case ProxyKind.Transparent: {
-          await this.handleProxyViolation(violation as ProxyViolation);
+          this.handleProxyViolation(violation as ProxyViolation);
           break;
         }
         default:

@@ -11,22 +11,34 @@ import { igpFactories } from '@hyperlane-xyz/sdk/dist/gas/contracts';
 import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneCoreInfraDeployer } from '../src/core/deploy';
 import { HyperlaneIgpInfraDeployer } from '../src/gas/deploy';
+import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 import { mergeJSON, readJSON, writeJSON } from '../src/utils/utils';
 
 import {
   getAgentConfigDirectory,
-  getArgsWithModule,
+  getArgsWithModuleAndFork,
   getContractAddressesSdkFilepath,
-  getEnvironment,
   getEnvironmentConfig,
   getVerificationDirectory,
 } from './utils';
 
 async function main() {
-  const { module } = await getArgsWithModule().argv;
-  const environment = await getEnvironment();
+  const { module, fork, environment } = await getArgsWithModuleAndFork().argv;
   const config = await getEnvironmentConfig();
   const multiProvider = await config.getMultiProvider();
+
+  if (fork) {
+    await useLocalProvider(multiProvider, fork);
+
+    // TODO: make this more generic
+    const deployerAddress =
+      environment === 'testnet3'
+        ? '0xfaD1C94469700833717Fa8a3017278BC1cA8031C'
+        : '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+
+    const signer = await impersonateAccount(deployerAddress);
+    multiProvider.setSigner(fork, signer);
+  }
 
   // Write agent config indexing from the latest block numbers.
   // For non-net-new deployments, these changes will need to be
@@ -65,23 +77,26 @@ async function main() {
     default:
       throw new Error('Unknown module type');
   }
-  let previousContracts = {};
-  previousAddressParsing: try {
-    if (environment === 'test') {
-      console.info('Skipping loading partial addresses for test environment');
-      break previousAddressParsing;
+
+  if (environment !== 'test') {
+    try {
+      const addresses = readJSON(
+        getContractAddressesSdkFilepath(),
+        `${deployEnvToSdkEnv[environment]}.json`,
+      );
+      deployer.cacheContracts(buildContracts(addresses, factories) as any);
+    } catch (e) {
+      console.info('Could not load partial core addresses, file may not exist');
     }
-    const addresses = readJSON(
-      getContractAddressesSdkFilepath(),
-      `${deployEnvToSdkEnv[environment]}.json`,
-    );
-    previousContracts = buildContracts(addresses, factories);
-  } catch (e) {
-    console.info('Could not load partial addresses, file may not exist');
+  }
+
+  if (fork) {
+    await deployer.deployContracts(fork, config.core[fork]);
+    return;
   }
 
   try {
-    await deployer.deploy(previousContracts);
+    await deployer.deploy();
   } catch (e) {
     console.error(`Encountered error during deploy`);
     console.error(e);
@@ -124,4 +139,6 @@ async function main() {
   writeJSON(getAgentConfigDirectory(), `${sdkEnv}_config.json`, agentConfig);
 }
 
-main().then(console.log).catch(console.error);
+main()
+  .then()
+  .catch(() => process.exit(1));

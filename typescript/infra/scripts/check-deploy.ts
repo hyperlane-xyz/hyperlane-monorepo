@@ -9,20 +9,31 @@ import { deployEnvToSdkEnv } from '../src/config/environment';
 import { HyperlaneCoreGovernor } from '../src/core/govern';
 import { HyperlaneIgpGovernor } from '../src/gas/govern';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
+import { impersonateAccount, useLocalProvider } from '../src/utils/fork';
 
 import {
-  getArgsWithModule,
+  getArgsWithModuleAndFork,
   getEnvironment,
   getEnvironmentConfig,
 } from './utils';
 
 async function check() {
-  const { govern, module } = await getArgsWithModule()
+  const { fork, govern, module } = await getArgsWithModuleAndFork()
     .boolean('govern')
     .alias('g', 'govern').argv;
   const environment = await getEnvironment();
   const config = await getEnvironmentConfig();
   const multiProvider = await config.getMultiProvider();
+
+  // must rotate to forked provider before building core contracts
+  if (fork) {
+    await useLocalProvider(multiProvider, fork);
+    if (govern) {
+      const owner = config.core[fork].owner;
+      const signer = await impersonateAccount(owner);
+      multiProvider.setSigner(fork, signer);
+    }
+  }
 
   let governor: HyperlaneAppGovernor<any, any>;
   const env = deployEnvToSdkEnv[environment];
@@ -46,7 +57,18 @@ async function check() {
     default:
       throw new Error('Unknown module type');
   }
-  await governor.checker.check();
+
+  if (fork) {
+    await governor.checker.checkChain(fork);
+    if (govern) {
+      await governor.govern(false, fork);
+    }
+  } else {
+    await governor.checker.check();
+    if (govern) {
+      await governor.govern();
+    }
+  }
 
   if (!govern) {
     const violations = governor.checker.violations;
@@ -64,12 +86,11 @@ async function check() {
         `Checking ${module} deploy yielded ${violations.length} violations`,
       );
     } else {
-      console.info('CoreChecker found no violations');
+      console.info(`${module} Checker found no violations`);
     }
-  } else {
-    governor.checker.expectViolations({ Transparent: 1 });
-    await governor.govern();
   }
 }
 
-check().then(console.log).catch(console.error);
+check()
+  .then()
+  .catch(() => process.exit(1));

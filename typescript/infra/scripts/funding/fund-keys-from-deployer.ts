@@ -510,7 +510,10 @@ class ContextFunder {
       log('IGP balance exceeds claim threshold, claiming', {
         chain,
       });
-      await this.multiProvider.handleTx(chain, igp.contract.claim());
+      await this.multiProvider.sendTransaction(
+        chain,
+        await igp.contract.populateTransaction.claim(),
+      );
     } else {
       log('IGP balance does not exceed claim threshold, skipping', {
         chain,

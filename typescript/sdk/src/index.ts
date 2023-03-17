@@ -31,6 +31,7 @@ export {
   buildContracts,
   connectContracts,
   filterAddresses,
+  connectContractsMap,
   HyperlaneAddresses,
   HyperlaneContracts,
   HyperlaneFactories,
@@ -77,6 +78,7 @@ export {
   IgpViolation,
   IgpViolationType,
   OverheadIgpConfig,
+  IgpOverheadViolation,
 } from './gas/types';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices';
 export { HyperlaneIgp } from './gas/HyperlaneIgp';
@@ -128,11 +130,12 @@ export {
   LiquidityLayerContracts,
   liquidityLayerFactories,
 } from './middleware/liquidity-layer/contracts';
-export { MultiProvider } from './providers/MultiProvider';
+export { MultiProvider, providerBuilder } from './providers/MultiProvider';
 export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
 export {
   ProxiedContract,
   ProxyAddresses,
+  ProxyKind,
   TransparentProxyAddresses,
 } from './proxy';
 export { GasRouterApp, Router, RouterApp } from './router/RouterApps';

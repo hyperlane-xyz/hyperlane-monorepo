@@ -16,11 +16,17 @@ export enum ViolationType {
   Owner = 'Owner',
   NotDeployed = 'NotDeployed',
   BytecodeMismatch = 'BytecodeMismatch',
+  ProxyAdmin = 'ProxyAdmin',
 }
 
 export interface OwnerViolation extends CheckerViolation {
   type: ViolationType.Owner;
   contract: Ownable;
+}
+
+export interface ProxyAdminViolation extends CheckerViolation {
+  type: ViolationType.ProxyAdmin;
+  name: string;
 }
 
 export interface NotDeployedViolation extends CheckerViolation {

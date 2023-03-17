@@ -2,8 +2,9 @@ import { ethers } from 'ethers';
 
 import type { types } from '@hyperlane-xyz/utils';
 
+import { MultiProvider } from './providers/MultiProvider';
 import { ProxiedContract, ProxyAddresses, isProxyAddresses } from './proxy';
-import { Connection } from './types';
+import { ChainMap, Connection } from './types';
 import { isObject, objMap } from './utils/objects';
 
 export type HyperlaneFactories = {
@@ -127,4 +128,13 @@ export function connectContracts<Contracts extends HyperlaneContracts>(
       return connectContracts(contract, connection, max_depth - 1);
     }
   }) as Contracts;
+}
+
+export function connectContractsMap<Contracts extends HyperlaneContracts>(
+  contractsMap: ChainMap<Contracts>,
+  multiProvider: MultiProvider,
+): ChainMap<Contracts> {
+  return objMap(contractsMap, (chain, contracts) =>
+    connectContracts(contracts, multiProvider.getSignerOrProvider(chain)),
+  );
 }

@@ -27,14 +27,6 @@ import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { assertContext } from '../src/utils/utils';
 
-export function getArgs() {
-  return yargs(process.argv.slice(2))
-    .describe('environment', 'deploy environment')
-    .coerce('environment', assertEnvironment)
-    .demandOption('environment')
-    .alias('e', 'environment');
-}
-
 export function getArgsWithContext() {
   return getArgs()
     .describe('context', 'deploy context')
@@ -49,6 +41,21 @@ export function getArgsWithModule() {
     .choices('module', ['core', 'igp'])
     .demandOption('module')
     .alias('m', 'module');
+}
+
+export function getArgsWithModuleAndFork() {
+  return getArgsWithModule()
+    .string('fork')
+    .describe('fork', 'network to fork')
+    .alias('f', 'fork');
+}
+
+export function getArgs() {
+  return yargs(process.argv.slice(2))
+    .describe('environment', 'deploy environment')
+    .coerce('environment', assertEnvironment)
+    .demandOption('environment')
+    .alias('e', 'environment');
 }
 
 export async function getEnvironmentFromArgs(): Promise<string> {
@@ -133,6 +140,10 @@ export async function getMultiProviderForRole(
   index?: number,
   connectionType?: AgentConnectionType,
 ): Promise<MultiProvider> {
+  if (process.env.CI === 'true') {
+    return new MultiProvider(); // use default RPCs
+  }
+
   const multiProvider = new MultiProvider(txConfigs);
   await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {

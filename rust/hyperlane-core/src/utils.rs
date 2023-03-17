@@ -204,6 +204,7 @@ macro_rules! convert_to {
     };
 }
 
+convert_to!(u16);
 convert_to!(u32);
 convert_to!(u64);
 
