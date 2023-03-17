@@ -21,6 +21,7 @@ export {
   Testnets,
 } from './consts/chains';
 export {
+  hyperlaneEnvironments,
   HyperlaneContractAddresses,
   hyperlaneAgentAddresses,
   hyperlaneContractAddresses,
@@ -106,7 +107,12 @@ export {
   ViolationType,
 } from './deploy/types';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
-export { CompilerOptions } from './deploy/verify/types';
+export {
+  CompilerOptions,
+  ContractVerificationInput,
+  VerificationInput,
+} from './deploy/verify/types';
+export * as verificationUtils from './deploy/verify/utils';
 export {
   Annotated,
   getEvents,

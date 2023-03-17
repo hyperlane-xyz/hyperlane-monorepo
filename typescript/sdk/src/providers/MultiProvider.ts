@@ -36,10 +36,6 @@ export class MultiProvider {
    * Create a new MultiProvider with the given chainMetadata,
    * or the SDK's default metadata if not provided
    */
-  /**
-   * Create a new MultiProvider with the given chainMetadata,
-   * or the SDK's default metadata if not provided
-   */
   constructor(
     chainMetadata: ChainMap<ChainMetadata> = defaultChainMetadata,
     options: MultiProviderOptions = {},
@@ -54,6 +50,10 @@ export class MultiProvider {
     this.logger = debug(options?.loggerName || 'hyperlane:MultiProvider');
   }
 
+  /**
+   * Add a chain to the multiprovider
+   * @throws if chain's name or domain/chain ID collide
+   */
   addChain(metadata: ChainMetadata): void {
     if (!isValidChainMetadata(metadata))
       throw new Error(`Invalid chain metadata for ${metadata.name}`);
@@ -78,12 +78,6 @@ export class MultiProvider {
       if (signers.length > 0) {
         this.setSharedSigner(signers[0]);
       }
-    }
-  }
-
-  addChains(metadata: ChainMap<ChainMetadata>): void {
-    for (const chain of Object.keys(metadata)) {
-      this.addChain(metadata[chain]);
     }
   }
 

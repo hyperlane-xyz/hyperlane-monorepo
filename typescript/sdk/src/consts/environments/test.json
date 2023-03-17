@@ -1,53 +1,53 @@
 {
   "test1": {
-    "storageGasOracle": "0x0D92d35D311E54aB8EEA0394d7E773Fc5144491a",
-    "validatorAnnounce": "0x0ed64d01D0B4B655E410EF1441dD677B695639E7",
-    "proxyAdmin": "0x4278C5d322aB92F1D876Dd7Bd9b44d1748b88af2",
+    "storageGasOracle": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "validatorAnnounce": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
+    "proxyAdmin": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
     "mailbox": {
       "kind": "Transparent",
-      "proxy": "0x5302E909d1e93e30F05B5D6Eea766363D14F9892",
-      "implementation": "0xa6e99A4ED7498b3cdDCBB61a6A607a4925Faa1B7"
+      "proxy": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
+      "implementation": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e"
     },
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0x876939152C56362e17D508B9DEA77a3fDF9e4083",
-      "implementation": "0x24EcC5E6EaA700368B8FAC259d3fBD045f695A08"
+      "proxy": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+      "implementation": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
     },
-    "defaultIsmInterchainGasPaymaster": "0xEC7cb8C3EBE77BA6d284F13296bb1372A8522c5F",
-    "multisigIsm": "0x02b0B4EFd909240FCB2Eb5FAe060dC60D112E3a4"
+    "defaultIsmInterchainGasPaymaster": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "multisigIsm": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
   },
   "test2": {
-    "storageGasOracle": "0x4Dd5336F3C0D70893A7a86c6aEBe9B953E87c891",
-    "validatorAnnounce": "0x870526b7973b56163a6997bB7C886F5E4EA53638",
-    "proxyAdmin": "0xaD82Ecf79e232B0391C5479C7f632aA1EA701Ed1",
+    "storageGasOracle": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
+    "validatorAnnounce": "0x09635F643e140090A9A8Dcd712eD6285858ceBef",
+    "proxyAdmin": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
     "mailbox": {
       "kind": "Transparent",
-      "proxy": "0xefc1aB2475ACb7E60499Efb171D173be19928a05",
-      "implementation": "0xde2Bd2ffEA002b8E84ADeA96e5976aF664115E2c"
+      "proxy": "0x7a2088a1bFc9d81c55368AE168C2C02570cB814F",
+      "implementation": "0x4A679253410272dd5232B3Ff7cF5dbB88f295319"
     },
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0xBe6Eb4ACB499f992ba2DaC7CAD59d56DA9e0D823",
-      "implementation": "0x91A1EeE63f300B8f41AE6AF67eDEa2e2ed8c3f79"
+      "proxy": "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d",
+      "implementation": "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c"
     },
-    "defaultIsmInterchainGasPaymaster": "0xE401FBb0d6828e9f25481efDc9dd18Da9E500983",
-    "multisigIsm": "0x4bf010f1b9beDA5450a8dD702ED602A104ff65EE"
+    "defaultIsmInterchainGasPaymaster": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1",
+    "multisigIsm": "0x9A676e781A523b5d0C0e43731313A708CB607508"
   },
   "test3": {
-    "storageGasOracle": "0x4f1F87d512650f32bf9949C4c5Ef37a3cc891C6D",
-    "validatorAnnounce": "0x8bCe54ff8aB45CB075b044AE117b8fD91F9351aB",
-    "proxyAdmin": "0x11632F9766Ee9d9317F95562a6bD529652ead78f",
+    "storageGasOracle": "0x84eA74d481Ee0A5332c457a4d796187F6Ba67fEB",
+    "validatorAnnounce": "0x4826533B4897376654Bb4d4AD88B7faFD0C98528",
+    "proxyAdmin": "0xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690",
     "mailbox": {
       "kind": "Transparent",
-      "proxy": "0x66F625B8c4c635af8b74ECe2d7eD0D58b4af3C3d",
-      "implementation": "0xB377a2EeD7566Ac9fCb0BA673604F9BF875e2Bab"
+      "proxy": "0x70e0bA845a1A0F2DA3359C97E0285013525FFC49",
+      "implementation": "0x998abeb3E57409262aE5b751f60747921B33613E"
     },
     "interchainGasPaymaster": {
       "kind": "Transparent",
-      "proxy": "0x4c04377f90Eb1E42D845AB21De874803B8773669",
-      "implementation": "0x499AA73A1D27e54B33E7DB05ffd22854EC70257E"
+      "proxy": "0xa82fF9aFd8f496c3d6ac40E2a0F282E47488CFc9",
+      "implementation": "0x9E545E3C0baAB3E08CdfD552C960A1050f373042"
     },
-    "defaultIsmInterchainGasPaymaster": "0x8CeA85eC7f3D314c4d144e34F2206C8Ac0bbadA1",
-    "multisigIsm": "0xD49a0e9A4CD5979aE36840f542D2d7f02C4817Be"
+    "defaultIsmInterchainGasPaymaster": "0x851356ae760d987E095750cCeb3bC6014560891C",
+    "multisigIsm": "0xc5a5C42992dECbae36851359345FE25997F5C42d"
   }
 }

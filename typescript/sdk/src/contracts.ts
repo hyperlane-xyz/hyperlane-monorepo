@@ -60,8 +60,6 @@ function isAddress(addressOrObject: any) {
   );
 }
 
-// TODO: Support for recursive filtering
-// TODO:
 export function filterAddresses(
   addressOrObject: HyperlaneAddresses,
   contractNames: string[],

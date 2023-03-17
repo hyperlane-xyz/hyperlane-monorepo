@@ -15,7 +15,7 @@ import { mergeJSON, readJSON, writeJSON } from '../src/utils/utils';
 
 import {
   getAgentConfigDirectory,
-  getArgs,
+  getArgsWithModule,
   getContractAddressesSdkFilepath,
   getEnvironment,
   getEnvironmentConfig,
@@ -23,11 +23,7 @@ import {
 } from './utils';
 
 async function main() {
-  const { module } = await getArgs()
-    .string('module')
-    .choices('module', ['core', 'igp'])
-    .demandOption('module')
-    .alias('m', 'module').argv;
+  const { module } = await getArgsWithModule().argv;
   const environment = await getEnvironment();
   const config = await getEnvironmentConfig();
   const multiProvider = await config.getMultiProvider();
@@ -112,9 +108,10 @@ async function main() {
     deployer.mergeWithExistingVerificationInputs(existingVerificationInputs),
   );
 
+  const sdkEnv = deployEnvToSdkEnv[environment];
   const addresses = readJSON(
     getContractAddressesSdkFilepath(),
-    `${deployEnvToSdkEnv[environment]}.json`,
+    `${sdkEnv}.json`,
   );
 
   const agentConfig = await buildAgentConfig(
@@ -124,12 +121,7 @@ async function main() {
     startBlocks,
   );
 
-  console.log({ addresses, agentConfig });
-  writeJSON(
-    getAgentConfigDirectory(),
-    `${deployEnvToSdkEnv[environment]}_config.json`,
-    agentConfig,
-  );
+  writeJSON(getAgentConfigDirectory(), `${sdkEnv}_config.json`, agentConfig);
 }
 
 main().then(console.log).catch(console.error);

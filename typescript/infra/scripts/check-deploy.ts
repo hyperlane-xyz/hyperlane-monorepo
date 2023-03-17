@@ -1,5 +1,4 @@
 import {
-  HyperlaneAppChecker,
   HyperlaneCore,
   HyperlaneCoreChecker,
   HyperlaneIgp,
@@ -11,56 +10,48 @@ import { HyperlaneCoreGovernor } from '../src/core/govern';
 import { HyperlaneIgpGovernor } from '../src/gas/govern';
 import { HyperlaneAppGovernor } from '../src/govern/HyperlaneAppGovernor';
 
-import { getArgs, getEnvironment, getEnvironmentConfig } from './utils';
+import {
+  getArgsWithModule,
+  getEnvironment,
+  getEnvironmentConfig,
+} from './utils';
 
 async function check() {
-  const { govern, module } = await getArgs()
-    .string('module')
-    .choices('module', ['core', 'igp'])
-    .demandOption('module')
-    .alias('m', 'module')
+  const { govern, module } = await getArgsWithModule()
     .boolean('govern')
     .alias('g', 'govern').argv;
   const environment = await getEnvironment();
   const config = await getEnvironmentConfig();
   const multiProvider = await config.getMultiProvider();
 
-  let checker: HyperlaneAppChecker<any, any>;
   let governor: HyperlaneAppGovernor<any, any>;
+  const env = deployEnvToSdkEnv[environment];
   switch (module) {
     case 'core': {
-      const core = HyperlaneCore.fromEnvironment(
-        deployEnvToSdkEnv[environment],
+      const core = HyperlaneCore.fromEnvironment(env, multiProvider);
+      const checker = new HyperlaneCoreChecker(
         multiProvider,
+        core,
+        config.core,
       );
-      checker = new HyperlaneCoreChecker(multiProvider, core, config.core);
-      governor = new HyperlaneCoreGovernor(
-        checker as HyperlaneCoreChecker,
-        config.owners,
-      );
+      governor = new HyperlaneCoreGovernor(checker, config.owners);
       break;
     }
     case 'igp': {
-      const igp = HyperlaneIgp.fromEnvironment(
-        deployEnvToSdkEnv[environment],
-        multiProvider,
-      );
-      checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
-      governor = new HyperlaneIgpGovernor(
-        checker as HyperlaneIgpChecker,
-        config.owners,
-      );
+      const igp = HyperlaneIgp.fromEnvironment(env, multiProvider);
+      const checker = new HyperlaneIgpChecker(multiProvider, igp, config.igp);
+      governor = new HyperlaneIgpGovernor(checker, config.owners);
       break;
     }
     default:
       throw new Error('Unknown module type');
   }
-  // environments union doesn't work well with typescript
-  await checker.check();
+  await governor.checker.check();
 
   if (!govern) {
-    if (checker.violations.length > 0) {
-      console.table(checker.violations, [
+    const violations = governor.checker.violations;
+    if (violations.length > 0) {
+      console.table(violations, [
         'chain',
         'remote',
         'name',
@@ -70,13 +61,13 @@ async function check() {
         'expected',
       ]);
       throw new Error(
-        `Checking ${module} deploy yielded ${checker.violations.length} violations`,
+        `Checking ${module} deploy yielded ${violations.length} violations`,
       );
     } else {
       console.info('CoreChecker found no violations');
     }
   } else {
-    checker.expectViolations({ Transparent: 1 });
+    governor.checker.expectViolations({ Transparent: 1 });
     await governor.govern();
   }
 }

@@ -27,6 +27,14 @@ import { fetchProvider } from '../src/config/chain';
 import { EnvironmentNames, deployEnvToSdkEnv } from '../src/config/environment';
 import { assertContext } from '../src/utils/utils';
 
+export function getArgs() {
+  return yargs(process.argv.slice(2))
+    .describe('environment', 'deploy environment')
+    .coerce('environment', assertEnvironment)
+    .demandOption('environment')
+    .alias('e', 'environment');
+}
+
 export function getArgsWithContext() {
   return getArgs()
     .describe('context', 'deploy context')
@@ -35,12 +43,12 @@ export function getArgsWithContext() {
     .alias('c', 'context');
 }
 
-export function getArgs() {
-  return yargs(process.argv.slice(2))
-    .describe('environment', 'deploy environment')
-    .coerce('environment', assertEnvironment)
-    .demandOption('environment')
-    .alias('e', 'environment');
+export function getArgsWithModule() {
+  return getArgs()
+    .string('module')
+    .choices('module', ['core', 'igp'])
+    .demandOption('module')
+    .alias('m', 'module');
 }
 
 export async function getEnvironmentFromArgs(): Promise<string> {
@@ -57,16 +65,16 @@ export function assertEnvironment(env: string): DeployEnvironment {
   );
 }
 
-export async function getEnvironment() {
-  return assertEnvironment(await getEnvironmentFromArgs());
-}
-
 export function getCoreEnvironmentConfig(environment: DeployEnvironment) {
   return environments[environment];
 }
 
+export async function getEnvironment() {
+  return assertEnvironment(await getEnvironmentFromArgs());
+}
+
 export async function getEnvironmentConfig() {
-  return environments[await getEnvironment()];
+  return getCoreEnvironmentConfig(await getEnvironment());
 }
 
 export async function getContext(defaultContext?: string): Promise<Contexts> {

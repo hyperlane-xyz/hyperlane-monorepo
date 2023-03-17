@@ -16,15 +16,6 @@ import {
 import { ChainMap, ChainName } from '../../types';
 import { objMap, pick, promiseObjAll } from '../../utils/objects';
 
-/*
-export const fullTestEnvConfigs = pick(chainMetadata, TestChains);
-
-export const subsetTestConfigs = pick(chainMetadata, [
-  Chains.test1,
-  Chains.test2,
-]);
-*/
-
 export const alfajoresChainConfig = pick(chainMetadata, [Chains.alfajores]);
 
 export class EnvSubsetApp extends HyperlaneApp<RouterContracts> {}
