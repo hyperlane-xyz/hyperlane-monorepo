@@ -1,6 +1,6 @@
-import { MultiProvider } from '@hyperlane-xyz/sdk/src/providers/MultiProvider';
 import { types } from '@hyperlane-xyz/utils';
 
+import { MultiProvider } from '../providers/MultiProvider';
 import { getProxyAddress } from '../proxy';
 import { ChainMap, ChainName } from '../types';
 

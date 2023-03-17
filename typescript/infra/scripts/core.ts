@@ -22,7 +22,6 @@ import {
   getVerificationDirectory,
 } from './utils';
 
-// TODO: Switch between core/igp based on flag.
 async function main() {
   const { module } = await getArgs()
     .string('module')
@@ -32,6 +31,19 @@ async function main() {
   const environment = await getEnvironment();
   const config = await getEnvironmentConfig();
   const multiProvider = await config.getMultiProvider();
+
+  // Write agent config indexing from the latest block numbers.
+  // For non-net-new deployments, these changes will need to be
+  // reverted manually.
+  const chains = multiProvider.getKnownChainNames();
+  const startBlocks = Object.fromEntries(
+    await Promise.all(
+      chains.map(async (c) => [
+        c,
+        await multiProvider.getProvider(c).getBlockNumber,
+      ]),
+    ),
+  );
 
   let factories: HyperlaneFactories;
   let deployer: HyperlaneDeployer<any, any, any>;
@@ -79,7 +91,7 @@ async function main() {
     console.error(e);
   }
 
-  // Persist artifacts, irrespective of deploy success
+  // Persist address artifacts, irrespective of deploy success
   mergeJSON(
     getContractAddressesSdkFilepath(),
     `${deployEnvToSdkEnv[environment]}.json`,
@@ -104,7 +116,13 @@ async function main() {
     getContractAddressesSdkFilepath(),
     `${deployEnvToSdkEnv[environment]}.json`,
   );
-  const agentConfig = await buildAgentConfig(addresses, multiProvider);
+
+  const agentConfig = await buildAgentConfig(
+    multiProvider.getKnownChainNames(),
+    multiProvider,
+    addresses,
+    startBlocks,
+  );
 
   console.log({ addresses, agentConfig });
   writeJSON(
