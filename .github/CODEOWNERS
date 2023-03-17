@@ -8,33 +8,17 @@
 # Package owners
 
 ## Contracts
-
 solidity/ @yorhodes @asaj @tkporter
-solidity/contracts/igps @tkporter
-solidity/contracts/isms @asaj
-solidity/contracts/middleware @yorhodes
 
 ## Agents
-
 rust/ @mattiecnvr @tkporter @asaj
-rust/agents/relayer @mattiecnvr
-rust/agents/validator @asaj
-rust/agents/scraper @mattiecnvr
-
-rust/helm @tkporter @nambrot
 
 ## SDK
-
 typescript/sdk @yorhodes @jmrossy
-typescript/sdk/src/gas @tkporter
-typescript/sdk/src/middleware @yorhodes
-typescript/sdk/src/providers @jmrossy
-typescript/sdk/src/deploy @yorhodes
-
-## Apps
-typescript/token @yorhodes @jmrossy
-typescript/helloworld @nambrot
 
 ## Infra
 typescript/infra @tkporter @nambrot @asaj
 
+## Submodules
+typescript/token @yorhodes @jmrossy
+typescript/helloworld @yorhodes
