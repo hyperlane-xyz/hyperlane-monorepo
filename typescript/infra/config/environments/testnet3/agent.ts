@@ -36,9 +36,6 @@ export const hyperlane: AgentConfig = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  gelato: {
-    enabledChains: [],
-  },
   connectionType: ConnectionType.HttpFallback,
   validators,
   relayer: {
@@ -76,9 +73,6 @@ export const releaseCandidate: AgentConfig = {
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  gelato: {
-    enabledChains: [],
-  },
   connectionType: ConnectionType.HttpFallback,
   relayer: {
     default: {
