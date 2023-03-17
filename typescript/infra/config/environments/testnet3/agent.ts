@@ -43,7 +43,15 @@ export const hyperlane: AgentConfig = {
   validators,
   relayer: {
     default: {
-      blacklist: releaseCandidateHelloworldMatchingList,
+      blacklist: [
+        ...releaseCandidateHelloworldMatchingList,
+        {
+          // In an effort to reduce some giant retry queues that resulted
+          // from spam txs to the old TestRecipient before we were charging for
+          // gas, we blacklist the old TestRecipient address.
+          recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
+        },
+      ],
       gasPaymentEnforcement: [
         {
           type: GasPaymentEnforcementPolicyType.None,
