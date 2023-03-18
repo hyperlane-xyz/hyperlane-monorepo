@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import {MetaProxyFactory} from "./MetaProxyFactory.sol";
+
 library StaticMOfNAddressSet {
     struct AddressSet {
-        SingleStaticMOfNAddressSet implementation;
+        MetaProxyMOfNAddressSet proxy;
     }
 
     // ============ Library Functions ============
@@ -13,10 +15,14 @@ library StaticMOfNAddressSet {
      * @param _set The set to add to
      * @param _value The address to add to the set
      */
-    function add(AddressSet storage _set, address _value) internal {
+    function add(
+        AddressSet storage _set,
+        address _value,
+        address _implementation
+    ) internal {
         address[] memory _values = new address[](1);
         _values[0] = _value;
-        _add(_set, _values);
+        _add(_set, _values, _implementation);
     }
 
     /**
@@ -24,8 +30,12 @@ library StaticMOfNAddressSet {
      * @param _set The set to add to
      * @param _values The addresses to add to the set
      */
-    function add(AddressSet storage _set, address[] memory _values) internal {
-        _add(_set, _values);
+    function add(
+        AddressSet storage _set,
+        address[] memory _values,
+        address _implementation
+    ) internal {
+        _add(_set, _values, _implementation);
     }
 
     /**
@@ -33,14 +43,18 @@ library StaticMOfNAddressSet {
      * @param _set The set to remove from
      * @param _value The address to remove from the set
      */
-    function remove(AddressSet storage _set, address _value) internal {
+    function remove(
+        AddressSet storage _set,
+        address _value,
+        address _implementation
+    ) internal {
         require(contains(_set, _value), "!contained");
         (address[] memory _oldValues, uint8 _threshold) = valuesAndThreshold(
             _set
         );
         require(_threshold <= _oldValues.length - 1, "reduce threshold");
         if (_oldValues.length == 1) {
-            _set.implementation = SingleStaticMOfNAddressSet(address(0));
+            _set.proxy = MetaProxyMOfNAddressSet(address(0));
             return;
         }
         address[] memory _newValues = new address[](_oldValues.length - 1);
@@ -52,7 +66,7 @@ library StaticMOfNAddressSet {
                 j += 1;
             }
         }
-        _deploy(_set, _newValues, threshold(_set));
+        _deploy(_set, _newValues, threshold(_set), _implementation);
     }
 
     /**
@@ -61,9 +75,13 @@ library StaticMOfNAddressSet {
      * @param _set The set to set the threshold on
      * @param _threshold The threshold to set to
      */
-    function setThreshold(AddressSet storage _set, uint8 _threshold) internal {
+    function setThreshold(
+        AddressSet storage _set,
+        uint8 _threshold,
+        address _implementation
+    ) internal {
         require(0 < _threshold && _threshold <= length(_set), "!range");
-        _deploy(_set, values(_set), _threshold);
+        _deploy(_set, values(_set), _threshold, _implementation);
     }
 
     /**
@@ -79,21 +97,7 @@ library StaticMOfNAddressSet {
         if (!_isDeployed(_set)) {
             return new address[](0);
         }
-        return _set.implementation.values();
-    }
-
-    /**
-     * @notice Returns the address at index `i`
-     * @param _set The set to return the address from
-     * @param i The index of the address to return
-     * @return The address at index `i`
-     */
-    function at(AddressSet storage _set, uint8 i)
-        internal
-        view
-        returns (address)
-    {
-        return _set.implementation.valueAt(i);
+        return _set.proxy.values();
     }
 
     /**
@@ -135,7 +139,7 @@ library StaticMOfNAddressSet {
         if (!_isDeployed(_set)) {
             return 0;
         }
-        return _set.implementation.threshold();
+        return _set.proxy.threshold();
     }
 
     /**
@@ -151,13 +155,13 @@ library StaticMOfNAddressSet {
         if (!_isDeployed(_set)) {
             return (new address[](0), 0);
         }
-        return _set.implementation.valuesAndThreshold();
+        return _set.proxy.valuesAndThreshold();
     }
 
     // ============ Internal Functions ============
 
     function _isDeployed(AddressSet storage _set) private view returns (bool) {
-        return (address(_set.implementation) != address(0));
+        return (address(_set.proxy) != address(0));
     }
 
     /**
@@ -165,15 +169,19 @@ library StaticMOfNAddressSet {
      * @param _set The set to add to
      * @param _values The address to add to the set
      */
-    function _add(AddressSet storage _set, address[] memory _values) private {
+    function _add(
+        AddressSet storage _set,
+        address[] memory _values,
+        address _implementation
+    ) private {
         if (!_isDeployed(_set)) {
             for (uint256 j = 0; j < _values.length; j++) {
                 require(_values[j] != address(0), "zero address");
             }
-            _deploy(_set, _values, 0);
+            _deploy(_set, _values, 0, _implementation);
         } else {
             (address[] memory _oldValues, uint8 _threshold) = _set
-                .implementation
+                .proxy
                 .valuesAndThreshold();
             address[] memory _newValues = new address[](
                 _oldValues.length + _values.length
@@ -189,135 +197,70 @@ library StaticMOfNAddressSet {
                 require(_values[j] != address(0), "zero address");
                 _newValues[j + _oldValues.length] = _values[j];
             }
-            _deploy(_set, _newValues, _threshold);
+            _deploy(_set, _newValues, _threshold, _implementation);
         }
     }
 
     function _deploy(
         AddressSet storage _set,
         address[] memory _values,
-        uint8 _threshold
+        uint8 _threshold,
+        address _implementation
     ) private {
-        _set.implementation = new SingleStaticMOfNAddressSet(
-            _values,
-            _threshold
+        _set.proxy = MetaProxyMOfNAddressSet(
+            MetaProxyFactory.fromBytes(
+                _implementation,
+                abi.encode(_values, _threshold)
+            )
         );
     }
 }
 
-contract SingleStaticMOfNAddressSet {
-    uint8 internal immutable _threshold;
-    uint8 internal immutable _numValues;
-    address private immutable _value0;
-    address private immutable _value1;
-    address private immutable _value2;
-    address private immutable _value3;
-    address private immutable _value4;
-    address private immutable _value5;
-    address private immutable _value6;
-    address private immutable _value7;
-    address private immutable _value8;
-    address private immutable _value9;
-    address private immutable _value10;
-    address private immutable _value11;
-    address private immutable _value12;
-    address private immutable _value13;
-    address private immutable _value14;
-    address private immutable _value15;
-
-    // ============ Constructor ============
-
-    // solhint-disable-next-line no-empty-blocks
-    constructor(address[] memory _values, uint8 tthreshold) {
-        require(0 < _values.length && _values.length <= 16, "too many");
-        require(tthreshold <= _values.length, "threshold");
-        _threshold = tthreshold;
-        _numValues = uint8(_values.length);
-        _value0 = _numValues > 0 ? _values[0] : address(0);
-        _value1 = _numValues > 1 ? _values[1] : address(0);
-        _value2 = _numValues > 2 ? _values[2] : address(0);
-        _value3 = _numValues > 3 ? _values[3] : address(0);
-        _value4 = _numValues > 4 ? _values[4] : address(0);
-        _value5 = _numValues > 5 ? _values[5] : address(0);
-        _value6 = _numValues > 6 ? _values[6] : address(0);
-        _value7 = _numValues > 7 ? _values[7] : address(0);
-        _value8 = _numValues > 8 ? _values[8] : address(0);
-        _value9 = _numValues > 9 ? _values[9] : address(0);
-        _value10 = _numValues > 10 ? _values[10] : address(0);
-        _value11 = _numValues > 11 ? _values[11] : address(0);
-        _value12 = _numValues > 12 ? _values[12] : address(0);
-        _value13 = _numValues > 13 ? _values[13] : address(0);
-        _value14 = _numValues > 14 ? _values[14] : address(0);
-        _value15 = _numValues > 15 ? _values[15] : address(0);
-    }
-
-    // ============ internal Functions ============
+contract MetaProxyMOfNAddressSet {
+    /// @notice Returns the metadata of this (MetaProxy) contract.
+    /// Only relevant with contracts created via the MetaProxy standard.
+    /// @dev This function is aimed to to be invoked via a call.
     function valuesAndThreshold()
-        public
-        view
+        external
+        pure
         returns (address[] memory, uint8)
     {
-        return (values(), _threshold);
+        assembly {
+            let posOfMetadataSize := sub(calldatasize(), 32)
+            let size := calldataload(posOfMetadataSize)
+            let dataPtr := sub(posOfMetadataSize, size)
+            calldatacopy(0, dataPtr, size)
+            return(0, size)
+        }
     }
 
-    function threshold() public view returns (uint8) {
+    function threshold() external pure returns (uint8) {
+        (, uint8 _threshold) = _valuesAndThreshold();
         return _threshold;
     }
 
-    function values() public view returns (address[] memory) {
-        address[] memory _values = new address[](_numValues);
-
-        // prettier-ignore
-        {
-            if (_numValues > 0) { _values[0] = _value0; } else { return _values; }
-            if (_numValues > 1) { _values[1] = _value1; } else { return _values; }
-            if (_numValues > 2) { _values[2] = _value2; } else { return _values; }
-            if (_numValues > 3) { _values[3] = _value3; } else { return _values; }
-            if (_numValues > 4) { _values[4] = _value4; } else { return _values; }
-            if (_numValues > 5) { _values[5] = _value5; } else { return _values; }
-            if (_numValues > 6) { _values[6] = _value6; } else { return _values; }
-            if (_numValues > 7) { _values[7] = _value7; } else { return _values; }
-            if (_numValues > 8) { _values[8] = _value8; } else { return _values; }
-            if (_numValues > 9) { _values[9] = _value9; } else { return _values; }
-            if (_numValues > 10) { _values[10] = _value10; } else { return _values; }
-            if (_numValues > 11) { _values[11] = _value11; } else { return _values; }
-            if (_numValues > 12) { _values[12] = _value12; } else { return _values; }
-            if (_numValues > 13) { _values[13] = _value13; } else { return _values; }
-            if (_numValues > 14) { _values[14] = _value14; } else { return _values; }
-            if (_numValues > 15) { _values[15] = _value15; } else { return _values; }
-        }
+    function values() external pure returns (address[] memory) {
+        (address[] memory _values, ) = _valuesAndThreshold();
         return _values;
     }
 
-    function valueAt(uint256 i) public view returns (address) {
-        if (i < 8) {
-            if (i < 4) {
-                if (i < 2) {
-                    return i == 0 ? _value0 : _value1;
-                } else {
-                    return i == 2 ? _value2 : _value3;
-                }
-            } else {
-                if (i < 6) {
-                    return i == 4 ? _value4 : _value5;
-                } else {
-                    return i == 6 ? _value6 : _value7;
-                }
-            }
-        } else {
-            if (i < 12) {
-                if (i < 10) {
-                    return i == 8 ? _value8 : _value9;
-                } else {
-                    return i == 10 ? _value10 : _value11;
-                }
-            } else {
-                if (i < 14) {
-                    return i == 12 ? _value12 : _value13;
-                } else {
-                    return i == 14 ? _value14 : _value15;
-                }
-            }
+    function _valuesAndThreshold()
+        internal
+        pure
+        returns (address[] memory, uint8)
+    {
+        bytes memory data;
+        assembly {
+            let posOfMetadataSize := sub(calldatasize(), 32)
+            let size := calldataload(posOfMetadataSize)
+            let dataPtr := sub(posOfMetadataSize, size)
+            data := mload(64)
+            // increment free memory pointer by metadata size + 32 bytes (length)
+            mstore(64, add(data, add(size, 32)))
+            mstore(data, size)
+            let memPtr := add(data, 32)
+            calldatacopy(memPtr, dataPtr, size)
         }
+        return abi.decode(data, (address[], uint8));
     }
 }

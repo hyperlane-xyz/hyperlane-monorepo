@@ -5,19 +5,23 @@ pragma solidity >=0.8.0;
 import {Message} from "../libs/Message.sol";
 
 import {OwnableMOfNAddressSet} from "../libs/OwnableMOfNAddressSet.sol";
-import {StaticMOfNAddressSet} from "../libs/StaticMOfNAddressSet.sol";
+import {StaticMOfNAddressSet, MetaProxyMOfNAddressSet} from "../libs/StaticMOfNAddressSet.sol";
 
 /**
  * @title OwnableStaticMOfNAddressSet
  */
 contract OwnableStaticMOfNAddressSet is OwnableMOfNAddressSet {
+    address private immutable _implementation;
+
     // ============ Public Storage ============
     mapping(uint32 => StaticMOfNAddressSet.AddressSet) private _sets;
 
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
-    constructor() OwnableMOfNAddressSet() {}
+    constructor() OwnableMOfNAddressSet() {
+        _implementation = address(new MetaProxyMOfNAddressSet());
+    }
 
     // ============ Public Functions ============
 
@@ -113,7 +117,11 @@ contract OwnableStaticMOfNAddressSet is OwnableMOfNAddressSet {
         override
     {
         for (uint256 i = 0; i < _domains.length; i++) {
-            StaticMOfNAddressSet.add(_sets[_domains[i]], _values[i]);
+            StaticMOfNAddressSet.add(
+                _sets[_domains[i]],
+                _values[i],
+                _implementation
+            );
         }
     }
 
@@ -124,7 +132,7 @@ contract OwnableStaticMOfNAddressSet is OwnableMOfNAddressSet {
      * @param _value The value to add to the set.
      */
     function _add(uint32 _domain, address _value) internal virtual override {
-        StaticMOfNAddressSet.add(_sets[_domain], _value);
+        StaticMOfNAddressSet.add(_sets[_domain], _value, _implementation);
     }
 
     /**
@@ -134,7 +142,7 @@ contract OwnableStaticMOfNAddressSet is OwnableMOfNAddressSet {
      * @param _value The value to remove from the set.
      */
     function _remove(uint32 _domain, address _value) internal virtual override {
-        StaticMOfNAddressSet.remove(_sets[_domain], _value);
+        StaticMOfNAddressSet.remove(_sets[_domain], _value, _implementation);
     }
 
     /**
@@ -147,6 +155,10 @@ contract OwnableStaticMOfNAddressSet is OwnableMOfNAddressSet {
         virtual
         override
     {
-        StaticMOfNAddressSet.setThreshold(_sets[_domain], _threshold);
+        StaticMOfNAddressSet.setThreshold(
+            _sets[_domain],
+            _threshold,
+            _implementation
+        );
     }
 }
