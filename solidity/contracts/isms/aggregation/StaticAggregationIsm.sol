@@ -2,9 +2,9 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {OwnableStaticMOfNAddressSet} from "./OwnableStaticMOfNAddressSet.sol";
+import {OwnableStaticMOfNAddressSet} from "../OwnableStaticMOfNAddressSet.sol";
 import {AbstractAggregationIsm} from "./AbstractAggregationIsm.sol";
-import {AggregationIsmMetadata} from "../libs/AggregationIsmMetadata.sol";
+import {AggregationIsmMetadata} from "../../libs/AggregationIsmMetadata.sol";
 
 /**
  * @title StaticAggregationIsm

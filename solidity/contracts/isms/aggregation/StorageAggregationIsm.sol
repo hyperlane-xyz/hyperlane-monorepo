@@ -2,18 +2,18 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {OwnableStorageMOfNAddressSet} from "./OwnableStorageMOfNAddressSet.sol";
-import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
-import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
+import {OwnableStorageMOfNAddressSet} from "../OwnableStorageMOfNAddressSet.sol";
+import {AbstractAggregationIsm} from "./AbstractAggregationIsm.sol";
+import {AggregationIsmMetadata} from "../../libs/AggregationIsmMetadata.sol";
 
 /**
- * @title StorageMultisigIsm
+ * @title StorageAggregationIsm
  * @notice Manages per-domain m-of-n Validator sets in storage that are used
  * to verify interchain messages.
  */
-contract StorageMultisigIsm is
+contract StorageAggregationIsm is
     OwnableStorageMOfNAddressSet,
-    AbstractMultisigIsm
+    AbstractAggregationIsm
 {
     // ============ Public Functions ============
 
@@ -25,7 +25,7 @@ contract StorageMultisigIsm is
      * @return validators The array of validator addresses
      * @return threshold The number of validator signatures needed
      */
-    function validatorsAndThreshold(bytes calldata _message)
+    function ismsAndThreshold(bytes calldata _message)
         public
         view
         virtual

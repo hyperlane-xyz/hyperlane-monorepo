@@ -5,11 +5,11 @@ pragma solidity >=0.8.0;
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // ============ Internal Imports ============
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {IAggregationIsm} from "../../interfaces/IAggregationIsm.sol";
-import {Message} from "../libs/Message.sol";
-import {AggregationIsmMetadata} from "../libs/AggregationIsmMetadata.sol";
-import {MerkleLib} from "../libs/Merkle.sol";
+import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
+import {IAggregationIsm} from "../../../interfaces/IAggregationIsm.sol";
+import {Message} from "../../libs/Message.sol";
+import {AggregationIsmMetadata} from "../../libs/AggregationIsmMetadata.sol";
+import {MerkleLib} from "../../libs/Merkle.sol";
 
 /**
  * @title AggregationIsm

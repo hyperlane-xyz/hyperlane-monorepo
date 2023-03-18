@@ -5,8 +5,8 @@ import "forge-std/Test.sol";
 
 import {IAggregationIsm} from "../../interfaces/IAggregationIsm.sol";
 import {IMOfNAddressSet} from "../../interfaces/IMOfNAddressSet.sol";
-import {StaticAggregationIsm} from "../../contracts/isms/StaticAggregationIsm.sol";
-import {StorageAggregationIsm} from "../../contracts/isms/StorageAggregationIsm.sol";
+import {StaticAggregationIsm} from "../../contracts/isms/aggregation/StaticAggregationIsm.sol";
+import {StorageAggregationIsm} from "../../contracts/isms/aggregation/StorageAggregationIsm.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {AggregationIsmMetadata} from "../../contracts/libs/AggregationIsmMetadata.sol";
 

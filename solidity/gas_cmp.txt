@@ -1,0 +1,57 @@
+Old way
+
+Running 5 tests for test/isms/AggregationIsm.t.sol:StaticAggregationIsmTest
+[PASS] testIsmsAndThreshold(uint32,uint8,uint8,bytes5,bytes,bytes32) (runs: 256, μ: 4991731, ~: 4555174)
+[PASS] testVerify(uint32,uint8,uint8,bytes5,bytes,bytes32) (runs: 256, μ: 5018765, ~: 4571156)
+[PASS] testVerifyIncorrectMetadata(uint32,uint8,uint8,bytes5,bytes,bytes32) (runs: 256, μ: 5018794, ~: 4571760)
+[PASS] testVerifyMissingMetadata(uint32,uint8,uint8,bytes5,bytes,bytes32) (runs: 256, μ: 5007301, ~: 4560109)
+[PASS] testVerifyNoMetadataRequired(uint32,uint8,uint8,uint8,bytes5,bytes,bytes32) (runs: 256, μ: 5572369, ~: 4550151)
+Test result: ok. 5 passed; 0 failed; finished in 904.96ms
+
+Running 17 tests for test/OwnableMOfNAddressSet.t.sol:OwnableStaticMOfNAddressSetTest
+[PASS] testAdd(uint32,address) (runs: 256, μ: 863775, ~: 863775)
+[PASS] testAddNonowner(uint32,address,address) (runs: 256, μ: 18360, ~: 18360)
+[PASS] testAddTwice(uint32,address) (runs: 256, μ: 866289, ~: 866289)
+[PASS] testAddZero(uint32) (runs: 256, μ: 13814, ~: 13814)
+[PASS] testContains(uint32,address) (runs: 256, μ: 855907, ~: 855907)
+[PASS] testLength(uint32,address) (runs: 256, μ: 865717, ~: 865717)
+[PASS] testRemove(uint32,address) (runs: 256, μ: 851921, ~: 851921)
+[PASS] testRemoveBelowThreshold(uint32,address) (runs: 256, μ: 1698524, ~: 1698524)
+[PASS] testRemoveNonowner(uint32,address,address) (runs: 256, μ: 18360, ~: 18360)
+[PASS] testRemoveUncontained(uint32,address) (runs: 256, μ: 13800, ~: 13800)
+[PASS] testSetThreshold(uint32,address) (runs: 256, μ: 1694128, ~: 1694128)
+[PASS] testSetThresholdNonowner(uint32,uint8,address) (runs: 256, μ: 18383, ~: 18383)
+[PASS] testSetThresholdTooHigh(uint32,address) (runs: 256, μ: 865591, ~: 865591)
+[PASS] testSetThresholdZero(uint32,address) (runs: 256, μ: 863438, ~: 863438)
+[PASS] testSetThresholds(uint32[],address) (runs: 256, μ: 182906166, ~: 176332154)
+[PASS] testThreshold(uint32,address) (runs: 256, μ: 1695327, ~: 1695327)
+[PASS] testValuesAndThreshold(uint32,address) (runs: 256, μ: 1700737, ~: 1700737)
+
+New way
+
+Running 5 tests for test/isms/AggregationIsm.t.sol:StaticAggregationIsmTest
+[PASS] testIsmsAndThreshold(uint32,uint8,uint8,bytes5,bytes,bytes32) (runs: 256, μ: 1819570, ~: 1603221)
+[PASS] testVerify(uint32,uint8,uint8,bytes5,bytes,bytes32) (runs: 256, μ: 1783769, ~: 1619941)
+[PASS] testVerifyIncorrectMetadata(uint32,uint8,uint8,bytes5,bytes,bytes32) (runs: 256, μ: 1790443, ~: 1619540)
+[PASS] testVerifyMissingMetadata(uint32,uint8,uint8,bytes5,bytes,bytes32) (runs: 256, μ: 1912415, ~: 1608194)
+[PASS] testVerifyNoMetadataRequired(uint32,uint8,uint8,uint8,bytes5,bytes,bytes32) (runs: 256, μ: 2037421, ~: 1600715)
+Test result: ok. 5 passed; 0 failed; finished in 1.22s
+
+Running 17 tests for test/OwnableMOfNAddressSet.t.sol:OwnableStaticMOfNAddressSetTest
+[PASS] testAdd(uint32,address) (runs: 256, μ: 119274, ~: 119274)
+[PASS] testAddNonowner(uint32,address,address) (runs: 256, μ: 18360, ~: 18360)
+[PASS] testAddTwice(uint32,address) (runs: 256, μ: 121368, ~: 121368)
+[PASS] testAddZero(uint32) (runs: 256, μ: 13820, ~: 13820)
+[PASS] testContains(uint32,address) (runs: 256, μ: 112467, ~: 112467)
+[PASS] testLength(uint32,address) (runs: 256, μ: 121957, ~: 121957)
+[PASS] testRemove(uint32,address) (runs: 256, μ: 107740, ~: 107740)
+[PASS] testRemoveBelowThreshold(uint32,address) (runs: 256, μ: 208071, ~: 208071)
+[PASS] testRemoveNonowner(uint32,address,address) (runs: 256, μ: 18360, ~: 18360)
+[PASS] testRemoveUncontained(uint32,address) (runs: 256, μ: 13803, ~: 13803)
+[PASS] testSetThreshold(uint32,address) (runs: 256, μ: 203357, ~: 203357)
+[PASS] testSetThresholdNonowner(uint32,uint8,address) (runs: 256, μ: 18383, ~: 18383)
+[PASS] testSetThresholdTooHigh(uint32,address) (runs: 256, μ: 121834, ~: 121834)
+[PASS] testSetThresholdZero(uint32,address) (runs: 256, μ: 118940, ~: 118940)
+[PASS] testSetThresholds(uint32[],address) (runs: 256, μ: 20751151, ~: 20417592)
+[PASS] testThreshold(uint32,address) (runs: 256, μ: 205641, ~: 205641)
+[PASS] testValuesAndThreshold(uint32,address) (runs: 256, μ: 211792, ~: 211792)

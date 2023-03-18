@@ -7,11 +7,11 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 // ============ Internal Imports ============
-import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
-import {Message} from "../libs/Message.sol";
-import {LegacyMultisigIsmMetadata} from "../libs/LegacyMultisigIsmMetadata.sol";
-import {MerkleLib} from "../libs/Merkle.sol";
+import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
+import {IMultisigIsm} from "../../../interfaces/IMultisigIsm.sol";
+import {Message} from "../../libs/Message.sol";
+import {LegacyMultisigIsmMetadata} from "../../libs/LegacyMultisigIsmMetadata.sol";
+import {MerkleLib} from "../../libs/Merkle.sol";
 
 /**
  * @title MultisigIsm
