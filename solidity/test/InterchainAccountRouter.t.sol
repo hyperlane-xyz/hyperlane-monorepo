@@ -94,27 +94,27 @@ contract InterchainAccountRouterTest is Test {
             routers[i] = bytes32(uint256(router) - i);
         }
         originRouter.enrollRemoteRouters(domains, routers);
+        uint32[] memory actualDomains = originRouter.domains();
+        assertEq(actualDomains.length, domains.length);
         for (uint256 i = 0; i < count; i++) {
-            (bytes32 actualRouter, bytes32 actualIsm) = originRouter
-                .getRemoteRouterAndIsm(domains[i], address(this));
-            assertEq(originRouter.routers(domains[i]), routers[i]);
+            bytes32 actualRouter = originRouter.routers(domains[i]);
+            bytes32 actualIsm = originRouter.isms(domains[i]);
             assertEq(actualRouter, routers[i]);
             assertEq(actualIsm, bytes32(0));
+            assertEq(actualDomains[i], domains[i]);
         }
         assertEq(abi.encode(originRouter.domains()), abi.encode(domains));
     }
 
     function testEnrollRemoteRouterAndIsm(bytes32 router, bytes32 ism) public {
         vm.assume(router != bytes32(0));
-        (bytes32 actualRouter, bytes32 actualIsm) = originRouter
-            .getRemoteRouterAndIsm(destination, address(this));
+        bytes32 actualRouter = originRouter.routers(destination);
+        bytes32 actualIsm = originRouter.isms(destination);
         assertEq(actualRouter, bytes32(0));
         assertEq(actualIsm, bytes32(0));
         originRouter.enrollRemoteRouterAndIsm(destination, router, ism);
-        (actualRouter, actualIsm) = originRouter.getRemoteRouterAndIsm(
-            destination,
-            address(this)
-        );
+        actualRouter = originRouter.routers(destination);
+        actualIsm = originRouter.isms(destination);
         assertEq(actualRouter, router);
         assertEq(actualIsm, ism);
     }
@@ -144,24 +144,6 @@ contract InterchainAccountRouterTest is Test {
         originRouter.enrollRemoteRouterAndIsm(destination, router, ism);
     }
 
-    function testOverrideRemoteRouterAndIsm(
-        bytes32 routerA,
-        bytes32 ismA,
-        bytes32 routerB,
-        bytes32 ismB
-    ) public {
-        vm.assume(routerA != bytes32(0) && routerB != bytes32(0));
-        // Set defaults to ensure overridden by user
-        originRouter.enrollRemoteRouterAndIsm(destination, routerA, ismA);
-        originRouter.overrideRemoteRouterAndIsm(destination, routerB, ismB);
-        (bytes32 router, bytes32 ism) = originRouter.getRemoteRouterAndIsm(
-            destination,
-            address(this)
-        );
-        assertEq(router, routerB);
-        assertEq(ism, ismB);
-    }
-
     function getCalls(bytes32 data) private returns (CallLib.Call[] memory) {
         vm.assume(data != bytes32(0));
         CallLib.Call memory call = CallLib.Call(
@@ -188,7 +170,7 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testCallRemoteWithDefault(bytes32 data) public {
-        originRouter.overrideRemoteRouterAndIsm(
+        originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             ismOverride
@@ -198,7 +180,7 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testOverrideAndCallRemote(bytes32 data) public {
-        originRouter.overrideRemoteRouterAndIsm(
+        originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             ismOverride
