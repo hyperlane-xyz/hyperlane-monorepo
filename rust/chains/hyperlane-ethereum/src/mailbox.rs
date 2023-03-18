@@ -10,7 +10,7 @@ use ethers::abi::AbiEncode;
 use ethers::prelude::Middleware;
 use ethers::types::Eip1559TransactionRequest;
 use ethers_contract::builders::ContractCall;
-use hyperlane_core::H160;
+use hyperlane_core::{KnownHyperlaneDomain, H160};
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -228,6 +228,16 @@ where
         let Ok((max_fee, max_priority_fee)) = self.provider.estimate_eip1559_fees(None).await else {
             // Is not EIP 1559 chain
             return Ok(tx.gas(gas_limit))
+        };
+        let max_priority_fee = if matches!(
+            KnownHyperlaneDomain::try_from(message.destination),
+            Ok(KnownHyperlaneDomain::Polygon)
+        ) {
+            // Polygon needs a max priority fee >= 30 gwei
+            let min_polygon_fee = U256::from(30_000_000_000u64);
+            max_priority_fee.max(min_polygon_fee)
+        } else {
+            max_priority_fee
         };
         // Is EIP 1559 chain
         let mut request = Eip1559TransactionRequest::new();
