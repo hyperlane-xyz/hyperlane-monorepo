@@ -225,23 +225,20 @@ where
                 .await?
                 .saturating_add(U256::from(GAS_ESTIMATE_BUFFER))
         };
-        let chain_id = match self.provider.get_chainid().await {
-            Ok(chainId) => chainId.as_u32(),
-            // Couldn't get chainId, assume not 1559
-            Err(_) => return Ok(tx.gas(gas_limit)),
-        };
         let Ok((max_fee, max_priority_fee)) = self.provider.estimate_eip1559_fees(None).await else {
             // Is not EIP 1559 chain
             return Ok(tx.gas(gas_limit))
         };
-        let max_priority_fee =
-            if KnownHyperlaneDomain::try_from(chain_id)? == KnownHyperlaneDomain::Polygon {
-                let min_polygon_fee = ethers::utils::parse_units("31", "gwei").unwrap().into();
-                // Polygon needs a max priority fee > 30 gwei
-                max_priority_fee.max(min_polygon_fee)
-            } else {
-                max_priority_fee
-            };
+        let max_priority_fee = if matches!(
+            KnownHyperlaneDomain::try_from(message.destination),
+            Ok(KnownHyperlaneDomain::Polygon)
+        ) {
+            // Polygon needs a max priority fee >= 30 gwei
+            let min_polygon_fee = U256::from(30_000_000_000u64);
+            max_priority_fee.max(min_polygon_fee)
+        } else {
+            max_priority_fee
+        };
         // Is EIP 1559 chain
         let mut request = Eip1559TransactionRequest::new();
         if let Some(from) = tx.tx.from() {
