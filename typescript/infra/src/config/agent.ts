@@ -252,11 +252,9 @@ export type RustChainSetup = {
 
 export type RustConfig = {
   chains: Partial<ChainMap<RustChainSetup>>;
-  // TODO: Separate DBs for each chain (fold into RustChainSetup)
-  db: string;
-  tracing: {
-    level: string;
-    fmt: 'json';
+  tracing?: {
+    level?: string;
+    fmt?: 'json';
   };
 };
 

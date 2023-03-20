@@ -111,11 +111,6 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
   writeRustConfigs(directory: string) {
     const rustConfig: RustConfig = {
       chains: {},
-      db: 'db_path',
-      tracing: {
-        level: 'debug',
-        fmt: 'json',
-      },
     };
     objMap(this.configMap, (chain) => {
       const contracts = this.deployedContracts[chain];

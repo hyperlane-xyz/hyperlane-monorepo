@@ -172,9 +172,4 @@
       }
     }
   },
-  "db": "db_path",
-  "tracing": {
-    "level": "debug",
-    "fmt": "json"
-  }
 }

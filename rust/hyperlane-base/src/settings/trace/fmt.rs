@@ -27,7 +27,7 @@ pub enum Style {
 
 impl Default for Style {
     fn default() -> Self {
-        Style::Full
+        Style::Pretty
     }
 }
 
