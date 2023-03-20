@@ -113,8 +113,8 @@ pub struct ChainSetup {
     /// Addresses of contracts on the chain
     pub addresses: CoreContractAddresses,
     /// The chain connection details
-    #[serde(flatten)]
-    pub chain: ChainConf,
+    #[serde(flatten, default)]
+    pub chain: Option<ChainConf>,
     /// How transactions to this chain are submitted.
     #[serde(default)]
     pub txsubmission: TransactionSubmissionType,
@@ -129,13 +129,18 @@ pub struct ChainSetup {
 }
 
 impl ChainSetup {
+    /// Get the chain config or generate an error
+    pub fn chain(&self) -> Result<&ChainConf> {
+        self.chain.as_ref().ok_or_else(|| eyre!("Missing chain configuration for {}; this includes protocol and connection information", self.name))
+    }
+
     /// Try to convert the chain settings into an HyperlaneProvider.
     pub async fn build_provider(
         &self,
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn HyperlaneProvider>> {
         let ctx = "Building provider";
-        match &self.chain {
+        match &self.chain()? {
             ChainConf::Ethereum(conf) => {
                 let locator = self
                     .locator("0x0000000000000000000000000000000000000000")
@@ -154,7 +159,7 @@ impl ChainSetup {
         let ctx = "Building provider";
         let locator = self.locator(&self.addresses.mailbox).context(ctx)?;
 
-        match &self.chain {
+        match &self.chain()? {
             ChainConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MailboxBuilder {})
                     .await
@@ -178,7 +183,7 @@ impl ChainSetup {
         let ctx = "Building mailbox indexer";
         let locator = self.locator(&self.addresses.mailbox).context(ctx)?;
 
-        match &self.chain {
+        match &self.chain()? {
             ChainConf::Ethereum(conf) => {
                 self.build_ethereum(
                     conf,
@@ -207,7 +212,7 @@ impl ChainSetup {
             .locator(&self.addresses.interchain_gas_paymaster)
             .context(ctx)?;
 
-        match &self.chain {
+        match &self.chain()? {
             ChainConf::Ethereum(conf) => {
                 self.build_ethereum(
                     conf,
@@ -233,7 +238,7 @@ impl ChainSetup {
             .locator(&self.addresses.interchain_gas_paymaster)
             .context(ctx)?;
 
-        match &self.chain {
+        match &self.chain()? {
             ChainConf::Ethereum(conf) => {
                 self.build_ethereum(
                     conf,
@@ -263,7 +268,7 @@ impl ChainSetup {
         metrics: &CoreMetrics,
     ) -> Result<Box<dyn ValidatorAnnounce>> {
         let locator = self.locator(&self.addresses.validator_announce)?;
-        match &self.chain {
+        match &self.chain()? {
             ChainConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::ValidatorAnnounceBuilder {})
                     .await
@@ -289,7 +294,7 @@ impl ChainSetup {
             address,
         };
 
-        match &self.chain {
+        match &self.chain()? {
             ChainConf::Ethereum(conf) => {
                 self.build_ethereum(conf, &locator, metrics, h_eth::MultisigIsmBuilder {})
                     .await
@@ -305,7 +310,7 @@ impl ChainSetup {
         HyperlaneDomain::from_config(
             (&self.domain).try_into().context("Invalid domain id")?,
             &self.name,
-            self.chain.protocol(),
+            self.chain()?.protocol(),
         )
         .map_err(|e| eyre!("{e}"))
     }
@@ -383,7 +388,7 @@ impl ChainSetup {
         let domain = self
             .domain()
             .context("Invalid domain for locating contract")?;
-        let address = match self.chain {
+        let address = match self.chain()? {
             ChainConf::Ethereum(_) => address
                 .parse::<ethers::types::Address>()
                 .context("Invalid ethereum address for locating contract")?
