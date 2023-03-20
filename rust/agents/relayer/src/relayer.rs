@@ -12,9 +12,8 @@ use tokio::task::JoinHandle;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use hyperlane_base::{
-    chains::{GelatoConf, TransactionSubmissionType},
-    run_all, BaseAgent, CachingInterchainGasPaymaster, CachingMailbox, ContractSyncMetrics,
-    CoreMetrics, HyperlaneAgentCore,
+    chains::TransactionSubmissionType, run_all, BaseAgent, CachingInterchainGasPaymaster,
+    CachingMailbox, ContractSyncMetrics, CoreMetrics, HyperlaneAgentCore,
 };
 use hyperlane_core::{db::DB, HyperlaneChain, HyperlaneDomain, ValidatorAnnounce};
 
@@ -22,7 +21,6 @@ use crate::{
     merkle_tree_builder::MerkleTreeBuilder,
     msg::{
         gas_payment::GasPaymentEnforcer,
-        gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics},
         metadata_builder::MetadataBuilder,
         processor::{MessageProcessor, MessageProcessorMetrics},
         serial_submitter::{SerialSubmitter, SerialSubmitterMetrics},
@@ -195,7 +193,6 @@ impl BaseAgent for Relayer {
                 mailbox.clone(),
                 metadata_builder.clone(),
                 txsubmission,
-                self.core.settings.gelato.as_ref(),
                 self.gas_payment_enforcer.clone(),
                 receive_channel,
             ));
@@ -254,29 +251,6 @@ impl Relayer {
         sync
     }
 
-    /// Helper to construct a new GelatoSubmitter instance for submission to a
-    /// particular mailbox.
-    fn make_gelato_submitter(
-        &self,
-        message_receiver: UnboundedReceiver<SubmitMessageArgs>,
-        mailbox: CachingMailbox,
-        metadata_builder: MetadataBuilder,
-        gelato_config: GelatoConf,
-        gas_payment_enforcer: Arc<GasPaymentEnforcer>,
-    ) -> GelatoSubmitter {
-        let gelato_metrics =
-            GelatoSubmitterMetrics::new(&self.core.metrics, &self.origin_chain, mailbox.domain());
-        GelatoSubmitter::new(
-            message_receiver,
-            mailbox,
-            metadata_builder,
-            self.mailboxes.get(&self.origin_chain).unwrap().db().clone(),
-            gelato_config,
-            gelato_metrics,
-            gas_payment_enforcer,
-        )
-    }
-
     fn run_message_processor(
         &self,
         message_processor: MessageProcessor,
@@ -297,7 +271,6 @@ impl Relayer {
         destination_mailbox: CachingMailbox,
         metadata_builder: MetadataBuilder,
         tx_submission: TransactionSubmissionType,
-        gelato_config: Option<&GelatoConf>,
         gas_payment_enforcer: Arc<GasPaymentEnforcer>,
         msg_receive: UnboundedReceiver<SubmitMessageArgs>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
@@ -305,23 +278,6 @@ impl Relayer {
         let destination = destination_mailbox.domain();
 
         let submit_fut = match tx_submission {
-            TransactionSubmissionType::Gelato => {
-                let gelato_config = gelato_config.unwrap_or_else(|| {
-                    panic!(
-                        "Expected GelatoConf for mailbox {} using Gelato",
-                        destination
-                    )
-                });
-
-                self.make_gelato_submitter(
-                    msg_receive,
-                    destination_mailbox.clone(),
-                    metadata_builder,
-                    gelato_config.clone(),
-                    gas_payment_enforcer,
-                )
-                .spawn()
-            }
             TransactionSubmissionType::Signer => {
                 let transaction_gas_limit = if self
                     .skip_transaction_gas_limit_for

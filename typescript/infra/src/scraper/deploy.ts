@@ -81,7 +81,6 @@ async function scraperHelmValues(agentConfig: AgentConfig) {
       runEnv: agentConfig.runEnv,
       context: agentConfig.context,
       aws: false,
-      gelatoApiKeyRequired: false,
       chains: agentConfig.environmentChainNames.map((name) => ({
         name,
         disabled: !agentConfig.contextChainNames.includes(name),

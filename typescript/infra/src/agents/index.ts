@@ -4,6 +4,7 @@ import { utils } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../config/contexts';
 import { AgentConfig, DeployEnvironment } from '../config';
 import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
+import { TransactionSubmissionType } from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
 import {
   HelmCommand,
@@ -26,8 +27,6 @@ async function helmValuesForChain(
   agentConfig: AgentConfig,
 ) {
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
-  const gelatoApiKeyRequired =
-    await chainAgentConfig.ensureGelatoApiKeySecretExistsIfRequired();
 
   // By default, if a context only enables a subset of chains, the
   // connection url (or urls, when HttpQuorum is used) are not fetched
@@ -61,12 +60,11 @@ async function helmValuesForChain(
       runEnv: agentConfig.runEnv,
       context: agentConfig.context,
       aws: !!agentConfig.aws,
-      gelatoApiKeyRequired,
       chains: agentConfig.environmentChainNames.map((envChainName) => ({
         name: envChainName,
         disabled: !agentConfig.contextChainNames.includes(envChainName),
         txsubmission: {
-          type: chainAgentConfig.transactionSubmissionType(envChainName),
+          type: TransactionSubmissionType.Signer,
         },
         connection: baseConnectionConfig,
       })),
