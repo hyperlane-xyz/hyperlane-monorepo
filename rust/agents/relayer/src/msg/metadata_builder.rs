@@ -4,8 +4,9 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use derive_new::new;
+use eyre::Context;
 use tokio::sync::RwLock;
-use tracing::{debug, info, instrument, trace};
+use tracing::{debug, info, instrument, warn};
 
 use hyperlane_base::{
     CachingMailbox, ChainSetup, CheckpointSyncer, CheckpointSyncerConf, CoreMetrics,
@@ -43,6 +44,8 @@ impl MetadataBuilder {
         message: &HyperlaneMessage,
         mailbox: CachingMailbox,
     ) -> eyre::Result<Option<Vec<u8>>> {
+        const CTX: &str = "When fetching metadata";
+
         // The Mailbox's `recipientIsm` function will revert if
         // the recipient is not a contract. This can pose issues with
         // our use of the RetryingProvider, which will continuously retry
@@ -50,7 +53,11 @@ impl MetadataBuilder {
         // As a workaround, we avoid the call entirely if the recipient is
         // not a contract.
         let provider = mailbox.provider();
-        if !provider.is_contract(&message.recipient).await? {
+        if !provider
+            .is_contract(&message.recipient)
+            .await
+            .context(CTX)?
+        {
             info!(
                 recipient=?message.recipient,
                 "Could not fetch metadata: Recipient is not a contract"
@@ -58,15 +65,25 @@ impl MetadataBuilder {
             return Ok(None);
         }
 
-        let ism_address = mailbox.recipient_ism(message.recipient).await?;
+        let ism_address = mailbox
+            .recipient_ism(message.recipient)
+            .await
+            .context(CTX)?;
         let multisig_ism = self
             .chain_setup
             .build_multisig_ism(ism_address, &self.metrics)
-            .await?;
+            .await
+            .context(CTX)?;
 
-        let (validators, threshold) = multisig_ism.validators_and_threshold(message).await?;
+        let (validators, threshold) = multisig_ism
+            .validators_and_threshold(message)
+            .await
+            .context(CTX)?;
         let highest_known_nonce = self.prover_sync.read().await.count() - 1;
-        let checkpoint_syncer = self.build_checkpoint_syncer(&validators).await?;
+        let checkpoint_syncer = self
+            .build_checkpoint_syncer(&validators)
+            .await
+            .context(CTX)?;
         let Some(checkpoint) = checkpoint_syncer
             .fetch_checkpoint_in_range(
                 &validators,
@@ -74,7 +91,7 @@ impl MetadataBuilder {
                 message.nonce,
                 highest_known_nonce,
             )
-            .await?
+            .await.context(CTX)?
         else {
             info!(
                 ?validators, threshold, highest_known_nonce,
@@ -92,7 +109,8 @@ impl MetadataBuilder {
             .prover_sync
             .read()
             .await
-            .get_proof(message.nonce, checkpoint.checkpoint.index)?;
+            .get_proof(message.nonce, checkpoint.checkpoint.index)
+            .context(CTX)?;
 
         if checkpoint.checkpoint.root == proof.root() {
             debug!(
@@ -119,33 +137,54 @@ impl MetadataBuilder {
         &self,
         validators: &[H256],
     ) -> eyre::Result<MultisigCheckpointSyncer> {
-        let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
         let storage_locations = self
             .validator_announce
             .get_announced_storage_locations(validators)
             .await?;
-        // Only use the most recently announced location for now.
-        for (i, validator_storage_locations) in storage_locations.iter().enumerate() {
-            for storage_location in validator_storage_locations.iter().rev() {
-                if let Ok(conf) = CheckpointSyncerConf::from_str(storage_location) {
-                    // If this is a LocalStorage based checkpoint syncer and it's not
-                    // allowed, ignore it
-                    if matches!(conf, CheckpointSyncerConf::LocalStorage { .. })
-                        && !self.allow_local_checkpoint_syncers
-                    {
-                        trace!(
-                            ?conf,
-                            "Ignoring disallowed LocalStorage based checkpoint syncer"
-                        );
-                        continue;
-                    }
 
-                    if let Ok(checkpoint_syncer) = conf.build(None) {
-                        checkpoint_syncers
-                            .insert(H160::from(validators[i]), checkpoint_syncer.into());
+        // Only use the most recently announced location for now.
+        let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
+        for (&validator, validator_storage_locations) in validators.iter().zip(storage_locations) {
+            for storage_location in validator_storage_locations.iter().rev() {
+                let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
+                    debug!(?validator, ?storage_location, "Could not parse checkpoint syncer config for validator");
+                    continue
+                };
+
+                // If this is a LocalStorage based checkpoint syncer and it's not
+                // allowed, ignore it
+                if !self.allow_local_checkpoint_syncers
+                    && matches!(config, CheckpointSyncerConf::LocalStorage { .. })
+                {
+                    debug!(
+                        ?config,
+                        "Ignoring disallowed LocalStorage based checkpoint syncer"
+                    );
+                    continue;
+                }
+
+                match config.build(None) {
+                    Ok(checkpoint_syncer) => {
+                        // found the syncer for this validator
+                        checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());
                         break;
                     }
+                    Err(err) => {
+                        debug!(
+                            error=%err,
+                            ?config,
+                            ?validator,
+                            "Error when loading checkpoint syncer; will attempt to use the next config"
+                        );
+                    }
                 }
+            }
+            if checkpoint_syncers.get(&validator.into()).is_none() {
+                warn!(
+                    ?validator,
+                    ?validator_storage_locations,
+                    "No valid checkpoint syncer configs for validator"
+                );
             }
         }
         Ok(MultisigCheckpointSyncer::new(checkpoint_syncers))
