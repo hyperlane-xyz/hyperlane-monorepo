@@ -101,6 +101,7 @@ impl MigrationTrait for Migration {
 
                 "dmsg"."{dmsg_id}" IS NOT NULL AS "is_delivered",
 
+                COALESCE("tgp"."{tgp_num_payments}", '0') AS "num_payments",
                 COALESCE("tgp"."{tgp_payment}", '0') AS "total_payment",
                 COALESCE("tgp"."{tgp_gas_amount}", '0') AS "total_gas_amount",
 
@@ -223,6 +224,7 @@ impl MigrationTrait for Migration {
             block_timestamp = Block::Timestamp.to_string(),
             tgp_table = TotalGasPayment::Table.to_string(),
             tgp_mid = TotalGasPayment::MsgId.to_string(),
+            tgp_num_payments = TotalGasPayment::NumPayments.to_string(),
             tgp_payment = TotalGasPayment::TotalPayment.to_string(),
             tgp_gas_amount = TotalGasPayment::TotalGasAmount.to_string(),
             dmsg_table = DeliveredMessage::Table.to_string(),

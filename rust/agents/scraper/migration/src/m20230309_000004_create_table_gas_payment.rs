@@ -78,6 +78,7 @@ impl MigrationTrait for Migration {
             CREATE VIEW "{tgp_table}" AS
             SELECT
                 "gp"."{gp_mid}" AS "{tgp_mid}",
+                COUNT("gp"."{gp_mid}") AS "{tgp_num_payments}",
                 SUM("gp"."{gp_payment}") AS "{tgp_payment}",
                 SUM("gp"."{gp_gas_amount}") AS "{tgp_gas_amount}"
             FROM "{gp_table}" AS "gp"
@@ -89,6 +90,7 @@ impl MigrationTrait for Migration {
                 gp_gas_amount = GasPayment::GasAmount.to_string(),
                 tgp_table = TotalGasPayment::Table.to_string(),
                 tgp_mid = TotalGasPayment::MsgId.to_string(),
+                tgp_num_payments = TotalGasPayment::NumPayments.to_string(),
                 tgp_payment = TotalGasPayment::TotalPayment.to_string(),
                 tgp_gas_amount = TotalGasPayment::TotalGasAmount.to_string(),
             ))
@@ -140,6 +142,7 @@ pub enum GasPayment {
 pub enum TotalGasPayment {
     Table,
     MsgId,
+    NumPayments,
     TotalPayment,
     TotalGasAmount,
 }
