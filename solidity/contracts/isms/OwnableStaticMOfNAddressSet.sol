@@ -190,7 +190,7 @@ contract OwnableStaticMOfNAddressSet is OwnableMOfNAddressSet {
      * @param _domain The domain to clear the set for
      */
     function _clear(uint32 _domain) internal virtual override {
-        _domainsWithSets.remove(_domain);
+        require(_domainsWithSets.remove(_domain), "unable to remove domain");
         StaticMOfNAddressSet.clear(_sets[_domain]);
     }
 }
