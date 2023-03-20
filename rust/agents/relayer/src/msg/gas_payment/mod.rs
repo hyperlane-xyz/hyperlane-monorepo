@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use eyre::Result;
-use tracing::{error, trace};
+use tracing::{debug, error, trace};
 
 use hyperlane_core::{
     db::HyperlaneDB, HyperlaneMessage, InterchainGasExpenditure, InterchainGasPayment,
@@ -104,6 +104,13 @@ impl GasPaymentEnforcer {
                 ?policy,
                 ?whitelist,
                 "Message matched whitelist for policy"
+            );
+            debug!(
+                msg=%message,
+                ?policy,
+                ?current_payment,
+                ?current_expenditure,
+                "Evaluating if message meets gas payment requirement",
             );
             return policy
                 .message_meets_gas_payment_requirement(

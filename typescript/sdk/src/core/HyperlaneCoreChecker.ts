@@ -26,6 +26,8 @@ import {
 
 const MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH =
   '0x29b7294ab3ad2e8587e5cce0e2289ce65e12a2ea2f1e7ab34a05e7737616f457';
+const MAILBOX_WITHOUT_LOCAL_DOMAIN_NONZERO_PAUSE_BYTE_CODE_HASH =
+  '0x4e73e34c0982b93eebb4ac4889e9e4e1611f7c24feacf016c3a13e389f146d9c';
 const TRANSPARENT_PROXY_BYTECODE_HASH =
   '0x4dde3d0906b6492bf1d4947f667afe8d53c8899f1d8788cabafd082938dceb2d';
 const MULTISIG_ISM_BYTECODE_HASH =
@@ -34,6 +36,8 @@ const PROXY_ADMIN_BYTECODE_HASH =
   '0x7c378e9d49408861ca754fe684b9f7d1ea525bddf095ee0463902df701453ba0';
 const INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH =
   '0xe995bcd732f4861606036357edb2a4d4c3e9b8d7e599fe548790ac1cf26888f8';
+const OWNER_INITIALIZABLE_INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH =
+  '0xd2c5b00ac2d058117491d581d63c3c4fcf6aeb2667c6cc0c7caed359c9eebea1';
 const OVERHEAD_IGP_BYTECODE_HASH =
   '0x3cfed1f24f1e9b28a76d5a8c61696a04f7bc474404b823a2fcc210ea52346252';
 
@@ -103,7 +107,10 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       chain,
       'Mailbox implementation',
       contracts.mailbox.addresses.implementation,
-      MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
+      [
+        MAILBOX_WITHOUT_LOCAL_DOMAIN_BYTE_CODE_HASH,
+        MAILBOX_WITHOUT_LOCAL_DOMAIN_NONZERO_PAUSE_BYTE_CODE_HASH,
+      ],
       (_) =>
         // This is obviously super janky but basically we are searching
         //  for the ocurrences of localDomain in the bytecode and remove
@@ -122,38 +129,41 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       chain,
       'Mailbox proxy',
       contracts.mailbox.address,
-      TRANSPARENT_PROXY_BYTECODE_HASH,
+      [TRANSPARENT_PROXY_BYTECODE_HASH],
     );
     await this.checkBytecode(
       chain,
       'InterchainGasPaymaster proxy',
       contracts.interchainGasPaymaster.address,
-      TRANSPARENT_PROXY_BYTECODE_HASH,
+      [TRANSPARENT_PROXY_BYTECODE_HASH],
     );
     await this.checkBytecode(
       chain,
       'ProxyAdmin',
       contracts.proxyAdmin.address,
-      PROXY_ADMIN_BYTECODE_HASH,
+      [PROXY_ADMIN_BYTECODE_HASH],
     );
     await this.checkBytecode(
       chain,
       'MultisigIsm implementation',
       contracts.multisigIsm.address,
-      MULTISIG_ISM_BYTECODE_HASH,
+      [MULTISIG_ISM_BYTECODE_HASH],
     );
     await this.checkBytecode(
       chain,
       'InterchainGasPaymaster implementation',
       contracts.interchainGasPaymaster.addresses.implementation,
-      INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+      [
+        INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+        OWNER_INITIALIZABLE_INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+      ],
     );
 
     await this.checkBytecode(
       chain,
       'OverheadIGP',
       contracts.defaultIsmInterchainGasPaymaster.address,
-      OVERHEAD_IGP_BYTECODE_HASH,
+      [OVERHEAD_IGP_BYTECODE_HASH],
       (_) =>
         // Remove the address of the wrapped ISM from the bytecode
         _.replaceAll(

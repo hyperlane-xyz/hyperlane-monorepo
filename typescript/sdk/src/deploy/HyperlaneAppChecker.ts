@@ -15,6 +15,7 @@ import {
   BytecodeMismatchViolation,
   CheckerViolation,
   OwnerViolation,
+  ProxyAdminViolation,
   ViolationType,
 } from './types';
 
@@ -79,7 +80,15 @@ export abstract class HyperlaneAppChecker<
     }
     if (proxyAdminAddress) {
       const admin = await proxyAdmin(provider, proxiedAddress.proxy);
-      utils.assert(admin === proxyAdminAddress, 'Proxy admin mismatch');
+      if (admin !== proxyAdminAddress) {
+        this.addViolation({
+          type: ViolationType.ProxyAdmin,
+          chain,
+          name,
+          expected: proxyAdminAddress,
+          actual: admin,
+        } as ProxyAdminViolation);
+      }
     }
   }
 
@@ -94,7 +103,7 @@ export abstract class HyperlaneAppChecker<
     chain: ChainName,
     name: string,
     address: string,
-    expectedBytecodeHash: string,
+    expectedBytecodeHashes: string[],
     modifyBytecodePriorToHash: (bytecode: string) => string = (_) => _,
   ): Promise<void> {
     const provider = this.multiProvider.getProvider(chain);
@@ -102,11 +111,11 @@ export abstract class HyperlaneAppChecker<
     const bytecodeHash = keccak256(
       modifyBytecodePriorToHash(this.removeBytecodeMetadata(bytecode)),
     );
-    if (bytecodeHash !== expectedBytecodeHash) {
+    if (!expectedBytecodeHashes.includes(bytecodeHash)) {
       this.addViolation({
         type: ViolationType.BytecodeMismatch,
         chain,
-        expected: expectedBytecodeHash,
+        expected: expectedBytecodeHashes,
         actual: bytecodeHash,
         name,
       } as BytecodeMismatchViolation);

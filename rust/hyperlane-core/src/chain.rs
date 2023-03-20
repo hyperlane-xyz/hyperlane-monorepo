@@ -75,6 +75,7 @@ impl From<&'_ Address> for H160 {
 pub enum KnownHyperlaneDomain {
     Ethereum = 1,
     Goerli = 5,
+    Sepolia = 11155111,
 
     Polygon = 137,
     Mumbai = 80001,
@@ -191,7 +192,7 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Goerli, Mumbai, Fuji, ArbitrumGoerli, OptimismGoerli, BinanceSmartChainTestnet,
-                Alfajores, MoonbaseAlpha, Zksync2Testnet
+                Alfajores, MoonbaseAlpha, Zksync2Testnet, Sepolia
             ],
             LocalTestChain: [Test1, Test2, Test3, FuelTest1],
         })
@@ -202,7 +203,7 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             HyperlaneDomainProtocol::Ethereum: [
-                Ethereum, Goerli, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
+                Ethereum, Goerli, Sepolia, Polygon, Mumbai, Avalanche, Fuji, Arbitrum, ArbitrumGoerli,
                 Optimism, OptimismGoerli, BinanceSmartChain, BinanceSmartChainTestnet, Celo, Gnosis,
                 Alfajores, Moonbeam, MoonbaseAlpha, Zksync2Testnet, Test1, Test2, Test3
             ],
@@ -430,10 +431,6 @@ mod tests {
 
     #[test]
     fn agent_json_config_consistency_checks() {
-        // TODO(webbhorn): Also verify with this functionality
-        // we have entries for all of the Gelato contract
-        // addresses we need hardcoded in the binary for now.
-
         // Verify that the hard-coded, macro-maintained
         // mapping in `hyperlane-core/src/chain.rs` named
         // by the macro `domain_and_chain` is complete
