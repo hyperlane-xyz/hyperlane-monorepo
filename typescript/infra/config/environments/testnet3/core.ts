@@ -1,13 +1,20 @@
-import { ChainMap, CoreConfig, objMap } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  CoreConfig,
+  defaultMultisigIsmConfigs,
+  objMap,
+} from '@hyperlane-xyz/sdk';
 
-import { multisigIsm } from './multisigIsm';
+import { chainNames } from './chains';
 import { owners } from './owners';
 
 export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
   return {
     owner,
     multisigIsm: Object.fromEntries(
-      Object.entries(multisigIsm).filter(([chain]) => chain !== local),
+      Object.entries(defaultMultisigIsmConfigs).filter(
+        ([chain]) => chain !== local && chainNames.includes(chain),
+      ),
     ),
   };
 });

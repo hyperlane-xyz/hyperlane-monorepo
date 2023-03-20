@@ -14,9 +14,7 @@ import { ChainMap, ChainName } from '../types';
 
 import { IgpContracts, igpFactories } from './contracts';
 
-export type IgpContractsMap = {
-  [chain: ChainName]: IgpContracts;
-};
+export type IgpContractsMap = ChainMap<IgpContracts>;
 
 export class HyperlaneIgp extends HyperlaneApp<IgpContracts> {
   constructor(contractsMap: IgpContractsMap, multiProvider: MultiProvider) {

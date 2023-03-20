@@ -78,14 +78,15 @@ export class MultiProvider {
       const { name, chainId, domainId } = chainMetadata;
       if (name == metadata.name)
         throw new Error(`Duplicate chain name: ${name}`);
-      if (
+      // Chain and Domain Ids should be globally unique
+      const idCollision =
         chainId == metadata.chainId ||
         domainId == metadata.chainId ||
         (metadata.domainId &&
-          (chainId == metadata.domainId || domainId === metadata.domainId))
-      )
+          (chainId == metadata.domainId || domainId === metadata.domainId));
+      if (idCollision)
         throw new Error(
-          `Chain/Domain id conflict: ${name} and ${metadata.name}`,
+          `Chain/Domain id collision: ${name} and ${metadata.name}`,
         );
     }
     this.metadata[metadata.name] = metadata;

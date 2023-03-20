@@ -14,9 +14,7 @@ import { ChainMap, ChainName } from '../types';
 
 import { CoreContracts, coreFactories } from './contracts';
 
-export type CoreContractsMap = {
-  [chain: ChainName]: CoreContracts;
-};
+export type CoreContractsMap = ChainMap<CoreContracts>;
 
 export type DispatchedMessage = {
   id: string;

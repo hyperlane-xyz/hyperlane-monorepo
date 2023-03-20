@@ -49,7 +49,7 @@ task('kathy', 'Dispatches random hyperlane messages')
       const [signer] = await hre.ethers.getSigners();
       const multiProvider = MultiProvider.createTestMultiProvider({ signer });
       const core = HyperlaneCore.fromEnvironment(environment, multiProvider);
-      const igp = HyperlaneIgp.fromEnvironment(environment, multiProvider);
+      const igps = HyperlaneIgp.fromEnvironment(environment, multiProvider);
 
       const randomElement = <T>(list: T[]) =>
         list[Math.floor(Math.random() * list.length)];
@@ -67,13 +67,13 @@ task('kathy', 'Dispatches random hyperlane messages')
         const remote: ChainName = randomElement(core.remoteChains(local));
         const remoteId = multiProvider.getDomainId(remote);
         const mailbox = core.getContracts(local).mailbox.contract;
-        const igpC = igp.getContracts(local).interchainGasPaymaster.contract;
+        const igp = igps.getContracts(local).interchainGasPaymaster.contract;
         // Send a batch of messages to the destination chain to test
         // the relayer submitting only greedily
         for (let i = 0; i < 10; i++) {
           await recipient.dispatchToSelf(
             mailbox.address,
-            igpC.address,
+            igp.address,
             remoteId,
             '0x1234',
             {

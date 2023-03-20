@@ -22,7 +22,7 @@ async function main() {
     KEY_ROLE_ENUM.Deployer,
     Contexts.Hyperlane, // Owner should always be from the hyperlane context
   );
-  const configMap = await getRouterConfig(environment, multiProvider);
+  const configMap = await getRouterConfig(environment, multiProvider, true);
   const checker = new HelloWorldChecker(multiProvider, app, configMap);
   await checker.check();
   checker.expectEmpty();

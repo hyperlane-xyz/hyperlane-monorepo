@@ -33,7 +33,7 @@ async function main() {
     Contexts.Hyperlane,
     KEY_ROLE_ENUM.Deployer,
   );
-  const configMap = await getRouterConfig(environment, multiProvider);
+  const configMap = await getRouterConfig(environment, multiProvider, true);
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
     multiProvider,

@@ -218,6 +218,7 @@ export async function assertCorrectKubeContext(
 export async function getRouterConfig(
   environment: DeployEnvironment,
   multiProvider: MultiProvider,
+  useMultiProviderOwners = false,
 ): Promise<ChainMap<RouterConfig>> {
   const core = HyperlaneCore.fromEnvironment(
     deployEnvToSdkEnv[environment],
@@ -227,13 +228,16 @@ export async function getRouterConfig(
     deployEnvToSdkEnv[environment],
     multiProvider,
   );
+  const owners = getCoreEnvironmentConfig(environment).owners;
   const config: ChainMap<RouterConfig> = {};
   for (const chain of multiProvider.getKnownChainNames()) {
     config[chain] = {
-      owner: await multiProvider.getSignerAddress(chain),
+      owner: useMultiProviderOwners
+        ? await multiProvider.getSignerAddress(chain)
+        : owners[chain],
       mailbox: core.getContracts(chain).mailbox.address,
       interchainGasPaymaster:
-        igp.getContracts(chain).interchainGasPaymaster.address,
+        igp.getContracts(chain).defaultIsmInterchainGasPaymaster.address,
     };
   }
   return config;

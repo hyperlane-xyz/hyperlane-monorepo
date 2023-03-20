@@ -17,7 +17,7 @@ else
   exit 1
 fi
 
-anvil -f-url $RPC_URL --block-time 3 --silent &
+anvil --fork-url $RPC_URL --block-time 3 --silent &
 ANVIL_PID=$!
 
 while ! cast bn; do
