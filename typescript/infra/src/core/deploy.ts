@@ -21,8 +21,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { types } from '@hyperlane-xyz/utils';
 
-import { DeployEnvironment, RustChainSetup, RustConfig } from '../config';
-import { ConnectionType } from '../config/agent';
+import { DeployEnvironment, RustConfig } from '../config';
+import { RustChainSetupBase } from '../config/agent';
 import { deployEnvToSdkEnv } from '../config/environment';
 import { writeJSON } from '../utils/utils';
 
@@ -125,7 +125,7 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
         return;
       }
 
-      const chainConfig: RustChainSetup = {
+      const chainConfig: RustChainSetupBase = {
         name: chain,
         domain: metadata.chainId,
         addresses: {
@@ -133,13 +133,8 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
           interchainGasPaymaster: contracts.interchainGasPaymaster.address,
           validatorAnnounce: contracts.validatorAnnounce.address,
         },
-        signer: null,
         protocol: 'ethereum',
         finalityBlocks: metadata.blocks!.reorgPeriod!,
-        connection: {
-          type: ConnectionType.Http,
-          url: '',
-        },
       };
 
       const startingBlockNumber = this.startingBlockNumbers[chain];
@@ -147,6 +142,7 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
         chainConfig.index = { from: startingBlockNumber };
       }
 
+      // this lets us avoid defaults that should be set in overriding configs
       rustConfig.chains[chain] = chainConfig;
     });
     writeJSON(

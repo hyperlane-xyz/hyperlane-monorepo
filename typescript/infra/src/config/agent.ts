@@ -231,7 +231,8 @@ export type RustConnection =
       url: string;
     }
   | { type: ConnectionType.Ws; url: string }
-  | { type: ConnectionType.HttpQuorum; urls: string };
+  | { type: ConnectionType.HttpQuorum; urls: string }
+  | { type: ConnectionType.HttpFallback; urls: string };
 
 export type RustCoreAddresses = {
   mailbox: types.Address;
@@ -239,19 +240,24 @@ export type RustCoreAddresses = {
   validatorAnnounce: types.Address;
 };
 
-export type RustChainSetup = {
+export interface RustChainSetupBase {
   name: ChainName;
   domain: number;
-  signer?: RustSigner | null;
+  signer?: RustSigner;
   finalityBlocks: number;
   addresses: RustCoreAddresses;
   protocol: 'ethereum' | 'fuel';
-  connection: RustConnection;
+  connection?: RustConnection;
   index?: { from: number };
-};
+}
+
+export interface RustChainSetup extends RustChainSetupBase {
+  signer: RustSigner;
+  connection: RustConnection;
+}
 
 export type RustConfig = {
-  chains: Partial<ChainMap<RustChainSetup>>;
+  chains: Partial<ChainMap<RustChainSetupBase>>;
   tracing?: {
     level?: string;
     fmt?: 'json';
