@@ -11,6 +11,8 @@ import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
 abstract contract OwnableMOfNAddressSetTest is Test {
     using TypeCasts for address;
+    event DomainAdded(uint32 indexed domain);
+    event DomainRemoved(uint32 indexed domain);
     event ValueAdded(
         uint32 indexed domain,
         address indexed value,
@@ -117,9 +119,14 @@ abstract contract OwnableMOfNAddressSetTest is Test {
         uint8 threshold = 1;
         vm.assume(value != address(0));
         set.add(domain, value);
-        vm.expectEmit(true, true, false, true, address(set));
+        vm.expectEmit(true, true, true, true, address(set));
+        emit DomainAdded(domain);
+        vm.expectEmit(true, true, true, true, address(set));
         emit ThresholdSet(domain, threshold);
         set.setThreshold(domain, threshold);
+        assertEq(set.threshold(domain), threshold);
+        assertEq(set.domains().length, 1);
+        assertEq(set.domains()[0], domain);
     }
 
     function testSetThresholdZero(uint32 domain, address value) public {
@@ -162,10 +169,41 @@ abstract contract OwnableMOfNAddressSetTest is Test {
         }
         for (uint256 i = 0; i < domains.length; i++) {
             if (skip[i]) continue;
-            vm.expectEmit(true, true, false, true, address(set));
+            vm.expectEmit(true, true, true, true, address(set));
+            emit DomainAdded(domains[i]);
+            vm.expectEmit(true, true, true, true, address(set));
             emit ThresholdSet(domains[i], threshold);
         }
         set.setThresholds(domains, thresholds);
+    }
+
+    function testRemoveDomain(
+        uint32 domain,
+        uint8 threshold,
+        uint8 numValues
+    ) public {
+        vm.assume(numValues < 32 && 0 < threshold && threshold <= numValues);
+        address firstValue = 0x3b2949fFFa5DC0bb41492AeBd12A89B286339858;
+        for (uint8 i = 0; i < numValues; i++) {
+            address value = address(uint160(firstValue) + i);
+            set.add(domain, value);
+        }
+        set.setThreshold(domain, threshold);
+        uint32[] memory domains = set.domains();
+        assertEq(domains.length, 1);
+        assertEq(domains[0], domain);
+        vm.expectEmit(true, true, true, true, address(set));
+        emit DomainRemoved(domain);
+        set.removeDomain(domain);
+        domains = set.domains();
+        assertEq(domains.length, 0);
+        assertEq(set.threshold(domain), 0);
+        assertEq(set.values(domain).length, 0);
+    }
+
+    function testRemoveDomainNotPresent(uint32 domain) public {
+        vm.expectRevert(bytes("unable to remove domain"));
+        set.removeDomain(domain);
     }
 
     function testContains(uint32 domain, address value) public {

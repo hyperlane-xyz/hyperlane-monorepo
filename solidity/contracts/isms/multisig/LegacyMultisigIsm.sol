@@ -12,6 +12,7 @@ import {IMultisigIsm} from "../../../interfaces/IMultisigIsm.sol";
 import {Message} from "../../libs/Message.sol";
 import {LegacyMultisigIsmMetadata} from "../../libs/LegacyMultisigIsmMetadata.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
+import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 
 /**
  * @title MultisigIsm
@@ -326,7 +327,12 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
             // non-zero computed commitment, and this check will fail
             // as the commitment in storage will be zero.
             require(_commitment == commitment[_origin], "!commitment");
-            _digest = _getCheckpointDigest(_metadata, _origin);
+            _digest = CheckpointLib.digest(
+                _origin,
+                LegacyMultisigIsmMetadata.originMailbox(_metadata),
+                LegacyMultisigIsmMetadata.root(_metadata),
+                LegacyMultisigIsmMetadata.index(_metadata)
+            );
         }
         uint256 _validatorCount = _metadata.validatorCount();
         uint256 _validatorIndex = 0;
@@ -345,54 +351,5 @@ contract LegacyMultisigIsm is IMultisigIsm, Ownable {
             ++_validatorIndex;
         }
         return true;
-    }
-
-    /**
-     * @notice Returns the domain hash that validators are expected to use
-     * when signing checkpoints.
-     * @param _origin The origin domain of the checkpoint.
-     * @param _originMailbox The address of the origin mailbox as bytes32.
-     * @return The domain hash.
-     */
-    function _getDomainHash(uint32 _origin, bytes32 _originMailbox)
-        internal
-        pure
-        returns (bytes32)
-    {
-        // Including the origin mailbox address in the signature allows the slashing
-        // protocol to enroll multiple mailboxes. Otherwise, a valid signature for
-        // mailbox A would be indistinguishable from a fraudulent signature for mailbox
-        // B.
-        // The slashing protocol should slash if validators sign attestations for
-        // anything other than a whitelisted mailbox.
-        return
-            keccak256(abi.encodePacked(_origin, _originMailbox, "HYPERLANE"));
-    }
-
-    /**
-     * @notice Returns the digest validators are expected to sign when signing checkpoints.
-     * @param _metadata ABI encoded module metadata (see LegacyMultisigIsmMetadata.sol)
-     * @param _origin The origin domain of the checkpoint.
-     * @return The digest of the checkpoint.
-     */
-    function _getCheckpointDigest(bytes calldata _metadata, uint32 _origin)
-        internal
-        pure
-        returns (bytes32)
-    {
-        bytes32 _domainHash = _getDomainHash(
-            _origin,
-            _metadata.originMailbox()
-        );
-        return
-            ECDSA.toEthSignedMessageHash(
-                keccak256(
-                    abi.encodePacked(
-                        _domainHash,
-                        _metadata.root(),
-                        _metadata.index()
-                    )
-                )
-            );
     }
 }

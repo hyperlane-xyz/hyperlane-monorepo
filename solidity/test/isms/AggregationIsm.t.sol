@@ -9,6 +9,7 @@ import {StaticAggregationIsm} from "../../contracts/isms/aggregation/StaticAggre
 import {StorageAggregationIsm} from "../../contracts/isms/aggregation/StorageAggregationIsm.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {AggregationIsmMetadata} from "../../contracts/libs/AggregationIsmMetadata.sol";
+import {MOfNTestUtils} from "./MOfNTestUtils.sol";
 
 contract TestIsm {
     bytes public requiredMetadata;
@@ -35,25 +36,6 @@ interface IStaticOrStorageAggregationIsm is IMOfNAddressSet, IAggregationIsm {}
 abstract contract AggregationIsmTest is Test {
     IStaticOrStorageAggregationIsm ism;
 
-    function choose(
-        uint8 m,
-        uint8 n,
-        bytes32 seed
-    ) private pure returns (uint256) {
-        uint8 chosen = 0;
-        uint256 bitmask = 0;
-        bytes32 randomness = seed;
-        while (chosen < m) {
-            randomness = keccak256(abi.encodePacked(randomness));
-            uint256 choice = (1 << (uint256(randomness) % n));
-            if ((bitmask & choice) == 0) {
-                bitmask = bitmask | choice;
-                chosen += 1;
-            }
-        }
-        return bitmask;
-    }
-
     function deployIsms(
         uint32 domain,
         uint8 m,
@@ -75,16 +57,19 @@ abstract contract AggregationIsmTest is Test {
     function getMetadata(
         uint32 domain,
         uint8 m,
-        uint8 n,
         bytes32 seed
     ) private view returns (bytes memory) {
-        uint256 bitmask = choose(m, n, seed);
+        address[] memory choices = ism.values(domain);
+        address[] memory chosen = MOfNTestUtils.choose(m, choices, seed);
         bytes memory offsets;
-        uint32 start = 8 * uint32(n);
+        uint32 start = 8 * uint32(choices.length);
         bytes memory metametadata;
-        for (uint256 i = 0; i < n; i++) {
-            bool chosen = (bitmask & (1 << i)) > 0;
-            if (chosen) {
+        for (uint256 i = 0; i < choices.length; i++) {
+            bool included = false;
+            for (uint256 j = 0; j < chosen.length; j++) {
+                included = included || choices[i] == chosen[j];
+            }
+            if (included) {
                 bytes memory requiredMetadata = TestIsm(ism.values(domain)[i])
                     .requiredMetadata();
                 uint32 end = start + uint32(requiredMetadata.length);
@@ -112,7 +97,7 @@ abstract contract AggregationIsmTest is Test {
         vm.assume(messageSuffix.length < 100);
         deployIsms(domain, m, n, seed);
 
-        bytes memory metadata = getMetadata(domain, m, n, seed);
+        bytes memory metadata = getMetadata(domain, m, seed);
         bytes memory message = abi.encodePacked(
             messagePrefix,
             domain,
@@ -136,7 +121,7 @@ abstract contract AggregationIsmTest is Test {
         bytes memory noMetadata;
         TestIsm(ism.values(domain)[i]).setRequiredMetadata(noMetadata);
 
-        bytes memory metadata = getMetadata(domain, m, n, seed);
+        bytes memory metadata = getMetadata(domain, m, seed);
         bytes memory message = abi.encodePacked(
             messagePrefix,
             domain,
@@ -158,7 +143,7 @@ abstract contract AggregationIsmTest is Test {
         deployIsms(domain, m, n, seed);
 
         // Populate metadata for one fewer ISMs than needed.
-        bytes memory metadata = getMetadata(domain, m - 1, n, seed);
+        bytes memory metadata = getMetadata(domain, m - 1, seed);
         bytes memory message = abi.encodePacked(
             messagePrefix,
             domain,
@@ -180,7 +165,7 @@ abstract contract AggregationIsmTest is Test {
         vm.assume(messageSuffix.length < 100);
         deployIsms(domain, m, n, seed);
 
-        bytes memory metadata = getMetadata(domain, m, n, seed);
+        bytes memory metadata = getMetadata(domain, m, seed);
         // Modify the last byte in metadata. This should affect
         // the content of the metadata passed to the last ISM.
         if (metadata[metadata.length - 1] == bytes1(0)) {

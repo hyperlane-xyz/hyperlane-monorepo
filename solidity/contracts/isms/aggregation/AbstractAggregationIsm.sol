@@ -7,9 +7,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurityModule.sol";
 import {IAggregationIsm} from "../../../interfaces/IAggregationIsm.sol";
-import {Message} from "../../libs/Message.sol";
 import {AggregationIsmMetadata} from "../../libs/AggregationIsmMetadata.sol";
-import {MerkleLib} from "../../libs/Merkle.sol";
 
 /**
  * @title AggregationIsm
@@ -17,12 +15,6 @@ import {MerkleLib} from "../../libs/Merkle.sol";
  * interchain messages.
  */
 abstract contract AbstractAggregationIsm is IAggregationIsm {
-    // ============ Libraries ============
-
-    using Message for bytes;
-    using AggregationIsmMetadata for bytes;
-    using MerkleLib for MerkleLib.Tree;
-
     // ============ Constants ============
 
     uint8 public constant moduleType =

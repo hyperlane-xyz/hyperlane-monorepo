@@ -14,7 +14,7 @@ interface IMOfNAddressSet {
         uint8[] calldata _thresholds
     ) external;
 
-    function clear(uint32 _domain) external;
+    function removeDomain(uint32 _domain) external;
 
     function contains(uint32 _domain, address _value)
         external

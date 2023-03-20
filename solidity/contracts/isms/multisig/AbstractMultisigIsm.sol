@@ -9,6 +9,7 @@ import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurity
 import {IMultisigIsm} from "../../../interfaces/IMultisigIsm.sol";
 import {Message} from "../../libs/Message.sol";
 import {MultisigIsmMetadata} from "../../libs/MultisigIsmMetadata.sol";
+import {CheckpointLib} from "../../libs/CheckpointLib.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
 
 /**
@@ -17,12 +18,6 @@ import {MerkleLib} from "../../libs/Merkle.sol";
  * interchain messages.
  */
 abstract contract AbstractMultisigIsm is IMultisigIsm {
-    // ============ Libraries ============
-
-    using Message for bytes;
-    using MultisigIsmMetadata for bytes;
-    using MerkleLib for MerkleLib.Tree;
-
     // ============ Constants ============
 
     uint8 public constant moduleType =
@@ -77,11 +72,11 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
     ) internal pure returns (bool) {
         // calculate the expected root based on the proof
         bytes32 _calculatedRoot = MerkleLib.branchRoot(
-            _message.id(),
-            _metadata.proof(),
-            _message.nonce()
+            Message.id(_message),
+            MultisigIsmMetadata.proof(_metadata),
+            Message.nonce(_message)
         );
-        return _calculatedRoot == _metadata.root();
+        return _calculatedRoot == MultisigIsmMetadata.root(_metadata);
     }
 
     /**
@@ -99,19 +94,25 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
             uint8 _threshold
         ) = validatorsAndThreshold(_message);
         require(_threshold > 0, "No MultisigISM threshold present for message");
-        bytes32 _digest = _getCheckpointDigest(
-            _metadata,
-            Message.origin(_message)
+        bytes32 _digest = CheckpointLib.digest(
+            Message.origin(_message),
+            MultisigIsmMetadata.originMailbox(_metadata),
+            MultisigIsmMetadata.root(_metadata),
+            MultisigIsmMetadata.index(_metadata)
         );
         uint256 _validatorCount = _validators.length;
         uint256 _validatorIndex = 0;
         // Assumes that signatures are ordered by validator
         for (uint256 i = 0; i < _threshold; ++i) {
-            address _signer = ECDSA.recover(_digest, _metadata.signatureAt(i));
+            address _signer = ECDSA.recover(
+                _digest,
+                MultisigIsmMetadata.signatureAt(_metadata, i)
+            );
             // Loop through remaining validators until we find a match
             for (
                 ;
-                _validatorIndex < _validatorCount && _signer != _validators[i];
+                _validatorIndex < _validatorCount &&
+                    _signer != _validators[_validatorIndex];
                 ++_validatorIndex
             ) {}
             // Fail if we never found a match
@@ -119,54 +120,5 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
             ++_validatorIndex;
         }
         return true;
-    }
-
-    /**
-     * @notice Returns the domain hash that validators are expected to use
-     * when signing checkpoints.
-     * @param _origin The origin domain of the checkpoint.
-     * @param _originMailbox The address of the origin mailbox as bytes32.
-     * @return The domain hash.
-     */
-    function _getDomainHash(uint32 _origin, bytes32 _originMailbox)
-        internal
-        pure
-        returns (bytes32)
-    {
-        // Including the origin mailbox address in the signature allows the slashing
-        // protocol to enroll multiple mailboxes. Otherwise, a valid signature for
-        // mailbox A would be indistinguishable from a fraudulent signature for mailbox
-        // B.
-        // The slashing protocol should slash if validators sign attestations for
-        // anything other than a whitelisted mailbox.
-        return
-            keccak256(abi.encodePacked(_origin, _originMailbox, "HYPERLANE"));
-    }
-
-    /**
-     * @notice Returns the digest validators are expected to sign when signing checkpoints.
-     * @param _metadata ABI encoded module metadata (see MultisigIsmMetadata.sol)
-     * @param _origin The origin domain of the checkpoint.
-     * @return The digest of the checkpoint.
-     */
-    function _getCheckpointDigest(bytes calldata _metadata, uint32 _origin)
-        internal
-        pure
-        returns (bytes32)
-    {
-        bytes32 _domainHash = _getDomainHash(
-            _origin,
-            _metadata.originMailbox()
-        );
-        return
-            ECDSA.toEthSignedMessageHash(
-                keccak256(
-                    abi.encodePacked(
-                        _domainHash,
-                        _metadata.root(),
-                        _metadata.index()
-                    )
-                )
-            );
     }
 }

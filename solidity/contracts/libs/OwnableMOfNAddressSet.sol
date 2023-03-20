@@ -129,6 +129,7 @@ abstract contract OwnableMOfNAddressSet is IMOfNAddressSet, Ownable {
         bool _domainAdded = threshold(_domain) == 0;
         _setThreshold(_domain, _threshold);
         if (_domainAdded) {
+            _addDomain(_domain);
             emit DomainAdded(_domain);
         }
         emit ThresholdSet(_domain, _threshold);
@@ -138,8 +139,8 @@ abstract contract OwnableMOfNAddressSet is IMOfNAddressSet, Ownable {
      * @notice Clears the set for _domain
      * @param _domain The domain to clear the set for
      */
-    function clear(uint32 _domain) public onlyOwner {
-        _clear(_domain);
+    function removeDomain(uint32 _domain) public onlyOwner {
+        _removeDomain(_domain);
         emit DomainRemoved(_domain);
     }
 
@@ -236,8 +237,14 @@ abstract contract OwnableMOfNAddressSet is IMOfNAddressSet, Ownable {
     function _setThreshold(uint32 _domain, uint8 _threshold) internal virtual;
 
     /**
-     * @notice Clears the set for _domain
-     * @param _domain The domain to clear the set for
+     * @notice Adds domain to the list of domains
+     * @param _domain The domain to add
      */
-    function _clear(uint32 _domain) internal virtual;
+    function _addDomain(uint32 _domain) internal virtual;
+
+    /**
+     * @notice Removes the set for _domain
+     * @param _domain The domain to remove the set for
+     */
+    function _removeDomain(uint32 _domain) internal virtual;
 }

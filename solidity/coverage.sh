@@ -13,3 +13,5 @@ rm -rf coverage && \
 lcov --remove lcov.info -o lcov.info 'contracts/test/**' 'contracts/mock/**' '**/node_modules/**' 'test/*' && \
 # Print output
 lcov --list lcov.info
+# Write more granular output
+genhtml -o coverage lcov.info

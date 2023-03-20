@@ -48,19 +48,6 @@ library StorageMOfNAddressSet {
     }
 
     /**
-     * @notice Removes one or more values from the set
-     * @param _set The set to remove from
-     * @param _values The values to remove from the set
-     */
-    function remove(AddressSet storage _set, address[] memory _values)
-        internal
-    {
-        for (uint256 i = 0; i < _values.length; i++) {
-            _remove(_set, _values[i]);
-        }
-    }
-
-    /**
      * @notice Sets the set threshold
      * @dev Must be between (inclusive) 1 and the set size
      * @param _set The set to set the threshold on
