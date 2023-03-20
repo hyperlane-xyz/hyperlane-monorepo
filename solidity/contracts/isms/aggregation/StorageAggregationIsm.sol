@@ -8,8 +8,8 @@ import {AggregationIsmMetadata} from "../../libs/AggregationIsmMetadata.sol";
 
 /**
  * @title StorageAggregationIsm
- * @notice Manages per-domain m-of-n Validator sets in storage that are used
- * to verify interchain messages.
+ * @notice Manages per-domain m-of-n ISM sets that are used to verify
+ * interchain messages.
  */
 contract StorageAggregationIsm is
     OwnableStorageMOfNAddressSet,
@@ -18,12 +18,12 @@ contract StorageAggregationIsm is
     // ============ Public Functions ============
 
     /**
-     * @notice Returns the set of validators responsible for verifying _message
-     * and the number of signatures required
+     * @notice Returns the set of ISMs responsible for verifying _message
+     * and the number of ISMs that must verify
      * @dev Can change based on the content of _message
      * @param _message Hyperlane formatted interchain message
-     * @return validators The array of validator addresses
-     * @return threshold The number of validator signatures needed
+     * @return isms The array of ISM addresses
+     * @return threshold The number of ISMs needed to verify
      */
     function ismsAndThreshold(bytes calldata _message)
         public

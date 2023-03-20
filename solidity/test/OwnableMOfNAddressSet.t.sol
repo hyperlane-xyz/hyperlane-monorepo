@@ -62,7 +62,6 @@ abstract contract OwnableMOfNAddressSetTest is Test {
         set.add(domain, value);
     }
 
-    /*
     function testAddMany(uint8 numDomains, uint8 numValues) public {
         vm.assume(numDomains < 32 && numValues < 32);
         uint32 firstDomain = 100_000;
@@ -82,7 +81,6 @@ abstract contract OwnableMOfNAddressSetTest is Test {
         }
         set.addMany(domains, values);
     }
-    */
 
     function testRemove(uint32 domain, address value) public {
         vm.assume(value != address(0x0));

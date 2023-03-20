@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 /**
  * Format of metadata:
+ *
  * [????:????] Metadata start/end uint32 offsets, packed as uint64
  * [????:????] ISM metadata, packed encoding
  */
@@ -12,7 +13,8 @@ library AggregationIsmMetadata {
     /**
      * @notice Returns whether or not metadata was provided for the ISM at
      * `_index`
-     * @dev Callers must ensure `_index < count(_metadata)`
+     * @dev Callers must ensure _index is less than the number of metadatas
+     * provided
      * @param _metadata Encoded Aggregation ISM metadata
      * @param _index The index of the ISM to check for metadata for
      * @return Whether or not metadata was provided for the ISM at `_index`
@@ -28,7 +30,8 @@ library AggregationIsmMetadata {
 
     /**
      * @notice Returns the metadata provided for the ISM at `_index`
-     * @dev Callers must ensure `_index < count(_metadata)`
+     * @dev Callers must ensure _index is less than the number of metadatas
+     * provided
      * @dev Callers must ensure `hasMetadata(_metadata, _index)`
      * @param _metadata Encoded Aggregation ISM metadata
      * @param _index The index of the ISM to return metadata for
@@ -46,7 +49,8 @@ library AggregationIsmMetadata {
     /**
      * @notice Returns the offsets of the metadata provided for the ISM at
      * `_index`, or zeroes if not provided
-     * @dev Callers must ensure `_index < count(_metadata)`
+     * @dev Callers must ensure _index is less than the number of metadatas
+     * provided
      * @param _metadata Encoded Aggregation ISM metadata
      * @param _index The index of the ISM to return metadata offsets for
      * @return The offsets of the metadata provided for the ISM at `_index`, or

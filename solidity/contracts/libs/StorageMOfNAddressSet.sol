@@ -72,6 +72,18 @@ library StorageMOfNAddressSet {
     }
 
     /**
+     * @notice Clears the set
+     * @param _set The set to clear
+     */
+    function clear(AddressSet storage _set) internal {
+        _set.threshold = 0;
+        address[] memory _values = values(_set);
+        for (uint256 i = 0; i < _values.length; i++) {
+            _set.values.remove(_values[i]);
+        }
+    }
+
+    /**
      * @notice Returns all values in the set
      * @param _set The set whose values are returned
      * @return All values in the set
@@ -82,20 +94,6 @@ library StorageMOfNAddressSet {
         returns (address[] memory)
     {
         return _set.values.values();
-    }
-
-    /**
-     * @notice Returns the address at index `i`
-     * @param _set The set to return the address from
-     * @param i The index of the address to return
-     * @return The address at index `i`
-     */
-    function at(AddressSet storage _set, uint8 i)
-        internal
-        view
-        returns (address)
-    {
-        return _set.values.at(i);
     }
 
     /**

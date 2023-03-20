@@ -8,11 +8,18 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IMOfNAddressSet} from "../../interfaces/IMOfNAddressSet.sol";
 import {Message} from "./Message.sol";
 
-// TODO: Add domains(), ability to remove domain.
 abstract contract OwnableMOfNAddressSet is IMOfNAddressSet, Ownable {
-    // ============ Libraries ============
+    /**
+     * @notice Emitted when a set is added for domain
+     * @param domain The remote domain of the set.
+     */
+    event DomainAdded(uint32 indexed domain);
 
-    using Message for bytes;
+    /**
+     * @notice Emitted when a set is removed for a domain
+     * @param domain The remote domain of the set.
+     */
+    event DomainRemoved(uint32 indexed domain);
 
     /**
      * @notice Emitted when a value is added to a set.
@@ -67,7 +74,7 @@ abstract contract OwnableMOfNAddressSet is IMOfNAddressSet, Ownable {
         _addMany(_domains, _values);
         for (uint256 i = 0; i < _domains.length; i += 1) {
             uint32 _domain = _domains[i];
-            uint256 _startLength = length(_domain);
+            uint256 _startLength = length(_domain) - _values[i].length;
             for (uint256 j = 0; j < _values[i].length; j += 1) {
                 emit ValueAdded(_domain, _values[i][j], _startLength + j + 1);
             }
@@ -111,18 +118,6 @@ abstract contract OwnableMOfNAddressSet is IMOfNAddressSet, Ownable {
         }
     }
 
-    /**
-     * @notice Returns whether an address is contained in a set.
-     * @param _domain The remote domain of the set.
-     * @param _value The address to test for set membership.
-     * @return True if the address is contained, false otherwise.
-     */
-    function contains(uint32 _domain, address _value)
-        public
-        view
-        virtual
-        returns (bool);
-
     // ============ Public Functions ============
 
     /**
@@ -131,8 +126,21 @@ abstract contract OwnableMOfNAddressSet is IMOfNAddressSet, Ownable {
      * @param _threshold The new quorum threshold.
      */
     function setThreshold(uint32 _domain, uint8 _threshold) public onlyOwner {
+        bool _domainAdded = threshold(_domain) == 0;
         _setThreshold(_domain, _threshold);
+        if (_domainAdded) {
+            emit DomainAdded(_domain);
+        }
         emit ThresholdSet(_domain, _threshold);
+    }
+
+    /**
+     * @notice Clears the set for _domain
+     * @param _domain The domain to clear the set for
+     */
+    function clear(uint32 _domain) public onlyOwner {
+        _clear(_domain);
+        emit DomainRemoved(_domain);
     }
 
     /**
@@ -160,6 +168,29 @@ abstract contract OwnableMOfNAddressSet is IMOfNAddressSet, Ownable {
      */
     function length(uint32 _domain) public view virtual returns (uint256);
 
+    /**
+     * @notice Returns the array of domains that have non-empty sets
+     * @return The array of domains that have non-empty sets
+     */
+    function domains() public view virtual returns (uint32[] memory);
+
+    /**
+     * @notice Returns whether an address is contained in a set.
+     * @param _domain The remote domain of the set.
+     * @param _value The address to test for set membership.
+     * @return True if the address is contained, false otherwise.
+     */
+    function contains(uint32 _domain, address _value)
+        public
+        view
+        virtual
+        returns (bool);
+
+    /**
+     * @notice Returns the current set and threshold.
+     * @param _domain The remote domain of the set.
+     * @return The current set and threshold.
+     */
     function valuesAndThreshold(uint32 _domain)
         public
         view
@@ -203,4 +234,10 @@ abstract contract OwnableMOfNAddressSet is IMOfNAddressSet, Ownable {
      * @param _threshold The new quorum threshold.
      */
     function _setThreshold(uint32 _domain, uint8 _threshold) internal virtual;
+
+    /**
+     * @notice Clears the set for _domain
+     * @param _domain The domain to clear the set for
+     */
+    function _clear(uint32 _domain) internal virtual;
 }

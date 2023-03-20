@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+// ============ External Imports ============
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
 
@@ -9,9 +12,15 @@ import {StorageMOfNAddressSet} from "../libs/StorageMOfNAddressSet.sol";
 
 /**
  * @title OwnableStorageMOfNAddressSet
+ * @dev Implements OwnableMOfNAddressSet using the StorageMOfNAddressSet library
  */
 contract OwnableStorageMOfNAddressSet is OwnableMOfNAddressSet {
-    // ============ Public Storage ============
+    // ============ Libraries ============
+
+    using EnumerableSet for EnumerableSet.UintSet;
+
+    // ============ Private Storage ============
+    EnumerableSet.UintSet private _domainsWithSets;
     mapping(uint32 => StorageMOfNAddressSet.AddressSet) private _sets;
 
     // ============ Constructor ============
@@ -82,15 +91,28 @@ contract OwnableStorageMOfNAddressSet is OwnableMOfNAddressSet {
         return StorageMOfNAddressSet.length(_sets[_domain]);
     }
 
+    /**
+     * @notice Returns the array of domains that have non-empty sets
+     * @return The array of domains that have non-empty sets
+     */
+    function domains() public view virtual override returns (uint32[] memory) {
+        uint256[] memory _uint256Domains = _domainsWithSets.values();
+        uint32[] memory _uint32Domains = new uint32[](_uint256Domains.length);
+        for (uint256 i = 0; i < _uint256Domains.length; i++) {
+            _uint32Domains[i] = uint32(_uint256Domains[i]);
+        }
+        return _uint32Domains;
+    }
+
     // ============ Private Functions ============
 
     /**
-     * @notice Returns the set of validators responsible for verifying _message
-     * and the number of signatures required
+     * @notice Returns the set of N addresses associated with _message
+     * and the corresponding threshold M
      * @dev Can change based on the content of _message
      * @param _message Hyperlane formatted interchain message
-     * @return validators The array of validator addresses
-     * @return threshold The number of validator signatures needed
+     * @return values The array of addresses of length N
+     * @return threshold The threshold M
      */
     function valuesAndThreshold(bytes calldata _message)
         internal
@@ -138,9 +160,9 @@ contract OwnableStorageMOfNAddressSet is OwnableMOfNAddressSet {
     }
 
     /**
-     * @notice Sets the quorum threshold.
+     * @notice Sets the threshold M.
      * @param _domain The remote domain of the set.
-     * @param _threshold The new quorum threshold.
+     * @param _threshold The new threshold.
      */
     function _setThreshold(uint32 _domain, uint8 _threshold)
         internal
@@ -148,5 +170,14 @@ contract OwnableStorageMOfNAddressSet is OwnableMOfNAddressSet {
         override
     {
         StorageMOfNAddressSet.setThreshold(_sets[_domain], _threshold);
+    }
+
+    /**
+     * @notice Clears the set for _domain
+     * @param _domain The domain to clear the set for
+     */
+    function _clear(uint32 _domain) internal virtual override {
+        _domainsWithSets.remove(_domain);
+        StorageMOfNAddressSet.clear(_sets[_domain]);
     }
 }

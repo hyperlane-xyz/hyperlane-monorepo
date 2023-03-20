@@ -14,6 +14,8 @@ interface IMOfNAddressSet {
         uint8[] calldata _thresholds
     ) external;
 
+    function clear(uint32 _domain) external;
+
     function contains(uint32 _domain, address _value)
         external
         view
@@ -26,6 +28,8 @@ interface IMOfNAddressSet {
     function threshold(uint32 _domain) external view returns (uint8);
 
     function length(uint32 _domain) external view returns (uint256);
+
+    function domains() external view returns (uint32[] memory);
 
     function valuesAndThreshold(uint32 _domain)
         external

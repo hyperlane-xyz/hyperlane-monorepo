@@ -53,10 +53,6 @@ library StaticMOfNAddressSet {
             _set
         );
         require(_threshold <= _oldValues.length - 1, "reduce threshold");
-        if (_oldValues.length == 1) {
-            _set.proxy = MetaProxyMOfNAddressSet(address(0));
-            return;
-        }
         address[] memory _newValues = new address[](_oldValues.length - 1);
         uint256 j = 0;
         for (uint256 i = 0; i < _oldValues.length; i++) {
@@ -82,6 +78,14 @@ library StaticMOfNAddressSet {
     ) internal {
         require(0 < _threshold && _threshold <= length(_set), "!range");
         _deploy(_set, values(_set), _threshold, _implementation);
+    }
+
+    /**
+     * @notice Clears the set
+     * @param _set The set to clear
+     */
+    function clear(AddressSet storage _set) internal {
+        _set.proxy = MetaProxyMOfNAddressSet(address(0));
     }
 
     /**
@@ -160,12 +164,16 @@ library StaticMOfNAddressSet {
 
     // ============ Internal Functions ============
 
+    /**
+     * @notice Returns whether or not a MetaProxyMOfNAddressSet is deployed
+     * @param _set The set in question
+     */
     function _isDeployed(AddressSet storage _set) private view returns (bool) {
         return (address(_set.proxy) != address(0));
     }
 
     /**
-     * @notice Adds an address to the set without updating the commitment
+     * @notice Adds one or more addresses to the set
      * @param _set The set to add to
      * @param _values The address to add to the set
      */
@@ -217,9 +225,10 @@ library StaticMOfNAddressSet {
 }
 
 contract MetaProxyMOfNAddressSet {
-    /// @notice Returns the metadata of this (MetaProxy) contract.
-    /// Only relevant with contracts created via the MetaProxy standard.
-    /// @dev This function is aimed to to be invoked via a call.
+    /**
+     * @notice Returns the current set and threshold.
+     * @return The current set and threshold.
+     */
     function valuesAndThreshold()
         external
         pure
@@ -234,16 +243,28 @@ contract MetaProxyMOfNAddressSet {
         }
     }
 
+    /**
+     * @notice Gets the current threshold
+     * @return The threshold of the set.
+     */
     function threshold() external pure returns (uint8) {
         (, uint8 _threshold) = _valuesAndThreshold();
         return _threshold;
     }
 
+    /**
+     * @notice Gets the current set
+     * @return The addresses of the set.
+     */
     function values() external pure returns (address[] memory) {
         (address[] memory _values, ) = _valuesAndThreshold();
         return _values;
     }
 
+    /**
+     * @notice Returns the current set and threshold.
+     * @return The current set and threshold.
+     */
     function _valuesAndThreshold()
         internal
         pure

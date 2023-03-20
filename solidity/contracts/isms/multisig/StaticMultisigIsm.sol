@@ -8,7 +8,7 @@ import {MultisigIsmMetadata} from "../../libs/MultisigIsmMetadata.sol";
 
 /**
  * @title StaticMultisigIsm
- * @notice Manages per-domain m-of-n Validator sets in storage that are used
+ * @notice Manages per-domain m-of-n Validator sets that are used
  * to verify interchain messages.
  */
 contract StaticMultisigIsm is OwnableStaticMOfNAddressSet, AbstractMultisigIsm {

@@ -13,7 +13,7 @@ import {MerkleLib} from "../../libs/Merkle.sol";
 
 /**
  * @title AggregationIsm
- * @notice Manages per-domain m-of-n Validator sets that are used to verify
+ * @notice Manages per-domain m-of-n ISM sets that are used to verify
  * interchain messages.
  */
 abstract contract AbstractAggregationIsm is IAggregationIsm {
