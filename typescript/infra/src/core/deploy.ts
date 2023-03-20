@@ -142,7 +142,6 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
         chainConfig.index = { from: startingBlockNumber };
       }
 
-      // this lets us avoid defaults that should be set in overriding configs
       rustConfig.chains[chain] = chainConfig;
     });
     writeJSON(
