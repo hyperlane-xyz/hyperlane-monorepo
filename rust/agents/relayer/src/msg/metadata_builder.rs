@@ -145,12 +145,6 @@ impl MetadataBuilder {
         // Only use the most recently announced location for now.
         let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
         for (&validator, validator_storage_locations) in validators.iter().zip(storage_locations) {
-            debug!(
-                ?validator,
-                ?validator_storage_locations,
-                "Attempting to load checkpoint syncer for validator"
-            );
-
             for storage_location in validator_storage_locations.iter().rev() {
                 let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
                     debug!(?validator, ?storage_location, "Could not parse checkpoint syncer config for validator");
@@ -172,11 +166,6 @@ impl MetadataBuilder {
                 match config.build(None) {
                     Ok(checkpoint_syncer) => {
                         // found the syncer for this validator
-                        debug!(
-                            ?validator,
-                            ?config,
-                            "Configured checkpoint syncer for validator"
-                        );
                         checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());
                         break;
                     }

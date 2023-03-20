@@ -51,7 +51,7 @@ impl MultisigCheckpointSyncer {
                         latest_indices.push(index);
                     }
                     err => {
-                        debug!(?address, ?err, "Failed to get last index from validator");
+                        debug!(?address, ?err, "Failed to get latest index from validator");
                     }
                 }
             }
@@ -72,7 +72,7 @@ impl MultisigCheckpointSyncer {
             // generate a proof.
             let start_index = highest_quorum_index.min(maximum_index);
             if minimum_index > start_index {
-                debug!(%start_index, %highest_quorum_index, "Highest validator index was below the last known quorum");
+                debug!(%start_index, %highest_quorum_index, "Highest quorum index is below the minimum index");
                 return Ok(None);
             }
             for index in (minimum_index..=start_index).rev() {
