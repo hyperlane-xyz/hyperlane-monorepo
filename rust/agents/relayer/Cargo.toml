@@ -9,7 +9,7 @@ config = "~0.13.3"
 derive-new = "0.5"
 serde = {version = "1.0", features = ["derive"]}
 serde_json = { version = "1.0", default-features = false }
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01" }
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features = ["legacy"] }
 ethers-contract = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features=["legacy"] }
 thiserror = "1.0"
 async-trait = { version = "0.1", default-features = false }

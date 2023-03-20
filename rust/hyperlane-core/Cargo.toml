@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 auto_impl = "1.0"
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01" }
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features = ["legacy"] }
 ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features=["aws"] }
 ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features=["ws", "rustls"] }
 config = "~0.13.3"
