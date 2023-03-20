@@ -7,6 +7,7 @@ import {
   buildContracts,
   liquidityLayerFactories,
 } from '@hyperlane-xyz/sdk';
+import { error } from '@hyperlane-xyz/utils';
 
 import { bridgeAdapterConfigs } from '../../config/environments/testnet3/token-bridge';
 import { readJSON, sleep } from '../../src/utils/utils';
@@ -39,6 +40,8 @@ async function relayPortalTransfers() {
 
   while (true) {
     for (const chain of Object.keys(bridgeAdapterConfigs)) {
+      console.log('chain', chain);
+
       const txHashes = await app.fetchPortalBridgeTransactions(chain);
       const portalMessages = (
         await Promise.all(
@@ -46,9 +49,18 @@ async function relayPortalTransfers() {
         )
       ).flat();
 
+      console.log('Portal messages', portalMessages);
+
       // Poll for attestation data and submit
       for (const message of portalMessages) {
-        await app.attemptPortalTransferCompletion(message);
+        try {
+          await app.attemptPortalTransferCompletion(message);
+        } catch (err) {
+          error('Error attempting portal transfer', {
+            message,
+            err,
+          });
+        }
       }
       await sleep(10000);
     }
