@@ -38,8 +38,8 @@ contract InterchainAccountRouterTest is Test {
 
         recipient = new TestRecipient();
 
-        originRouter = new InterchainAccountRouter();
-        remoteRouter = new InterchainAccountRouter();
+        originRouter = new InterchainAccountRouter(address(0));
+        remoteRouter = new InterchainAccountRouter(address(0));
 
         address owner = address(this);
         originRouter.initialize(
@@ -115,31 +115,31 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testOwner() public {
-        DeployerMulticall remoteIca = remoteRouter.getDeployedInterchainAccount(
+        OwnableMulticall remoteIca = remoteRouter.getDeployedInterchainAccount(
             originDomain,
             address(this)
         );
-        assertEq(remoteIca.deployer(), address(remoteRouter));
+        assertEq(remoteIca.owner(), address(remoteRouter));
 
-        DeployerMulticall localIca = originRouter.getDeployedInterchainAccount(
+        OwnableMulticall localIca = originRouter.getDeployedInterchainAccount(
             remoteDomain,
             address(this)
         );
-        assertEq(localIca.deployer(), address(originRouter));
+        assertEq(localIca.owner(), address(originRouter));
     }
 
     function testBytes32Owner() public {
-        DeployerMulticall remoteIca = remoteRouter.getDeployedInterchainAccount(
+        OwnableMulticall remoteIca = remoteRouter.getDeployedInterchainAccount(
             originDomain,
             address(this).addressToBytes32()
         );
-        assertEq(remoteIca.deployer(), address(remoteRouter));
+        assertEq(remoteIca.owner(), address(remoteRouter));
 
-        DeployerMulticall localIca = originRouter.getDeployedInterchainAccount(
+        OwnableMulticall localIca = originRouter.getDeployedInterchainAccount(
             remoteDomain,
             address(this).addressToBytes32()
         );
-        assertEq(localIca.deployer(), address(originRouter));
+        assertEq(localIca.owner(), address(originRouter));
     }
 
     function testReceiveValue(uint256 value) public {
@@ -153,7 +153,7 @@ contract InterchainAccountRouterTest is Test {
         remoteRouter.getDeployedInterchainAccount(originDomain, address(this));
         assert(ica.code.length > 0);
         // necessary in forge tests for receive() to be executed upon transfer ?
-        DeployerMulticall(ica).deployer();
+        OwnableMulticall(ica).owner();
         ica.transfer(value / 2);
     }
 
