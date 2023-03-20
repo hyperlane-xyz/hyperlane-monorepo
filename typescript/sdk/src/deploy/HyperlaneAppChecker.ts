@@ -15,6 +15,7 @@ import {
   BytecodeMismatchViolation,
   CheckerViolation,
   OwnerViolation,
+  ProxyAdminViolation,
   ViolationType,
 } from './types';
 
@@ -79,7 +80,15 @@ export abstract class HyperlaneAppChecker<
     }
     if (proxyAdminAddress) {
       const admin = await proxyAdmin(provider, proxiedAddress.proxy);
-      utils.assert(admin === proxyAdminAddress, 'Proxy admin mismatch');
+      if (admin !== proxyAdminAddress) {
+        this.addViolation({
+          type: ViolationType.ProxyAdmin,
+          chain,
+          name,
+          expected: proxyAdminAddress,
+          actual: admin,
+        } as ProxyAdminViolation);
+      }
     }
   }
 

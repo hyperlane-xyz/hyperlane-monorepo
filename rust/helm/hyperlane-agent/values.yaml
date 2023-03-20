@@ -43,7 +43,6 @@ hyperlane:
   metrics:
     port: 9090
   aws: # true | false
-  gelatoApiKeyRequired: # true | false
 
   # -- Chain overrides, a sequence
   chains:

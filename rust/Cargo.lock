@@ -2261,23 +2261,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gelato"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "ethers",
- "eyre",
- "reqwest",
- "rustc-hex",
- "serde",
- "serde_json",
- "serde_repr",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4120,7 +4103,6 @@ dependencies = [
  "ethers-contract",
  "eyre",
  "futures-util",
- "gelato",
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-ethereum",
@@ -4906,17 +4888,6 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
-]
-
-[[package]]
-name = "serde_repr"
-version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a5ec9fa74a20ebbe5d9ac23dac1fc96ba0ecfe9f50f2843b52e537b10fbcb4e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

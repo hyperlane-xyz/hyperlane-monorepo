@@ -55,7 +55,7 @@ export class HyperlaneCoreGovernor {
     this.canPropose = objMap(this.checker.app.contractsMap, () => new Map());
   }
 
-  async govern() {
+  async govern(confirm = true) {
     // 1. Produce calls from checker violations.
     await this.mapViolationsToCalls();
 
@@ -65,11 +65,23 @@ export class HyperlaneCoreGovernor {
     // 3. Prompt the user to confirm that the count, description,
     // and submission methods look correct before submitting.
     for (const chain of Object.keys(this.calls)) {
-      await this.sendCalls(chain);
+      await this.sendCalls(chain, confirm);
     }
   }
 
-  protected async sendCalls(chain: ChainName) {
+  async governChain(chain: ChainName, confirm = true) {
+    // 1. Produce calls from checker violations.
+    await this.mapViolationsToCalls();
+
+    // 2. For each call, infer how it should be submitted on-chain.
+    await this.inferCallSubmissionTypes();
+
+    // 3. Prompt the user to confirm that the count, description,
+    // and submission methods look correct before submitting.
+    await this.sendCalls(chain, confirm);
+  }
+
+  protected async sendCalls(chain: ChainName, confirm: boolean) {
     const calls = this.calls[chain];
     console.log(`\nFound ${calls.length} transactions for ${chain}`);
     const filterCalls = (submissionType: SubmissionType) =>
@@ -85,12 +97,14 @@ export class HyperlaneCoreGovernor {
         calls.map((c) =>
           console.log(`> > ${c.description} (to: ${c.to} data: ${c.data})`),
         );
-        const response = prompts.confirm({
-          type: 'confirm',
-          name: 'value',
-          message: 'Can you confirm?',
-          initial: false,
-        });
+        const response =
+          !confirm ||
+          prompts.confirm({
+            type: 'confirm',
+            name: 'value',
+            message: 'Can you confirm?',
+            initial: false,
+          });
         return response as unknown as boolean;
       }
       return false;
@@ -144,7 +158,7 @@ export class HyperlaneCoreGovernor {
           break;
         }
         case ProxyKind.Transparent: {
-          await this.handleProxyViolation(violation as ProxyViolation);
+          this.handleProxyViolation(violation as ProxyViolation);
           break;
         }
         case CoreViolationType.InterchainGasPaymaster: {
@@ -181,8 +195,7 @@ export class HyperlaneCoreGovernor {
   protected async inferCallSubmissionTypes() {
     for (const chain of Object.keys(this.calls)) {
       for (const call of this.calls[chain]) {
-        const submissionType = await this.inferCallSubmissionType(chain, call);
-        call.submissionType = submissionType;
+        call.submissionType = await this.inferCallSubmissionType(chain, call);
       }
     }
   }
