@@ -144,7 +144,7 @@ library StorageMOfNAddressSet {
     // ============ Internal Functions ============
 
     /**
-     * @notice Adds an address to the set without updating the commitment
+     * @notice Adds an address to the set
      * @param _set The set to add to
      * @param _value The address to add to the set
      */
@@ -154,7 +154,7 @@ library StorageMOfNAddressSet {
     }
 
     /**
-     * @notice Removes an address from the set without updating the commitment
+     * @notice Removes an address from the set
      * @param _set The set to add to
      * @param _value The address to remove from the set
      */
