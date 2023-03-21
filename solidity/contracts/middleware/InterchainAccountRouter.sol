@@ -388,12 +388,8 @@ contract InterchainAccountRouter is
         address _ism
     ) public view returns (address) {
         require(_router != address(0), "no router specified for destination");
-        bytes32 _salt = _getSalt(
-            localDomain,
-            TypeCasts.addressToBytes32(_owner),
-            TypeCasts.addressToBytes32(address(this)),
-            TypeCasts.addressToBytes32(_ism)
-        );
+        // Derives the address of the first contract deployed by _router using
+        // the CREATE opcode.
         address _implementation = address(
             uint160(
                 uint256(
@@ -410,6 +406,12 @@ contract InterchainAccountRouter is
         );
         bytes memory _proxyBytecode = MinimalProxy.bytecode(_implementation);
         bytes32 _bytecodeHash = keccak256(_proxyBytecode);
+        bytes32 _salt = _getSalt(
+            localDomain,
+            TypeCasts.addressToBytes32(_owner),
+            TypeCasts.addressToBytes32(address(this)),
+            TypeCasts.addressToBytes32(_ism)
+        );
         return Create2.computeAddress(_salt, _bytecodeHash, _router);
     }
 
