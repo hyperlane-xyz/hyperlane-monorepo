@@ -50,8 +50,8 @@ contract InterchainAccountRouterTest is Test {
     function setUp() public {
         environment = new MockHyperlaneEnvironment(origin, destination);
 
-        originRouter = new InterchainAccountRouter();
-        destinationRouter = new InterchainAccountRouter();
+        originRouter = new InterchainAccountRouter(origin);
+        destinationRouter = new InterchainAccountRouter(destination);
 
         address owner = address(this);
         originRouter.initialize(
@@ -73,12 +73,21 @@ contract InterchainAccountRouterTest is Test {
         );
         ica = destinationRouter.getLocalInterchainAccount(
             origin,
-            address(originRouter),
             address(this),
+            address(originRouter),
             address(environment.isms(destination))
         );
 
         target = new Callable();
+    }
+
+    function testGetRemoteInterchainAccount() public {
+        address _ica = originRouter.getRemoteInterchainAccount(
+            address(this),
+            address(destinationRouter),
+            address(environment.isms(destination))
+        );
+        assertEq(_ica, address(ica));
     }
 
     function testEnrollRemoteRouters(
@@ -208,8 +217,8 @@ contract InterchainAccountRouterTest is Test {
         OwnableMulticall destinationIca = destinationRouter
             .getLocalInterchainAccount(
                 origin,
-                address(originRouter),
                 address(this),
+                address(originRouter),
                 address(environment.isms(destination))
             );
         assertEq(
@@ -217,8 +226,8 @@ contract InterchainAccountRouterTest is Test {
             address(
                 destinationRouter.getLocalInterchainAccount(
                     origin,
-                    TypeCasts.addressToBytes32(address(originRouter)),
                     TypeCasts.addressToBytes32(address(this)),
+                    TypeCasts.addressToBytes32(address(originRouter)),
                     address(environment.isms(destination))
                 )
             )
@@ -256,8 +265,8 @@ contract InterchainAccountRouterTest is Test {
         // receive value after deployed
         destinationRouter.getLocalInterchainAccount(
             origin,
-            address(originRouter),
             address(this),
+            address(originRouter),
             address(environment.isms(origin))
         );
 
