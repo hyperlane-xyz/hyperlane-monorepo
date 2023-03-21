@@ -1,8 +1,11 @@
 [package]
 name = "ethers-prometheus"
-version = "0.1.0"
-authors = ["Mattie Conover <mattie@useabaucus.network>"]
-edition = "2021"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
 
 [dependencies]
 prometheus = "0.13"
@@ -14,7 +17,7 @@ futures = "0.3"
 parking_lot = { version = "0.12" }
 maplit = "1.0"
 log = "0.4"
-tokio = { version = "1", features = ["time", "sync"] }
+tokio = { workspace = true, features = ["time", "sync"] }
 static_assertions = "1.1"
 
 serde = { version = "1.0", features = ["derive"], optional = true }

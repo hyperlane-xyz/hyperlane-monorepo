@@ -1,0 +1,38 @@
+{
+  "bsc": {
+    "TestRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+    "TestTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+  },
+  "avalanche": {
+    "TestRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+    "TestTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+  },
+  "polygon": {
+    "TestRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+    "TestTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+  },
+  "celo": {
+    "TestRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+    "TestTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+  },
+  "arbitrum": {
+    "TestRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+    "TestTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+  },
+  "optimism": {
+    "TestRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+    "TestTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+  },
+  "ethereum": {
+    "TestRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+    "TestTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+  },
+  "moonbeam": {
+    "TestRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+    "TestTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+  },
+  "gnosis": {
+    "TestRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+    "TestTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb"
+  }
+}
