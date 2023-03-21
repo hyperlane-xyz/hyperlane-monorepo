@@ -12,9 +12,10 @@ use tracing::{debug, info_span, instrument, instrument::Instrumented, Instrument
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage};
 
-use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::matching_list::MatchingList};
-
-use super::SubmitMessageArgs;
+use crate::{
+    merkle_tree_builder::MerkleTreeBuilder, msg::SubmitMessageArgs,
+    settings::matching_list::MatchingList,
+};
 
 #[derive(Debug, new)]
 pub(crate) struct MessageProcessor {
@@ -29,7 +30,7 @@ pub(crate) struct MessageProcessor {
 }
 
 impl MessageProcessor {
-    pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
+    pub fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
@@ -166,7 +167,7 @@ impl MessageProcessorMetrics {
         }
     }
 
-    pub fn get(&self, destination: u32) -> Option<&IntGauge> {
+    fn get(&self, destination: u32) -> Option<&IntGauge> {
         self.last_known_message_nonce_gauges.get(&destination)
     }
 }
