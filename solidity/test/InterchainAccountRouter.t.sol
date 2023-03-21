@@ -82,12 +82,23 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testGetRemoteInterchainAccount() public {
-        address _ica = originRouter.getRemoteInterchainAccount(
-            address(this),
-            address(destinationRouter),
-            address(environment.isms(destination))
+        assertEq(
+            originRouter.getRemoteInterchainAccount(
+                address(this),
+                address(destinationRouter),
+                address(environment.isms(destination))
+            ),
+            address(ica)
         );
-        assertEq(_ica, address(ica));
+        originRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+        assertEq(
+            originRouter.getRemoteInterchainAccount(destination, address(this)),
+            address(ica)
+        );
     }
 
     function testEnrollRemoteRouters(

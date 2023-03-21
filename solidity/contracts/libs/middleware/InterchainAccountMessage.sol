@@ -13,10 +13,6 @@ import {TypeCasts} from "../TypeCasts.sol";
 library InterchainAccountMessage {
     using TypeCasts for bytes32;
 
-    uint256 private constant OWNER_OFFSET = 0;
-    uint256 private constant ISM_OFFSET = 32;
-    uint256 private constant CALLS_OFFSET = 64;
-
     /**
      * @notice Returns formatted (packed) InterchainAccountMessage
      * @dev This function should only be used in memory message construction.
@@ -47,37 +43,6 @@ library InterchainAccountMessage {
         CallLib.Call[] calldata _calls
     ) internal pure returns (bytes memory) {
         return encode(TypeCasts.addressToBytes32(_owner), _ism, _calls);
-    }
-
-    /**
-     * @notice Parses and returns the ICA owner from the provided message
-     * @param _message The interchain account message
-     * @return The ICA owner as bytes32
-     */
-    function owner(bytes calldata _message) internal pure returns (bytes32) {
-        return bytes32(_message[OWNER_OFFSET:ISM_OFFSET]);
-    }
-
-    /**
-     * @notice Parses and returns the ISM from the provided message
-     * @param _message The interchain account message
-     * @return The ISM as bytes32
-     */
-    function ism(bytes calldata _message) internal pure returns (bytes32) {
-        return bytes32(_message[ISM_OFFSET:CALLS_OFFSET]);
-    }
-
-    /**
-     * @notice Parses and returns the ISM from the provided message
-     * @param _message The interchain account message
-     * @return The ISM as address
-     */
-    function ismAddress(bytes calldata _message)
-        internal
-        pure
-        returns (address)
-    {
-        return ism(_message).bytes32ToAddress();
     }
 
     /**
