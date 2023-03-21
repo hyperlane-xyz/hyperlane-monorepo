@@ -43,11 +43,19 @@ pub(crate) struct SubmitMessageArgs {
 impl Debug for SubmitMessageArgs {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let now = Instant::now();
-        let as_secs = |t| {
-            now.duration_since(t).as_secs()
-        };
-        write!(f, "SubmitMessageArgs {{ num_retires: {}, since_last_attempt_s: {}, next_attempt_after_s: {}, message: {:?} }}",
-               self.num_retries, as_secs(self.last_attempted_at), self.next_attempt_after.map(as_secs).unwrap_or(0), self.message)
+        let last_attempt = now.duration_since(self.last_attempted_at).as_secs();
+        let next_attempt = self
+            .next_attempt_after
+            .map(|a| {
+                if a >= now {
+                    a.duration_since(now).as_secs()
+                } else {
+                    0
+                }
+            })
+            .unwrap_or(0);
+        write!(f, "SubmitMessageArgs {{ num_retires: {}, since_last_attempt_s: {last_attempt}, next_attempt_after_s: {next_attempt}, message: {:?} }}",
+               self.num_retries, self.message)
     }
 }
 
