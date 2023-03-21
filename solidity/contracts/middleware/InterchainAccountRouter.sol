@@ -40,9 +40,15 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
 
     /**
      * @notice Constructor deploys a relay (OwnableMulticall.sol) contract that will be cloned for each interchain account.
+     * @param proxy The address of a proxy contract that delegates calls to this contract used by OwnableMulticall for access control.
+     * @dev Set proxy to address(0) to use this contract as the proxy owner.
      */
-    constructor() {
-        implementation = address(new OwnableMulticall());
+    constructor(address proxy) {
+        // TODO: always proxy and remove this sentinel
+        if (proxy == address(0)) {
+            proxy = address(this);
+        }
+        implementation = address(new OwnableMulticall(proxy));
         // cannot be stored immutably because it is dynamically sized
         bytes memory bytecode = MinimalProxy.bytecode(implementation);
         bytecodeHash = keccak256(bytecode);
@@ -127,8 +133,6 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
             bytes memory bytecode = MinimalProxy.bytecode(implementation);
             interchainAccount = payable(Create2.deploy(0, salt, bytecode));
             emit InterchainAccountCreated(_origin, _sender, interchainAccount);
-            // transfers ownership to this contract
-            OwnableMulticall(interchainAccount).initialize();
         }
         return OwnableMulticall(interchainAccount);
     }
@@ -182,6 +186,6 @@ contract InterchainAccountRouter is Router, IInterchainAccountRouter {
             _origin,
             InterchainCallMessage.sender(_message)
         );
-        interchainAccount.proxyCalls(InterchainCallMessage.calls(_message));
+        interchainAccount.multicall(InterchainCallMessage.calls(_message));
     }
 }

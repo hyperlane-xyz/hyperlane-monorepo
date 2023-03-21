@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 
 contract TestRecipient is
+    Ownable,
     IMessageRecipient,
     ISpecifiesInterchainSecurityModule
 {
@@ -23,10 +26,6 @@ contract TestRecipient is
 
     event ReceivedCall(address indexed caller, uint256 amount, string message);
 
-    function setInterchainSecurityModule(address _ism) external {
-        interchainSecurityModule = IInterchainSecurityModule(_ism);
-    }
-
     function handle(
         uint32 _origin,
         bytes32 _sender,
@@ -41,5 +40,9 @@ contract TestRecipient is
         emit ReceivedCall(msg.sender, amount, message);
         lastCaller = msg.sender;
         lastCallMessage = message;
+    }
+
+    function setInterchainSecurityModule(address _ism) external onlyOwner {
+        interchainSecurityModule = IInterchainSecurityModule(_ism);
     }
 }
