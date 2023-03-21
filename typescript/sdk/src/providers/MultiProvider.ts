@@ -497,12 +497,16 @@ export class MultiProvider {
    */
   async tryGetExplorerAddressUrl(
     chainNameOrId: ChainName | number,
-    _address?: string,
+    address?: string,
   ): Promise<string | null> {
     const baseUrl = this.tryGetExplorerUrl(chainNameOrId);
-    const signer = this.tryGetSigner(chainNameOrId);
-    if (!baseUrl || !signer) return null;
-    const address = _address ?? (await signer.getAddress());
+    if (!baseUrl) return null;
+    if (!address) {
+      const signer = this.tryGetSigner(chainNameOrId);
+      if (!signer) return null;
+      return `${baseUrl}/${await signer.getAddress()}`;
+    }
+
     return `${baseUrl}/${address}`;
   }
 

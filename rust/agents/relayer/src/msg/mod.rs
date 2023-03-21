@@ -6,7 +6,6 @@ use derive_new::new;
 use hyperlane_core::HyperlaneMessage;
 
 pub mod gas_payment;
-pub mod gelato_submitter;
 pub mod metadata_builder;
 pub mod processor;
 pub mod serial_submitter;
@@ -20,7 +19,7 @@ pub mod serial_submitter;
 /// A SubmitMessageOp describes the message that the submitter should
 /// try to submit.
 ///
-/// Right now there are two strategies: serial and Gelato.
+/// Right now there is one strategy: serial.
 ///
 /// In the future it could make sense for there to be more, some ideas are:
 ///   - BatchingMessagesSubmitter

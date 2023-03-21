@@ -9,7 +9,6 @@ members = [
     "chains/hyperlane-ethereum",
     "chains/hyperlane-fuel",
     "ethers-prometheus",
-    "gelato",
     "hyperlane-base",
     "hyperlane-core",
     "hyperlane-test",
