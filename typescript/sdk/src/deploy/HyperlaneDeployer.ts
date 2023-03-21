@@ -132,7 +132,7 @@ export abstract class HyperlaneDeployer<
     local: ChainName,
     connectionClient: HyperlaneConnectionClient,
     config: ConnectionClientConfig,
-  ) {
+  ): Promise<void> {
     this.logger(`Initializing connection client on ${local}...`);
     return this.runIfOwner(local, connectionClient, async () => {
       // set mailbox if not already set (and configured)
