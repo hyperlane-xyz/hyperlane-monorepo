@@ -27,10 +27,9 @@ pub mod metadata_builder;
 pub mod processor;
 pub mod serial_submitter;
 
-/// A SubmitMessageOp describes the message that the submitter should
-/// try to submit.
+/// A message that the submitter can and should try to submit.
 #[derive(Clone, new)]
-pub(crate) struct SubmitMessageArgs {
+pub(crate) struct PendingMessage {
     pub message: HyperlaneMessage,
     #[new(default)]
     num_retries: u32,
@@ -40,7 +39,7 @@ pub(crate) struct SubmitMessageArgs {
     next_attempt_after: Option<Instant>,
 }
 
-impl Debug for SubmitMessageArgs {
+impl Debug for PendingMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let now = Instant::now();
         let last_attempt = now.duration_since(self.last_attempted_at).as_secs();
@@ -54,7 +53,7 @@ impl Debug for SubmitMessageArgs {
                 }
             })
             .unwrap_or(0);
-        write!(f, "SubmitMessageArgs {{ num_retires: {}, since_last_attempt_s: {last_attempt}, next_attempt_after_s: {next_attempt}, message: {:?} }}",
+        write!(f, "PendingMessage {{ num_retires: {}, since_last_attempt_s: {last_attempt}, next_attempt_after_s: {next_attempt}, message: {:?} }}",
                self.num_retries, self.message)
     }
 }
@@ -62,7 +61,7 @@ impl Debug for SubmitMessageArgs {
 /// Sort by their next allowed attempt time and if no allowed time is set, then
 /// put it in front of those with a time (they have been tried before) and break
 /// ties between ones that have not been tried with the nonce.
-impl Ord for SubmitMessageArgs {
+impl Ord for PendingMessage {
     fn cmp(&self, other: &Self) -> Ordering {
         use Ordering::*;
         match (&self.next_attempt_after, &other.next_attempt_after) {
@@ -74,16 +73,16 @@ impl Ord for SubmitMessageArgs {
     }
 }
 
-impl PartialOrd for SubmitMessageArgs {
+impl PartialOrd for PendingMessage {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for SubmitMessageArgs {
+impl PartialEq for PendingMessage {
     fn eq(&self, other: &Self) -> bool {
         self.num_retries == other.num_retries && self.message.nonce == other.message.nonce
     }
 }
 
-impl Eq for SubmitMessageArgs {}
+impl Eq for PendingMessage {}

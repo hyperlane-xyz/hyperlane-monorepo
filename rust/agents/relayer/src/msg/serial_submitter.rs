@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use crate::msg::SubmitMessageArgs;
+use crate::msg::PendingMessage;
 use hyperlane_base::{CachingMailbox, CoreMetrics};
 use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, U256};
 
@@ -72,11 +72,11 @@ use super::{gas_payment::GasPaymentEnforcer, metadata_builder::MetadataBuilder};
 #[derive(Debug, new)]
 pub(crate) struct SerialSubmitter {
     /// Receiver for new messages to submit.
-    rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+    rx: mpsc::UnboundedReceiver<PendingMessage>,
     /// Messages waiting for their turn to be dispatched. The SerialSubmitter
     /// can only dispatch one message at a time, so this queue could grow.
     #[new(default)]
-    run_queue: BinaryHeap<Reverse<SubmitMessageArgs>>,
+    run_queue: BinaryHeap<Reverse<PendingMessage>>,
     /// Mailbox on the destination chain.
     mailbox: CachingMailbox,
     /// Used to construct the ISM metadata needed to verify a message.
@@ -138,7 +138,7 @@ impl SerialSubmitter {
             .set(self.run_queue.len() as i64);
 
         // check if the next message is going to be processable
-        if let Some(Reverse(SubmitMessageArgs {
+        if let Some(Reverse(PendingMessage {
             next_attempt_after: Some(retry_after),
             ..
         })) = self.run_queue.peek()
@@ -188,7 +188,7 @@ impl SerialSubmitter {
     /// failed gas estimation or an insufficient gas payment, Ok(false) is
     /// returned.
     #[instrument(skip(self))]
-    async fn process_message(&self, msg: &SubmitMessageArgs) -> Result<bool> {
+    async fn process_message(&self, msg: &PendingMessage) -> Result<bool> {
         // If the message has already been processed, e.g. due to another relayer having
         // already processed, then mark it as already-processed, and move on to
         // the next tick.
@@ -288,7 +288,7 @@ impl SerialSubmitter {
     /// `return Ok(())`, then without a wiped HyperlaneDB, we will never
     /// re-attempt processing for this message again, even after the relayer
     /// restarts.
-    fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
+    fn record_message_process_success(&mut self, msg: &PendingMessage) -> Result<()> {
         self.db.mark_nonce_as_processed(msg.message.nonce)?;
         self.metrics.max_submitted_nonce =
             std::cmp::max(self.metrics.max_submitted_nonce, msg.message.nonce);

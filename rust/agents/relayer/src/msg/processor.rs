@@ -13,7 +13,7 @@ use hyperlane_base::CoreMetrics;
 use hyperlane_core::{db::HyperlaneDB, HyperlaneDomain, HyperlaneMessage};
 
 use crate::{
-    merkle_tree_builder::MerkleTreeBuilder, msg::SubmitMessageArgs,
+    merkle_tree_builder::MerkleTreeBuilder, msg::PendingMessage,
     settings::matching_list::MatchingList,
 };
 
@@ -24,7 +24,7 @@ pub(crate) struct MessageProcessor {
     blacklist: Arc<MatchingList>,
     metrics: MessageProcessorMetrics,
     prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
-    send_channels: HashMap<u32, UnboundedSender<SubmitMessageArgs>>,
+    send_channels: HashMap<u32, UnboundedSender<PendingMessage>>,
     #[new(default)]
     message_nonce: u32,
 }
@@ -124,7 +124,7 @@ impl MessageProcessor {
             debug!(%msg, "Sending message to submitter");
 
             // Finally, build the submit arg and dispatch it to the submitter.
-            let submit_args = SubmitMessageArgs::new(msg.clone());
+            let submit_args = PendingMessage::new(msg.clone());
             // Guaranteed to exist as we return early above if it does not.
             let send_channel = self.send_channels.get(&msg.destination).unwrap();
             send_channel.send(submit_args)?;
