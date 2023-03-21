@@ -1,4 +1,4 @@
-use std::cmp::{Reverse};
+use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -11,11 +11,9 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use hyperlane_base::{CachingMailbox, CoreMetrics};
-use hyperlane_core::{
-    db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, U256,
-};
 use crate::msg::SubmitMessageArgs;
+use hyperlane_base::{CachingMailbox, CoreMetrics};
+use hyperlane_core::{db::HyperlaneDB, HyperlaneChain, HyperlaneDomain, Mailbox, U256};
 
 use super::{gas_payment::GasPaymentEnforcer, metadata_builder::MetadataBuilder};
 
@@ -284,10 +282,10 @@ impl SerialSubmitter {
     }
 
     /// Record in HyperlaneDB and various metrics that this process has observed
-    /// the successful processing of a message. An Ok(()) value returned by
+    /// the successful processing of a message. An `Ok(())` value returned by
     /// this function is the 'commit' point in a message's lifetime for
     /// final processing -- after this function has been seen to
-    /// return 'Ok(())', then without a wiped HyperlaneDB, we will never
+    /// `return Ok(())`, then without a wiped HyperlaneDB, we will never
     /// re-attempt processing for this message again, even after the relayer
     /// restarts.
     fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
@@ -330,7 +328,11 @@ pub(crate) struct SerialSubmitterMetrics {
 }
 
 impl SerialSubmitterMetrics {
-    pub fn new(metrics: &CoreMetrics, origin: &HyperlaneDomain, destination: &HyperlaneDomain) -> Self {
+    pub fn new(
+        metrics: &CoreMetrics,
+        origin: &HyperlaneDomain,
+        destination: &HyperlaneDomain,
+    ) -> Self {
         let origin = origin.name();
         let destination = destination.name();
         Self {
