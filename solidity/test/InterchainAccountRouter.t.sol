@@ -10,6 +10,7 @@ import "../contracts/test/TestRecipient.sol";
 import "../contracts/middleware/InterchainAccountRouter.sol";
 import {TestHyperlaneConnectionClient} from "../contracts/test/TestHyperlaneConnectionClient.sol";
 import {CallLib} from "../contracts/libs/Call.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract InterchainAccountRouterTest is Test {
     using TypeCasts for address;
@@ -66,6 +67,16 @@ contract InterchainAccountRouterTest is Test {
 
         ica = remoteRouter.getInterchainAccount(originDomain, address(this));
         ownable = new TestHyperlaneConnectionClient();
+    }
+
+    function testNonzeroCaller() public {
+        address caller = address(this);
+        InterchainAccountRouter router = new InterchainAccountRouter(caller);
+        OwnableMulticall ica = router.getDeployedInterchainAccount(
+            originDomain,
+            address(this)
+        );
+        assertEq(ica.owner(), caller);
     }
 
     function dispatchTransferOwner(address newOwner) public {
