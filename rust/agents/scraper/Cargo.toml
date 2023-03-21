@@ -16,7 +16,7 @@ futures.workspace = true
 itertools.workspace = true
 num-bigint = "0.4"
 prometheus.workspace = true
-sea-orm = { version = "0.11.1", features = ["sqlx-postgres", "runtime-tokio-native-tls", "macros"] }
+sea-orm = { version = "0.11.1", features = ["sqlx-postgres", "runtime-tokio-native-tls", "with-bigdecimal", "with-time", "macros"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
