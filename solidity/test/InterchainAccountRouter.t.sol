@@ -69,14 +69,20 @@ contract InterchainAccountRouterTest is Test {
         ownable = new TestHyperlaneConnectionClient();
     }
 
-    function testNonzeroCaller() public {
+    function testConstructor() public {
         address caller = address(this);
+        // nonzero caller
         InterchainAccountRouter router = new InterchainAccountRouter(caller);
         OwnableMulticall ica = router.getDeployedInterchainAccount(
             originDomain,
             address(this)
         );
         assertEq(ica.owner(), caller);
+
+        // zero caller
+        router = new InterchainAccountRouter(address(0));
+        ica = router.getDeployedInterchainAccount(originDomain, address(this));
+        assertEq(ica.owner(), address(router));
     }
 
     function dispatchTransferOwner(address newOwner) public {
