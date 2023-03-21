@@ -24,7 +24,7 @@ pub mod zipkin;
 mod span_metrics;
 
 /// Logging level. A "higher level" means more will be logged.
-#[derive(Debug, Clone, Copy, serde::Deserialize, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, serde::Deserialize, PartialOrd, Ord, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum Level {
     /// Off
@@ -39,13 +39,8 @@ pub enum Level {
     Trace = 5,
     /// Info
     #[serde(other)]
+    #[default]
     Info = 4,
-}
-
-impl Default for Level {
-    fn default() -> Self {
-        Level::Info
-    }
 }
 
 impl From<Level> for LevelFilter {
