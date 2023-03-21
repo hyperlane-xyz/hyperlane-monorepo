@@ -7,29 +7,37 @@ use std::sync::Arc;
 
 use eyre::{eyre, Result};
 use futures::TryFutureExt;
-use sea_orm::prelude::TimeDateTime;
+use itertools::Itertools;
 use tracing::trace;
 
-use hyperlane_base::chains::IndexSettings;
-use hyperlane_base::ContractSyncMetrics;
+use hyperlane_base::{chains::IndexSettings, ContractSyncMetrics};
 use hyperlane_core::{
-    BlockInfo, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, LogMeta,
-    Mailbox, MailboxIndexer, H256, U256,
+    BlockInfo, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, InterchainGasPaymasterIndexer, InterchainGasPayment, LogMeta, Mailbox,
+    MailboxIndexer, H256,
 };
 
-use crate::chain_scraper::sync::Syncer;
-use crate::date_time;
-use crate::db::{
-    BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn,
+use crate::db::StorablePayment;
+use crate::{
+    chain_scraper::sync::Syncer,
+    date_time,
+    db::{BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorableTxn},
 };
 
 mod sync;
+
+/// Maximum number of records to query at a time. This came about because when a
+/// lot of messages are sent in a short period of time we were ending up with a
+/// lot of data to query from the node provider between points when we would
+/// actually save it to the database.
+const CHUNK_SIZE: usize = 50;
 
 /// Local chain components like the mailbox.
 #[derive(Debug, Clone)]
 pub struct Contracts {
     pub mailbox: Arc<dyn Mailbox>,
-    pub indexer: Arc<dyn MailboxIndexer>,
+    pub mailbox_indexer: Arc<dyn MailboxIndexer>,
+    pub igp_indexer: Arc<dyn InterchainGasPaymasterIndexer>,
     pub provider: Arc<dyn HyperlaneProvider>,
 }
 
@@ -76,7 +84,10 @@ impl SqlChainScraper {
     /// Sync contract data and other blockchain with the current chain state.
     /// This will create a long-running task that should be spawned.
     pub fn sync(self) -> impl Future<Output = Result<()>> + Send + 'static {
-        Syncer::new(self).and_then(|syncer| syncer.run())
+        let chain = self.contracts.mailbox.domain().name().to_owned();
+        Syncer::new(self)
+            .and_then(|syncer| syncer.run())
+            .and_then(|()| async move { panic!("Sync task for {chain} stopped!") })
     }
 
     /// Fetch the highest message nonce we have seen for the local domain.
@@ -93,7 +104,7 @@ impl SqlChainScraper {
     async fn store_messages(
         &self,
         messages: &[HyperlaneMessageWithMeta],
-        txns: &HashMap<H256, TxnWithIdAndTime>,
+        txns: &HashMap<H256, TxnWithId>,
     ) -> Result<u32> {
         debug_assert!(!messages.is_empty());
 
@@ -111,7 +122,6 @@ impl SqlChainScraper {
                         msg: m.message.clone(),
                         meta: &m.meta,
                         txn_id: txn.id,
-                        timestamp: txn.timestamp,
                     }
                 }),
             )
@@ -124,7 +134,7 @@ impl SqlChainScraper {
     async fn store_deliveries(
         &self,
         deliveries: &[Delivery],
-        txns: &HashMap<H256, TxnWithIdAndTime>,
+        txns: &HashMap<H256, TxnWithId>,
     ) -> Result<()> {
         if deliveries.is_empty() {
             return Ok(());
@@ -144,6 +154,23 @@ impl SqlChainScraper {
             .await
     }
 
+    async fn store_payments(
+        &self,
+        payments: &[Payment],
+        txns: &HashMap<H256, TxnWithId>,
+    ) -> Result<()> {
+        if payments.is_empty() {
+            return Ok(());
+        }
+
+        let storable = payments.iter().map(|payment| {
+            let txn_id = txns.get(&payment.meta.transaction_hash).unwrap().id;
+            payment.as_storable(txn_id)
+        });
+
+        self.db.store_payments(self.domain().id(), storable).await
+    }
+
     /// Takes a list of txn and block hashes and ensure they are all in the
     /// database. If any are not it will fetch the data and insert them.
     ///
@@ -151,7 +178,7 @@ impl SqlChainScraper {
     async fn ensure_blocks_and_txns(
         &self,
         message_metadata: impl Iterator<Item = &LogMeta>,
-    ) -> Result<impl Iterator<Item = TxnWithIdAndTime>> {
+    ) -> Result<impl Iterator<Item = TxnWithId>> {
         let block_hash_by_txn_hash: HashMap<H256, H256> = message_metadata
             .map(|meta| (meta.transaction_hash, meta.block_hash))
             .collect();
@@ -166,19 +193,11 @@ impl SqlChainScraper {
             .collect();
         trace!(?blocks, "Ensured blocks");
 
-        // not sure why rust can't detect the lifetimes here are valid, but just
-        // wrapping with the Arc/mutex for now.
-        let block_timestamps_by_txn: Arc<std::sync::Mutex<HashMap<H256, TimeDateTime>>> =
-            Default::default();
-
-        let block_timestamps_by_txn_clone = block_timestamps_by_txn.clone();
         // all txns we care about
         let txns_with_ids =
             self.ensure_txns(block_hash_by_txn_hash.into_iter().map(
                 move |(txn_hash, block_hash)| {
-                    let mut block_timestamps_by_txn = block_timestamps_by_txn_clone.lock().unwrap();
                     let block_info = *blocks.get(&block_hash).as_ref().unwrap();
-                    block_timestamps_by_txn.insert(txn_hash, block_info.timestamp);
                     TxnWithBlockId {
                         txn_hash,
                         block_id: block_info.id,
@@ -187,13 +206,7 @@ impl SqlChainScraper {
             ))
             .await?;
 
-        Ok(
-            txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithIdAndTime {
-                hash,
-                id: txn_id,
-                timestamp: *block_timestamps_by_txn.lock().unwrap().get(&hash).unwrap(),
-            }),
-        )
+        Ok(txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithId { hash, id: txn_id }))
     }
 
     /// Takes a list of transaction hashes and the block id the transaction is
@@ -228,27 +241,25 @@ impl SqlChainScraper {
         // insert any txns that were not known and get their IDs
         // use this vec as temporary list of mut refs so we can update once we get back
         // the ids.
-        let mut txns_to_insert: Vec<(&H256, &mut (Option<i64>, i64))> =
-            txns.iter_mut().filter(|(_, id)| id.0.is_none()).collect();
+        let mut txns_to_fetch = txns.iter_mut().filter(|(_, id)| id.0.is_none());
 
-        let mut storable: Vec<StorableTxn> = Vec::with_capacity(txns_to_insert.len());
-        let as_f64 = U256::to_f64_lossy;
-        for (hash, (_, block_id)) in txns_to_insert.iter() {
-            storable.push(StorableTxn {
-                info: self.contracts.provider.get_txn_by_hash(hash).await?,
-                block_id: *block_id,
-            });
-        }
+        let mut txns_to_insert: Vec<StorableTxn> = Vec::with_capacity(CHUNK_SIZE);
+        for mut chunk in as_chunks::<(&H256, &mut (Option<i64>, i64))>(txns_to_fetch, CHUNK_SIZE) {
+            for (hash, (_, block_id)) in chunk.iter() {
+                let info = self.contracts.provider.get_txn_by_hash(hash).await?;
+                txns_to_insert.push(StorableTxn {
+                    info,
+                    block_id: *block_id,
+                });
+            }
 
-        if !storable.is_empty() {
-            let mut cur_id = self.db.store_txns(storable.into_iter()).await?;
-            for (_hash, (txn_id, _block_id)) in txns_to_insert.iter_mut() {
+            let mut cur_id = self.db.store_txns(txns_to_insert.drain(..)).await?;
+            for (_hash, (txn_id, _block_id)) in chunk.iter_mut() {
                 debug_assert!(cur_id > 0);
                 let _ = txn_id.insert(cur_id);
                 cur_id += 1;
             }
         }
-        drop(txns_to_insert);
 
         Ok(txns
             .into_iter()
@@ -293,21 +304,24 @@ impl SqlChainScraper {
         // have inserted them into the database.
         // Block info is an option so we can move it, must always be Some before
         // inserted into db.
-        let mut blocks_to_insert: Vec<(&mut BasicBlock, Option<BlockInfo>)> = vec![];
         let blocks_to_fetch = blocks
             .iter_mut()
             .filter(|(_, block_info)| block_info.is_none());
-        for (hash, block_info) in blocks_to_fetch {
-            let info = self.contracts.provider.get_block_by_hash(hash).await?;
-            let basic_info_ref = block_info.insert(BasicBlock {
-                id: -1,
-                hash: *hash,
-                timestamp: date_time::from_unix_timestamp_s(info.timestamp),
-            });
-            blocks_to_insert.push((basic_info_ref, Some(info)));
-        }
 
-        if !blocks_to_insert.is_empty() {
+        let mut blocks_to_insert: Vec<(&mut BasicBlock, Option<BlockInfo>)> =
+            Vec::with_capacity(CHUNK_SIZE);
+        for chunk in as_chunks(blocks_to_fetch, CHUNK_SIZE) {
+            debug_assert!(!chunk.is_empty());
+            for (hash, block_info) in chunk {
+                let info = self.contracts.provider.get_block_by_hash(hash).await?;
+                let basic_info_ref = block_info.insert(BasicBlock {
+                    id: -1,
+                    hash: *hash,
+                    timestamp: date_time::from_unix_timestamp_s(info.timestamp),
+                });
+                blocks_to_insert.push((basic_info_ref, Some(info)));
+            }
+
             let mut cur_id = self
                 .db
                 .store_blocks(
@@ -317,7 +331,8 @@ impl SqlChainScraper {
                         .map(|(_, info)| info.take().unwrap()),
                 )
                 .await?;
-            for (block_ref, _) in blocks_to_insert.into_iter() {
+
+            for (block_ref, _) in blocks_to_insert.drain(..) {
                 block_ref.id = cur_id;
                 cur_id += 1;
             }
@@ -355,10 +370,19 @@ impl Delivery {
 }
 
 #[derive(Debug, Clone)]
-struct TxnWithIdAndTime {
-    hash: H256,
-    id: i64,
-    timestamp: TimeDateTime,
+struct Payment {
+    payment: InterchainGasPayment,
+    meta: LogMeta,
+}
+
+impl Payment {
+    fn as_storable(&self, txn_id: i64) -> StorablePayment {
+        StorablePayment {
+            payment: &self.payment,
+            meta: &self.meta,
+            txn_id,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -377,4 +401,15 @@ struct TxnWithBlockId {
 struct HyperlaneMessageWithMeta {
     message: HyperlaneMessage,
     meta: LogMeta,
+}
+
+fn as_chunks<T>(iter: impl Iterator<Item = T>, chunk_size: usize) -> impl Iterator<Item = Vec<T>> {
+    // the itertools chunks function uses refcell which cannot be used across an
+    // await so this stabilizes the result by putting it into a vec of vecs and
+    // using that for iteration.
+    iter.chunks(chunk_size)
+        .into_iter()
+        .map(|chunk| chunk.into_iter().collect())
+        .collect_vec()
+        .into_iter()
 }

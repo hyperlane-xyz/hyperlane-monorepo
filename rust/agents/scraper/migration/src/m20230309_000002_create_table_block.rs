@@ -1,7 +1,7 @@
 use sea_orm_migration::prelude::*;
 
-use crate::l20221122_types::*;
-use crate::m20221122_000001_create_table_domain::Domain;
+use crate::l20230309_types::*;
+use crate::m20230309_000001_create_table_domain::Domain;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -59,7 +59,19 @@ impl MigrationTrait for Migration {
                     .index_type(IndexType::Hash)
                     .to_owned(),
             )
-            .await
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .table(Block::Table)
+                    .name("block_timestamp_idx")
+                    .col(Block::Timestamp)
+                    .index_type(IndexType::BTree)
+                    .to_owned(),
+            )
+            .await?;
+        Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {

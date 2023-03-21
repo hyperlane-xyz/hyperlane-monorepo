@@ -3,11 +3,11 @@ use sea_orm::{
     prelude::*, ActiveValue::*, DbErr, EntityTrait, FromQueryResult, Insert, QueryResult,
     QuerySelect,
 };
-use tracing::trace;
+use tracing::{debug, trace};
 
 use hyperlane_core::{BlockInfo, H256};
 
-use crate::conversions::{format_h256, parse_h256};
+use crate::conversions::{address_to_bytes, h256_to_bytes};
 use crate::date_time;
 use crate::db::ScraperDb;
 
@@ -28,8 +28,7 @@ impl FromQueryResult for BasicBlock {
     fn from_query_result(res: &QueryResult, pre: &str) -> std::result::Result<Self, DbErr> {
         Ok(Self {
             id: res.try_get::<i64>(pre, "id")?,
-            hash: parse_h256(res.try_get::<String>(pre, "hash")?)
-                .map_err(|e| DbErr::Type(e.to_string()))?,
+            hash: H256::from_slice(&res.try_get::<Vec<u8>>(pre, "hash")?),
             timestamp: res.try_get::<TimeDateTime>(pre, "timestamp")?,
         })
     }
@@ -44,8 +43,8 @@ impl ScraperDb {
         hashes: impl Iterator<Item = &H256>,
     ) -> Result<Vec<BasicBlock>> {
         // check database to see which blocks we already know and fetch their IDs
-        block::Entity::find()
-            .filter(block::Column::Hash.is_in(hashes.map(format_h256)))
+        let blocks = block::Entity::find()
+            .filter(block::Column::Hash.is_in(hashes.map(h256_to_bytes)))
             .select_only()
             // these must align with the custom impl of FromQueryResult
             .column_as(block::Column::Id, "id")
@@ -54,7 +53,10 @@ impl ScraperDb {
             .into_model::<BasicBlock>()
             .all(&self.0)
             .await
-            .context("When fetching blocks")
+            .context("When querying blocks")?;
+
+        debug!(blocks = blocks.len(), "Queried block info for hashes");
+        Ok(blocks)
     }
 
     /// Store a new block (or update an existing one)
@@ -66,7 +68,7 @@ impl ScraperDb {
         let models = blocks
             .map(|info| block::ActiveModel {
                 id: NotSet,
-                hash: Set(format_h256(&info.hash)),
+                hash: Set(address_to_bytes(&info.hash)),
                 time_created: Set(date_time::now()),
                 domain: Unchanged(domain as i32),
                 height: Unchanged(info.number as i64),
@@ -75,8 +77,11 @@ impl ScraperDb {
             .collect::<Vec<_>>();
 
         debug_assert!(!models.is_empty());
+        let id_offset = models.len() as i64 - 1;
+        debug!(blocks = models.len(), "Writing blocks to database");
         trace!(?models, "Writing blocks to database");
-        let first_id = Insert::many(models).exec(&self.0).await?.last_insert_id;
+        let first_id = Insert::many(models).exec(&self.0).await?.last_insert_id - id_offset;
+        debug_assert!(first_id > 0);
         Ok(first_id)
     }
 }
