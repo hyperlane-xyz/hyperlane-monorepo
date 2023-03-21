@@ -103,7 +103,7 @@ impl JsonRpcClient for FallbackProvider<PrometheusJsonRpcClient<Http>> {
         // make sure we do at least 4 total retries.
         while errors.len() <= 3 {
             if !errors.is_empty() {
-                sleep(Duration::from_secs(10)).await;
+                sleep(Duration::from_millis(100)).await;
             }
             for (idx, provider) in self.0.iter().enumerate() {
                 let fut = match params {
