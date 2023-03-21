@@ -8,8 +8,9 @@ import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import "../contracts/test/TestRecipient.sol";
 import "../contracts/middleware/InterchainAccountRouter.sol";
-import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
+import {TestHyperlaneConnectionClient} from "../contracts/test/TestHyperlaneConnectionClient.sol";
 import {CallLib} from "../contracts/libs/Call.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract InterchainAccountRouterTest is Test {
     using TypeCasts for address;
@@ -31,15 +32,15 @@ contract InterchainAccountRouterTest is Test {
     TestRecipient recipient;
     address payable ica;
 
-    OwnableMulticall ownable;
+    TestHyperlaneConnectionClient ownable;
 
     function setUp() public {
         environment = new MockHyperlaneEnvironment(originDomain, remoteDomain);
 
         recipient = new TestRecipient();
 
-        originRouter = new InterchainAccountRouter();
-        remoteRouter = new InterchainAccountRouter();
+        originRouter = new InterchainAccountRouter(address(0));
+        remoteRouter = new InterchainAccountRouter(address(0));
 
         address owner = address(this);
         originRouter.initialize(
@@ -65,7 +66,23 @@ contract InterchainAccountRouterTest is Test {
         );
 
         ica = remoteRouter.getInterchainAccount(originDomain, address(this));
-        ownable = new OwnableMulticall();
+        ownable = new TestHyperlaneConnectionClient();
+    }
+
+    function testConstructor() public {
+        address caller = address(this);
+        // nonzero caller
+        InterchainAccountRouter router = new InterchainAccountRouter(caller);
+        OwnableMulticall ica = router.getDeployedInterchainAccount(
+            originDomain,
+            address(this)
+        );
+        assertEq(ica.owner(), caller);
+
+        // zero caller
+        router = new InterchainAccountRouter(address(0));
+        ica = router.getDeployedInterchainAccount(originDomain, address(this));
+        assertEq(ica.owner(), address(router));
     }
 
     function dispatchTransferOwner(address newOwner) public {
@@ -143,26 +160,31 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testReceiveValue(uint256 value) public {
-        vm.assume(value > 0 && value <= address(this).balance);
+        vm.assume(value > 1 && value <= address(this).balance);
 
         // receive value before deployed
         assert(ica.code.length == 0);
-        ica.transfer(value / 2);
+        bool success;
+        (success, ) = ica.call{value: value / 2}("");
+        require(success, "transfer before deploy failed");
 
         // receive value after deployed
         remoteRouter.getDeployedInterchainAccount(originDomain, address(this));
         assert(ica.code.length > 0);
-        ica.transfer(value / 2);
+
+        (success, ) = ica.call{value: value / 2}("");
+        require(success, "transfer after deploy failed");
     }
 
-    // solhint-disable-next-line no-empty-blocks
-    function receiveValue() external payable {}
+    function receiveValue(uint256 value) external payable {
+        assertEq(value, msg.value);
+    }
 
     function testSendValue(uint256 value) public {
         vm.assume(value > 0 && value <= address(this).balance);
         ica.transfer(value);
 
-        bytes memory data = abi.encodeCall(this.receiveValue, ());
+        bytes memory data = abi.encodeCall(this.receiveValue, (value));
         CallLib.Call memory call = CallLib.build(address(this), value, data);
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
