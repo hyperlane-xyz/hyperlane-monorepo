@@ -31,9 +31,9 @@ async-trait = { version = "0.1" }
 color-eyre = { version = "0.6" }
 config = "~0.13.3"
 derive-new = "0.5"
-ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features = ["abigen"] }
-ethers-contract = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features=["legacy"] }
-ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features=["ws", "rustls"] }
+ethers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01" }
+ethers-contract = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01" }
+ethers-providers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01" }
 ethers-signers = { git = "https://github.com/hyperlane-xyz/ethers-rs", tag = "2023-02-10-01", features = ["aws"] }
 eyre = "0.6"
 futures = "0.3"
