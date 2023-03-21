@@ -40,7 +40,7 @@ async function relayPortalTransfers() {
 
   while (true) {
     for (const chain of Object.keys(bridgeAdapterConfigs)) {
-      console.log('Processing chain', chain);
+      log('Processing chain', chain);
 
       const txHashes = await app.fetchPortalBridgeTransactions(chain);
       const portalMessages = (
