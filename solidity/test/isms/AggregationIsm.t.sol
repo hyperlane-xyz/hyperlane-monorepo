@@ -49,9 +49,6 @@ contract AggregationIsmTest is Test {
             TestIsm subIsm = new TestIsm(abi.encode(randomness));
             isms[i] = address(subIsm);
         }
-        console.log("validators and threshold");
-        console.logBytes(abi.encodePacked(isms));
-        console.log(m);
         ism = factory.deploy(isms, m);
         return isms;
     }
