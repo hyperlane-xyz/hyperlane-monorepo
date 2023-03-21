@@ -9,7 +9,7 @@ pub fn address_to_bytes(data: &H256) -> Vec<u8> {
         // take the last 20 bytes
         data.as_fixed_bytes()[12..32].into()
     } else {
-        data.as_fixed_bytes().as_slice().into()
+        h256_to_bytes(data)
     }
 }
 
