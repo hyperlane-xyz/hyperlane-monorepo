@@ -24,7 +24,6 @@ contract MultisigIsmTest is Test {
     }
 
     function addValidators(
-        uint32 domain,
         uint8 m,
         uint8 n,
         bytes32 seed
@@ -68,7 +67,7 @@ contract MultisigIsmTest is Test {
         bytes32 seed
     ) private returns (bytes memory) {
         uint32 domain = mailbox.localDomain();
-        uint256[] memory keys = addValidators(domain, m, n, seed);
+        uint256[] memory keys = addValidators(m, n, seed);
         uint256[] memory signers = MOfNTestUtils.choose(m, keys, seed);
         bytes32 mailboxAsBytes32 = TypeCasts.addressToBytes32(address(mailbox));
         bytes32 checkpointRoot = mailbox.root();

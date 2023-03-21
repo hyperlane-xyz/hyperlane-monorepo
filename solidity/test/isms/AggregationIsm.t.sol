@@ -41,7 +41,7 @@ contract AggregationIsmTest is Test {
         uint8 m,
         uint8 n,
         bytes32 seed
-    ) private returns (address[] memory) {
+    ) internal {
         bytes32 randomness = seed;
         address[] memory isms = new address[](n);
         for (uint256 i = 0; i < n; i++) {
@@ -50,7 +50,6 @@ contract AggregationIsmTest is Test {
             isms[i] = address(subIsm);
         }
         ism = factory.deploy(isms, m);
-        return isms;
     }
 
     function getMetadata(uint8 m, bytes32 seed)
