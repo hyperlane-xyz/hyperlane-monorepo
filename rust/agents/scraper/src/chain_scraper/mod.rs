@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use eyre::{eyre, Result};
 use futures::TryFutureExt;
+use itertools::Itertools;
 use sea_orm::prelude::TimeDateTime;
 use tracing::trace;
 
@@ -165,34 +166,31 @@ impl SqlChainScraper {
             .collect();
         trace!(?blocks, "Ensured blocks");
 
-        // not sure why rust can't detect the lifetimes here are valid, but just
-        // wrapping with the Arc/mutex for now.
-        let block_timestamps_by_txn: Arc<std::sync::Mutex<HashMap<H256, TimeDateTime>>> =
-            Default::default();
-
-        let block_timestamps_by_txn_clone = block_timestamps_by_txn.clone();
         // all txns we care about
-        let txns_with_ids =
-            self.ensure_txns(block_hash_by_txn_hash.into_iter().map(
-                move |(txn_hash, block_hash)| {
-                    let mut block_timestamps_by_txn = block_timestamps_by_txn_clone.lock().unwrap();
-                    let block_info = *blocks.get(&block_hash).as_ref().unwrap();
-                    block_timestamps_by_txn.insert(txn_hash, block_info.timestamp);
-                    TxnWithBlockId {
-                        txn_hash,
-                        block_id: block_info.id,
-                    }
-                },
-            ))
-            .await?;
+        let mut block_timestamps_by_txn: HashMap<H256, TimeDateTime> = HashMap::new();
+        let txns_with_ids = self
+            .ensure_txns(
+                block_hash_by_txn_hash
+                    .into_iter()
+                    .map(|(txn_hash, block_hash)| {
+                        let block_info = *blocks.get(&block_hash).as_ref().unwrap();
+                        block_timestamps_by_txn.insert(txn_hash, block_info.timestamp);
+                        TxnWithBlockId {
+                            txn_hash,
+                            block_id: block_info.id,
+                        }
+                    }),
+            )
+            .await?
+            .collect_vec();
 
-        Ok(
-            txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithIdAndTime {
+        Ok(txns_with_ids
+            .into_iter()
+            .map(move |TxnWithId { hash, id: txn_id }| TxnWithIdAndTime {
                 hash,
                 id: txn_id,
-                timestamp: *block_timestamps_by_txn.lock().unwrap().get(&hash).unwrap(),
-            }),
-        )
+                timestamp: *block_timestamps_by_txn.get(&hash).unwrap(),
+            }))
     }
 
     /// Takes a list of transaction hashes and the block id the transaction is
