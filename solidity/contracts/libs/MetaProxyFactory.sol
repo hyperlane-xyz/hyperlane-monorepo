@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: CC0-1.0
 pragma solidity >=0.7.6;
 
+/// @dev From https://eips.ethereum.org/EIPS/eip-3448
 library MetaProxyFactory {
     /// @dev Creates a proxy for `targetContract` with metadata from `metadata`.
     /// @return A non-zero address if successful.

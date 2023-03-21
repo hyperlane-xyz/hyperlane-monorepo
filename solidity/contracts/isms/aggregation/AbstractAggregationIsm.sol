@@ -28,10 +28,10 @@ abstract contract AbstractAggregationIsm is IAggregationIsm {
      * and the number of ISMs that must verify
      * @dev Can change based on the content of _message
      * @param _message Hyperlane formatted interchain message
-     * @return isms The array of ISM addresses
+     * @return modules The array of ISM addresses
      * @return threshold The number of ISMs needed to verify
      */
-    function ismsAndThreshold(bytes calldata _message)
+    function modulesAndThreshold(bytes calldata _message)
         public
         view
         virtual
@@ -48,7 +48,9 @@ abstract contract AbstractAggregationIsm is IAggregationIsm {
         public
         returns (bool)
     {
-        (address[] memory _isms, uint8 _threshold) = ismsAndThreshold(_message);
+        (address[] memory _isms, uint8 _threshold) = modulesAndThreshold(
+            _message
+        );
         uint256 _count = _isms.length;
         for (uint8 i = 0; i < _count; i++) {
             if (!AggregationIsmMetadata.hasMetadata(_metadata, i)) continue;

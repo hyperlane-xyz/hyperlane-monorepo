@@ -4,11 +4,11 @@ pragma solidity >=0.8.0;
 /**
  * Format of metadata:
  *
- * [????:????] Metadata start/end uint32 offsets, packed as uint64
+ * [????:????] Metadata start/end uint32 ranges, packed as uint64
  * [????:????] ISM metadata, packed encoding
  */
 library AggregationIsmMetadata {
-    uint256 private constant OFFSET_SIZE = 4;
+    uint256 private constant RANGE_SIZE = 4;
 
     /**
      * @notice Returns whether or not metadata was provided for the ISM at
@@ -24,7 +24,7 @@ library AggregationIsmMetadata {
         pure
         returns (bool)
     {
-        (uint256 _start, ) = _metadataOffsets(_metadata, _index);
+        (uint32 _start, ) = _metadataRange(_metadata, _index);
         return _start > 0;
     }
 
@@ -42,31 +42,31 @@ library AggregationIsmMetadata {
         pure
         returns (bytes calldata)
     {
-        (uint256 _start, uint256 _end) = _metadataOffsets(_metadata, _index);
+        (uint32 _start, uint32 _end) = _metadataRange(_metadata, _index);
         return _metadata[_start:_end];
     }
 
     /**
-     * @notice Returns the offsets of the metadata provided for the ISM at
+     * @notice Returns the range of the metadata provided for the ISM at
      * `_index`, or zeroes if not provided
      * @dev Callers must ensure _index is less than the number of metadatas
      * provided
      * @param _metadata Encoded Aggregation ISM metadata
-     * @param _index The index of the ISM to return metadata offsets for
-     * @return The offsets of the metadata provided for the ISM at `_index`, or
+     * @param _index The index of the ISM to return metadata range for
+     * @return The range of the metadata provided for the ISM at `_index`, or
      * zeroes if not provided
      */
-    function _metadataOffsets(bytes calldata _metadata, uint8 _index)
+    function _metadataRange(bytes calldata _metadata, uint8 _index)
         private
         pure
-        returns (uint256, uint256)
+        returns (uint32, uint32)
     {
-        uint256 _start = (uint256(_index) * OFFSET_SIZE * 2);
-        uint256 _mid = _start + OFFSET_SIZE;
-        uint256 _end = _mid + OFFSET_SIZE;
+        uint256 _start = (uint32(_index) * RANGE_SIZE * 2);
+        uint256 _mid = _start + RANGE_SIZE;
+        uint256 _end = _mid + RANGE_SIZE;
         return (
-            uint256(uint32(bytes4(_metadata[_start:_mid]))),
-            uint256(uint32(bytes4(_metadata[_mid:_end])))
+            uint32(bytes4(_metadata[_start:_mid])),
+            uint32(bytes4(_metadata[_mid:_end]))
         );
     }
 }

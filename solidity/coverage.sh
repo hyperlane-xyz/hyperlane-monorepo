@@ -12,6 +12,7 @@ rm -rf coverage && \
 # Remove files we don't care about covering
 lcov --remove lcov.info -o lcov.info 'contracts/test/**' 'contracts/mock/**' '**/node_modules/**' 'test/*' && \
 # Print output
-lcov --list lcov.info
-# Write more granular output
-genhtml -o coverage lcov.info
+lcov --list lcov.info && \
+# Open more granular breakdown in browser
+genhtml -o coverage lcov.info && \
+[[ "$CI" != "true" ]] && open coverage/index.html

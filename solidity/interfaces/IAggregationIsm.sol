@@ -5,15 +5,15 @@ import {IInterchainSecurityModule} from "./IInterchainSecurityModule.sol";
 
 interface IAggregationIsm is IInterchainSecurityModule {
     /**
-     * @notice Returns the set of ISMs responsible for verifying _message
-     * and the number of ISMs that must verify
+     * @notice Returns the set of modules responsible for verifying _message
+     * and the number of modules that must verify
      * @dev Can change based on the content of _message
      * @param _message Hyperlane formatted interchain message
-     * @return isms The array of ISM addresses
-     * @return threshold The number of ISMs needed to verify
+     * @return modules The array of ISM addresses
+     * @return threshold The number of modules needed to verify
      */
-    function ismsAndThreshold(bytes calldata _message)
+    function modulesAndThreshold(bytes calldata _message)
         external
         view
-        returns (address[] memory isms, uint8 threshold);
+        returns (address[] memory modules, uint8 threshold);
 }

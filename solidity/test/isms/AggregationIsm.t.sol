@@ -41,7 +41,7 @@ contract AggregationIsmTest is Test {
         uint8 m,
         uint8 n,
         bytes32 seed
-    ) internal {
+    ) internal returns (address[] memory) {
         bytes32 randomness = seed;
         address[] memory isms = new address[](n);
         for (uint256 i = 0; i < n; i++) {
@@ -50,6 +50,7 @@ contract AggregationIsmTest is Test {
             isms[i] = address(subIsm);
         }
         ism = factory.deploy(isms, m);
+        return isms;
     }
 
     function getMetadata(uint8 m, bytes32 seed)
@@ -57,7 +58,7 @@ contract AggregationIsmTest is Test {
         view
         returns (bytes memory)
     {
-        (address[] memory choices, ) = ism.ismsAndThreshold("");
+        (address[] memory choices, ) = ism.modulesAndThreshold("");
         address[] memory chosen = MOfNTestUtils.choose(m, choices, seed);
         bytes memory offsets;
         uint32 start = 8 * uint32(choices.length);
@@ -103,7 +104,7 @@ contract AggregationIsmTest is Test {
     ) public {
         vm.assume(0 < m && m <= n && n < 10 && i < n);
         deployIsms(m, n, seed);
-        (address[] memory modules, ) = ism.ismsAndThreshold("");
+        (address[] memory modules, ) = ism.modulesAndThreshold("");
         bytes memory noMetadata;
         TestIsm(modules[i]).setRequiredMetadata(noMetadata);
 
@@ -136,16 +137,12 @@ contract AggregationIsmTest is Test {
         bytes memory metadata = getMetadata(m, seed);
         // Modify the last byte in metadata. This should affect
         // the content of the metadata passed to the last ISM.
-        if (metadata[metadata.length - 1] == bytes1(0)) {
-            metadata[metadata.length - 1] = bytes1(uint8(1));
-        } else {
-            metadata[metadata.length - 1] = bytes1(0);
-        }
+        metadata[metadata.length - 1] = ~metadata[metadata.length - 1];
         vm.expectRevert(bytes("!verify"));
         ism.verify(metadata, "");
     }
 
-    function testIsmsAndThreshold(
+    function testModulesAndThreshold(
         uint8 m,
         uint8 n,
         bytes32 seed
@@ -153,7 +150,7 @@ contract AggregationIsmTest is Test {
         vm.assume(0 < m && m <= n && n < 10);
         address[] memory expectedIsms = deployIsms(m, n, seed);
         (address[] memory actualIsms, uint8 actualThreshold) = ism
-            .ismsAndThreshold("");
+            .modulesAndThreshold("");
         assertEq(abi.encode(actualIsms), abi.encode(expectedIsms));
         assertEq(actualThreshold, m);
     }
