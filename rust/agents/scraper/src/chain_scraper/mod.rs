@@ -26,6 +26,10 @@ use crate::{
 
 mod sync;
 
+/// Maximum number of records to query at a time. This came about because when a
+/// lot of messages are sent in a short period of time we were ending up with a
+/// lot of data to query from the node provider between points when we would
+/// actually save it to the database.
 const CHUNK_SIZE: usize = 50;
 
 /// Local chain components like the mailbox.
