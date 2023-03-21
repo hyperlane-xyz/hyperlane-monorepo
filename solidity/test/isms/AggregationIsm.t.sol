@@ -4,10 +4,8 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {IAggregationIsm} from "../../interfaces/IAggregationIsm.sol";
-import {IMOfNAddressSet} from "../../interfaces/IMOfNAddressSet.sol";
 import {StaticAggregationIsm} from "../../contracts/isms/aggregation/StaticAggregationIsm.sol";
-import {StorageAggregationIsm} from "../../contracts/isms/aggregation/StorageAggregationIsm.sol";
-import {Message} from "../../contracts/libs/Message.sol";
+import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
 import {AggregationIsmMetadata} from "../../contracts/libs/AggregationIsmMetadata.sol";
 import {MOfNTestUtils} from "./MOfNTestUtils.sol";
 
@@ -31,35 +29,35 @@ contract TestIsm {
     }
 }
 
-interface IStaticOrStorageAggregationIsm is IMOfNAddressSet, IAggregationIsm {}
+contract AggregationIsmTest is Test {
+    StaticAggregationIsmFactory factory;
+    StaticAggregationIsm ism;
 
-abstract contract AggregationIsmTest is Test {
-    IStaticOrStorageAggregationIsm ism;
+    function setUp() public {
+        factory = new StaticAggregationIsmFactory();
+    }
 
     function deployIsms(
-        uint32 domain,
         uint8 m,
         uint8 n,
         bytes32 seed
-    ) private returns (address[] memory) {
+    ) internal {
         bytes32 randomness = seed;
         address[] memory isms = new address[](n);
         for (uint256 i = 0; i < n; i++) {
             randomness = keccak256(abi.encode(randomness));
             TestIsm subIsm = new TestIsm(abi.encode(randomness));
-            ism.add(domain, address(subIsm));
             isms[i] = address(subIsm);
         }
-        ism.setThreshold(domain, m);
-        return isms;
+        ism = factory.deploy(isms, m);
     }
 
-    function getMetadata(
-        uint32 domain,
-        uint8 m,
-        bytes32 seed
-    ) private view returns (bytes memory) {
-        address[] memory choices = ism.values(domain);
+    function getMetadata(uint8 m, bytes32 seed)
+        private
+        view
+        returns (bytes memory)
+    {
+        (address[] memory choices, ) = ism.ismsAndThreshold("");
         address[] memory chosen = MOfNTestUtils.choose(m, choices, seed);
         bytes memory offsets;
         uint32 start = 8 * uint32(choices.length);
@@ -70,7 +68,7 @@ abstract contract AggregationIsmTest is Test {
                 included = included || choices[i] == chosen[j];
             }
             if (included) {
-                bytes memory requiredMetadata = TestIsm(ism.values(domain)[i])
+                bytes memory requiredMetadata = TestIsm(choices[i])
                     .requiredMetadata();
                 uint32 end = start + uint32(requiredMetadata.length);
                 uint64 offset = (uint64(start) << 32) | uint64(end);
@@ -86,86 +84,56 @@ abstract contract AggregationIsmTest is Test {
     }
 
     function testVerify(
-        uint32 domain,
         uint8 m,
         uint8 n,
-        bytes5 messagePrefix,
-        bytes calldata messageSuffix,
         bytes32 seed
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
-        vm.assume(messageSuffix.length < 100);
-        deployIsms(domain, m, n, seed);
+        deployIsms(m, n, seed);
 
-        bytes memory metadata = getMetadata(domain, m, seed);
-        bytes memory message = abi.encodePacked(
-            messagePrefix,
-            domain,
-            messageSuffix
-        );
-        assertTrue(ism.verify(metadata, message));
+        bytes memory metadata = getMetadata(m, seed);
+        assertTrue(ism.verify(metadata, ""));
     }
 
     function testVerifyNoMetadataRequired(
-        uint32 domain,
         uint8 m,
         uint8 n,
         uint8 i,
-        bytes5 messagePrefix,
-        bytes calldata messageSuffix,
         bytes32 seed
     ) public {
         vm.assume(0 < m && m <= n && n < 10 && i < n);
-        vm.assume(messageSuffix.length < 100);
-        deployIsms(domain, m, n, seed);
+        deployIsms(m, n, seed);
+        (address[] memory modules, ) = ism.ismsAndThreshold("");
         bytes memory noMetadata;
-        TestIsm(ism.values(domain)[i]).setRequiredMetadata(noMetadata);
+        TestIsm(modules[i]).setRequiredMetadata(noMetadata);
 
-        bytes memory metadata = getMetadata(domain, m, seed);
-        bytes memory message = abi.encodePacked(
-            messagePrefix,
-            domain,
-            messageSuffix
-        );
-        assertTrue(ism.verify(metadata, message));
+        bytes memory metadata = getMetadata(m, seed);
+        assertTrue(ism.verify(metadata, ""));
     }
 
     function testVerifyMissingMetadata(
-        uint32 domain,
         uint8 m,
         uint8 n,
-        bytes5 messagePrefix,
-        bytes calldata messageSuffix,
         bytes32 seed
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
-        vm.assume(messageSuffix.length < 100);
-        deployIsms(domain, m, n, seed);
+        deployIsms(m, n, seed);
 
         // Populate metadata for one fewer ISMs than needed.
-        bytes memory metadata = getMetadata(domain, m - 1, seed);
-        bytes memory message = abi.encodePacked(
-            messagePrefix,
-            domain,
-            messageSuffix
-        );
+        bytes memory metadata = getMetadata(m - 1, seed);
         vm.expectRevert(bytes("!threshold"));
-        ism.verify(metadata, message);
+        ism.verify(metadata, "");
     }
 
     function testVerifyIncorrectMetadata(
-        uint32 domain,
         uint8 m,
         uint8 n,
-        bytes5 messagePrefix,
-        bytes calldata messageSuffix,
         bytes32 seed
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
-        vm.assume(messageSuffix.length < 100);
-        deployIsms(domain, m, n, seed);
+        deployIsms(m, n, seed);
 
-        bytes memory metadata = getMetadata(domain, m, seed);
+        bytes memory metadata = getMetadata(m, seed);
         // Modify the last byte in metadata. This should affect
         // the content of the metadata passed to the last ISM.
         if (metadata[metadata.length - 1] == bytes1(0)) {
@@ -173,50 +141,20 @@ abstract contract AggregationIsmTest is Test {
         } else {
             metadata[metadata.length - 1] = bytes1(0);
         }
-        bytes memory message = abi.encodePacked(
-            messagePrefix,
-            domain,
-            messageSuffix
-        );
         vm.expectRevert(bytes("!verify"));
-        ism.verify(metadata, message);
+        ism.verify(metadata, "");
     }
 
     function testIsmsAndThreshold(
-        uint32 domain,
         uint8 m,
         uint8 n,
-        bytes5 messagePrefix,
-        bytes calldata messageSuffix,
         bytes32 seed
     ) public {
         vm.assume(0 < m && m <= n && n < 10);
-        vm.assume(messageSuffix.length < 100);
-        address[] memory expectedIsms = deployIsms(domain, m, n, seed);
-        bytes memory message = abi.encodePacked(
-            messagePrefix,
-            domain,
-            messageSuffix
-        );
+        address[] memory expectedIsms = deployIsms(m, n, seed);
         (address[] memory actualIsms, uint8 actualThreshold) = ism
-            .ismsAndThreshold(message);
+            .ismsAndThreshold("");
         assertEq(abi.encode(actualIsms), abi.encode(expectedIsms));
         assertEq(actualThreshold, m);
-    }
-}
-
-contract StaticAggregationIsmTest is AggregationIsmTest {
-    function setUp() public {
-        ism = IStaticOrStorageAggregationIsm(
-            address(new StaticAggregationIsm())
-        );
-    }
-}
-
-contract StorageAggregationIsmTest is AggregationIsmTest {
-    function setUp() public {
-        ism = IStaticOrStorageAggregationIsm(
-            address(new StorageAggregationIsm())
-        );
     }
 }

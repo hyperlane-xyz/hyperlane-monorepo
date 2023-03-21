@@ -4,35 +4,38 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
-import {IMOfNAddressSet} from "../../interfaces/IMOfNAddressSet.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {StaticMultisigIsm} from "../../contracts/isms/multisig/StaticMultisigIsm.sol";
-import {StorageMultisigIsm} from "../../contracts/isms/multisig/StorageMultisigIsm.sol";
+import {StaticMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsmFactory.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MOfNTestUtils} from "./MOfNTestUtils.sol";
 
-interface IStaticOrStorageMultisigIsm is IMOfNAddressSet, IMultisigIsm {}
-
-abstract contract MultisigIsmTest is Test {
+contract MultisigIsmTest is Test {
     uint32 constant ORIGIN = 11;
-    IStaticOrStorageMultisigIsm ism;
+    StaticMultisigIsmFactory factory;
+    StaticMultisigIsm ism;
     TestMailbox mailbox;
 
+    function setUp() public {
+        mailbox = new TestMailbox(ORIGIN);
+        factory = new StaticMultisigIsmFactory();
+    }
+
     function addValidators(
-        uint32 domain,
         uint8 m,
         uint8 n,
         bytes32 seed
     ) private returns (uint256[] memory) {
         uint256[] memory keys = new uint256[](n);
+        address[] memory addresses = new address[](n);
         for (uint256 i = 0; i < n; i++) {
             uint256 key = uint256(keccak256(abi.encode(seed, i)));
             keys[i] = key;
-            ism.add(domain, vm.addr(key));
+            addresses[i] = vm.addr(key);
         }
-        ism.setThreshold(domain, m);
+        ism = factory.deploy(addresses, m);
         return keys;
     }
 
@@ -64,7 +67,7 @@ abstract contract MultisigIsmTest is Test {
         bytes32 seed
     ) private returns (bytes memory) {
         uint32 domain = mailbox.localDomain();
-        uint256[] memory keys = addValidators(domain, m, n, seed);
+        uint256[] memory keys = addValidators(m, n, seed);
         uint256[] memory signers = MOfNTestUtils.choose(m, keys, seed);
         bytes32 mailboxAsBytes32 = TypeCasts.addressToBytes32(address(mailbox));
         bytes32 checkpointRoot = mailbox.root();
@@ -100,19 +103,5 @@ abstract contract MultisigIsmTest is Test {
         bytes memory message = getMessage(destination, recipient, body);
         bytes memory metadata = getMetadata(m, n, seed);
         assertTrue(ism.verify(metadata, message));
-    }
-}
-
-contract StaticMultisigIsmTest is MultisigIsmTest {
-    function setUp() public {
-        mailbox = new TestMailbox(ORIGIN);
-        ism = IStaticOrStorageMultisigIsm(address(new StaticMultisigIsm()));
-    }
-}
-
-contract StorageMultisigIsmTest is MultisigIsmTest {
-    function setUp() public {
-        mailbox = new TestMailbox(ORIGIN);
-        ism = IStaticOrStorageMultisigIsm(address(new StorageMultisigIsm()));
     }
 }
