@@ -78,7 +78,7 @@ impl TracingConfig {
     pub fn start_tracing(&self, metrics: &CoreMetrics) -> Result<()> {
         let mut target_layer = Targets::new().with_default(self.level);
         if self.level < Level::Trace {
-            // only show hyper debug and trace logs at trace level
+            // only show these debug and trace logs at trace level
             target_layer = target_layer.with_target("hyper", Level::Info);
             target_layer = target_layer.with_target("rusoto_core", Level::Info);
             target_layer = target_layer.with_target("reqwest", Level::Info);
