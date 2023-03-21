@@ -143,28 +143,31 @@ contract InterchainAccountRouterTest is Test {
     }
 
     function testReceiveValue(uint256 value) public {
-        vm.assume(value > 0 && value <= address(this).balance);
+        vm.assume(value > 1 && value <= address(this).balance);
 
         // receive value before deployed
         assert(ica.code.length == 0);
-        ica.transfer(value / 2);
+        bool success;
+        (success, ) = ica.call{value: value / 2}("");
+        require(success, "transfer before deploy failed");
 
         // receive value after deployed
         remoteRouter.getDeployedInterchainAccount(originDomain, address(this));
         assert(ica.code.length > 0);
-        // necessary in forge tests for receive() to be executed upon transfer ?
-        OwnableMulticall(ica).owner();
-        ica.transfer(value / 2);
+
+        (success, ) = ica.call{value: value / 2}("");
+        require(success, "transfer after deploy failed");
     }
 
-    // solhint-disable-next-line no-empty-blocks
-    function receiveValue() external payable {}
+    function receiveValue(uint256 value) external payable {
+        assertEq(value, msg.value);
+    }
 
     function testSendValue(uint256 value) public {
         vm.assume(value > 0 && value <= address(this).balance);
         ica.transfer(value);
 
-        bytes memory data = abi.encodeCall(this.receiveValue, ());
+        bytes memory data = abi.encodeCall(this.receiveValue, (value));
         CallLib.Call memory call = CallLib.build(address(this), value, data);
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
