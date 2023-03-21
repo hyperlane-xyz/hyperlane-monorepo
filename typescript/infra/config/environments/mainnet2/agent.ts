@@ -29,16 +29,13 @@ export const hyperlane: AgentConfig = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '1cbe5fd-20230309-202035',
+    tag: '8f791a5-20230318-161843',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  gelato: {
-    enabledChains: [],
-  },
   connectionType: ConnectionType.HttpQuorum,
   validators,
   relayer: {
@@ -60,8 +57,7 @@ export const hyperlane: AgentConfig = {
           matchingList: interchainQueriesMatchingList,
         },
         {
-          type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: '1',
+          type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
         },
       ],
     },
@@ -75,16 +71,13 @@ export const releaseCandidate: AgentConfig = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '1cbe5fd-20230309-202035',
+    tag: '8f791a5-20230318-161843',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  gelato: {
-    enabledChains: [],
-  },
   connectionType: ConnectionType.HttpFallback,
   relayer: {
     default: {
@@ -95,8 +88,7 @@ export const releaseCandidate: AgentConfig = {
           matchingList: interchainQueriesMatchingList,
         },
         {
-          type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: '1',
+          type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
         },
       ],
       transactionGasLimit: 750000,

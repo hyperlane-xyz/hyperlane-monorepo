@@ -77,6 +77,7 @@ use rusoto_kms::KmsClient;
 use serde::Deserialize;
 
 pub use chains::{ChainConf, ChainSetup, CoreContractAddresses};
+use hyperlane_core::utils::StrOrInt;
 use hyperlane_core::{
     db::{HyperlaneDB, DB},
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, InterchainGasPaymaster,
@@ -86,8 +87,6 @@ pub use signers::SignerConf;
 
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
 use crate::{CachingMailbox, CoreMetrics, HyperlaneAgentCore};
-
-use self::chains::GelatoConf;
 
 /// Chain configuration
 pub mod chains;
@@ -128,10 +127,12 @@ static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 pub struct Settings {
     /// Configuration for contracts on each chain
     pub chains: HashMap<String, ChainSetup>,
-    /// Gelato config
-    pub gelato: Option<GelatoConf>,
+    /// Default signer configuration for chains which do not define their own.
+    /// This value is intentionally private as it will get consumed by
+    /// `post_deserialize`.
+    defaultsigner: Option<SignerConf>,
     /// Port to listen for prometheus scrape requests
-    pub metrics: Option<String>,
+    pub metrics: Option<StrOrInt>,
     /// The tracing configuration
     pub tracing: TracingConfig,
 }
@@ -185,8 +186,14 @@ impl Settings {
         db: DB,
         metrics: &CoreMetrics,
     ) -> eyre::Result<CachingMailbox> {
-        let mailbox = self.build_mailbox(chain_name, metrics).await?;
-        let indexer = self.build_mailbox_indexer(chain_name, metrics).await?;
+        let mailbox = self
+            .build_mailbox(chain_name, metrics)
+            .await
+            .with_context(|| format!("Building mailbox for {chain_name}"))?;
+        let indexer = self
+            .build_mailbox_indexer(chain_name, metrics)
+            .await
+            .with_context(|| format!("Building mailbox indexer for {chain_name}"))?;
         let hyperlane_db = HyperlaneDB::new(chain_name, db);
         Ok(CachingMailbox::new(
             mailbox.into(),
@@ -223,7 +230,9 @@ impl Settings {
         address: H256,
         metrics: &CoreMetrics,
     ) -> eyre::Result<Box<dyn MultisigIsm>> {
-        let setup = self.chain_setup(chain_name)?;
+        let setup = self
+            .chain_setup(chain_name)
+            .with_context(|| format!("Building multisig ism for {chain_name}"))?;
         setup.build_multisig_ism(address, metrics).await
     }
 
@@ -234,7 +243,10 @@ impl Settings {
         metrics: &CoreMetrics,
     ) -> eyre::Result<Arc<dyn ValidatorAnnounce>> {
         let setup = self.chain_setup(chain_name)?;
-        let announce = setup.build_validator_announce(metrics).await?;
+        let announce = setup
+            .build_validator_announce(metrics)
+            .await
+            .with_context(|| format!("Building validator announce for {chain_name}"))?;
         Ok(announce.into())
     }
 
@@ -251,10 +263,18 @@ impl Settings {
             name,
             self.metrics
                 .as_ref()
-                .map(|v| v.parse::<u16>().context("Port must be a valid u16"))
+                .map(|v| v.try_into().context("Port must be a valid u16"))
                 .transpose()?,
             prometheus::Registry::new(),
         )?))
+    }
+
+    /// Make internal connections as-needed after deserializing.
+    pub(super) fn post_deserialize(&mut self) {
+        let Some(signer) = self.defaultsigner.take() else { return };
+        for chain in self.chains.values_mut() {
+            chain.signer.get_or_insert_with(|| signer.clone());
+        }
     }
 
     /// Private to preserve linearity of AgentCore::from_settings -- creating an
@@ -262,9 +282,9 @@ impl Settings {
     fn clone(&self) -> Self {
         Self {
             chains: self.chains.clone(),
-            gelato: self.gelato.clone(),
             metrics: self.metrics.clone(),
             tracing: self.tracing.clone(),
+            defaultsigner: self.defaultsigner.clone(),
         }
     }
 }

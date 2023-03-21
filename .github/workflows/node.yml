@@ -109,6 +109,26 @@ jobs:
       - name: infra
         run: yarn workspace @hyperlane-xyz/infra run test
 
+  test-env:
+    runs-on: ubuntu-latest
+    needs: [yarn-build]
+    strategy: 
+      matrix:
+        environment: [testnet3, mainnet2]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: ./*
+          key: ${{ github.sha }}
+
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
+
+      - name: Test ${{ matrix.environment }} deployment (check, deploy, govern, check again)
+        run: cd typescript/infra && ./fork.sh ${{ matrix.environment }}
+
   test-sol:
     env:
       ETHERSCAN_API_KEY: ''
@@ -199,13 +219,6 @@ jobs:
         with:
           path: './solidity/lcov.info'
           key: ${{ github.sha }}
-
-      - uses: osmind-development-org/lcov-reporter-action@v0.3.2
-        with:
-          title: 'Solidity Coverage Report'
-          lcov-file: ./solidity/lcov.info
-          lcov-base: ./solidity/lcov.base.info
-          delete-old-comments: true
 
       - name: check-coverage
         run: |

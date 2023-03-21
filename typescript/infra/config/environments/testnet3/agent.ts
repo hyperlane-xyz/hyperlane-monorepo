@@ -29,21 +29,26 @@ export const hyperlane: AgentConfig = {
   context: Contexts.Hyperlane,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '0b10247-20230313-205739',
+    tag: '97a1d0f-20230317-180246',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  gelato: {
-    enabledChains: [],
-  },
   connectionType: ConnectionType.HttpFallback,
   validators,
   relayer: {
     default: {
-      blacklist: releaseCandidateHelloworldMatchingList,
+      blacklist: [
+        ...releaseCandidateHelloworldMatchingList,
+        {
+          // In an effort to reduce some giant retry queues that resulted
+          // from spam txs to the old TestRecipient before we were charging for
+          // gas, we blacklist the old TestRecipient address.
+          recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
+        },
+      ],
       gasPaymentEnforcement: [
         {
           type: GasPaymentEnforcementPolicyType.None,
@@ -53,9 +58,9 @@ export const hyperlane: AgentConfig = {
           // https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/1605
           matchingList: interchainQueriesMatchingList,
         },
+        // Default policy is OnChainFeeQuoting
         {
-          type: GasPaymentEnforcementPolicyType.Minimum,
-          payment: '1',
+          type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
         },
       ],
     },
@@ -69,16 +74,13 @@ export const releaseCandidate: AgentConfig = {
   context: Contexts.ReleaseCandidate,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-    tag: '1cbe5fd-20230309-202035',
+    tag: '97a1d0f-20230317-180246',
   },
   aws: {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
   contextChainNames: chainNames,
-  gelato: {
-    enabledChains: [],
-  },
   connectionType: ConnectionType.HttpFallback,
   relayer: {
     default: {
@@ -88,6 +90,7 @@ export const releaseCandidate: AgentConfig = {
           type: GasPaymentEnforcementPolicyType.None,
           matchingList: interchainQueriesMatchingList,
         },
+        // Default policy is OnChainFeeQuoting
         {
           type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
         },
