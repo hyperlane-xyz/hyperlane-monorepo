@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.13;
 
-// ============ External Imports ============
-
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+// ============ Internal Imports ============
 import {CallLib} from "./libs/Call.sol";
 
 /*
  * @title OwnableMulticall
- * @dev Permits owner address to execute state mutating calls with value to other contracts
+ * @dev Permits immutable owner address to execute calls with value to other contracts.
  */
-contract OwnableMulticall is OwnableUpgradeable {
-    constructor() {
-        _transferOwnership(msg.sender);
+contract OwnableMulticall {
+    address public immutable owner;
+
+    constructor(address _owner) {
+        owner = _owner;
     }
 
-    function initialize() external initializer {
-        __Ownable_init();
+    modifier onlyOwner() {
+        require(msg.sender == owner, "!owner");
+        _;
     }
 
-    function proxyCalls(CallLib.Call[] calldata calls) external onlyOwner {
+    function multicall(CallLib.Call[] calldata calls) external onlyOwner {
         return CallLib.multicall(calls);
     }
 

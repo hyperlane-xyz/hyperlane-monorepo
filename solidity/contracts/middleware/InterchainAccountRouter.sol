@@ -98,11 +98,20 @@ contract InterchainAccountRouter is
 
     /**
      * @notice Constructor deploys a relay (OwnableMulticall.sol) contract that
-     * will be cloned for each interchain account
+     * will be cloned for each interchain account.
+     * @param _localDomain The Hyperlane domain ID on which this contract is
+     * deployed.
+     * @param _proxy The address of a proxy contract that delegates calls to
+     * this contract. Used by OwnableMulticall for access control.
+     * @dev Set proxy to address(0) to use this contract without a proxy.
      */
-    constructor(uint32 _localDomain) {
+    constructor(uint32 _localDomain, address _proxy) {
         localDomain = _localDomain;
-        implementation = address(new OwnableMulticall());
+        // TODO: always proxy and remove this sentinel
+        if (_proxy == address(0)) {
+            _proxy = address(this);
+        }
+        implementation = address(new OwnableMulticall(_proxy));
         // cannot be stored immutably because it is dynamically sized
         bytes memory _bytecode = MinimalProxy.bytecode(implementation);
         bytecodeHash = keccak256(_bytecode);
@@ -129,6 +138,7 @@ contract InterchainAccountRouter is
             _interchainSecurityModule,
             _owner
         );
+        require(localDomain == mailbox.localDomain(), "domain mismatch");
     }
 
     // ============ External Functions ============
@@ -198,7 +208,7 @@ contract InterchainAccountRouter is
             _sender,
             TypeCasts.bytes32ToAddress(_ism)
         );
-        _interchainAccount.proxyCalls(_calls);
+        _interchainAccount.multicall(_calls);
     }
 
     /**
@@ -323,6 +333,29 @@ contract InterchainAccountRouter is
      */
     function getDeployedInterchainAccount(
         uint32 _origin,
+        address _owner,
+        address _router,
+        address _ism
+    ) public returns (OwnableMulticall) {
+        return
+            getDeployedInterchainAccount(
+                _origin,
+                TypeCasts.addressToBytes32(_owner),
+                TypeCasts.addressToBytes32(_router),
+                _ism
+            );
+    }
+
+    /**
+     * @notice Returns and deploys (if not already) an interchain account
+     * @param _origin The remote origin domain of the interchain account
+     * @param _owner The remote owner of the interchain account
+     * @param _router The remote origin InterchainAccountRouter
+     * @param _ism The local address of the ISM
+     * @return The address of the interchain account
+     */
+    function getDeployedInterchainAccount(
+        uint32 _origin,
         bytes32 _owner,
         bytes32 _router,
         address _ism
@@ -338,8 +371,6 @@ contract InterchainAccountRouter is
             bytes memory _bytecode = MinimalProxy.bytecode(implementation);
             _account = payable(Create2.deploy(0, _salt, _bytecode));
             emit InterchainAccountCreated(_origin, _owner, _ism, _account);
-            // transfers ownership to this contract
-            OwnableMulticall(_account).initialize();
         }
         return OwnableMulticall(_account);
     }

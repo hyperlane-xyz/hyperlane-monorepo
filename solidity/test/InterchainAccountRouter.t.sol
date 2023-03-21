@@ -9,6 +9,7 @@ import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {InterchainAccountRouter, IInterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
 import {CallLib} from "../contracts/libs/Call.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract Callable {
     mapping(address => bytes32) public data;
@@ -50,8 +51,11 @@ contract InterchainAccountRouterTest is Test {
     function setUp() public {
         environment = new MockHyperlaneEnvironment(origin, destination);
 
-        originRouter = new InterchainAccountRouter(origin);
-        destinationRouter = new InterchainAccountRouter(destination);
+        originRouter = new InterchainAccountRouter(origin, address(0));
+        destinationRouter = new InterchainAccountRouter(
+            destination,
+            address(0)
+        );
 
         address owner = address(this);
         originRouter.initialize(
@@ -79,6 +83,31 @@ contract InterchainAccountRouterTest is Test {
         );
 
         target = new Callable();
+    }
+
+    function testConstructor() public {
+        // The deployed ICA should be owned by the router
+        destinationRouter.getDeployedInterchainAccount(
+            origin,
+            address(this),
+            address(originRouter),
+            address(environment.isms(destination))
+        );
+        assertEq(ica.owner(), address(destinationRouter));
+
+        // The deployed ICA should be owned by the provided address
+        address owner = address(this);
+        InterchainAccountRouter router = new InterchainAccountRouter(
+            destination,
+            owner
+        );
+        ica = router.getDeployedInterchainAccount(
+            origin,
+            address(this),
+            address(originRouter),
+            address(environment.isms(destination))
+        );
+        assertEq(ica.owner(), owner);
     }
 
     function testGetRemoteInterchainAccount() public {
@@ -257,42 +286,36 @@ contract InterchainAccountRouterTest is Test {
         assert(address(destinationIca).code.length != 0);
     }
 
-    function testReceiveValue(uint256 value, bytes32 data) public {
-        vm.assume(value > 0 && value <= address(this).balance);
-
+    function testReceiveValue(uint256 value) public {
+        vm.assume(value > 1 && value <= address(this).balance);
         // receive value before deployed
         assert(address(ica).code.length == 0);
-        payable(address(ica)).transfer(value / 2);
-
-        // Deploy
-        originRouter.callRemoteWithOverrides(
-            destination,
-            routerOverride,
-            ismOverride,
-            getCalls(data)
-        );
-        assertRemoteCallReceived(data);
+        bool success;
+        (success, ) = address(ica).call{value: value / 2}("");
+        require(success, "transfer before deploy failed");
 
         // receive value after deployed
-        destinationRouter.getLocalInterchainAccount(
+        destinationRouter.getDeployedInterchainAccount(
             origin,
             address(this),
             address(originRouter),
-            address(environment.isms(origin))
+            address(environment.isms(destination))
         );
-
         assert(address(ica).code.length > 0);
-        payable(address(ica)).transfer(value / 2);
+
+        (success, ) = address(ica).call{value: value / 2}("");
+        require(success, "transfer after deploy failed");
     }
 
-    // solhint-disable-next-line no-empty-blocks
-    function receiveValue() external payable {}
+    function receiveValue(uint256 value) external payable {
+        assertEq(value, msg.value);
+    }
 
     function testSendValue(uint256 value) public {
         vm.assume(value > 0 && value <= address(this).balance);
         payable(address(ica)).transfer(value);
 
-        bytes memory data = abi.encodeCall(this.receiveValue, ());
+        bytes memory data = abi.encodeCall(this.receiveValue, (value));
         CallLib.Call memory call = CallLib.build(address(this), value, data);
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
