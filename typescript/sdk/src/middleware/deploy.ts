@@ -1,11 +1,11 @@
 import { ethers } from 'ethers';
 
-import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
   InterchainAccountRouter,
   InterchainAccountRouter__factory,
   InterchainQueryRouter,
   InterchainQueryRouter__factory,
+  ProxyAdmin__factory,
 } from '@hyperlane-xyz/core';
 
 import { MultiProvider } from '../providers/MultiProvider';
@@ -55,12 +55,13 @@ export abstract class MiddlewareRouterDeployer<
   }
 
   constructorArgs(
-    _: MiddlewareRouterConfig,
+    _chain: ChainName,
+    _config: MiddlewareRouterConfig,
   ): Parameters<MiddlewareFactories['router']['deploy']> {
     return [] as any;
   }
 
-  initializeArgs(config: MiddlewareRouterConfig): any {
+  initializeArgs(_: ChainName, config: MiddlewareRouterConfig): any {
     return [
       config.mailbox,
       config.interchainGasPaymaster,
@@ -83,9 +84,9 @@ export abstract class MiddlewareRouterDeployer<
     const proxiedRouter = await this.deployProxiedContract(
       chain,
       'router',
-      this.constructorArgs(config),
+      this.constructorArgs(chain, config),
       proxyAdmin,
-      this.initializeArgs(config),
+      this.initializeArgs(chain, config),
       {
         create2Salt: this.create2salt,
       },
@@ -115,6 +116,14 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     create2salt = 'accountsrouter',
   ) {
     super(multiProvider, configMap, interchainAccountFactories, create2salt);
+  }
+
+  constructorArgs(
+    chain: ChainName,
+    _: InterchainAccountConfig,
+  ): Parameters<InterchainAccountFactories['router']['deploy']> {
+    const domainId = this.multiProvider.getDomainId(chain);
+    return [domainId];
   }
 }
 

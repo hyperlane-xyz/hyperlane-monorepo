@@ -22,7 +22,7 @@ import {
   InterchainAccountDeployer,
 } from './deploy';
 
-describe('InterchainAccountRouter', async () => {
+describe('InterchainAccounts', async () => {
   const localChain = Chains.test1;
   const remoteChain = Chains.test2;
 
@@ -51,11 +51,8 @@ describe('InterchainAccountRouter', async () => {
   });
 
   beforeEach(async () => {
-    const InterchainAccount = new InterchainAccountDeployer(
-      multiProvider,
-      config,
-    );
-    contracts = await InterchainAccount.deploy();
+    const deployer = new InterchainAccountDeployer(multiProvider, config);
+    contracts = await deployer.deploy();
 
     local = contracts[localChain].router;
     remote = contracts[remoteChain].router;
@@ -85,8 +82,8 @@ describe('InterchainAccountRouter', async () => {
       'getLocalInterchainAccount(uint32,address,address,address)'
     ](
       multiProvider.getDomainId(localChain),
-      local.address,
       signer.address,
+      local.address,
       ethers.constants.AddressZero,
     );
 
