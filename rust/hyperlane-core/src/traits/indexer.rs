@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 
-use crate::{ChainResult, HyperlaneMessage, InterchainGasPaymentWithMeta, LogMeta, H256};
+use crate::{ChainResult, HyperlaneMessage, InterchainGasPayment, LogMeta, H256};
 
 /// Interface for an indexer.
 #[async_trait]
@@ -50,5 +50,5 @@ pub trait InterchainGasPaymasterIndexer: Indexer {
         &self,
         from_block: u32,
         to_block: u32,
-    ) -> ChainResult<Vec<InterchainGasPaymentWithMeta>>;
+    ) -> ChainResult<Vec<(InterchainGasPayment, LogMeta)>>;
 }

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use eyre::Result;
 use itertools::Itertools;
 use prometheus::{IntCounter, IntGauge, IntGaugeVec};
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 use hyperlane_base::last_message::validate_message_continuity;
 use hyperlane_base::RateLimitedSyncBlockRangeCursor;
@@ -13,7 +13,9 @@ use hyperlane_core::{
     KnownHyperlaneDomain, ListValidity, MailboxIndexer, SyncBlockRangeCursor, H256,
 };
 
-use crate::chain_scraper::{Delivery, HyperlaneMessageWithMeta, SqlChainScraper, TxnWithIdAndTime};
+use crate::chain_scraper::{
+    Delivery, HyperlaneMessageWithMeta, Payment, SqlChainScraper, TxnWithId,
+};
 
 /// Workhorse of synchronization. This consumes a `SqlChainScraper` which has
 /// the needed connections and information to work and then adds additional
@@ -25,10 +27,10 @@ use crate::chain_scraper::{Delivery, HyperlaneMessageWithMeta, SqlChainScraper, 
 /// configured but as a struct + multiple functions.
 pub(super) struct Syncer {
     scraper: SqlChainScraper,
-    indexed_message_height: IntGauge,
-    indexed_deliveries_height: IntGauge,
+    indexed_height: IntGauge,
     stored_messages: IntCounter,
     stored_deliveries: IntCounter,
+    stored_payments: IntCounter,
     missed_messages: IntCounter,
     message_nonce: IntGaugeVec,
     sync_cursor: RateLimitedSyncBlockRangeCursor<Arc<dyn MailboxIndexer>>,
@@ -54,29 +56,27 @@ impl Syncer {
     pub async fn new(scraper: SqlChainScraper) -> Result<Self> {
         let domain = scraper.domain();
         let chain_name = domain.name();
-        let message_labels = ["messages", chain_name];
-        let deliveries_labels = ["deliveries", chain_name];
 
-        let indexed_message_height = scraper
+        let indexed_height = scraper
             .metrics
             .indexed_height
-            .with_label_values(&message_labels);
-        let indexed_deliveries_height = scraper
-            .metrics
-            .indexed_height
-            .with_label_values(&deliveries_labels);
-        let stored_messages = scraper
-            .metrics
-            .stored_events
-            .with_label_values(&message_labels);
+            .with_label_values(&["all", chain_name]);
         let stored_deliveries = scraper
             .metrics
             .stored_events
-            .with_label_values(&deliveries_labels);
+            .with_label_values(&["deliveries", chain_name]);
+        let stored_payments = scraper
+            .metrics
+            .stored_events
+            .with_label_values(&["gas_payments", chain_name]);
+        let stored_messages = scraper
+            .metrics
+            .stored_events
+            .with_label_values(&["messages", chain_name]);
         let missed_messages = scraper
             .metrics
             .missed_events
-            .with_label_values(&message_labels);
+            .with_label_values(&["messages", chain_name]);
         let message_nonce = scraper.metrics.message_nonce.clone();
 
         let chunk_size = scraper.chunk_size;
@@ -85,7 +85,7 @@ impl Syncer {
         let last_nonce = scraper.last_message_nonce().await?;
 
         let sync_cursor = RateLimitedSyncBlockRangeCursor::new(
-            scraper.contracts.indexer.clone(),
+            scraper.contracts.mailbox_indexer.clone(),
             chunk_size,
             initial_height,
         )
@@ -93,10 +93,10 @@ impl Syncer {
 
         Ok(Self {
             scraper,
-            indexed_message_height,
-            indexed_deliveries_height,
+            indexed_height,
             stored_messages,
             stored_deliveries,
+            stored_payments,
             missed_messages,
             message_nonce,
             sync_cursor,
@@ -110,8 +110,7 @@ impl Syncer {
     pub async fn run(mut self) -> Result<()> {
         let start_block = self.sync_cursor.current_position();
         info!(from = start_block, "Resuming chain sync");
-        self.indexed_message_height.set(start_block as i64);
-        self.indexed_deliveries_height.set(start_block as i64);
+        self.indexed_height.set(start_block as i64);
 
         loop {
             let start_block = self.sync_cursor.current_position();
@@ -123,29 +122,28 @@ impl Syncer {
                 }
             };
 
-            let (sorted_messages, deliveries) = self.scrape_range(from, to).await?;
+            let extracted = self.scrape_range(from, to).await?;
 
             let validation = validate_message_continuity(
                 self.last_nonce,
-                &sorted_messages
+                &extracted
+                    .sorted_messages
                     .iter()
                     .map(|r| &r.message)
                     .collect::<Vec<_>>(),
             );
             match validation {
                 ListValidity::Valid => {
-                    let max_nonce_of_batch = self.record_data(sorted_messages, deliveries).await?;
+                    let max_nonce_of_batch = self.record_data(extracted).await?;
 
                     self.cursor.update(from as u64).await;
                     self.last_nonce = max_nonce_of_batch;
                     self.last_valid_range_start_block = from;
-                    self.indexed_message_height.set(to as i64);
-                    self.indexed_deliveries_height.set(to as i64);
+                    self.indexed_height.set(to as i64);
                 }
                 ListValidity::Empty => {
-                    let _ = self.record_data(sorted_messages, deliveries).await?;
-                    self.indexed_message_height.set(to as i64);
-                    self.indexed_deliveries_height.set(to as i64);
+                    let _ = self.record_data(extracted).await?;
+                    self.indexed_height.set(to as i64);
                 }
                 ListValidity::InvalidContinuation => {
                     self.missed_messages.inc();
@@ -158,9 +156,7 @@ impl Syncer {
                     );
                     self.sync_cursor
                         .backtrack(self.last_valid_range_start_block);
-                    self.indexed_message_height
-                        .set(self.last_valid_range_start_block as i64);
-                    self.indexed_deliveries_height
+                    self.indexed_height
                         .set(self.last_valid_range_start_block as i64);
                 }
                 ListValidity::ContainsGaps => {
@@ -180,31 +176,43 @@ impl Syncer {
 
     /// Fetch contract data from a given block range.
     #[instrument(skip(self))]
-    async fn scrape_range(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> Result<(Vec<HyperlaneMessageWithMeta>, Vec<Delivery>)> {
+    async fn scrape_range(&self, from: u32, to: u32) -> Result<ExtractedData> {
+        debug!(from, to, "Fetching messages for range");
         let sorted_messages = self
             .contracts
-            .indexer
+            .mailbox_indexer
             .fetch_sorted_messages(from, to)
             .await?;
+        trace!(from, to, ?sorted_messages, "Fetched messages");
 
+        debug!(from, to, "Fetching deliveries for range");
         let deliveries = self
             .contracts
-            .indexer
+            .mailbox_indexer
             .fetch_delivered_messages(from, to)
             .await?
             .into_iter()
             .map(|(message_id, meta)| Delivery { message_id, meta })
             .collect_vec();
+        trace!(from, to, ?deliveries, "Fetched deliveries");
 
-        debug!(
+        debug!(from, to, "Fetching payments for range");
+        let payments = self
+            .contracts
+            .igp_indexer
+            .fetch_gas_payments(from, to)
+            .await?
+            .into_iter()
+            .map(|(payment, meta)| Payment { payment, meta })
+            .collect_vec();
+        trace!(from, to, ?payments, "Fetched payments");
+
+        info!(
             from,
             to,
             message_count = sorted_messages.len(),
             deliveries_count = deliveries.len(),
+            payments = payments.len(),
             "Indexed block range for chain"
         );
 
@@ -224,26 +232,37 @@ impl Syncer {
             "Filtered any messages already indexed for mailbox"
         );
 
-        Ok((sorted_messages, deliveries))
+        Ok(ExtractedData {
+            sorted_messages,
+            deliveries,
+            payments,
+        })
     }
 
     /// Record messages and deliveries, will fetch any extra data needed to do
     /// so. Returns the max nonce or None if no messages were provided.
     #[instrument(
         skip_all,
-        fields(sorted_messages = sorted_messages.len(), deliveries = deliveries.len())
+        fields(
+            sorted_messages = extracted.sorted_messages.len(),
+            deliveries = extracted.deliveries.len(),
+            payments = extracted.payments.len()
+        )
     )]
-    async fn record_data(
-        &self,
-        sorted_messages: Vec<HyperlaneMessageWithMeta>,
-        deliveries: Vec<Delivery>,
-    ) -> Result<Option<u32>> {
-        let txns: HashMap<H256, TxnWithIdAndTime> = self
+    async fn record_data(&self, extracted: ExtractedData) -> Result<Option<u32>> {
+        let ExtractedData {
+            sorted_messages,
+            deliveries,
+            payments,
+        } = extracted;
+
+        let txns: HashMap<H256, TxnWithId> = self
             .ensure_blocks_and_txns(
                 sorted_messages
                     .iter()
                     .map(|r| &r.meta)
-                    .chain(deliveries.iter().map(|d| &d.meta)),
+                    .chain(deliveries.iter().map(|d| &d.meta))
+                    .chain(payments.iter().map(|p| &p.meta)),
             )
             .await?
             .map(|t| (t.hash, t))
@@ -252,6 +271,11 @@ impl Syncer {
         if !deliveries.is_empty() {
             self.store_deliveries(&deliveries, &txns).await?;
             self.stored_deliveries.inc_by(deliveries.len() as u64);
+        }
+
+        if !payments.is_empty() {
+            self.store_payments(&payments, &txns).await?;
+            self.stored_payments.inc_by(payments.len() as u64);
         }
 
         if !sorted_messages.is_empty() {
@@ -272,4 +296,10 @@ impl Syncer {
             Ok(None)
         }
     }
+}
+
+struct ExtractedData {
+    sorted_messages: Vec<HyperlaneMessageWithMeta>,
+    deliveries: Vec<Delivery>,
+    payments: Vec<Payment>,
 }
