@@ -15,6 +15,7 @@
 //!   switch everyone to new one)
 
 use std::cmp::Ordering;
+use std::fmt::{Debug, Formatter};
 use std::time::Instant;
 
 use derive_new::new;
@@ -28,7 +29,7 @@ pub mod serial_submitter;
 
 /// A SubmitMessageOp describes the message that the submitter should
 /// try to submit.
-#[derive(Clone, Debug, new)]
+#[derive(Clone, new)]
 pub(crate) struct SubmitMessageArgs {
     pub message: HyperlaneMessage,
     #[new(default)]
@@ -37,6 +38,17 @@ pub(crate) struct SubmitMessageArgs {
     last_attempted_at: Instant,
     #[new(default)]
     next_attempt_after: Option<Instant>,
+}
+
+impl Debug for SubmitMessageArgs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let now = Instant::now();
+        let as_secs = |t| {
+            now.duration_since(t).as_secs()
+        };
+        write!(f, "SubmitMessageArgs {{ num_retires: {}, since_last_attempt_s: {}, next_attempt_after_s: {}, message: {:?} }}",
+               self.num_retries, as_secs(self.last_attempted_at), self.next_attempt_after.map(as_secs).unwrap_or(0), self.message)
+    }
 }
 
 /// Sort by their next allowed attempt time and if no allowed time is set, then
