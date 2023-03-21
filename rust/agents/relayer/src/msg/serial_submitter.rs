@@ -196,8 +196,10 @@ impl SerialSubmitter {
         if msg.num_retries >= 1 {
             let required_duration = Duration::from_secs(match msg.num_retries {
                 i if i < 1 => unreachable!(),
-                // wait 20s to 7.7min with a linear increase
-                i if (1..24).contains(&i) => i as u64 * 20,
+                // wait 10s for the first few attempts; this prevents thrashing
+                i if (1..12).contains(&i) => 10,
+                // wait 90s to 19.5min with a linear increase
+                i if (12..24).contains(&i) => (i as u64 - 11) * 90,
                 // exponential increase + 30 min; -21 makes it so that at i = 32 it will be
                 // ~60min timeout (64min to be more precise).
                 i => (2u64).pow(i - 21) + 60 * 30,
