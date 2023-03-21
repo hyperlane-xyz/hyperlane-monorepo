@@ -234,7 +234,7 @@ contract InterchainAccountRouter is
      * EVM compatible
      * @param _destination The remote destination domain of the interchain account
      * @param _owner The local owner of the interchain account
-     * @return The local address of the interchain account
+     * @return The remote address of the interchain account
      */
     function getRemoteInterchainAccount(uint32 _destination, address _owner)
         external
@@ -380,7 +380,7 @@ contract InterchainAccountRouter is
      * @param _owner The local owner of the interchain account
      * @param _router The remote InterchainAccountRouter
      * @param _ism The remote address of the ISM
-     * @return The local address of the interchain account
+     * @return The remote address of the interchain account
      */
     function getRemoteInterchainAccount(
         address _owner,
