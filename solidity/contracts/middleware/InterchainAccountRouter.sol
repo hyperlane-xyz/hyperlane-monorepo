@@ -334,7 +334,6 @@ contract InterchainAccountRouter is
         bytes32 _ism,
         CallLib.Call[] calldata _calls
     ) public returns (bytes32) {
-        require(_router != bytes32(0), "no router specified for destination");
         bytes memory _body = InterchainAccountMessage.encode(
             msg.sender,
             _ism,
