@@ -11,7 +11,7 @@ use ethers::prelude::Middleware;
 use ethers::types::Eip1559TransactionRequest;
 use ethers_contract::builders::ContractCall;
 use hyperlane_core::{KnownHyperlaneDomain, H160};
-use tracing::instrument;
+use tracing::{debug, instrument};
 
 use hyperlane_core::{
     utils::fmt_bytes, ChainCommunicationError, ChainResult, Checkpoint, ContractLocator,
@@ -184,10 +184,10 @@ where
     /// Create a reference to a mailbox at a specific Ethereum address on some
     /// chain
     pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
-        // Arbitrum Nitro based chains are a special case for transaction cost estimation.
-        // The gas amount that eth_estimateGas returns considers both L1 and L2 gas costs.
-        // We use the NodeInterface, found at address(0xC8), to isolate the L2 gas costs.
-        // See https://developer.arbitrum.io/arbos/gas#nodeinterfacesol or https://github.com/OffchainLabs/nitro/blob/master/contracts/src/node-interface/NodeInterface.sol#L25
+        // Arbitrum Nitro based chains are a special case for transaction cost
+        // estimation. The gas amount that eth_estimateGas returns considers
+        // both L1 and L2 gas costs. We use the NodeInterface, found at
+        // address(0xC8), to isolate the L2 gas costs. See https://developer.arbitrum.io/arbos/gas#nodeinterfacesol or https://github.com/OffchainLabs/nitro/blob/master/contracts/src/node-interface/NodeInterface.sol#L25
         let arbitrum_node_interface = locator.domain.is_arbitrum_nitro().then(|| {
             Arc::new(ArbitrumNodeInterface::new(
                 H160::from_low_u64_be(0xC8),
@@ -225,21 +225,37 @@ where
                 .await?
                 .saturating_add(U256::from(GAS_ESTIMATE_BUFFER))
         };
+
         let Ok((max_fee, max_priority_fee)) = self.provider.estimate_eip1559_fees(None).await else {
             // Is not EIP 1559 chain
+            debug!(?gas_limit, "Assuming it is not an EIP 1559 chain, received error when estimating fees");
             return Ok(tx.gas(gas_limit))
         };
+
+        // Is EIP 1559 chain
+        debug!(
+            ?max_fee,
+            ?max_priority_fee,
+            "Assuming it is an EIP 1559 chain"
+        );
+
         let max_priority_fee = if matches!(
             KnownHyperlaneDomain::try_from(message.destination),
             Ok(KnownHyperlaneDomain::Polygon)
         ) {
             // Polygon needs a max priority fee >= 30 gwei
             let min_polygon_fee = U256::from(30_000_000_000u64);
-            max_priority_fee.max(min_polygon_fee)
+            let max_priority_fee = max_priority_fee.max(min_polygon_fee);
+            debug!(
+                ?min_polygon_fee,
+                ?max_priority_fee,
+                "Adjusted max priority fee for polygon"
+            );
+            max_priority_fee
         } else {
             max_priority_fee
         };
-        // Is EIP 1559 chain
+
         let mut request = Eip1559TransactionRequest::new();
         if let Some(from) = tx.tx.from() {
             request = request.from(*from);
@@ -470,11 +486,13 @@ mod test {
         let gas_price: U256 = ethers::utils::parse_units("15", "gwei").unwrap().into();
         mock_provider.push(gas_price).unwrap();
 
-        // RPC 3: eth_estimateGas to the ArbitrumNodeInterface's estimateRetryableTicket function by process_estimate_costs
+        // RPC 3: eth_estimateGas to the ArbitrumNodeInterface's estimateRetryableTicket
+        // function by process_estimate_costs
         let l2_gas_limit = U256::from(200000); // 200k gas
         mock_provider.push(l2_gas_limit).unwrap();
 
-        // RPC 2: eth_getBlockByNumber from the estimate_eip1559_fees call in process_contract_call
+        // RPC 2: eth_getBlockByNumber from the estimate_eip1559_fees call in
+        // process_contract_call
         mock_provider.push(Block::<Transaction>::default()).unwrap();
 
         // RPC 1: eth_estimateGas from the estimate_gas call in process_contract_call
