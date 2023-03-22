@@ -9,9 +9,9 @@ import {IInterchainSecurityModule} from "../../../interfaces/IInterchainSecurity
 import {Message} from "../../libs/Message.sol";
 
 /**
- * @title RoutingIsm
+ * @title DomainRoutingIsm
  */
-contract RoutingIsm is AbstractRoutingIsm, Ownable {
+contract DomainRoutingIsm is AbstractRoutingIsm, Ownable {
     // ============ Public Storage ============
     mapping(uint32 => IInterchainSecurityModule) public modules;
 
