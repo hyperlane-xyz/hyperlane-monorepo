@@ -33,6 +33,9 @@ contract MockHyperlaneEnvironment {
         isms[originDomain] = new TestIsm();
         isms[destinationDomain] = new TestIsm();
 
+        originMailbox.setDefaultIsm(isms[originDomain]);
+        destinationMailbox.setDefaultIsm(isms[destinationDomain]);
+
         mailboxes[_originDomain] = originMailbox;
         mailboxes[_destinationDomain] = destinationMailbox;
 

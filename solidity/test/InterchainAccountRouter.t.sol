@@ -6,11 +6,11 @@ import "../contracts/mock/MockMailbox.sol";
 import "../contracts/HyperlaneConnectionClient.sol";
 import "../contracts/mock/MockHyperlaneEnvironment.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
+import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {InterchainAccountIsm} from "../contracts/isms/routing/InterchainAccountIsm.sol";
 import {OwnableMulticall} from "../contracts/OwnableMulticall.sol";
 import {CallLib} from "../contracts/libs/Call.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract Callable {
     mapping(address => bytes32) public data;
@@ -20,13 +20,20 @@ contract Callable {
     }
 }
 
-contract FailingIsm {
+contract FailingIsm is IInterchainSecurityModule {
+    string public failureMessage;
+    uint8 public moduleType;
+
+    constructor(string memory _failureMessage) {
+        failureMessage = _failureMessage;
+    }
+
     function verify(bytes calldata, bytes calldata)
         external
-        pure
+        view
         returns (bool)
     {
-        revert("failing ism");
+        revert(failureMessage);
     }
 }
 
@@ -63,7 +70,9 @@ contract InterchainAccountRouterTest is Test {
     function setUp() public {
         environment = new MockHyperlaneEnvironment(origin, destination);
 
-        icaIsm = new InterchainAccountIsm();
+        icaIsm = new InterchainAccountIsm(
+            address(environment.mailboxes(destination))
+        );
         originRouter = new InterchainAccountRouter(origin, address(0));
         destinationRouter = new InterchainAccountRouter(
             destination,
@@ -282,9 +291,10 @@ contract InterchainAccountRouterTest is Test {
         assertRemoteCallReceived(data);
     }
 
-    function testCallRemoteWithOverridesFails(bytes32 data) public {
+    function testCallRemoteWithFailingIsmOverride(bytes32 data) public {
+        string memory failureMessage = "failing ism";
         bytes32 failingIsm = TypeCasts.addressToBytes32(
-            address(new FailingIsm())
+            address(new FailingIsm(failureMessage))
         );
         originRouter.callRemoteWithOverrides(
             destination,
@@ -292,7 +302,37 @@ contract InterchainAccountRouterTest is Test {
             failingIsm,
             getCalls(data)
         );
-        vm.expectRevert(bytes("failing ism"));
+        vm.expectRevert(bytes(failureMessage));
+        environment.processNextPendingMessage();
+    }
+
+    function testCallRemoteWithFailingDefaultIsm(bytes32 data) public {
+        string memory failureMessage = "failing ism";
+        FailingIsm failingIsm = new FailingIsm(failureMessage);
+
+        environment.mailboxes(destination).setDefaultIsm(failingIsm);
+        originRouter.callRemoteWithOverrides(
+            destination,
+            routerOverride,
+            bytes32(0),
+            getCalls(data)
+        );
+        vm.expectRevert(bytes(failureMessage));
+        environment.processNextPendingMessage();
+    }
+
+    function testCallRemoteWithFailingIsm(bytes32 data) public {
+        string memory failureMessage = "failing ism";
+        bytes32 failingIsm = TypeCasts.addressToBytes32(
+            address(new FailingIsm(failureMessage))
+        );
+        originRouter.callRemoteWithOverrides(
+            destination,
+            routerOverride,
+            failingIsm,
+            getCalls(data)
+        );
+        vm.expectRevert(bytes(failureMessage));
         environment.processNextPendingMessage();
     }
 

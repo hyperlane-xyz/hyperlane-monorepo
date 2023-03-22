@@ -4,6 +4,8 @@ pragma solidity >=0.8.0;
 import {IInterchainSecurityModule} from "./IInterchainSecurityModule.sol";
 
 interface IMailbox {
+    function defaultIsm() external view returns (IInterchainSecurityModule);
+
     function localDomain() external view returns (uint32);
 
     function dispatch(

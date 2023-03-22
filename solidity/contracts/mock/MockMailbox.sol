@@ -18,6 +18,7 @@ contract MockMailbox is Versioned {
     uint32 public outboundNonce = 0;
     uint32 public inboundUnprocessedNonce = 0;
     uint32 public inboundProcessedNonce = 0;
+    IInterchainSecurityModule public defaultIsm;
     mapping(uint32 => MockMailbox) public remoteMailboxes;
     mapping(uint256 => MockMessage) public inboundMessages;
 
@@ -31,6 +32,10 @@ contract MockMailbox is Versioned {
 
     constructor(uint32 _domain) {
         localDomain = _domain;
+    }
+
+    function setDefaultIsm(IInterchainSecurityModule _module) external {
+        defaultIsm = _module;
     }
 
     function addRemoteMailbox(uint32 _domain, MockMailbox _mailbox) external {
@@ -119,8 +124,10 @@ contract MockMailbox is Versioned {
             ISpecifiesInterchainSecurityModule(_recipient)
                 .interchainSecurityModule()
         returns (IInterchainSecurityModule _val) {
-            return _val;
+            if (address(_val) != address(0)) {
+                return _val;
+            }
         } catch {}
-        return IInterchainSecurityModule(address(0));
+        return defaultIsm;
     }
 }
