@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 
 import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
-import {StaticMultisigIsm} from "../../contracts/isms/multisig/StaticMultisigIsm.sol";
 import {StaticMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsmFactory.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
@@ -15,7 +14,7 @@ import {MOfNTestUtils} from "./MOfNTestUtils.sol";
 contract MultisigIsmTest is Test {
     uint32 constant ORIGIN = 11;
     StaticMultisigIsmFactory factory;
-    StaticMultisigIsm ism;
+    IMultisigIsm ism;
     TestMailbox mailbox;
 
     function setUp() public {
@@ -35,7 +34,7 @@ contract MultisigIsmTest is Test {
             keys[i] = key;
             addresses[i] = vm.addr(key);
         }
-        ism = factory.deploy(addresses, m);
+        ism = IMultisigIsm(factory.deploy(addresses, m));
         return keys;
     }
 

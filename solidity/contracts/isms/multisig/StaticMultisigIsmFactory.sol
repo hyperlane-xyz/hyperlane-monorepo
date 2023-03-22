@@ -1,30 +1,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
-
 // ============ Internal Imports ============
 import {StaticMultisigIsm} from "./StaticMultisigIsm.sol";
-import {MetaProxyFactory} from "../../libs/MetaProxyFactory.sol";
+import {StaticMOfNAddressSetFactory} from "../../libs/StaticMOfNAddressSetFactory.sol";
 
-contract StaticMultisigIsmFactory {
-    // ============ Immutables ============
-    address private immutable _implementation;
-
-    // ============ Constructor ============
-
-    constructor() {
-        _implementation = address(new StaticMultisigIsm());
-    }
-
-    function deploy(address[] memory _validators, uint8 _threshold)
-        external
-        returns (StaticMultisigIsm)
+contract StaticMultisigIsmFactory is StaticMOfNAddressSetFactory {
+    function _deployImplementation()
+        internal
+        virtual
+        override
+        returns (address)
     {
-        return
-            StaticMultisigIsm(
-                MetaProxyFactory.fromBytes(
-                    _implementation,
-                    abi.encode(_validators, _threshold)
-                )
-            );
+        return address(new StaticMultisigIsm());
     }
 }

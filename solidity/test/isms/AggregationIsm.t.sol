@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {IAggregationIsm} from "../../interfaces/IAggregationIsm.sol";
-import {StaticAggregationIsm} from "../../contracts/isms/aggregation/StaticAggregationIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
 import {AggregationIsmMetadata} from "../../contracts/libs/AggregationIsmMetadata.sol";
 import {MOfNTestUtils} from "./MOfNTestUtils.sol";
@@ -31,7 +30,7 @@ contract TestIsm {
 
 contract AggregationIsmTest is Test {
     StaticAggregationIsmFactory factory;
-    StaticAggregationIsm ism;
+    IAggregationIsm ism;
 
     function setUp() public {
         factory = new StaticAggregationIsmFactory();
@@ -49,7 +48,7 @@ contract AggregationIsmTest is Test {
             TestIsm subIsm = new TestIsm(abi.encode(randomness));
             isms[i] = address(subIsm);
         }
-        ism = factory.deploy(isms, m);
+        ism = IAggregationIsm(factory.deploy(isms, m));
         return isms;
     }
 
