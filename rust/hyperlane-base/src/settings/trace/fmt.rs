@@ -11,24 +11,19 @@ use tracing_subscriber::{
 };
 
 /// Basic tracing configuration
-#[derive(Debug, Clone, Copy, serde::Deserialize, Eq, PartialEq)]
+#[derive(Default, Debug, Clone, Copy, serde::Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum Style {
     /// Pretty print
+    #[default]
+    #[serde(other)]
     Pretty,
     /// JSON
     Json,
     /// Compact
     Compact,
-    /// Default style
-    #[serde(other)]
+    /// Shows everything
     Full,
-}
-
-impl Default for Style {
-    fn default() -> Self {
-        Style::Pretty
-    }
 }
 
 /// Unification of the fmt Subscriber formatting modes
