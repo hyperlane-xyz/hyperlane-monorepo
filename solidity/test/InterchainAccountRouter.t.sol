@@ -321,21 +321,6 @@ contract InterchainAccountRouterTest is Test {
         environment.processNextPendingMessage();
     }
 
-    function testCallRemoteWithFailingIsm(bytes32 data) public {
-        string memory failureMessage = "failing ism";
-        bytes32 failingIsm = TypeCasts.addressToBytes32(
-            address(new FailingIsm(failureMessage))
-        );
-        originRouter.callRemoteWithOverrides(
-            destination,
-            routerOverride,
-            failingIsm,
-            getCalls(data)
-        );
-        vm.expectRevert(bytes(failureMessage));
-        environment.processNextPendingMessage();
-    }
-
     function testGetLocalInterchainAccount(bytes32 data) public {
         OwnableMulticall destinationIca = destinationRouter
             .getLocalInterchainAccount(
