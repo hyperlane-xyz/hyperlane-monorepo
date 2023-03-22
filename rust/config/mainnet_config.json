@@ -143,7 +143,7 @@
       },
       "signer": null,
       "protocol": "ethereum",
-      "finalityBlocks": 1,
+      "finalityBlocks": 2,
       "connection": {
         "type": "http",
         "url": ""
