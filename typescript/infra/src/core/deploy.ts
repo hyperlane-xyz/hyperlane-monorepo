@@ -22,7 +22,11 @@ import {
 import { types } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment, RustConfig } from '../config';
-import { RustChainSetupBase } from '../config/agent';
+import {
+  ConnectionType,
+  RustChainSetupBase,
+  RustConnection,
+} from '../config/agent';
 import { deployEnvToSdkEnv } from '../config/environment';
 import { writeJSON } from '../utils/utils';
 
@@ -135,6 +139,12 @@ export class HyperlaneCoreInfraDeployer extends HyperlaneCoreDeployer {
         },
         protocol: 'ethereum',
         finalityBlocks: metadata.blocks!.reorgPeriod!,
+        connection: {
+          // not a valid connection but we want to fill in the HTTP type for
+          // them as a default and leave out the URL
+          type: ConnectionType.Http,
+          url: undefined,
+        } as any as RustConnection,
       };
 
       const startingBlockNumber = this.startingBlockNumbers[chain];
