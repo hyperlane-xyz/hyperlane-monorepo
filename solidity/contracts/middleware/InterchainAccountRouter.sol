@@ -72,12 +72,11 @@ contract InterchainAccountRouter is
      * @param router The address of the remote router
      * @param ism The address of the remote ISM
      */
-    event InterchainCallDispatched(
+    event RemoteCallDispatched(
         uint32 indexed destination,
         address indexed owner,
         bytes32 router,
-        bytes32 ism,
-        bytes32 messageId
+        bytes32 ism
     );
 
     /**
@@ -161,6 +160,35 @@ contract InterchainAccountRouter is
                 bytes32(0)
             );
         }
+    }
+
+    /**
+     * @notice Dispatches a single remote call to be made by an owner's
+     * interchain account on the destination domain
+     * @dev Uses the default router and ISM addresses for the destination
+     * domain, reverting if none have been configured
+     * @param _destination The remote domain of the chain to make calls on
+     * @param _to The address of the contract to call
+     * @param _value The value to include in the call
+     * @param _data The calldata
+     * @return The Hyperlane message ID
+     */
+    function callRemote(
+        uint32 _destination,
+        address _to,
+        uint256 _value,
+        bytes memory _data
+    ) external returns (bytes32) {
+        bytes32 _router = routers[_destination];
+        bytes32 _ism = isms[_destination];
+        bytes memory _body = InterchainAccountMessage.encode(
+            msg.sender,
+            _ism,
+            _to,
+            _value,
+            _data
+        );
+        return _dispatchMessage(_destination, _router, _ism, _body);
     }
 
     /**
@@ -306,21 +334,12 @@ contract InterchainAccountRouter is
         bytes32 _ism,
         CallLib.Call[] calldata _calls
     ) public returns (bytes32) {
-        require(_router != bytes32(0), "no router specified for destination");
         bytes memory _body = InterchainAccountMessage.encode(
             msg.sender,
             _ism,
             _calls
         );
-        bytes32 _id = mailbox.dispatch(_destination, _router, _body);
-        emit InterchainCallDispatched(
-            _destination,
-            msg.sender,
-            _router,
-            _ism,
-            _id
-        );
-        return _id;
+        return _dispatchMessage(_destination, _router, _ism, _body);
     }
 
     /**
@@ -470,6 +489,24 @@ contract InterchainAccountRouter is
         isms[_destination] = _ism;
         emit RemoteRouterEnrolled(_destination, _router);
         emit RemoteIsmEnrolled(_destination, _ism);
+    }
+
+    /**
+     * @notice Dispatches an InterchainAccountMessage to the remote router
+     * @param _destination The remote domain
+     * @param _router The address of the remote InterchainAccountRouter
+     * @param _ism The address of the remote ISM
+     * @param _body The InterchainAccountMessage body
+     */
+    function _dispatchMessage(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        bytes memory _body
+    ) private returns (bytes32) {
+        require(_router != bytes32(0), "no router specified for destination");
+        emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
+        return mailbox.dispatch(_destination, _router, _body);
     }
 
     /**

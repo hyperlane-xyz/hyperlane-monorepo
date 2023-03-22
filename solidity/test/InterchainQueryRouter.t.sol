@@ -136,6 +136,26 @@ contract InterchainQueryRouterTest is Test {
         environment.processNextPendingMessageFromDestination();
     }
 
+    function testSingleQueryAddress(address owner) public {
+        vm.assume(owner != address(0x0));
+        // Deploy a random ownable contract
+        TestHyperlaneConnectionClient ownable = new TestHyperlaneConnectionClient();
+        // Set the routers owner
+        ownable.transferOwnership(owner);
+
+        vm.expectEmit(true, true, false, true, address(originRouter));
+        emit QueryDispatched(remoteDomain, address(this));
+
+        originRouter.query(
+            remoteDomain,
+            address(ownable),
+            abi.encodePacked(ownable.owner.selector),
+            abi.encodePacked(this.receiveAddress.selector)
+        );
+        processQuery();
+        assertEq(addressResult, owner);
+    }
+
     function testQueryAddress(address owner) public {
         vm.assume(owner != address(0x0));
         // Deploy a random ownable contract

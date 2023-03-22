@@ -218,6 +218,22 @@ contract InterchainAccountRouterTest is Test {
         assertEq(target.data(address(ica)), data);
     }
 
+    function testSingleCallRemoteWithDefault(bytes32 data) public {
+        originRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+        CallLib.Call[] memory calls = getCalls(data);
+        originRouter.callRemote(
+            destination,
+            TypeCasts.bytes32ToAddress(calls[0].to),
+            calls[0].value,
+            calls[0].data
+        );
+        assertRemoteCallReceived(data);
+    }
+
     function testCallRemoteWithDefault(bytes32 data) public {
         originRouter.enrollRemoteRouterAndIsm(
             destination,
