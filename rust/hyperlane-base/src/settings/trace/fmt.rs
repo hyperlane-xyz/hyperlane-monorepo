@@ -238,7 +238,7 @@ mod test {
         let case = r#"{"style": "toast"}"#;
         assert_eq!(
             serde_json::from_str::<TestStyle>(case).unwrap().style,
-            Style::Full
+            Style::Pretty
         );
     }
 }
