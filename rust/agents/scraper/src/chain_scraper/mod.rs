@@ -188,7 +188,6 @@ impl SqlChainScraper {
         let blocks: HashMap<_, _> = self
             .ensure_blocks(block_hash_by_txn_hash.values().copied())
             .await?
-            .into_iter()
             .map(|block| (block.hash, block))
             .collect();
         trace!(?blocks, "Ensured blocks");
