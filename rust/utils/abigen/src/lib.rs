@@ -101,7 +101,7 @@ pub fn generate_bindings(
     }
     #[cfg(feature = "fuels")]
     if build_type == BuildType::Fuels {
-        fuels::core::code_gen::abigen::Abigen::new(contract_name, abi_source)
+        fuels_code_gen::Abigen::generate(contract_name, abi_source)
             .expect("could not instantiate Abigen")
             .generate()
             .expect("could not generate bindings")

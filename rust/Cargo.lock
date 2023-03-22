@@ -19,6 +19,7 @@ dependencies = [
  "Inflector",
  "ethers",
  "fuels 0.38.1",
+ "fuels-code-gen",
  "which",
 ]
 
