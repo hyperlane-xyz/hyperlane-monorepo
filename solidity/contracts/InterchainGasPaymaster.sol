@@ -30,7 +30,8 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
 
     // solhint-disable-next-line no-empty-blocks
     constructor() {
-        initialize(); // allows contract to be used without proxying
+        _transferOwnership(msg.sender);
+        _disableInitializers();
     }
 
     // ============ External Functions ============
