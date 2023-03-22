@@ -7,9 +7,9 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 // ============ Internal Imports ============
-import {IMultisigIsm} from "../../interfaces/IMultisigIsm.sol";
+import {IMultisigIsm} from "../../interfaces/isms/IMultisigIsm.sol";
 import {Message} from "../libs/Message.sol";
-import {MultisigIsmMetadata} from "../libs/MultisigIsmMetadata.sol";
+import {MultisigIsmMetadata} from "../libs/isms/MultisigIsmMetadata.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 
 /**

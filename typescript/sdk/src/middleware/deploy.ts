@@ -1,14 +1,12 @@
 import { ethers } from 'ethers';
 
 import {
-  ProxyAdmin__factory,
-  TransparentUpgradeableProxy__factory,
-} from '@hyperlane-xyz/core';
-import {
   InterchainAccountRouter,
   InterchainAccountRouter__factory,
   InterchainQueryRouter,
   InterchainQueryRouter__factory,
+  ProxyAdmin__factory,
+  TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 
 import { MultiProvider } from '../providers/MultiProvider';
@@ -59,7 +57,8 @@ export abstract class MiddlewareRouterDeployer<
   }
 
   constructorArgs(
-    _: MiddlewareRouterConfig,
+    _chain: ChainName,
+    _config: MiddlewareRouterConfig,
   ): Parameters<MiddlewareFactories['router']['deploy']> {
     return [] as any;
   }
@@ -94,7 +93,7 @@ export abstract class MiddlewareRouterDeployer<
     const proxiedRouter = await this.deployProxiedContract(
       chain,
       'router',
-      this.constructorArgs(config),
+      this.constructorArgs(chain, config),
       proxyAdmin,
       initArgs as any, // generic type inference fails here
       {
@@ -155,10 +154,11 @@ export class InterchainAccountDeployer extends MiddlewareRouterDeployer<
     );
 
     // 2. deploy the real InterchainAccountRouter and OwnableMulticall implementation with proxy address
+    const domainId = this.multiProvider.getDomainId(chain);
     const implementation = await this.deployContract(
       chain,
       'router',
-      [proxy.address],
+      [domainId, proxy.address],
       { create2Salt: this.create2salt },
     );
 
