@@ -76,8 +76,7 @@ contract InterchainAccountRouter is
         uint32 indexed destination,
         address indexed owner,
         bytes32 router,
-        bytes32 ism,
-        bytes32 messageId
+        bytes32 ism
     );
 
     /**
@@ -507,15 +506,8 @@ contract InterchainAccountRouter is
         bytes memory _body
     ) private returns (bytes32) {
         require(_router != bytes32(0), "no router specified for destination");
-        bytes32 _id = mailbox.dispatch(_destination, _router, _body);
-        emit InterchainCallDispatched(
-            _destination,
-            msg.sender,
-            _router,
-            _ism,
-            _id
-        );
-        return _id;
+        emit InterchainCallDispatched(_destination, msg.sender, _router, _ism);
+        return mailbox.dispatch(_destination, _router, _body);
     }
 
     /**
