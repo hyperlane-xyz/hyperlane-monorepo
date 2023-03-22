@@ -11,7 +11,7 @@ use tracing_subscriber::{
 };
 
 /// Basic tracing configuration
-#[derive(Debug, Clone, Copy, serde::Deserialize, Eq, PartialEq)]
+#[derive(Default, Debug, Clone, Copy, serde::Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum Style {
     /// Pretty print
@@ -22,13 +22,8 @@ pub enum Style {
     Compact,
     /// Default style
     #[serde(other)]
+    #[default]
     Full,
-}
-
-impl Default for Style {
-    fn default() -> Self {
-        Style::Full
-    }
 }
 
 /// Unification of the fmt Subscriber formatting modes

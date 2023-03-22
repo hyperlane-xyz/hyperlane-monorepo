@@ -23,18 +23,18 @@ pub mod identifiers;
 /// A payment of a message's gas costs.
 #[derive(Debug, Copy, Clone)]
 pub struct InterchainGasPayment {
-    /// The id of the message
+    /// Id of the message
     pub message_id: H256,
-    /// The amount of native tokens paid.
+    /// Amount of native tokens paid.
     pub payment: U256,
-    /// The amount of destination gas paid for.
+    /// Amount of destination gas paid for.
     pub gas_amount: U256,
 }
 
 /// Amount of gas spent attempting to send the message.
 #[derive(Debug, Copy, Clone)]
 pub struct InterchainGasExpenditure {
-    /// The id of the message
+    /// Id of the message
     pub message_id: H256,
     /// Amount of destination tokens used attempting to relay the message
     pub tokens_used: U256,
@@ -108,13 +108,13 @@ impl Decode for InterchainGasPaymentMeta {
     }
 }
 
-/// An InterchainGasPayment with metadata to uniquely identify the payment
-#[derive(Debug)]
-pub struct InterchainGasPaymentWithMeta {
-    /// The InterchainGasPayment
-    pub payment: InterchainGasPayment,
-    /// Metadata for the payment
-    pub meta: InterchainGasPaymentMeta,
+impl From<&LogMeta> for InterchainGasPaymentMeta {
+    fn from(meta: &LogMeta) -> Self {
+        Self {
+            transaction_hash: meta.transaction_hash,
+            log_index: meta.log_index.as_u64(),
+        }
+    }
 }
 
 /// A cost estimate for a transaction.

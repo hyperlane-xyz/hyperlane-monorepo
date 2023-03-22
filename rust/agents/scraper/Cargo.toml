@@ -9,17 +9,18 @@ version.workspace = true
 
 [dependencies]
 async-trait.workspace = true
-chrono = "0.4"
 config.workspace = true
 ethers.workspace = true
 eyre.workspace = true
 futures.workspace = true
 itertools.workspace = true
+num-bigint = "0.4"
 prometheus.workspace = true
-sea-orm = { version = "~0.10.5", features = ["sqlx-postgres", "runtime-tokio-native-tls", "macros"] }
+sea-orm = { version = "0.11.1", features = ["sqlx-postgres", "runtime-tokio-native-tls", "with-bigdecimal", "with-time", "macros"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+time = "0.3"
 tokio = { workspace = true, features = ["rt", "macros"] }
 tracing-futures.workspace = true
 tracing-subscriber.workspace = true
