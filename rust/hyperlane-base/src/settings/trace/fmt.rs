@@ -14,16 +14,16 @@ use tracing_subscriber::{
 #[derive(Default, Debug, Clone, Copy, serde::Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum Style {
-    /// Pretty print
-    #[default]
-    #[serde(other)]
-    Pretty,
     /// JSON
     Json,
     /// Compact
     Compact,
     /// Shows everything
     Full,
+    /// Pretty print
+    #[default]
+    #[serde(other)]
+    Pretty,
 }
 
 /// Unification of the fmt Subscriber formatting modes
